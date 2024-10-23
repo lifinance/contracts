@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "",
+        "Version": ""
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -29,43 +37,58 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
+        "Name": "",
+        "Version": ""
+      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
         "Name": "LIFuelFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
         "Name": "CelerIMFacetMutable",
-        "Version": ""
+        "Version": "2.0.0"
       },
-      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
         "Name": "StandardizedCallFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
+      "0xF965f52046D7095d5080bD31459601F4Eb24f72D": {
+        "Name": "",
+        "Version": ""
+      },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
+      },
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
-      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-      "GasRebateDistributor": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "ReceiverStargateV2": ""
+      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "ReceiverAcrossV3": "",
+      "ReceiverStargateV2": "",
+      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }

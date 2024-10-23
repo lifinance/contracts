@@ -104,19 +104,30 @@
       "0x113E97921874646413572F2C43562463c378b6f5": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x80b96CA9B47aCD6c2a888128fEb9b0F4Ea518FEc": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
+      "0xAfEB7e1DA0Ff4DcD0dbC4De3F51a933E2054B0ed": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
+      },
+      "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-      "GasRebateDistributor": "",
-      "LiFiDEXAggregator": "0xcaA342e4f781d63EF41E220D7622B97E66BAEcF3",
+      "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
       "Receiver": "0xdcBEcDE898c067cA58ABD01a7de51660bBD5A897",
+      "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xA8Fe73F7b3a825fF51f2200af12c16B3BA95394d",
       "TokenWrapper": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a"
     }
   }
