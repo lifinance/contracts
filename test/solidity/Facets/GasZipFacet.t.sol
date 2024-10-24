@@ -399,6 +399,41 @@ contract GasZipFacetTest is TestBaseFacet {
         chainIds[4] = 59; // Linea
 
         assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 65336774203);
+
+        chainIds = new uint8[](28);
+        chainIds[0] = 255; // Chain ID 255
+        chainIds[1] = 57; // Chain ID 57
+        chainIds[2] = 62; // Chain ID 62
+        chainIds[3] = 15; // Chain ID 15
+        chainIds[4] = 54; // Chain ID 54
+        chainIds[5] = 96; // Chain ID 96
+        chainIds[6] = 140; // Chain ID 140
+        chainIds[7] = 148; // Chain ID 148
+        chainIds[8] = 21; // Chain ID 21
+        chainIds[9] = 20; // Chain ID 20
+        chainIds[10] = 10; // Chain ID 10
+        chainIds[11] = 31; // Chain ID 31
+        chainIds[12] = 16; // Chain ID 16
+        chainIds[13] = 59; // Chain ID 59
+        chainIds[14] = 13; // Chain ID 13
+        chainIds[15] = 30; // Chain ID 30
+        chainIds[16] = 73; // Chain ID 73
+        chainIds[17] = 28; // Chain ID 28
+        chainIds[18] = 29; // Chain ID 29
+        chainIds[19] = 55; // Chain ID 55
+        chainIds[20] = 17; // Chain ID 17
+        chainIds[21] = 52; // Chain ID 52
+        chainIds[22] = 254; // Chain ID 254
+        chainIds[23] = 41; // Chain ID 41
+        chainIds[24] = 246; // Chain ID 246
+        chainIds[25] = 249; // Chain ID 249
+        chainIds[26] = 146; // Chain ID 146
+        chainIds[27] = 51; // Chain ID 51
+
+        assertEq(
+            gasZipFacet.getDestinationChainsValue(chainIds),
+            26878182541072503599461683703464409408182428609391216984945776497203
+        );
     }
 
     function testRevert_WillFailIfMsgValueDoesNotMatchBridgeDataAmount()
