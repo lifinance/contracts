@@ -140,14 +140,14 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // update bridgeData to use native
         bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = defaultERC20DepositAmount;
+        bridgeData.minAmount = defaultNativeDepositAmount;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
         emit Deposit(
             address(gasZipFacet),
             defaultDestinationChains,
-            defaultERC20DepositAmount,
+            defaultNativeDepositAmount,
             defaultReceiverBytes32
         );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
