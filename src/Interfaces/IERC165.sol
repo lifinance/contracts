@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /// @custom:version 1.0.0
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 interface IERC165 {
     /// @notice Query if a contract implements an interface

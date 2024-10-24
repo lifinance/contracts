@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
 import { OnlyContractOwner, InvalidConfig, InvalidCallData, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";

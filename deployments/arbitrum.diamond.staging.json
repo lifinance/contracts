@@ -140,6 +140,18 @@
       "0xE15C7585636e62b88bA47A40621287086E0c2E33": {
         "Name": "",
         "Version": ""
+      },
+      "0x2b64B62cbCfB38560222eBcfbbc4e65eC34c8Ce8": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
+      "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

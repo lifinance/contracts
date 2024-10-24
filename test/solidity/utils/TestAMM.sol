@@ -14,7 +14,7 @@ contract TestAMM {
             _fromToken.transferFrom(msg.sender, address(this), _amountIn);
             _fromToken.burn(address(this), _amountIn);
         } else {
-            payable(address(0xd34d)).transfer(msg.value);
+            payable(address(0xd34d)).call{ value: msg.value }("");
         }
 
         _toToken.mint(msg.sender, _amountOut);

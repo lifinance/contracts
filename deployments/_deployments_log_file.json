@@ -23822,6 +23822,20 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcF8c70683D7c0E2a094348896A46407646b94859",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-24 10:06:48",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AcrossFacetV3": {

@@ -90,6 +90,11 @@ deploySingleContract() {
     echo ""
   fi
 
+  # Handle ZkSync
+  if [[ $NETWORK == "zksync" ]]; then
+    DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+  fi
+  
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
@@ -184,6 +189,21 @@ deploySingleContract() {
     fi
   fi
 
+  if [[ $NETWORK == "zksync" ]]; then
+      DEPLOYED=$(findContractInMasterLog $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH)
+      if [[ $? == 0 ]]; then
+        gum style \
+	        --foreground 220 --border-foreground 220 --border double \
+	        --align center --width 50 --margin "1 2" --padding "2 4" \
+	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
+        gum confirm "Deploy anyway?" || exit 0
+      fi
+      rm -fr ./out
+      rm -fr ./zkout
+      docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge cache clean
+      docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge build --zksync
+  fi
+
   # execute script
   attempts=1
 
@@ -193,8 +213,13 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvvv --json --silent --broadcast --skip-simulation --legacy)
+    if [[ $NETWORK == "zksync" ]]; then
+      RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e DEPLOYSALT=$DEPLOYSALT -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --silent --broadcast --skip-simulation --slow --zksync) 
+    else
+      # try to execute call
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvvv --json --silent --broadcast --skip-simulation --legacy)
+    fi
+
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
