@@ -3,12 +3,17 @@ import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { getAllNetworks } from '../utils/network'
+import networks from '../../config/networks.json'
 import gasZipChainIds from '../resources/gasZipChainIds.json'
 import { BigNumber, BigNumberish } from 'ethers'
 import axios from 'axios'
 import { mainnet } from 'viem/chains'
 import { network } from 'hardhat'
-import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+import {
+  getAllActiveNetworks,
+  getGasFees,
+  getViemChainForNetworkName,
+} from '../utils/viemScriptHelpers'
 
 const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
 const testnets = [
@@ -79,7 +84,7 @@ const main = defineCommand({
     console.log(`fundingWalletAddress: ${fundingWallet.address}`)
     console.log(`receivingWallet: ${receivingWallet}`)
     console.log(`doNotFundChains: ${doNotFundChains}`)
-    console.log(`fundAmountUSD: ${fundAmountUSD}`)
+    console.log(`fundAmountUSD: ${fundAmountUSD}\n`)
 
     // get viem public client to read from blockchain
     const publicClient = createPublicClient({
@@ -95,14 +100,13 @@ const main = defineCommand({
     })
 
     // get a list of all target networks
-    const networks = getAllTargetNetworks()
-    console.log(`${networks.length} target networks identified`)
+    const networks = getGasZipSupportedActiveNetworks()
 
     // calculate total amount USD needed (fundAmount * networks)
     const amountUSDPerNetwork = BigNumber.from(fundAmountUSD)
     const amountRequiredUSD = amountUSDPerNetwork.mul(networks.length)
     console.log(
-      `USD amount required to fund all networks: $ ${amountRequiredUSD.toString()}`
+      `USD amount required to fund all networks: $ ${amountRequiredUSD.toString()}\n`
     )
 
     // get current native price and calculate nativeAmount required
@@ -115,7 +119,7 @@ const main = defineCommand({
       10
     )
     console.log(
-      `Native amount required to fund all networks: ${amountRequiredNative.toString()}`
+      `Native amount required to fund all networks: ${amountRequiredNative.toString()}\n`
     )
 
     // get fundingWallet's native balance
@@ -128,7 +132,7 @@ const main = defineCommand({
     // make sure that balance is sufficient
     if (nativeBalance.lt(amountRequiredNative))
       throw new Error(
-        `Native balance of funding wallet is insufficient (required: ${amountRequiredNative}, available: ${nativeBalance}`
+        `Native balance of funding wallet is insufficient: \nrequired : ${amountRequiredNative}, \navailable: ${nativeBalance}`
       )
     else
       console.log(
@@ -136,7 +140,7 @@ const main = defineCommand({
       )
 
     // get an array with target chainIds
-    const chainIds = networks.map((network) => network.id)
+    const chainIds = networks.map((chain) => chain.gasZipChainId)
     console.log(`ChainIds: [${chainIds}]`)
 
     // prepare calldata (get list of gasZip chainIds and combine them)
@@ -144,6 +148,18 @@ const main = defineCommand({
       (p, c) => (p << BigInt(8)) + BigInt(c),
       BigInt(0)
     )
+    console.log(`DestinationChainsValue: ${chainsBN}`)
+
+    // Get the latest block information to get the base fee
+    // const gasFees = await getGasFees(publicClient)
+    const gasFees = await publicClient.estimateFeesPerGas()
+
+    // Estimate gas limit before simulating or writing the contract
+    const gasLimit = await publicClient.estimateGas({
+      account: fundingWallet,
+      to: GAS_ZIP_ROUTER_MAINNET,
+      value: amountRequiredNative.toBigInt(),
+    })
 
     // simulate transaction
     const result = await publicClient.simulateContract({
@@ -153,11 +169,18 @@ const main = defineCommand({
       functionName: 'deposit',
       value: amountRequiredNative.toBigInt(),
       args: [chainsBN, receivingWallet as HexString],
+      gas: gasLimit,
+      type: 'eip1559',
     })
     console.dir(result, { depth: null, colors: true })
 
     // execute transaction
-    const txHash = await walletClient.writeContract(result.request)
+    const txHash = await walletClient.writeContract({
+      ...result.request,
+      // maxFeePerGas: gasFees.maxFeePerGas,
+      // maxPriorityFeePerGas: gasFees.maxPriorityFeePerGas,
+      // gas: gasLimit,
+    })
     console.log(`Transaction successfully submitted: ${txHash}`)
   },
 })
@@ -194,43 +217,47 @@ const getEthPrice = async () => {
   }
 }
 
-const getAllTargetNetworks = () => {
-  // get a list of all target networks
-  const allNetworks = getAllNetworks()
+const getGasZipSupportedActiveNetworks = () => {
+  const activeNetworks = getAllActiveNetworks()
+  console.log(
+    `${activeNetworks.length} active networks identified: ${activeNetworks.map(
+      (network) => network.id
+    )}\n`
+  )
 
   // remove testnets
-  const allProdNetworks = allNetworks.filter(
-    (network) => !testnets.includes(network)
+  const mainnets = activeNetworks.filter(
+    (network) => network.type === 'mainnet'
   )
 
-  // get an array with Viem networks
-  const allViemNetworks = allProdNetworks.map((network) => {
-    const chain = getViemChainForNetworkName(network)
-    return {
-      ...chain,
-      nameLiFi: network,
-    }
-  })
+  console.log(`${mainnets.length} of those networks are mainnets\n`)
 
-  // identify networks that gasZip does not support
-  const gasZipChainIdsTyped: GasZipChainIds = gasZipChainIds
-  const unsupportedNetworks = allViemNetworks.filter(
-    (network) => !gasZipChainIdsTyped[network.id.toString()]
+  // identify and remove networks that do not have a GasZipChainId
+  const gasZipSupportedNetworks = mainnets.filter(
+    (network) => network.gasZipChainId !== 0
+  )
+  const gasZipUnsupportedNetworks = mainnets.filter(
+    (network) => network.gasZipChainId === 0
   )
 
-  if (unsupportedNetworks.length > 0)
-    console.log(
-      `Viem does not support ${
-        unsupportedNetworks.length
-      } of our networks: [${unsupportedNetworks.map((network) => network.id)}]`
+  // print all networks that are not supported by GasZip and need to be funded manually
+  if (gasZipUnsupportedNetworks.length) {
+    console.warn(
+      `The following ${
+        gasZipUnsupportedNetworks.length
+      } networks are not supported by GasZip and need to be funded manually: ${JSON.stringify(
+        gasZipUnsupportedNetworks.map((chain) => chain.id),
+        null,
+        2
+      )}\n`
     )
+  }
 
-  // identify networks that gasZip does not support
-  const targetNetworks = allViemNetworks.filter(
-    (network) => gasZipChainIdsTyped[network.id.toString()]
+  console.log(
+    `${gasZipSupportedNetworks.length} of those networks are supported by GasZip\n`
   )
 
-  return targetNetworks
+  return gasZipSupportedNetworks
 }
 
 function sleep(ms: number): Promise<void> {
