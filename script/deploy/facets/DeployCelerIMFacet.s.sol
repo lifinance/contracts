@@ -4,13 +4,14 @@ pragma solidity ^0.8.17;
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { CelerIMFacetMutable } from "lifi/Facets/CelerIMFacetMutable.sol";
-import { CelerIMFacetImmutable } from "lifi/Facets/CelerIMFacetImmutable.sol";
 import { CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
     constructor() DeployScriptBase("CelerIMFacet") {}
+
+    error CelerImFacetImmutableIsArchived();
 
     function run()
         public
@@ -30,9 +31,7 @@ contract DeployScript is DeployScriptBase {
                 deploy(type(CelerIMFacetMutable).creationCode)
             );
         } else {
-            deployed = CelerIMFacetImmutable(
-                deploy(type(CelerIMFacetImmutable).creationCode)
-            );
+            revert CelerImFacetImmutableIsArchived();
         }
     }
 
