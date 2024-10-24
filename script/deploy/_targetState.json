@@ -47,6 +47,7 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0"
       },
@@ -143,6 +144,7 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -590,6 +592,7 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -633,7 +636,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       }
     }
   },
@@ -678,6 +682,7 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -748,7 +753,16 @@
         "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0"
+        "CelerIMFacetMutable": "2.0.0",
+        "CircleBridgeFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "HyphenFacet": "1.0.0",
+        "StargateFacet": "2.2.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1072,6 +1086,7 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetMutable": "2.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1269,6 +1284,7 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1446,6 +1462,7 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1506,7 +1523,8 @@
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AmarokFacet": "3.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1674,7 +1692,8 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "SquidFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",

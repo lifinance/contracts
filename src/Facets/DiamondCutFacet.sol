@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+/// @custom:version 2.0.0
+pragma solidity ^0.8.17;
 
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
@@ -16,10 +17,10 @@ contract DiamondCutFacet is IDiamondCut {
     /// @param _calldata A function call, including function selector and arguments
     ///                  _calldata is executed with delegatecall on _init
     function diamondCut(
-        FacetCut[] calldata _diamondCut,
+        LibDiamond.FacetCut[] calldata _diamondCut,
         address _init,
         bytes calldata _calldata
-    ) external override {
+    ) external {
         LibDiamond.enforceIsContractOwner();
         LibDiamond.diamondCut(_diamondCut, _init, _calldata);
     }

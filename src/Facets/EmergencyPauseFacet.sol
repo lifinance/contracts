@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibDiamondLoupe } from "../Libraries/LibDiamondLoupe.sol";
@@ -11,7 +11,7 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 /// @title EmergencyPauseFacet (Admin only)
 /// @author LI.FI (https://li.fi)
 /// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet or pause the diamond in case of emergency
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 /// @dev Admin-Facet for emergency purposes only
 contract EmergencyPauseFacet {
     /// Events ///
@@ -157,11 +157,12 @@ contract EmergencyPauseFacet {
                 continue;
 
             // build FacetCut parameter
-            IDiamondCut.FacetCut[]
-                memory facetCut = new IDiamondCut.FacetCut[](1);
-            facetCut[0] = IDiamondCut.FacetCut({
+            LibDiamond.FacetCut[] memory facetCut = new LibDiamond.FacetCut[](
+                1
+            );
+            facetCut[0] = LibDiamond.FacetCut({
                 facetAddress: address(0), // needs to be address(0) for removals
-                action: IDiamondCut.FacetCutAction.Remove,
+                action: LibDiamond.FacetCutAction.Remove,
                 functionSelectors: currentSelectors
             });
 
