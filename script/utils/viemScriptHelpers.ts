@@ -1,27 +1,27 @@
-import { Chain, defineChain, getAddress } from 'viem'
-import * as chains from 'viem/chains'
+import { Chain, defineChain } from 'viem'
 import networksConfig from '../../config/networks.json'
 
-export type Networks = {
-  [key: string]: {
-    name: string
-    chainId: number
-    nativeAddress: string
-    nativeCurrency: string
-    wrappedNativeAddress: string
-    status: string
-    type: string
-    rpcUrl: string
-    verificationType: string
-    explorerUrl: string
-    explorerApiUrl: string
-    multicallAddress: string
-    safeApiUrl: string
-    safeAddress: string
-  }
+export type Network = {
+  name: string
+  chainId: number
+  nativeAddress: string
+  nativeCurrency: string
+  wrappedNativeAddress: string
+  status: string
+  type: string
+  rpcUrl: string
+  verificationType: string
+  explorerUrl: string
+  explorerApiUrl: string
+  multicallAddress: string
+  safeApiUrl: string
+  safeAddress: string
+  gasZipChainId: number
 }
 
-const networks: Networks = networksConfig
+export type Networks = Record<string, Network>
+
+export const networks: Networks = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]

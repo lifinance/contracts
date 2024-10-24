@@ -5,7 +5,10 @@ import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import {
+  getViemChainForNetworkName,
+  networks,
+} from '../../utils/viemScriptHelpers'
 
 const main = defineCommand({
   meta: {
@@ -40,12 +43,12 @@ const main = defineCommand({
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[network],
+      txServiceUrl: networks[network].safeApiUrl,
     }
 
     const safeService = new SafeApiKit(config)
 
-    const safeAddress = getAddress(safeAddresses[network])
+    const safeAddress = getAddress(networks[network].safeAddress)
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)
