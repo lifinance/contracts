@@ -60,21 +60,39 @@
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
+      },
+      "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0x9535A1AFd986FA9a2D324657116F02C364edebFf": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
+      },
+      "0x20F3FFf5A89e988c4109A6e496a839480B1B558f": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
+      },
+      "0x00990C0FfBB7eAB014351652aFB65AaE00db43A4": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6e00e0a7685Ca22c288d56D9E7924746B5043Ee7": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-      "GasRebateDistributor": "",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
-      "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
-      "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072",
       "ReceiverStargateV2": "",
-      "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072"
+      "RelayerCelerIM": "",
+      "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD"
     }
   }
 }
