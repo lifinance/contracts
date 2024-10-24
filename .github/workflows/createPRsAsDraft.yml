@@ -1,0 +1,17 @@
+name: Mark new PRs as Draft
+# - Marks all newly opened pull requests as drafts
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  mark-new-PRs-as-draft:
+    name: Mark as draft
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark as draft
+        uses: voiceflow/draft-pr@v1.1
+        with:
+          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}

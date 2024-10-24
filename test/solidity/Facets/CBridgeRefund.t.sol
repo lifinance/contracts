@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -29,7 +29,6 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     bytes internal CALLDATA;
 
-    Vm internal constant vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     WithdrawFacet internal withdrawFacet;
 

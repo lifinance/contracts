@@ -1,0 +1,225 @@
+# - Github Version Control Checker
+# - Watches changes on contracts in the following paths:
+#   - src
+#   - src/Facets/
+#   - src/Periphery/
+# - will check all modified or new contracts in watched paths
+# - will fail if a new contract was added to watched paths without contract version
+# - will fail if an existing contract was modified but version was not updated
+# - will update the PR title to contain all contract names and their new versions (watched paths only)
+name: Version Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
+
+      - name: Get list of modified files by this PR
+        id: modified_files
+        run: |
+
+
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo "No files found. This should not happen. Please check the code of the Github action"
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          CONTRACTS=""
+
+          ##### go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
+              ##### facet found
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
+            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
+              ##### periphery found
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
+            elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
+              ##### diamond contract found
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
+            fi
+          done <<< "$FILES"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$CONTRACTS" ]]; then
+            echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            # set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo -e "$CONTRACTS" > modified_contracts.txt
+
+      - name: Verify version updates on modified contracts
+        id: verify_version_changes
+        if: env.CONTINUE == 'true'
+        run: |
+
+          ##### Read tmp file into variable
+          CONTRACTS=$(cat modified_contracts.txt)
+
+          ##### Initialize variables
+          MISSING_VERSION_TAG=()
+          MISSING_VERSION_UPDATE=()
+          UPDATED_CONTRACTS=()
+
+          echo "--------------------"
+
+          ##### Process each file separately
+          while IFS= read -r FILE; do
+            echo "Now checking contract: $FILE"
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+
+            ##### Extract the filename without extension
+            FILENAME=$(basename "$FILE" .sol)
+
+            ##### Check if a version tag exists in the contract file
+            if [[ -z "$VERSION_TAG" ]]; then
+              echo -e "\033[31mFile does not contain a version tag\033[0m"
+              MISSING_VERSION_TAG+=("$FILE")
+            else
+              echo -e "\033[32mFile contains a custom:version tag\033[0m"
+              ##### get all changes of the current file/contract
+              DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE")
+
+              ##### Check if the version was updated in this PR (by checking if any of the git diff lines starts with '/// @custom:version')
+              if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
+                echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
+                ##### extract the new version and save it together with the name of the contract in an array
+                NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
+                TARGET_STRING="${FILENAME} v${NEW_VERSION}"
+                UPDATED_CONTRACTS+=("$TARGET_STRING")
+              else
+                ##### add to files with missing version updates
+                echo -e "\033[31mFile's version was not updated in this PR\033[0m"
+                MISSING_VERSION_UPDATE+=("$FILE")
+              fi
+            fi
+            echo "--------------------"
+          done <<< "$CONTRACTS"
+
+
+          ##### If any contract files are missing a version tag, this must be corrected before continuing
+          if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
+            echo "--------------------"
+            echo ">>>>>>"
+            echo -e "\033[31mThe following files are missing a custom:version tag in their code:\033[0m"
+            echo "${MISSING_VERSION_TAG[*]}"
+            echo -e "\033[31mEvery version-controlled contract needs to have a custom:version tag in its code.\033[0m"
+            echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
+            exit 1
+          fi
+
+          ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
+          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+            echo "--------------------"
+            echo ">>>>>>"
+            echo -e "\033[31mThe following contract(s) have been modified but their version tags were not updated:\033[0m"
+            echo "${MISSING_VERSION_UPDATE[*]}"
+            echo -e "\033[31mPlease make sure to update a contract's version whenever there are changes in the file.\033[0m"
+            echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
+            echo ""
+            exit 1
+          fi
+
+          ##### store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
+          if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
+            ##### create a string from the array with all contracts
+            UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
+            echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
+            echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
+          else
+            echo -e "\033[32mDid not find any contracts for which version control is activated (only facets, periphery and diamonds).\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+      - name: Compose updated PR title
+        if: env.CONTINUE == 'true'
+        env:
+          PR_TITLE: ${{github.event.pull_request.title}}
+        run: |
+
+
+          ##### Read tmp files into variables
+          if [ -f updated_contracts.txt ]; then
+            UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+          fi
+
+          echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
+
+          ##### Initialize PR title
+          PR_TITLE_UPDATED="$PR_TITLE ["
+
+          ##### Go through the list of target strings (contract + newVersion)
+          IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
+          for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
+            ##### if current PR title does not contain this contract's name....
+            if [[ ! "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
+              ##### ... then add it to the title
+              echo "adding '$TARGET_STRING' to title"
+              PR_TITLE_UPDATED="$PR_TITLE_UPDATED$TARGET_STRING, "
+            fi
+          done
+
+          ##### Finalize the PR title
+          ##### Check if the last two characters are ", " (= contracts were added to title)
+          if [[ "${PR_TITLE_UPDATED: -2}" == ", " ]]; then
+            ##### Remove the last two characters and append a closing bracket
+            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2}]"
+          ##### Check if last character is '(' (= no contracts were added to title)
+          elif [[ "${PR_TITLE_UPDATED: -1}" == "[" ]]; then
+            ##### Remove the last character (not needed)
+            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1}"
+          else
+            echo "Error: Unexpected ending in PR_TITLE_UPDATED: '$PR_TITLE_UPDATED'"
+            exit 1
+          fi
+
+          ##### if there are no changes in the title, no need to continue further
+          if [[ $PR_TITLE == $PR_TITLE_UPDATED ]]; then
+            echo "No PR title updates are required."
+            echo "This github action will end here."
+            exit 0
+          fi
+
+          ##### save updated PR title in env variable
+          echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+
+      - name: Update the PR title on GitHub
+        if: env.CONTINUE == 'true'
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
+        run: |
+
+          ##### unset the default git token (does not have sufficient rights to perform the update)
+          unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
+          echo $GH_PAT | gh auth login --with-token
+          ##### update the PR title
+          gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"

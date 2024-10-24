@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
+/// @custom:version 1.0.0
 pragma solidity 0.8.17;
 import { InsufficientBalance, NullAddrIsNotAnERC20Token, NullAddrIsNotAValidSpender, NoTransferToNullAddress, InvalidAmount, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

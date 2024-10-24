@@ -6,7 +6,7 @@ import { stdJson } from "forge-std/Script.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
@@ -17,7 +17,6 @@ import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
-import { MultichainFacet } from "lifi/Facets/MultichainFacet.sol";
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 
@@ -92,16 +91,6 @@ contract DeployScript is UpdateScriptBase {
             selectors.push(HopFacetPacked.setApprovalForHopBridges.selector);
         }
 
-        // MultichainFacet
-        if (
-            DiamondLoupeFacet(diamond).facetAddress(
-                MultichainFacet.registerRouters.selector
-            ) != address(0)
-        ) {
-            selectors.push(MultichainFacet.registerRouters.selector);
-            selectors.push(MultichainFacet.updateAddressMappings.selector);
-        }
-
         // OptimismBridgeFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
@@ -124,9 +113,9 @@ contract DeployScript is UpdateScriptBase {
 
         // create diamondCut action to remove all facet collectors that have been added to the array
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(0),
-                action: IDiamondCut.FacetCutAction.Remove,
+                action: LibDiamond.FacetCutAction.Remove,
                 functionSelectors: selectors
             })
         );

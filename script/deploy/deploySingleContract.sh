@@ -11,11 +11,11 @@ deploySingleContract() {
 
   # read function arguments into variables
   local CONTRACT="$1"
-  NETWORK="$2"
-  ENVIRONMENT="$3"
-  VERSION="$4"
-  EXIT_ON_ERROR="$5"
-  DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+  local EXIT_ON_ERROR="$5"
+  local DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
 
   # load env variables
   source .env
@@ -93,17 +93,19 @@ deploySingleContract() {
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
     SCRIPT="Deploy"$CONTRACT
   fi
 
   # Display contract-specific information, if existing
   if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
-    echo ""
+    echo -e "\n\n"
+    printf '\033[31m%s\031\n' "--------------------------------------- !!!!!!!! ATTENTION !!!!!!!! ---------------------------------------"
     warning "Please read the following information carefully: "
     warning "${!CONTRACT}"
-    echo ""
+    printf '\033[31m%s\031\n' "-----------------------------------------------------------------------------------------------------------"
+    echo -e "\n\n"
   fi
 
   # check if deploy script exists
@@ -132,6 +134,7 @@ deploySingleContract() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "VERSION=$VERSION"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "DIAMOND_TYPE=$DIAMOND_TYPE"
   echo ""
 
   # prepare bytecode
@@ -140,7 +143,6 @@ deploySingleContract() {
   # get CREATE3_FACTORY_ADDRESS
   CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
 
-  echo $CREATE3_FACTORY_ADDRESS  # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
     BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
@@ -192,7 +194,7 @@ deploySingleContract() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvvv --json --silent --broadcast --skip-simulation --legacy)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
@@ -251,8 +253,10 @@ deploySingleContract() {
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
+      echo "return 1"
       return 1
     else
+      echo "exit 1"
       exit 1
     fi
   fi
@@ -276,7 +280,7 @@ deploySingleContract() {
   # check if log entry exists for this file and if yes, if contract is verified already
   LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
   LOG_ENTRY_RETURN_CODE=$?
-  echoDebug "existing log entry (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
+  echoDebug "existing log entry, may have a different address in case of a redeployment (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
 
   if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
@@ -288,6 +292,8 @@ deploySingleContract() {
     REDEPLOYMENT=false
   else
     REDEPLOYMENT=true
+    # overwirte VERIFIED_LOG value since it was a redeployment, we dont care if the last contract was already verified or not
+    VERIFIED_LOG=""
   fi
 
   # verify contract, if needed

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestFacet } from "../utils/TestBase.sol";
@@ -143,7 +143,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
         path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         uint256 amountOut = defaultNativeAmount;
 

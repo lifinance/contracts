@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
@@ -132,7 +132,7 @@ contract CBridgeFacetTest is TestBaseFacet {
 
         setDefaultSwapDataSingleDAItoUSDC();
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_WETH;
+        path[0] = ADDRESS_WRAPPED_NATIVE;
         path[1] = ADDRESS_USDC;
 
         uint256 amountOut = defaultUSDCAmount;

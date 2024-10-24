@@ -1307,6 +1307,73 @@ function getBytecodeFromArtifact() {
   fi
 }
 
+function addPeripheryToDexsJson() {
+  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  # read function arguments into variables
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  local FILEPATH_DEXS="config/dexs.json"
+  local FILEPATH_GLOBAL_CONFIG="config/global.json"
+
+  WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
+
+  # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
+  # IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
+  CONTRACTS=("${WHITELIST_PERIPHERY[@]}")
+
+  # get number of periphery contracts to be added
+  local ADD_COUNTER=${#CONTRACTS[@]}
+
+
+  # get number of existing DEX addresses in the file for the given network
+  local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
+
+  # Iterate through all contracts
+  for CONTRACT in "${CONTRACTS[@]}"; do
+    # get contract address
+    local CONTRACT_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+
+    if [[ -z "$CONTRACT_ADDRESS" ]]; then
+      error "Could not find contract address for contract $CONTRACT on network $NETWORK ($ENVIRONMENT) in deploy log."
+      error "Please manually whitelist this contract after this task has been completed."
+      # reduce add counter since we are not adding this contract
+      ((ADD_COUNTER--))
+      continue
+    fi
+
+    # check if address already exists in dexs.json for the given network
+    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_DEXS)
+
+    if [ "$EXISTS" == "true" ]; then
+      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted DEXs in network $NETWORK."
+
+      # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
+      ((ADD_COUNTER--)) # reduces by 1
+    else
+      # add the address to dexs.json
+      local TMP_FILE="tmp.$$.json"
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      rm -f "$TMP_FILE"
+
+
+      success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
+    fi
+  done
+
+  # check how many DEX addresses are in the dexs.json now
+  local ADDRESS_COUNTER=${#CONTRACTS[@]}
+
+  EXPECTED_DEXS=$((EXISTING_DEXS + ADD_COUNTER))
+
+  # make sure dexs.json has been updated correctly
+  if [ $EXPECTED_DEXS -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
+    success "$ADD_COUNTER addresses were added to config/dexs.json"
+  else
+    error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
+    exit 1
+  fi
+}
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -1359,16 +1426,18 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+
+        # TODO: add code that automatically identifies blockscout verification
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -2047,7 +2116,7 @@ function checkFailure() {
 # >>>>> output to console
 function echoDebug() {
   # read function arguments into variables
-  MESSAGE=$1
+  local MESSAGE="$1"
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
@@ -2059,6 +2128,9 @@ function error() {
 }
 function warning() {
   printf '\033[33m[warning] %s\033[0m\n' "$1"
+}
+function success() {
+  printf '\033[0;32m[success] %s\033[0m\n' "$1"
 }
 # <<<<< output to console
 
@@ -2747,6 +2819,10 @@ function getChainId() {
     echo "250"
     return 0
     ;;
+  "gravity")
+    echo "1625"
+    return 0
+    ;;
   "okx")
     echo "66"
     return 0
@@ -2865,6 +2941,18 @@ function getChainId() {
     ;;
   "sei")
     echo "1329"
+    return 0
+    ;;
+  "immutablezkevm")
+    echo "13371"
+    return 0
+    ;;
+  "xlayer")
+    echo "196"
+    return 0
+    ;;
+  "taiko")
+    echo "167000"
     return 0
     ;;
   *)
@@ -3399,6 +3487,56 @@ function compareAddresses() {
     return 1
   fi
 }
+function sendMessageToDiscordSmartContractsChannel() {
+  # read function arguments into variable
+  local MESSAGE=$1
+
+  if [ -z "$DISCORD_WEBHOOK_DEV_SMARTCONTRACTS" ]; then
+    echo ""
+    warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
+    echo ""
+    return 1
+  fi
+
+  echo ""
+  echoDebug "sending the following message to Discord webhook ('dev-smartcontracts' channel):"
+  echoDebug "$MESSAGE"
+  echo ""
+
+  # Send the message
+  curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"$MESSAGE\"}" \
+     $DISCORD_WEBHOOK_DEV_SMARTCONTRACTS
+
+  echoDebug "Log message sent to Discord"
+
+  return 0
+
+
+}
+
+function getUserInfo() {
+  # log local username
+  local USERNAME=$(whoami)
+
+  # log Github email address
+  EMAIL=$(git config --global user.email)
+  if [ -z "$EMAIL" ]; then
+      EMAIL=$(git config --local user.email)
+  fi
+
+  # return collected info
+  echo "Username: $USERNAME, Github email: $EMAIL"
+
+}
+function cleanupBackgroundJobs() {
+  echo "Cleaning up..."
+  # Kill all background jobs
+  pkill -P $$
+  echo "All background jobs killed. Script execution aborted."
+  exit 1
+}
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
@@ -3736,26 +3874,3 @@ function test_getContractVersionFromMasterLog() {
 function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
-
-function test_tmp() {
-
-  CONTRACT="LiFiDiamond"
-  NETWORK="bsc"
-  ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
-  ENVIRONMENT="production"
-  VERSION="2.0.0"
-  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x"
-
-  #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
-  #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
-  #    error "ERC20Proxy ownership was not transferred to address(0)"
-  #    exit 1
-  #  fi
-  #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
-
-  transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
-}
-
-# test_tmp

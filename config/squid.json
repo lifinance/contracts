@@ -43,5 +43,8 @@
   },
   "fraxtal": {
     "router": "0xDC3D8e1Abe590BCa428a8a2FC4CfDbD1AcF57Bd9"
+  },
+  "immutablezkevm": {
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   }
 }

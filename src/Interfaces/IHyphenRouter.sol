@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+/// @custom:version 1.0.0
 pragma solidity 0.8.17;
 
 // https://github.com/bcnmy/hyphen-contract/blob/master/contracts/hyphen/LiquidityPool.sol

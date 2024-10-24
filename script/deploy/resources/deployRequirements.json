@@ -27,6 +27,48 @@
       }
     }
   },
+  "AcrossFacetV3": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPacked": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPackedV3": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AllBridgeFacet": {
     "configData": {
       "_allBridge": {
@@ -188,6 +230,15 @@
       "_router": {
         "configFileName": "hyphen.json",
         "keyInConfigFile": ".<NETWORK>.hyphenRouter",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LiFiDEXAggregator": {
+    "configData": {
+      "_privilegedUser": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".pauserWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -410,6 +461,25 @@
     "contractAddresses": {
       "Executor": {
         "allowToDeployWithZeroAddress": "true"
+      }
+    }
+  },
+  "ReceiverAcrossV3": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_spokepool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
