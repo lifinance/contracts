@@ -3556,8 +3556,10 @@ function updateDiamondLogs() {
   echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
   echo ""
 
-  ENVIRONMENTS=("production" "staging")
-  DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable")
+  # ENVIRONMENTS=("production" "staging")
+  ENVIRONMENTS=("production")
+  # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
+  DIAMONDS=("LiFiDiamond")
 
   # loop through all networks
   for NETWORK in "${NETWORKS[@]}"; do
