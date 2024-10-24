@@ -9,6 +9,7 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { IStargate, ITokenMessaging } from "lifi/Interfaces/IStargate.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
@@ -60,9 +61,9 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         functionSelectors[2] = emergencyPauseFacet.unpauseDiamond.selector;
 
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(emergencyPauseFacet),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
