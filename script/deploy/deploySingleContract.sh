@@ -91,6 +91,8 @@ deploySingleContract() {
   fi
 
   # Handle ZkSync
+  # We need to use zksync specific scripts that are able to be compiled for
+  # the zkvm
   if [[ $NETWORK == "zksync" ]]; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
   fi
@@ -190,6 +192,9 @@ deploySingleContract() {
   fi
 
   if [[ $NETWORK == "zksync" ]]; then
+      # Check if a zksync contract has already been deployed for a specific
+      # version otherwise it might fail since create2 will try to deploy to the
+      # same address
       DEPLOYED=$(findContractInMasterLog $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH)
       if [[ $? == 0 ]]; then
         gum style \
@@ -198,9 +203,13 @@ deploySingleContract() {
 	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
         gum confirm "Deploy anyway?" || exit 0
       fi
+      # Clean all old artifacts
       rm -fr ./out
       rm -fr ./zkout
       docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge cache clean
+
+      # Run zksync specific fork of forge from Docker so as not to pollute the
+      # local foundry forge setup
       docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge build --zksync
   fi
 
@@ -214,6 +223,7 @@ deploySingleContract() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     if [[ $NETWORK == "zksync" ]]; then
+      # Deploy zksync scripts using the zksync specific fork of forge from Docker
       RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e DEPLOYSALT=$DEPLOYSALT -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --silent --broadcast --skip-simulation --slow --zksync) 
     else
       # try to execute call

@@ -18,18 +18,6 @@ deployUpgradesToSAFE() {
   # Get list of Update scripts from ./script/deploy/facets where file name starts with "Update" and ends in ".sol" strip path, the worf "Update" and ".s.sol" from the file name
   # separate by new line
 
-  # Handle ZkSync
-  if [[ $NETWORK == "zksync" ]]; then
-    DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
-    if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^foundry-zksync:latest$'; then
-      echo "The 'foundry-zksync' image already exists. Skipping build."
-    else
-      echo "The 'foundry-zksync' image does not exist. Building it now..."
-      docker build -t foundry-zksync ./foundry-zksync
-      echo "The 'foundry-zksync' image has been built successfully."
-    fi
-  fi
-
   SCRIPTS=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | sed 's/Update//g' | gum choose --no-limit)
 
   if [[ -z $SCRIPTS ]]; then
@@ -37,14 +25,14 @@ deployUpgradesToSAFE() {
     exit 1
   fi
 
-  # GIT_BRANCH=$(git branch --show-current)
-  # if [[ $GIT_BRANCH == "main" ]]; then
-  #   # We can assume code in the main branch has been pre-approved and audited
+  GIT_BRANCH=$(git branch --show-current)
+  if [[ $GIT_BRANCH == "main" ]]; then
+    # We can assume code in the main branch has been pre-approved and audited
     VERIFIED="OK"
-  # else
-  #   VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
-  # fi
-
+  else
+    VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
+  fi
+  
   if [[ $VERIFIED == "OK" ]]; then
     echo "PR has been approved. Continuing..."
     # Loop through each script and call "forge script" to get the cut calldata
@@ -53,17 +41,8 @@ deployUpgradesToSAFE() {
       UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
       echo "Calculating facet cuts for $script..."
-      if [[ $NETWORK == "zksync" ]]; then
-        rm -fr ./out
-        rm -fr ./zkout
-        docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge cache clean
-        docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge build --zksync        
-        RAW_RETURN_DATA=$(docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY -e FOUNDRY_PROFILE=zksync foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK --json --silent --skip-simulation --legacy --slow --zksync)
-      else
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
-      fi
+      RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-      echo $CLEAN_RETURN_DATA
       FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
       if [ "$FACET_CUT" != "0x" ]; then
         echo "Proposing facet cut for $script..."
