@@ -1462,18 +1462,18 @@ function verifyContract() {
 
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]; then
-    warning "$CONTRACT on $ --zksyncNETWORK with address $ADDRESS could not be verified"
+    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
   else
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
     return 0
   fi
 
-  echo "[info] trying to ve --zksync --zksyncrify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
+  echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
   forge verify-contract \
     "$ADDRESS" \
     "$CONTRACT" \
     --chain-id "$CHAIN_ID" \
-    --verifier  --zksyncsourcify
+    --verifier  sourcify
 
   echo "[info] checking Sourcify verification now"
   forge verify-check $ADDRESS \
