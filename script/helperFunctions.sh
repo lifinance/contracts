@@ -1427,6 +1427,7 @@ function verifyContract() {
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
         if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync from docker image
           docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain 324 "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
@@ -1435,6 +1436,7 @@ function verifyContract() {
         # TODO: add code that automatically identifies blockscout verification
       else
         if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync from docker image
           docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
@@ -1444,12 +1446,14 @@ function verifyContract() {
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
         if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync from docker image
          docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         fi
       else
         if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync from docker image
          docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-ar --zksyncgs $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
