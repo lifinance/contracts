@@ -64,6 +64,7 @@ contract DeployScriptBase is ScriptBase {
             return payable(predicted);
         }
 
+        // Deploy a contract using the CREATE2 opcode for deterministic addr
         assembly {
             let len := mload(deploymentBytecode)
             let data := add(deploymentBytecode, 0x20)
