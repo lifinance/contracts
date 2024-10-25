@@ -206,6 +206,7 @@ deploySingleContract() {
       # Clean all old artifacts
       rm -fr ./out
       rm -fr ./zkout
+      # Clean zksync cache
       docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge cache clean
 
       # Run zksync specific fork of forge from Docker so as not to pollute the
