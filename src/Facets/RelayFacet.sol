@@ -8,6 +8,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 /// @title Relay Facet
 /// @author LI.FI (https://li.fi)
@@ -30,19 +31,34 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes signature;
     }
 
+    /// Errors ///
+
+    error InvalidQuote();
+
     /// Modifiers ///
-    modifier isValidQuote(
-        ILiFi.BridgeData calldata _bridgeData,
+
+    modifier onlyValidQuote(
+        ILiFi.BridgeData memory _bridgeData,
         RelayData calldata _relayData
     ) {
-        // TODO: Verify the following
-        // requestId bytes32
-        // originChainId uint256
-        // sender bytes32(address)
-        // sendingAssetId bytes32(address)
-        // dstChainId uint256
-        // receiver bytes32(address)
-        // receivingAssetId bytes32(address)
+        // Verify that the bridging quote has been signed by the Relay solver
+        // as attested using the attestaion API
+        // API URL: https://api.relay.link/requests/{requestId}/signature/v2
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                _relayData.requestId,
+                block.chainid,
+                bytes32(uint256(uint160(address(this)))),
+                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                _bridgeData.destinationChainId,
+                bytes32(uint256(uint160(_bridgeData.receiver))),
+                bytes32(uint256(uint160(_relayData.receivingAssetId)))
+            )
+        );
+        address signer = ECDSA.recover(hash, _relayData.signature);
+        if (signer != relaySolver) {
+            revert InvalidQuote();
+        }
         _;
     }
 
@@ -59,12 +75,13 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData The core information needed for bridging
     /// @param _relayData Data specific to Relay
     function startBridgeTokensViaRelay(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         RelayData calldata _relayData
     )
         external
         payable
         nonReentrant
+        onlyValidQuote(_bridgeData, _relayData)
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
@@ -89,6 +106,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
+        onlyValidQuote(_bridgeData, _relayData)
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
