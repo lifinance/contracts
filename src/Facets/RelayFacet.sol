@@ -5,6 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -28,7 +29,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct RelayData {
         bytes32 requestId;
         address receivingAssetId;
-        bytes calldata;
+        bytes callData;
         bytes signature;
     }
 
@@ -131,12 +132,30 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         RelayData calldata _relayData
     ) internal {
+        bytes memory quoteId = _relayData.callData[68:];
         // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native
             // TODO: need to call the relayReceiver
         } else {
             // ERC20
+
+            // We build the calldata from scratch to ensure that we can only
+            // send to the solver address
+            bytes memory transferCallData = bytes.concat(
+                abi.encodeWithSignature(
+                    "transfer(address,uint256)",
+                    relaySolver,
+                    _bridgeData.minAmount
+                ),
+                quoteId
+            );
+            (bool success, bytes memory reason) = address(
+                _bridgeData.sendingAssetId
+            ).call(transferCallData);
+            if (!success) {
+                revert(LibUtil.getRevertMsg(reason));
+            }
         }
         emit LiFiTransferStarted(_bridgeData);
     }
