@@ -28,6 +28,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct RelayData {
         bytes32 requestId;
         address receivingAssetId;
+        bytes calldata;
         bytes signature;
     }
 
@@ -133,6 +134,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native
+            // TODO: need to call the relayReceiver
         } else {
             // ERC20
         }
