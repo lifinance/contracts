@@ -3,25 +3,25 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol";
+import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("{{titleCase name}}Facet") {}
+    constructor() DeployScriptBase("RelayFacet") {}
 
     function run()
         public
-        returns ({{titleCase name}}Facet deployed, bytes memory constructorArgs)
+        returns (RelayFacet deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = {{titleCase name}}Facet(deploy(type({{titleCase name}}Facet).creationCode));
+        deployed = RelayFacet(deploy(type(RelayFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // If you don't have a constructor or it doesn't take any arguments, you can remove this function
-        string memory path = string.concat(root, "/config/{{camelCase name}}.json");
+        string memory path = string.concat(root, "/config/relay.json");
         string memory json = vm.readFile(path);
 
         address example = json.readAddress(
