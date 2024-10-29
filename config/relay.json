@@ -1,16 +1,46 @@
 {
   "mainnet": {
-    "example": "0x0000000000000000000000000000000000000000",
-    "exampleAllowedTokens": [
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000"
-    ]
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "optimism": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "polygon": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "boba": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
   "arbitrum": {
-    "example": "0x0000000000000000000000000000000000000000",
-    "exampleAllowedTokens": [
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000"
-    ]
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "avalanche": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "blast": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "mode": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "linea": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "taiko": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "scroll": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   }
 }

@@ -132,12 +132,19 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         RelayData calldata _relayData
     ) internal {
-        bytes memory quoteId = _relayData.callData[68:];
         // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native
-            // TODO: need to call the relayReceiver
+
+            // Send Native to relayReceiver along with requestId as extra data
+            (bool success, bytes memory reason) = relayReceiver.call{
+                value: _bridgeData.minAmount
+            }(abi.encode(_relayData.requestId));
+            if (!success) {
+                revert(LibUtil.getRevertMsg(reason));
+            }
         } else {
+            bytes memory quoteId = _relayData.callData[68:];
             // ERC20
 
             // We build the calldata from scratch to ensure that we can only

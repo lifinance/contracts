@@ -3,10 +3,14 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
 // Stub RelayFacet Contract
 contract TestRelayFacet is RelayFacet {
-    constructor(address _example) RelayFacet(_example, _example) {}
+    constructor(
+        address _relayReceiver,
+        address _relaySolver
+    ) RelayFacet(_relayReceiver, _relaySolver) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -20,17 +24,15 @@ contract TestRelayFacet is RelayFacet {
 contract RelayFacetTest is TestBaseFacet {
     RelayFacet.RelayData internal validRelayData;
     TestRelayFacet internal relayFacet;
-    address internal EXAMPLE_PARAM = address(0xb33f);
+    address internal RELAY_RECEIVER =
+        0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
+    uint256 internal PRIVATE_KEY = 0x1234567890;
+    address RELAY_SOLVER = vm.addr(PRIVATE_KEY);
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        customBlockNumberForForking = 19767662;
         initTestBase();
-
-        address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
-        EXAMPLE_ALLOWED_TOKENS[0] = address(1);
-        EXAMPLE_ALLOWED_TOKENS[1] = address(2);
-
-        relayFacet = new TestRelayFacet(EXAMPLE_PARAM);
+        relayFacet = new TestRelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
         // relayFacet.initRelay(EXAMPLE_ALLOWED_TOKENS);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
@@ -61,48 +63,26 @@ contract RelayFacetTest is TestBaseFacet {
         bridgeData.bridge = "relay";
         bridgeData.destinationChainId = 137;
 
-        // produce valid RelayData
-        // validRelayData = RelayFacet.RelayData({ exampleParam: "foo bar baz" });
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            receivingAssetId: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, // Polygon USDC
+            callData: "",
+            signature: ""
+        });
     }
 
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
-    // function testBase_CanBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-    //
-    // function testBase_CanSwapAndBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-
     function initiateBridgeTxWithFacet(bool isNative) internal override {
+        validRelayData.signature = signData(bridgeData, validRelayData);
         if (isNative) {
             relayFacet.startBridgeTokensViaRelay{
                 value: bridgeData.minAmount
             }(bridgeData, validRelayData);
         } else {
+            validRelayData.callData = abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                RELAY_SOLVER,
+                bridgeData.minAmount
+            );
             relayFacet.startBridgeTokensViaRelay(bridgeData, validRelayData);
         }
     }
@@ -110,16 +90,43 @@ contract RelayFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
+        validRelayData.signature = signData(bridgeData, validRelayData);
         if (isNative) {
             relayFacet.swapAndStartBridgeTokensViaRelay{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData, validRelayData);
         } else {
+            validRelayData.callData = abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                RELAY_SOLVER,
+                bridgeData.minAmount
+            );
             relayFacet.swapAndStartBridgeTokensViaRelay(
                 bridgeData,
                 swapData,
                 validRelayData
             );
         }
+    }
+
+    function signData(
+        ILiFi.BridgeData memory _bridgeData,
+        RelayFacet.RelayData memory _relayData
+    ) internal view returns (bytes memory) {
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                _relayData.requestId,
+                block.chainid,
+                bytes32(uint256(uint160(address(relayFacet)))),
+                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                _bridgeData.destinationChainId,
+                bytes32(uint256(uint160(_bridgeData.receiver))),
+                bytes32(uint256(uint160(_relayData.receivingAssetId)))
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, hash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        return signature;
     }
 }
