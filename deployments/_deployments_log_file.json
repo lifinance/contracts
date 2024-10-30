@@ -24344,5 +24344,35 @@
         ]
       }
     }
+  },
+  "RelayFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA49EEC3DF7C2f69c656Ab06804f7122826bba63a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-30 11:11:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a5f565650890fba1824ee0f21ebbbf660a179934000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA49EEC3DF7C2f69c656Ab06804f7122826bba63a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-30 11:17:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a5f565650890fba1824ee0f21ebbbf660a179934000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }

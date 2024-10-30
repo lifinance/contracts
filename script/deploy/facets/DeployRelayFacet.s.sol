@@ -24,10 +24,14 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/relay.json");
         string memory json = vm.readFile(path);
 
-        address example = json.readAddress(
-            string.concat(".", network, ".example")
+        address relayReceiver = json.readAddress(
+            string.concat(".", network, ".relayReceiver")
         );
 
-        return abi.encode(example);
+        address relaySolver = json.readAddress(
+            string.concat(".", network, ".relaySolver")
+        );
+
+        return abi.encode(relayReceiver, relaySolver);
     }
 }
