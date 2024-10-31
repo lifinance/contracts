@@ -17,7 +17,7 @@ graph LR;
 
 - `function startBridgeTokensViaRelay(BridgeData calldata _bridgeData, RelayData calldata _relayData)`
   - Simply bridges tokens using relay
-- `swapAndStartBridgeTokensViarelay(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, relayData memory _relayData)`
+- `swapAndStartBridgeTokensViaRelay(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, relayData memory _relayData)`
   - Performs swap(s) before bridging tokens using relay
 
 ## relay Specific Parameters
