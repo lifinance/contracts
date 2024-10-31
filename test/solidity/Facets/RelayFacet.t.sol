@@ -33,7 +33,6 @@ contract RelayFacetTest is TestBaseFacet {
         customBlockNumberForForking = 19767662;
         initTestBase();
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
-        // relayFacet.initRelay(EXAMPLE_ALLOWED_TOKENS);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
         functionSelectors[1] = relayFacet
