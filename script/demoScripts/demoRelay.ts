@@ -7,6 +7,14 @@ import {
 } from '../../typechain'
 import { ethers, utils } from 'ethers'
 import dotenv from 'dotenv'
+import {
+  ADDRESS_UNISWAP_ARB,
+  ADDRESS_USDC_ARB,
+  ADDRESS_WETH_ARB,
+  getUniswapSwapDataERC20ToERC20,
+  getUniswapSwapDataERC20ToETH,
+} from './utils/demoScriptHelpers'
+import { _100 } from '@uniswap/sdk/dist/constants'
 dotenv.config()
 
 const main = async () => {
@@ -159,6 +167,86 @@ const main = async () => {
     .startBridgeTokensViaRelay(bridgeData, relayData)
   await tx.wait()
   console.info('Bridged USDC')
+
+  // Swap USDC and Bridge ETH
+
+  params = {
+    user: deployments.LiFiDiamond,
+    originChainId: 42161,
+    destinationChainId: 137,
+    originCurrency: '0x0000000000000000000000000000000000000000',
+    destinationCurrency: '0x0000000000000000000000000000000000000000',
+    recipient: address,
+    tradeType: 'EXACT_INPUT',
+    amount: '1000000000000000',
+    referrer: 'relay.link/swap',
+    useExternalLiquidity: false,
+  }
+
+  // Bridge 0.001 ETH from ARB on POL
+  resp = await fetch('https://api.relay.link/quote', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  })
+  quote = await resp.json()
+  requestId = quote.steps[0].requestId
+  console.log(quote)
+
+  console.log(requestId)
+  sigResp = await fetch(
+    `https://api.relay.link/requests/${requestId}/signature/v2`,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+  sigData = await sigResp.json()
+  console.log(sigData)
+
+  bridgeData = {
+    transactionId: utils.randomBytes(32),
+    bridge: 'Relay',
+    integrator: 'ACME Devs',
+    referrer: '0x0000000000000000000000000000000000000000',
+    sendingAssetId: '0x0000000000000000000000000000000000000000',
+    receiver: address,
+    minAmount: ethers.utils.parseEther('0.001'),
+    destinationChainId: 137,
+    hasSourceSwaps: true,
+    hasDestinationCall: false,
+  }
+
+  const swapData = []
+
+  const uniswapAddress = ADDRESS_UNISWAP_ARB
+  swapData[0] = await getUniswapSwapDataERC20ToETH(
+    uniswapAddress,
+    42161,
+    ADDRESS_USDC_ARB,
+    ADDRESS_WETH_ARB,
+    ethers.utils.parseUnits('4', 6),
+    LIFI_ADDRESS,
+    true
+  )
+
+  relayData = {
+    requestId,
+    receivingAssetId: '0x0000000000000000000000000000000000000000',
+    callData: '0x',
+    signature: sigData.signature,
+  }
+
+  console.info('Dev Wallet Address: ', address)
+  console.info('Approving USDC...')
+  tx = await token.connect(signer).approve(LIFI_ADDRESS, '4000000')
+  await tx.wait()
+  console.info('Approved USDC')
+  console.info('Bridging USDC -> ETH...')
+  tx = await relay
+    .connect(signer)
+    .swapAndStartBridgeTokensViaRelay(bridgeData, swapData, relayData)
+  await tx.wait()
+  console.info('Bridged ETH')
 }
 
 main()
