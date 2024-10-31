@@ -24350,9 +24350,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA49EEC3DF7C2f69c656Ab06804f7122826bba63a",
+            "ADDRESS": "0x74763722d92832d247cFa92825b06098cf72BAA2",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-10-30 11:11:53",
+            "TIMESTAMP": "2024-10-31 10:21:46",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a5f565650890fba1824ee0f21ebbbf660a179934000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
             "SALT": "",
             "VERIFIED": "true"

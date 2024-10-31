@@ -113,19 +113,24 @@ contract RelayFacetTest is TestBaseFacet {
         ILiFi.BridgeData memory _bridgeData,
         RelayFacet.RelayData memory _relayData
     ) internal view returns (bytes memory) {
-        bytes32 hash = keccak256(
+        bytes32 message = keccak256(
             abi.encodePacked(
-                _relayData.requestId,
-                block.chainid,
-                bytes32(uint256(uint160(address(relayFacet)))),
-                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
-                _bridgeData.destinationChainId,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
-                bytes32(uint256(uint160(_relayData.receivingAssetId)))
+                "\x19Ethereum Signed Message:\n32",
+                keccak256(
+                    abi.encodePacked(
+                        _relayData.requestId,
+                        block.chainid,
+                        bytes32(uint256(uint160(address(relayFacet)))),
+                        bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                        _bridgeData.destinationChainId,
+                        bytes32(uint256(uint160(_bridgeData.receiver))),
+                        bytes32(uint256(uint160(_relayData.receivingAssetId)))
+                    )
+                )
             )
         );
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, message);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
     }
