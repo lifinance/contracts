@@ -28,6 +28,8 @@ contract RelayFacetTest is TestBaseFacet {
         0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
     uint256 internal PRIVATE_KEY = 0x1234567890;
     address RELAY_SOLVER = vm.addr(PRIVATE_KEY);
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
 
     function setUp() public {
         customBlockNumberForForking = 19767662;
@@ -64,7 +66,10 @@ contract RelayFacetTest is TestBaseFacet {
 
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
-            receivingAssetId: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, // Polygon USDC
+            nonEVMReceiver: "",
+            receivingAssetId: bytes32(
+                uint256(uint160(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174))
+            ), // Polygon USDC
             callData: "",
             signature: ""
         });
@@ -122,8 +127,10 @@ contract RelayFacetTest is TestBaseFacet {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _bridgeData.destinationChainId,
-                        bytes32(uint256(uint160(_bridgeData.receiver))),
-                        bytes32(uint256(uint160(_relayData.receivingAssetId)))
+                        _bridgeData.receiver == NON_EVM_ADDRESS
+                            ? _relayData.nonEVMReceiver
+                            : bytes32(uint256(uint160(_bridgeData.receiver))),
+                        _relayData.receivingAssetId
                     )
                 )
             )

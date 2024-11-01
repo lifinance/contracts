@@ -18,6 +18,9 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
+
     // Receiver for native transfers
     address public immutable relayReceiver;
     address public immutable relaySolver;
@@ -28,7 +31,8 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param exampleParam Example parameter
     struct RelayData {
         bytes32 requestId;
-        address receivingAssetId;
+        bytes32 nonEVMReceiver;
+        bytes32 receivingAssetId;
         bytes callData;
         bytes signature;
     }
@@ -56,8 +60,10 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                         bytes32(uint256(uint160(address(this)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _bridgeData.destinationChainId,
-                        bytes32(uint256(uint160(_bridgeData.receiver))),
-                        bytes32(uint256(uint160(_relayData.receivingAssetId)))
+                        _bridgeData.receiver == NON_EVM_ADDRESS
+                            ? _relayData.nonEVMReceiver
+                            : bytes32(uint256(uint160(_bridgeData.receiver))),
+                        _relayData.receivingAssetId
                     )
                 )
             )
