@@ -5,7 +5,6 @@ import { TestBase, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
-import { ERC20 } from "../utils/TestBase.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
