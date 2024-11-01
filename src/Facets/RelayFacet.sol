@@ -37,6 +37,14 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes signature;
     }
 
+    /// Events ///
+
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes32 receiver
+    );
+
     /// Errors ///
 
     error InvalidQuote();
@@ -59,7 +67,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                         block.chainid,
                         bytes32(uint256(uint160(address(this)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
-                        _bridgeData.destinationChainId,
+                        _getMappedChainId(_bridgeData.destinationChainId),
                         _bridgeData.receiver == NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
@@ -175,6 +183,29 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 revert(LibUtil.getRevertMsg(reason));
             }
         }
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _relayData.nonEVMReceiver
+            );
+        }
+
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function _getMappedChainId(
+        uint256 chainId
+    ) internal pure returns (uint256) {
+        if (chainId == 20000000000001) {
+            return 8253038;
+        }
+
+        if (chainId == 1151111081099710) {
+            return 792703809;
+        }
+
+        return chainId;
     }
 }

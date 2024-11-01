@@ -5,6 +5,14 @@ import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFa
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
+// TODO: Upgrade forge-std lib
+// This is a hack to be able to use newer capabilities of forge without having
+// to update the forge-std lib as this will break some tests at the moment
+interface VmWithUnixTime {
+    /// Returns the time since unix epoch in milliseconds.
+    function unixTime() external returns (uint256 milliseconds);
+}
+
 // Stub RelayFacet Contract
 contract TestRelayFacet is RelayFacet {
     constructor(
@@ -64,15 +72,38 @@ contract RelayFacetTest is TestBaseFacet {
         bridgeData.bridge = "relay";
         bridgeData.destinationChainId = 137;
 
-        validRelayData = RelayFacet.RelayData({
-            requestId: bytes32("1234"),
-            nonEVMReceiver: "",
-            receivingAssetId: bytes32(
-                uint256(uint160(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174))
-            ), // Polygon USDC
-            callData: "",
-            signature: ""
-        });
+        // This will randomly setup bridging to EVM or non-EVM
+        if (VmWithUnixTime(address(vm)).unixTime() % 2 == 0) {
+            validRelayData = RelayFacet.RelayData({
+                requestId: bytes32("1234"),
+                nonEVMReceiver: "",
+                receivingAssetId: bytes32(
+                    uint256(
+                        uint160(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174)
+                    )
+                ), // Polygon USDC
+                callData: "",
+                signature: ""
+            });
+        } else {
+            bridgeData.receiver = NON_EVM_ADDRESS;
+            bridgeData.destinationChainId = 792703809;
+            validRelayData = RelayFacet.RelayData({
+                requestId: bytes32("1234"),
+                nonEVMReceiver: bytes32(
+                    abi.encodePacked(
+                        "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                    )
+                ), // DEV Wallet
+                receivingAssetId: bytes32(
+                    abi.encodePacked(
+                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                    )
+                ), // Solana USDC
+                callData: "",
+                signature: ""
+            });
+        }
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -126,7 +157,7 @@ contract RelayFacetTest is TestBaseFacet {
                         block.chainid,
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
-                        _bridgeData.destinationChainId,
+                        _getMappedChainId(_bridgeData.destinationChainId),
                         _bridgeData.receiver == NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
@@ -139,5 +170,19 @@ contract RelayFacetTest is TestBaseFacet {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, message);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
+    }
+
+    function _getMappedChainId(
+        uint256 chainId
+    ) internal pure returns (uint256) {
+        if (chainId == 20000000000001) {
+            return 8253038;
+        }
+
+        if (chainId == 1151111081099710) {
+            return 792703809;
+        }
+
+        return chainId;
     }
 }
