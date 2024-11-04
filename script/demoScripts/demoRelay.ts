@@ -15,6 +15,7 @@ import {
   getUniswapSwapDataERC20ToETH,
 } from './utils/demoScriptHelpers'
 import { _100 } from '@uniswap/sdk/dist/constants'
+import { PublicKey } from '@solana/web3.js'
 dotenv.config()
 
 const main = async () => {
@@ -45,7 +46,6 @@ const main = async () => {
     useExternalLiquidity: false,
   }
 
-  // Bridge 0.001 ETH from ARB on POL
   let resp = await fetch('https://api.relay.link/quote', {
     method: 'POST',
     headers: {
@@ -55,15 +55,12 @@ const main = async () => {
   })
   let quote = await resp.json()
   let requestId = quote.steps[0].requestId
-  console.log(quote)
 
-  console.log(requestId)
   let sigResp = await fetch(
     `https://api.relay.link/requests/${requestId}/signature/v2`,
     { headers: { 'Content-Type': 'application/json' } }
   )
   let sigData = await sigResp.json()
-  console.log(sigData)
 
   let bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: utils.randomBytes(32),
@@ -80,7 +77,8 @@ const main = async () => {
 
   let relayData: RelayFacet.RelayDataStruct = {
     requestId,
-    receivingAssetId: '0x0000000000000000000000000000000000000000',
+    nonEVMReceiver: ethers.constants.HashZero,
+    receivingAssetId: ethers.constants.HashZero,
     callData: '0x',
     signature: sigData.signature,
   }
@@ -110,8 +108,6 @@ const main = async () => {
     useExternalLiquidity: false,
   }
 
-  // Bridge 0.001 ETH from ARB on POL
-
   resp = await fetch('https://api.relay.link/quote', {
     method: 'POST',
     headers: {
@@ -121,15 +117,12 @@ const main = async () => {
   })
   quote = await resp.json()
   requestId = quote.steps[0].requestId
-  console.log(quote)
 
-  console.log(requestId)
   sigResp = await fetch(
     `https://api.relay.link/requests/${requestId}/signature/v2`,
     { headers: { 'Content-Type': 'application/json' } }
   )
   sigData = await sigResp.json()
-  console.log(sigData)
 
   const token = ERC20__factory.connect(
     '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
@@ -151,7 +144,11 @@ const main = async () => {
 
   relayData = {
     requestId,
-    receivingAssetId: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    nonEVMReceiver: ethers.constants.HashZero,
+    receivingAssetId: ethers.utils.hexZeroPad(
+      '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+      32
+    ),
     callData: quote.steps[0].items[0].data.data,
     signature: sigData.signature,
   }
@@ -183,7 +180,6 @@ const main = async () => {
     useExternalLiquidity: false,
   }
 
-  // Bridge 0.001 ETH from ARB on POL
   resp = await fetch('https://api.relay.link/quote', {
     method: 'POST',
     headers: {
@@ -193,9 +189,7 @@ const main = async () => {
   })
   quote = await resp.json()
   requestId = quote.steps[0].requestId
-  console.log(quote)
 
-  console.log(requestId)
   sigResp = await fetch(
     `https://api.relay.link/requests/${requestId}/signature/v2`,
     { headers: { 'Content-Type': 'application/json' } }
@@ -231,7 +225,8 @@ const main = async () => {
 
   relayData = {
     requestId,
-    receivingAssetId: '0x0000000000000000000000000000000000000000',
+    nonEVMReceiver: ethers.constants.HashZero,
+    receivingAssetId: ethers.constants.HashZero,
     callData: '0x',
     signature: sigData.signature,
   }
@@ -247,6 +242,80 @@ const main = async () => {
     .swapAndStartBridgeTokensViaRelay(bridgeData, swapData, relayData)
   await tx.wait()
   console.info('Bridged ETH')
+
+  // Bridge USDC to Solana
+
+  const solanaReceiver = 'EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb'
+  const solanaUSDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+
+  params = {
+    user: deployments.LiFiDiamond,
+    originChainId: 42161,
+    destinationChainId: 792703809,
+    originCurrency: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    destinationCurrency: solanaUSDC,
+    recipient: solanaReceiver,
+    tradeType: 'EXACT_INPUT',
+    amount: '5000000',
+    referrer: 'relay.link/swap',
+    useExternalLiquidity: false,
+  }
+
+  resp = await fetch('https://api.relay.link/quote', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  })
+  quote = await resp.json()
+  console.log(quote)
+  requestId = quote.steps[0].requestId
+
+  console.log(requestId)
+  sigResp = await fetch(
+    `https://api.relay.link/requests/${requestId}/signature/v2`,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+  sigData = await sigResp.json()
+  console.log(sigData)
+
+  bridgeData = {
+    transactionId: utils.randomBytes(32),
+    bridge: 'Relay',
+    integrator: 'ACME Devs',
+    referrer: '0x0000000000000000000000000000000000000000',
+    sendingAssetId: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    receiver: '0x11f111f111f111F111f111f111F111f111f111F1',
+    minAmount: '5000000',
+    destinationChainId: 1151111081099710,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
+  }
+
+  relayData = {
+    requestId,
+    nonEVMReceiver: `0x${new PublicKey(solanaReceiver)
+      .toBuffer()
+      .toString('hex')}`,
+    receivingAssetId: `0x${new PublicKey(solanaUSDC)
+      .toBuffer()
+      .toString('hex')}`,
+    callData: quote.steps[0].items[0].data.data,
+    signature: sigData.signature,
+  }
+
+  console.info('Dev Wallet Address: ', address)
+  console.info('Approving USDC...')
+  tx = await token.connect(signer).approve(LIFI_ADDRESS, '5000000')
+  await tx.wait()
+  console.info('Approved USDC')
+  console.info('Bridging USDC...')
+  tx = await relay
+    .connect(signer)
+    .startBridgeTokensViaRelay(bridgeData, relayData)
+  await tx.wait()
+  console.info('Bridged USDC')
 }
 
 main()
