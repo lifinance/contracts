@@ -155,6 +155,7 @@ const main = defineCommand({
 
     // @DEV: when this script was used the last time this gas estimation was required in order to get the transaction submitted to mainnet
     //       the data parameter was hardcoded, this should be improved if this code is required permanently
+    //       consider using this: https://viem.sh/docs/contract/estimateContractGas#estimatecontractgas
     // const gas = await publicClient.estimateGas({
     //   account: fundingWallet,
     //   to: GAS_ZIP_ROUTER_MAINNET,
