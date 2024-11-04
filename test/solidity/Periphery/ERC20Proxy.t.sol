@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";

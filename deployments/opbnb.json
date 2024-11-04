@@ -18,5 +18,6 @@
   "Receiver": "0xddc22EAaa960e052946D842cEC61eb91bbE06eeD",
   "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76",
   "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-  "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
+  "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
+  "EmergencyPauseFacet": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61"
 }
