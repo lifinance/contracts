@@ -11,7 +11,6 @@ import { mainnet } from 'viem/chains'
 import { network } from 'hardhat'
 import {
   getAllActiveNetworks,
-  getGasFees,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
 
@@ -87,14 +86,15 @@ const main = defineCommand({
     console.log(`fundAmountUSD: ${fundAmountUSD}\n`)
 
     // get viem public client to read from blockchain
+    const viemChainMainnet = getViemChainForNetworkName('mainnet')
     const publicClient = createPublicClient({
-      chain: mainnet,
+      chain: viemChainMainnet,
       transport: http(),
     })
 
     // create wallet client to write to chain
     const walletClient = createWalletClient({
-      chain: mainnet,
+      chain: viemChainMainnet,
       transport: http(),
       account: fundingWallet,
     })
@@ -151,15 +151,17 @@ const main = defineCommand({
     console.log(`DestinationChainsValue: ${chainsBN}`)
 
     // Get the latest block information to get the base fee
-    // const gasFees = await getGasFees(publicClient)
     const gasFees = await publicClient.estimateFeesPerGas()
 
-    // Estimate gas limit before simulating or writing the contract
-    const gasLimit = await publicClient.estimateGas({
-      account: fundingWallet,
-      to: GAS_ZIP_ROUTER_MAINNET,
-      value: amountRequiredNative.toBigInt(),
-    })
+    // @DEV: when this script was used the last time this gas estimation was required in order to get the transaction submitted to mainnet
+    //       the data parameter was hardcoded, this should be improved if this code is required permanently
+    // const gas = await publicClient.estimateGas({
+    //   account: fundingWallet,
+    //   to: GAS_ZIP_ROUTER_MAINNET,
+    //   value: amountRequiredNative.toBigInt(),
+    //   data: '0x6e553f6500000000ff393e0f36608c9415140a1f103b0d1e491c1d371134fe29f6f99233000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee',
+    // })
+    // console.log(`Gas estimated: ${gas}`)
 
     // simulate transaction
     const result = await publicClient.simulateContract({
@@ -169,19 +171,20 @@ const main = defineCommand({
       functionName: 'deposit',
       value: amountRequiredNative.toBigInt(),
       args: [chainsBN, receivingWallet as HexString],
-      gas: gasLimit,
-      type: 'eip1559',
+      // gas: gas,
     })
     console.dir(result, { depth: null, colors: true })
 
     // execute transaction
     const txHash = await walletClient.writeContract({
       ...result.request,
-      // maxFeePerGas: gasFees.maxFeePerGas,
-      // maxPriorityFeePerGas: gasFees.maxPriorityFeePerGas,
-      // gas: gasLimit,
     })
     console.log(`Transaction successfully submitted: ${txHash}`)
+
+    const transaction = await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+    })
+    console.dir(transaction, { depth: null, colors: true })
   },
 })
 
