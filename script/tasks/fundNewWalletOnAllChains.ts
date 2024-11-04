@@ -2,27 +2,14 @@ import { defineCommand, runMain } from 'citty'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-import { getAllNetworks } from '../utils/network'
-import networks from '../../config/networks.json'
-import gasZipChainIds from '../resources/gasZipChainIds.json'
 import { BigNumber, BigNumberish } from 'ethers'
 import axios from 'axios'
-import { mainnet } from 'viem/chains'
-import { network } from 'hardhat'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
 
 const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
-const testnets = [
-  'bsc-testnet',
-  'lineatest',
-  'mumbai',
-  'sepolia',
-  'localanvil',
-  'virtualtestnet',
-]
 
 /// TYPES ///
 type HexString = `0x${string}`
