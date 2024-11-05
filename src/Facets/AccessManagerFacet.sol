@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
-/// @title Access Manager Facet
+/// @title AccessManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing method level access control
 /// @custom:version 1.0.0
@@ -40,7 +40,7 @@ contract AccessManagerFacet {
         }
     }
 
-    /// @notice Check if a method can be executed by a specific address
+    /// @notice Check if a method can be executed by a specific address blablabla
     /// @param _selector The method selector to check
     /// @param _executor The address to check
     function addressCanExecuteMethod(
