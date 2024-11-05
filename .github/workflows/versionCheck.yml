@@ -109,7 +109,7 @@ jobs:
                   echo -e "\033[32mChange is non-relevant (comments/formatting/pragma/license). No version update required.\033[0m"
                 else
                   ##### add to files with missing version updates
-                  echo -e "\033[31mFile's version was not updated in this PR\033[0m"
+                  echo -e "\033[31mThe file changed but the file version was not updated\033[0m"
                   MISSING_VERSION_UPDATE+=("$FILE")
                 fi
               fi
@@ -157,9 +157,8 @@ jobs:
       - name: Compose updated PR title
         if: env.CONTINUE == 'true'
         env:
-          PR_TITLE: ${{github.event.pull_request.title}}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-
 
           ##### Read tmp files into variables
           if [ -f updated_contracts.txt ]; then
@@ -168,43 +167,26 @@ jobs:
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Initialize PR title
-          PR_TITLE_UPDATED="$PR_TITLE ["
-
-          ##### Go through the list of target strings (contract + newVersion)
-          IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
-          for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
-            ##### if current PR title does not contain this contract's name....
-            if [[ ! "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
-              ##### ... then add it to the title
-              echo "adding '$TARGET_STRING' to title"
-              PR_TITLE_UPDATED="$PR_TITLE_UPDATED$TARGET_STRING, "
-            fi
-          done
-
-          ##### Finalize the PR title
-          ##### Check if the last two characters are ", " (= contracts were added to title)
-          if [[ "${PR_TITLE_UPDATED: -2}" == ", " ]]; then
-            ##### Remove the last two characters and append a closing bracket
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2}]"
-          ##### Check if last character is '(' (= no contracts were added to title)
-          elif [[ "${PR_TITLE_UPDATED: -1}" == "[" ]]; then
-            ##### Remove the last character (not needed)
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1}"
+          ##### Initialize new PR title
+          if [[ -n $UPDATED_CONTRACTS ]]; then
+            PR_TITLE_UPDATED="${PR_TITLE%%[*]}" # Remove everything from the first [ onwards
+            PR_TITLE_UPDATED="${PR_TITLE_UPDATED} [${UPDATED_CONTRACTS}]"
           else
-            echo "Error: Unexpected ending in PR_TITLE_UPDATED: '$PR_TITLE_UPDATED'"
-            exit 1
+            PR_TITLE_UPDATED="${PR_TITLE%%[*]}" # Remove everything from the first [ onwards
           fi
 
-          ##### if there are no changes in the title, no need to continue further
-          if [[ $PR_TITLE == $PR_TITLE_UPDATED ]]; then
+          ##### Remove any trailing whitespace
+          PR_TITLE_UPDATED="$(echo -e "${PR_TITLE_UPDATED}" | sed 's/[[:space:]]*$//')"
+
+          ##### Check if the PR title needs to be updated
+          if [[ "$PR_TITLE" != "$PR_TITLE_UPDATED" ]]; then
+            echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
+            echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+          else
             echo "No PR title updates are required."
-            echo "This github action will end here."
+            echo "This GitHub action will end here."
             exit 0
           fi
-
-          ##### save updated PR title in env variable
-          echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
         if: env.CONTINUE == 'true'
