@@ -205,10 +205,12 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _getMappedChainId(
         uint256 chainId
     ) internal pure returns (uint256) {
+        // Bitcoin
         if (chainId == 20000000000001) {
             return 8253038;
         }
 
+        // Solana
         if (chainId == 1151111081099710) {
             return 792703809;
         }
