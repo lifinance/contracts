@@ -1,10 +1,11 @@
 # - Github Version Control Checker
-# - Watches changes on contracts in the following paths:
-#   - src
+
+# - Watches changes on version-controlled contracts and makes sure that versions are bumped in case of relevant changes:
+# - Relevant changes == anything except for changes of license identifier, solidity pragma of pure comment changes
+# - watched paths: src/*
 # - will check all modified or new contracts in watched paths
 # - will fail if a new contract was added to watched paths without contract version
 # - will fail if an existing contract was modified but version was not updated
-#   exception: changes only in license identifier, solidity pragma or comments
 # - will update the PR title to contain all contract names and their new versions (watched paths only)
 name: Version Control Checker
 
@@ -212,5 +213,13 @@ jobs:
           unset GITHUB_TOKEN
           ##### use the Personal Access Token to log into git CLI
           echo $GH_PAT | gh auth login --with-token
+          if ! echo $GH_PAT | gh auth login --with-token; then
+            echo -e "\033[31mFailed to authenticate with GitHub. Git action cannot continue\033[0m"
+            exit 1
+          fi
           ##### update the PR title
-          gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"
+          if ! gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"; then
+            echo "::error::Failed to update PR title"
+            echo -e "\033[31mFailed to update PR title. Git action cannot continue\033[0m"
+            exit 1
+          fi
