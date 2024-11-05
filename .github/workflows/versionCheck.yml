@@ -200,7 +200,6 @@ jobs:
           fi
 
       - name: Update the PR title on GitHub
-        if: env.CONTINUE == 'true'
         env:
           GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
