@@ -155,7 +155,6 @@ jobs:
           fi
 
       - name: Compose updated PR title
-        if: env.CONTINUE == 'true'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
