@@ -39,7 +39,7 @@
   "auditedContracts": {
     "EmergencyPauseFacet": {
       "1.0.0": ["audit20240913"],
-      "1.0.1": ["audit20240913"]
+      "1.0.1": ["audit20241105"]
     },
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"]
