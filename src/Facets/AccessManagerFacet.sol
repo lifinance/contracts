@@ -5,7 +5,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
-/// @title AccessManagerFacet
+/// @title Access Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing method level access control
 /// @custom:version 1.0.0
@@ -40,13 +40,13 @@ contract AccessManagerFacet {
         }
     }
 
-    /// @notice Check if a method can be executed by a specific address blablabla
-    /// @param _selector The method selector to check
+    /// @notice Check if a method can be executed by a specific address
+    /// @param _selectors The method selector to check
     /// @param _executor The address to check
     function addressCanExecuteMethod(
-        bytes4 _selector,
+        bytes4 _selectors,
         address _executor
     ) external view returns (bool) {
-        return LibAccess.accessStorage().execAccess[_selector][_executor];
+        return LibAccess.accessStorage().execAccess[_selectors][_executor];
     }
 }
