@@ -10,7 +10,7 @@ name: Version Control Checker
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited, synchronize, review_requested, ready_for_review]
 
 jobs:
   check-version:
