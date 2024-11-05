@@ -27,11 +27,19 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.10.14_WithdrawablePeriphery.pdf",
       "auditCommitHash": "b03e658b359f1696388e2aaeaf24a7c107ba462a"
+    },
+    "audit20241105": {
+      "auditCompletedOn": "05.11.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.11.05_EmergencyPauseFacet_ReAudit.pdf",
+      "auditCommitHash": "da61880ba3847c07c35b64a78b957ff845ec18ac"
     }
   },
   "auditedContracts": {
     "EmergencyPauseFacet": {
-      "1.0.0": ["audit20240913"]
+      "1.0.0": ["audit20240913"],
+      "1.0.1": ["audit20240913"]
     },
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"]
