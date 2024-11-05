@@ -99,12 +99,7 @@ contract GasZipPeriphery is
         // this is required due to LI.FI backend-internal requirements (money flow)
         uint256 remainingNativeBalance = address(this).balance;
         if (remainingNativeBalance > 0) {
-            (bool success, ) = msg.sender.call{
-                value: remainingNativeBalance
-            }("");
-            if (!success) {
-                revert NativeAssetTransferFailed();
-            }
+            msg.sender.safeTransferETH(remainingNativeBalance);
         }
     }
 

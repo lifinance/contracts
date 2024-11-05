@@ -55,6 +55,7 @@ contract GasZipPeripheryTest is TestBase {
     event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
 
     error TooManyChainIds();
+    error ETHTransferFailed();
 
     function setUp() public {
         customBlockNumberForForking = 20931877;
@@ -130,7 +131,7 @@ contract GasZipPeripheryTest is TestBase {
         vm.startPrank(address(nonETHReceiver));
 
         // set up expected event
-        vm.expectRevert(NativeAssetTransferFailed.selector);
+        vm.expectRevert(ETHTransferFailed.selector);
 
         // deposit via GasZip periphery contract
         gasZipPeriphery.depositToGasZipNative{
