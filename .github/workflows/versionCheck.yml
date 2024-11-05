@@ -148,7 +148,7 @@ jobs:
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           else
-            echo -e "\033[32mDid not find any contracts for which version control is activated (only facets, periphery and diamonds).\033[0m"
+            echo -e "\033[32mDid not find any contracts for which version control is activated.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0

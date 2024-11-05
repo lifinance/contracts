@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+// SPDX-License-Identifier: Unlicensed
+pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
