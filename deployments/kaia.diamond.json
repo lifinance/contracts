@@ -62,8 +62,8 @@
         "Version": "1.0.1"
       },
       "0x5b4dd05850A3f373500e7fC90E94b581A45ACBFa": {
-        "Name": "",
-        "Version": ""
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

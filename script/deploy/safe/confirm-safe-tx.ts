@@ -8,7 +8,7 @@ import consola from 'consola'
 import * as chains from 'viem/chains'
 import { getSafeUtilityContracts } from './config'
 import {
-  Networks,
+  NetworksObject,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
@@ -16,7 +16,7 @@ import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-type
 import networksConfig from '../../../config/networks.json'
 dotenv.config()
 
-const networks: Networks = networksConfig
+const networks: NetworksObject = networksConfig
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
