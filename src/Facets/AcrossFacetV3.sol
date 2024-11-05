@@ -50,10 +50,10 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _spokePool The contract address of the spoke pool on the source chain.
+    /// @param _spokePools The contract address of the spoke pool on the source chain.
     /// @param _wrappedNative The address of the wrapped native token on the source chain.
-    constructor(IAcrossSpokePool _spokePool, address _wrappedNative) {
-        spokePool = _spokePool;
+    constructor(IAcrossSpokePool _spokePools, address _wrappedNative) {
+        spokePool = _spokePools;
         wrappedNative = _wrappedNative;
     }
 
