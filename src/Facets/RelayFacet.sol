@@ -65,21 +65,18 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Verify that the bridging quote has been signed by the Relay solver
         // as attested using the attestaion API
         // API URL: https://api.relay.link/requests/{requestId}/signature/v2
-        bytes32 message = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(
-                    abi.encodePacked(
-                        _relayData.requestId,
-                        block.chainid,
-                        bytes32(uint256(uint160(address(this)))),
-                        bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
-                        _getMappedChainId(_bridgeData.destinationChainId),
-                        _bridgeData.receiver == NON_EVM_ADDRESS
-                            ? _relayData.nonEVMReceiver
-                            : bytes32(uint256(uint160(_bridgeData.receiver))),
-                        _relayData.receivingAssetId
-                    )
+        bytes32 message = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    _relayData.requestId,
+                    block.chainid,
+                    bytes32(uint256(uint160(address(this)))),
+                    bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                    _getMappedChainId(_bridgeData.destinationChainId),
+                    _bridgeData.receiver == NON_EVM_ADDRESS
+                        ? _relayData.nonEVMReceiver
+                        : bytes32(uint256(uint160(_bridgeData.receiver))),
+                    _relayData.receivingAssetId
                 )
             )
         );
