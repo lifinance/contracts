@@ -158,20 +158,24 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-
           ##### Read tmp files into variables
           if [ -f updated_contracts.txt ]; then
             UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+          else
+            UPDATED_CONTRACTS=""
           fi
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Initialize new PR title
-          if [[ -n $UPDATED_CONTRACTS ]]; then
-            PR_TITLE_UPDATED="${PR_TITLE%%[*]}" # Remove everything from the first [ onwards
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED} [${UPDATED_CONTRACTS}]"
+          ##### Initialize new PR title without brackets
+          BASE_TITLE="${PR_TITLE%%[*]}"
+
+          if [[ -n "$UPDATED_CONTRACTS" ]]; then
+            # Format the new PR title with updated contracts
+            PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
           else
-            PR_TITLE_UPDATED="${PR_TITLE%%[*]}" # Remove everything from the first [ onwards
+            # No updated contracts, keep title without brackets
+            PR_TITLE_UPDATED="$BASE_TITLE"
           fi
 
           ##### Remove any trailing whitespace
