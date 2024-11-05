@@ -23,12 +23,17 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     // Receiver for native transfers
     address public immutable relayReceiver;
+    // Relayer wallet for ERC20 transfers
     address public immutable relaySolver;
 
     /// Types ///
 
-    /// @dev Optional bridge specific struct
-    /// @param exampleParam Example parameter
+    /// @dev Relay specific parameters
+    /// @param requestId Realy API request ID
+    /// @param nonEVMReceiver set only if bridging to non-EVM chain
+    /// @params receivingAssetId address of receiving asset
+    /// @params callData calldata provided by Relay API
+    /// @params signature attestation signature provided by the Relay solver
     struct RelayData {
         bytes32 requestId;
         bytes32 nonEVMReceiver;
@@ -51,6 +56,8 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Modifiers ///
 
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _relayData Data specific to Relay
     modifier onlyValidQuote(
         ILiFi.BridgeData memory _bridgeData,
         RelayData calldata _relayData
@@ -184,6 +191,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             }
         }
 
+        // Emit special event if bridging to non-EVM chain
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
@@ -195,6 +203,8 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
+    /// @notice get Relay specific chain id for non-EVM chains
+    /// @param chainId LIFI specific chain id
     function _getMappedChainId(
         uint256 chainId
     ) internal pure returns (uint256) {

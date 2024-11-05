@@ -39,6 +39,8 @@ contract RelayFacetTest is TestBaseFacet {
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
+    error InvalidQuote();
+
     function setUp() public {
         customBlockNumberForForking = 19767662;
         initTestBase();
@@ -142,6 +144,19 @@ contract RelayFacetTest is TestBaseFacet {
                 validRelayData
             );
         }
+    }
+
+    function testRevert_BridgeWithInvalidSignature() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        PRIVATE_KEY = 0x0987654321;
+
+        vm.expectRevert(InvalidQuote.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function signData(
