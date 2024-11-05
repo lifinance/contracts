@@ -8,7 +8,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @title Access Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing method level access control
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract AccessManagerFacet {
     /// Events ///
 
