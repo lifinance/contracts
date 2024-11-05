@@ -14,7 +14,7 @@ import { InformationMismatch } from "../Errors/GenericErrors.sol";
 /// @title AcrossFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -50,10 +50,10 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _spokePools The contract address of the spoke pool on the source chain.
+    /// @param _spokePool The contract address of the spoke pool on the source chain.
     /// @param _wrappedNative The address of the wrapped native token on the source chain.
-    constructor(IAcrossSpokePool _spokePools, address _wrappedNative) {
-        spokePool = _spokePools;
+    constructor(IAcrossSpokePool _spokePool, address _wrappedNative) {
+        spokePool = _spokePool;
         wrappedNative = _wrappedNative;
     }
 
