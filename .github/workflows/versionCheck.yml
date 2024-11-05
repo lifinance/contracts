@@ -194,9 +194,8 @@ jobs:
             echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
             echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
             echo "CONTINUE=true" >> $GITHUB_ENV
-            else
-            echo "No PR title updates are required."
-            echo "This GitHub action will end here."
+          else
+            echo -e "\033[32mNo PR title updates are required. This Github action will end here.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
