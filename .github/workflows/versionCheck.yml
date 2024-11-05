@@ -193,13 +193,16 @@ jobs:
           if [[ "$PR_TITLE" != "$PR_TITLE_UPDATED" ]]; then
             echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
             echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
-          else
+            echo "CONTINUE=true" >> $GITHUB_ENV
+            else
             echo "No PR title updates are required."
             echo "This GitHub action will end here."
+            echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
 
       - name: Update the PR title on GitHub
+        if: env.CONTINUE == 'true'
         env:
           GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
