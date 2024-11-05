@@ -5,7 +5,6 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibDiamondLoupe } from "../Libraries/LibDiamondLoupe.sol";
 import { UnAuthorized, InvalidCallData, DiamondIsPaused } from "../Errors/GenericErrors.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
-import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 /// @title EmergencyPauseFacet (Admin only)
