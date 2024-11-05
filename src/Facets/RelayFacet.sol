@@ -63,7 +63,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         RelayData calldata _relayData
     ) {
         // Verify that the bridging quote has been signed by the Relay solver
-        // as attested using the attestaion API
+        // as attested using the attestation API
         // API URL: https://api.relay.link/requests/{requestId}/signature/v2
         bytes32 message = ECDSA.toEthSignedMessageHash(
             keccak256(
