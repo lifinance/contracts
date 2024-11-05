@@ -201,6 +201,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice get Relay specific chain id for non-EVM chains
+    ///         IDs found here  https://li.quest/v1/chains?chainTypes=UTXO,SVM
     /// @param chainId LIFI specific chain id
     function _getMappedChainId(
         uint256 chainId
