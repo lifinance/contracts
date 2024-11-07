@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { NativeAssetTransferFailed, InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
