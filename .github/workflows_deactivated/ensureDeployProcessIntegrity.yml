@@ -2,20 +2,23 @@
 # - ensures that the systems in place to guarantee audits, approvals, versioning, test coverage etc. cannot be easily deactivated
 #   or altered without approval of the Information Security Manager (or CTO)
 # - protects any git actions in folder .github/workflows/*
+# - protects the pre-commit checker script stored in .husky/pre-commit
 
 name: Ensure Deploy Process Integrity
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   protect-security-system:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
 
@@ -36,10 +39,15 @@ jobs:
           ##### Initialize empty variables
           PROTECTED_FILES=""
 
-          ##### go through all modified file names/paths and identify contracts with path 'src/*'
+          ##### go through all modified file names/paths and identify contracts with path '.github/'
           while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^.github/workflows/'; then
-
+            ##### check for github actions
+            if echo "$FILE" | grep -E '^.github/'; then
+              ##### modified git action found
+              PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
+            fi
+            ##### check for pre-commit checker
+            if echo "$FILE" | grep -E '^.husky/pre-commit'; then
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
@@ -62,7 +70,7 @@ jobs:
       - name: Get "Information Security Manager" Group Members
         if: env.CONTINUE == 'true'
         env:
-          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
@@ -83,8 +91,7 @@ jobs:
           }
 
           ORG_NAME='lifinance'
-          # GROUP_NAME='information-security-manager'
-          GROUP_NAME='smart-contract-core'
+          GROUP_NAME='InformationSecurityManager'
 
           ##### get team members
           INFORMATION_SECURITY_MEMBERS=$(getTeamMembers $ORG_NAME $GROUP_NAME)
@@ -134,12 +141,12 @@ jobs:
 
             // check if at least one of these reviewers is member in information-security-manager group
             if (reviewerHandles.some((handle) => itSecHandles.includes(handle))) {
-              console.log(`${colors.green}The current PR was approved by a member of the information-security-manager group.${colors.reset}`);
+              console.log(`${colors.green}The current PR was approved by a member of the InformationSecurityManager group.${colors.reset}`);
               console.log(`${colors.green}Check passed.${colors.reset}`);
               core.setOutput('approved', 'true');
               } else {
               console.log(`${colors.red}The PR requires a missing approval by a member of the information-security-manager group.${colors.reset}`);
-              console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/information-security-manager.${colors.reset}`);
+              console.log(`Find group members here: https://github.com/orgs/lifinance/teams/InformationSecurityManager`);
               console.log(`${colors.red}Check failed.${colors.reset}`);
               core.setFailed("Required approval is missing");
             }
