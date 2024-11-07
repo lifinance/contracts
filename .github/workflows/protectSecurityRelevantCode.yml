@@ -1,4 +1,4 @@
-name: Ensure Deploy Process Integrity
+name: Protect security-critical code/system
 
 # - ensures that the systems in place to guarantee audits, approvals, versioning, test coverage etc. cannot be easily deactivated
 #   or altered without approval of the Information Security Manager (or CTO)
@@ -10,7 +10,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
-  protect-security-system:
+  protect-critical-code:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     permissions:
