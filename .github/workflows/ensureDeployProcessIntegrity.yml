@@ -41,14 +41,8 @@ jobs:
 
           ##### go through all modified file names/paths and identify contracts with path '.github/'
           while IFS= read -r FILE; do
-            ##### check for github actions
-            if echo "$FILE" | grep -E '^.github/'; then
-              ##### modified git action found
-              PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
-            fi
-            ##### check for pre-commit checker
-            if echo "$FILE" | grep -E '^.husky/pre-commit'; then
-              ##### modified git action found
+            ##### check for github actions and pre-commit checker paths
+            if echo "$FILE" | grep -E '^\.github/|^\.husky/pre-commit'; then              ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
           done <<< "$FILES"
@@ -78,7 +72,7 @@ jobs:
           unset GITHUB_TOKEN
 
           ##### use the Personal Access Token to log into git CLI
-          echo $GH_PAT | gh auth login --with-token
+          echo $GH_PAT | gh auth login --with-token || { echo "Failed to login with GitHub CLI"; exit 1; }
 
           ##### Function to get team members using github CLI
           getTeamMembers() {
