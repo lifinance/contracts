@@ -79,7 +79,6 @@ const main = async () => {
     requestId,
     nonEVMReceiver: ethers.constants.HashZero,
     receivingAssetId: ethers.constants.HashZero,
-    callData: '0x',
     signature: sigData.signature,
   }
 
@@ -149,7 +148,6 @@ const main = async () => {
       '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
       32
     ),
-    callData: quote.steps[0].items[0].data.data,
     signature: sigData.signature,
   }
 
@@ -227,7 +225,6 @@ const main = async () => {
     requestId,
     nonEVMReceiver: ethers.constants.HashZero,
     receivingAssetId: ethers.constants.HashZero,
-    callData: '0x',
     signature: sigData.signature,
   }
 
@@ -301,7 +298,6 @@ const main = async () => {
     receivingAssetId: `0x${new PublicKey(solanaUSDC)
       .toBuffer()
       .toString('hex')}`,
-    callData: quote.steps[0].items[0].data.data,
     signature: sigData.signature,
   }
 

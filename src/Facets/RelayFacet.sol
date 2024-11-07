@@ -27,13 +27,11 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param requestId Relay API request ID
     /// @param nonEVMReceiver set only if bridging to non-EVM chain
     /// @params receivingAssetId address of receiving asset
-    /// @params callData calldata provided by Relay API
     /// @params signature attestation signature provided by the Relay solver
     struct RelayData {
         bytes32 requestId;
         bytes32 nonEVMReceiver;
         bytes32 receivingAssetId;
-        bytes callData;
         bytes signature;
     }
 
@@ -164,7 +162,6 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 revert(LibUtil.getRevertMsg(reason));
             }
         } else {
-            bytes memory quoteId = _relayData.callData[68:];
             // ERC20
 
             // We build the calldata from scratch to ensure that we can only
@@ -175,7 +172,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     relaySolver,
                     _bridgeData.minAmount
                 ),
-                quoteId
+                abi.encode(_relayData.requestId)
             );
             (bool success, bytes memory reason) = address(
                 _bridgeData.sendingAssetId

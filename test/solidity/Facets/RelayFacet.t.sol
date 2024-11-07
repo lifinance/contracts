@@ -70,7 +70,6 @@ contract RelayFacetTest is TestBaseFacet {
             receivingAssetId: bytes32(
                 uint256(uint160(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174))
             ), // Polygon USDC
-            callData: "",
             signature: ""
         });
     }
@@ -82,11 +81,6 @@ contract RelayFacetTest is TestBaseFacet {
                 value: bridgeData.minAmount
             }(bridgeData, validRelayData);
         } else {
-            validRelayData.callData = abi.encodeWithSignature(
-                "transfer(address,uint256)",
-                RELAY_SOLVER,
-                bridgeData.minAmount
-            );
             relayFacet.startBridgeTokensViaRelay(bridgeData, validRelayData);
         }
     }
@@ -100,11 +94,6 @@ contract RelayFacetTest is TestBaseFacet {
                 value: swapData[0].fromAmount
             }(bridgeData, swapData, validRelayData);
         } else {
-            validRelayData.callData = abi.encodeWithSignature(
-                "transfer(address,uint256)",
-                RELAY_SOLVER,
-                bridgeData.minAmount
-            );
             relayFacet.swapAndStartBridgeTokensViaRelay(
                 bridgeData,
                 swapData,
@@ -152,7 +141,6 @@ contract RelayFacetTest is TestBaseFacet {
                     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
                 )
             ), // Solana USDC
-            callData: "",
             signature: ""
         });
 
