@@ -16,11 +16,6 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 /// @notice Provides functionality for bridging through Relay Protocol
 /// @custom:version 1.0.0
 contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Storage ///
-
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
-
     // Receiver for native transfers
     address public immutable relayReceiver;
     // Relayer wallet for ERC20 transfers
@@ -73,7 +68,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     bytes32(uint256(uint160(address(this)))),
                     bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                     _getMappedChainId(_bridgeData.destinationChainId),
-                    _bridgeData.receiver == NON_EVM_ADDRESS
+                    _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
                         ? _relayData.nonEVMReceiver
                         : bytes32(uint256(uint160(_bridgeData.receiver))),
                     _relayData.receivingAssetId
@@ -191,7 +186,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         // Emit special event if bridging to non-EVM chain
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+        if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,

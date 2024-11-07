@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console, ERC20, LibAsset } from "../utils/TestBaseFacet.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
@@ -28,8 +28,6 @@ contract RelayFacetTest is TestBaseFacet {
         0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
     uint256 internal PRIVATE_KEY = 0x1234567890;
     address RELAY_SOLVER = vm.addr(PRIVATE_KEY);
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
 
     error InvalidQuote();
 
@@ -140,7 +138,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 792703809;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -185,7 +183,7 @@ contract RelayFacetTest is TestBaseFacet {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _getMappedChainId(_bridgeData.destinationChainId),
-                        _bridgeData.receiver == NON_EVM_ADDRESS
+                        _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
                         _relayData.receivingAssetId
