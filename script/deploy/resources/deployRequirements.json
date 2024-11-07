@@ -524,7 +524,7 @@
       }
     }
   },
-  "Relay": {
+  "RelayFacet": {
     "configData": {
       "_relayReceiver": {
         "configFileName": "relay.json",
