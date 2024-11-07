@@ -162,7 +162,7 @@ jobs:
               console.log(`This PR has been approved by the following git members: ${reviewerHandles}`);
 
             // check if at least one of these reviewers is member of InformationSecurityManager group
-            if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
+            if (reviewerHandles.some((handle) => itSecHandles.includes(handle))) {
               console.log(`${colors.green}The current PR is approved by a member of the InformationSecurityManager group.${colors.reset}`);
               console.log(`${colors.green}Check passed.${colors.reset}`);
               core.setOutput('approved', 'true');
