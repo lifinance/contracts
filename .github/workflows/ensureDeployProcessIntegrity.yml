@@ -105,6 +105,8 @@ jobs:
         id: check-sec-mgr-approval
         uses: actions/github-script@v7
         if: env.CONTINUE == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.review.pull_request.number }}
         with:
           script: |
             const fs = require('fs');
@@ -119,6 +121,71 @@ jobs:
             // Read git handles from file
             const itSecHandlesFile = 'itSec_git_handles.txt';
             const itSecHandles = fs.readFileSync(itSecHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+            if (!itSecHandles) {
+              console.log(`${colors.red}Could not get the git handles of the InformationSecurityManager team.${colors.reset}`);
+              core.setFailed("Cannot read from InformationSecurityManager team.");
+              return;
+            }
+
+            const pullNumber = process.env.PR_NUMBER;
+            if (!pullNumber) {
+              console.log(`${colors.red}No PR number found in context.${colors.reset}`);
+              core.setFailed("PR number is missing.");
+              return;
+            }
+
+            // get all reviewers that have approved this PR
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            });
+
+            // make sure that reviews are available
+            if(!reviews || reviews.length === 0) {
+              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
+
+            // Filter to only include reviews that have "APPROVED" status
+            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+
+            if(!approvedReviews.length) {
+              console.log(`${colors.red}Could not find any reviews with approval.${colors.reset}`);
+              console.log(`${colors.red}Cannot continue. Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
+
+            // extract the git login handles of all reviewers that approved this PR
+            const reviewerHandles = approvedReviews.map(review => review.user.login);
+
+            if(approvedReviews.length === 0)
+              console.log(`${colors.red}This PR has no approvals${colors.reset}`);
+            else
+              console.log(`This PR has been approved by the following git members: ${reviewerHandles}`);
+
+            // check if at least one of these reviewers is member of InformationSecurityManager group
+            if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
+              console.log(`${colors.green}The current PR is approved by a member of the InformationSecurityManager group.${colors.reset}`);
+              console.log(`${colors.green}Check passed.${colors.reset}`);
+              core.setOutput('approved', 'true');
+              } else {
+              console.log(`${colors.red}The PR requires a missing approval by a member of the InformationSecurityManager group (https://github.com/orgs/lifinance/teams/smart-contract-core).${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+            }
+
+
+
+
+
+
+
+
+
 
             if(!(await github.pulls)) {
               console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
