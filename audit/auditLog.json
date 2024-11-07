@@ -34,11 +34,19 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.10.17_GasZip.pdf",
       "auditCommitHash": "6bc644642db2d38d2a55a4e18ecd2c478e7b3ff5"
+    },
+    "audit20241105": {
+      "auditCompletedOn": "05.11.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.11.05_EmergencyPauseFacet_ReAudit.pdf",
+      "auditCommitHash": "da61880ba3847c07c35b64a78b957ff845ec18ac"
     }
   },
   "auditedContracts": {
     "EmergencyPauseFacet": {
-      "1.0.0": ["audit20240913"]
+      "1.0.0": ["audit20240913"],
+      "1.0.1": ["audit20241105"]
     },
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"]

@@ -1,22 +1,23 @@
 # - Github Version Control Checker
-# - Watches changes on contracts in the following paths:
-#   - src
-#   - src/Facets/
-#   - src/Periphery/
+
+# - Watches changes on version-controlled contracts and makes sure that versions are bumped in case of relevant changes:
+# - Relevant changes == anything except for changes of license identifier, solidity pragma of pure comment changes
+# - watched paths: src/*
 # - will check all modified or new contracts in watched paths
 # - will fail if a new contract was added to watched paths without contract version
 # - will fail if an existing contract was modified but version was not updated
 # - will update the PR title to contain all contract names and their new versions (watched paths only)
-name: Version Check
+name: Version Control Checker
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited, synchronize, review_requested, ready_for_review]
 
 jobs:
   check-version:
+    # will only run once the PR is in "Ready for Review" state
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,23 +36,16 @@ jobs:
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
-            echo "No files found. This should not happen. Please check the code of the Github action"
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action\033[0m"
             exit 1
           fi
 
           ##### Initialize empty variables
           CONTRACTS=""
 
-          ##### go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
+          ##### go through all file paths and identify all files in src/ folder (version control is only active in this folder)
           while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
-              ##### facet found
-              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
-            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
-              ##### periphery found
-              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
-            elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
-              ##### diamond contract found
+            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
               CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             fi
           done <<< "$FILES"
@@ -104,17 +98,21 @@ jobs:
               ##### get all changes of the current file/contract
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE")
 
-              ##### Check if the version was updated in this PR (by checking if any of the git diff lines starts with '/// @custom:version')
+              ##### Check if the version was updated in this PR
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
-                ##### extract the new version and save it together with the name of the contract in an array
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                 TARGET_STRING="${FILENAME} v${NEW_VERSION}"
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
               else
-                ##### add to files with missing version updates
-                echo -e "\033[31mFile's version was not updated in this PR\033[0m"
-                MISSING_VERSION_UPDATE+=("$FILE")
+                ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
+                if echo "$DIFF_OUTPUT" | grep -qE '^\+\/\/\/|^\+pragma|^\+// SPDX-License-Identifier:'; then
+                  echo -e "\033[32mChange is non-relevant (comments/formatting/pragma/license). No version update required.\033[0m"
+                else
+                  ##### add to files with missing version updates
+                  echo -e "\033[31mThe file changed but the file version was not updated\033[0m"
+                  MISSING_VERSION_UPDATE+=("$FILE")
+                fi
               fi
             fi
             echo "--------------------"
@@ -151,68 +149,62 @@ jobs:
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           else
-            echo -e "\033[32mDid not find any contracts for which version control is activated (only facets, periphery and diamonds).\033[0m"
+            echo -e "\033[32mDid not find any contracts for which version control is activated.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
 
       - name: Compose updated PR title
-        if: env.CONTINUE == 'true'
         env:
-          PR_TITLE: ${{github.event.pull_request.title}}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-
-
           ##### Read tmp files into variables
           if [ -f updated_contracts.txt ]; then
             UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+          else
+            UPDATED_CONTRACTS=""
           fi
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Initialize PR title
-          PR_TITLE_UPDATED="$PR_TITLE ["
+          ##### Step 1: Remove everything in and including brackets from the current title
+          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[.*$//')
+          echo "BASE_TITLE: $BASE_TITLE"
 
-          ##### Go through the list of target strings (contract + newVersion)
-          IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
-          for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
-            ##### if current PR title does not contain this contract's name....
-            if [[ ! "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
-              ##### ... then add it to the title
-              echo "adding '$TARGET_STRING' to title"
-              PR_TITLE_UPDATED="$PR_TITLE_UPDATED$TARGET_STRING, "
-            fi
-          done
+          ##### Step 2: Trim whitespace from the base title
+          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/[[:space:]]*$//')"
 
-          ##### Finalize the PR title
-          ##### Check if the last two characters are ", " (= contracts were added to title)
-          if [[ "${PR_TITLE_UPDATED: -2}" == ", " ]]; then
-            ##### Remove the last two characters and append a closing bracket
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2}]"
-          ##### Check if last character is '(' (= no contracts were added to title)
-          elif [[ "${PR_TITLE_UPDATED: -1}" == "[" ]]; then
-            ##### Remove the last character (not needed)
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1}"
+          ##### Step 3: Construct the new title if there are updated contracts
+          if [[ -n "$UPDATED_CONTRACTS" ]]; then
+            # Create new title with updated contracts
+            PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
           else
-            echo "Error: Unexpected ending in PR_TITLE_UPDATED: '$PR_TITLE_UPDATED'"
-            exit 1
+            # If no updated contracts, keep the title as the base title
+            PR_TITLE_UPDATED="$BASE_TITLE"
           fi
 
-          ##### if there are no changes in the title, no need to continue further
-          if [[ $PR_TITLE == $PR_TITLE_UPDATED ]]; then
-            echo "No PR title updates are required."
-            echo "This github action will end here."
+          ##### Step 4: Trim whitespace from the updated title
+          PR_TITLE_UPDATED="$(echo -e "${PR_TITLE_UPDATED}" | sed 's/[[:space:]]*$//')"
+
+          ##### Step 5: Log current and new titles and check if an update is needed
+          echo "Current PR Title: '$PR_TITLE'"
+          echo "New PR Title: '$PR_TITLE_UPDATED'"
+
+          if [[ "$PR_TITLE" != "$PR_TITLE_UPDATED" ]]; then
+            echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
+            echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          else
+            echo -e "\033[32mNo PR title updates are required. This Github action will end here.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
-
-          ##### save updated PR title in env variable
-          echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
         if: env.CONTINUE == 'true'
         env:
-          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
         run: |
@@ -221,5 +213,13 @@ jobs:
           unset GITHUB_TOKEN
           ##### use the Personal Access Token to log into git CLI
           echo $GH_PAT | gh auth login --with-token
+          if ! echo $GH_PAT | gh auth login --with-token; then
+            echo -e "\033[31mFailed to authenticate with GitHub. Git action cannot continue\033[0m"
+            exit 1
+          fi
           ##### update the PR title
-          gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"
+          if ! gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"; then
+            echo "::error::Failed to update PR title"
+            echo -e "\033[31mFailed to update PR title. Git action cannot continue\033[0m"
+            exit 1
+          fi
