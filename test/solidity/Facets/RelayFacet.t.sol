@@ -5,14 +5,6 @@ import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFa
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
-// TODO: Upgrade forge-std lib
-// This is a hack to be able to use newer capabilities of forge without having
-// to update the forge-std lib as this will break some tests at the moment
-interface VmWithUnixTime {
-    /// Returns the time since unix epoch in milliseconds.
-    function unixTime() external returns (uint256 milliseconds);
-}
-
 // Stub RelayFacet Contract
 contract TestRelayFacet is RelayFacet {
     constructor(
@@ -74,38 +66,15 @@ contract RelayFacetTest is TestBaseFacet {
         bridgeData.bridge = "relay";
         bridgeData.destinationChainId = 137;
 
-        // This will randomly setup bridging to EVM or non-EVM
-        if (VmWithUnixTime(address(vm)).unixTime() % 2 == 0) {
-            validRelayData = RelayFacet.RelayData({
-                requestId: bytes32("1234"),
-                nonEVMReceiver: "",
-                receivingAssetId: bytes32(
-                    uint256(
-                        uint160(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174)
-                    )
-                ), // Polygon USDC
-                callData: "",
-                signature: ""
-            });
-        } else {
-            bridgeData.receiver = NON_EVM_ADDRESS;
-            bridgeData.destinationChainId = 792703809;
-            validRelayData = RelayFacet.RelayData({
-                requestId: bytes32("1234"),
-                nonEVMReceiver: bytes32(
-                    abi.encodePacked(
-                        "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
-                    )
-                ), // DEV Wallet
-                receivingAssetId: bytes32(
-                    abi.encodePacked(
-                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-                    )
-                ), // Solana USDC
-                callData: "",
-                signature: ""
-            });
-        }
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: "",
+            receivingAssetId: bytes32(
+                uint256(uint160(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174))
+            ), // Polygon USDC
+            callData: "",
+            signature: ""
+        });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -155,6 +124,49 @@ contract RelayFacetTest is TestBaseFacet {
         PRIVATE_KEY = 0x0987654321;
 
         vm.expectRevert(InvalidQuote.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokensToNonEVMChain()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 792703809;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked(
+                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                )
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked(
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                )
+            ), // Solana USDC
+            callData: "",
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
