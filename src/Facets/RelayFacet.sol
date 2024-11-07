@@ -85,7 +85,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @param _relayReceiver The receiver for native transfers
-    /// @param _relaySolver Ther relayer wallet for ERC20 transfers
+    /// @param _relaySolver The relayer wallet for ERC20 transfers
     constructor(address _relayReceiver, address _relaySolver) {
         relayReceiver = _relayReceiver;
         relaySolver = _relaySolver;
