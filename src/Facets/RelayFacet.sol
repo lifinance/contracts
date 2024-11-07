@@ -29,7 +29,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @dev Relay specific parameters
-    /// @param requestId Realy API request ID
+    /// @param requestId Relay API request ID
     /// @param nonEVMReceiver set only if bridging to non-EVM chain
     /// @params receivingAssetId address of receiving asset
     /// @params callData calldata provided by Relay API
@@ -89,6 +89,8 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Constructor ///
 
+    /// @param _relayReceiver The receiver for native transfers
+    /// @param _relaySolver Ther relayer wallet for ERC20 transfers
     constructor(address _relayReceiver, address _relaySolver) {
         relayReceiver = _relayReceiver;
         relaySolver = _relaySolver;
