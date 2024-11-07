@@ -1,7 +1,7 @@
 # - Ensure Deploy Process Integrity
 # - ensures that the systems in place to guarantee audits, approvals, versioning, test coverage etc. cannot be easily deactivated
 #   or altered without approval of the Information Security Manager (or CTO)
-# - protects any git actions in folder .github/workflows/*
+# - protects any git actions in the folder .github/workflows/*
 # - protects the pre-commit checker script stored in .husky/pre-commit
 
 name: Ensure Deploy Process Integrity
