@@ -1,5 +1,9 @@
-import { Chain, defineChain } from 'viem'
+import { Chain, defineChain, getAddress } from 'viem'
 import networksConfig from '../../config/networks.json'
+
+export type NetworksObject = {
+  [key: string]: Omit<Network, 'id'>
+}
 
 export type Network = {
   name: string
@@ -17,11 +21,10 @@ export type Network = {
   safeApiUrl: string
   safeAddress: string
   gasZipChainId: number
+  id: string
 }
 
-export type Networks = Record<string, Network>
-
-export const networks: Networks = networksConfig
+const networks: NetworksObject = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
@@ -49,4 +52,27 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
     },
   })
   return chain
+}
+
+export const getAllNetworksArray = (): Network[] => {
+  // Convert the object into an array of network objects
+  const networkArray = Object.entries(networksConfig).map(([key, value]) => ({
+    ...value,
+    id: key,
+  }))
+
+  return networkArray
+}
+
+// removes all networks with "status='inactive'"
+export const getAllActiveNetworks = (): Network[] => {
+  // Convert the object into an array of network objects
+  const networkArray = getAllNetworksArray()
+
+  // Example: Filter networks where status is 'active'
+  const activeNetworks: Network[] = networkArray.filter(
+    (network) => network.status === 'active'
+  )
+
+  return activeNetworks
 }

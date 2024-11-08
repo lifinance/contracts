@@ -113,7 +113,11 @@ diamondUpdateFacet() {
           UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT".s.sol)
           PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
           echoDebug "Calculating facet cuts for $SCRIPT..."
-          RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+          if [[ $NETWORK == "zksync" ]]; then
+            RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy --slow --zksync)
+          else
+            RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+          fi
           CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
           FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
 

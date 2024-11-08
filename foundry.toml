@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
 solc_version = '0.8.17'
-evm_version = 'paris'
+evm_version = 'shanghai'
 optimizer = true
 optimizer_runs = 1000000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
@@ -11,10 +11,16 @@ fs_permissions = [
   { access = "read", path = "./deployments/" },
   { access = "read", path = "./config/" },
   { access = "read-write", path = "./test/logs/" },
+  { access = "read", path = "./zkout/" },
 ]
 ffi = true
 libs = ["node_modules", "lib"]
 cache = true
+
+[profile.zksync]
+solc_version = '0.8.26'
+test = "notest"
+script = "script/deploy/zksync"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"

@@ -18,25 +18,25 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const deployedFacet = await deploy('LIFuelFacet', {
+  const deployedFacet = await deploy('EmergencyPauseFacet', {
     from: deployer,
     log: true,
     skipIfAlreadyDeployed: true,
   })
 
-  const facet = await ethers.getContract('LIFuelFacet')
+  const accessManagerFacet = await ethers.getContract('EmergencyPauseFacet')
   const diamond = await ethers.getContract(diamondContractName)
 
-  await addOrReplaceFacets([facet], diamond.address)
+  await addOrReplaceFacets([accessManagerFacet], diamond.address)
 
-  const isVerified = await verifyContract(hre, 'LIFuelFacet', {
-    address: facet.address,
+  const isVerified = await verifyContract(hre, 'EmergencyPauseFacet', {
+    address: accessManagerFacet.address,
   })
 
-  await updateDeploymentLogs('LIFuelFacet', deployedFacet, isVerified)
+  await updateDeploymentLogs('EmergencyPauseFacet', deployedFacet, isVerified)
 }
 
 export default func
 
-func.id = 'deploy_lifuel_facet'
-func.tags = ['DeployLIFuelFacet']
+func.id = 'deploy_emergency_pause_facet'
+func.tags = ['DeployEmergencyPauseFacet']

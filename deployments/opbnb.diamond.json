@@ -48,6 +48,10 @@
       "0x4E1D2308e11C06c93700FfFdD5b658D2d35a1e15": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
+      },
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
