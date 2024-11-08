@@ -26,7 +26,7 @@ jobs:
         run: |
 
           ##### get all files modified by this PR
-          FILES=$(git diff --name-only origin/main HEAD)
+          FILES="$(git diff --name-only origin/main HEAD)"
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
@@ -40,8 +40,13 @@ jobs:
 
           ##### go through all modified file names/paths and identify contracts with path '.github/'
           while IFS= read -r FILE; do
+            # Validate file exists
+            if [[ ! -f "$FILE" ]]; then
+              echo "Warning: File $FILE not found"
+              continue
+            fi
             ##### check for github actions and pre-commit checker paths
-            if echo "$FILE" | grep -E '^\.github/|^\.husky/pre-commit'; then              ##### modified git action found
+            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit'; then              ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
           done <<< "$FILES"
@@ -59,7 +64,6 @@ jobs:
             echo "$PROTECTED_FILES"
             echo "CONTINUE=true" >> $GITHUB_ENV
           fi
-
       - name: Get "Information Security Manager" Group Members
         if: env.CONTINUE == 'true'
         env:
