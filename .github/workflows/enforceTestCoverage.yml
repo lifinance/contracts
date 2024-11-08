@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4.1.7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4.0.4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '20'
 
@@ -46,7 +46,7 @@ jobs:
 
       - name: Generate Coverage Report
         run: |
-          forge coverage --report lcov --force
+          forge coverage --report lcov --force --evm-version 'shanghai' --ir-minimum
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 

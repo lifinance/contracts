@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import "lifi/LiFiDiamond.sol";
 import "lifi/Facets/DiamondCutFacet.sol";
 import "lifi/Facets/DiamondLoupeFacet.sol";
 import "lifi/Facets/OwnershipFacet.sol";
 import "lifi/Facets/EmergencyPauseFacet.sol";
-import "lifi/Interfaces/IDiamondCut.sol";
+import "lifi/Libraries/LibDiamond.sol";
 import "lifi/Facets/PeripheryRegistryFacet.sol";
 import { Test, console } from "forge-std/Test.sol";
 
 contract DiamondTest is Test {
-    IDiamondCut.FacetCut[] internal cut;
+    LibDiamond.FacetCut[] internal cut;
 
     function createDiamond(
         address _diamondOwner,
@@ -43,9 +43,9 @@ contract DiamondTest is Test {
         functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
         functionSelectors[4] = DiamondLoupeFacet.supportsInterface.selector;
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(diamondLoupe),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -61,9 +61,9 @@ contract DiamondTest is Test {
         functionSelectors[3] = OwnershipFacet.owner.selector;
 
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(ownership),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -78,9 +78,9 @@ contract DiamondTest is Test {
             .selector;
 
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(periphery),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -92,9 +92,9 @@ contract DiamondTest is Test {
         functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
 
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(emergencyPause),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -134,9 +134,9 @@ contract DiamondTest is Test {
     ) internal {
         vm.startPrank(OwnershipFacet(address(_diamond)).owner());
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: _facet,
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: _selectors
             })
         );

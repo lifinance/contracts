@@ -52,19 +52,22 @@
       "0x83037e2fF2B3Ea09fED5A6e8150bf9899673f33A": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
+      },
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x4307ca7Eca98daF86D4f65b4367B273C628A39B7",
       "Executor": "0xCdE9376F284d5CA9aaec69dD4D0761278b4ae034",
       "FeeCollector": "0x79540403cdE176Ca5f1fb95bE84A7ec91fFDEF76",
-      "GasRebateDistributor": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0x134f525AC05E4724e55C363A9C4FA35ceB13F88d",
       "Receiver": "0x2DeB3bFa2b19024A0c1Ba299b6b79276f1F77b14",
+      "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "0x6A3d6652fb7be72200a47313C092342218aAeb72",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "",
       "TokenWrapper": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C"
     }
   }

@@ -38,7 +38,12 @@
       "FusePoolZap": "",
       "Receiver": "",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": ""
+      "ServiceFeeCollector": "",
+      "LiFiDEXAggregator": "",
+      "LiFuelFeeCollector": "",
+      "ReceiverAcrossV3": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": ""
     }
   }
 }

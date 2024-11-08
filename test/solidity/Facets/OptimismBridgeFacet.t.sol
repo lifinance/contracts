@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
