@@ -75,7 +75,7 @@ jobs:
           unset GITHUB_TOKEN
 
           ##### use the Personal Access Token to log into git CLI
-          echo $GH_PAT | gh auth login --with-token || { echo "Failed to login with GitHub CLI"; exit 1; }
+          gh auth login --with-token < <(echo "$GH_PAT") || { echo "Failed to login with GitHub CLI"; exit 1; }
 
           ##### Function to get team members using github CLI
           getTeamMembers() {
