@@ -4,7 +4,6 @@ import {
   parseAbi,
   Hex,
   parseUnits,
-  serializeSignature,
   createWalletClient,
   PublicClient,
 } from 'viem'
@@ -132,11 +131,11 @@ const main = defineCommand({
     console.log(permitData)
 
     // Sign the message hash
-    const rsvSig = await sign({
+    const signature = await sign({
       hash: permitData.msgHash,
       privateKey: SIGNER_PRIVATE_KEY,
+      to: 'hex',
     })
-    const signature = serializeSignature(rsvSig)
     console.log('signature', signature)
 
     // Instantiate the executor account and a WRITE enabled client
