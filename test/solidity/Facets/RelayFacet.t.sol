@@ -5,6 +5,12 @@ import { LibAllowList, TestBaseFacet, console, ERC20, LibAsset, LibSwap } from "
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
+contract Reverter {
+    fallback() external {
+        revert("I always revert");
+    }
+}
+
 // Stub RelayFacet Contract
 contract TestRelayFacet is RelayFacet {
     constructor(
@@ -577,6 +583,55 @@ contract RelayFacetTest is TestBaseFacet {
         );
     }
 
+    function testFail_RevertIsBubbledWhenBridgingTokens()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        _makeRevertable(ADDRESS_USDC);
+
+        vm.expectRevert("I always revert");
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testFail_RevertIsBubbledWhenBridgingNativeTokensFails()
+        public
+        virtual
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount + addToMessageValue))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        _makeRevertable(RELAY_RECEIVER);
+
+        vm.expectRevert("I always revert");
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
     function signData(
         ILiFi.BridgeData memory _bridgeData,
         RelayFacet.RelayData memory _relayData
@@ -617,5 +672,11 @@ contract RelayFacetTest is TestBaseFacet {
         }
 
         return chainId;
+    }
+
+    function _makeRevertable(address target) internal {
+        Reverter reverter = new Reverter();
+        bytes memory code = address(reverter).code;
+        vm.etch(target, code);
     }
 }
