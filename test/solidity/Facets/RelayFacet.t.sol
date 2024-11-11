@@ -115,7 +115,7 @@ contract RelayFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBase_CanBridgeTokensToNonEVMChain()
+    function test_CanBridgeTokensToNonEVMChain()
         public
         virtual
         assertBalanceChange(
@@ -155,6 +155,65 @@ contract RelayFacetTest is TestBaseFacet {
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
+    }
+
+    function test_CanSwapAndBridgeTokensToNonEVMChain()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(swapData[0].fromAmount)
+        )
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 792703809;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked(
+                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                )
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked(
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                )
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     function signData(
