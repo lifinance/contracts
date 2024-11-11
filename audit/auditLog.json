@@ -39,7 +39,7 @@
       "auditCompletedOn": "07.11.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2024.11.07_GasZip_ReAudit.pdf",
+      "auditReportPath": "./audit/reports/2024.11.07_GasZip.pdf",
       "auditCommitHash": "2d8927ababff6ace0c577d92407bcf289ebb89c0"
     }
   },
