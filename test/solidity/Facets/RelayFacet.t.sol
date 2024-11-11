@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibAsset } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console, ERC20, LibAsset, LibSwap } from "../utils/TestBaseFacet.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
@@ -115,7 +115,7 @@ contract RelayFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_CanBridgeTokensToNonEVMChain()
+    function test_CanBridgeTokensToSolana()
         public
         virtual
         assertBalanceChange(
@@ -128,7 +128,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
-        bridgeData.destinationChainId = 792703809;
+        bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
             nonEVMReceiver: bytes32(
@@ -157,7 +157,50 @@ contract RelayFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_CanSwapAndBridgeTokensToNonEVMChain()
+    function test_CanBridgeNativeTokensToSolana()
+        public
+        virtual
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount + addToMessageValue))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 1151111081099710;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked(
+                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                )
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked(
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                )
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function test_CanSwapAndBridgeTokensToSolana()
         public
         virtual
         assertBalanceChange(
@@ -170,7 +213,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
-        bridgeData.destinationChainId = 792703809;
+        bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
             nonEVMReceiver: bytes32(
@@ -214,6 +257,324 @@ contract RelayFacetTest is TestBaseFacet {
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function test_CanSwapAndBridgeNativeTokensToSolana()
+        public
+        virtual
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 1151111081099710;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked(
+                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                )
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked(
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                )
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialUSDCBalance - swapData[0].fromAmount
+        );
+    }
+
+    function test_CanBridgeTokensToBitcoin()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 20000000000001;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked("bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8")
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeNativeTokensToBitcoin()
+        public
+        virtual
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount + addToMessageValue))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 20000000000001;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked("bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8")
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function test_CanSwapAndBridgeTokensToBitcoin()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(swapData[0].fromAmount)
+        )
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 20000000000001;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked("bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8")
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function test_CanSwapAndBridgeNativeTokensToBitcoin()
+        public
+        virtual
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 20000000000001;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked("bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8")
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialUSDCBalance - swapData[0].fromAmount
+        );
     }
 
     function signData(
