@@ -490,6 +490,7 @@ contract RelayFacetTest is TestBaseFacet {
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function test_CanSwapAndBridgeNativeTokensToBitcoin()
@@ -581,9 +582,10 @@ contract RelayFacetTest is TestBaseFacet {
             usdc.balanceOf(USER_SENDER),
             initialUSDCBalance - swapData[0].fromAmount
         );
+        vm.stopPrank();
     }
 
-    function testFail_RevertIsBubbledWhenBridgingTokens()
+    function testFail_RevertIsBubbledWhenBridgingTokensFails()
         public
         virtual
         assertBalanceChange(
@@ -600,7 +602,15 @@ contract RelayFacetTest is TestBaseFacet {
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        _makeRevertable(ADDRESS_USDC);
+        vm.mockCallRevert(
+            ADDRESS_USDC,
+            abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                RELAY_SOLVER,
+                bridgeData.minAmount
+            ),
+            "I always revert"
+        );
 
         vm.expectRevert("I always revert");
         initiateBridgeTxWithFacet(false);
