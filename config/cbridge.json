@@ -71,6 +71,9 @@
   "gnosis": {
     "cBridge": "0x3795C36e7D12A8c252A20C5a7B455f7c57b60283"
   },
+  "gravity": {
+    "cBridge": "0x9B36f165baB9ebe611d491180418d8De4b8f3a1f"
+  },
   "harmony": {
     "cBridge": "0x78a21C1D3ED53A82d4247b9Ee5bF001f4620Ceec"
   },
@@ -142,7 +145,9 @@
   },
   "scroll": {
     "cBridge": "0x9B36f165baB9ebe611d491180418d8De4b8f3a1f",
-    "tokensToApprove": ["0x5300000000000000000000000000000000000004"]
+    "tokensToApprove": [
+      "0x5300000000000000000000000000000000000004"
+    ]
   },
   "goerli": {
     "cBridge": "0x358234B325EF9eA8115291A8b81b7d33A2Fa762D",
