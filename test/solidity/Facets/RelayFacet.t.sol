@@ -25,6 +25,12 @@ contract TestRelayFacet is RelayFacet {
     function setFunctionApprovalBySignature(bytes4 _signature) external {
         LibAllowList.addAllowedSelector(_signature);
     }
+
+    function getMappedChainId(
+        uint256 chainId
+    ) external pure returns (uint256) {
+        return _getMappedChainId(chainId);
+    }
 }
 
 contract RelayFacetTest is TestBaseFacet {
@@ -41,7 +47,7 @@ contract RelayFacetTest is TestBaseFacet {
         customBlockNumberForForking = 19767662;
         initTestBase();
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
@@ -50,6 +56,7 @@ contract RelayFacetTest is TestBaseFacet {
         functionSelectors[3] = relayFacet
             .setFunctionApprovalBySignature
             .selector;
+        functionSelectors[4] = relayFacet.getMappedChainId.selector;
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
@@ -640,6 +647,23 @@ contract RelayFacetTest is TestBaseFacet {
         vm.expectRevert("I always revert");
         initiateBridgeTxWithFacet(true);
         vm.stopPrank();
+    }
+
+    function test_mapsCorrectChainId(uint256 chainId) public {
+        uint256 mapped = relayFacet.getMappedChainId(chainId);
+        // Bitcoin
+        if (chainId == 20000000000001) {
+            assertEq(mapped, 8253038);
+            return;
+        }
+
+        // Solana
+        if (chainId == 1151111081099710) {
+            assertEq(mapped, 792703809);
+            return;
+        }
+
+        assertEq(mapped, chainId);
     }
 
     function signData(
