@@ -97,7 +97,7 @@
     "explorerUrl": "https://blastscan.io",
     "explorerApiUrl": "https://api.blastscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeApiUrl": "https://transaction.blast-safe.io/api",
+    "safeApiUrl": "https://safe-transaction-blast.safe.global/api",
     "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 96
   },
