@@ -24761,6 +24761,20 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x313c27Aad40c7e0A0b923b539F05617D8114566D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-11-13 16:42:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000252fb662e4d7435d2a5ded8ec94d8932cf76c178",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -25022,6 +25036,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-11-12 11:34:56",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000002321f1a63a683a1f3634dbe1cba0d657d5f56d540000000000000000000000003fd21b437b5e0a903a8376d33824f9ba658756c2",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4000f76450d9d40558fd60F66863F583B7A5BCCb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-11-13 16:47:48",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000252fb662e4d7435d2a5ded8ec94d8932cf76c1780000000000000000000000001f683faf1e2a770aa75f7b2e92117a5c11183e9c00000000000000000000000002f1272aeacaf7bd8b30278bc2aa381cc623a744",
             "SALT": "",
             "VERIFIED": "true"
           }
