@@ -13,19 +13,26 @@ updateFacetConfig() {
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$3" ]]; then
-    # get user-selected network from list
-    echo "Select Networks"
-    readarray -t NETWORKS < <(cat ./networks | gum choose --no-limit)
-    if [[ ${#NETWORKS[@]} -eq 0 ]]; then
-      error "No networks selected - exiting script"
-      exit 1
-    fi
-    echo "[info] selected networks: ${NETWORKS[*]}"
+      # get user-selected network from list
+      echo "Select Networks"
+      if command -v gum >/dev/null 2>&1; then
+          # Read the networks into an array, works on both Mac and Linux
+          IFS=$'\n' read -r -d '' -a NETWORKS < <(cat ./networks | gum choose --no-limit)
+
+          if [[ ${#NETWORKS[@]} -eq 0 ]]; then
+              error "No networks selected - exiting script"
+              exit 1
+          fi
+          echo "[info] selected networks: ${NETWORKS[*]}"
+      else
+          error "gum is not installed"
+          exit 1
+      fi
   else
-    NETWORKS=("$3")
+      NETWORKS=("$3")
   fi
 
-  # if no SCRIPT was passed to this function, ask user to select it
+    # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     # select which script to execute
     local SCRIPT=$(ls -1 "$CONFIG_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | gum filter --placeholder "Please select a script to execute")
