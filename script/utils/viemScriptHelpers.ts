@@ -83,6 +83,7 @@ export const getAllActiveNetworks = (): Network[] => {
   return activeNetworks
 }
 
-export const printSuccess = (message: string) => {
-  console.error(`${colors.green}${message}${colors.reset}`)
+export const printSuccess = (message: string): void => {
+  if (!message?.trim()) return
+  console.log(`${colors.green}${message}${colors.reset}`)
 }
