@@ -11,7 +11,6 @@ import {
   NetworksObject,
   getAllActiveNetworks,
   getViemChainForNetworkName,
-  printError,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
 import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
@@ -98,6 +97,8 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   console.info(' ')
   consola.info('-'.repeat(80))
 
+  consola.error('test error')
+
   const safeWebUrl = networks[network.toLowerCase()].safeWebUrl
 
   const chain = getViemChainForNetworkName(network)
@@ -111,9 +112,9 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   try {
     safeService = new SafeApiKit(config)
   } catch (err) {
-    printError(`error encountered while setting up SAFE service: ${err}`)
-    printError(`skipping network ${network}`)
-    printError(
+    consola.error(`error encountered while setting up SAFE service: ${err}`)
+    consola.error(`skipping network ${network}`)
+    consola.error(
       `Please check this SAFE NOW to make sure no pending transactions are missed:`
     )
     console.log(`${safeWebUrl}`)
@@ -144,9 +145,9 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       contractNetworks: getSafeUtilityContracts(chain.id),
     })
   } catch (err) {
-    printError(`error encountered while setting up protocolKit: ${err}`)
-    printError(`skipping network ${network}`)
-    printError(
+    consola.error(`error encountered while setting up protocolKit: ${err}`)
+    consola.error(`skipping network ${network}`)
+    consola.error(
       `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
     )
     return
@@ -156,11 +157,11 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   try {
     allTx = await retry(() => safeService.getPendingTransactions(safeAddress))
   } catch (err) {
-    printError(
+    consola.error(
       `error encountered while getting pending transactions for network ${network}`
     )
-    printError(`skipping network ${network}`)
-    printError(
+    consola.error(`skipping network ${network}`)
+    consola.error(
       `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
     )
     return
@@ -181,8 +182,8 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
         safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
       )
     } catch (err) {
-      printError('Error while trying to sign the transaction')
-      printError(
+      consola.error('Error while trying to sign the transaction')
+      consola.error(
         `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
       )
       throw Error(`Transaction could not be signed`)
@@ -200,8 +201,8 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       const exec = await protocolKit.executeTransaction(txToConfirm)
       await exec.transactionResponse?.wait()
     } catch (err) {
-      printError('Error while trying to execute the transaction')
-      printError(
+      consola.error('Error while trying to execute the transaction')
+      consola.error(
         `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
       )
       throw Error(`Transaction could not be executed`)
