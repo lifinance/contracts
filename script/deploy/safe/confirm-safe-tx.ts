@@ -24,9 +24,7 @@ const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?f
 
 const allNetworks = Object.keys(networksConfig)
 
-// In order to skip specific networks, open config/networks.json and remove the networks that you want to skip
-// Make sure to revert the changes after you are done
-// Do not submit any removed networks in config/networks.json
+// In order to skip specific networks simple comment them in
 const skipNetworks: string[] = [
   // 'mainnet',
   // 'arbitrum',
@@ -100,6 +98,8 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   console.info(' ')
   consola.info('-'.repeat(80))
 
+  const safeWebUrl = networks[network.toLowerCase()].safeWebUrl
+
   const chain = getViemChainForNetworkName(network)
 
   const config: SafeApiKitConfig = {
@@ -116,7 +116,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     printError(
       `Please check this SAFE NOW to make sure no pending transactions are missed:`
     )
-    console.log(`${networks[network.toLowerCase()].safeWebUrl}`)
+    console.log(`${safeWebUrl}`)
     return
   }
 
@@ -168,26 +168,45 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
 
   // Function to sign a transaction
   const signTransaction = async (
-    txToConfirm: SafeMultisigTransactionResponse
+    txToConfirm: SafeMultisigTransactionResponse,
+    safeWebUrl: string
   ) => {
     consola.info('Signing transaction', txToConfirm.safeTxHash)
     const signedTx = await protocolKit.signTransaction(txToConfirm)
     const dataToBeSigned = signedTx.getSignature(signerAddress)?.data
     if (!dataToBeSigned) throw Error(`error while preparing data to be signed`)
 
-    await retry(() =>
-      safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
-    )
+    try {
+      await retry(() =>
+        safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
+      )
+    } catch (err) {
+      printError('Error while trying to sign the transaction')
+      printError(
+        `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
+      )
+      throw Error(`Transaction could not be signed`)
+    }
     consola.success('Transaction signed', txToConfirm.safeTxHash)
   }
 
   // Function to execute a transaction
   async function executeTransaction(
-    txToConfirm: SafeMultisigTransactionResponse
+    txToConfirm: SafeMultisigTransactionResponse,
+    safeWebUrl: string
   ) {
     consola.info('Executing transaction', txToConfirm.safeTxHash)
-    const exec = await protocolKit.executeTransaction(txToConfirm)
-    await exec.transactionResponse?.wait()
+    try {
+      const exec = await protocolKit.executeTransaction(txToConfirm)
+      await exec.transactionResponse?.wait()
+    } catch (err) {
+      printError('Error while trying to execute the transaction')
+      printError(
+        `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
+      )
+      throw Error(`Transaction could not be executed`)
+    }
+
     consola.success('Transaction executed', txToConfirm.safeTxHash)
     console.info(' ')
     console.info(' ')
@@ -282,16 +301,22 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     }
 
     if (action === 'Sign') {
-      await signTransaction(txToConfirm)
+      try {
+        await signTransaction(txToConfirm, safeWebUrl)
+      } catch {}
     }
 
     if (action === 'Sign & Execute Now') {
-      await signTransaction(txToConfirm)
-      await executeTransaction(txToConfirm)
+      try {
+        await signTransaction(txToConfirm, safeWebUrl)
+        await executeTransaction(txToConfirm, safeWebUrl)
+      } catch {}
     }
 
     if (action === 'Execute Now') {
-      await executeTransaction(txToConfirm)
+      try {
+        await executeTransaction(txToConfirm, safeWebUrl)
+      } catch {}
     }
   }
 }
