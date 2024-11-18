@@ -9,7 +9,9 @@ import * as chains from 'viem/chains'
 import { getSafeUtilityContracts } from './config'
 import {
   NetworksObject,
+  getAllActiveNetworks,
   getViemChainForNetworkName,
+  printError,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
 import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
@@ -20,8 +22,11 @@ const networks: NetworksObject = networksConfig
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
-const allNetworks = Object.keys(networks)
-// In order to skip specific networks simple comment them in
+const allNetworks = Object.keys(networksConfig)
+
+// In order to skip specific networks, open config/networks.json and remove the networks that you want to skip
+// Make sure to revert the changes after you are done
+// Do not submit any removed networks in config/networks.json
 const skipNetworks: string[] = [
   // 'mainnet',
   // 'arbitrum',
@@ -32,6 +37,7 @@ const skipNetworks: string[] = [
   // 'boba',
   // 'bsc',
   // 'celo',
+  // 'cronos',
   // 'fantom',
   // 'fraxtal',
   // 'fuse',
@@ -46,6 +52,7 @@ const skipNetworks: string[] = [
   // 'moonbeam',
   // 'moonriver',
   // 'optimism',
+  // 'opBNB',
   // 'polygon',
   // 'polygonzkevm',
   // 'rootstock',
@@ -56,7 +63,10 @@ const skipNetworks: string[] = [
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(
-  (network) => !skipNetworks.includes(network) && network !== 'localanvil'
+  (network) =>
+    !skipNetworks.includes(network) &&
+    network !== 'localanvil' &&
+    networks[network.toLowerCase()].status === 'active' // <<< deactivate this to operate on non-active networks
 )
 
 const storedResponses: Record<string, string> = {}
@@ -87,6 +97,9 @@ for (const [k, v] of Object.entries(chains)) {
 }
 
 const func = async (network: string, privateKey: string, rpcUrl?: string) => {
+  console.info(' ')
+  consola.info('-'.repeat(80))
+
   const chain = getViemChainForNetworkName(network)
 
   const config: SafeApiKitConfig = {
@@ -94,7 +107,18 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     txServiceUrl: networks[network.toLowerCase()].safeApiUrl,
   }
 
-  const safeService = new SafeApiKit(config)
+  let safeService
+  try {
+    safeService = new SafeApiKit(config)
+  } catch (err) {
+    printError(`error encountered while setting up SAFE service: ${err}`)
+    printError(`skipping network ${network}`)
+    printError(
+      `Please check this SAFE NOW to make sure no pending transactions are missed:`
+    )
+    console.log(`${networks[network.toLowerCase()].safeWebUrl}`)
+    return
+  }
 
   const safeAddress = networks[network.toLowerCase()].safeAddress
 
@@ -104,7 +128,6 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
 
   const signerAddress = await signer.getAddress()
 
-  consola.info('-'.repeat(80))
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
 
@@ -113,15 +136,35 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     signerOrProvider: signer,
   })
 
-  const protocolKit = await Safe.create({
-    ethAdapter,
-    safeAddress: safeAddress,
-    contractNetworks: getSafeUtilityContracts(chain.id),
-  })
+  let protocolKit: Safe
+  try {
+    protocolKit = await Safe.create({
+      ethAdapter,
+      safeAddress: safeAddress,
+      contractNetworks: getSafeUtilityContracts(chain.id),
+    })
+  } catch (err) {
+    printError(`error encountered while setting up protocolKit: ${err}`)
+    printError(`skipping network ${network}`)
+    printError(
+      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
+    )
+    return
+  }
 
-  const allTx = await retry(() =>
-    safeService.getPendingTransactions(safeAddress)
-  )
+  let allTx
+  try {
+    allTx = await retry(() => safeService.getPendingTransactions(safeAddress))
+  } catch (err) {
+    printError(
+      `error encountered while getting pending transactions for network ${network}`
+    )
+    printError(`skipping network ${network}`)
+    printError(
+      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
+    )
+    return
+  }
 
   // Function to sign a transaction
   const signTransaction = async (
@@ -146,6 +189,8 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     const exec = await protocolKit.executeTransaction(txToConfirm)
     await exec.transactionResponse?.wait()
     consola.success('Transaction executed', txToConfirm.safeTxHash)
+    console.info(' ')
+    console.info(' ')
   }
 
   // only show transaction Signer has not confirmed yet
