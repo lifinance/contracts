@@ -24,12 +24,12 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      MIN_TEST_COVERAGE: 74 # = 74% line coverage
+      MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
       - uses: actions/checkout@v4.1.7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4.0.4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '20'
 
@@ -46,7 +46,7 @@ jobs:
 
       - name: Generate Coverage Report
         run: |
-          forge coverage --report lcov --force
+          forge coverage --report lcov --force --evm-version 'shanghai' --ir-minimum
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
