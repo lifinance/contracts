@@ -19687,6 +19687,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.2": [
+          {
+            "ADDRESS": "0x96f213947D724766d9016f86799042744070Fbd0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-11-20 09:24:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
