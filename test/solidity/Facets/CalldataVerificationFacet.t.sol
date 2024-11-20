@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
-import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
@@ -49,7 +48,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_IgnoresExtraBytes() public view {
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
             bridgeData,
             swapData
         );
@@ -74,7 +73,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_CanExtractBridgeData() public {
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.startBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
             bridgeData
         );
 
@@ -86,7 +85,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_CanExtractSwapData() public {
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
             bridgeData,
             swapData
         );
@@ -112,7 +111,7 @@ contract CalldataVerificationFacetTest is TestBase {
     function test_CanExtractBridgeAndSwapData() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
             bridgeData,
             swapData
         );
@@ -139,7 +138,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_CanExtractBridgeAndSwapDataNoSwaps() public {
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.startBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
             bridgeData
         );
 
@@ -230,7 +229,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_CanExtractMainParameters() public {
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.startBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
             bridgeData
         );
 
@@ -335,7 +334,7 @@ contract CalldataVerificationFacetTest is TestBase {
     function test_CanExtractMainParametersWithSwap() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
             bridgeData,
             swapData
         );
@@ -386,7 +385,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_CanValidateCalldata() public {
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.startBridgeTokensViaHyphen.selector,
+            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
             bridgeData
         );
 
