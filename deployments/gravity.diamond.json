@@ -68,7 +68,8 @@
       "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "0x6A3d6652fb7be72200a47313C092342218aAeb72",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C"
+      "TokenWrapper": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C",
+      "GasZipPeriphery": ""
     }
   }
 }

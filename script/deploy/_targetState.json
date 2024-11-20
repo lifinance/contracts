@@ -52,7 +52,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -103,7 +104,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -146,7 +148,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "GasZipPeriphery": "1.0.0"
       }
     },
     "staging": {
@@ -258,7 +261,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
-        "OmniBridgeFacet": "1.0.0"
+        "OmniBridgeFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -292,7 +296,8 @@
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "SquidFacet": "1.0.0",
-        "StargateFacet": "2.2.0"
+        "StargateFacet": "2.2.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -335,7 +340,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -386,7 +392,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -435,7 +442,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -658,7 +666,8 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetMutable": "2.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -730,7 +739,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -775,7 +785,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -836,7 +847,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -875,7 +887,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -910,7 +923,8 @@
         "AcrossFacetPackedV3": "1.0.0",
         "ReceiverAcrossV3": "1.0.0",
         "AmarokFacet": "3.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -943,7 +957,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -1010,7 +1025,8 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "SquidFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -1104,7 +1120,8 @@
         "Permit2Proxy": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -1138,7 +1155,8 @@
         "RelayerCelerIM": "2.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
@@ -1377,7 +1395,8 @@
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.3"
+        "CBridgeFacetPacked": "1.0.3",
+        "GasZipPeriphery": "1.0.0"
       }
     }
   },
