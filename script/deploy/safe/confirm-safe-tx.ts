@@ -49,7 +49,7 @@ const skipNetworks: string[] = [
   // 'moonbeam',
   // 'moonriver',
   // 'optimism',
-  // 'opBNB',
+  // 'opbnb',
   // 'polygon',
   // 'polygonzkevm',
   // 'rootstock',
@@ -96,8 +96,6 @@ for (const [k, v] of Object.entries(chains)) {
 const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   console.info(' ')
   consola.info('-'.repeat(80))
-
-  consola.error('test error')
 
   const safeWebUrl = networks[network.toLowerCase()].safeWebUrl
 
