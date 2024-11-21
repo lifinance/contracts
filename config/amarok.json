@@ -23,6 +23,12 @@
       "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1"
     ]
   },
+  "opbnb": {
+    "chainId": 204,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "bsc": {
     "chainId": 56,
     "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
