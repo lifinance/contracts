@@ -20,10 +20,16 @@ export type Network = {
   multicallAddress: string
   safeApiUrl: string
   safeAddress: string
+  safeWebUrl: string
   gasZipChainId: number
   id: string
 }
 
+const colors = {
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+}
 const networks: NetworksObject = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
@@ -75,4 +81,9 @@ export const getAllActiveNetworks = (): Network[] => {
   )
 
   return activeNetworks
+}
+
+export const printSuccess = (message: string): void => {
+  if (!message?.trim()) return
+  console.log(`${colors.green}${message}${colors.reset}`)
 }
