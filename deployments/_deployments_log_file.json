@@ -518,7 +518,7 @@
             "TIMESTAMP": "2024-10-07 13:20:56",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10537,12 +10537,12 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x9cb7bE51524DA96806EC38a9A7dDC58608650243",
+            "ADDRESS": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-10-07 13:51:24",
+            "TIMESTAMP": "2024-11-21 11:05:16",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
