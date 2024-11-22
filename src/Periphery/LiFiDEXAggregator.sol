@@ -680,6 +680,21 @@ contract LiFiDEXAggregator is Ownable {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
+    /// @notice Called to `msg.sender` after executing a swap via ZebraV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the ZebraV3#swap call
+    function zebraV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
     /// @notice Curve pool swap. Legacy pools that don't return amountOut and have native coins are not supported
     /// @param stream [pool, poolType, fromIndex, toIndex, recipient, output token]
     /// @param from Where to take liquidity for swap
