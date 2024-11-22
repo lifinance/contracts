@@ -107,5 +107,173 @@
       "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
       "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"
     ]
+  },
+  "mantle": {
+    "chainId": 5000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "cronos": {
+    "chainId": 25,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "okx": {
+    "chainId": 66,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "bsc-testnet": {
+    "chainId": 97,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "velas": {
+    "chainId": 106,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "fuse": {
+    "chainId": 122,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "fraxtal": {
+    "chainId": 252,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "heco": {
+    "chainId": 128,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "fantom": {
+    "chainId": 250,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "boba": {
+    "chainId": 288,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "zksync": {
+    "chainId": 324,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "optimismTestnet": {
+    "chainId": 420,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "polygonzkevm": {
+    "chainId": 1101,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "moonbeam": {
+    "chainId": 1284,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "moonriver": {
+    "chainId": 1285,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "evmos": {
+    "chainId": 9001,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "arbitrumnova": {
+    "chainId": 42170,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "celo": {
+    "chainId": 42220,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "avalanche-fuji": {
+    "chainId": 43113,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "avalanche": {
+    "chainId": 43114,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "lineatest": {
+    "chainId": 59140,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "arbitrumTestnet": {
+    "chainId": 421613,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "aurora": {
+    "chainId": 1313161554,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "harmony": {
+    "chainId": 1666600000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "harmonyTestnet": {
+    "chainId": 1666700000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "taiko": {
+    "chainId": 167000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "worldchain": {
+    "chainId": 480,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "xlayer": {
+    "chainId": 196,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   }
 }

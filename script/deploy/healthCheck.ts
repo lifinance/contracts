@@ -14,32 +14,13 @@ import {
   http,
   parseAbi,
 } from 'viem'
-
-const chainNameMappings: Record<string, string> = {
-  zksync: 'zkSync',
-  polygonzkevm: 'polygonZkEvm',
-  immutablezkevm: 'immutableZkEvm',
-  opbnb: 'opBNB',
-}
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
-
-// TODO: remove this and import from ./utils/viemScriptHelpers.ts instead (did not work when I tried it)
-export const getViemChainForNetworkName = (networkName: string): Chain => {
-  const chainName = chainNameMappings[networkName] || networkName
-  const chain: Chain = chainMap[chainName]
-
-  if (!chain)
-    throw new Error(
-      `Chain ${networkName} (aka '${chainName}', if a mapping exists) not supported by viem or requires name mapping. Check if you can find your chain here: https://github.com/wevm/viem/tree/main/src/chains/definitions`
-    )
-
-  return chain
-}
+import {
+  Network,
+  getViemChainForNetworkName,
+  type NetworksObject,
+} from '../utils/viemScriptHelpers'
+import data from '../../config/networks.json'
+const networks: NetworksObject = data as NetworksObject
 
 const SAFE_THRESHOLD = 3
 
@@ -407,17 +388,13 @@ const main = defineCommand({
       //          │                   SAFE Configuration                    │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking SAFE configuration...')
-      if (
-        !networks[network.toLowerCase()].safeAddress ||
-        !networks[network.toLowerCase()].safeApiUrl
-      ) {
+      const networkConfig: Network = networks[network.toLowerCase()]
+      if (!networkConfig.safeAddress || !networkConfig.safeApiUrl) {
         consola.warn('SAFE address not configured')
       } else {
         const safeOwners = globalConfig.safeOwners
-        const safeAddress = getAddress(
-          networks[network.toLowerCase()].safeAddress,
-        )
-        const safeApiUrl = networks[network.toLowerCase()].safeApiUrl
+        const safeAddress = networkConfig.safeAddress
+        const safeApiUrl = networkConfig.safeApiUrl
         const configUrl = `${safeApiUrl}/v1/safes/${safeAddress}`
         const res = await fetch(configUrl)
         const safeConfig = await res.json()

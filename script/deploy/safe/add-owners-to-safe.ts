@@ -6,9 +6,11 @@ import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
 import {
+  NetworksObject,
   getViemChainForNetworkName,
-  networks,
 } from '../../utils/viemScriptHelpers'
+import data from '../../../config/networks.json'
+const networks: NetworksObject = data as NetworksObject
 
 const main = defineCommand({
   meta: {

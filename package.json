@@ -78,7 +78,7 @@
     "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
-    "healthcheck": "tsx ./script/deploy/healthCheck.mts",
+    "healthcheck": "tsx ./script/deploy/healthCheck.ts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts",
@@ -106,12 +106,18 @@
     "merkletreejs": "^0.3.11",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "tsx": "^4.7.2",
-    "viem": "^2.18.7",
-    "zx": "^8.0.2"
+    "tsx": "^4.19.2",
+    "viem": "^2.21.48",
+    "zx": "^8.2.2"
   },
   "lint-staged": {
-    "*.{ts,js}": ["prettier --write", "eslint --fix"],
-    "*.sol": ["prettier --write", "solhint --fix"]
+    "*.{ts,js}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.sol": [
+      "prettier --write",
+      "solhint --fix"
+    ]
   }
 }
