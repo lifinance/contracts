@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
@@ -19,6 +20,8 @@ contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
 }
 
 contract DeBridgeDlnFacetTest is TestBaseFacet {
+    using stdJson for string;
+
     DeBridgeDlnFacet.DeBridgeDlnData internal validDeBridgeDlnData;
     TestDeBridgeDlnFacet internal deBridgeDlnFacet;
     IDlnSource internal DLN_SOURCE =
@@ -30,7 +33,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         initTestBase();
 
         deBridgeDlnFacet = new TestDeBridgeDlnFacet(DLN_SOURCE);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = deBridgeDlnFacet
             .startBridgeTokensViaDeBridgeDln
             .selector;
@@ -41,6 +44,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[3] = deBridgeDlnFacet
             .setFunctionApprovalBySignature
             .selector;
+        functionSelectors[4] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
@@ -54,6 +58,20 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         deBridgeDlnFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
         );
+
+        // Initialize
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/dln.json"
+        );
+        string memory json = vm.readFile(path);
+        bytes memory rawChains = json.parseRaw(".mappings");
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = abi.decode(
+            rawChains,
+            (DeBridgeDlnFacet.ChainIdConfig[])
+        );
+
+        deBridgeDlnFacet.initDeBridgeDln(cidCfg);
 
         setFacetAddressInTestBase(
             address(deBridgeDlnFacet),
@@ -243,7 +261,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
 
         // Setup to bridge to Solana
-        bridgeData.destinationChainId = 7565164;
+        bridgeData.destinationChainId = 1151111081099710;
         bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
 
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
