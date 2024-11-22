@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { TestToken as ERC20 } from "./TestToken.sol";
 
@@ -14,7 +14,7 @@ contract TestAMM {
             _fromToken.transferFrom(msg.sender, address(this), _amountIn);
             _fromToken.burn(address(this), _amountIn);
         } else {
-            payable(address(0xd34d)).transfer(msg.value);
+            payable(address(0xd34d)).call{ value: msg.value }("");
         }
 
         _toToken.mint(msg.sender, _amountOut);

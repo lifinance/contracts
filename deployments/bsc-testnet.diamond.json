@@ -8,7 +8,12 @@
       "FusePoolZap": "",
       "Receiver": "",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": ""
+      "ServiceFeeCollector": "",
+      "LiFiDEXAggregator": "",
+      "LiFuelFeeCollector": "",
+      "ReceiverAcrossV3": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": ""
     }
   },
   "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",

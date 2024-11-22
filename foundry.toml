@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
 solc_version = '0.8.17'
-evm_version = 'paris'
+evm_version = 'shanghai'
 optimizer = true
 optimizer_runs = 1000000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
@@ -11,10 +11,16 @@ fs_permissions = [
   { access = "read", path = "./deployments/" },
   { access = "read", path = "./config/" },
   { access = "read-write", path = "./test/logs/" },
+  { access = "read", path = "./zkout/" },
 ]
 ffi = true
 libs = ["node_modules", "lib"]
 cache = true
+
+[profile.zksync]
+solc_version = '0.8.26'
+test = "notest"
+script = "script/deploy/zksync"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
@@ -51,6 +57,7 @@ rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
 sei = "${ETH_NODE_URI_SEI}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 velas = "${ETH_NODE_URI_VELAS}"
+worldchain = "${ETH_NODE_URI_WORLDCHAIN}"
 xlayer = "${ETH_NODE_URI_XLAYER}"
 zksync = "${ETH_NODE_URI_ZKSYNC}"
 scroll = "${ETH_NODE_URI_SCROLL}"
@@ -88,12 +95,13 @@ mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/n
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api", chain = "1284" }
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api", chain = "1285" }
 optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api", chain = "10" }
-opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://open-platform.nodereal.io/2462d1f4552043fba279ef0cee4661d9/op-bnb-mainnet/contract/", chain = "204" }
+opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://api-opbnb.bscscan.com/api", chain = "204" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api", chain = "137" }
 polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-zkevm.polygonscan.com/api", chain = "1101" }
 scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api", chain = "534352" }
 sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
 taiko = { key = "${TAIKO_ETHERSCAN_API_KEY}", url = "https://api.taikoscan.io/api", chain = "167000" }
+worldchain = { key = "${WORLDCHAIN_ETHERSCAN_API_KEY}", url = "https://api.worldscan.org/api", chain = "480" }
 xlayer = { key = "${XLAYER_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/xlayer/api", chain = "196" }
 
 #testnets

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
 import { OnlyContractOwner, InvalidConfig, InvalidCallData, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
@@ -11,6 +11,7 @@ import { IStargate, ITokenMessaging } from "lifi/Interfaces/IStargate.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -28,7 +29,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
 
     uint256 internal counter;
     event DiamondCut(
-        IDiamondCut.FacetCut[] _diamondCut,
+        LibDiamond.FacetCut[] _diamondCut,
         address _init,
         bytes _calldata
     );
@@ -162,11 +163,11 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         // build diamondCut
-        IDiamondCut.FacetCut[] memory facetCut = new IDiamondCut.FacetCut[](1);
-        facetCut[0] = IDiamondCut.FacetCut({
+        LibDiamond.FacetCut[] memory facetCut = new LibDiamond.FacetCut[](1);
+        facetCut[0] = LibDiamond.FacetCut({
             facetAddress: address(0),
             // facetAddress: ownershipFacetAddress,
-            action: IDiamondCut.FacetCutAction.Remove,
+            action: LibDiamond.FacetCutAction.Remove,
             functionSelectors: ownershipFunctionSelectors
         });
 
@@ -417,13 +418,13 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
 
         // build diamondCut data
         // Add the diamondCut external function from the diamondCutFacet
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](
+        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](
             contractsCount
         );
         for (uint i; i < contractsCount; i++) {
-            cut[i] = IDiamondCut.FacetCut({
+            cut[i] = LibDiamond.FacetCut({
                 facetAddress: contractAddresses[i],
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: generateRandomBytes4Array()
             });
         }
