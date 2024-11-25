@@ -25,7 +25,7 @@ contract DeployScript is DeployScriptBase {
         // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
-            "/config/global.json"
+            "/config/networks.json"
         );
 
         // read file into json variable
@@ -33,7 +33,7 @@ contract DeployScript is DeployScriptBase {
 
         // extract network's native address
         address nativeAddress = globalConfigJson.readAddress(
-            string.concat(".nativeAddress.", network)
+            string.concat(".", network, ".nativeAddress")
         );
 
         return abi.encode(nativeAddress);

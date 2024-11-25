@@ -1,60 +1,70 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xaD50118509eB4c8e3E39a370151B0fD5D5957013": {
+      "0x7c76E992B0E65e4AFa657f61bf9fF4b9aeBf3F65": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+      "0x62E3c4539eBe661643319f46181Ed6C7d11AaF95": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+      "0x6e9A2579c67686C6Bb069b663B5d2fFF12dfB582": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
+      "0x5486c27f34C0132Ccc77d4ACb8635C2e12b70e97": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x4bEAa5D26300e81cd17e0981fc15494Bb4B10959": {
+      "0x082Bc525FdFa4739c5042060e8f72291CEfe6422": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
-      "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
+      "0xfC25728DBD6C4FE500d586CeA632a9c2CAa4adF3": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
+      "0x864D5B4DA52E8E8851479C964c250147f9FfFba0": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+      "0xfB595B4DeDA77fFce1B1AB7D6797121fbD10dDDa": {
         "Name": "LIFuelFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
+      "0x3E085Dd54bdD7DEd0FcDCfb4a24CEb0e0635bDE2": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.0.0"
-      },
-      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+      "0x96f213947D724766d9016f86799042744070Fbd0": {
         "Name": "CalldataVerificationFacet",
+        "Version": "1.1.2"
+      },
+      "0x8Fb506A8040243c1Bc9AC779cF311839176692c3": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.1.0"
+      },
+      "0x4E1D2308e11C06c93700FfFdD5b658D2d35a1e15": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
+      },
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
-      "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
-      "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
-      "Receiver": "0xddc22EAaa960e052946D842cEC61eb91bbE06eeD",
-      "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76",
+      "ERC20Proxy": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
+      "Executor": "0xDaF30Ca8fbB0f6cE6FF21fe33932eE786CC77646",
+      "FeeCollector": "0x6A2420650139854F17964b8C3Bb60248470aB57E",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
+      "LiFuelFeeCollector": "0xEc41F702d36b43a1E1d017Cb4da92F431dFA7a0E",
+      "ReceiverAcrossV3": "",
+      "Receiver": "0x423d018777dE97059129E046BBc1026548553A20",
+      "ReceiverStargateV2": "",
+      "RelayerCelerIM": "",
+      "TokenWrapper": "0x077A38b812e57E2e76849954c880E1a2f5e0A68d"
     }
   }
 }

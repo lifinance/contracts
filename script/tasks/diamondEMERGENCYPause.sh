@@ -170,19 +170,6 @@ function handleNetwork() {
     fi
   fi
 
-
-  if [[ "$ACTION" != "unpause the diamond" && ( "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ) ]]; then
-      if [[ "$ACTION" == "remove a single facet" ]]; then
-        error "[network: $NETWORK] Cannot remove a facet while diamond is paused."
-        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-        exit 1
-      else
-        success "[network: $NETWORK] The diamond is already paused. No further action required."
-        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-        exit 0
-      fi
-  fi
-
   # execute the requested action
   local ATTEMPTS=1
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
