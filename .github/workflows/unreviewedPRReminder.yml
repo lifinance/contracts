@@ -17,7 +17,8 @@ jobs:
         env: # set the GH_TOKEN environment variable here
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -x
+
+
           # Use GitHub API and jq to parse the data
           PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name)), draft: .draft}')
           echo "PRs found: $PRS"
