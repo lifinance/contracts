@@ -323,6 +323,24 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=linea:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 59
   },
+  "lisk": {
+    "name": "Lisk",
+    "chainId": 1135,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.api.lisk.com",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://blockscout.lisk.com",
+    "explorerApiUrl": "https://blockscout.lisk.com/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction-lisk.safe.optimism.io/api",
+    "safeAddress": "lisk:0x86E02d7383D6a045848b0a1A842996AC9E943113",
+    "safeWebUrl": "https://safe.optimism.io/home?safe=lisk:0x86E02d7383D6a045848b0a1A842996AC9E943113",
+    "gasZipChainId": 238
+  },
   "mantle": {
     "name": "Mantle",
     "chainId": 5000,

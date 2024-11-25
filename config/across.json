@@ -113,6 +113,14 @@
       "0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f"
     ]
   },
+  "lisk": {
+    "chainId": 1135,
+    "acrossSpokePool": "0x9552a0a6624A23B848060AE5901659CDDa1f83f8",
+    "weth": "0x4200000000000000000000000000000000000006",
+    "tokensToApprove": [
+      "0x4200000000000000000000000000000000000006"
+    ]
+  },
   "blast": {
     "chainId": 81457,
     "acrossSpokePool": "0x2D509190Ed0172ba588407D4c2df918F955Cc6E1",

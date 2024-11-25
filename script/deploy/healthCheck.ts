@@ -180,7 +180,7 @@ const main = defineCommand({
     $.quiet = true
 
     const facetsResult =
-      await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${chainNameMappings[network]} --json`
+      await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
 
     const registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
       (f: { name: string }) => f.name
