@@ -444,7 +444,7 @@
     "explorerUrl": "https://opbnb.bscscan.com/",
     "explorerApiUrl": "",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeApiUrl": "",
+    "safeApiUrl": "https://safe-transaction-opbnb-mainnet.bnbchain.org/api",
     "safeAddress": "0xaAD94196680Edb94B421bb5B1E1A0B27db686C72",
     "safeWebUrl": "https://multisig.bnbchain.org/transactions/queue?safe=opbnb:0xaAD94196680Edb94B421bb5B1E1A0B27db686C72",
     "gasZipChainId": 58
@@ -556,6 +556,24 @@
     "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "safeWebUrl": "https://safe.taiko.xyz/transactions/queue?safe=tko-mainnet:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 249
+  },
+  "worldchain": {
+    "name": "World Chain",
+    "chainId": 480,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "inactive",
+    "type": "mainnet",
+    "rpcUrl": "https://worldchain-mainnet.g.alchemy.com/public",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://worldscan.org",
+    "explorerApiUrl": "https://api.worldscan.org/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://safe-transaction-worldchain.safe.global/api",
+    "safeAddress": "0xa6E64bC059ddAa72ec374C50B1A5c6b3a27d64Ce",
+    "safeWebUrl": "https://app.safe.global/home?safe=wc:0xa6E64bC059ddAa72ec374C50B1A5c6b3a27d64Ce",
+    "gasZipChainId": 269
   },
   "xlayer": {
     "name": "X Layer",

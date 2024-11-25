@@ -97,8 +97,6 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   console.info(' ')
   consola.info('-'.repeat(80))
 
-  consola.error('test error')
-
   const safeWebUrl = networks[network.toLowerCase()].safeWebUrl
 
   const chain = getViemChainForNetworkName(network)
