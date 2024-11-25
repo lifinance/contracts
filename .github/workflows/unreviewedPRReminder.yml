@@ -47,15 +47,15 @@ jobs:
               continue
               fi
 
-              # Continue loop if the PR has the label "WaitForAudit"
-              if echo "$PR_LABELS" | grep -q "WaitForAudit"; then
-              echo "skipping this PR cause it is labeled with 'WaitForAudit'"
+              # Continue loop if the PR has the label "waitForAudit"
+              if echo "$PR_LABELS" | grep -q "waitForAudit"; then
+              echo "skipping this PR cause it is labeled with 'waitForAudit'"
               continue
               fi
 
-              # Continue loop if the PR has the label "WaitForBackend"
-              if echo "$PR_LABELS" | grep -q "WaitForBackend"; then
-              echo "skipping this PR cause it is labeled with 'WaitForBackend'"
+              # Continue loop if the PR has the label "waitForBackend"
+              if echo "$PR_LABELS" | grep -q "waitForBackend"; then
+              echo "skipping this PR cause it is labeled with 'waitForBackend'"
               continue
             fi
 
