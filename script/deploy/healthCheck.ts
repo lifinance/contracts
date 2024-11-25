@@ -16,11 +16,10 @@ import {
 } from 'viem'
 import {
   Network,
+  networks,
   getViemChainForNetworkName,
   type NetworksObject,
 } from '../utils/viemScriptHelpers'
-import data from '../../config/networks.json'
-const networks: NetworksObject = data as NetworksObject
 
 const SAFE_THRESHOLD = 3
 
@@ -65,10 +64,6 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const { getViemChainForNetworkName, networks } = await import(
-      '../utils/viemScriptHelpers'
-    )
-
     if ((await $`${louperCmd}`.exitCode) !== 0) {
       const answer = await consola.prompt(
         'Louper CLI is required but not installed. Would you like to install it now?',
