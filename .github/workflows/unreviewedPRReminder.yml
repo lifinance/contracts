@@ -38,22 +38,22 @@ jobs:
             if [[ "$PR_ISDRAFT" == "true" ]]; then
               echo "skipping this PR cause it is in draft mode"
               continue
-              fi
+            fi
 
-              # Continue loop if the PR has the label "WIP"
-              if echo "$PR_LABELS" | grep -q "WIP"; then
+            # Continue loop if the PR has the label "WIP"
+            if echo "$PR_LABELS" | grep -q "WIP"; then
               echo "skipping this PR cause it is labeled with 'WIP'"
               continue
-              fi
+            fi
 
-              # Continue loop if the PR has the label "waitForAudit"
-              if echo "$PR_LABELS" | grep -q "waitForAudit"; then
+            # Continue loop if the PR has the label "waitForAudit"
+            if echo "$PR_LABELS" | grep -q "waitForAudit"; then
               echo "skipping this PR cause it is labeled with 'waitForAudit'"
               continue
-              fi
+            fi
 
-              # Continue loop if the PR has the label "waitForBackend"
-              if echo "$PR_LABELS" | grep -q "waitForBackend"; then
+            # Continue loop if the PR has the label "waitForBackend"
+            if echo "$PR_LABELS" | grep -q "waitForBackend"; then
               echo "skipping this PR cause it is labeled with 'waitForBackend'"
               continue
             fi
