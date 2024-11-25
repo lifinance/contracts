@@ -20,7 +20,7 @@ jobs:
           set -x
           # Use GitHub API and jq to parse the data
           PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name)), draft: .draft}')
-          echo "PRS: $PRS"
+          echo "PRs found: $PRS"
           OLD_PRS=""
           while read -r PR; do
             echo "------------------------------------------------------------------"
