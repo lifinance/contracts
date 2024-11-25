@@ -1,5 +1,6 @@
 name: 'Check old PRs'
 on:
+  push:
   schedule:
     - cron: '0 0 * * *' # run once a day
   workflow_dispatch: # enables manual trigger
@@ -22,10 +23,16 @@ jobs:
           echo "PRS: $PRS"
           OLD_PRS=""
           while read -r PR; do
+            echo "------------------------------------------------------------------"
             PR_CREATED_AT=$(echo "$PR" | jq -r '.created_at')
             PR_NUMBER=$(echo "$PR" | jq -r '.number')
             PR_LABELS=$(echo "$PR" | jq -c '.labels')
             PR_ISDRAFT=$(echo "$PR" | jq -r '.draft')
+
+            echo "Now checking PR: $PR_NUMBER"
+            echo "PR is in DRAFT status: $PR_ISDRAFT"
+            echo "The following labels are assigned to this PR: $PR_LABELS"
+
 
             # Continue loop if the PR is draft
             if [[ "$PR_ISDRAFT" == "true" ]]; then
@@ -36,8 +43,9 @@ jobs:
             if echo "$PR_LABELS" | grep -q "WIP"; then
               continue
             fi
-            # Continue loop if the PR has the label "WaitForBackend"
-            if echo "$PR_LABELS" | grep -q "WaitForBackend"; then
+
+            # Continue loop if the PR has the label "WaitForAudit"
+            if echo "$PR_LABELS" | grep -q "WaitForAudit"; then
               continue
             fi
 
