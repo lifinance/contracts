@@ -89,7 +89,7 @@ jobs:
         env:
           MESSAGE: ${{ github.event.head_commit.message }}
         id: bump_version
-        uses: christian-draeger/increment-semantic-version@1.1.0
+        uses: christian-draeger/increment-semantic-version@1.2.0
         with:
           current-version: '${{ env.LATEST_TAG }}'
           version-fragment: "${{ env.BRANCH_NAME == 'main' && (contains(env.MESSAGE, 'major') && 'major' || contains(env.MESSAGE, 'feat') && 'feature' || 'bug') || 'beta' }}"
