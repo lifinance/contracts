@@ -144,6 +144,14 @@
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
+      },
+      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6e00e0a7685Ca22c288d56D9E7924746B5043Ee7": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -152,12 +160,12 @@
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
       "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-      "Permit2Proxy": "0x5c6e208468213999CB0Be4bAB6d1492c3139A4EE"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
