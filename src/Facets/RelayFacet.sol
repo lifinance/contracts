@@ -186,7 +186,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
-                _bridgeData.destinationChainId,
+                _getMappedChainId(_bridgeData.destinationChainId),
                 _relayData.nonEVMReceiver
             );
         }
