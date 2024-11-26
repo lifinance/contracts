@@ -31,6 +31,10 @@ contract TestRelayFacet is RelayFacet {
     ) external pure returns (uint256) {
         return _getMappedChainId(chainId);
     }
+
+    function setConsumedId(bytes32 id) external {
+        consumedIds[id] = true;
+    }
 }
 
 contract RelayFacetTest is TestBaseFacet {
@@ -47,7 +51,7 @@ contract RelayFacetTest is TestBaseFacet {
         customBlockNumberForForking = 19767662;
         initTestBase();
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
@@ -57,6 +61,7 @@ contract RelayFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
+        functionSelectors[5] = relayFacet.setConsumedId.selector;
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
@@ -166,6 +171,35 @@ contract RelayFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenReplayingTransactionIds() public virtual {
+        relayFacet.setConsumedId(validRelayData.requestId);
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 1151111081099710;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(
+                abi.encodePacked(
+                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                )
+            ), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked(
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                )
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidQuote.selector);
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }

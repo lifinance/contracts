@@ -21,6 +21,10 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // Relayer wallet for ERC20 transfers
     address public immutable relaySolver;
 
+    /// Storage ///
+
+    mapping(bytes32 => bool) public consumedIds;
+
     /// Types ///
 
     /// @dev Relay specific parameters
@@ -55,6 +59,11 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         RelayData calldata _relayData
     ) {
+        // Ensure that the id isn't already consumed
+        if (consumedIds[_relayData.requestId]) {
+            revert InvalidQuote();
+        }
+
         // Verify that the bridging quote has been signed by the Relay solver
         // as attested using the attestation API
         // API URL: https://api.relay.link/requests/{requestId}/signature/v2
@@ -181,6 +190,8 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 revert(LibUtil.getRevertMsg(reason));
             }
         }
+
+        consumedIds[_relayData.requestId] = true;
 
         // Emit special event if bridging to non-EVM chain
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
