@@ -64,6 +64,14 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidQuote();
         }
 
+        // Ensure nonEVMAddress is not empty
+        if (
+            _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS &&
+            _relayData.nonEVMReceiver == bytes32(0)
+        ) {
+            revert InvalidQuote();
+        }
+
         // Verify that the bridging quote has been signed by the Relay solver
         // as attested using the attestation API
         // API URL: https://api.relay.link/requests/{requestId}/signature/v2

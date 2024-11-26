@@ -175,6 +175,30 @@ contract RelayFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_WhenUsingEmptyNonEVMAddress() public virtual {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = 1151111081099710;
+        validRelayData = RelayFacet.RelayData({
+            requestId: bytes32("1234"),
+            nonEVMReceiver: bytes32(0), // DEV Wallet
+            receivingAssetId: bytes32(
+                abi.encodePacked(
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                )
+            ), // Solana USDC
+            signature: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidQuote.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenReplayingTransactionIds() public virtual {
         relayFacet.setConsumedId(validRelayData.requestId);
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
