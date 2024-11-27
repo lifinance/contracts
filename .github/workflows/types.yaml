@@ -88,10 +88,18 @@ jobs:
             fi
           fi
 
+          # Check if LATEST_TAG is empty or null
+          if [[ -z "$LATEST_TAG" || "$LATEST_TAG" == "null" ]]; then
+            echo "ERROR: No latest tag found in the repository."
+            exit 1
+          fi
+
+          echo "LATEST_TAG=$LATEST_TAG"
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
       # Step 12: Increment the version number based on the commit message and branch
       - name: Update Version
+        if: ${{ success() }}
         env:
           LATEST_TAG: ${{ env.LATEST_TAG }}
           BRANCH_NAME: ${{ env.BRANCH_NAME }}
@@ -138,6 +146,7 @@ jobs:
 
       # Step 13: Push the updated version tag to the repository
       - name: Push Updated Tag
+        if: ${{ success() }}
         env:
           NEW_VERSION: ${{ env.NEW_VERSION }}
           BRANCH_NAME: ${{ env.BRANCH_NAME }}
