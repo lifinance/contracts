@@ -112,6 +112,10 @@ jobs:
           MESSAGE: ${{ github.event.head_commit.message }}
         id: bump_version
         run: |
+          # Remove leading "v" from LATEST_TAG for semver parsing
+          CURRENT_VERSION="${LATEST_TAG#v}"
+          echo "Current version: $CURRENT_VERSION"
+
           VERSION_FRAGMENT=""
 
           # Determine the type of version bump
@@ -146,6 +150,7 @@ jobs:
             NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           fi
 
+          echo "New version: $NEW_VERSION"
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       # Step 13: Push the updated version tag to the repository
