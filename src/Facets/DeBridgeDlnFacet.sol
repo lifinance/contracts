@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IDlnSource } from "../Interfaces/IDlnSource.sol";
-import { InformationMismatch, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { NotInitialized } from "../Errors/GenericErrors.sol";
 
 /// @title DeBridgeDLN Facet
 /// @author LI.FI (https://li.fi)
@@ -50,6 +50,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     error UnknownDeBridgeChain();
     error EmptyNonEVMAddress();
+    error InvalidConfig();
 
     /// Events ///
 
@@ -96,6 +97,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function initDeBridgeDln(
         ChainIdConfig[] calldata chainIdConfigs
     ) external {
+        if (chainIdConfigs.length == 0) revert InvalidConfig();
         LibDiamond.enforceIsContractOwner();
 
         Storage storage sm = getStorage();
@@ -192,7 +194,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 orderAuthorityAddressDst: _deBridgeData.receiver,
                 allowedTakerDst: "",
                 externalCall: "",
-                allowedCancelBeneficiarySrc: ""
+                allowedCancelBeneficiarySrc: abi.encodePacked(msg.sender)
             });
 
         bytes32 orderId;
@@ -235,10 +237,10 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Mappings management ///
 
-    /// @notice Sets the Layer 0 chain ID for a given chain ID
+    /// @notice Sets the DeBridge chain ID for a given chain ID
     /// @param _chainId uint256 of the chain ID
-    /// @param _deBridgeChainId uint256 of the Layer 0 chain ID
-    /// @dev This is used to map a chain ID to its Layer 0 chain ID
+    /// @param _deBridgeChainId uint256 of the DeBridge chain ID
+    /// @dev This is used to map a chain ID to its DeBridge chain ID
     function setDeBridgeChainId(
         uint256 _chainId,
         uint256 _deBridgeChainId
@@ -254,9 +256,9 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit DeBridgeChainIdSet(_chainId, _deBridgeChainId);
     }
 
-    /// @notice Gets the Layer 0 chain ID for a given chain ID
+    /// @notice Gets the DeBridge chain ID for a given chain ID
     /// @param _chainId uint256 of the chain ID
-    /// @return uint256 of the Layer 0 chain ID
+    /// @return uint256 of the DeBridge chain ID
     function getDeBridgeChainId(
         uint256 _chainId
     ) public view returns (uint256) {
