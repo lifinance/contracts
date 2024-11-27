@@ -15,6 +15,9 @@ library LibAsset {
 
     address internal constant NULL_ADDRESS = address(0);
 
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
+
     /// @dev All native assets use the empty address for their asset id
     ///      by convention
 

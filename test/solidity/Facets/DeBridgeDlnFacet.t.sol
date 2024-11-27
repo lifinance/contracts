@@ -28,6 +28,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         IDlnSource(0xeF4fB24aD0916217251F553c0596F8Edc630EB66);
     uint256 internal FIXED_FEE;
 
+    // Errors
+    error EmptyNonEVMAddress();
+
     function setUp() public {
         customBlockNumberForForking = 19279222;
         initTestBase();
@@ -278,5 +281,59 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             USER_SENDER.balance,
             initialETHBalance - swapData[0].fromAmount - FIXED_FEE
         );
+    }
+
+    function testRevert_WhenBridgingToEmptyNonEVMAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountOut = defaultUSDCAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // This is just a random Solana Address for testing
+        validDeBridgeDlnData.receiver = ""; // [pre-commit-checker: not a secret]
+        // SOL Token
+        validDeBridgeDlnData
+            .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
+
+        // Setup to bridge to Solana
+        bridgeData.destinationChainId = 1151111081099710;
+        bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
+
+        vm.expectRevert(EmptyNonEVMAddress.selector);
+        initiateSwapAndBridgeTxWithFacet(true);
     }
 }
