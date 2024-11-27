@@ -106,8 +106,6 @@ jobs:
           MESSAGE: ${{ github.event.head_commit.message }}
         id: bump_version
         run: |
-          # Default to version 0.0.0 if no tag is found
-          CURRENT_VERSION=${LATEST_TAG:-"0.0.0"}
           VERSION_FRAGMENT=""
 
           # Determine the type of version bump
