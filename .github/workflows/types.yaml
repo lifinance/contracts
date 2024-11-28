@@ -57,9 +57,15 @@ jobs:
       # Step 9: Copy generated types and ABI into the lifi-contract-types repo
       - name: Copy Type Bindings and ABI
         run: |
-          rm -r lifi-contract-types/src/
-          mv typechain lifi-contract-types/src
+          rm -rf lifi-contract-types/src/
+          mkdir -p lifi-contract-types/src
+          cp -r typechain/* lifi-contract-types/src/
           cp diamond.json lifi-contract-types/dist/
+
+      - name: Verify File Status (for debugging)
+        run: |
+          cd lifi-contract-types
+          git status
 
       # Step 10: Build the lifi-contract-types project
       - name: Build Contract Types
@@ -167,9 +173,11 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           echo "Updating version from $LATEST_TAG to $NEW_VERSION"
-          git add src/*
-          git add dist/*
-          git add package.json
+          # git add src/*
+          # git add dist/*
+          # git add package.json
+          git add -A  # Stage all changes, including deletions
+
           git commit -m "actions: new contracts version $NEW_VERSION"
 
           # Annotate and push the new tag
