@@ -60,8 +60,9 @@
       "FeeCollector": "0x6A2420650139854F17964b8C3Bb60248470aB57E",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0xEc41F702d36b43a1E1d017Cb4da92F431dFA7a0E",
-      "ReceiverAcrossV3": "",
+      "Permit2Proxy": "",
       "Receiver": "0x423d018777dE97059129E046BBc1026548553A20",
+      "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x077A38b812e57E2e76849954c880E1a2f5e0A68d"
