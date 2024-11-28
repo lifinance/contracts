@@ -434,17 +434,15 @@ contract Permit2ProxyTest is TestBase {
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes32 msgHash;
+        bytes memory signature;
         (
             diamondCalldata,
             permitTransferFrom,
             msgHash,
-
+            signature
         ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
-        // Sign with a random key
-        bytes memory signature = _signMsgHash(msgHash, 987654321);
-
-        permitTransferFrom.permitted.amount = 500 ether;
+        permitTransferFrom.permitted.amount += 1;
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
