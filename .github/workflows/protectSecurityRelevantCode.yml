@@ -8,7 +8,8 @@ name: Protect security-critical code/system
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-
+  pull_request_review:
+    types: [submitted]
 jobs:
   protect-critical-code:
     if: ${{ github.event.pull_request.draft == false }}
