@@ -20,7 +20,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.debridgedln");
-
+    uint32 internal constant REFERRAL_CODE = 30729;
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
     IDlnSource public immutable dlnSource;
@@ -209,7 +209,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             orderId = dlnSource.createOrder{ value: _fee }(
                 orderCreation,
                 "",
-                0,
+                REFERRAL_CODE,
                 ""
             );
         } else {
