@@ -91,6 +91,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
                 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
             ), // Polygon USDC
             receiver: abi.encodePacked(USER_RECEIVER),
+            orderAuthorityDst: abi.encodePacked(USER_RECEIVER),
             minAmountOut: (defaultUSDCAmount * 95) / 100
         });
 
@@ -259,6 +260,8 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // This is just a random Solana Address for testing
         validDeBridgeDlnData
             .receiver = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
+        validDeBridgeDlnData
+            .orderAuthorityDst = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
         // SOL Token
         validDeBridgeDlnData
             .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]

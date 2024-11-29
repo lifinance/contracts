@@ -33,6 +33,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct DeBridgeDlnData {
         bytes receivingAssetId;
         bytes receiver;
+        bytes orderAuthorityDst;
         uint256 minAmountOut;
     }
 
@@ -191,7 +192,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 ),
                 receiverDst: _deBridgeData.receiver,
                 givePatchAuthoritySrc: msg.sender,
-                orderAuthorityAddressDst: _deBridgeData.receiver,
+                orderAuthorityAddressDst: _deBridgeData.orderAuthorityDst,
                 allowedTakerDst: "",
                 externalCall: "",
                 allowedCancelBeneficiarySrc: abi.encodePacked(msg.sender)
