@@ -64,6 +64,7 @@
       "FeeCollector": "0x1a4E99aB56BBac95810C0A957F173054f6FA8fDc",
       "LiFiDEXAggregator": "0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF",
       "LiFuelFeeCollector": "0x677Fa29FFe6c8f03D6bbE789090Dceb498b7aaA4",
+      "Permit2Proxy": "",
       "Receiver": "0xCfDfbAa460EFAd6F58D4459d82863CfA137e4993",
       "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "",
