@@ -2,12 +2,12 @@
   "LiFiDiamond": {
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
       "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
@@ -62,10 +62,11 @@
       "ERC20Proxy": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
       "Executor": "0xd00DaEC49Cd4F33Fe8542050294759cD971c7116",
       "FeeCollector": "0x11d40Dc8Ff0CE92F54A315aD8e674a55a866cBEe",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "ReceiverAcrossV3": "",
+      "LiFiDEXAggregator": "0xf88F6948C8AFf60c0B011f3175CDF459c66Ed035",
+      "LiFuelFeeCollector": "0x70D6cFE9146D6B6ebEb88BcB22fa220E78058D6F",
+      "Permit2Proxy": "",
       "Receiver": "0x4891e076b18FccEBE62962A26e74df85BB04168b",
+      "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x693c18A628866BdD04956d9544Ce769C0e468149"
