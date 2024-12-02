@@ -893,7 +893,6 @@
         "ReceiverAcrossV3": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "RelayFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract RelayFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -954,35 +953,6 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
-      }
-    }
-  },
-  "fraxtal": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.1",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
-        "LIFuelFacet": "1.0.1",
-        "CalldataVerificationFacet": "1.1.2",
-        "StandardizedCallFacet": "1.1.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.2",
-        "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "LiFiDEXAggregator": "1.0.0",
-        "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1307,7 +1277,6 @@
       }
     }
   },
-  "rootstocks": {},
   "cronos": {
     "production": {
       "LiFiDiamond": {
