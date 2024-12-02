@@ -32,6 +32,7 @@ async function updateDeploymentLogs(network: string) {
       throw new Error(`API key not found for ${network}`)
     }
 
+    console.log(`Fetching details for deployed contracts on ${network}...`)
     // Process each contract
     for (const [contractName, contractAddress] of Object.entries(deployments)) {
       try {
@@ -41,8 +42,6 @@ async function updateDeploymentLogs(network: string) {
         url.searchParams.append('action', 'getsourcecode')
         url.searchParams.append('address', contractAddress as string)
         url.searchParams.append('apiKey', apiKey)
-
-        console.log(url.toString())
 
         const response = await fetch(url.toString())
         const data = await response.json()
@@ -65,6 +64,7 @@ async function updateDeploymentLogs(network: string) {
         }
 
         // Update master log
+        console.log(`Updating ${contractName} - ${contractAddress}...`)
         if (!masterLog[contractName]) {
           masterLog[contractName] = {}
         }
@@ -80,11 +80,15 @@ async function updateDeploymentLogs(network: string) {
               ADDRESS: contractAddress,
               OPTIMIZER_RUNS: data.result[0].Runs || 0,
               TIMESTAMP: new Date().toISOString(),
-              CONSTRUCTOR_ARGS: data.result[0].ConstructorArguments || '0x',
+              CONSTRUCTOR_ARGS:
+                `0x${data.result[0].ConstructorArguments}` || '0x',
               SALT: '',
               VERIFIED: true,
             },
           ]
+          console.log('Updated')
+        } else {
+          console.log('Entry already exists')
         }
       } catch (error) {
         console.error(`Error processing ${contractName}:`, error)
