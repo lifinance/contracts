@@ -93,7 +93,6 @@ async function updateDeploymentLogs(network: string) {
         }
       } catch (error) {
         console.error(`Error processing ${contractName}:`, error)
-        continue
       }
     }
 
