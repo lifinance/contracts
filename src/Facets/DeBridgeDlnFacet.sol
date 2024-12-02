@@ -218,7 +218,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             orderId = dlnSource.createOrder{ value: _bridgeData.minAmount }(
                 orderCreation,
                 "",
-                0,
+                REFERRAL_CODE,
                 ""
             );
         }
