@@ -532,8 +532,8 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
-  }
- "GasZipFacet": {
+  },
+  "GasZipFacet": {
     "configData": {
       "_gasZipRouter": {
         "configFileName": "gaszip.json",
@@ -552,7 +552,7 @@
     },
     "contractAddresses": {
       "LiFiDEXAggregator": {
-         "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   }
