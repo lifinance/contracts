@@ -49,6 +49,16 @@ function diamondSyncDEXs {
 
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
+
+    # Skip for localanvil or any testnet
+    if [[ "$NETWORK" == "localanvil" || \
+          "$NETWORK" == "bsc-testnet" || \
+          "$NETWORK" == "lineatest" || \
+          "$NETWORK" == "mumbai" || \
+          "$NETWORK" == "sepolia" ]]; then
+        continue
+    fi
+
     # get diamond address from deployments script
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 

@@ -1,0 +1,79 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x57FdfF2e36De6c8a8Cde297B150Ae291132Eae8d": {
+        "Name": "DiamondCutFacet",
+        "Version": ""
+      },
+      "0xA1a4d577709dC4A70CA38F1D41562fab3aD09D3f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": ""
+      },
+      "0x81Ae738700D8f1e5BB2A200584174cDf17Fb5455": {
+        "Name": "OwnershipFacet",
+        "Version": ""
+      },
+      "0xfA009cd56d35AE3BbdF975135b0BAE9b403c7da1": {
+        "Name": "WithdrawFacet",
+        "Version": ""
+      },
+      "0xE154389c1bAE241F220661131b7AfDc1514C55c7": {
+        "Name": "DexManagerFacet",
+        "Version": ""
+      },
+      "0x314E1E760316050B0D6338bCf3d689b8D301F593": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
+      },
+      "0x54ECfbAaeb49c864a9c45C70B785ca6C70c66453": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": ""
+      },
+      "0x14Dd70456Bfe4Cd8b605f7A0d24b3A74aCe99713": {
+        "Name": "LIFuelFacet",
+        "Version": ""
+      },
+      "0xd2B3b3605e630232c13111458Ae3a97d13c8F477": {
+        "Name": "GenericSwapFacet",
+        "Version": ""
+      },
+      "0xBa713B18c806EcdEEE49FAec623dE2D872192872": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
+      },
+      "0xe6C6A35684308f2DaadbeeA50B62CFEaAFaa407E": {
+        "Name": "StandardizedCallFacet",
+        "Version": ""
+      },
+      "0x1feB868BF64AdC552E051fB7387681F78b988a81": {
+        "Name": "CalldataVerificationFacet",
+        "Version": ""
+      },
+      "0xF6Eff8df65Fc4a4c1528761Aa727b5471956A844": {
+        "Name": "EmergencyPauseFacet",
+        "Version": ""
+      },
+      "0xB5dD83183fD7CCF859b227CA83663a034d5B2f92": {
+        "Name": "AcrossFacetV3",
+        "Version": ""
+      },
+      "0x90ADbFc03002aaA3d9FEdf2517D593CfD93e6c57": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": ""
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0x98750e70Cf1313D9702f0f57D399DD0bA05d16E0",
+      "Executor": "0xd9318fFE1EbbfA71049A443e623Be566067C9D6B",
+      "FeeCollector": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
+      "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
+      "LiFuelFeeCollector": "0x8f023b4193a6b18C227B4a755f8e28B3D30Ef9a1",
+      "Permit2Proxy": "",
+      "Receiver": "0xD9e3837E42198aaFc13cb51536d7c31f590aD6Fd",
+      "ReceiverAcrossV3": "0xD263a23453CB9A77860ed6393A2B9a55AF70EFAb",
+      "ReceiverStargateV2": "",
+      "RelayerCelerIM": "",
+      "TokenWrapper": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a"
+    }
+  }
+}

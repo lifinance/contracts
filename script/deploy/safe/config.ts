@@ -1,5 +1,4 @@
 import { ContractNetworksConfig } from '@safe-global/protocol-kit'
-import { immutableZkEvm } from 'viem/chains'
 
 export const safeApiUrls: Record<string, string> = {
   mainnet: 'https://safe-transaction-mainnet.safe.global/api',

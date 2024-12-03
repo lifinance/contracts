@@ -524,7 +524,16 @@
       }
     }
   },
-  "GasZipFacet": {
+  "Permit2Proxy": {
+    "configData": {
+      "permit2Address": {
+        "configFileName": "permit2Proxy.json",
+        "keyInConfigFile": ".<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  }
+ "GasZipFacet": {
     "configData": {
       "_gasZipRouter": {
         "configFileName": "gaszip.json",
@@ -543,7 +552,7 @@
     },
     "contractAddresses": {
       "LiFiDEXAggregator": {
-        "allowToDeployWithZeroAddress": "false"
+         "allowToDeployWithZeroAddress": "false"
       }
     }
   }
