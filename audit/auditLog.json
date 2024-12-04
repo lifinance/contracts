@@ -35,6 +35,13 @@
       "auditReportPath": "./audit/reports/2024.11.05_EmergencyPauseFacet_ReAudit.pdf",
       "auditCommitHash": "da61880ba3847c07c35b64a78b957ff845ec18ac"
     },
+    "audit20241107": {
+      "auditCompletedOn": "07.11.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.11.07_GasZip.pdf",
+      "auditCommitHash": "2d8927ababff6ace0c577d92407bcf289ebb89c0"
+    },
     "audit20241122": {
       "auditCompletedOn": "22.11.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -56,6 +63,15 @@
     },
     "AcrossFacetPackedV3": {
       "1.0.0": ["audit20241007"]
+    },
+    "GasZipFacet": {
+      "2.0.0": ["audit20241107"]
+    },
+    "GasZipPeriphery": {
+      "1.0.0": ["audit20241107"]
+    },
+    "IGasZip": {
+      "1.0.0": ["audit20241107"]
     },
     "EmergencyPauseFacet": {
       "1.0.0": ["audit20240913"],
