@@ -86,6 +86,23 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(LIFI_DEX_AGGREGATOR_MAINNET, "LiFiDEXAggregator");
     }
 
+    function test_WillStoreConstructorParametersCorrectly() public {
+        gasZipPeriphery = new TestGasZipPeriphery(
+            GAS_ZIP_ROUTER_MAINNET,
+            LIFI_DEX_AGGREGATOR_MAINNET,
+            USER_DIAMOND_OWNER
+        );
+
+        assertEq(
+            address(gasZipPeriphery.gasZipRouter()),
+            GAS_ZIP_ROUTER_MAINNET
+        );
+        assertEq(
+            gasZipPeriphery.liFiDEXAggregator(),
+            LIFI_DEX_AGGREGATOR_MAINNET
+        );
+    }
+
     function test_CanDepositNative() public {
         // set up expected event
         vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);

@@ -130,6 +130,12 @@ contract GasZipFacetTest is TestBaseFacet {
         }
     }
 
+    function test_WillStoreConstructorParametersCorrectly() public {
+        gasZipFacet = new TestGasZipFacet(GAS_ZIP_ROUTER_MAINNET);
+
+        assertEq(address(gasZipFacet.gasZipRouter()), GAS_ZIP_ROUTER_MAINNET);
+    }
+
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
         // deactivated for this facet since we would have to update the calldata that swaps from ERC20 to native for every amount
     }
