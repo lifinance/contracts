@@ -43,7 +43,7 @@
       "auditCommitHash": "0e3debb78abcdf9a9f934115338b611e16b039a0"
     },
     "audit20241203": {
-      "auditCompletedOn": "12.03.2024",
+      "auditCompletedOn": "03.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.12.03_LiFiDexAggregator.pdf",
