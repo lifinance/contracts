@@ -114,7 +114,7 @@ function diamondSyncDEXs {
         CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
         CODE=$(cast code $CHECKSUMMED --rpc-url "$RPC_URL")
         if [[ "$CODE" == "0x" ]]; then
-          echo "[warning] DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
+          error "DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
           echo "$NETWORK - $CHECKSUMMED" >>.invalid-dexs
           continue
         fi

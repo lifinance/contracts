@@ -118,8 +118,8 @@
         "Version": "1.0.0"
       },
       "0x75943d7305310635945736D00235d825181018f3": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.0"
       },
       "0x2531368BAca8c5E85031FC0a9a2f148b65da389A": {
         "Name": "AcrossFacetV3",
@@ -130,6 +130,7 @@
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
+      "GasZipPeriphery": "0x0ec6D2eEb94541C51620830D151995fCFf83Aa74",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
       "Permit2Proxy": "",
