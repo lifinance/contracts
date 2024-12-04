@@ -1,5 +1,4 @@
 import { ContractNetworksConfig } from '@safe-global/protocol-kit'
-import { immutableZkEvm } from 'viem/chains'
 
 export const safeApiUrls: Record<string, string> = {
   mainnet: 'https://safe-transaction-mainnet.safe.global/api',
@@ -7,7 +6,7 @@ export const safeApiUrls: Record<string, string> = {
   aurora: 'https://safe-transaction-aurora.safe.global/api',
   avalanche: 'https://safe-transaction-avalanche.safe.global/api',
   base: 'https://safe-transaction-base.safe.global/api',
-  blast: 'https://transaction.blast-safe.io/api',
+  blast: 'https://safe-transaction-blast.safe.global/api',
   boba: 'https://safe-transaction.mainnet.boba.network/api',
   bsc: 'https://safe-transaction-bsc.safe.global/api',
   celo: 'https://safe-transaction-celo.safe.global/api',

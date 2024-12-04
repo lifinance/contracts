@@ -34,18 +34,28 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.11.05_EmergencyPauseFacet_ReAudit.pdf",
       "auditCommitHash": "da61880ba3847c07c35b64a78b957ff845ec18ac"
+    },
+    "audit20241122": {
+      "auditCompletedOn": "22.11.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.11.22_Permit2Proxy.pdf",
+      "auditCommitHash": "0e3debb78abcdf9a9f934115338b611e16b039a0"
     }
   },
   "auditedContracts": {
-    "EmergencyPauseFacet": {
-      "1.0.0": ["audit20240913"],
-      "1.0.1": ["audit20241105"]
-    },
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"]
     },
     "AcrossFacetPackedV3": {
       "1.0.0": ["audit20241007"]
+    },
+    "EmergencyPauseFacet": {
+      "1.0.0": ["audit20240913"],
+      "1.0.1": ["audit20241105"]
+    },
+    "Permit2Proxy": {
+      "1.0.0": ["audit20241122"]
     },
     "ReceiverAcrossV3": {
       "1.0.0": ["audit20241007"]
