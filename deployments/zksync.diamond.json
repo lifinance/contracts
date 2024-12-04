@@ -74,19 +74,20 @@
         "Version": "1.0.0"
       },
       "0x313c27Aad40c7e0A0b923b539F05617D8114566D": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x8E1cf39Df64D9DCAdA7831d90CC852e02663410a",
       "Executor": "0xa9bfa49F26733271f4FD34A4b57bB7C563Ae056A",
       "FeeCollector": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
+      "GasZipPeriphery": "0x4000f76450d9d40558fd60F66863F583B7A5BCCb",
       "LiFiDEXAggregator": "0x1F683faf1E2a770aa75f7B2e92117A5c11183E9C",
       "LiFuelFeeCollector": "0xB87C536E048Cfc082187E559fCFeFc3f1c89aEc7",
       "Permit2Proxy": "0x6275f6631c955DC5dA9fBe8Dc7f24a3A5919443A",
-      "Receiver": "0xdeDB2DAe4a9BC63910a722a3b7DC930C7E6f6421",
       "ReceiverAcrossV3": "0xFa94c1A99799B3cA89DE6cbB3ccCDEcf1da62aFE",
+      "Receiver": "0xdeDB2DAe4a9BC63910a722a3b7DC930C7E6f6421",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xFf9565e1C4f01C368444D2bE4B9ef36ce7E95541",
       "TokenWrapper": "0xf15485ada1a1826fA46225032b13F6A972eC73C1"

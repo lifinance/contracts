@@ -532,5 +532,28 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "GasZipFacet": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GasZipPeriphery": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "LiFiDEXAggregator": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
