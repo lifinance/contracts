@@ -81,6 +81,7 @@
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Permit2Proxy": "",
       "Receiver": "0x2fA14922ABc117c4737260032C8fD6D9Ab35395A",
       "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",

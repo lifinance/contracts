@@ -104,7 +104,7 @@
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://safe-transaction-blast.safe.global/api",
     "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
-    "safeWebUrl": "https://blast-safe.io/transactions/queue?safe=blastmainnet:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "safeWebUrl": "https://app.safe.global/transactions/queue?safe=blast:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 96
   },
   "boba": {
