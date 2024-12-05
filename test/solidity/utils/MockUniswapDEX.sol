@@ -106,6 +106,12 @@ contract MockUniswapDEX {
         revert(reason);
     }
 
+    function mockSwapWillRunOutOfGas() external payable {
+        while (true) {
+            // infinite loop
+        }
+    }
+
     // UNISWAP-LIKE FUNCTION SELECTORS FOR BETTER COMPATIBILITY WITH EXISTING CODE
 
     // ERC20 to ERC20
