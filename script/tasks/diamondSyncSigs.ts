@@ -12,6 +12,7 @@ import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+import consola from 'consola'
 
 export const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',
@@ -113,19 +114,29 @@ const main = defineCommand({
     if (sigsToApprove.length > 0) {
       // Approve function signatures
       console.log('Approving function signatures...')
-      const tx = await walletClient.writeContract({
-        address: deployedContracts['LiFiDiamond'],
-        abi: parseAbi([
-          'function batchSetFunctionApprovalBySignature(bytes4[],bool) external',
-        ]),
-        functionName: 'batchSetFunctionApprovalBySignature',
-        args: [sigsToApprove, true],
-        account,
-      })
+      let tx
+      try {
+        tx = await walletClient.writeContract({
+          address: deployedContracts['LiFiDiamond'],
+          abi: parseAbi([
+            'function batchSetFunctionApprovalBySignature(bytes4[],bool) external',
+          ]),
+          functionName: 'batchSetFunctionApprovalBySignature',
+          args: [sigsToApprove, true],
+          account,
+        })
+
+        await publicClient.waitForTransactionReceipt({ hash: tx })
+      } catch (err) {
+        consola.error(JSON.stringify(err, null, 2))
+        process.exit(1)
+      }
 
       console.log('Transaction:', tx)
+      process.exit(0)
     } else {
       console.log('All Signatures are already approved.')
+      process.exit(0)
     }
   },
 })
