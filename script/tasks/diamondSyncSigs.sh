@@ -63,19 +63,29 @@ function diamondSyncSigs {
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
 
+    # Skip for localanvil or any testnet
+    if [[ "$NETWORK" == "localanvil" || \
+          "$NETWORK" == "bsc-testnet" || \
+          "$NETWORK" == "lineatest" || \
+          "$NETWORK" == "mumbai" || \
+          "$NETWORK" == "sepolia" ]]; then
+        continue
+    fi
+
     # get RPC URL for given network
     RPC_URL=$(getRPCUrl "$NETWORK")
 
     # call batchSetFunctionApprovalBySignature function in diamond to add function selectors
     local ATTEMPTS=1
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+      echo "----------------------------------------------------------------------------------------"
       echo "[info] trying to add function selectors now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
 
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       # try to run the typescript script (will fail if the network is not yet supported by viem)
-      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --environment "$ENVIRONMENT"
+      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --environment "$ENVIRONMENT"
       RETURN_CODE=$?
 
       # check the typescript script failed

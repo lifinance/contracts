@@ -73,7 +73,7 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.0.0"
       },
-      "0x00990C0FfBB7eAB014351652aFB65AaE00db43A4": {
+      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
         "Name": "",
         "Version": ""
       },
@@ -88,11 +88,13 @@
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
       "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD"
+      "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
+      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3"
     }
   }
 }
