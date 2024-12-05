@@ -286,7 +286,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         );
     }
 
-    function testRevert_WhenBridgingToEmptyNonEVMAddress() public {
+    function testRevert_WhenBridgingToEmptyReceiverAddress() public {
         vm.startPrank(USER_SENDER);
 
         // prepare bridgeData
@@ -333,8 +333,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
 
         // Setup to bridge to Solana
-        bridgeData.destinationChainId = 1151111081099710;
-        bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
+        bridgeData.destinationChainId = 137;
 
         vm.expectRevert(EmptyNonEVMAddress.selector);
         initiateSwapAndBridgeTxWithFacet(true);
