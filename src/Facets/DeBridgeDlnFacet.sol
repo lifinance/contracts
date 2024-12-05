@@ -69,10 +69,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Modifiers ///
 
-    modifier onlyValidReceiverAddress(
-        ILiFi.BridgeData memory _bridgeData,
-        DeBridgeDlnData calldata _deBridgeData
-    ) {
+    modifier onlyValidReceiverAddress(DeBridgeDlnData calldata _deBridgeData) {
         // Ensure nonEVMAddress is not empty
         if (_deBridgeData.receiver.length == 0) {
             revert EmptyNonEVMAddress();
@@ -123,7 +120,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
-        onlyValidReceiverAddress(_bridgeData, _deBridgeData)
+        onlyValidReceiverAddress(_deBridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
@@ -154,7 +151,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        onlyValidReceiverAddress(_bridgeData, _deBridgeData)
+        onlyValidReceiverAddress(_deBridgeData)
     {
         uint256 fee = dlnSource.globalFixedNativeFee();
         address assetId = _bridgeData.sendingAssetId;
