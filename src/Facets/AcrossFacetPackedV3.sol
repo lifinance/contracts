@@ -11,7 +11,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 /// @title AcrossFacetPackedV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across in a gas-optimized way
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
@@ -85,7 +85,8 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     function startBridgeTokensViaAcrossV3NativePacked() external payable {
         // call Across spoke pool to bridge assets
         spokePool.depositV3{ value: msg.value }(
-            msg.sender, // depositor
+            // we use tx.origin here to prevent refunds being sent to Metamask's contract
+            tx.origin, // depositor
             address(bytes20(msg.data[12:32])), // recipient
             wrappedNative, // inputToken
             address(bytes20(msg.data[36:56])), // outputToken
@@ -109,7 +110,8 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     ) external payable {
         // call Across spoke pool to bridge assets
         spokePool.depositV3{ value: msg.value }(
-            msg.sender, // depositor
+            // we use tx.origin here to prevent refunds being sent to Metamask's contract
+            tx.origin, // depositor
             _parameters.receiver,
             wrappedNative, // inputToken
             _parameters.receivingAssetId, // outputToken
@@ -141,7 +143,8 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
         // call Across SpokePool
         spokePool.depositV3(
-            msg.sender, // depositor
+            // we use tx.origin here to prevent refunds being sent to Metamask's contract
+            tx.origin, // depositor
             address(bytes20(msg.data[12:32])), // recipient
             sendingAssetId, // inputToken
             address(bytes20(msg.data[72:92])), // outputToken
@@ -176,7 +179,8 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
         // call Across SpokePool
         spokePool.depositV3(
-            msg.sender, // depositor
+            // we use tx.origin here to prevent refunds being sent to Metamask's contract
+            tx.origin, // depositor
             _parameters.receiver,
             sendingAssetId, // inputToken
             _parameters.receivingAssetId, // outputToken
