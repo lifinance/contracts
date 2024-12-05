@@ -52,57 +52,6 @@ contract ReceiverAcrossV3Test is TestBase {
         assertEq(receiver.spokepool() == SPOKEPOOL_MAINNET, true);
     }
 
-    function test_OwnerCanPullERC20Token() public {
-        // fund receiver with ERC20 tokens
-        deal(ADDRESS_DAI, address(receiver), 1000);
-
-        uint256 initialBalance = dai.balanceOf(USER_RECEIVER);
-
-        // pull token
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
-
-        assertEq(dai.balanceOf(USER_RECEIVER), initialBalance + 1000);
-    }
-
-    function test_OwnerCanPullNativeToken() public {
-        // fund receiver with native tokens
-        vm.deal(address(receiver), 1 ether);
-
-        uint256 initialBalance = USER_RECEIVER.balance;
-
-        // pull token
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        receiver.pullToken(address(0), payable(USER_RECEIVER), 1 ether);
-
-        assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
-    }
-
-    function test_PullTokenWillRevertIfExternalCallFails() public {
-        vm.deal(address(receiver), 1 ether);
-
-        // deploy contract that cannot receive ETH
-        NonETHReceiver nonETHReceiver = new NonETHReceiver();
-
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectRevert(ExternalCallFailed.selector);
-
-        receiver.pullToken(
-            address(0),
-            payable(address(nonETHReceiver)),
-            1 ether
-        );
-    }
-
-    function test_revert_PullTokenNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
-    }
-
     function test_revert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);

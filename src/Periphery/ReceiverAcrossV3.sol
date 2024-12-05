@@ -5,7 +5,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
@@ -13,7 +13,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
 /// @custom:version 1.1.0
-contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
+contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// Storage ///
@@ -33,8 +33,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         address _owner,
         address _executor,
         address _spokepool
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+    ) WithdrawablePeriphery(_owner) {
         executor = IExecutor(_executor);
         spokepool = _spokepool;
     }
@@ -69,24 +68,6 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             payable(receiver),
             amount
         );
-    }
-
-    /// @notice Send remaining token to receiver
-    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) revert ExternalCallFailed();
-        } else {
-            assetId.safeTransfer(receiver, amount);
-        }
     }
 
     /// Private Methods ///
