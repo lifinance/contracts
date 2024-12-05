@@ -24,6 +24,11 @@ contract ReceiverAcrossV3Test is TestBase {
     ERC20Proxy erc20Proxy;
 
     event ExecutorSet(address indexed executor);
+    event TokensWithdrawn(
+        address assetId,
+        address payable receiver,
+        uint256 amount
+    );
 
     function setUp() public {
         customBlockNumberForForking = 20024274;
@@ -232,5 +237,92 @@ contract ReceiverAcrossV3Test is TestBase {
 
         // this is the "message" that we would receive from the other chain
         callData = abi.encode(guid, swapData, receiverAddress);
+    }
+
+    // WithdrawablePeriphery
+    function test_AllowsOwnerToWithdrawNative() public {
+        deal(address(receiver), 1 ether);
+
+        uint256 withdrawAmount = 0.1 ether;
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit TokensWithdrawn(
+            address(0),
+            payable(USER_RECEIVER),
+            withdrawAmount
+        );
+
+        receiver.withdrawToken(
+            address(0),
+            payable(USER_RECEIVER),
+            withdrawAmount
+        );
+    }
+
+    function test_AllowsOwnerToWithdrawERC20() public {
+        deal(ADDRESS_USDC, address(receiver), 100_000 * 10 ** usdc.decimals());
+        uint256 withdrawAmount = 10 * 10 ** usdc.decimals();
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit TokensWithdrawn(
+            ADDRESS_USDC,
+            payable(USER_RECEIVER),
+            withdrawAmount
+        );
+
+        receiver.withdrawToken(
+            ADDRESS_USDC,
+            payable(USER_RECEIVER),
+            withdrawAmount
+        );
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToWithdrawNative() public {
+        deal(address(receiver), 1 ether);
+        uint256 withdrawAmount = 0.1 ether;
+
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        receiver.withdrawToken(
+            address(0),
+            payable(USER_RECEIVER),
+            withdrawAmount
+        );
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToWithdrawERC20() public {
+        deal(ADDRESS_USDC, address(receiver), 100_000 * 10 ** usdc.decimals());
+        uint256 withdrawAmount = 10 * 10 ** usdc.decimals();
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        receiver.withdrawToken(
+            ADDRESS_USDC,
+            payable(USER_RECEIVER),
+            withdrawAmount
+        );
+    }
+
+    function testRevert_FailsIfNativeTokenTransferFails() public {
+        deal(address(receiver), 1 ether);
+        uint256 withdrawAmount = 0.1 ether;
+
+        address nonETHReceiver = address(new NonETHReceiver());
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert();
+
+        receiver.withdrawToken(
+            address(0),
+            payable(nonETHReceiver),
+            withdrawAmount
+        );
     }
 }
