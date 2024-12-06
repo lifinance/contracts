@@ -11,7 +11,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 /// @title AcrossFacetPackedV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across in a gas-optimized way
-/// @custom:version 1.0.0
+/// @custom:version 1.2.0
 contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
