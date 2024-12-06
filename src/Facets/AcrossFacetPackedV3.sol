@@ -122,7 +122,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     ) external payable {
         // call Across spoke pool to bridge assets
         spokePool.depositV3{ value: msg.value }(
-            msg.sender, // depositor
+            _parameters.depositor, // depositor
             _parameters.receiver,
             wrappedNative, // inputToken
             _parameters.receivingAssetId, // outputToken
@@ -201,7 +201,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
         // call Across SpokePool
         spokePool.depositV3(
-            msg.sender, // depositor
+            _parameters.depositor, // depositor
             _parameters.receiver,
             sendingAssetId, // inputToken
             _parameters.receivingAssetId, // outputToken
