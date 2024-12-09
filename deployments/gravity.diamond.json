@@ -68,6 +68,10 @@
       "0x325DA62543447A48c7b044C5642B87CeA88B0fd3": {
         "Name": "",
         "Version": ""
+      },
+      "0xbb44687E13B0DdB11682FA9299F5F982Ba3cc029": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

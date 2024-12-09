@@ -21743,6 +21743,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbb44687E13B0DdB11682FA9299F5F982Ba3cc029",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-12-09 17:40:50",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "MayanBridgeFacet": {
