@@ -42,6 +42,7 @@ gravity = "${ETH_NODE_URI_GRAVITY}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
 kaia = "${ETH_NODE_URI_KAIA}"
 linea = "${ETH_NODE_URI_LINEA}"
+lisk = "${ETH_NODE_URI_LISK}"
 moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 moonriver = "${ETH_NODE_URI_MOONRIVER}"
 nova = "${ETH_NODE_URI_NOVA}"
@@ -89,6 +90,7 @@ gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://explorer.gravit
 immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 kaia = { key = "${KAIA_ETHERSCAN_API_KEY}", url = "https://api-cypress.klaytnscope.com/api", chain = "8217", verifier = "blockscout" }
 linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api", chain = "59144" }
+lisk = { key = "${LISK_ETHERSCAN_API_KEY}", url = "https://blockscout.lisk.com/api", chain = "1135", verifier = "blockscout" }
 mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan", chain = "5000" }
 metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
