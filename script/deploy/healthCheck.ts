@@ -313,7 +313,7 @@ const main = defineCommand({
         const results = await publicClient.multicall({ contracts: calls })
 
         for (let i = 0; i < results.length; i++) {
-          if (!results[i].result) {
+          if (results[i].status !== 'success' || !results[i].result) {
             console.log('Function not approved:', batch[i])
             sigsToApprove.push(batch[i] as Hex)
           }
@@ -394,7 +394,7 @@ const main = defineCommand({
           logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
         }
       } catch (error: any) {
-        logError('Error checking workflow file:', error.message)
+        logError(`Error checking workflow file: ${error.message}`)
       }
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -496,9 +496,9 @@ const main = defineCommand({
   },
 })
 
-const logError = (string: string) => {
-  consola.error(string)
-  errors.push(string)
+const logError = (msg: string) => {
+  consola.error(msg)
+  errors.push(msg)
 }
 
 const getOwnableContract = (address: Address, client: PublicClient) => {
