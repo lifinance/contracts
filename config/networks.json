@@ -583,7 +583,7 @@
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "inactive",
     "type": "mainnet",
-    "rpcUrl": "https://worldchain-mainnet.g.alchemy.com/public",
+    "rpcUrl": "https://worldchain-mainnet.gateway.tenderly.co",
     "verificationType": "etherscan",
     "explorerUrl": "https://worldscan.org",
     "explorerApiUrl": "https://api.worldscan.org/api",
