@@ -96,11 +96,23 @@ const main = defineCommand({
 
     // Get list of function signatures to approve
     const sigsToApprove: Hex[] = []
+    let multicallSuccess = true
     for (let i = 0; i < results.length; i++) {
-      if (!results[i].result) {
-        console.log('Function not approved:', sigs[i])
-        sigsToApprove.push(sigs[i] as Hex)
-      }
+      if (results[i].status == 'success') {
+        if (!results[i].result) {
+          console.log('Function not approved:', sigs[i])
+          sigsToApprove.push(sigs[i] as Hex)
+        }
+      } else multicallSuccess = false
+    }
+
+    if (!multicallSuccess) {
+      consola.error(
+        `The multicall failed, could not check all currently registered signatures. Please use a different RPC for this network and try to run the script again.`
+      )
+      // returning a success code here cause otherwise the wrapping bash script will always run the "old approach"
+      // and we still end up re-approving all signatures again and again
+      process.exit(0)
     }
 
     // Instantiate wallet (write enabled) client
