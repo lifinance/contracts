@@ -3714,7 +3714,7 @@ install_foundry_zksync() {
   # $OSTYPE is a bash variable that contains the operating system type
   local os
   if [[ "$OSTYPE" == "darwin"* ]]; then
-      os="mac"
+      os="darwin"
   elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
       os="linux"
   else
