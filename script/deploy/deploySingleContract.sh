@@ -225,7 +225,7 @@ deploySingleContract() {
 
     if [[ $NETWORK == "zksync" ]]; then
       # Deploy zksync scripts using the zksync specific fork of forge from Docker
-      RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e DEPLOYSALT=$DEPLOYSALT -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --silent --broadcast --skip-simulation --slow --zksync)
+      RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e DEPLOYSALT=$DEPLOYSALT -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync)
     else
       # try to execute call
       RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --legacy)
