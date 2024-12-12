@@ -10,7 +10,12 @@ import {
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import {
+  NetworksObject,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
+import data from '../../../config/networks.json'
+const networks: NetworksObject = data as NetworksObject
 import consola from 'consola'
 
 const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
@@ -69,12 +74,12 @@ const main = defineCommand({
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[args.network.toLowerCase()],
+      txServiceUrl: networks[args.network.toLowerCase()].safeApiUrl,
     }
 
     const safeService = new SafeApiKit(config)
 
-    const safeAddress = safeAddresses[args.network.toLowerCase()]
+    const safeAddress = networks[args.network.toLowerCase()].safeAddress
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)

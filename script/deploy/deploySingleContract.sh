@@ -207,11 +207,10 @@ deploySingleContract() {
       rm -fr ./out
       rm -fr ./zkout
       # Clean zksync cache
-      docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge cache clean
+      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
 
-      # Run zksync specific fork of forge from Docker so as not to pollute the
-      # local foundry forge setup
-      docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge build --zksync
+      # Run zksync specific fork of forge
+      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
 
   # execute script
@@ -224,8 +223,8 @@ deploySingleContract() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     if [[ $NETWORK == "zksync" ]]; then
-      # Deploy zksync scripts using the zksync specific fork of forge from Docker
-      RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e DEPLOYSALT=$DEPLOYSALT -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --silent --broadcast --skip-simulation --slow --zksync)
+      # Deploy zksync scripts using the zksync specific fork of forge
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync)
     else
       # try to execute call
       RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --legacy)
@@ -234,7 +233,7 @@ deploySingleContract() {
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+    # echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then

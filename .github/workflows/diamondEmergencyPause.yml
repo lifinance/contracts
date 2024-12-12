@@ -65,6 +65,7 @@ jobs:
           ETH_NODE_URI_IMMUTABLEZKEVM: ${{ secrets.ETH_NODE_URI_IMMUTABLEZKEVM }}
           ETH_NODE_URI_KAIA: ${{ secrets.ETH_NODE_URI_KAIA }}
           ETH_NODE_URI_LINEA: ${{ secrets.ETH_NODE_URI_LINEA }}
+          ETH_NODE_URI_LISK: ${{ secrets.ETH_NODE_URI_LISK }}
           ETH_NODE_URI_MANTLE: ${{ secrets.ETH_NODE_URI_MANTLE }}
           ETH_NODE_URI_METIS: ${{ secrets.ETH_NODE_URI_METIS }}
           ETH_NODE_URI_MODE: ${{ secrets.ETH_NODE_URI_MODE }}
@@ -78,6 +79,7 @@ jobs:
           ETH_NODE_URI_SCROLL: ${{ secrets.ETH_NODE_URI_SCROLL }}
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
           ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
+          ETH_NODE_URI_WORLDCHAIN: ${{ secrets.ETH_NODE_URI_WORLDCHAIN }}
           ETH_NODE_URI_XLAYER: ${{ secrets.ETH_NODE_URI_XLAYER }}
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
