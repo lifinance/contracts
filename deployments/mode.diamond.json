@@ -69,9 +69,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
-      "0x20F3FFf5A89e988c4109A6e496a839480B1B558f": {
+      "0x21a786957c69424A4353Afe743242Bd9Db3cC07b": {
         "Name": "AcrossFacetPackedV3",
-        "Version": "1.0.0"
+        "Version": "1.2.0"
       },
       "0x6e00e0a7685Ca22c288d56D9E7924746B5043Ee7": {
         "Name": "AcrossFacetV3",
@@ -91,10 +91,10 @@
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "LiFiDEXAggregator": "0x78bF01555bCF05e6B1d4dad017dBD0A105652DC9",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Permit2Proxy": "",
-      "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072",
+      "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
