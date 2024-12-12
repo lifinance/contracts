@@ -18,6 +18,9 @@ on:
 jobs:
   force-merge-pr-bypass-audit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Fetch Information Security Team Members
         env:
