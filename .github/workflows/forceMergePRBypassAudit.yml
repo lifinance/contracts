@@ -1,5 +1,7 @@
 name: Force-Merge PR (Bypass Audit Requirement)
 # - This git action may only be used in exceptional cases
+# - Exceptional cases are for example issues in an audit-protected contract that do not touch the code itself such
+#   as an issue with the solidity pragma or some issue in a comment
 # - it can only be executed by the CTO or the Information Security Manager/Architect
 # - a valid reason must be provided in order to force-merge a given PR
 
@@ -26,6 +28,7 @@ jobs:
           unset GITHUB_TOKEN
 
           ##### Authenticate with Personal Access Token
+          echo "::add-mask::$GH_PAT"  # Mask the token
           echo $GH_PAT | gh auth login --with-token
 
           ##### Fetch team members of 'informationsecuritymanager' team
@@ -51,7 +54,10 @@ jobs:
           ACTOR="${{ github.actor }}"
           TEAM_MEMBERS=$(cat team_members.txt)
 
-          if echo "$TEAM_MEMBERS" | grep -q "^$ACTOR$"; then
+          # Strict validation of actor against team members
+          if echo "$TEAM_MEMBERS" | while read -r member; do
+            [[ "$member" == "$ACTOR" ]] && exit 0
+          done; then
             echo -e "\033[32m$ACTOR is authorized to approve bypasses.\033[0m"
             echo "CONTINUE=true" >> "$GITHUB_ENV"
           else
@@ -71,12 +77,34 @@ jobs:
         with:
           script: |
             const pr = parseInt(core.getInput('pr_number'));
+            const { context } = github;
             console.log(`Merging PR ${pr} now`)
 
-            const { context } = github;
+            // Fetch PR details
+            const { data: prData } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr
+            });
+
+            // Validate PR state
+            if (!prData.mergeable) {
+              throw new Error('PR is not in a mergeable state');
+            }
+
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr,
-              merge_method: "squash"
+              merge_method: "squash",
+              commit_title: `[BYPASS] ${prData.title}`,
+              commit_message: `Bypassed by ${context.actor}\nJustification: ${core.getInput('justification')}`
             });
+
+      - name: Send Discord message
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: |
+            :warning: '${{ github.actor }} just bypassed the audit requirement controls to force-merge PR #${{ github.event.inputs.pr_number }}.'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
