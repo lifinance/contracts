@@ -120,6 +120,10 @@ contract RelayFacetTest is TestBaseFacet {
         }
     }
 
+    function test_CanDeployFacet() public virtual {
+        new RelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
+    }
+
     function testRevert_BridgeWithInvalidSignature() public virtual {
         vm.startPrank(USER_SENDER);
 
