@@ -126,7 +126,7 @@ function diamondUpdatePeriphery() {
         LAST_CALL=1
       fi
     else
-      echo "[info] contract $CONTRACT not found in target state file > no action required"
+      warning "[info] contract $CONTRACT not found in target state file > no action required (or update target state and try again)"
     fi
   done
 
