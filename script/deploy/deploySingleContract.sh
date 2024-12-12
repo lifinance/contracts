@@ -233,7 +233,7 @@ deploySingleContract() {
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+    # echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
