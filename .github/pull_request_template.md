@@ -7,6 +7,7 @@
 - [ ] I have performed a self-review of my code
 - [ ] This pull request is as small as possible and only tackles one problem
 - [ ] I have added tests that cover the functionality / test the bug
+- [ ] For new facets: I have checked all points from this list: https://www.notion.so/lifi/New-Facet-Contract-Checklist-157f0ff14ac78095a2b8f999d655622e
 - [ ] I have updated any required documentation
 
 # Checklist for reviewer (DO NOT DEPLOY and contracts BEFORE CHECKING THIS!!!)

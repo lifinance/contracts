@@ -80,8 +80,9 @@ async function updateDeploymentLogs(network: string) {
               ADDRESS: contractAddress,
               OPTIMIZER_RUNS: data.result[0].Runs || 0,
               TIMESTAMP: new Date().toISOString(),
-              CONSTRUCTOR_ARGS:
-                `0x${data.result[0].ConstructorArguments}` || '0x',
+              CONSTRUCTOR_ARGS: data.result[0].ConstructorArguments
+                ? normalizeBytes(data.result[0].ConstructorArguments)
+                : '0x',
               SALT: '',
               VERIFIED: true,
             },
@@ -92,7 +93,6 @@ async function updateDeploymentLogs(network: string) {
         }
       } catch (error) {
         console.error(`Error processing ${contractName}:`, error)
-        continue
       }
     }
 
@@ -103,6 +103,11 @@ async function updateDeploymentLogs(network: string) {
     console.error('Error:', error)
     process.exit(1)
   }
+}
+
+const normalizeBytes = (bytes: string): string => {
+  if (bytes.startsWith('0x')) return bytes
+  return `0x${bytes}`
 }
 
 // Get network from command line arguments
