@@ -84,23 +84,29 @@
       ]
     },
     "GasZipFacet": {
-      "2.0.0": ["audit20241107"]
+      "2.0.0": [
+        "audit20241107"
+      ]
     },
     "GasZipPeriphery": {
-      "1.0.0": ["audit20241107"]
+      "1.0.0": [
+        "audit20241107"
+      ]
     },
     "IGasZip": {
-      "1.0.0": ["audit20241107"]
-    },
-    "EmergencyPauseFacet": {
-      "1.0.0": ["audit20240913"],
-      "1.0.1": ["audit20241105"]
+      "1.0.0": [
+        "audit20241107"
+      ]
     },
     "LiFiDEXAggregator": {
-      "1.5.0": ["audit20241203"]
+      "1.5.0": [
+        "audit20241203"
+      ]
     },
     "Permit2Proxy": {
-      "1.0.0": ["audit20241122"]
+      "1.0.0": [
+        "audit20241122"
+      ]
     },
     "ReceiverAcrossV3": {
       "1.0.0": [
@@ -109,6 +115,11 @@
     },
     "RelayFacet": {
       "1.0.0": [
+        "audit20241202"
+      ]
+    },
+    "LibAsset": {
+      "1.0.1": [
         "audit20241202"
       ]
     },
