@@ -35,12 +35,33 @@
       "auditReportPath": "./audit/reports/2024.11.05_EmergencyPauseFacet_ReAudit.pdf",
       "auditCommitHash": "da61880ba3847c07c35b64a78b957ff845ec18ac"
     },
+    "audit20241107": {
+      "auditCompletedOn": "07.11.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.11.07_GasZip.pdf",
+      "auditCommitHash": "2d8927ababff6ace0c577d92407bcf289ebb89c0"
+    },
+    "audit20241122": {
+      "auditCompletedOn": "22.11.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.11.22_Permit2Proxy.pdf",
+      "auditCommitHash": "0e3debb78abcdf9a9f934115338b611e16b039a0"
+    },
     "audit20241202": {
       "auditCompletedOn": "02.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024-12-02_RelayFacet(v1.0.0).pdf",
       "auditCommitHash": "291d0a78bc4174b3ec29bb2ce0b27c6b5d3e8ec8"
+    },
+    "audit20241203": {
+      "auditCompletedOn": "03.12.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.12.03_LiFiDexAggregator.pdf",
+      "auditCommitHash": "8a34562c912b5b19c919bb95338655c944428af5"
     }
   },
   "auditedContracts": {
@@ -61,6 +82,25 @@
       "1.0.0": [
         "audit20241007"
       ]
+    },
+    "GasZipFacet": {
+      "2.0.0": ["audit20241107"]
+    },
+    "GasZipPeriphery": {
+      "1.0.0": ["audit20241107"]
+    },
+    "IGasZip": {
+      "1.0.0": ["audit20241107"]
+    },
+    "EmergencyPauseFacet": {
+      "1.0.0": ["audit20240913"],
+      "1.0.1": ["audit20241105"]
+    },
+    "LiFiDEXAggregator": {
+      "1.5.0": ["audit20241203"]
+    },
+    "Permit2Proxy": {
+      "1.0.0": ["audit20241122"]
     },
     "ReceiverAcrossV3": {
       "1.0.0": [

@@ -4,7 +4,6 @@
 # - Will fail if it runs into an error, otherwise pass
 # - Will skip checks if the PR was just approved or set from draft to "ready for review" state
 
-
 name: Protect Audit Labels
 
 on:
@@ -12,7 +11,7 @@ on:
     types: [labeled, unlabeled, synchronize, review_requested, ready_for_review]
 
   pull_request_review:
-      types: [submitted]
+    types: [submitted]
 jobs:
   protect_audit_labels:
     runs-on: ubuntu-latest
@@ -93,3 +92,4 @@ jobs:
             echo -e "\033[32mUnauthorized label modification was successfully prevented and undone.\033[0m"
           else
             echo -e "\033[32mNo protected labels were modified.\033[0m"
+          fi

@@ -534,6 +534,38 @@
       "_relaySolver": {
         "configFileName": "relay.json",
         "keyInConfigFile": ".<NETWORK>.relaySolver",
+          "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "Permit2Proxy": {
+    "configData": {
+      "permit2Address": {
+        "configFileName": "permit2Proxy.json",
+        "keyInConfigFile": ".<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GasZipFacet": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GasZipPeriphery": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "LiFiDEXAggregator": {
         "allowToDeployWithZeroAddress": "false"
       }
     }

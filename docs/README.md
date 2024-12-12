@@ -62,3 +62,4 @@
 - [Receiver](./Receiver.md)
 - [ReceiverStargateV2](./ReceiverStargateV2.md)
 - [RelayerCelerIM](./RelayerCelerIM.md)
+- [Permit2Proxy](./Permit2Proxy.md)
