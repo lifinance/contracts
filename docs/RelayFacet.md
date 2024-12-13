@@ -1,30 +1,42 @@
-# {{titleCase name}} Facet
+# Relay Facet
+
+Relay is a cross-chain payments system enabling instant, low-cost bridging and cross-chain execution using relayers as financial agents.
 
 ## How it works
 
-The {{titleCase name}} Facet works by ...
+The Relay Facet works by sending funds directly to the RelayReceiver contract in the case of Native tokens or sending tokens directly
+to the official Relay solver EOA along with extra calldata bytes that reference a prefecthed quote id
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->{{titleCase name}}Facet;
-    {{titleCase name}}Facet -- CALL --> C({{titleCase name}})
+    D{LiFiDiamond}-- DELEGATECALL -->RelayFacet;
+    RelayFacet -- CALL --> C(Relay)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensVia{{titleCase name}}(BridgeData calldata _bridgeData, {{titleCase name}}Data calldata _{{camelCase name}}Data)`
-  - Simply bridges tokens using {{camelCase name}}
-- `swapAndStartBridgeTokensVia{{titleCase name}}(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, {{camelCase name}}Data memory _{{camelCase name}}Data)`
-  - Performs swap(s) before bridging tokens using {{camelCase name}}
+- `function startBridgeTokensViaRelay(BridgeData calldata _bridgeData, RelayData calldata _relayData)`
+  - Simply bridges tokens using relay
+- `swapAndStartBridgeTokensViaRelay(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, relayData memory _relayData)`
+  - Performs swap(s) before bridging tokens using relay
 
-## {{camelCase name}} Specific Parameters
+## relay Specific Parameters
 
-The methods listed above take a variable labeled `_{{camelCase name}}Data`. This data is specific to {{camelCase name}} and is represented as the following struct type:
+The methods listed above take a variable labeled `_relayData`. This data is specific to relay and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct {{camelCase name}}Data {
-  string example;
+/// @dev Relay specific parameters
+/// @param requestId Realy API request ID
+/// @param nonEVMReceiver set only if bridging to non-EVM chain
+/// @params receivingAssetId address of receiving asset
+/// @params callData calldata provided by Relay API
+/// @params signature attestation signature provided by the Relay solver
+struct RelayData {
+  bytes32 requestId;
+  bytes32 nonEVMReceiver;
+  bytes32 receivingAssetId;
+  bytes callData;
+  bytes signature;
 }
 ```
 
@@ -54,7 +66,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: '{{camelCase name}}', // the bridge tool used for the transaction
+  tool: 'relay', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -80,7 +92,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges={{camelCase name}}&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=relay&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -88,5 +100,5 @@ curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC
 To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges={{camelCase name}}&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=relay&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
