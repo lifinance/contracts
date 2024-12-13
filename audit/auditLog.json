@@ -65,12 +65,9 @@
     }
   },
   "auditedContracts": {
-    "EmergencyPauseFacet": {
+    "AcrossFacetPackedV3": {
       "1.0.0": [
-        "audit20240913"
-      ],
-      "1.0.1": [
-        "audit20241105"
+        "audit20241007"
       ]
     },
     "AcrossFacetV3": {
@@ -78,9 +75,12 @@
         "audit20241007"
       ]
     },
-    "AcrossFacetPackedV3": {
+    "EmergencyPauseFacet": {
       "1.0.0": [
-        "audit20241007"
+        "audit20240913"
+      ],
+      "1.0.1": [
+        "audit20241105"
       ]
     },
     "GasZipFacet": {
@@ -96,6 +96,11 @@
     "IGasZip": {
       "1.0.0": [
         "audit20241107"
+      ]
+    },
+    "LibAsset": {
+      "1.0.1": [
+        "audit20241202"
       ]
     },
     "LiFiDEXAggregator": {
@@ -115,11 +120,6 @@
     },
     "RelayFacet": {
       "1.0.0": [
-        "audit20241202"
-      ]
-    },
-    "LibAsset": {
-      "1.0.1": [
         "audit20241202"
       ]
     },
