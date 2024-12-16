@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
-import { UnAuthorized } from "../Errors/GenericErrors.sol";
 
 /// @title LiFiTimelockController
 /// @author LI.FI (https://li.fi)
@@ -13,11 +12,6 @@ interface EmergencyPause {
 }
 
 contract LiFiTimelockController is TimelockController {
-    modifier onlyTimelockAdmin(address _caller) {
-        if (!hasRole(TIMELOCK_ADMIN_ROLE, msg.sender)) revert UnAuthorized();
-        _;
-    }
-
     /// @param _minDelay Initial minimum delay for operations
     /// @param _proposers Accounts to be granted proposer and canceller roles
     /// @param _executors Accounts to be granted executor role
@@ -37,7 +31,7 @@ contract LiFiTimelockController is TimelockController {
     function unpauseDiamond(
         address _diamond,
         address[] calldata _blacklist
-    ) external onlyTimelockAdmin(msg.sender) {
+    ) external onlyRoleOrOpenRole(TIMELOCK_ADMIN_ROLE) {
         // call the diamond directly (bypassing the minDelay)
         EmergencyPause(_diamond).unpauseDiamond(_blacklist);
     }
