@@ -195,6 +195,63 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   return swapData
 }
 
+export const getUniswapSwapDataERC20ToETH = async (
+  uniswapAddress: string,
+  chainId: number,
+  sendingAssetId: string,
+  receivingAssetId: string,
+  fromAmount: BigNumber,
+  receiverAddress: string,
+  requiresDeposit = true,
+  minAmountOut = 0,
+  deadline = Math.floor(Date.now() / 1000) + 60 * 60
+) => {
+  // prepare destSwap callData
+  const uniswap = new Contract(uniswapAddress, [
+    'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
+  ])
+  const path = [sendingAssetId, receivingAssetId]
+
+  // get minAmountOut from Uniswap router
+  console.log(`finalFromAmount  : ${fromAmount}`)
+
+  const finalMinAmountOut =
+    minAmountOut == 0
+      ? await getAmountsOutUniswap(
+          uniswapAddress,
+          chainId,
+          [sendingAssetId, receivingAssetId],
+          fromAmount
+        )
+      : minAmountOut
+  console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
+
+  const uniswapCalldata = (
+    await uniswap.populateTransaction.swapExactTokensForETH(
+      fromAmount, // amountIn
+      finalMinAmountOut,
+      path,
+      receiverAddress,
+      deadline
+    )
+  ).data
+
+  if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
+
+  // construct LibSwap.SwapData
+  const swapData: LibSwap.SwapDataStruct = {
+    callTo: uniswapAddress,
+    approveTo: uniswapAddress,
+    sendingAssetId,
+    receivingAssetId: '0x0000000000000000000000000000000000000000',
+    fromAmount,
+    callData: uniswapCalldata,
+    requiresDeposit,
+  }
+
+  return swapData
+}
+
 export const getAmountsOutUniswap = async (
   uniswapAddress: string,
   chainId: number,

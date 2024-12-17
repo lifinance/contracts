@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: UNLICENSED
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 import { InsufficientBalance, NullAddrIsNotAnERC20Token, NullAddrIsNotAValidSpender, NoTransferToNullAddress, InvalidAmount, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -7,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibSwap } from "./LibSwap.sol";
 
 /// @title LibAsset
+/// @custom:version 1.0.1
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
@@ -14,6 +14,9 @@ library LibAsset {
     uint256 private constant MAX_UINT = type(uint256).max;
 
     address internal constant NULL_ADDRESS = address(0);
+
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
 
     /// @dev All native assets use the empty address for their asset id
     ///      by convention
