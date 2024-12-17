@@ -176,12 +176,19 @@ const main = defineCommand({
     consola.box('Checking facets registered in diamond...')
     $.quiet = true
 
-    const facetsResult =
-      await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
-
-    const registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
-      (f: { name: string }) => f.name
-    )
+    let registeredFacets: string[] = []
+    try {
+      const facetsResult =
+        await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
+      registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
+        (f: { name: string }) => f.name
+      )
+    } catch (error) {
+      consola.warn(
+        'Unable to parse louper output - skipping facet registration check'
+      )
+      consola.debug('Error:', error)
+    }
 
     for (const facet of [...coreFacets, ...nonCoreFacets]) {
       if (!registeredFacets.includes(facet)) {
@@ -208,6 +215,29 @@ const main = defineCommand({
         continue
       }
       consola.success(`Periphery contract ${contract} deployed`)
+    }
+
+    const deployerWallet = getAddress(globalConfig.deployerWallet)
+
+    // Check Executor authorization in ERC20Proxy
+    const erc20Proxy = getContract({
+      address: deployedContracts['ERC20Proxy'],
+      abi: parseAbi([
+        'function authorizedCallers(address) external view returns (bool)',
+        'function owner() external view returns (address)',
+      ]),
+      client: publicClient,
+    })
+
+    const executorAddress = deployedContracts['Executor']
+    const isExecutorAuthorized = await erc20Proxy.read.authorizedCallers([
+      executorAddress,
+    ])
+
+    if (!isExecutorAuthorized) {
+      logError('Executor is not authorized in ERC20Proxy')
+    } else {
+      consola.success('Executor is authorized in ERC20Proxy')
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -335,6 +365,18 @@ const main = defineCommand({
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
 
+      // Check ERC20Proxy ownership
+      const erc20ProxyOwner = await erc20Proxy.read.owner()
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
+        logError(
+          `ERC20Proxy owner is ${getAddress(
+            erc20ProxyOwner
+          )}, expected ${getAddress(deployerWallet)}`
+        )
+      } else {
+        consola.success('ERC20Proxy owner is correct')
+      }
+
       // Check that Diamond is owned by SAFE
       if (globalConfig.safeAddresses[network.toLowerCase()]) {
         const safeAddress = globalConfig.safeAddresses[network.toLowerCase()]
@@ -410,7 +452,6 @@ const main = defineCommand({
       })
 
       // Deployer wallet
-      const deployerWallet = getAddress(globalConfig.deployerWallet)
       const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
         sig: Hex
         name: string
