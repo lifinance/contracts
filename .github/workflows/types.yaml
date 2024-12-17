@@ -169,7 +169,7 @@ jobs:
         run: |
           cd lifi-contract-types
           TMP=$(mktemp)
-          jq '.version="${NEW_VERSION}"' package.json > "$TMP" && mv "$TMP" package.json
+          jq --arg version "$NEW_VERSION" '.version=$version' package.json > "$TMP" && mv "$TMP" package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
           echo "Updating version from $LATEST_TAG to $NEW_VERSION"
