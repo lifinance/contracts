@@ -62,6 +62,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.12.03_LiFiDexAggregator.pdf",
       "auditCommitHash": "8a34562c912b5b19c919bb95338655c944428af5"
+    },
+    "audit20241206": {
+      "auditCompletedOn": "06.12.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.12.06_AcrossFacetPackedV3(v1.2.0).pdf",
+      "auditCommitHash": "5f59b4957fe315ea2d7b5e9daa931785ccff488c"
     }
   },
   "auditedContracts": {
@@ -74,6 +81,14 @@
       "1.0.0": [
         "audit20241007"
       ]
+    },
+    "AcrossFacetPackedV3": {
+      "1.0.0": [
+        "audit20241007"
+      ],
+      "1.2.0": [
+        "audit20241206"
+      ],
     },
     "EmergencyPauseFacet": {
       "1.0.0": [
@@ -116,6 +131,9 @@
     "ReceiverAcrossV3": {
       "1.0.0": [
         "audit20241007"
+      ],
+      "1.0.1": [
+        "audit20241206"
       ]
     },
     "RelayFacet": {
