@@ -49,6 +49,16 @@ function diamondSyncDEXs {
 
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
+
+    # Skip for localanvil or any testnet
+    if [[ "$NETWORK" == "localanvil" || \
+          "$NETWORK" == "bsc-testnet" || \
+          "$NETWORK" == "lineatest" || \
+          "$NETWORK" == "mumbai" || \
+          "$NETWORK" == "sepolia" ]]; then
+        continue
+    fi
+
     # get diamond address from deployments script
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
@@ -104,7 +114,7 @@ function diamondSyncDEXs {
         CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
         CODE=$(cast code $CHECKSUMMED --rpc-url "$RPC_URL")
         if [[ "$CODE" == "0x" ]]; then
-          echo "[warning] DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
+          error "DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
           echo "$NETWORK - $CHECKSUMMED" >>.invalid-dexs
           continue
         fi

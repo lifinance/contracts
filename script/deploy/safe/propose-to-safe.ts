@@ -10,7 +10,27 @@ import {
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import {
+  NetworksObject,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
+import data from '../../../config/networks.json'
+const networks: NetworksObject = data as NetworksObject
+import consola from 'consola'
+
+const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
+  try {
+    const result = await func()
+    return result
+  } catch (e) {
+    if (retries > 0) {
+      consola.error('Retry after error:', e)
+      return retry(func, retries - 1)
+    }
+
+    throw e
+  }
+}
 
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
@@ -54,12 +74,12 @@ const main = defineCommand({
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[args.network.toLowerCase()],
+      txServiceUrl: networks[args.network.toLowerCase()].safeApiUrl,
     }
 
     const safeService = new SafeApiKit(config)
 
-    const safeAddress = safeAddresses[args.network.toLowerCase()]
+    const safeAddress = networks[args.network.toLowerCase()].safeAddress
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)
@@ -99,12 +119,14 @@ const main = defineCommand({
     console.info('Proposing transaction to', args.to)
 
     // Propose transaction to the service
-    await safeService.proposeTransaction({
-      safeAddress: await protocolKit.getAddress(),
-      safeTransactionData: safeTransaction.data,
-      safeTxHash,
-      senderAddress,
-      senderSignature: signature.data,
+    await retry(async () => {
+      safeService.proposeTransaction({
+        safeAddress: await protocolKit.getAddress(),
+        safeTransactionData: safeTransaction.data,
+        safeTxHash,
+        senderAddress,
+        senderSignature: signature.data,
+      })
     })
 
     console.info('Transaction proposed')

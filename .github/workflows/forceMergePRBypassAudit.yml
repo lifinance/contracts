@@ -1,0 +1,112 @@
+name: Force-Merge PR (Bypass Audit Requirement)
+# - This git action may only be used in exceptional cases
+# - Exceptional cases are for example issues in an audit-protected contract that do not touch the code itself such
+#   as an issue with the solidity pragma or some issue in a comment
+# - it can only be executed by the CTO or the Information Security Manager/Architect
+# - a valid reason must be provided in order to force-merge a given PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to bypass'
+        required: true
+      justification:
+        description: 'Reason for bypass'
+        required: true
+
+jobs:
+  force-merge-pr-bypass-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Information Security Team Members
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ##### Unset default GITHUB_TOKEN (insufficient permissions)
+          unset GITHUB_TOKEN
+
+          ##### Authenticate with Personal Access Token
+          echo "::add-mask::$GH_PAT"  # Mask the token
+          echo $GH_PAT | gh auth login --with-token
+
+          ##### Fetch team members of 'informationsecuritymanager' team
+          ORG_NAME="lifinance"
+          TEAM_SLUG="informationsecuritymanager"
+
+          TEAM_MEMBERS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/orgs/$ORG_NAME/teams/$TEAM_SLUG/members" | jq -r '.[].login')
+
+          if [[ -z "$TEAM_MEMBERS" ]]; then
+            echo -e "\033[31mERROR: Could not retrieve team members of $TEAM_SLUG.\033[0m"
+            exit 1
+            fi
+
+          echo "The following users are members of $TEAM_SLUG: $TEAM_MEMBERS"
+          echo "$TEAM_MEMBERS" > team_members.txt
+
+      - name: Verify Actor's Team Membership
+        run: |
+          ##### Check if the actor is in the team members list
+          ACTOR="${{ github.actor }}"
+          TEAM_MEMBERS=$(cat team_members.txt)
+
+          # Strict validation of actor against team members
+          if echo "$TEAM_MEMBERS" | while read -r member; do
+            [[ "$member" == "$ACTOR" ]] && exit 0
+          done; then
+            echo -e "\033[32m$ACTOR is authorized to approve bypasses.\033[0m"
+            echo "CONTINUE=true" >> "$GITHUB_ENV"
+          else
+            echo -e "\033[31mERROR: $ACTOR is NOT authorized to approve bypasses\033[0m"
+            exit 1
+          fi
+
+      - name: Log Justification
+        if: env.CONTINUE == 'true'
+        run: |
+          echo "Bypass approved for PR #${{ github.event.inputs.pr_number }} by $ACTOR."
+          echo "Justification: ${{ github.event.inputs.justification }}"
+
+      - name: Merge the PR
+        uses: actions/github-script@v7.0.1
+        if: env.CONTINUE == 'true'
+        with:
+          script: |
+            const pr = parseInt(core.getInput('pr_number'));
+            console.log(`Merging PR ${pr} now`)
+
+            // Fetch PR details
+            const { data: prData } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr
+            });
+
+            // Validate PR state
+            if (!prData.mergeable) {
+              throw new Error('PR is not in a mergeable state');
+            }
+
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr,
+              merge_method: "squash",
+              commit_title: `[BYPASS] ${prData.title}`,
+              commit_message: `Bypassed by ${context.actor}\nJustification: ${core.getInput('justification')}`
+            });
+
+      - name: Send Discord message
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: |
+            :warning: '${{ github.actor }} just bypassed the audit requirement controls to force-merge PR #${{ github.event.inputs.pr_number }}.'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
