@@ -524,6 +524,20 @@
       }
     }
   },
+  "RelayFacet": {
+    "configData": {
+      "_relayReceiver": {
+        "configFileName": "relay.json",
+        "keyInConfigFile": ".<NETWORK>.relayReceiver",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_relaySolver": {
+        "configFileName": "relay.json",
+        "keyInConfigFile": ".<NETWORK>.relaySolver",
+          "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "Permit2Proxy": {
     "configData": {
       "permit2Address": {

@@ -123,6 +123,7 @@ jobs:
           echo "Current version: $CURRENT_VERSION"
 
           VERSION_FRAGMENT=""
+          BETA=""
 
           # Determine the type of version bump
           if [[ "$BRANCH_NAME" == "main" ]]; then
@@ -151,10 +152,9 @@ jobs:
             PATCH=$((PATCH + 1))
           elif [[ "$VERSION_FRAGMENT" == "beta" ]]; then
             PATCH=$((PATCH + 1))
-            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-beta"
-          else
-            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            BETA="-beta"
           fi
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}${BETA}"
 
           echo "New version: $NEW_VERSION"
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
@@ -169,7 +169,7 @@ jobs:
         run: |
           cd lifi-contract-types
           TMP=$(mktemp)
-          jq '.version="${NEW_VERSION}"' package.json > "$TMP" && mv "$TMP" package.json
+          jq --arg version "$NEW_VERSION" '.version=$version' package.json > "$TMP" && mv "$TMP" package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
           echo "Updating version from $LATEST_TAG to $NEW_VERSION"

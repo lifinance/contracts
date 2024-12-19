@@ -24,7 +24,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/{{camelCase name}}.json");
         string memory json = vm.readFile(path);
 
-        address acrossSpokePool = json.readAddress(
+        address example = json.readAddress(
             string.concat(".", network, ".example")
         );
 

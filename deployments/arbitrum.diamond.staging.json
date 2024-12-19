@@ -125,9 +125,9 @@
         "Name": "",
         "Version": ""
       },
-      "0x2b64B62cbCfB38560222eBcfbbc4e65eC34c8Ce8": {
-        "Name": "",
-        "Version": ""
+      "0x74763722d92832d247cFa92825b06098cf72BAA2": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       },
       "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
         "Name": "AcrossFacetV3",
@@ -160,8 +160,8 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
-      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
+      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
