@@ -40,6 +40,7 @@ contract LiFiTimelockControllerTest is Test {
         address indexed account,
         address indexed sender
     );
+    event DiamondAddressUpdated(address indexed diamond);
 
     function setUp() public {
         // Setup proposers and executors arrays
@@ -49,20 +50,23 @@ contract LiFiTimelockControllerTest is Test {
         address[] memory executors = new address[](1);
         executors[0] = executor;
 
-        // Deploy contracts
+        // Deploy MockDiamond first
+        mockDiamond = new MockDiamond();
+
+        // Then deploy timelock with correct mockDiamond address
         timelock = new LiFiTimelockController(
             MIN_DELAY,
             proposers,
             executors,
-            admin
+            admin,
+            address(mockDiamond)
         );
-        mockDiamond = new MockDiamond();
 
         // Transfer ownership of MockDiamond to timelock
         mockDiamond.transferOwnership(address(timelock));
     }
 
-    function test_Constructor() public {
+    function test_InitializesWithCorrectRolesAndDelay() public {
         // Check roles
         bytes32 adminRole = timelock.TIMELOCK_ADMIN_ROLE();
         bytes32 proposerRole = timelock.PROPOSER_ROLE();
@@ -79,14 +83,41 @@ contract LiFiTimelockControllerTest is Test {
         assertEq(timelock.getMinDelay(), MIN_DELAY);
     }
 
-    function test_UnpauseDiamond() public {
+    function test_SetDiamondAddressUpdatesStorageAndEmitsEvent() public {
+        // Check initial diamond address
+        assertEq(timelock.diamond(), address(mockDiamond));
+
+        // Set new diamond address as admin
+        address newDiamond = address(0x7);
+        vm.startPrank(admin);
+
+        vm.expectEmit(true, true, true, true);
+        emit DiamondAddressUpdated(newDiamond);
+        timelock.setDiamondAddress(newDiamond);
+
+        // Verify new diamond address
+        assertEq(timelock.diamond(), newDiamond);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenUnauthorizedUserTriesToSetDiamondAddress() public {
+        address newDiamond = address(0x7);
+        vm.startPrank(unauthorized);
+
+        vm.expectRevert();
+        timelock.setDiamondAddress(newDiamond);
+
+        vm.stopPrank();
+    }
+
+    function test_UnpauseDiamondWithBlacklist() public {
         vm.startPrank(admin);
 
         address[] memory blacklist = new address[](2);
         blacklist[0] = address(0x5);
         blacklist[1] = address(0x6);
 
-        timelock.unpauseDiamond(address(mockDiamond), blacklist);
+        timelock.unpauseDiamond(blacklist);
 
         assertTrue(mockDiamond.unpaused());
         assertEq(mockDiamond.blacklist(0), blacklist[0]);
@@ -95,7 +126,9 @@ contract LiFiTimelockControllerTest is Test {
         vm.stopPrank();
     }
 
-    function test_UnpauseDiamond_DirectCallReverts() public {
+    function testRevert_WhenCallingUnpauseDiamondDirectlyOnMockDiamond()
+        public
+    {
         address[] memory blacklist = new address[](1);
         blacklist[0] = address(0x5);
 
@@ -104,7 +137,7 @@ contract LiFiTimelockControllerTest is Test {
         mockDiamond.unpauseDiamond(blacklist);
     }
 
-    function test_UnpauseDiamond_OnlyTimelockCanCall() public {
+    function testRevert_WhenUnauthorizedUserTriesToUnpauseDiamond() public {
         // Verify ownership
         assertEq(mockDiamond.owner(), address(timelock));
 
@@ -115,12 +148,12 @@ contract LiFiTimelockControllerTest is Test {
         blacklist[0] = address(0x5);
 
         vm.expectRevert();
-        timelock.unpauseDiamond(address(mockDiamond), blacklist);
+        timelock.unpauseDiamond(blacklist);
 
         vm.stopPrank();
     }
 
-    function test_RoleManagement() public {
+    function test_AdminCanGrantAndRevokeRoles() public {
         bytes32 adminRole = timelock.TIMELOCK_ADMIN_ROLE();
         address newAdmin = address(0x5);
 
@@ -140,7 +173,7 @@ contract LiFiTimelockControllerTest is Test {
         vm.stopPrank();
     }
 
-    function test_OpenRole() public {
+    function test_AllowsUnpauseDiamondWhenRoleIsOpen() public {
         bytes32 adminRole = timelock.TIMELOCK_ADMIN_ROLE();
 
         // Grant role to address(0) to make it an open role
@@ -154,11 +187,16 @@ contract LiFiTimelockControllerTest is Test {
         blacklist[0] = address(0x5);
 
         // Should not revert
-        timelock.unpauseDiamond(address(mockDiamond), blacklist);
+        timelock.unpauseDiamond(blacklist);
+
+        // Verify the unpause worked
+        assertTrue(mockDiamond.unpaused());
+        assertEq(mockDiamond.blacklist(0), blacklist[0]);
+
         vm.stopPrank();
     }
 
-    function test_MinDelayEnforcement() public {
+    function test_EnforcesMinDelayForScheduledOperations() public {
         // First grant PROPOSER_ROLE to the proposer if not already granted in constructor
         bytes32 proposerRole = timelock.PROPOSER_ROLE();
         bytes32 executorRole = timelock.EXECUTOR_ROLE();
