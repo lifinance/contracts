@@ -7,14 +7,14 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 
 /// @title Receiver
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 2.0.2
-contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
+/// @custom:version 2.1.0
+contract Receiver is ILiFi, ReentrancyGuard, WithdrawablePeriphery {
     using SafeERC20 for IERC20;
 
     /// Storage ///
@@ -50,8 +50,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address _amarokRouter,
         address _executor,
         uint256 _recoverGas
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+    ) WithdrawablePeriphery(_owner) {
         sgRouter = _sgRouter;
         amarokRouter = _amarokRouter;
         executor = IExecutor(_executor);
@@ -164,24 +163,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 allowance,
                 false
             );
-        }
-    }
-
-    /// @notice Send remaining token to receiver
-    /// @param assetId token received from the other chain
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) revert ExternalCallFailed();
-        } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
         }
     }
 
