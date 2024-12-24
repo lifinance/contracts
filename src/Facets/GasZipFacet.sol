@@ -24,7 +24,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error TooManyChainIds();
 
     /// State ///
-    address public constant NON_EVM_RECEIVER_IDENTIFIER =
+    address public constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
     IGasZip public immutable gasZipRouter;
 
@@ -106,7 +106,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // validate that receiverAddress matches with bridgeData in case of EVM target chain
         if (
-            _bridgeData.receiver != NON_EVM_RECEIVER_IDENTIFIER &&
+            _bridgeData.receiver != NON_EVM_ADDRESS &&
             _gasZipData.receiverAddress !=
             bytes32(uint256(uint160(_bridgeData.receiver)))
         ) revert InvalidCallData();
