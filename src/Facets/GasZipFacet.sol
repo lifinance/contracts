@@ -18,6 +18,8 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
+
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
@@ -130,7 +132,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) external pure returns (uint256 destinationChains) {
         uint256 length = _chainIds.length;
 
-        if (length > 32) revert TooManyChainIds();
+        if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
             // Shift destinationChains left by 8 bits and add the next chainID

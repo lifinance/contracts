@@ -29,6 +29,7 @@ contract GasZipPeriphery is
     /// State ///
     IGasZip public immutable gasZipRouter;
     address public immutable liFiDEXAggregator;
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
 
     /// Errors ///
     error TooManyChainIds();
@@ -110,7 +111,7 @@ contract GasZipPeriphery is
     ) external pure returns (uint256 destinationChains) {
         uint256 length = _chainIds.length;
 
-        if (length > 32) revert TooManyChainIds();
+        if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
             // Shift destinationChains left by 8 bits and add the next chainID

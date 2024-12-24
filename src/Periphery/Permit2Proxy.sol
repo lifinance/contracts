@@ -201,7 +201,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
                 _assetId,
                 _amount
             );
-        bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
+        bytes32 tokenPermissionsHash = _getTokenPermissionsHash(
+            tokenPermissions
+        );
 
         // Witness
         Permit2Proxy.LiFiCall memory lifiCall = LiFiCall(
@@ -213,7 +215,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
         // PermitTransferWithWitness
         msgHash = _getPermitWitnessTransferFromHash(
             PERMIT2.DOMAIN_SEPARATOR(),
-            permit,
+            tokenPermissionsHash,
             address(this),
             _nonce,
             _deadline,
