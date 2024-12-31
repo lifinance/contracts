@@ -24794,6 +24794,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x08BfAc22A3B41637edB8A7920754fDb30B18f740",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-12-31 12:23:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e35e9842fceaca96570b734083f4a58e8f7c5f2a00000000000000000000000082af49447d8a07e3bd95bd0d56f35241523fbab1",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       },
       "production": {
