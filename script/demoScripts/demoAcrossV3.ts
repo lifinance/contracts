@@ -252,7 +252,7 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_SRC as TX_TYPE // define which type of transaction you want to send
+const TRANSACTION_TYPE = TX_TYPE.NATIVE_WITH_SRC as TX_TYPE // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 

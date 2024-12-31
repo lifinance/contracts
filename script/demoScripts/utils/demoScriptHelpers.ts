@@ -279,33 +279,54 @@ export const getUniswapDataERC20toExactERC20 = async (
   requiresDeposit = true,
   deadline = Math.floor(Date.now() / 1000) + 60 * 60
 ) => {
-  const uniswap = new Contract(uniswapAddress, [
-    'function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
-  ])
+  // Get provider for the chain
+  const provider = getProviderForChainId(chainId)
+
+  const uniswap = new Contract(
+    uniswapAddress,
+    [
+      'function getAmountsIn(uint amountOut, address[] calldata path) external view returns (uint[] memory amounts)',
+      'function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
+    ],
+    provider
+  )
 
   const path = [sendingAssetId, receivingAssetId]
-  const maxAmountIn = exactAmountOut.mul(105).div(100) // 5% max slippage
 
-  const uniswapCalldata = (
-    await uniswap.populateTransaction.swapTokensForExactTokens(
-      exactAmountOut,
-      maxAmountIn,
-      path,
-      receiverAddress,
-      deadline
-    )
-  ).data
+  try {
+    // Get the required input amount for the exact output
+    const amounts = await uniswap.getAmountsIn(exactAmountOut, path)
+    const requiredInputAmount = amounts[0]
+    const maxAmountIn = BigNumber.from(requiredInputAmount).mul(105).div(100) // 5% max slippage
 
-  if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
+    console.log('Required input amount:', requiredInputAmount.toString())
+    console.log('Max input with slippage:', maxAmountIn.toString())
+    console.log('Exact output amount:', exactAmountOut.toString())
 
-  return {
-    callTo: uniswapAddress,
-    approveTo: uniswapAddress,
-    sendingAssetId,
-    receivingAssetId,
-    fromAmount: maxAmountIn,
-    callData: uniswapCalldata,
-    requiresDeposit,
+    const uniswapCalldata = (
+      await uniswap.populateTransaction.swapTokensForExactTokens(
+        exactAmountOut,
+        maxAmountIn,
+        path,
+        receiverAddress,
+        deadline
+      )
+    ).data
+
+    if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
+
+    return {
+      callTo: uniswapAddress,
+      approveTo: uniswapAddress,
+      sendingAssetId,
+      receivingAssetId,
+      fromAmount: maxAmountIn,
+      callData: uniswapCalldata,
+      requiresDeposit,
+    }
+  } catch (error) {
+    console.error('Error in Uniswap contract interaction:', error)
+    throw error
   }
 }
 
