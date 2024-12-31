@@ -14,7 +14,7 @@ import { InformationMismatch } from "../Errors/GenericErrors.sol";
 /// @title AcrossFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
