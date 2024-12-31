@@ -80,7 +80,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
             refundAddress: USER_REFUND,
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
-            outputAmountPercent: 10000,
+            outputAmountPercent: 10000, // 100.00%
             exclusiveRelayer: address(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
@@ -142,7 +142,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
         // Set output amount percent to 85%
         validAcrossData.outputAmountPercent = 8500; // 85.00%
-        validAcrossData.outputAmount = (bridgeData.minAmount * 8500) / 10000;
+        validAcrossData.outputAmount = 10000; // This will be ignored
 
         // approval
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
@@ -215,7 +215,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
         // Set output amount percent to 93.75%
         validAcrossData.outputAmountPercent = 9375; // 93.75%
-        validAcrossData.outputAmount = (bridgeData.minAmount * 9375) / 10000;
+        validAcrossData.outputAmount = 10000; // This will be ignored
 
         // approval
         usdc.approve(_facetTestContractAddress, amountIn);
