@@ -6,6 +6,7 @@ import {
   ADDRESS_UNISWAP_ARB,
   ADDRESS_USDC_ARB,
   ADDRESS_USDC_OPT,
+  ADDRESS_USDT_OPT,
   ADDRESS_WETH_ARB,
   ADDRESS_WETH_OPT,
   DEFAULT_DEST_PAYLOAD_ABI,
@@ -215,7 +216,7 @@ const createDestCallPayload = (
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
 const TRANSACTION_TYPE = TX_TYPE.ERC20 as TX_TYPE // define which type of transaction you want to send
-const SEND_TX = false // allows you to the script run without actually sending a transaction (=false)
+const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 
 // change these values only if you need to
@@ -224,6 +225,13 @@ const toChainId = 42161
 const sendingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_OPT
   : ADDRESS_USDC_OPT
+
+// Define sendingAssetIdSrc based on transaction type
+const sendingAssetIdSrc =
+  TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
+  TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC
+    ? ADDRESS_USDT_OPT
+    : sendingAssetId
 const receivingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_ARB
   : ADDRESS_USDC_ARB
@@ -284,9 +292,32 @@ async function main() {
   )
   console.log(`quote obtained`)
 
-  // calculate fees/minAmountOut
+  // calculate fees/minAmountOut and outputAmountPercent
   let minAmountOut = getMinAmountOut(quote, fromAmount)
   console.log('minAmountOut determined: ', minAmountOut.toString())
+
+  // Calculate outputAmountPercent based on the relay fees from the quote
+  const totalFeePercent = BigNumber.from(quote.relayFeePct) // This includes both capital and gas fees
+  console.log('totalFeePercent from quote:', totalFeePercent.toString())
+
+  // For USDC/USDT (6 decimals), the fee percent is already scaled to 18 decimals
+  // We need to convert it to basis points (10000 = 100.00%)
+  const scalingFactor = BigNumber.from(10).pow(18 - 4) // Convert from 18 decimals to basis points
+  const scaledFeePercent = totalFeePercent.div(scalingFactor)
+  console.log('scalingFactor:', scalingFactor.toString())
+  console.log('scaledFeePercent:', scaledFeePercent.toString())
+
+  // Ensure the percentage is between 0 and 10000
+  const outputAmountPercent = BigNumber.from(10000)
+    .sub(scaledFeePercent)
+    .toString()
+
+  // Add safety check
+  const finalOutputAmountPercent = Math.max(
+    0,
+    Math.min(10000, parseInt(outputAmountPercent))
+  )
+  console.log('calculated outputAmountPercent:', finalOutputAmountPercent)
 
   // make sure that wallet has sufficient balance and allowance set for diamond
   await ensureBalanceAndAllowanceToDiamond(
@@ -305,11 +336,13 @@ async function main() {
     referrer: '0x0000000000000000000000000000000000000000',
     sendingAssetId: isNativeTX(TRANSACTION_TYPE)
       ? constants.AddressZero
-      : sendingAssetId,
+      : sendingAssetIdSrc,
     receiver: WITH_DEST_CALL ? RECEIVER_ADDRESS_DST : walletAddress,
     minAmount: fromAmount,
     destinationChainId: toChainId,
-    hasSourceSwaps: false,
+    hasSourceSwaps:
+      TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
+      TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC,
     hasDestinationCall: WITH_DEST_CALL,
   }
   console.log('bridgeData prepared')
@@ -368,10 +401,33 @@ async function main() {
     payload = createDestCallPayload(bridgeData, swapData, walletAddress)
   }
 
+  // Prepare source swap data if needed
+  const srcSwapData: LibSwap.SwapDataStruct[] = []
+  if (
+    TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
+    TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC
+  ) {
+    // For source swaps, we're always starting with USDT
+    const srcSwap = await getUniswapSwapDataERC20ToERC20(
+      ADDRESS_UNISWAP_OPT, // Uniswap on Optimism
+      fromChainId,
+      ADDRESS_USDT_OPT, // Starting with USDT
+      TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC
+        ? ADDRESS_USDC_OPT
+        : ADDRESS_WETH_OPT, // Swap to USDC or WETH
+      BigNumber.from(fromAmount),
+      DIAMOND_ADDRESS_SRC,
+      true
+    )
+    srcSwapData.push(srcSwap)
+    console.log('source swap data prepared')
+  }
+
   // prepare AcrossV3Data
   const acrossV3Data: AcrossFacetV3.AcrossV3DataStruct = {
     receivingAssetId: receivingAssetId,
     outputAmount: minAmountOut.toString(),
+    outputAmountPercent: finalOutputAmountPercent,
     quoteTimestamp: quote.timestamp,
     fillDeadline: BigNumber.from(quote.timestamp)
       .add(60 * 60)
@@ -394,14 +450,29 @@ async function main() {
   if (SEND_TX) {
     // create calldata from facet interface
     const executeTxData = acrossV3Facet.interface.encodeFunctionData(
-      'startBridgeTokensViaAcrossV3',
-      [bridgeData, acrossV3Data]
+      bridgeData.hasSourceSwaps
+        ? 'swapAndStartBridgeTokensViaAcrossV3'
+        : 'startBridgeTokensViaAcrossV3',
+      bridgeData.hasSourceSwaps
+        ? [bridgeData, srcSwapData, acrossV3Data]
+        : [bridgeData, acrossV3Data]
     )
 
     // determine msg.value
     const msgValue = BigNumber.from(
       isNativeTX(TRANSACTION_TYPE) ? bridgeData.minAmount : 0
     )
+
+    // Check balance and set allowance for source token if doing source swaps
+    if (bridgeData.hasSourceSwaps) {
+      await ensureBalanceAndAllowanceToDiamond(
+        ADDRESS_USDT_OPT,
+        wallet,
+        DIAMOND_ADDRESS_SRC,
+        BigNumber.from(fromAmount),
+        false
+      )
+    }
 
     console.log('executing src TX now')
     const transactionResponse = await sendTransaction(

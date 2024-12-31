@@ -118,15 +118,19 @@
         "Version": ""
       },
       "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
       "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
         "Name": "AcrossFacetPackedV3",
         "Version": "1.0.0"
       },
-      "0x74763722d92832d247cFa92825b06098cf72BAA2": {
+      "0x3cf7dE0e31e13C93c8Aada774ADF1C7eD58157f5": {
         "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0x605Daee0FF23B5d678D47BF17037789115bF5750": {
+        "Name": "AcrossFacetV3",
         "Version": "1.0.0"
       }
     },
@@ -134,8 +138,10 @@
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
+      "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
+      "Permit2Proxy": "",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
       "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverStargateV2": "",
