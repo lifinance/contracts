@@ -30,6 +30,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param refundAddress The address that will be used for potential bridge refunds
     /// @param receivingAssetId The address of the token to be received at destination chain
     /// @param outputAmount The amount to be received at destination chain (after fees)
+    /// @param outputAmountPercent The percentage of the output amount with 2 decimal precision (7550 = 75.50%, 9900 = 99.00%)
     /// @param exclusiveRelayer This is the exclusive relayer who can fill the deposit before the exclusivity deadline.
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
@@ -40,6 +41,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address refundAddress;
         address receivingAssetId;
         uint256 outputAmount;
+        uint16 outputAmountPercent;
         address exclusiveRelayer;
         uint32 quoteTimestamp;
         uint32 fillDeadline;
@@ -102,7 +104,14 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _acrossData);
+
+        // Create modified across data with calculated output amount
+        AcrossV3Data memory modifiedAcrossData = _acrossData;
+        modifiedAcrossData.outputAmount =
+            (_bridgeData.minAmount * _acrossData.outputAmountPercent) /
+            10000;
+
+        _startBridge(_bridgeData, modifiedAcrossData);
     }
 
     /// Internal Methods ///
@@ -112,7 +121,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _acrossData data specific to Across
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossV3Data calldata _acrossData
+        AcrossV3Data memory _acrossData
     ) internal {
         // validate destination call flag
         if (_acrossData.message.length > 0 != _bridgeData.hasDestinationCall)

@@ -5,6 +5,7 @@ import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFa
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 // Stub AcrossFacetV3 Contract
 contract TestAcrossFacetV3 is AcrossFacetV3 {
@@ -79,6 +80,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
             refundAddress: USER_REFUND,
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
+            outputAmountPercent: 10000,
             exclusiveRelayer: address(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
@@ -117,6 +119,134 @@ contract AcrossFacetV3Test is TestBaseFacet {
                 validAcrossData
             );
         }
+    }
+
+    function test_canSwapAndBridgeTokensWithOutputAmountPercent()
+        public
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(swapData[0].fromAmount)
+        )
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // Set output amount percent to 85%
+        validAcrossData.outputAmountPercent = 8500; // 85.00%
+        validAcrossData.outputAmount = (bridgeData.minAmount * 8500) / 10000;
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_canSwapAndBridgeNativeTokensWithOutputAmountPercent()
+        public
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // Set output amount percent to 93.75%
+        validAcrossData.outputAmountPercent = 9375; // 93.75%
+        validAcrossData.outputAmount = (bridgeData.minAmount * 9375) / 10000;
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialUSDCBalance - swapData[0].fromAmount
+        );
+        vm.stopPrank();
     }
 
     function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
