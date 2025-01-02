@@ -41,7 +41,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address refundAddress;
         address receivingAssetId;
         uint256 outputAmount;
-        uint64 outputAmountPercent; // Now represents percentage with 18 decimal places
+        uint64 outputAmountPercent;
         address exclusiveRelayer;
         uint32 quoteTimestamp;
         uint32 fillDeadline;

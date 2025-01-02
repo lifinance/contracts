@@ -26,7 +26,7 @@ The methods listed above take a variable labeled `_acrossData`. This data is spe
 /// @param refundAddress The address that will be used for potential bridge refunds
 /// @param receivingAssetId The address of the token to be received at destination chain
 /// @param outputAmount The amount to be received at destination chain (after fees)
-/// @param outputAmountPercent The percentage of the output amount with 2 decimal precision (7550 = 75.50%, 9900 = 99.00%)
+/// @param outputAmountPercent The percentage of the output amount with 18 decimal precision (0.7550e18 = 75.50%, 0.99e18 = 99.00%)
 /// @param exclusiveRelayer This is the exclusive relayer who can fill the deposit before the exclusivity deadline.
 /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
 /// @param fillDeadline The destination chain timestamp until which the order can be filled
@@ -37,7 +37,7 @@ struct AcrossV3Data {
   address refundAddress;
   address receivingAssetId;
   uint256 outputAmount;
-  uint16 outputAmountPercent;
+  uint64 outputAmountPercent;
   address exclusiveRelayer;
   uint32 quoteTimestamp;
   uint32 fillDeadline;
@@ -46,10 +46,10 @@ struct AcrossV3Data {
 }
 ```
 
-The `outputAmountPercent` field allows specifying the desired output amount as a percentage of the input amount, with two decimal places of precision. For example:
-- 8500 represents 85.00%
-- 9375 represents 93.75%
-- 10000 represents 100.00%
+The `outputAmountPercent` field allows specifying the desired output amount as a percentage of the input amount, with 18 decimal places of precision. For example:
+- 0.8500e18 represents 85.00%
+- 0.9375e18 represents 93.75%
+- 0.9900e18 represents 99.00%
 
 When using `swapAndStartBridgeTokensViaAcrossV3`, the `outputAmount` will be automatically calculated using the specified percentage.
 
