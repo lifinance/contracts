@@ -210,19 +210,16 @@ const getAcrossQuote = async (
   return resp
 }
 
-const calculateOutputAmountPercentage = (quote: AcrossV3Quote): number => {
-  // Convert the relay fee percentage to basis points (10000 = 100.00%)
+const calculateOutputAmountPercentage = (quote: AcrossV3Quote): string => {
+  // Convert the relay fee percentage from basis points to 18 decimal fixed point
   const totalFeePercent = BigNumber.from(quote.relayFeePct)
 
-  // Convert from 18 decimals to basis points (10000 = 100.00%)
-  const scalingFactor = BigNumber.from(10).pow(18 - 4)
-  const scaledFeePercent = totalFeePercent.div(scalingFactor)
+  // Calculate output percentage as (100% - fee%) where 100% = 1e18
+  const oneHundredPercent = BigNumber.from(10).pow(18) // 1e18 represents 100%
+  const outputPercent = oneHundredPercent.sub(totalFeePercent)
 
-  // Calculate output percentage as (100% - fee%)
-  const outputPercent = BigNumber.from(10000).sub(scaledFeePercent)
-
-  // Ensure the percentage is between 0 and 10000
-  return Math.max(0, Math.min(10000, outputPercent.toNumber()))
+  // Ensure the percentage is between 0 and 1e18
+  return outputPercent.toString()
 }
 
 const getMinAmountOut = (quote: AcrossV3Quote, fromAmount: string) => {
@@ -252,7 +249,7 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.NATIVE_WITH_SRC as TX_TYPE // define which type of transaction you want to send
+const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_SRC as TX_TYPE // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 

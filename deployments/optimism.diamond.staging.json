@@ -132,6 +132,10 @@
       "0x605Daee0FF23B5d678D47BF17037789115bF5750": {
         "Name": "AcrossFacetV3",
         "Version": "1.0.0"
+      },
+      "0x7A7dA456a99B5C8fef3D3E3c032a9F13949AdF07": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
