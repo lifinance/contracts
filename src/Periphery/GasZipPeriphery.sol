@@ -51,7 +51,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibAsset.maxApproveERC20(
             IERC20(_swapData.sendingAssetId),
             liFiDEXAggregator,
-            type(uint256).max
+            _swapData.fromAmount
         );
 
         // execute swap using LiFiDEXAggregator
