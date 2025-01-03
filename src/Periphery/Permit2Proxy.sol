@@ -12,7 +12,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 

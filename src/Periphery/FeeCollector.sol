@@ -8,7 +8,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @title Fee Collector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting integrator fees
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract FeeCollector is TransferrableOwnership {
     /// State ///
 

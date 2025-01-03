@@ -12,7 +12,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @title ReceiverAcrossV3
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for address;
 

@@ -15,7 +15,7 @@ interface IWrapper {
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract TokenWrapper {
     uint256 private constant MAX_INT = 2 ** 256 - 1;
     address public wrappedToken;

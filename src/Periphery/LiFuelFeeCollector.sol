@@ -8,7 +8,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @title LiFuelFeeCollector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting fees for LiFuel
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract LiFuelFeeCollector is TransferrableOwnership {
     /// Errors ///
     error TransferFailure();

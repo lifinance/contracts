@@ -35,7 +35,7 @@ interface ILayerZeroComposer {
 /// @title ReceiverStargateV2
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via Stargate V2
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract ReceiverStargateV2 is
     ILiFi,
     TransferrableOwnership,

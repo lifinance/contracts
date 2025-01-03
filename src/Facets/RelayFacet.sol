@@ -14,7 +14,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @title Relay Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Relay Protocol
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // Receiver for native transfers
     address public immutable relayReceiver;
