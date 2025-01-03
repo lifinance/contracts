@@ -82,8 +82,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
             // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) revert ExternalCallFailed();
+            SafeTransferLib.safeTransferETH(receiver, amount);
         } else {
             assetId.safeTransfer(receiver, amount);
         }

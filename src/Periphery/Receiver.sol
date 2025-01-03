@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -177,9 +178,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 amount
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) revert ExternalCallFailed();
+            SafeTransferLib.safeTransferETH(receiver, amount);
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
         }
@@ -209,9 +208,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             uint256 cacheGasLeft = gasleft();
             if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = receiver.call{ value: amount }("");
-                if (!success) revert ExternalCallFailed();
+                SafeTransferLib.safeTransferETH(receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -231,9 +228,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = receiver.call{ value: amount }("");
-                if (!success) revert ExternalCallFailed();
+                SafeTransferLib.safeTransferETH(receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,

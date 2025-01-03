@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title LiFuelFeeCollector
 /// @author LI.FI (https://li.fi)
@@ -65,10 +66,7 @@ contract LiFuelFeeCollector is TransferrableOwnership {
         );
         uint256 amountMinusFees = msg.value - feeAmount;
         if (amountMinusFees > 0) {
-            (bool success, ) = msg.sender.call{ value: amountMinusFees }("");
-            if (!success) {
-                revert TransferFailure();
-            }
+            SafeTransferLib.safeTransferETH(msg.sender, amountMinusFees);
         }
     }
 
