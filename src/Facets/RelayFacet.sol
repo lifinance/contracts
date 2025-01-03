@@ -9,12 +9,11 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title Relay Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Relay Protocol
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // Receiver for native transfers
     address public immutable relayReceiver;
@@ -172,10 +171,12 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // Native
 
             // Send Native to relayReceiver along with requestId as extra data
-            SafeTransferLib.safeTransferETH(
-                relayReceiver,
-                _bridgeData.minAmount
-            );
+            (bool success, bytes memory reason) = relayReceiver.call{
+                value: _bridgeData.minAmount
+            }(abi.encode(_relayData.requestId));
+            if (!success) {
+                revert(LibUtil.getRevertMsg(reason));
+            }
         } else {
             // ERC20
 
