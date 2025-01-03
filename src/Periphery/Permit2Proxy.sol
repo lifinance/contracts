@@ -83,15 +83,24 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes calldata diamondCalldata
     ) public payable returns (bytes memory) {
         // call permit on token contract to register approval using signature
-        ERC20Permit(tokenAddress).permit(
-            msg.sender, // Ensure msg.sender is same wallet that signed permit
-            address(this),
-            amount,
-            deadline,
-            v,
-            r,
-            s
-        );
+        try
+            ERC20Permit(tokenAddress).permit(
+                msg.sender, // Ensure msg.sender is same wallet that signed permit
+                address(this),
+                amount,
+                deadline,
+                v,
+                r,
+                s
+            )
+        {} catch Error(string memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                revert(reason);
+            }
+        }
 
         // deposit assets
         LibAsset.transferFromERC20(
@@ -202,7 +211,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
                 _assetId,
                 _amount
             );
-        bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
+        bytes32 tokenPermissionsHash = _getTokenPermissionsHash(
+            tokenPermissions
+        );
 
         // Witness
         Permit2Proxy.LiFiCall memory lifiCall = LiFiCall(
@@ -214,7 +225,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
         // PermitTransferWithWitness
         msgHash = _getPermitWitnessTransferFromHash(
             PERMIT2.DOMAIN_SEPARATOR(),
-            permit,
+            tokenPermissionsHash,
             address(this),
             _nonce,
             _deadline,

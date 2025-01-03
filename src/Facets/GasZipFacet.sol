@@ -18,11 +18,13 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
+
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
     /// State ///
-    address public constant NON_EVM_RECEIVER_IDENTIFIER =
+    address public constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
     IGasZip public immutable gasZipRouter;
 
@@ -104,7 +106,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // validate that receiverAddress matches with bridgeData in case of EVM target chain
         if (
-            _bridgeData.receiver != NON_EVM_RECEIVER_IDENTIFIER &&
+            _bridgeData.receiver != NON_EVM_ADDRESS &&
             _gasZipData.receiverAddress !=
             bytes32(uint256(uint160(_bridgeData.receiver)))
         ) revert InvalidCallData();
@@ -130,7 +132,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) external pure returns (uint256 destinationChains) {
         uint256 length = _chainIds.length;
 
-        if (length > 32) revert TooManyChainIds();
+        if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
             // Shift destinationChains left by 8 bits and add the next chainID

@@ -104,8 +104,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         address payable receiver,
         uint256 amount
     ) private {
-        assetId.safeApprove(address(executor), 0);
-        assetId.safeApprove(address(executor), amount);
+        assetId.safeApproveWithRetry(address(executor), amount);
         try
             executor.swapAndCompleteBridgeTokens(
                 _transactionId,

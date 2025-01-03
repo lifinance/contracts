@@ -6,10 +6,7 @@ import { IGasZip } from "../Interfaces/IGasZip.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
@@ -17,18 +14,13 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
 /// @custom:version 1.0.0
-contract GasZipPeriphery is
-    ILiFi,
-    ReentrancyGuard,
-    SwapperV2,
-    Validatable,
-    WithdrawablePeriphery
-{
+contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// State ///
     IGasZip public immutable gasZipRouter;
     address public immutable liFiDEXAggregator;
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
 
     /// Errors ///
     error TooManyChainIds();
@@ -59,7 +51,7 @@ contract GasZipPeriphery is
         LibAsset.maxApproveERC20(
             IERC20(_swapData.sendingAssetId),
             liFiDEXAggregator,
-            type(uint256).max
+            _swapData.fromAmount
         );
 
         // execute swap using LiFiDEXAggregator
@@ -110,7 +102,7 @@ contract GasZipPeriphery is
     ) external pure returns (uint256 destinationChains) {
         uint256 length = _chainIds.length;
 
-        if (length > 32) revert TooManyChainIds();
+        if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
             // Shift destinationChains left by 8 bits and add the next chainID
