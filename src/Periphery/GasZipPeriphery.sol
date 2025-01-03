@@ -13,7 +13,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
