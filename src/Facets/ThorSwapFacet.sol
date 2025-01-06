@@ -17,6 +17,9 @@ import { ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable thorchainRouter;
 
+    address private constant DEPRECATED_RUNE =
+        0x3155BA85D5F96b2d030a4966AF206230e46849cb;
+
     /// @notice The struct for the ThorSwap data.
     /// @param vault The Thorchain vault address
     /// @param memo The memo to send to Thorchain for the swap
@@ -26,6 +29,8 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         string memo;
         uint256 expiration;
     }
+
+    error DeprecatedToken();
 
     /// @notice Initializes the ThorSwap contract
     constructor(address _thorchainRouter) {
@@ -87,6 +92,12 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         ThorSwapData calldata _thorSwapData
     ) internal {
+        if (
+            block.chainid == 1 && _bridgeData.sendingAssetId == DEPRECATED_RUNE
+        ) {
+            revert DeprecatedToken();
+        }
+
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
         bool isNative = LibAsset.isNativeAsset(address(sendingAssetId));
 
