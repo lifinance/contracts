@@ -13,7 +13,7 @@ import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides gas-optimized functionality for fee collection and for swapping through any APPROVED DEX
 /// @dev Can only execute calldata for APPROVED function selectors
-/// @custom:version 1.0.2
+/// @custom:version 1.0.1
 contract GenericSwapFacetV3 is ILiFi {
     using SafeTransferLib for ERC20;
 
@@ -111,7 +111,9 @@ contract GenericSwapFacetV3 is ILiFi {
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        SafeTransferLib.safeTransferETH(_receiver, amountReceived);
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = _receiver.call{ value: amountReceived }("");
+        if (!success) revert NativeAssetTransferFailed();
 
         // emit events (both required for tracking)
         address sendingAssetId = _swapData.sendingAssetId;
@@ -161,9 +163,10 @@ contract GenericSwapFacetV3 is ILiFi {
         ) revert ContractCallNotAllowed();
 
         // execute swap
-        SafeTransferLib.safeTransferETH(callTo, msg.value);
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = callTo.call(_swapData.callData);
+        (bool success, bytes memory res) = callTo.call{ value: msg.value }(
+            _swapData.callData
+        );
         if (!success) {
             LibUtil.revertWith(res);
         }
@@ -408,10 +411,12 @@ contract GenericSwapFacetV3 is ILiFi {
             if (LibAsset.isNativeAsset(sendingAssetId)) {
                 // Native
                 // execute the swap
-                SafeTransferLib.safeTransferETH(
-                    currentSwap.callTo,
-                    currentSwap.fromAmount
-                );
+                (success, returnData) = currentSwap.callTo.call{
+                    value: currentSwap.fromAmount
+                }(currentSwap.callData);
+                if (!success) {
+                    LibUtil.revertWith(returnData);
+                }
 
                 // return any potential leftover sendingAsset tokens
                 // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
@@ -516,7 +521,11 @@ contract GenericSwapFacetV3 is ILiFi {
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        SafeTransferLib.safeTransferETH(_receiver, amountReceived);
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = _receiver.call{ value: amountReceived }("");
+        if (!success) {
+            revert NativeAssetTransferFailed();
+        }
 
         // emit event
         emit ILiFi.LiFiGenericSwapCompleted(
@@ -554,7 +563,9 @@ contract GenericSwapFacetV3 is ILiFi {
         uint256 nativeBalance = address(this).balance;
 
         if (nativeBalance > 0) {
-            SafeTransferLib.safeTransferETH(receiver, nativeBalance);
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = receiver.call{ value: nativeBalance }("");
+            if (!success) revert NativeAssetTransferFailed();
         }
     }
 }
