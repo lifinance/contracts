@@ -130,7 +130,7 @@ contract AcrossFacetPackedV3Test is TestBase {
             refundAddress: USER_SENDER, // Set to match the depositor
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
-            outputAmountPercent: 10000, // 10000 = 100.00%
+            outputAmountPercent: uint64(1000000000000000000), // 100.00%
             exclusiveRelayer: address(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
