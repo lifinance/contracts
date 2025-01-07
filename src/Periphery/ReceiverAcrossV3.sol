@@ -34,7 +34,6 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
         address _executor,
         address _spokepool
     ) WithdrawablePeriphery(_owner) {
-        owner = _owner;
         executor = IExecutor(_executor);
         spokepool = _spokepool;
     }
