@@ -127,9 +127,10 @@ contract AcrossFacetPackedV3Test is TestBase {
         uint32 quoteTimestamp = uint32(block.timestamp);
         validAcrossData = AcrossFacetV3.AcrossV3Data({
             receiverAddress: USER_RECEIVER,
-            refundAddress: USER_REFUND,
+            refundAddress: USER_SENDER, // Set to match the depositor
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
+            outputAmountPercent: uint64(1000000000000000000), // 100.00%
             exclusiveRelayer: address(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
@@ -147,7 +148,8 @@ contract AcrossFacetPackedV3Test is TestBase {
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
             exclusivityDeadline: 0,
-            message: ""
+            message: "",
+            depositor: USER_SENDER // Add depositor field
         });
 
         vm.label(ACROSS_SPOKE_POOL, "SpokePool_PROX");
@@ -439,6 +441,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         assertEq(original.outputAmount == decoded.outputAmount, true);
         assertEq(original.fillDeadline == decoded.fillDeadline, true);
         assertEq(original.quoteTimestamp == decoded.quoteTimestamp, true);
+        assertEq(original.refundAddress == decoded.refundAddress, true); // Add check for refundAddress/depositor
         assertEq(
             keccak256(abi.encode(original.message)) ==
                 keccak256(abi.encode(decoded.message)),

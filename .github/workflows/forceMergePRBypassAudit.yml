@@ -80,7 +80,6 @@ jobs:
         with:
           script: |
             const pr = parseInt(core.getInput('pr_number'));
-            const { context } = github;
             console.log(`Merging PR ${pr} now`)
 
             // Fetch PR details

@@ -11,7 +11,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 /// @title AcrossFacetPackedV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across in a gas-optimized way
-/// @custom:version 1.0.0
+/// @custom:version 1.2.0
 contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
@@ -37,6 +37,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     struct PackedParameters {
         bytes32 transactionId;
         address receiver;
+        address depositor;
         uint64 destinationChainId;
         address receivingAssetId;
         uint256 outputAmount;
@@ -81,22 +82,34 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     }
 
     /// @notice Bridges native tokens via Across (packed implementation)
-    /// No params, all data will be extracted from manually encoded callData
+    /// @dev Calldata mapping:
+    /// [0:4] - function selector
+    /// [4:12] - transactionId
+    /// [12:32] - receiver
+    /// [32:52] - depositor
+    /// [52:56] - destinationChainId
+    /// [56:76] - receivingAssetId
+    /// [76:108] - outputAmount
+    /// [108:128] - exclusiveRelayer
+    /// [128:132] - quoteTimestamp
+    /// [132:136] - fillDeadline
+    /// [136:140] - exclusivityDeadline
+    /// [140:] - message
     function startBridgeTokensViaAcrossV3NativePacked() external payable {
         // call Across spoke pool to bridge assets
         spokePool.depositV3{ value: msg.value }(
-            msg.sender, // depositor
+            address(bytes20(msg.data[32:52])), // depositor
             address(bytes20(msg.data[12:32])), // recipient
             wrappedNative, // inputToken
-            address(bytes20(msg.data[36:56])), // outputToken
+            address(bytes20(msg.data[56:76])), // outputToken
             msg.value, // inputAmount
-            uint256(bytes32(msg.data[56:88])), // outputAmount
-            uint64(uint32(bytes4(msg.data[32:36]))), // destinationChainId
-            address(bytes20(msg.data[88:108])), // exclusiveRelayer
-            uint32(bytes4(msg.data[108:112])), // quoteTimestamp
-            uint32(bytes4(msg.data[112:116])), // fillDeadline
-            uint32(bytes4(msg.data[116:120])), // exclusivityDeadline
-            msg.data[120:msg.data.length]
+            uint256(bytes32(msg.data[76:108])), // outputAmount
+            uint64(uint32(bytes4(msg.data[52:56]))), // destinationChainId
+            address(bytes20(msg.data[108:128])), // exclusiveRelayer
+            uint32(bytes4(msg.data[128:132])), // quoteTimestamp
+            uint32(bytes4(msg.data[132:136])), // fillDeadline
+            uint32(bytes4(msg.data[136:140])), // exclusivityDeadline
+            msg.data[140:msg.data.length]
         );
 
         emit LiFiAcrossTransfer(bytes8(msg.data[4:12]));
@@ -109,7 +122,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     ) external payable {
         // call Across spoke pool to bridge assets
         spokePool.depositV3{ value: msg.value }(
-            msg.sender, // depositor
+            _parameters.depositor, // depositor
             _parameters.receiver,
             wrappedNative, // inputToken
             _parameters.receivingAssetId, // outputToken
@@ -127,32 +140,44 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     }
 
     /// @notice Bridges ERC20 tokens via Across (packed implementation)
-    /// No params, all data will be extracted from manually encoded callData
+    /// @dev Calldata mapping:
+    /// [0:4] - function selector
+    /// [4:12] - transactionId
+    /// [12:32] - receiver
+    /// [32:52] - depositor
+    /// [52:72] - sendingAssetId
+    /// [72:88] - inputAmount
+    /// [88:92] - destinationChainId
+    /// [92:112] - receivingAssetId
+    /// [112:144] - outputAmount
+    /// [144:164] - exclusiveRelayer
+    /// [164:168] - quoteTimestamp
+    /// [168:172] - fillDeadline
+    /// [172:176] - exclusivityDeadline
+    /// [176:] - message
     function startBridgeTokensViaAcrossV3ERC20Packed() external {
-        address sendingAssetId = address(bytes20(msg.data[32:52]));
-        uint256 inputAmount = uint256(uint128(bytes16(msg.data[52:68])));
+        address sendingAssetId = address(bytes20(msg.data[52:72]));
+        uint256 inputAmount = uint256(uint128(bytes16(msg.data[72:88])));
 
-        // Deposit assets
         ERC20(sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             inputAmount
         );
 
-        // call Across SpokePool
         spokePool.depositV3(
-            msg.sender, // depositor
+            address(bytes20(msg.data[32:52])), // depositor
             address(bytes20(msg.data[12:32])), // recipient
             sendingAssetId, // inputToken
-            address(bytes20(msg.data[72:92])), // outputToken
+            address(bytes20(msg.data[92:112])), // outputToken
             inputAmount, // inputAmount
-            uint256(bytes32(msg.data[92:124])), // outputAmount
-            uint64(uint32(bytes4(msg.data[68:72]))), // destinationChainId
-            address(bytes20(msg.data[124:144])), // exclusiveRelayer
-            uint32(bytes4(msg.data[144:148])), // quoteTimestamp
-            uint32(bytes4(msg.data[148:152])), // fillDeadline
-            uint32(bytes4(msg.data[152:156])), // exclusivityDeadline
-            msg.data[156:msg.data.length]
+            uint256(bytes32(msg.data[112:144])), // outputAmount
+            uint64(uint32(bytes4(msg.data[88:92]))), // destinationChainId
+            address(bytes20(msg.data[144:164])), // exclusiveRelayer
+            uint32(bytes4(msg.data[164:168])), // quoteTimestamp
+            uint32(bytes4(msg.data[168:172])), // fillDeadline
+            uint32(bytes4(msg.data[172:176])), // exclusivityDeadline
+            msg.data[176:msg.data.length]
         );
 
         emit LiFiAcrossTransfer(bytes8(msg.data[4:12]));
@@ -176,7 +201,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
         // call Across SpokePool
         spokePool.depositV3(
-            msg.sender, // depositor
+            _parameters.depositor, // depositor
             _parameters.receiver,
             sendingAssetId, // inputToken
             _parameters.receivingAssetId, // outputToken
@@ -212,6 +237,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
                     .selector,
                 bytes8(_parameters.transactionId),
                 bytes20(_parameters.receiver),
+                bytes20(_parameters.depositor),
                 bytes4(uint32(_parameters.destinationChainId)),
                 bytes20(_parameters.receivingAssetId),
                 bytes32(_parameters.outputAmount),
@@ -244,24 +270,33 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             "inputAmount value passed too big to fit in uint128"
         );
 
-        return
-            bytes.concat(
-                AcrossFacetPackedV3
-                    .startBridgeTokensViaAcrossV3ERC20Packed
-                    .selector,
-                bytes8(_parameters.transactionId),
-                bytes20(_parameters.receiver),
-                bytes20(sendingAssetId),
-                bytes16(uint128(inputAmount)),
-                bytes4(uint32(_parameters.destinationChainId)),
-                bytes20(_parameters.receivingAssetId),
-                bytes32(_parameters.outputAmount),
-                bytes20(_parameters.exclusiveRelayer),
-                bytes4(_parameters.quoteTimestamp),
-                bytes4(_parameters.fillDeadline),
-                bytes4(_parameters.exclusivityDeadline),
-                _parameters.message
-            );
+        // Split the concatenation into parts to avoid "stack too deep" errors
+        bytes memory part1 = bytes.concat(
+            AcrossFacetPackedV3
+                .startBridgeTokensViaAcrossV3ERC20Packed
+                .selector,
+            bytes8(_parameters.transactionId),
+            bytes20(_parameters.receiver),
+            bytes20(_parameters.depositor),
+            bytes20(sendingAssetId)
+        );
+
+        bytes memory part2 = bytes.concat(
+            bytes16(uint128(inputAmount)),
+            bytes4(uint32(_parameters.destinationChainId)),
+            bytes20(_parameters.receivingAssetId),
+            bytes32(_parameters.outputAmount)
+        );
+
+        bytes memory part3 = bytes.concat(
+            bytes20(_parameters.exclusiveRelayer),
+            bytes4(_parameters.quoteTimestamp),
+            bytes4(_parameters.fillDeadline),
+            bytes4(_parameters.exclusivityDeadline)
+        );
+
+        // Combine all parts with the message
+        return bytes.concat(part1, part2, part3, _parameters.message);
     }
 
     /// @notice Decodes calldata that is meant to be used for calling the native 'packed' function
@@ -277,23 +312,24 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         )
     {
         require(
-            data.length >= 120,
-            "invalid calldata (must have length >= 120)"
+            data.length >= 140,
+            "invalid calldata (must have length >= 140)"
         );
 
         // extract bridgeData
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(bytes20(data[12:32]));
-        bridgeData.destinationChainId = uint64(uint32(bytes4(data[32:36])));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(data[52:56])));
 
         // extract acrossData
-        acrossData.receivingAssetId = address(bytes20(data[36:56]));
-        acrossData.outputAmount = uint256(bytes32(data[56:88]));
-        acrossData.exclusiveRelayer = address(bytes20(data[88:108]));
-        acrossData.quoteTimestamp = uint32(bytes4(data[108:112]));
-        acrossData.fillDeadline = uint32(bytes4(data[112:116]));
-        acrossData.exclusivityDeadline = uint32(bytes4(data[116:120]));
-        acrossData.message = data[120:];
+        acrossData.refundAddress = address(bytes20(data[32:52])); // depositor
+        acrossData.receivingAssetId = address(bytes20(data[56:76]));
+        acrossData.outputAmount = uint256(bytes32(data[76:108]));
+        acrossData.exclusiveRelayer = address(bytes20(data[108:128]));
+        acrossData.quoteTimestamp = uint32(bytes4(data[128:132]));
+        acrossData.fillDeadline = uint32(bytes4(data[132:136]));
+        acrossData.exclusivityDeadline = uint32(bytes4(data[136:140]));
+        acrossData.message = data[140:];
 
         return (bridgeData, acrossData);
     }
@@ -311,25 +347,24 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         )
     {
         require(
-            data.length >= 156,
-            "invalid calldata (must have length > 156)"
+            data.length >= 176,
+            "invalid calldata (must have length >= 176)"
         );
 
-        // extract bridgeData
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(bytes20(data[12:32]));
-        bridgeData.sendingAssetId = address(bytes20(data[32:52]));
-        bridgeData.minAmount = uint256(uint128(bytes16(data[52:68])));
-        bridgeData.destinationChainId = uint64(uint32(bytes4(data[68:72])));
+        acrossData.refundAddress = address(bytes20(data[32:52])); // depositor
+        bridgeData.sendingAssetId = address(bytes20(data[52:72]));
+        bridgeData.minAmount = uint256(uint128(bytes16(data[72:88])));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(data[88:92])));
 
-        // extract acrossData
-        acrossData.receivingAssetId = address(bytes20(data[72:92]));
-        acrossData.outputAmount = uint256(bytes32(data[92:124]));
-        acrossData.exclusiveRelayer = address(bytes20(data[124:144]));
-        acrossData.quoteTimestamp = uint32(bytes4(data[144:148]));
-        acrossData.fillDeadline = uint32(bytes4(data[148:152]));
-        acrossData.exclusivityDeadline = uint32(bytes4(data[152:156]));
-        acrossData.message = data[156:];
+        acrossData.receivingAssetId = address(bytes20(data[92:112]));
+        acrossData.outputAmount = uint256(bytes32(data[112:144]));
+        acrossData.exclusiveRelayer = address(bytes20(data[144:164]));
+        acrossData.quoteTimestamp = uint32(bytes4(data[164:168]));
+        acrossData.fillDeadline = uint32(bytes4(data[168:172]));
+        acrossData.exclusivityDeadline = uint32(bytes4(data[172:176]));
+        acrossData.message = data[176:];
 
         return (bridgeData, acrossData);
     }
