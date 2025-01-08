@@ -23024,6 +23024,20 @@
           }
         ]
       }
+    },
+    "sonic": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf24c9914D3a89F16aD9C87fa549FF24359a31715",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-08 10:26:28",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
