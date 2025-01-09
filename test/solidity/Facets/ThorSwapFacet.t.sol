@@ -72,6 +72,29 @@ contract ThorSwapFacetTest is TestBaseFacet {
         vm.label(THORCHAIN_ROUTER, "THORCHAIN_ROUTER");
     }
 
+    function testBase_Revert_SendingDeprecatedRune() public {
+        // Set bridgeData to use DEPRECATED_RUNE address
+        address DEPRECATED_RUNE = 0x3155BA85D5F96b2d030a4966AF206230e46849cb;
+        bridgeData.sendingAssetId = DEPRECATED_RUNE;
+
+        // Deal DEPRECATED_RUNE tokens to the user
+        deal(DEPRECATED_RUNE, USER_SENDER, bridgeData.minAmount);
+
+        vm.startPrank(USER_SENDER);
+        // Approve tokens for the contract
+        ERC20(DEPRECATED_RUNE).approve(
+            address(thorSwapFacet),
+            bridgeData.minAmount
+        );
+
+        vm.expectRevert(ThorSwapFacet.DeprecatedToken.selector);
+        thorSwapFacet.startBridgeTokensViaThorSwap(
+            bridgeData,
+            validThorSwapData
+        );
+        vm.stopPrank();
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             thorSwapFacet.startBridgeTokensViaThorSwap{
