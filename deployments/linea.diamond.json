@@ -109,9 +109,9 @@
         "Name": "",
         "Version": ""
       },
-      "0x922D1c381Cb5b0AFAAe9E7C86ed34FDE337766b0": {
+      "0x60b6710c04D44273F6F5C2F1c871Aa9e856bED12": {
         "Name": "AcrossFacetPackedV3",
-        "Version": "1.0.0"
+        "Version": "1.2.0"
       },
       "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96": {
         "Name": "EmergencyPauseFacet",
@@ -134,8 +134,8 @@
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
       "Permit2Proxy": "",
+      "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
       "Receiver": "0xdcBEcDE898c067cA58ABD01a7de51660bBD5A897",
-      "ReceiverAcrossV3": "0x4BB377A1A624bDeF72d352891dc5E64087345fe6",
       "ReceiverStargateV2": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
       "RelayerCelerIM": "",
       "TokenWrapper": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a"

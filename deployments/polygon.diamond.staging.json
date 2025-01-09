@@ -118,8 +118,8 @@
         "Version": "1.0.0"
       },
       "0xE15C7585636e62b88bA47A40621287086E0c2E33": {
-        "Name": "",
-        "Version": ""
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
       },
       "0x74763722d92832d247cFa92825b06098cf72BAA2": {
         "Name": "RelayFacet",
@@ -140,4 +140,3 @@
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
-}
