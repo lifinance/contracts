@@ -178,8 +178,8 @@
         "Version": "1.0.0"
       },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
-        "Name": "",
-        "Version": ""
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       },
       "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
         "Name": "AcrossFacetV3",

@@ -16260,6 +16260,20 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xCe81D9bB9D9605FFF296CCF8Af6b6B38f02Cf15d",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-01-09T03:52:49.204Z",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000054069e96c4247b37c2fbd9559ca99f08cd1cd66c00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "AxelarExecutor": {
@@ -26880,6 +26894,52 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ebd1e414ebb98522cfd932104ba41fac10a4ef35000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "GetGasFacet": {
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-09T03:50:02.092Z",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
+    }
+  },
+  "PackedEncoderDecoderFacet": {
+    "optimism": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-09T03:50:33.623Z",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-09T03:52:11.725Z",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": true
           }
         ]
       }
