@@ -13,7 +13,7 @@ import { ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
-/// @custom:version 1.2.0
+/// @custom:version 1.2.1
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable thorchainRouter;
 
