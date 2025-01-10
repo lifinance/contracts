@@ -393,23 +393,6 @@ contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
         }
     }
 
-    /// @notice Sends remaining token to given receiver address (for refund cases)
-    /// @param assetId Address of the token to be withdrawn
-    /// @param receiver Address that will receive tokens
-    /// @param amount Amount of tokens to be withdrawn
-    function withdraw(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            SafeTransferLib.safeTransferETH(receiver, amount);
-        } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
-        }
-        emit LogWithdraw(assetId, receiver, amount);
-    }
-
     /// @notice Triggers a cBridge refund with calldata produced by cBridge API
     /// @param _callTo The address to execute the calldata on
     /// @param _callData The data to execute
