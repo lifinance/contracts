@@ -173,29 +173,6 @@ contract LiFiTimelockControllerTest is Test {
         vm.stopPrank();
     }
 
-    function test_AllowsUnpauseDiamondWhenRoleIsOpen() public {
-        bytes32 adminRole = timelock.TIMELOCK_ADMIN_ROLE();
-
-        // Grant role to address(0) to make it an open role
-        vm.startPrank(admin);
-        timelock.grantRole(adminRole, address(0));
-        vm.stopPrank();
-
-        // Now unauthorized address should be able to call function
-        vm.startPrank(unauthorized);
-        address[] memory blacklist = new address[](1);
-        blacklist[0] = address(0x5);
-
-        // Should not revert
-        timelock.unpauseDiamond(blacklist);
-
-        // Verify the unpause worked
-        assertTrue(mockDiamond.unpaused());
-        assertEq(mockDiamond.blacklist(0), blacklist[0]);
-
-        vm.stopPrank();
-    }
-
     function test_EnforcesMinDelayForScheduledOperations() public {
         // First grant PROPOSER_ROLE to the proposer if not already granted in constructor
         bytes32 proposerRole = timelock.PROPOSER_ROLE();

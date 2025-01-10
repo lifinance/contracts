@@ -43,7 +43,7 @@ contract LiFiTimelockController is TimelockController {
     /// @param _diamond The new diamond address to set
     function setDiamondAddress(
         address _diamond
-    ) external onlyRoleOrOpenRole(TIMELOCK_ADMIN_ROLE) {
+    ) external onlyRole(TIMELOCK_ADMIN_ROLE) {
         diamond = _diamond;
         emit DiamondAddressUpdated(diamond);
     }
@@ -56,7 +56,7 @@ contract LiFiTimelockController is TimelockController {
     /// @custom:security This function intentionally bypasses timelock delay for emergency unpausing
     function unpauseDiamond(
         address[] calldata _blacklist
-    ) external onlyRoleOrOpenRole(TIMELOCK_ADMIN_ROLE) {
+    ) external onlyRole(TIMELOCK_ADMIN_ROLE) {
         // call the diamond directly (bypassing the minDelay)
         EmergencyPause(diamond).unpauseDiamond(_blacklist);
     }
