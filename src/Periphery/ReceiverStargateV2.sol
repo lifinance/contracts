@@ -8,7 +8,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { OFTComposeMsgCodec } from "../Libraries/OFTComposeMsgCodec.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { ITokenMessaging } from "../Interfaces/IStargate.sol";
 
@@ -35,10 +35,10 @@ interface ILayerZeroComposer {
 /// @title ReceiverStargateV2
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via Stargate V2
-/// @custom:version 1.0.1
+/// @custom:version 1.1.0
 contract ReceiverStargateV2 is
     ILiFi,
-    TransferrableOwnership,
+    WithdrawablePeriphery,
     ILayerZeroComposer
 {
     using SafeERC20 for IERC20;
@@ -64,8 +64,7 @@ contract ReceiverStargateV2 is
         address _tokenMessaging,
         address _endpointV2,
         uint256 _recoverGas
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+    ) WithdrawablePeriphery(_owner) {
         executor = IExecutor(_executor);
         tokenMessaging = ITokenMessaging(_tokenMessaging);
         endpointV2 = _endpointV2;
@@ -113,23 +112,6 @@ contract ReceiverStargateV2 is
             payable(receiver),
             OFTComposeMsgCodec.amountLD(_message)
         );
-    }
-
-    /// @notice Send remaining token to receiver
-    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            SafeTransferLib.safeTransferETH(receiver, amount);
-        } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
-        }
     }
 
     /// Private Methods ///

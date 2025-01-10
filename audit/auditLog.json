@@ -91,6 +91,13 @@
       "auditReportPath": "./audit/reports/2025.01.09_ThorSwapFacet(v1.2.1).pdf",
       "auditCommitHash": "5005bf62858a9cb2a7628976ef870e91bb732a75"
     },
+    "audit20250109_2": {
+      "auditCompletedOn": "09.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.09_WithdrawablePeripheryUpdates.pdf",
+      "auditCommitHash": "ec76b33cedd69338e569c7994b99b03cb7e6d502"
+    },
     "audit20250109_3": {
       "auditCompletedOn": "09.01.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -127,6 +134,16 @@
       ],
       "1.0.1": [
         "audit20241105"
+      ]
+    },
+    "ERC20Proxy": {
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "Executor": {
+      "2.1.0": [
+        "audit20250109_2"
       ]
     },
     "FeeCollector": {
@@ -167,6 +184,9 @@
       "1.5.0": [
         "audit20241203"
       ],
+      "1.6.0": [
+        "audit20250109_2"
+      ],
       "1.5.1": [
         "audit20250109_3"
       ]
@@ -187,6 +207,9 @@
     "Receiver": {
       "2.0.3": [
         "audit20250109_3"
+      ],
+      "2.1.0": [
+        "audit20250109_2"
       ]
     },
     "ReceiverAcrossV3": {
@@ -196,17 +219,26 @@
       "1.0.1": [
         "audit20241206"
       ],
-      "1.0.3": [
-        "audit20250109_3"
+      "1.1.0": [
+        "audit20250109_2"
       ]
     },
     "ReceiverStargateV2": {
       "1.0.1": [
         "audit20250109_3"
+      ],
+      "1.1.0": [
+        "audit20250109_2"
       ]
     },
     "RelayerCelerIM": {
-      "2.0.1": [
+      "1.0.3": [
+        "audit20250109_3"
+      ],
+      "2.1.0": [
+        "audit20250109_2"
+      ],
+      "2.1.1": [
         "audit20250109_3"
       ]
     },
@@ -228,6 +260,9 @@
     "TokenWrapper": {
       "1.0.1": [
         "audit20250109_3"
+      ],
+      "1.1.0": [
+        "audit20250109_2"
       ]
     },
     "WithdrawablePeriphery": {

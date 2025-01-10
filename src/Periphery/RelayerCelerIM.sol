@@ -10,7 +10,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { PeripheryRegistryFacet } from "../Facets/PeripheryRegistryFacet.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
@@ -19,22 +19,14 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-/// @custom:version 2.0.1
-contract RelayerCelerIM is ILiFi, TransferrableOwnership {
+/// @custom:version 2.1.1
+contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
     using SafeERC20 for IERC20;
 
     /// Storage ///
 
     IMessageBus public cBridgeMessageBus;
     address public diamondAddress;
-
-    /// Events ///
-
-    event LogWithdraw(
-        address indexed _assetAddress,
-        address indexed _to,
-        uint256 amount
-    );
 
     /// Modifiers ///
 
@@ -53,8 +45,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         address _cBridgeMessageBusAddress,
         address _owner,
         address _diamondAddress
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+    ) WithdrawablePeriphery(_owner) {
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;
     }
@@ -402,23 +393,6 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         }
     }
 
-    /// @notice Sends remaining token to given receiver address (for refund cases)
-    /// @param assetId Address of the token to be withdrawn
-    /// @param receiver Address that will receive tokens
-    /// @param amount Amount of tokens to be withdrawn
-    function withdraw(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            SafeTransferLib.safeTransferETH(receiver, amount);
-        } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
-        }
-        emit LogWithdraw(assetId, receiver, amount);
-    }
-
     /// @notice Triggers a cBridge refund with calldata produced by cBridge API
     /// @param _callTo The address to execute the calldata on
     /// @param _callData The data to execute
@@ -451,9 +425,11 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
 
         // forward funds to _to address and emit event, if cBridge refund successful
         if (success) {
-            address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
-            LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
-            emit LogWithdraw(_assetAddress, sendTo, _amount);
+            address payable sendTo = payable(
+                (LibUtil.isZeroAddress(_to)) ? msg.sender : _to
+            );
+            LibAsset.transferAsset(_assetAddress, sendTo, _amount);
+            emit TokensWithdrawn(_assetAddress, sendTo, _amount);
         } else {
             revert WithdrawFailed();
         }
