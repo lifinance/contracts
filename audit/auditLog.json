@@ -69,6 +69,7 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.12.05_DeBridgeDlnFacet(v1.0.0).pdf",
       "auditCommitHash": "d72cb05510acc5bb794bde05af550ba2ef85d06d"
+    },
     "audit20241206": {
       "auditCompletedOn": "06.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -81,6 +82,13 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.06_AcrossFacetV3(v1.1.0).pdf",
+      "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
+    },
+    "audit20250109_2": {
+      "auditCompletedOn": "09.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.09_WithdrawablePeripheryUpdates.pdf",
       "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
     }
   },
@@ -114,6 +122,16 @@
         "audit20241105"
       ]
     },
+    "ERC20Proxy": {
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "Executor": {
+      "2.1.0": [
+        "audit20250109_2"
+      ]
+    },
     "GasZipFacet": {
       "2.0.0": [
         "audit20241107"
@@ -137,6 +155,9 @@
     "LiFiDEXAggregator": {
       "1.5.0": [
         "audit20241203"
+      ],
+      "1.6.0": [
+        "audit20250109_2"
       ]
     },
     "Permit2Proxy": {
@@ -150,6 +171,24 @@
       ],
       "1.0.1": [
         "audit20241206"
+      ],
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "ReceiverStargateV2": {
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "Receiver": {
+      "2.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "RelayerCelerIM": {
+      "2.1.0": [
+        "audit20250109_2"
       ]
     },
     "RelayFacet": {
@@ -160,6 +199,11 @@
     "StargateFacetV2": {
       "1.0.1": [
         "audit20240814"
+      ]
+    },
+    "TokenWrapper": {
+      "1.1.0": [
+        "audit20250109_2"
       ]
     },
     "WithdrawablePeriphery": {
