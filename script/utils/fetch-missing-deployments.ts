@@ -56,11 +56,13 @@ async function updateDeploymentLogs(network: string) {
         const versionMatch = sourceCode.match(
           /\/\/\/\s*@custom:version\s*([\d.]+)/
         )
-        const version = versionMatch ? versionMatch[1] : null
+        let version = versionMatch ? versionMatch[1] : null
 
         if (!version) {
-          console.log(`Skipping ${contractName}: No version found`)
-          continue
+          console.log(
+            `Skipping ${contractName}: No version found. Assuming 1.0.0`
+          )
+          version = '1.0.0'
         }
 
         // Update master log
