@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         address dlnSource = json.readAddress(
-            string.concat(".", network, ".dlnSource")
+            string.concat(".networks.", network, ".dlnSource")
         );
 
         return abi.encode(dlnSource);
