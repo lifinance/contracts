@@ -80,23 +80,6 @@ contract ReceiverAcrossV3Test is TestBase {
         assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
-    function test_PullTokenWillRevertIfExternalCallFails() public {
-        vm.deal(address(receiver), 1 ether);
-
-        // deploy contract that cannot receive ETH
-        NonETHReceiver nonETHReceiver = new NonETHReceiver();
-
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectRevert(abi.encodeWithSignature("ETHTransferFailed()"));
-
-        receiver.withdrawToken(
-            address(0),
-            payable(address(nonETHReceiver)),
-            1 ether
-        );
-    }
-
     function test_revert_PullTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
