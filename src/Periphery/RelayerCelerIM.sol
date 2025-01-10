@@ -19,7 +19,7 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-/// @custom:version 2.1.0
+/// @custom:version 2.1.1
 contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
     using SafeERC20 for IERC20;
 
