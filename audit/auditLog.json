@@ -69,6 +69,7 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.12.05_DeBridgeDlnFacet(v1.0.0).pdf",
       "auditCommitHash": "d72cb05510acc5bb794bde05af550ba2ef85d06d"
+    },
     "audit20241206": {
       "auditCompletedOn": "06.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -81,6 +82,13 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.06_AcrossFacetV3(v1.1.0).pdf",
+      "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
+    },
+    "audit20250109": {
+      "auditCompletedOn": "09.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.09_ThorSwapFacet(v1.2.1).pdf",
       "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
     }
   },
@@ -160,6 +168,11 @@
     "StargateFacetV2": {
       "1.0.1": [
         "audit20240814"
+      ]
+    },
+    "ThorSwapFacet": {
+      "1.2.1": [
+        "audit20250109"
       ]
     },
     "WithdrawablePeriphery": {
