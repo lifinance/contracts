@@ -6,12 +6,13 @@ import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.0
+/// @custom:version 1.0.2
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
@@ -82,15 +83,24 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes calldata diamondCalldata
     ) public payable returns (bytes memory) {
         // call permit on token contract to register approval using signature
-        ERC20Permit(tokenAddress).permit(
-            msg.sender, // Ensure msg.sender is same wallet that signed permit
-            address(this),
-            amount,
-            deadline,
-            v,
-            r,
-            s
-        );
+        try
+            ERC20Permit(tokenAddress).permit(
+                msg.sender, // Ensure msg.sender is same wallet that signed permit
+                address(this),
+                amount,
+                deadline,
+                v,
+                r,
+                s
+            )
+        {} catch Error(string memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                revert(reason);
+            }
+        }
 
         // deposit assets
         LibAsset.transferFromERC20(
@@ -201,7 +211,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
                 _assetId,
                 _amount
             );
-        bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
+        bytes32 tokenPermissionsHash = _getTokenPermissionsHash(
+            tokenPermissions
+        );
 
         // Witness
         Permit2Proxy.LiFiCall memory lifiCall = LiFiCall(
@@ -213,7 +225,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
         // PermitTransferWithWitness
         msgHash = _getPermitWitnessTransferFromHash(
             PERMIT2.DOMAIN_SEPARATOR(),
-            permit,
+            tokenPermissionsHash,
             address(this),
             _nonce,
             _deadline,
@@ -269,12 +281,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes memory diamondCalldata
     ) internal returns (bytes memory) {
         // call diamond with provided calldata
+        SafeTransferLib.safeTransferETH(LIFI_DIAMOND, msg.value);
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = LIFI_DIAMOND.call{
-            value: msg.value
-        }(diamondCalldata);
-        // throw error to make sure tx reverts if low-level call was
-        // unsuccessful
+        (bool success, bytes memory data) = LIFI_DIAMOND.call(diamondCalldata);
         if (!success) {
             revert CallToDiamondFailed(data);
         }

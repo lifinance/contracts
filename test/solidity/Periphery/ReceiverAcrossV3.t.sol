@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test, TestBase, Vm, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized, ExternalCallFailed } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverAcrossV3 } from "lifi/Periphery/ReceiverAcrossV3.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -88,7 +88,7 @@ contract ReceiverAcrossV3Test is TestBase {
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(ExternalCallFailed.selector);
+        vm.expectRevert(abi.encodeWithSignature("ETHTransferFailed()"));
 
         receiver.pullToken(
             address(0),

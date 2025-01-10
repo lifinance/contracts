@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized, WithdrawFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -18,7 +19,7 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -368,11 +369,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
             {
                 success = true;
             } catch {
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool fundsSent, ) = refundAddress.call{ value: amount }("");
-                if (!fundsSent) {
-                    revert ExternalCallFailed();
-                }
+                SafeTransferLib.safeTransferETH(refundAddress, amount);
             }
         } else {
             IERC20 token = IERC20(assetId);
@@ -415,11 +412,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         uint256 amount
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) {
-                revert WithdrawFailed();
-            }
+            SafeTransferLib.safeTransferETH(receiver, amount);
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
         }
