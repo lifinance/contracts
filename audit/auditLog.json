@@ -84,7 +84,7 @@
       "auditReportPath": "./audit/reports/2025.01.06_AcrossFacetV3(v1.1.0).pdf",
       "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
     },
-    "audit20250109": {
+    "audit20250109_1": {
       "auditCompletedOn": "09.01.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
@@ -172,7 +172,7 @@
     },
     "ThorSwapFacet": {
       "1.2.1": [
-        "audit20250109"
+        "audit20250109_1"
       ]
     },
     "WithdrawablePeriphery": {
