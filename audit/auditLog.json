@@ -89,7 +89,7 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.09_ThorSwapFacet(v1.2.1).pdf",
-      "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
+      "auditCommitHash": "5005bf62858a9cb2a7628976ef870e91bb732a75"
     }
   },
   "auditedContracts": {
