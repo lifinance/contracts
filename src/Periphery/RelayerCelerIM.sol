@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized, WithdrawFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -359,11 +360,7 @@ contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
             {
                 success = true;
             } catch {
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool fundsSent, ) = refundAddress.call{ value: amount }("");
-                if (!fundsSent) {
-                    revert ExternalCallFailed();
-                }
+                SafeTransferLib.safeTransferETH(refundAddress, amount);
             }
         } else {
             IERC20 token = IERC20(assetId);
@@ -394,6 +391,23 @@ contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
                 block.timestamp
             );
         }
+    }
+
+    /// @notice Sends remaining token to given receiver address (for refund cases)
+    /// @param assetId Address of the token to be withdrawn
+    /// @param receiver Address that will receive tokens
+    /// @param amount Amount of tokens to be withdrawn
+    function withdraw(
+        address assetId,
+        address payable receiver,
+        uint256 amount
+    ) external onlyOwner {
+        if (LibAsset.isNativeAsset(assetId)) {
+            SafeTransferLib.safeTransferETH(receiver, amount);
+        } else {
+            IERC20(assetId).safeTransfer(receiver, amount);
+        }
+        emit LogWithdraw(assetId, receiver, amount);
     }
 
     /// @notice Triggers a cBridge refund with calldata produced by cBridge API

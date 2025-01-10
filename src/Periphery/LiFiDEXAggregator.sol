@@ -4,6 +4,8 @@ pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -134,14 +136,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address to,
         bytes memory route
     ) external payable lock returns (uint256 amountOut) {
-        (bool success, bytes memory returnBytes) = transferValueTo.call{
-            value: amountValueTransfer
-        }("");
-        if (!success) {
-            assembly {
-                revert(add(32, returnBytes), mload(returnBytes))
-            }
-        }
+        SafeTransferLib.safeTransferETH(transferValueTo, amountValueTransfer);
         return
             processRouteInternal(
                 tokenIn,
@@ -374,11 +369,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                     );
                 IWETH(tokenIn).withdraw(amountIn);
             }
-            (bool success, ) = payable(to).call{ value: amountIn }("");
-            require(
-                success,
-                "RouteProcessor.wrapNative: Native token transfer failed"
-            );
+            SafeTransferLib.safeTransferETH(to, amountIn);
         }
     }
 
@@ -754,11 +745,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         if (to != address(this)) {
             if (tokenOut == NATIVE_ADDRESS) {
-                (bool success, ) = payable(to).call{ value: amountOut }("");
-                require(
-                    success,
-                    "RouteProcessor.swapCurve: Native token transfer failed"
-                );
+                SafeTransferLib.safeTransferETH(to, amountOut);
             } else {
                 IERC20(tokenOut).safeTransfer(to, amountOut);
             }

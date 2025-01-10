@@ -70,6 +70,23 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
         );
     }
 
+    /// @notice Send remaining token to receiver
+    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
+    /// @param receiver address that will receive tokens in the end
+    /// @param amount amount of token
+    function pullToken(
+        address assetId,
+        address payable receiver,
+        uint256 amount
+    ) external onlyOwner {
+        if (LibAsset.isNativeAsset(assetId)) {
+            // solhint-disable-next-line avoid-low-level-calls
+            SafeTransferLib.safeTransferETH(receiver, amount);
+        } else {
+            assetId.safeTransfer(receiver, amount);
+        }
+    }
+
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction
@@ -86,8 +103,7 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
         address payable receiver,
         uint256 amount
     ) private {
-        assetId.safeApprove(address(executor), 0);
-        assetId.safeApprove(address(executor), amount);
+        assetId.safeApproveWithRetry(address(executor), amount);
         try
             executor.swapAndCompleteBridgeTokens(
                 _transactionId,

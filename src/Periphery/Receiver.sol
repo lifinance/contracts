@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -166,6 +167,22 @@ contract Receiver is ILiFi, ReentrancyGuard, WithdrawablePeriphery {
         }
     }
 
+    /// @notice Send remaining token to receiver
+    /// @param assetId token received from the other chain
+    /// @param receiver address that will receive tokens in the end
+    /// @param amount amount of token
+    function pullToken(
+        address assetId,
+        address payable receiver,
+        uint256 amount
+    ) external onlyOwner {
+        if (LibAsset.isNativeAsset(assetId)) {
+            SafeTransferLib.safeTransferETH(receiver, amount);
+        } else {
+            IERC20(assetId).safeTransfer(receiver, amount);
+        }
+    }
+
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction
@@ -190,9 +207,7 @@ contract Receiver is ILiFi, ReentrancyGuard, WithdrawablePeriphery {
             uint256 cacheGasLeft = gasleft();
             if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = receiver.call{ value: amount }("");
-                if (!success) revert ExternalCallFailed();
+                SafeTransferLib.safeTransferETH(receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -212,9 +227,7 @@ contract Receiver is ILiFi, ReentrancyGuard, WithdrawablePeriphery {
                     gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = receiver.call{ value: amount }("");
-                if (!success) revert ExternalCallFailed();
+                SafeTransferLib.safeTransferETH(receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,
