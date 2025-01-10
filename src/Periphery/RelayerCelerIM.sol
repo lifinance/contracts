@@ -431,7 +431,7 @@ contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
             address payable sendTo = payable(
                 (LibUtil.isZeroAddress(_to)) ? msg.sender : _to
             );
-            LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
+            LibAsset.transferAsset(_assetAddress, sendTo, _amount);
             emit TokensWithdrawn(_assetAddress, sendTo, _amount);
         } else {
             revert WithdrawFailed();
