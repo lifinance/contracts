@@ -89,7 +89,7 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.09_WithdrawablePeripheryUpdates.pdf",
-      "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
+      "auditCommitHash": "ec76b33cedd69338e569c7994b99b03cb7e6d502"
     }
   },
   "auditedContracts": {
