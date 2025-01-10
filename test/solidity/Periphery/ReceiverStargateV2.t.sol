@@ -95,7 +95,7 @@ contract ReceiverStargateV2Test is TestBase {
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(abi.encodeWithSignature("ETHTransferFailed()"));
+        vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
 
         receiver.withdrawToken(
             address(0),

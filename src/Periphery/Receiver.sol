@@ -167,22 +167,6 @@ contract Receiver is ILiFi, ReentrancyGuard, WithdrawablePeriphery {
         }
     }
 
-    /// @notice Send remaining token to receiver
-    /// @param assetId token received from the other chain
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            SafeTransferLib.safeTransferETH(receiver, amount);
-        } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
-        }
-    }
-
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction

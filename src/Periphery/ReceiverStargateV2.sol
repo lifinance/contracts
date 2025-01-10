@@ -114,23 +114,6 @@ contract ReceiverStargateV2 is
         );
     }
 
-    /// @notice Send remaining token to receiver
-    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            SafeTransferLib.safeTransferETH(receiver, amount);
-        } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
-        }
-    }
-
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction
