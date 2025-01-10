@@ -63,6 +63,12 @@
       "auditReportPath": "./audit/reports/2024.12.03_LiFiDexAggregator.pdf",
       "auditCommitHash": "8a34562c912b5b19c919bb95338655c944428af5"
     },
+    "audit20241205": {
+      "auditCompletedOn": "05.12.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.12.05_DeBridgeDlnFacet(v1.0.0).pdf",
+      "auditCommitHash": "d72cb05510acc5bb794bde05af550ba2ef85d06d"
     "audit20241206": {
       "auditCompletedOn": "06.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -93,6 +99,11 @@
       ],
       "1.2.0": [
         "audit20241206"
+      ]
+    },
+    "DeBridgeDlnFacet": {
+      "1.0.0": [
+        "audit20241205"
       ]
     },
     "EmergencyPauseFacet": {

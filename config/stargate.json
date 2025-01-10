@@ -27,7 +27,7 @@
     "optimism": "0x1a44076050125825900e736c501f859c50fE728c",
     "polygon": "0x1a44076050125825900e736c501f859c50fE728c",
     "polygonzkevm": "0x1a44076050125825900e736c501f859c50fE728c",
-    "rootstock": "0x0000000000000000000000000000000000000000",
+    "rootstock": "0xcb566e3B6934Fa77258d68ea18E931fa75e1aaAa",
     "kaia": "0x0000000000000000000000000000000000000000",
     "velas": "0x0000000000000000000000000000000000000000",
     "linea": "0x1a44076050125825900e736c501f859c50fE728c",
@@ -50,6 +50,7 @@
     "bsc": "0x6e3d884c96d640526f273c61dfcf08915ebd7e2b",
     "polygon": "0x6ce9bf8cdab780416ad1fd87b318a077d2f50eac",
     "arbitrum": "0x19cfce47ed54a88614648dc3f19a5980097007dd",
+    "fuse": "0x45a01e4e04f14f7a4a6702c74187c5f6222033cd",
     "mantle": "0x41b491285a4f888f9f636cec8a363ab9770a0aef",
     "metis": "0xcbe78230cca58b9ef4c3c5d1bc0d7e4b3206588a",
     "linea": "0x5f688f563dc16590e570f97b542fa87931af2fed",
@@ -62,6 +63,7 @@
     "aurora": "0x5f688f563dc16590e570f97b542fa87931af2fed",
     "fantom": "----FantomIsNotSupportedByStargateV2----",
     "gravity": "0x9c2dc7377717603eB92b2655c5f2E7997a4945BD",
+    "rootstock": "0x45a01e4e04f14f7a4a6702c74187c5f6222033cd",
     "sei": "0x1502FA4be69d526124D453619276FacCab275d3D",
     "taiko": "0x45d417612e177672958dC0537C45a8f8d754Ac2E",
     "zksync": "---comingSoon---"
@@ -126,6 +128,14 @@
     {
       "chainId": 167000,
       "endpointId": 30290
+    },
+    {
+      "chainId": 30,
+      "endpointId": 30333
+    },
+    {
+      "chainId": 122,
+      "endpointId": 30138
     }
   ],
   "-----------  anything from here is LEGACY (for StargateFacet.sol (v1)) ----------------------------------------------------------------": {},
