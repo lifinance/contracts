@@ -63,23 +63,63 @@
       "auditReportPath": "./audit/reports/2024.12.03_LiFiDexAggregator.pdf",
       "auditCommitHash": "8a34562c912b5b19c919bb95338655c944428af5"
     },
+    "audit20241205": {
+      "auditCompletedOn": "05.12.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.12.05_DeBridgeDlnFacet(v1.0.0).pdf",
+      "auditCommitHash": "d72cb05510acc5bb794bde05af550ba2ef85d06d"
+    },
     "audit20241206": {
       "auditCompletedOn": "06.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.12.06_AcrossFacetPackedV3(v1.2.0).pdf",
       "auditCommitHash": "5f59b4957fe315ea2d7b5e9daa931785ccff488c"
+    },
+    "audit20250106": {
+      "auditCompletedOn": "06.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.06_AcrossFacetV3(v1.1.0).pdf",
+      "auditCommitHash": "fb4c7a4e02c5fd214d78b8cdc5d4a03fa0b06ab9"
+    },
+    "audit20250109_1": {
+      "auditCompletedOn": "09.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.09_ThorSwapFacet(v1.2.1).pdf",
+      "auditCommitHash": "5005bf62858a9cb2a7628976ef870e91bb732a75"
+    },
+    "audit20250109_2": {
+      "auditCompletedOn": "09.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.09_WithdrawablePeripheryUpdates.pdf",
+      "auditCommitHash": "ec76b33cedd69338e569c7994b99b03cb7e6d502"
+    },
+    "audit20250109_3": {
+      "auditCompletedOn": "09.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.09_SafeTransferETHUpdate.pdf",
+      "auditCommitHash": "e4f27b0c4f572e5c64ca132dc2e496a3fe6c7c1d"
+    },
+    "audit20250110": {
+      "auditCompletedOn": "10.01.2025",
+      "auditedBy": "Cantina (security firm)",
+      "auditorGitHandle": "cantinaxyz",
+      "auditReportPath": "./audit/reports/report-cantinacode-lifi-1216.pdf",
+      "auditCommitHash": "c9e6246167f4ff44f4535e466a4ceb902552aa13"
     }
   },
   "auditedContracts": {
-    "AcrossFacetPackedV3": {
-      "1.0.0": [
-        "audit20241007"
-      ]
-    },
     "AcrossFacetV3": {
       "1.0.0": [
         "audit20241007"
+      ],
+      "1.1.0": [
+        "audit20250106"
       ]
     },
     "AcrossFacetPackedV3": {
@@ -88,7 +128,12 @@
       ],
       "1.2.0": [
         "audit20241206"
-      ],
+      ]
+    },
+    "DeBridgeDlnFacet": {
+      "1.0.0": [
+        "audit20241205"
+      ]
     },
     "EmergencyPauseFacet": {
       "1.0.0": [
@@ -98,14 +143,35 @@
         "audit20241105"
       ]
     },
+    "ERC20Proxy": {
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "Executor": {
+      "2.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "FeeCollector": {
+      "1.0.1": [
+        "audit20250109_3"
+      ]
+    },
     "GasZipFacet": {
       "2.0.0": [
         "audit20241107"
+      ],
+      "2.0.2": [
+        "audit20250110"
       ]
     },
     "GasZipPeriphery": {
       "1.0.0": [
         "audit20241107"
+      ],
+      "1.0.1": [
+        "audit20250110"
       ]
     },
     "IGasZip": {
@@ -116,16 +182,44 @@
     "LibAsset": {
       "1.0.1": [
         "audit20241202"
+      ],
+      "1.0.2": [
+        "audit20250110"
       ]
     },
     "LiFiDEXAggregator": {
       "1.5.0": [
         "audit20241203"
+      ],
+      "1.6.0": [
+        "audit20250109_2"
+      ],
+      "1.5.1": [
+        "audit20250109_3"
+      ]
+    },
+    "LiFuelFeeCollector": {
+      "1.0.2": [
+        "audit20250109_3"
       ]
     },
     "Permit2Proxy": {
       "1.0.0": [
         "audit20241122"
+      ],
+      "1.0.1": [
+        "audit20250110"
+      ],
+      "1.0.2": [
+        "audit20250109_3"
+      ]
+    },
+    "Receiver": {
+      "2.0.3": [
+        "audit20250109_3"
+      ],
+      "2.1.0": [
+        "audit20250109_2"
       ]
     },
     "ReceiverAcrossV3": {
@@ -134,6 +228,31 @@
       ],
       "1.0.1": [
         "audit20241206"
+      ],
+      "1.0.2": [
+        "audit20250110"
+      ],
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "ReceiverStargateV2": {
+      "1.0.1": [
+        "audit20250109_3"
+      ],
+      "1.1.0": [
+        "audit20250109_2"
+      ]
+    },
+    "RelayerCelerIM": {
+      "1.0.3": [
+        "audit20250109_3"
+      ],
+      "2.1.0": [
+        "audit20250109_2"
+      ],
+      "2.1.1": [
+        "audit20250109_3"
       ]
     },
     "RelayFacet": {
@@ -144,6 +263,19 @@
     "StargateFacetV2": {
       "1.0.1": [
         "audit20240814"
+      ]
+    },
+    "ThorSwapFacet": {
+      "1.2.1": [
+        "audit20250109_1"
+      ]
+    },
+    "TokenWrapper": {
+      "1.0.1": [
+        "audit20250109_3"
+      ],
+      "1.1.0": [
+        "audit20250109_2"
       ]
     },
     "WithdrawablePeriphery": {
