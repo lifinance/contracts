@@ -8,7 +8,8 @@ import consola from 'consola'
 import * as chains from 'viem/chains'
 import { getSafeUtilityContracts } from './config'
 import {
-  Networks,
+  NetworksObject,
+  getAllActiveNetworks,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
@@ -16,11 +17,12 @@ import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-type
 import networksConfig from '../../../config/networks.json'
 dotenv.config()
 
-const networks: Networks = networksConfig
+const networks: NetworksObject = networksConfig
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
-const allNetworks = Object.keys(networks)
+const allNetworks = Object.keys(networksConfig)
+
 // In order to skip specific networks simple comment them in
 const skipNetworks: string[] = [
   // 'mainnet',
@@ -32,6 +34,7 @@ const skipNetworks: string[] = [
   // 'boba',
   // 'bsc',
   // 'celo',
+  // 'cronos',
   // 'fantom',
   // 'fraxtal',
   // 'fuse',
@@ -46,16 +49,21 @@ const skipNetworks: string[] = [
   // 'moonbeam',
   // 'moonriver',
   // 'optimism',
+  // 'opbnb',
   // 'polygon',
   // 'polygonzkevm',
   // 'rootstock',
   // 'scroll',
   // 'sei',
   // 'taiko',
+  // 'xlayer',
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(
-  (network) => !skipNetworks.includes(network) && network !== 'localanvil'
+  (network) =>
+    !skipNetworks.includes(network) &&
+    network !== 'localanvil' &&
+    networks[network.toLowerCase()].status === 'active' // <<< deactivate this to operate on non-active networks
 )
 
 const storedResponses: Record<string, string> = {}
@@ -86,6 +94,11 @@ for (const [k, v] of Object.entries(chains)) {
 }
 
 const func = async (network: string, privateKey: string, rpcUrl?: string) => {
+  console.info(' ')
+  consola.info('-'.repeat(80))
+
+  const safeWebUrl = networks[network.toLowerCase()].safeWebUrl
+
   const chain = getViemChainForNetworkName(network)
 
   const config: SafeApiKitConfig = {
@@ -93,7 +106,18 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     txServiceUrl: networks[network.toLowerCase()].safeApiUrl,
   }
 
-  const safeService = new SafeApiKit(config)
+  let safeService
+  try {
+    safeService = new SafeApiKit(config)
+  } catch (err) {
+    consola.error(`error encountered while setting up SAFE service: ${err}`)
+    consola.error(`skipping network ${network}`)
+    consola.error(
+      `Please check this SAFE NOW to make sure no pending transactions are missed:`
+    )
+    console.log(`${safeWebUrl}`)
+    return
+  }
 
   const safeAddress = networks[network.toLowerCase()].safeAddress
 
@@ -103,7 +127,6 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
 
   const signerAddress = await signer.getAddress()
 
-  consola.info('-'.repeat(80))
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
 
@@ -112,39 +135,80 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     signerOrProvider: signer,
   })
 
-  const protocolKit = await Safe.create({
-    ethAdapter,
-    safeAddress: safeAddress,
-    contractNetworks: getSafeUtilityContracts(chain.id),
-  })
+  let protocolKit: Safe
+  try {
+    protocolKit = await Safe.create({
+      ethAdapter,
+      safeAddress: safeAddress,
+      contractNetworks: getSafeUtilityContracts(chain.id),
+    })
+  } catch (err) {
+    consola.error(`error encountered while setting up protocolKit: ${err}`)
+    consola.error(`skipping network ${network}`)
+    consola.error(
+      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
+    )
+    return
+  }
 
-  const allTx = await retry(() =>
-    safeService.getPendingTransactions(safeAddress)
-  )
+  let allTx
+  try {
+    allTx = await retry(() => safeService.getPendingTransactions(safeAddress))
+  } catch (err) {
+    consola.error(
+      `error encountered while getting pending transactions for network ${network}`
+    )
+    consola.error(`skipping network ${network}`)
+    consola.error(
+      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
+    )
+    return
+  }
 
   // Function to sign a transaction
   const signTransaction = async (
-    txToConfirm: SafeMultisigTransactionResponse
+    txToConfirm: SafeMultisigTransactionResponse,
+    safeWebUrl: string
   ) => {
     consola.info('Signing transaction', txToConfirm.safeTxHash)
     const signedTx = await protocolKit.signTransaction(txToConfirm)
     const dataToBeSigned = signedTx.getSignature(signerAddress)?.data
     if (!dataToBeSigned) throw Error(`error while preparing data to be signed`)
 
-    await retry(() =>
-      safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
-    )
+    try {
+      await retry(() =>
+        safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
+      )
+    } catch (err) {
+      consola.error('Error while trying to sign the transaction')
+      consola.error(
+        `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
+      )
+      throw Error(`Transaction could not be signed`)
+    }
     consola.success('Transaction signed', txToConfirm.safeTxHash)
   }
 
   // Function to execute a transaction
   async function executeTransaction(
-    txToConfirm: SafeMultisigTransactionResponse
+    txToConfirm: SafeMultisigTransactionResponse,
+    safeWebUrl: string
   ) {
     consola.info('Executing transaction', txToConfirm.safeTxHash)
-    const exec = await protocolKit.executeTransaction(txToConfirm)
-    await exec.transactionResponse?.wait()
+    try {
+      const exec = await protocolKit.executeTransaction(txToConfirm)
+      await exec.transactionResponse?.wait()
+    } catch (err) {
+      consola.error('Error while trying to execute the transaction')
+      consola.error(
+        `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
+      )
+      throw Error(`Transaction could not be executed`)
+    }
+
     consola.success('Transaction executed', txToConfirm.safeTxHash)
+    console.info(' ')
+    console.info(' ')
   }
 
   // only show transaction Signer has not confirmed yet
@@ -236,16 +300,22 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     }
 
     if (action === 'Sign') {
-      await signTransaction(txToConfirm)
+      try {
+        await signTransaction(txToConfirm, safeWebUrl)
+      } catch {}
     }
 
     if (action === 'Sign & Execute Now') {
-      await signTransaction(txToConfirm)
-      await executeTransaction(txToConfirm)
+      try {
+        await signTransaction(txToConfirm, safeWebUrl)
+        await executeTransaction(txToConfirm, safeWebUrl)
+      } catch {}
     }
 
     if (action === 'Execute Now') {
-      await executeTransaction(txToConfirm)
+      try {
+        await executeTransaction(txToConfirm, safeWebUrl)
+      } catch {}
     }
   }
 }

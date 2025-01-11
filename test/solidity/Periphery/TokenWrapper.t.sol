@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { TestWrappedToken as ERC20 } from "../utils/TestWrappedToken.sol";
-import { IERC20 } from "lifi/Libraries/LibAsset.sol";
+import { IERC20, LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract TokenWrapperTest is DSTest {
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
@@ -15,7 +15,7 @@ contract TokenWrapperTest is DSTest {
 
     function setUp() public {
         wrappedToken = new ERC20("TestWrappedToken", "WTST", 18);
-        tokenWrapper = new TokenWrapper(address(wrappedToken));
+        tokenWrapper = new TokenWrapper(address(wrappedToken), address(this));
         vm.deal(address(this), 100 ether);
     }
 
@@ -26,6 +26,20 @@ contract TokenWrapperTest is DSTest {
         assert(wrappedToken.balanceOf(address(this)) == 0);
         tokenWrapper.deposit{ value: 1 ether }();
         assert(wrappedToken.balanceOf(address(this)) == 1 ether);
+    }
+
+    function testCanWithdrawToken() public {
+        // Send some ETH to the contract
+        (bool success, ) = address(tokenWrapper).call{ value: 1 ether }("");
+        require(success, "Failed to send ETH");
+
+        uint256 initialBalance = address(this).balance;
+        tokenWrapper.withdrawToken(
+            address(0),
+            payable(address(this)),
+            1 ether
+        );
+        assertEq(address(this).balance - initialBalance, 1 ether);
     }
 
     function testCanWithdraw() public {

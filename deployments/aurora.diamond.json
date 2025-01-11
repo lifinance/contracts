@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
       "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
@@ -35,15 +39,15 @@
       },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
         "Name": "CelerIMFacetMutable",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
         "Name": "StandardizedCallFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
@@ -53,8 +57,12 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
-      "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4": {
+      "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
+        "Version": "1.0.1"
+      },
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       }
     },
@@ -62,12 +70,14 @@
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "LiFuelFeeCollector": "0x8E92e662573CBC66B0AB6A93B5FE291925508085",
+      "Permit2Proxy": "",
+      "Receiver": "",
+      "ReceiverAcrossV3": "",
+      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-      "GasRebateDistributor": ""
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }

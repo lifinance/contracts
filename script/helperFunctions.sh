@@ -1426,18 +1426,38 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync
+          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain 324 "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        fi
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync
+          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        fi
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync
+         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        fi
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        if [[ $NETWORK == "zksync" ]]; then
+          # Verify using foundry-zksync
+         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        fi
       fi
     fi
     COMMAND_STATUS=$?
@@ -1457,7 +1477,7 @@ function verifyContract() {
     "$ADDRESS" \
     "$CONTRACT" \
     --chain-id "$CHAIN_ID" \
-    --verifier sourcify
+    --verifier  sourcify
 
   echo "[info] checking Sourcify verification now"
   forge verify-check $ADDRESS \
@@ -3556,8 +3576,10 @@ function updateDiamondLogs() {
   echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
   echo ""
 
-  ENVIRONMENTS=("production" "staging")
-  DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable")
+  # ENVIRONMENTS=("production" "staging")
+  ENVIRONMENTS=("production")
+  # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
+  DIAMONDS=("LiFiDiamond")
 
   # loop through all networks
   for NETWORK in "${NETWORKS[@]}"; do
@@ -3655,6 +3677,146 @@ function updateDiamondLogs() {
   done
   playNotificationSound
 }
+
+# Function: install_foundry_zksync
+# Description: Downloads and installs the zkSync version of foundry tools (forge and cast)
+# Arguments:
+#   $1 - Installation directory (optional, defaults to ./foundry-zksync)
+#   FOUNDRY_ZKSYNC_VERSION - Environment variable to specify version
+# Example Versions:
+#   FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+# Returns:
+#   0 - Success
+#   1 - Failure (with error message)
+install_foundry_zksync() {
+  # Foundry ZKSync version
+  local FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+  # Allow custom installation directory or use default
+  local install_dir="${1:-./foundry-zksync}"
+
+  # Verify that FOUNDRY_ZKSYNC_VERSION is set
+  if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+      echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+      return 1
+  fi
+
+  echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
+
+  # Check if binaries already exist and are executable
+  # -x tests if a file exists and has execute permissions
+  if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
+      echo "forge and cast binaries already exist in ${install_dir} and are executable"
+      echo "Skipping download and installation"
+      return 0
+  fi
+
+  # Detect operating system
+  # $OSTYPE is a bash variable that contains the operating system type
+  local os
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+      os="darwin"
+  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+      os="linux"
+  else
+      echo "Unsupported operating system"
+      return 1
+  fi
+
+  # Detect CPU architecture
+  # uname -m returns the machine hardware name
+  local arch
+  case $(uname -m) in
+      x86_64)  # Intel/AMD 64-bit
+          arch="amd64"
+          ;;
+      arm64|aarch64)  # ARM 64-bit (e.g., Apple Silicon, AWS Graviton)
+          arch="arm64"
+          ;;
+      *)
+          echo "Unsupported architecture: $(uname -m)"
+          return 1
+          ;;
+  esac
+
+  # Construct download URL using the specified version
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
+  local filename="foundry_nightly_${os}_${arch}.tar.gz"
+  local download_url="${base_url}/${filename}"
+
+  # Create installation directory if it doesn't exist
+  # -p flag creates parent directories if needed
+  mkdir -p "$install_dir"
+
+  # Print detection results
+  echo "Detected OS: $os"
+  echo "Detected Architecture: $arch"
+  echo "Downloading from: $download_url"
+  echo "Installing to: $install_dir"
+
+  # Download the file using curl or wget, whichever is available
+  # command -v checks if a command exists
+  # &> /dev/null redirects both stdout and stderr to null
+  if command -v curl &> /dev/null; then
+      # -L flag follows redirects, -o specifies output file
+      curl -L -o "${install_dir}/${filename}" "$download_url"
+  elif command -v wget &> /dev/null; then
+      # -O specifies output file
+      wget -O "${install_dir}/${filename}" "$download_url"
+  else
+      echo "Neither curl nor wget is installed"
+      return 1
+  fi
+
+  # Check if download was successful
+  # $? contains the return status of the last command
+  if [ $? -ne 0 ]; then
+      echo "Download failed"
+      return 1
+  fi
+
+  echo "Download completed successfully"
+
+  # Extract the archive
+  # -x extract, -z gzip, -f file
+  echo "Extracting files..."
+  tar -xzf "${install_dir}/${filename}" -C "$install_dir"
+
+  if [ $? -ne 0 ]; then
+      echo "Extraction failed"
+      return 1
+  fi
+
+  # Make binaries executable
+  # +x adds execute permission
+  echo "Setting executable permissions..."
+  chmod +x "${install_dir}/forge" "${install_dir}/cast"
+
+  if [ $? -ne 0 ]; then
+      echo "Failed to set executable permissions"
+      return 1
+  fi
+
+  # Clean up by removing the downloaded archive
+  echo "Cleaning up..."
+  rm "${install_dir}/${filename}"
+
+  if [ $? -ne 0 ]; then
+      echo "Cleanup failed"
+      return 1
+  fi
+
+  # Verify that binaries are executable
+  # This is a final check to ensure everything worked
+  if [ ! -x "${install_dir}/forge" ] || [ ! -x "${install_dir}/cast" ]; then
+      echo "Installation completed but binaries are not executable. Please check permissions."
+      return 1
+  fi
+
+  echo "Installation completed successfully"
+  echo "Binaries are executable and ready to use"
+  return 0
+}
+
 # <<<<<< helpers to set/update deployment files/logs/etc
 
 # test cases for helper functions
@@ -3874,4 +4036,3 @@ function test_getContractVersionFromMasterLog() {
 function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
-

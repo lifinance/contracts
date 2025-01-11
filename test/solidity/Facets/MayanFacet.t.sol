@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap, LibAsset } from "../utils/TestBaseFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
@@ -291,7 +291,6 @@ contract MayanFacetTest is TestBaseFacet {
         validMayanData = invalidMayanDataEVM2Solana;
         vm.startPrank(USER_SENDER);
 
-        console.log(USER_RECEIVER);
         usdc.approve(_facetTestContractAddress, type(uint256).max);
 
         vm.expectRevert(

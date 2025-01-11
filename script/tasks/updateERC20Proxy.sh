@@ -8,8 +8,6 @@
 updateERC20Proxy() {
 	source .env
 
-  echo "here"
-  read
 	if [[ -z "$PRODUCTION" ]]; then
 		FILE_SUFFIX="staging."
 	fi

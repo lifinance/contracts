@@ -16,28 +16,45 @@ jobs:
         env: # set the GH_TOKEN environment variable here
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -x
+
+
           # Use GitHub API and jq to parse the data
           PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name)), draft: .draft}')
-          echo "PRS: $PRS"
+          echo "PRs found: $PRS"
           OLD_PRS=""
           while read -r PR; do
+            echo "------------------------------------------------------------------"
             PR_CREATED_AT=$(echo "$PR" | jq -r '.created_at')
             PR_NUMBER=$(echo "$PR" | jq -r '.number')
             PR_LABELS=$(echo "$PR" | jq -c '.labels')
             PR_ISDRAFT=$(echo "$PR" | jq -r '.draft')
 
+            echo "Now checking PR: $PR_NUMBER"
+            echo "PR is in DRAFT status: $PR_ISDRAFT"
+            echo "The following labels are assigned to this PR: $PR_LABELS"
+
+
             # Continue loop if the PR is draft
             if [[ "$PR_ISDRAFT" == "true" ]]; then
+              echo "skipping this PR cause it is in draft mode"
               continue
             fi
 
             # Continue loop if the PR has the label "WIP"
             if echo "$PR_LABELS" | grep -q "WIP"; then
+              echo "skipping this PR cause it is labeled with 'WIP'"
               continue
             fi
-            # Continue loop if the PR has the label "WaitForBackend"
-            if echo "$PR_LABELS" | grep -q "WaitForBackend"; then
+
+            # Continue loop if the PR has the label "waitForAudit"
+            if echo "$PR_LABELS" | grep -q "waitForAudit"; then
+              echo "skipping this PR cause it is labeled with 'waitForAudit'"
+              continue
+            fi
+
+            # Continue loop if the PR has the label "waitForBackend"
+            if echo "$PR_LABELS" | grep -q "waitForBackend"; then
+              echo "skipping this PR cause it is labeled with 'waitForBackend'"
               continue
             fi
 

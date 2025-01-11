@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title LiFuelFeeCollector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting fees for LiFuel
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract LiFuelFeeCollector is TransferrableOwnership {
     /// Errors ///
     error TransferFailure();
@@ -65,10 +66,7 @@ contract LiFuelFeeCollector is TransferrableOwnership {
         );
         uint256 amountMinusFees = msg.value - feeAmount;
         if (amountMinusFees > 0) {
-            (bool success, ) = msg.sender.call{ value: amountMinusFees }("");
-            if (!success) {
-                revert TransferFailure();
-            }
+            SafeTransferLib.safeTransferETH(msg.sender, amountMinusFees);
         }
     }
 

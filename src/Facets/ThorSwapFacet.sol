@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IThorSwap } from "../Interfaces/IThorSwap.sol";
@@ -13,9 +13,12 @@ import { ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
-/// @custom:version 1.2.0
+/// @custom:version 1.2.1
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable thorchainRouter;
+
+    address private constant DEPRECATED_RUNE =
+        0x3155BA85D5F96b2d030a4966AF206230e46849cb;
 
     /// @notice The struct for the ThorSwap data.
     /// @param vault The Thorchain vault address
@@ -26,6 +29,8 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         string memo;
         uint256 expiration;
     }
+
+    error DeprecatedToken();
 
     /// @notice Initializes the ThorSwap contract
     constructor(address _thorchainRouter) {
@@ -87,6 +92,12 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         ThorSwapData calldata _thorSwapData
     ) internal {
+        if (
+            block.chainid == 1 && _bridgeData.sendingAssetId == DEPRECATED_RUNE
+        ) {
+            revert DeprecatedToken();
+        }
+
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
         bool isNative = LibAsset.isNativeAsset(address(sendingAssetId));
 

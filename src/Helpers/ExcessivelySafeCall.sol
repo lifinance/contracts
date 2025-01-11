@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // This contract has been taken from: https://github.com/nomad-xyz/ExcessivelySafeCall
 /// @custom:version 1.0.0
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
 

@@ -90,6 +90,13 @@ deploySingleContract() {
     echo ""
   fi
 
+  # Handle ZkSync
+  # We need to use zksync specific scripts that are able to be compiled for
+  # the zkvm
+  if [[ $NETWORK == "zksync" ]]; then
+    DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+  fi
+
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
@@ -134,6 +141,7 @@ deploySingleContract() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "VERSION=$VERSION"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "DIAMOND_TYPE=$DIAMOND_TYPE"
   echo ""
 
   # prepare bytecode
@@ -183,6 +191,28 @@ deploySingleContract() {
     fi
   fi
 
+  if [[ $NETWORK == "zksync" ]]; then
+      # Check if a zksync contract has already been deployed for a specific
+      # version otherwise it might fail since create2 will try to deploy to the
+      # same address
+      DEPLOYED=$(findContractInMasterLog $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH)
+      if [[ $? == 0 ]]; then
+        gum style \
+	        --foreground 220 --border-foreground 220 --border double \
+	        --align center --width 50 --margin "1 2" --padding "2 4" \
+	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
+        gum confirm "Deploy anyway?" || exit 0
+      fi
+      # Clean all old artifacts
+      rm -fr ./out
+      rm -fr ./zkout
+      # Clean zksync cache
+      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
+
+      # Run zksync specific fork of forge
+      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
+  fi
+
   # execute script
   attempts=1
 
@@ -192,12 +222,18 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvvv --json --silent --broadcast --skip-simulation --legacy)
+    if [[ $NETWORK == "zksync" ]]; then
+      # Deploy zksync scripts using the zksync specific fork of forge
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync)
+    else
+      # try to execute call
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --legacy)
+    fi
+
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+    # echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
@@ -279,7 +315,7 @@ deploySingleContract() {
   # check if log entry exists for this file and if yes, if contract is verified already
   LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
   LOG_ENTRY_RETURN_CODE=$?
-  echoDebug "existing log entry (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
+  echoDebug "existing log entry, may have a different address in case of a redeployment (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
 
   if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
@@ -291,6 +327,8 @@ deploySingleContract() {
     REDEPLOYMENT=false
   else
     REDEPLOYMENT=true
+    # overwirte VERIFIED_LOG value since it was a redeployment, we dont care if the last contract was already verified or not
+    VERIFIED_LOG=""
   fi
 
   # verify contract, if needed

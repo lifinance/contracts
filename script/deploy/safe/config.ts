@@ -1,5 +1,4 @@
 import { ContractNetworksConfig } from '@safe-global/protocol-kit'
-import { immutableZkEvm } from 'viem/chains'
 
 export const safeApiUrls: Record<string, string> = {
   mainnet: 'https://safe-transaction-mainnet.safe.global/api',
@@ -7,10 +6,11 @@ export const safeApiUrls: Record<string, string> = {
   aurora: 'https://safe-transaction-aurora.safe.global/api',
   avalanche: 'https://safe-transaction-avalanche.safe.global/api',
   base: 'https://safe-transaction-base.safe.global/api',
-  blast: 'https://transaction.blast-safe.io/api',
+  blast: 'https://safe-transaction-blast.safe.global/api',
   boba: 'https://safe-transaction.mainnet.boba.network/api',
   bsc: 'https://safe-transaction-bsc.safe.global/api',
   celo: 'https://safe-transaction-celo.safe.global/api',
+  cronos: 'https://transaction.cronos-safe.org/api',
   fantom: 'https://safe-txservice.fantom.network/api',
   fraxtal: 'https://transaction-frax.safe.optimism.io/api',
   fuse: 'https://transaction-fuse.safe.fuse.io/api',
@@ -45,6 +45,7 @@ export const safeAddresses: Record<string, string> = {
   boba: '0x05d34Bd70E0CBf8b82423d0C2ee8b2a8f02E4128',
   bsc: '0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15',
   celo: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
+  cronos: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   fantom: '0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b',
   fraxtal: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   fuse: '0x5336e97bA7332FAC20281Bda8B790c8892245Ded',

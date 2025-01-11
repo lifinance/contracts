@@ -27,6 +27,48 @@
       }
     }
   },
+  "AcrossFacetV3": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPacked": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPackedV3": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AllBridgeFacet": {
     "configData": {
       "_allBridge": {
@@ -422,6 +464,25 @@
       }
     }
   },
+  "ReceiverAcrossV3": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_spokepool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "FeeCollector": {
     "configData": {
       "_owner": {
@@ -459,6 +520,52 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "RelayFacet": {
+    "configData": {
+      "_relayReceiver": {
+        "configFileName": "relay.json",
+        "keyInConfigFile": ".<NETWORK>.relayReceiver",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_relaySolver": {
+        "configFileName": "relay.json",
+        "keyInConfigFile": ".<NETWORK>.relaySolver",
+          "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "Permit2Proxy": {
+    "configData": {
+      "permit2Address": {
+        "configFileName": "permit2Proxy.json",
+        "keyInConfigFile": ".<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GasZipFacet": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GasZipPeriphery": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "LiFiDEXAggregator": {
         "allowToDeployWithZeroAddress": "false"
       }
     }

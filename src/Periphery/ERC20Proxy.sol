@@ -1,27 +1,22 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 
 /// @title ERC20 Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract for safely transferring ERC20 tokens for swaps/executions
-/// @custom:version 1.0.0
-contract ERC20Proxy is Ownable {
+/// @custom:version 1.1.0
+contract ERC20Proxy is WithdrawablePeriphery {
     /// Storage ///
     mapping(address => bool) public authorizedCallers;
-
-    /// Errors ///
-    error UnAuthorized();
 
     /// Events ///
     event AuthorizationChanged(address indexed caller, bool authorized);
 
     /// Constructor
-    constructor(address _owner) {
-        transferOwnership(_owner);
-    }
+    constructor(address _owner) WithdrawablePeriphery(_owner) {}
 
     /// @notice Sets whether or not a specified caller is authorized to call this contract
     /// @param caller the caller to change authorization for

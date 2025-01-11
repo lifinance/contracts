@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -70,7 +70,7 @@ contract ExecutorTest is DSTest {
     function setUp() public {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy), address(this));
         vm.makePersistent(address(executor));
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();

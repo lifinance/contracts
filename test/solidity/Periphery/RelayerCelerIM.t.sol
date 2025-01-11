@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibSwap, LibAllowList, TestBase, console } from "../utils/TestBase.sol";
 import { InvalidAmount, UnAuthorized, ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
@@ -44,7 +44,7 @@ contract RelayerCelerIMTest is TestBase {
 
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy), address(this));
         celerIMFacet = new CelerIMFacetMutable(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
             REFUND_WALLET,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { Test, TestBase, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
 import { OnlyContractOwner } from "src/Errors/GenericErrors.sol";
@@ -44,7 +44,7 @@ contract ReceiverTest is TestBase {
         );
 
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy), address(this));
         receiver = new Receiver(
             address(this),
             stargateRouter,
@@ -61,7 +61,7 @@ contract ReceiverTest is TestBase {
         transferId = keccak256("123");
     }
 
-    function test_revert_OwnerCanPullToken() public {
+    function test_revert_OwnerCanWithdrawToken() public {
         // send token to receiver
         vm.startPrank(USER_SENDER);
         dai.transfer(address(receiver), 1000);
@@ -70,15 +70,15 @@ contract ReceiverTest is TestBase {
         // pull token
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
 
         assertEq(1000, dai.balanceOf(USER_RECEIVER));
     }
 
-    function test_revert_PullTokenNonOwner() public {
+    function test_revert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
     // AMAROK-RELATED TESTS
