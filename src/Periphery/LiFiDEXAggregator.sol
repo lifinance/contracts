@@ -3,7 +3,8 @@
 pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -22,8 +23,8 @@ uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.5.0
-contract LiFiDEXAggregator is Ownable {
+/// @custom:version 1.6.0
+contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
     using SafeERC20 for IERC20Permit;
@@ -57,13 +58,17 @@ contract LiFiDEXAggregator is Ownable {
 
     modifier onlyOwnerOrPriviledgedUser() {
         require(
-            msg.sender == owner() || priviledgedUsers[msg.sender],
+            msg.sender == owner || priviledgedUsers[msg.sender],
             "RP: caller is not the owner or a privileged user"
         );
         _;
     }
 
-    constructor(address _bentoBox, address[] memory priviledgedUserList) {
+    constructor(
+        address _bentoBox,
+        address[] memory priviledgedUserList,
+        address _owner
+    ) WithdrawablePeriphery(_owner) {
         bentoBox = IBentoBoxMinimal(_bentoBox);
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
@@ -130,14 +135,7 @@ contract LiFiDEXAggregator is Ownable {
         address to,
         bytes memory route
     ) external payable lock returns (uint256 amountOut) {
-        (bool success, bytes memory returnBytes) = transferValueTo.call{
-            value: amountValueTransfer
-        }("");
-        if (!success) {
-            assembly {
-                revert(add(32, returnBytes), mload(returnBytes))
-            }
-        }
+        SafeTransferLib.safeTransferETH(transferValueTo, amountValueTransfer);
         return
             processRouteInternal(
                 tokenIn,
@@ -370,11 +368,7 @@ contract LiFiDEXAggregator is Ownable {
                     );
                 IWETH(tokenIn).withdraw(amountIn);
             }
-            (bool success, ) = payable(to).call{ value: amountIn }("");
-            require(
-                success,
-                "RouteProcessor.wrapNative: Native token transfer failed"
-            );
+            SafeTransferLib.safeTransferETH(to, amountIn);
         }
     }
 
@@ -750,11 +744,7 @@ contract LiFiDEXAggregator is Ownable {
 
         if (to != address(this)) {
             if (tokenOut == NATIVE_ADDRESS) {
-                (bool success, ) = payable(to).call{ value: amountOut }("");
-                require(
-                    success,
-                    "RouteProcessor.swapCurve: Native token transfer failed"
-                );
+                SafeTransferLib.safeTransferETH(to, amountOut);
             } else {
                 IERC20(tokenOut).safeTransfer(to, amountOut);
             }

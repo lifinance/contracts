@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test, TestBase, Vm, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized, ExternalCallFailed } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverAcrossV3 } from "lifi/Periphery/ReceiverAcrossV3.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -30,7 +30,7 @@ contract ReceiverAcrossV3Test is TestBase {
         initTestBase();
 
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy), address(this));
         receiver = new ReceiverAcrossV3(
             address(this),
             address(executor),
@@ -61,7 +61,7 @@ contract ReceiverAcrossV3Test is TestBase {
         // pull token
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
 
         assertEq(dai.balanceOf(USER_RECEIVER), initialBalance + 1000);
     }
@@ -75,12 +75,12 @@ contract ReceiverAcrossV3Test is TestBase {
         // pull token
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        receiver.pullToken(address(0), payable(USER_RECEIVER), 1 ether);
+        receiver.withdrawToken(address(0), payable(USER_RECEIVER), 1 ether);
 
         assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
-    function test_PullTokenWillRevertIfExternalCallFails() public {
+    function test_WithdrawTokenWillRevertIfExternalCallFails() public {
         vm.deal(address(receiver), 1 ether);
 
         // deploy contract that cannot receive ETH
@@ -88,19 +88,19 @@ contract ReceiverAcrossV3Test is TestBase {
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(ExternalCallFailed.selector);
+        vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
 
-        receiver.pullToken(
+        receiver.withdrawToken(
             address(0),
             payable(address(nonETHReceiver)),
             1 ether
         );
     }
 
-    function test_revert_PullTokenNonOwner() public {
+    function test_revert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
     function test_revert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
