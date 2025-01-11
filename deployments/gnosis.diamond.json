@@ -92,6 +92,10 @@
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
+      },
+      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -100,11 +104,13 @@
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Permit2Proxy": "",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3"
     }
   }
 }

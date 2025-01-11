@@ -1,0 +1,82 @@
+{
+  "mainnet": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "optimism": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "polygon": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "base": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "bsc": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "gnosis": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "lisk": {
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "mantle": {
+    "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "polygonzkevm": {
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "sei": {
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "worldchain": {
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "zksync": {
+    "relayReceiver": "0xebd1e414ebb98522cfd932104ba41fac10a4ef35",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "boba": {
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "arbitrum": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "avalanche": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "blast": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "mode": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "linea": {
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "taiko": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "scroll": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  }
+}

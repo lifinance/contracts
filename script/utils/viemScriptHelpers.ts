@@ -30,7 +30,8 @@ const colors = {
   red: '\x1b[31m',
   green: '\x1b[32m',
 }
-const networks: NetworksObject = networksConfig
+
+export const networks: NetworksObject = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]

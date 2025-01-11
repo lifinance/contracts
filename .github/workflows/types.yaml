@@ -10,111 +10,179 @@ jobs:
   generate-tag:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # Needed to push new tags
 
     steps:
-      - name: Checkout contracts repository
-        uses: actions/checkout@v4
+      # Step 1: Checkout the contracts repository
+      - name: Checkout Contracts Repository
+        uses: actions/checkout@v4.1.7
         with:
           ref: ${{ env.BRANCH_NAME }}
 
+      # Step 2: Install Foundry
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Install Solidity Libs
+      # Step 3: Install Solidity Libraries
+      - name: Install Solidity Libraries
         run: forge install
 
+      # Step 4: Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4.1.0
         with:
           node-version: 20
 
-      - name: Install Node deps
+      # Step 5: Install Node.js dependencies
+      - name: Install Node Dependencies
         run: yarn install
 
+      # Step 6: Generate ABI from contracts
       - name: Generate ABI
         run: yarn abi:generate
 
-      - name: Generate types bindings
+      # Step 7: Generate TypeScript bindings from ABI
+      - name: Generate TypeScript Bindings
         run: yarn typechain
 
-      - name: Checkout lifi-contract-types repository
-        uses: actions/checkout@v4
+      # Step 8: Checkout the lifi-contract-types repository
+      - name: Checkout lifi-contract-types Repository
+        uses: actions/checkout@v4.1.7
         with:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
           ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
           ref: main
 
-      - name: Copy types bindings
+      # Step 9: Copy generated types and ABI into the lifi-contract-types repo
+      - name: Copy Type Bindings and ABI
         run: |
-          rm -r lifi-contract-types/src/
-          mv typechain lifi-contract-types/src
+          rm -rf lifi-contract-types/src/
+          mkdir -p lifi-contract-types/src
+          cp -r typechain/* lifi-contract-types/src/
           cp diamond.json lifi-contract-types/dist/
 
-      - name: Build contract types
-        run: cd lifi-contract-types && yarn install && yarn build
-
-      - name: Retrieve latest Tag
-        id: latest_release
-        run: |
-          # fetch tag releases
-          release_json=$(curl https://api.github.com/repos/lifinance/lifi-contract-types/tags)
-
-          # get the latest tag
-          LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')
-
-          # we need to make sure that on staging we're going to update a -beta version, if any
-          if [[ "$BRANCH_NAME" != "main" ]]; then
-            # if it has already "-beta", no other action is required, since it means
-            # that we're already going to update the latest staging release
-            if [[ "$LATEST_TAG" != *"beta"* ]]; then
-              # otherwise, start looping through the tags and search for the latest -beta tag
-              while read item; do
-                tag_name=$(jq -r '.name' <<< "$item")
-                # check if there's already a latest tag beta release
-                # and, if present, use it instead of the main one
-                # if we end up without any latest beta tag, we will create a beta release from the latest tag
-                if [[ "$tag_name" == "$LATEST_TAG-$beta"* ]]; then
-                  LATEST_TAG=$tag_name
-                  break
-                fi
-              done <<<$(echo "$release_json" | jq -c -r '.[]')
-            fi
-          fi
-          echo "latest tag: $LATEST_TAG"
-          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
-
-      - name: Update version
-        env:
-          MESSAGE: ${{ github.event.head_commit.message }}
-        id: bump_version
-        uses: christian-draeger/increment-semantic-version@1.1.0
-        with:
-          current-version: '${{ env.LATEST_TAG }}'
-          version-fragment: "${{ env.BRANCH_NAME == 'main' && (contains(env.MESSAGE, 'major') && 'major' || contains(env.MESSAGE, 'feat') && 'feature' || 'bug') || 'beta' }}"
-
-      - name: Push tag
-        env:
-          MESSAGE: ${{ github.event.head_commit.message }}
-        if: steps.bump_version.outputs.next-version
+      - name: Verify File Status (for debugging)
         run: |
           cd lifi-contract-types
-          tmp=$(mktemp)
-          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json > "$tmp" && mv "$tmp" package.json
+          git status
+
+      # Step 10: Build the lifi-contract-types project
+      - name: Build Contract Types
+        run: cd lifi-contract-types && yarn install && yarn build
+
+      # Step 11: Retrieve the latest tag from the repository
+      - name: Retrieve Latest Tag
+        id: latest_release
+        run: |
+          # Fetch tags from the lifi-contract-types repository
+          RELEASE_JSON=$(curl https://api.github.com/repos/lifinance/lifi-contract-types/tags)
+
+          # Extract the latest tag name
+          LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.[0].name')
+
+          # Handle beta versions for non-main branches
+          if [[ "$BRANCH_NAME" != "main" ]]; then
+            if [[ "$LATEST_TAG" != *"beta"* ]]; then
+              while read ITEM; do
+                TAG_NAME=$(jq -r '.name' <<< "$ITEM")
+                if [[ "$TAG_NAME" == "$LATEST_TAG-$beta"* ]]; then
+                  LATEST_TAG=$TAG_NAME
+                  break
+                fi
+              done <<<$(echo "$RELEASE_JSON" | jq -c -r '.[]')
+            fi
+          fi
+
+          # Check if LATEST_TAG is empty or null
+          if [[ -z "$LATEST_TAG" || "$LATEST_TAG" == "null" ]]; then
+            echo "ERROR: No latest tag found in the repository."
+            exit 1
+          fi
+
+          # Validate semver format
+          if [[ ! "$LATEST_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-beta)?$ ]]; then
+            echo "ERROR: Invalid version format: $LATEST_TAG (not a valid semver format)"
+            exit 1
+          fi
+
+          echo "LATEST_TAG=$LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      # Step 12: Increment the version number based on the commit message and branch
+      - name: Update Version
+        if: ${{ success() }}
+        env:
+          LATEST_TAG: ${{ env.LATEST_TAG }}
+          BRANCH_NAME: ${{ env.BRANCH_NAME }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        id: bump_version
+        run: |
+          # Remove leading "v" from LATEST_TAG for semver parsing
+          CURRENT_VERSION="${LATEST_TAG#v}"
+          echo "Current version: $CURRENT_VERSION"
+
+          VERSION_FRAGMENT=""
+          BETA=""
+
+          # Determine the type of version bump
+          if [[ "$BRANCH_NAME" == "main" ]]; then
+            if [[ "$MESSAGE" =~ "major" ]]; then
+              VERSION_FRAGMENT="major"
+            elif [[ "$MESSAGE" =~ "feat" ]]; then
+              VERSION_FRAGMENT="minor"
+            else
+              VERSION_FRAGMENT="patch"
+            fi
+          else
+            VERSION_FRAGMENT="beta"
+          fi
+
+          # Parse and increment the version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION//[^0-9.]/}"
+
+          if [[ "$VERSION_FRAGMENT" == "major" ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$VERSION_FRAGMENT" == "minor" ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [[ "$VERSION_FRAGMENT" == "patch" ]]; then
+            PATCH=$((PATCH + 1))
+          elif [[ "$VERSION_FRAGMENT" == "beta" ]]; then
+            PATCH=$((PATCH + 1))
+            BETA="-beta"
+          fi
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}${BETA}"
+
+          echo "New version: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      # Step 13: Push the updated version tag to the repository
+      - name: Push Updated Tag
+        if: ${{ success() }}
+        env:
+          NEW_VERSION: ${{ env.NEW_VERSION }}
+          BRANCH_NAME: ${{ env.BRANCH_NAME }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          cd lifi-contract-types
+          TMP=$(mktemp)
+          jq --arg version "$NEW_VERSION" '.version=$version' package.json > "$TMP" && mv "$TMP" package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
-          echo 'Updating version from ${{ env.LATEST_TAG }} to ${{ steps.bump_version.outputs.next-version }}'
-          git add src/*
-          git add dist/*
-          git add package.json
-          git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
+          echo "Updating version from $LATEST_TAG to $NEW_VERSION"
+          # git add src/*
+          # git add dist/*
+          # git add package.json
+          git add -A  # Stage all changes, including deletions
 
-          # Sanitize the commit message by removing single quotes
-          COMMIT_MSG=$(echo "$MESSAGE" | sed "s/'//g")
+          git commit -m "actions: new contracts version $NEW_VERSION"
 
-          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "$MESSAGE"
-          git push origin tag v${{ steps.bump_version.outputs.next-version }}
+          # Annotate and push the new tag
+          git tag -a "v$NEW_VERSION" -m "$MESSAGE"
+          git push origin tag "v$NEW_VERSION"
           if [[ "$BRANCH_NAME" == "main" ]]; then
             git push -u origin $BRANCH_NAME
           fi

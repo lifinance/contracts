@@ -3,6 +3,8 @@ import { consola } from 'consola'
 import { $, spinner } from 'zx'
 import { defineCommand, runMain } from 'citty'
 import * as chains from 'viem/chains'
+import * as path from 'path'
+import * as fs from 'fs'
 import {
   Address,
   Chain,
@@ -16,11 +18,10 @@ import {
 } from 'viem'
 import {
   Network,
+  networks,
   getViemChainForNetworkName,
   type NetworksObject,
 } from '../utils/viemScriptHelpers'
-import data from '../../config/networks.json'
-const networks: NetworksObject = data as NetworksObject
 
 const SAFE_THRESHOLD = 3
 
@@ -65,10 +66,6 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const { getViemChainForNetworkName, networks } = await import(
-      '../utils/viemScriptHelpers'
-    )
-
     if ((await $`${louperCmd}`.exitCode) !== 0) {
       const answer = await consola.prompt(
         'Louper CLI is required but not installed. Would you like to install it now?',
@@ -179,12 +176,19 @@ const main = defineCommand({
     consola.box('Checking facets registered in diamond...')
     $.quiet = true
 
-    const facetsResult =
-      await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${chainNameMappings[network]} --json`
-
-    const registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
-      (f: { name: string }) => f.name
-    )
+    let registeredFacets: string[] = []
+    try {
+      const facetsResult =
+        await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
+      registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
+        (f: { name: string }) => f.name
+      )
+    } catch (error) {
+      consola.warn(
+        'Unable to parse louper output - skipping facet registration check'
+      )
+      consola.debug('Error:', error)
+    }
 
     for (const facet of [...coreFacets, ...nonCoreFacets]) {
       if (!registeredFacets.includes(facet)) {
@@ -211,6 +215,29 @@ const main = defineCommand({
         continue
       }
       consola.success(`Periphery contract ${contract} deployed`)
+    }
+
+    const deployerWallet = getAddress(globalConfig.deployerWallet)
+
+    // Check Executor authorization in ERC20Proxy
+    const erc20Proxy = getContract({
+      address: deployedContracts['ERC20Proxy'],
+      abi: parseAbi([
+        'function authorizedCallers(address) external view returns (bool)',
+        'function owner() external view returns (address)',
+      ]),
+      client: publicClient,
+    })
+
+    const executorAddress = deployedContracts['Executor']
+    const isExecutorAuthorized = await erc20Proxy.read.authorizedCallers([
+      executorAddress,
+    ])
+
+    if (!isExecutorAuthorized) {
+      logError('Executor is not authorized in ERC20Proxy')
+    } else {
+      consola.success('Executor is authorized in ERC20Proxy')
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -245,6 +272,7 @@ const main = defineCommand({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
           'function approvedDexs() external view returns (address[])',
+          'function isFunctionApproved(bytes4) external returns (bool)',
         ]),
         client: publicClient,
       })
@@ -282,6 +310,53 @@ const main = defineCommand({
       )
 
       //          ╭─────────────────────────────────────────────────────────╮
+      //          │                   Check approved sigs                   │
+      //          ╰─────────────────────────────────────────────────────────╯
+
+      consola.box('Checking DEX signatures approved in diamond...')
+      // Check if function signatures are approved
+      const { sigs } = await import(`../../config/sigs.json`)
+
+      // Function to split array into chunks
+      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
+        const chunks: T[][] = []
+        for (let i = 0; i < array.length; i += chunkSize) {
+          chunks.push(array.slice(i, i + chunkSize))
+        }
+        return chunks
+      }
+
+      const batchSize = 20
+      const sigBatches = chunkArray(sigs, batchSize)
+
+      const sigsToApprove: Hex[] = []
+
+      for (const batch of sigBatches) {
+        const calls = batch.map((sig: string) => {
+          return {
+            ...dexManager,
+            functionName: 'isFunctionApproved',
+            args: [sig],
+          }
+        })
+
+        const results = await publicClient.multicall({ contracts: calls })
+
+        for (let i = 0; i < results.length; i++) {
+          if (results[i].status !== 'success' || !results[i].result) {
+            console.log('Function not approved:', batch[i])
+            sigsToApprove.push(batch[i] as Hex)
+          }
+        }
+      }
+
+      if (sigsToApprove.length > 0) {
+        logError(`Missing ${sigsToApprove.length} DEX signatures`)
+      } else {
+        consola.success('No missing signatures.')
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check contract ownership                 │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking ownership...')
@@ -289,6 +364,18 @@ const main = defineCommand({
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
+
+      // Check ERC20Proxy ownership
+      const erc20ProxyOwner = await erc20Proxy.read.owner()
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
+        logError(
+          `ERC20Proxy owner is ${getAddress(
+            erc20ProxyOwner
+          )}, expected ${getAddress(deployerWallet)}`
+        )
+      } else {
+        consola.success('ERC20Proxy owner is correct')
+      }
 
       // Check that Diamond is owned by SAFE
       if (globalConfig.safeAddresses[network.toLowerCase()]) {
@@ -326,6 +413,33 @@ const main = defineCommand({
       )
 
       //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check emergency pause config             │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking emergency pause config...')
+      const filePath: string = path.join(
+        '.github',
+        'workflows',
+        'diamondEmergencyPause.yml'
+      )
+
+      try {
+        const fileContent: string = fs.readFileSync(filePath, 'utf8')
+
+        const networkUpper: string = network.toUpperCase()
+        const pattern = new RegExp(
+          `ETH_NODE_URI_${networkUpper}\\s*:\\s*\\$\\{\\{\\s*secrets\\.ETH_NODE_URI_${networkUpper}\\s*\\}\\}`
+        )
+
+        const exists: boolean = pattern.test(fileContent)
+
+        if (!exists) {
+          logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
+        }
+      } catch (error: any) {
+        logError(`Error checking workflow file: ${error.message}`)
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check access permissions                 │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking access permissions...')
@@ -338,7 +452,6 @@ const main = defineCommand({
       })
 
       // Deployer wallet
-      const deployerWallet = getAddress(globalConfig.deployerWallet)
       const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
         sig: Hex
         name: string
@@ -424,9 +537,9 @@ const main = defineCommand({
   },
 })
 
-const logError = (string: string) => {
-  consola.error(string)
-  errors.push(string)
+const logError = (msg: string) => {
+  consola.error(msg)
+  errors.push(msg)
 }
 
 const getOwnableContract = (address: Address, client: PublicClient) => {

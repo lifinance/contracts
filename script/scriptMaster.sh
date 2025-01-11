@@ -134,15 +134,8 @@ scriptMaster() {
     if [[ $NETWORK == "zksync" ]]; then
       # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
-      # Check if the foundry-zksync docker image exists
-      if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^foundry-zksync:latest$'; then
-        echo "The 'foundry-zksync' image already exists. Skipping build."
-      else
-        # If it doesn't exist we need to build it
-        echo "The 'foundry-zksync' image does not exist. Building it now..."
-        docker build -t foundry-zksync ./foundry-zksync
-        echo "The 'foundry-zksync' image has been built successfully."
-      fi
+      # Check if the foundry-zksync binaries exist, if not fetch them
+      install_foundry_zksync
     fi
   
     # get user-selected deploy script and contract from list

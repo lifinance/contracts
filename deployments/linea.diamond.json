@@ -106,26 +106,44 @@
         "Version": "1.0.1"
       },
       "0x80b96CA9B47aCD6c2a888128fEb9b0F4Ea518FEc": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
-      "0xAfEB7e1DA0Ff4DcD0dbC4De3F51a933E2054B0ed": {
+      "0x60b6710c04D44273F6F5C2F1c871Aa9e856bED12": {
         "Name": "AcrossFacetPackedV3",
-        "Version": "1.0.0"
+        "Version": "1.2.0"
       },
       "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
+      },
+      "0x75943d7305310635945736D00235d825181018f3": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.0"
+      },
+      "0x2531368BAca8c5E85031FC0a9a2f148b65da389A": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
+      "0xa6E0a6A839F75773d26Cc753C389029CA5B31e9e": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0x3fa3d268F979D5969C8B64beF9Ef3CBFdaf48535": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
+      "GasZipPeriphery": "0x0ec6D2eEb94541C51620830D151995fCFf83Aa74",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
+      "Permit2Proxy": "",
+      "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
       "Receiver": "0xdcBEcDE898c067cA58ABD01a7de51660bBD5A897",
-      "ReceiverAcrossV3": "0x4BB377A1A624bDeF72d352891dc5E64087345fe6",
       "ReceiverStargateV2": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
       "RelayerCelerIM": "",
       "TokenWrapper": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a"

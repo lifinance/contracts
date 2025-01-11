@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test, TestBase, Vm, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized, ExternalCallFailed } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverAcrossV3 } from "lifi/Periphery/ReceiverAcrossV3.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -19,27 +19,22 @@ contract ReceiverAcrossV3Test is TestBase {
     bytes32 guid = bytes32("12345");
     address receiverAddress = USER_RECEIVER;
 
-    uint256 public constant RECOVER_GAS_VALUE = 100000;
     address stargateRouter;
     Executor executor;
     ERC20Proxy erc20Proxy;
 
     event ExecutorSet(address indexed executor);
-    event RecoverGasSet(uint256 indexed recoverGas);
-
-    error InsufficientGasLimit();
 
     function setUp() public {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy), address(this));
         receiver = new ReceiverAcrossV3(
             address(this),
             address(executor),
-            SPOKEPOOL_MAINNET,
-            RECOVER_GAS_VALUE
+            SPOKEPOOL_MAINNET
         );
         vm.label(address(receiver), "ReceiverAcrossV3");
         vm.label(address(executor), "Executor");
@@ -50,13 +45,11 @@ contract ReceiverAcrossV3Test is TestBase {
         receiver = new ReceiverAcrossV3(
             address(this),
             address(executor),
-            SPOKEPOOL_MAINNET,
-            RECOVER_GAS_VALUE
+            SPOKEPOOL_MAINNET
         );
 
         assertEq(address(receiver.executor()) == address(executor), true);
         assertEq(receiver.spokepool() == SPOKEPOOL_MAINNET, true);
-        assertEq(receiver.recoverGas() == RECOVER_GAS_VALUE, true);
     }
 
     function test_OwnerCanPullERC20Token() public {
@@ -68,7 +61,7 @@ contract ReceiverAcrossV3Test is TestBase {
         // pull token
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
 
         assertEq(dai.balanceOf(USER_RECEIVER), initialBalance + 1000);
     }
@@ -82,12 +75,12 @@ contract ReceiverAcrossV3Test is TestBase {
         // pull token
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        receiver.pullToken(address(0), payable(USER_RECEIVER), 1 ether);
+        receiver.withdrawToken(address(0), payable(USER_RECEIVER), 1 ether);
 
         assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
-    function test_PullTokenWillRevertIfExternalCallFails() public {
+    function test_WithdrawTokenWillRevertIfExternalCallFails() public {
         vm.deal(address(receiver), 1 ether);
 
         // deploy contract that cannot receive ETH
@@ -95,19 +88,19 @@ contract ReceiverAcrossV3Test is TestBase {
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(ExternalCallFailed.selector);
+        vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
 
-        receiver.pullToken(
+        receiver.withdrawToken(
             address(0),
             payable(address(nonETHReceiver)),
             1 ether
         );
     }
 
-    function test_revert_PullTokenNonOwner() public {
+    function test_revert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
     function test_revert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
@@ -168,52 +161,6 @@ contract ReceiverAcrossV3Test is TestBase {
         assertTrue(dai.balanceOf(receiverAddress) == amountOutMin);
     }
 
-    function test_willRevertIfGasIsLessThanRecoverGas() public {
-        // mock-send bridged funds to receiver contract
-        deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
-
-        // encode payload with mock data like Stargate would according to:
-        (bytes memory payload, ) = _getValidAcrossV3Payload(
-            ADDRESS_USDC,
-            ADDRESS_DAI
-        );
-
-        // fake a sendCompose from USDC pool on ETH mainnet
-        vm.startPrank(SPOKEPOOL_MAINNET);
-
-        vm.expectRevert(abi.encodeWithSelector(InsufficientGasLimit.selector));
-
-        receiver.handleV3AcrossMessage{ gas: RECOVER_GAS_VALUE }(
-            ADDRESS_USDC,
-            defaultUSDCAmount,
-            address(0),
-            payload
-        );
-    }
-
-    function test_willRevertIfDestCallRunsOutOfGas() public {
-        // mock-send bridged funds to receiver contract
-        deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
-
-        // encode payload with mock data like Stargate would according to:
-        (bytes memory payload, ) = _getValidAcrossV3Payload(
-            ADDRESS_USDC,
-            ADDRESS_DAI
-        );
-
-        // fake a sendCompose from USDC pool on ETH mainnet
-        vm.startPrank(SPOKEPOOL_MAINNET);
-
-        vm.expectRevert(abi.encodeWithSelector(InsufficientGasLimit.selector));
-
-        receiver.handleV3AcrossMessage{ gas: RECOVER_GAS_VALUE + 150000 }(
-            ADDRESS_USDC,
-            defaultUSDCAmount,
-            address(0),
-            payload
-        );
-    }
-
     function test_willReturnFundsToUserIfDstCallFails() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
@@ -248,7 +195,7 @@ contract ReceiverAcrossV3Test is TestBase {
             defaultUSDCAmount,
             block.timestamp
         );
-        receiver.handleV3AcrossMessage{ gas: RECOVER_GAS_VALUE + 200000 }(
+        receiver.handleV3AcrossMessage(
             ADDRESS_USDC,
             defaultUSDCAmount,
             address(0),

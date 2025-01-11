@@ -26,6 +26,12 @@ contract DeployScript is DeployScriptBase {
             "/config/networks.json"
         );
 
+        // get path of global config file
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
+
         // read file into json variable
         string memory tokenWrapperConfigJSON = vm.readFile(tokenWrapperConfig);
 
@@ -34,6 +40,14 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        return abi.encode(wrappedNativeAddress);
+        // read file into json variable
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract refundWallet address
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
+        return abi.encode(wrappedNativeAddress, refundWalletAddress);
     }
 }

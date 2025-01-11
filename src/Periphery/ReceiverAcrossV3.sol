@@ -5,24 +5,20 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title ReceiverAcrossV3
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
-/// @custom:version 1.0.0
-contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
+/// @custom:version 1.1.0
+contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
-
-    /// Error ///
-    error InsufficientGasLimit();
 
     /// Storage ///
     IExecutor public immutable executor;
     address public immutable spokepool;
-    uint256 public immutable recoverGas;
 
     /// Modifiers ///
     modifier onlySpokepool() {
@@ -36,13 +32,10 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
     constructor(
         address _owner,
         address _executor,
-        address _spokepool,
-        uint256 _recoverGas
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+        address _spokepool
+    ) WithdrawablePeriphery(_owner) {
         executor = IExecutor(_executor);
         spokepool = _spokepool;
-        recoverGas = _recoverGas;
     }
 
     /// External Methods ///
@@ -77,27 +70,10 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         );
     }
 
-    /// @notice Send remaining token to receiver
-    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) revert ExternalCallFailed();
-        } else {
-            assetId.safeTransfer(receiver, amount);
-        }
-    }
-
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction
+    /// @notice Since Across will always send wrappedNative to contract, we do not need a native handling here
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swapData array of data needed for swaps
     /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
@@ -110,34 +86,15 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         address payable receiver,
         uint256 amount
     ) private {
-        // since Across will always send wrappedNative to contract, we do not need a native handling here
-        uint256 cacheGasLeft = gasleft();
-
-        // We introduced this handling to prevent relayers from under-estimating our destination transactions and then
-        // running into out-of-gas errors which would cause the bridged tokens to be refunded to the receiver. This is
-        // an emergency behaviour but testing showed that this would happen very frequently.
-        // Reverting transactions that dont have enough gas helps to make sure that transactions will get correctly estimated
-        // by the relayers on source chain and thus improves the success rate of destination calls.
-        if (cacheGasLeft < recoverGas) {
-            // case A: not enough gas left to execute calls
-            // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
-            //       as it's better for AcrossV3 to revert these cases instead
-            revert InsufficientGasLimit();
-        }
-
-        // case 2b: enough gas left to execute calls
-        assetId.safeApprove(address(executor), 0);
-        assetId.safeApprove(address(executor), amount);
+        assetId.safeApproveWithRetry(address(executor), amount);
         try
-            executor.swapAndCompleteBridgeTokens{
-                gas: cacheGasLeft - recoverGas
-            }(_transactionId, _swapData, assetId, receiver)
+            executor.swapAndCompleteBridgeTokens(
+                _transactionId,
+                _swapData,
+                assetId,
+                receiver
+            )
         {} catch {
-            cacheGasLeft = gasleft();
-            // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this
-            // case we want to revert (again, to force relayers to estimate our destination calls with sufficient gas limit)
-            if (cacheGasLeft <= recoverGas) revert InsufficientGasLimit();
-
             // send the bridged (and unswapped) funds to receiver address
             assetId.safeTransfer(receiver, amount);
 

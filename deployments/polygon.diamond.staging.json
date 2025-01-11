@@ -118,8 +118,12 @@
         "Version": "1.0.0"
       },
       "0xE15C7585636e62b88bA47A40621287086E0c2E33": {
-        "Name": "",
-        "Version": ""
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
+      },
+      "0x74763722d92832d247cFa92825b06098cf72BAA2": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -128,12 +132,11 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
-      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverAcrossV3": "",
+      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverStargateV2": "",
       "ReceiverAcrossV3": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
-}

@@ -1,6 +1,6 @@
 {
   "mainnet": {
-    "name": "Ethereum Mainnet",
+    "name": "mainnet",
     "chainId": 1,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -18,7 +18,7 @@
     "gasZipChainId": 255
   },
   "arbitrum": {
-    "name": "Arbitrum One",
+    "name": "arbitrum",
     "chainId": 42161,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -36,7 +36,7 @@
     "gasZipChainId": 57
   },
   "aurora": {
-    "name": "Aurora",
+    "name": "aurora",
     "chainId": 1313161554,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -54,7 +54,7 @@
     "gasZipChainId": 62
   },
   "avalanche": {
-    "name": "Avalanche C-Chain",
+    "name": "avalanche",
     "chainId": 43114,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "AVAX",
@@ -72,7 +72,7 @@
     "gasZipChainId": 15
   },
   "base": {
-    "name": "Base",
+    "name": "base",
     "chainId": 8453,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -90,7 +90,7 @@
     "gasZipChainId": 54
   },
   "blast": {
-    "name": "Blast",
+    "name": "blast",
     "chainId": 81457,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -102,13 +102,13 @@
     "explorerUrl": "https://blastscan.io",
     "explorerApiUrl": "https://api.blastscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeApiUrl": "https://transaction.blast-safe.io/api",
+    "safeApiUrl": "https://safe-transaction-blast.safe.global/api",
     "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
-    "safeWebUrl": "https://blast-safe.io/transactions/queue?safe=blastmainnet:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "safeWebUrl": "https://app.safe.global/transactions/queue?safe=blast:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 96
   },
   "boba": {
-    "name": "Boba Network",
+    "name": "boba",
     "chainId": 288,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -126,7 +126,7 @@
     "gasZipChainId": 140
   },
   "bsc": {
-    "name": "BNB Smart Chain",
+    "name": "bsc",
     "chainId": 56,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "BNB",
@@ -144,7 +144,7 @@
     "gasZipChainId": 148
   },
   "celo": {
-    "name": "Celo",
+    "name": "celo",
     "chainId": 42220,
     "nativeAddress": "0x471EcE3750Da237f93B8E339c536989b8978a438",
     "nativeCurrency": "CELO",
@@ -162,7 +162,7 @@
     "gasZipChainId": 21
   },
   "cronos": {
-    "name": "Cronos",
+    "name": "cronos",
     "chainId": 25,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "CRO",
@@ -180,7 +180,7 @@
     "gasZipChainId": 36
   },
   "fantom": {
-    "name": "Fantom",
+    "name": "fantom",
     "chainId": 250,
     "nativeCurrency": "FTM",
     "nativeAddress": "0x0000000000000000000000000000000000000000",
@@ -198,7 +198,7 @@
     "gasZipChainId": 20
   },
   "fraxtal": {
-    "name": "Fraxtal",
+    "name": "fraxtal",
     "chainId": 252,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "frxETH",
@@ -216,7 +216,7 @@
     "gasZipChainId": 10
   },
   "fuse": {
-    "name": "Fuse",
+    "name": "fuse",
     "chainId": 122,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "FUSE",
@@ -234,7 +234,7 @@
     "gasZipChainId": 31
   },
   "gnosis": {
-    "name": "Gnosis Chain",
+    "name": "gnosis",
     "chainId": 100,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "XDAI",
@@ -252,7 +252,7 @@
     "gasZipChainId": 16
   },
   "gravity": {
-    "name": "Gravity Alpha Mainnet",
+    "name": "gravity",
     "chainId": 1625,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "G",
@@ -270,7 +270,7 @@
     "gasZipChainId": 240
   },
   "immutablezkevm": {
-    "name": "Immutable zkEVM",
+    "name": "immutablezkevm",
     "chainId": 13371,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "IMX",
@@ -288,7 +288,7 @@
     "gasZipChainId": 95
   },
   "kaia": {
-    "name": "Kaia",
+    "name": "kaia",
     "chainId": 8217,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "KLAYTN",
@@ -306,7 +306,7 @@
     "gasZipChainId": 33
   },
   "linea": {
-    "name": "Linea",
+    "name": "linea",
     "chainId": 59144,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -323,8 +323,26 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=linea:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 59
   },
+  "lisk": {
+    "name": "Lisk",
+    "chainId": 1135,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.api.lisk.com",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://blockscout.lisk.com",
+    "explorerApiUrl": "https://blockscout.lisk.com/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction-lisk.safe.optimism.io/api",
+    "safeAddress": "0x86E02d7383D6a045848b0a1A842996AC9E943113",
+    "safeWebUrl": "https://safe.optimism.io/home?safe=lisk:0x86E02d7383D6a045848b0a1A842996AC9E943113",
+    "gasZipChainId": 238
+  },
   "mantle": {
-    "name": "Mantle",
+    "name": "mantle",
     "chainId": 5000,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "MNT",
@@ -342,7 +360,7 @@
     "gasZipChainId": 13
   },
   "metis": {
-    "name": "Metis Andromeda Mainnet",
+    "name": "metis",
     "chainId": 1088,
     "nativeAddress": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000",
     "nativeCurrency": "METIS",
@@ -360,7 +378,7 @@
     "gasZipChainId": 30
   },
   "mode": {
-    "name": "Mode",
+    "name": "mode",
     "chainId": 34443,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -378,7 +396,7 @@
     "gasZipChainId": 73
   },
   "moonbeam": {
-    "name": "Moonbeam",
+    "name": "moonbeam",
     "chainId": 1284,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "GLMR",
@@ -396,7 +414,7 @@
     "gasZipChainId": 28
   },
   "moonriver": {
-    "name": "Moonriver",
+    "name": "moonriver",
     "chainId": 1285,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "MOVR",
@@ -414,7 +432,7 @@
     "gasZipChainId": 29
   },
   "optimism": {
-    "name": "Optimism",
+    "name": "optimism",
     "chainId": 10,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -432,7 +450,7 @@
     "gasZipChainId": 55
   },
   "opbnb": {
-    "name": "OP BNB",
+    "name": "opbnb",
     "chainId": 204,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "BNB",
@@ -442,7 +460,7 @@
     "rpcUrl": "https://opbnb.drpc.org",
     "verificationType": "etherscan",
     "explorerUrl": "https://opbnb.bscscan.com/",
-    "explorerApiUrl": "",
+    "explorerApiUrl": "https://api-opbnb.bscscan.com/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://safe-transaction-opbnb-mainnet.bnbchain.org/api",
     "safeAddress": "0xaAD94196680Edb94B421bb5B1E1A0B27db686C72",
@@ -450,7 +468,7 @@
     "gasZipChainId": 58
   },
   "polygon": {
-    "name": "Polygon",
+    "name": "polygon",
     "chainId": 137,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "MATIC",
@@ -468,7 +486,7 @@
     "gasZipChainId": 17
   },
   "polygonzkevm": {
-    "name": "Polygon zkEVM",
+    "name": "polygonzkevm",
     "chainId": 1101,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -486,7 +504,7 @@
     "gasZipChainId": 52
   },
   "rootstock": {
-    "name": "Rootstock",
+    "name": "rootstock",
     "chainId": 30,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "RBTC",
@@ -504,7 +522,7 @@
     "gasZipChainId": 254
   },
   "scroll": {
-    "name": "zkScroll",
+    "name": "scroll",
     "chainId": 534352,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -522,7 +540,7 @@
     "gasZipChainId": 41
   },
   "sei": {
-    "name": "Sei Network",
+    "name": "sei",
     "chainId": 1329,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "SEI",
@@ -540,7 +558,7 @@
     "gasZipChainId": 246
   },
   "taiko": {
-    "name": "Taiko",
+    "name": "taiko",
     "chainId": 167000,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -565,7 +583,7 @@
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "inactive",
     "type": "mainnet",
-    "rpcUrl": "https://worldchain-mainnet.g.alchemy.com/public",
+    "rpcUrl": "https://worldchain-mainnet.gateway.tenderly.co",
     "verificationType": "etherscan",
     "explorerUrl": "https://worldscan.org",
     "explorerApiUrl": "https://api.worldscan.org/api",
@@ -576,7 +594,7 @@
     "gasZipChainId": 269
   },
   "xlayer": {
-    "name": "X Layer",
+    "name": "xlayer",
     "chainId": 196,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "OKB",
@@ -594,7 +612,7 @@
     "gasZipChainId": 146
   },
   "zksync": {
-    "name": "zkSync Era Mainnet",
+    "name": "zksync",
     "chainId": 324,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -612,7 +630,7 @@
     "gasZipChainId": 51
   },
   "localanvil": {
-    "name": "Local Anvil (temporary Foundry test network)",
+    "name": "localanvil",
     "chainId": 31337,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
