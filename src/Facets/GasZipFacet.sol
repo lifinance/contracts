@@ -18,8 +18,6 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
-    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
-
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
@@ -27,6 +25,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address public constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
     IGasZip public immutable gasZipRouter;
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
 
     /// Constructor ///
     constructor(address _gasZipRouter) {
