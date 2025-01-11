@@ -14,7 +14,7 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the gas.zip protocol (https://www.gas.zip/)
-/// @custom:version 2.0.1
+/// @custom:version 2.0.2
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
