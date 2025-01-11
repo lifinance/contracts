@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @custom:version 1.0.0
 interface IAcrossSpokePool {
     function deposit(
         address recipient, // Recipient address

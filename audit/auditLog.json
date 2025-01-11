@@ -7,6 +7,13 @@
       "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
       "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
     },
+    "audit20240902": {
+      "auditCompletedOn": "02.09.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.09.02_CalldataVerificationFacet.pdf",
+      "auditCommitHash": "374d066a2d4ffd98eb6042cac7a2dd4aa0bf2ff8"
+    },
     "audit20240913": {
       "auditCompletedOn": "13.09.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -137,6 +144,11 @@
         "audit20241206"
       ]
     },
+    "CalldataVerificationFacet": {
+      "1.2.0": [
+        "audit20240902"
+      ]
+    },
     "DeBridgeDlnFacet": {
       "1.0.0": [
         "audit20241205"
@@ -179,6 +191,11 @@
       ],
       "1.0.1": [
         "audit20250110_1"
+      ]
+    },
+    "IAcrossSpokePool": {
+      "1.0.0": [
+        "audit20250106"
       ]
     },
     "IGasZip": {

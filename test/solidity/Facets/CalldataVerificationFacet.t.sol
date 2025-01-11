@@ -4,21 +4,33 @@ pragma solidity ^0.8.17;
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
-import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
+import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
+import { IStargate } from "lifi/Interfaces/IStargate.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
+import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
+
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
 contract CalldataVerificationFacetTest is TestBase {
+    using LibBytes for bytes;
+    using OFTComposeMsgCodec for address;
+
     CalldataVerificationFacet internal calldataVerificationFacet;
 
     function setUp() public {
+        customBlockNumberForForking = 19979843;
+        initTestBase();
         calldataVerificationFacet = new CalldataVerificationFacet();
         bridgeData = ILiFi.BridgeData({
             transactionId: keccak256("id"),
@@ -44,6 +56,16 @@ contract CalldataVerificationFacetTest is TestBase {
                 requiresDeposit: true
             })
         );
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(
+            address(calldataVerificationFacet),
+            "CalldataVerificationFacet"
+        );
+    }
+
+    function test_DeploysWithoutErrors() public {
+        calldataVerificationFacet = new CalldataVerificationFacet();
     }
 
     function test_IgnoresExtraBytes() public view {
@@ -278,9 +300,129 @@ contract CalldataVerificationFacetTest is TestBase {
         assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
     }
 
-    function test_CanExtractGenericSwapParameters() public {
+    function test_RevertsOnInvalidGenericSwapCallData() public {
+        // prepare minimum callData
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: address(123),
+            receivingAssetId: address(456),
+            fromAmount: 1,
+            callData: "",
+            requiresDeposit: false
+        });
         bytes memory callData = abi.encodeWithSelector(
-            GenericSwapFacet.swapTokensGeneric.selector,
+            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
+            keccak256(""),
+            "",
+            "",
+            payable(address(1234)),
+            1,
+            swapData[0]
+        );
+
+        // reduce calldata to 483 bytes to not meet min calldata length threshold
+        callData = callData.slice(0, 483);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        calldataVerificationFacet.extractGenericSwapParameters(callData);
+    }
+
+    function test_CanExtractGenericSwapMinCallData() public {
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: address(123),
+            receivingAssetId: address(456),
+            fromAmount: 1,
+            callData: "",
+            requiresDeposit: false
+        });
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
+            keccak256(""),
+            "",
+            "",
+            payable(address(1234)),
+            1,
+            swapData[0]
+        );
+
+        (
+            address sendingAssetId,
+            uint256 amount,
+            address receiver,
+            address receivingAssetId,
+            uint256 receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(callData);
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1);
+    }
+
+    function test_CanExtractGenericSwapV3SingleParameters() public {
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
+            keccak256("id"),
+            "acme",
+            "acme",
+            payable(address(1234)),
+            1 ether,
+            swapData[0]
+        );
+
+        (
+            address sendingAssetId,
+            uint256 amount,
+            address receiver,
+            address receivingAssetId,
+            uint256 receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(callData);
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (
+            sendingAssetId,
+            amount,
+            receiver,
+            receivingAssetId,
+            receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(
+            standardizedCallData
+        );
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
+    }
+
+    function test_CanExtractGenericSwapV3MultipleParameters() public {
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20.selector,
             keccak256("id"),
             "acme",
             "acme",
@@ -602,6 +744,100 @@ contract CalldataVerificationFacetTest is TestBase {
         assertFalse(badCall);
     }
 
+    function test_CanValidateStargateV2DestinationCalldata() public {
+        uint16 ASSET_ID_USDC = 1;
+        address STARGATE_POOL_USDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+
+        StargateFacetV2.StargateData memory stargateData = StargateFacetV2
+            .StargateData({
+                assetId: ASSET_ID_USDC,
+                sendParams: IStargate.SendParam({
+                    dstEid: 30150,
+                    to: USER_RECEIVER.addressToBytes32(),
+                    amountLD: defaultUSDCAmount,
+                    minAmountLD: (defaultUSDCAmount * 9e4) / 1e5,
+                    extraOptions: "",
+                    composeMsg: bytes("foobarbytes"),
+                    oftCmd: OftCmdHelper.bus()
+                }),
+                fee: IStargate.MessagingFee({ nativeFee: 0, lzTokenFee: 0 }),
+                refundAddress: payable(USER_REFUND)
+            });
+
+        // get quote and update fee information in stargateData
+        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+            .quoteSend(stargateData.sendParams, false);
+        stargateData.fee = fees;
+
+        bytes memory callData = abi.encodeWithSelector(
+            StargateFacetV2.startBridgeTokensViaStargate.selector,
+            bridgeData,
+            stargateData
+        );
+
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            StargateFacetV2.swapAndStartBridgeTokensViaStargate.selector,
+            bridgeData,
+            swapData,
+            stargateData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callDataWithSwap
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+    }
+
     function test_CanValidateCelerIMDestinationCalldata() public {
         CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
@@ -765,6 +1001,31 @@ contract CalldataVerificationFacetTest is TestBase {
         assertFalse(badCall);
     }
 
+    function test_RevertsOnDestinationCalldataWithInvalidSelector() public {
+        CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
+            maxSlippage: 1,
+            nonce: 2,
+            callTo: abi.encode(USER_RECEIVER),
+            callData: bytes("foobarbytes"),
+            messageBusFee: 3,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacet.swapTokensGeneric.selector, // wrong selector, does not support destination calls
+            bridgeData,
+            cimData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+
+        assertFalse(validCall);
+    }
+
     function checkBridgeData(ILiFi.BridgeData memory data) internal {
         assertTrue(data.transactionId == bridgeData.transactionId);
         assertEq(data.bridge, bridgeData.bridge);
@@ -776,5 +1037,15 @@ contract CalldataVerificationFacetTest is TestBase {
         assertTrue(data[0].approveTo == swapData[0].approveTo);
         assertTrue(data[0].sendingAssetId == swapData[0].sendingAssetId);
         assertTrue(data[0].receivingAssetId == swapData[0].receivingAssetId);
+    }
+}
+
+library OftCmdHelper {
+    function taxi() internal pure returns (bytes memory) {
+        return "";
+    }
+
+    function bus() internal pure returns (bytes memory) {
+        return new bytes(1);
     }
 }
