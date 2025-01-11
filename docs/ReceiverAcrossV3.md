@@ -23,17 +23,3 @@ The contract has one method which will (and can only) be called through the Acro
         bytes memory message
     )
 ```
-
-Furthermore there is one (admin) method that allows withdrawals of stuck tokens by LI.FI administrators:
-
-```solidity
-/// @notice Send remaining token to receiver
-/// @param assetId token received from the other chain
-/// @param receiver address that will receive tokens in the end
-/// @param amount amount of token
-function pullToken(
-    address assetId,
-    address payable receiver,
-    uint256 amount
-)
-```

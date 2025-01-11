@@ -3,11 +3,12 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title Fee Collector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting integrator fees
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract FeeCollector is TransferrableOwnership {
     /// State ///
 
@@ -84,12 +85,7 @@ contract FeeCollector is TransferrableOwnership {
         // Prevent extra native token from being locked in the contract
         if (remaining > 0) {
             // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = payable(msg.sender).call{ value: remaining }(
-                ""
-            );
-            if (!success) {
-                revert TransferFailure();
-            }
+            SafeTransferLib.safeTransferETH(msg.sender, remaining);
         }
         emit FeesCollected(
             LibAsset.NULL_ADDRESS,

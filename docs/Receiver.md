@@ -68,17 +68,3 @@ function swapAndCompleteBridgeTokens(
     address payable receiver
 )
 ```
-
-This method is used to send remaining tokens to receiver.
-
-```solidity
-/// @notice Send remaining token to receiver
-/// @param assetId token received from the other chain
-/// @param receiver address that will receive tokens in the end
-/// @param amount amount of token
-function pullToken(
-    address assetId,
-    address payable receiver,
-    uint256 amount
-)
-```

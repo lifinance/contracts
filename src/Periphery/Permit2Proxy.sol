@@ -6,12 +6,13 @@ import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
@@ -280,12 +281,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes memory diamondCalldata
     ) internal returns (bytes memory) {
         // call diamond with provided calldata
+        SafeTransferLib.safeTransferETH(LIFI_DIAMOND, msg.value);
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = LIFI_DIAMOND.call{
-            value: msg.value
-        }(diamondCalldata);
-        // throw error to make sure tx reverts if low-level call was
-        // unsuccessful
+        (bool success, bytes memory data) = LIFI_DIAMOND.call(diamondCalldata);
         if (!success) {
             revert CallToDiamondFailed(data);
         }
