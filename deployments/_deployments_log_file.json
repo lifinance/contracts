@@ -3128,6 +3128,20 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xeADAc9502b083625bF76Ce606Bde7d94AD8BD7aB",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2024-12-17T10:31:56.698Z",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
