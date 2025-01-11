@@ -77,14 +77,15 @@ jobs:
       - name: Merge the PR
         uses: actions/github-script@v7.0.1
         if: env.CONTINUE == 'true'
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_JUSTIFICATION: ${{ inputs.justification }}
         with:
           script: |
             const inputJustification = core.getInput('justification', { required: true })
-            console.log(`Justification ${inputJustification}`)
             const inputPr = core.getInput('pr_number', { required: true })
-            console.log(`inputPr ${inputPr}`)
             const pr = parseInt(inputPr)
-            console.log(`Merging PR ${pr} now`)
+            console.log(`Merging PR #${pr} now`)
 
             // Fetch PR details
             const { data: prData } = await github.rest.pulls.get({
