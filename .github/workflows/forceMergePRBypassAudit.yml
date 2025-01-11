@@ -71,7 +71,7 @@ jobs:
       - name: Log Justification
         if: env.CONTINUE == 'true'
         run: |
-          echo "Bypass approved for PR #${{ github.event.inputs.pr_number }} by $ACTOR."
+          echo "Bypass approved for PR #${{ github.event.inputs.pr_number }} by ${{ github.actor }}."
           echo "Justification: ${{ github.event.inputs.justification }}"
 
       - name: Merge the PR
@@ -79,7 +79,11 @@ jobs:
         if: env.CONTINUE == 'true'
         with:
           script: |
-            const pr = parseInt(core.getInput('pr_number'));
+            const inputJustification = core.getInput('justification', { required: true })
+            console.log(`Justification ${inputJustification}`)
+            const inputPr = core.getInput('pr_number', { required: true })
+            console.log(`inputPr ${inputPr}`)
+            const pr = parseInt(inputPr)
             console.log(`Merging PR ${pr} now`)
 
             // Fetch PR details
@@ -100,7 +104,7 @@ jobs:
               pull_number: pr,
               merge_method: "squash",
               commit_title: `[BYPASS] ${prData.title}`,
-              commit_message: `Bypassed by ${context.actor}\nJustification: ${core.getInput('justification')}`
+              commit_message: `Bypassed by ${context.actor}\nJustification: ${inputJustification}`
             });
 
       - name: Send Discord message
