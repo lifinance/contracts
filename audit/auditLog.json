@@ -108,7 +108,7 @@
     "audit20250110": {
       "auditCompletedOn": "10.01.2025",
       "auditedBy": "Cantina (security firm)",
-      "auditorGitHandle": "none",
+      "auditorGitHandle": "cantinaxyz",
       "auditReportPath": "./audit/reports/report-cantinacode-lifi-1216.pdf",
       "auditCommitHash": "c9e6246167f4ff44f4535e466a4ceb902552aa13"
     }
