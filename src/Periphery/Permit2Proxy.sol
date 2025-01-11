@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
