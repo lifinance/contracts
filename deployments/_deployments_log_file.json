@@ -6949,6 +6949,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x325DA62543447A48c7b044C5642B87CeA88B0fd3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-11-12 14:01:08",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GenericSwapFacet": {
@@ -16275,6 +16289,16 @@
         ]
       }
     },
+    "gravity": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x49e93F6A99c590a8E70138D2710B9eDd88C077FF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-11-12 14:01:58",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
     "zksync": {
       "production": {
         "1.0.0": [

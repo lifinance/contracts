@@ -5,15 +5,15 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title ReceiverAcrossV3
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
-/// @custom:version 1.0.1
-contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
+/// @custom:version 1.1.0
+contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// Storage ///
@@ -33,8 +33,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         address _owner,
         address _executor,
         address _spokepool
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+    ) WithdrawablePeriphery(_owner) {
         executor = IExecutor(_executor);
         spokepool = _spokepool;
     }
@@ -71,28 +70,10 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         );
     }
 
-    /// @notice Send remaining token to receiver
-    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    function pullToken(
-        address assetId,
-        address payable receiver,
-        uint256 amount
-    ) external onlyOwner {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = receiver.call{ value: amount }("");
-            if (!success) revert ExternalCallFailed();
-        } else {
-            assetId.safeTransfer(receiver, amount);
-        }
-    }
-
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction
-    //  @notice Since Across will always send wrappedNative to contract, we do not need a native handling here
+    /// @notice Since Across will always send wrappedNative to contract, we do not need a native handling here
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swapData array of data needed for swaps
     /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
@@ -105,8 +86,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         address payable receiver,
         uint256 amount
     ) private {
-        assetId.safeApprove(address(executor), 0);
-        assetId.safeApprove(address(executor), amount);
+        assetId.safeApproveWithRetry(address(executor), amount);
         try
             executor.swapAndCompleteBridgeTokens(
                 _transactionId,
