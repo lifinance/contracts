@@ -105,12 +105,19 @@
       "auditReportPath": "./audit/reports/2025.01.09_SafeTransferETHUpdate.pdf",
       "auditCommitHash": "e4f27b0c4f572e5c64ca132dc2e496a3fe6c7c1d"
     },
-    "audit20250110": {
+    "audit20250110_1": {
       "auditCompletedOn": "10.01.2025",
       "auditedBy": "Cantina (security firm)",
       "auditorGitHandle": "cantinaxyz",
       "auditReportPath": "./audit/reports/report-cantinacode-lifi-1216.pdf",
       "auditCommitHash": "c9e6246167f4ff44f4535e466a4ceb902552aa13"
+    },
+    "audit20250110_2": {
+      "auditCompletedOn": "10.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.10_Timelock(v1.0.0).pdf",
+      "auditCommitHash": "af28afab139a158650f4ef4f4442f2b5fcdfe497"
     }
   },
   "auditedContracts": {
@@ -163,7 +170,7 @@
         "audit20241107"
       ],
       "2.0.2": [
-        "audit20250110"
+        "audit20250110_1"
       ]
     },
     "GasZipPeriphery": {
@@ -171,7 +178,7 @@
         "audit20241107"
       ],
       "1.0.1": [
-        "audit20250110"
+        "audit20250110_1"
       ]
     },
     "IGasZip": {
@@ -184,7 +191,7 @@
         "audit20241202"
       ],
       "1.0.2": [
-        "audit20250110"
+        "audit20250110_1"
       ]
     },
     "LiFiDEXAggregator": {
@@ -198,6 +205,11 @@
         "audit20250109_3"
       ]
     },
+    "LiFiTimelockController": {
+      "1.0.0": [
+        "audit20250110_2"
+      ]
+    },
     "LiFuelFeeCollector": {
       "1.0.2": [
         "audit20250109_3"
@@ -208,7 +220,7 @@
         "audit20241122"
       ],
       "1.0.1": [
-        "audit20250110"
+        "audit20250110_1"
       ],
       "1.0.2": [
         "audit20250109_3"
@@ -230,7 +242,7 @@
         "audit20241206"
       ],
       "1.0.2": [
-        "audit20250110"
+        "audit20250110_1"
       ],
       "1.1.0": [
         "audit20250109_2"
