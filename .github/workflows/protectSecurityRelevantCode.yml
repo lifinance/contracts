@@ -13,6 +13,8 @@ jobs:
   protect-critical-code:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    env:
+      CONTINUE: false # makes sure that variable is correctly initialized in all cases
     permissions:
       pull-requests: write
     steps:

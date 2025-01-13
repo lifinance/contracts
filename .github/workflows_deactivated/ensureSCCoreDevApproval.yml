@@ -14,6 +14,8 @@ jobs:
   core-dev-approval:
     if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
     runs-on: ubuntu-latest
+    env:
+      CONTINUE: false # makes sure that variable is correctly initialized in all cases
     steps:
       - name: Get smart-contract-core Team Members
         env:

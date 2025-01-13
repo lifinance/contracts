@@ -17,6 +17,7 @@ jobs:
         env:
           GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTINUE: false # makes sure that variable is correctly initialized in all cases
         run: |
 
           ##### unset the default git token (does not have sufficient rights to get team members)

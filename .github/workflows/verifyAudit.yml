@@ -25,6 +25,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
       AUDIT_LOG_PATH: 'audit/auditLog.json'
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      CONTINUE: false # makes sure that variable is correctly initialized in all cases
 
     permissions:
       pull-requests: write
@@ -67,8 +68,8 @@ jobs:
             echo -e "\033[31mProtected contracts found in this PR.\033[0m"
             echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
-            echo "$AUDIT_REQUIRED" > audit_required.txt
             echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
+            echo "CONTINUE=true" >> "$GITHUB_ENV"
           fi
 
       - name: Assign, update, and verify labels based on check outcome
@@ -159,7 +160,7 @@ jobs:
       - name: Check Audit Log
         continue-on-error: true
         id: check-audit-log
-        if: env.AUDIT_REQUIRED == 'true'
+        if: always() && env.CONTINUE == 'true' # always() ensures that validation is always executed, even if env variable is not set
         run: |
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
@@ -381,7 +382,7 @@ jobs:
           echo "Assigning label 'AuditCompleted' next"
 
       - name: Assign label "AuditCompleted" if all checks passed
-        if: ${{ env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }}
+        if: ${{ always() && env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }}
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
@@ -392,14 +393,14 @@ jobs:
       - name: Remove label "AuditCompleted" in case check was not successful but label was assigned in earlier checks
         continue-on-error: true # This ensures the step will execute even if the job has a failed status.
         uses: actions-ecosystem/action-remove-labels@v1
-        if: ${{ env.AUDIT_COMPLETED_ASSIGNED && (env.CONTINUE == 'false' || (env.CONTINUE == 'true' && env.AUDIT_REQUIRED == 'false'))}}
+        if: ${{ always() && env.AUDIT_COMPLETED_ASSIGNED && (env.CONTINUE == 'false' || (env.CONTINUE == 'true' && env.AUDIT_REQUIRED == 'false'))}}
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
           number: ${{ env.PR_NUMBER }}
 
       - name: Fail the git action if any critical step failed
-        if: env.CONTINUE == 'false' # This step runs only if a failure was recorded
+        if: always() && env.CONTINUE == 'false' # This step runs only if a failure was recorded
         run: |
 
           echo -e "\033[31mError: One or more critical steps failed. Failing the job.\033[0m"
