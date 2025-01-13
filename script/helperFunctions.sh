@@ -1426,16 +1426,16 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain 324 "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         fi
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1445,14 +1445,14 @@ function verifyContract() {
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         fi
       else
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
