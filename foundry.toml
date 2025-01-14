@@ -24,6 +24,7 @@ script = "script/deploy/zksync"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
+abstract = "${ETH_NODE_URI_ABSTRACT}"
 arbitrum = "${ETH_NODE_URI_ARBITRUM}"
 aurora = "${ETH_NODE_URI_AURORA}"
 avalanche = "${ETH_NODE_URI_AVALANCHE}"
@@ -73,6 +74,7 @@ base = "${ETH_NODE_URI_BASE}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", chain = "1" }
+abstract = { key = "${ABSTRACT_ETHERSCAN_API_KEY}", url = "https://api.abscan.org/api", chain = "2741" }
 arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api", chain = "42161" }
 aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://explorer.mainnet.aurora.dev/api", chain = "1313161554", verifier = "blockscout" }
 avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.snowtrace.io/api", chain = "43114" }

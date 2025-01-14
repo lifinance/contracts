@@ -32,6 +32,20 @@ contract DeployScript is DeployScriptBase {
 
         address erc20Proxy = json.readAddress(".ERC20Proxy");
 
-        return abi.encode(erc20Proxy);
+        // get path of global config file
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
+
+        // read file into json variable
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract withdrawWallet address
+        address withdrawWalletAddress = globalConfigJson.readAddress(
+            ".withdrawWallet"
+        );
+
+        return abi.encode(erc20Proxy, withdrawWalletAddress);
     }
 }

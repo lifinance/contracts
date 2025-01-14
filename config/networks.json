@@ -17,6 +17,24 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=eth:0x37347dD595C49212C5FC2D95EA10d1085896f51E",
     "gasZipChainId": 255
   },
+  "abstract": {
+    "name": "abstract",
+    "chainId": 2741,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x3439153EB7AF838Ad19d56E1571FBD09333C2809",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://api.raas.matterhosted.dev",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://abscan.io",
+    "explorerApiUrl": "https://api.abscan.io/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://transaction.multisig-abs.w3us.site/api",
+    "safeAddress": "abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
+    "safeWebUrl": "https://multisig-abs.w3us.site/home?safe=abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
+    "gasZipChainId": null
+  },
   "arbitrum": {
     "name": "arbitrum",
     "chainId": 42161,
