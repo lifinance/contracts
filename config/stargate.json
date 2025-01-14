@@ -2,6 +2,7 @@
   "endpointV2": {
     "LinkToDeployedToAddresses": "https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts",
     "mainnet": "0x1a44076050125825900e736c501f859c50fE728c",
+    "abstract": "0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF",
     "arbitrum": "0x1a44076050125825900e736c501f859c50fE728c",
     "aurora": "0x1a44076050125825900e736c501f859c50fE728c",
     "avalanche": "0x1a44076050125825900e736c501f859c50fE728c",
@@ -49,6 +50,7 @@
     "mainnet": "0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980",
     "bsc": "0x6e3d884c96d640526f273c61dfcf08915ebd7e2b",
     "polygon": "0x6ce9bf8cdab780416ad1fd87b318a077d2f50eac",
+    "abstract": "0x183D6b82680189bB4dB826F739CdC9527D467B25",
     "arbitrum": "0x19cfce47ed54a88614648dc3f19a5980097007dd",
     "fuse": "0x45a01e4e04f14f7a4a6702c74187c5f6222033cd",
     "mantle": "0x41b491285a4f888f9f636cec8a363ab9770a0aef",
@@ -203,6 +205,7 @@
   ],
   "composers": {
     "mainnet": "0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9",
+    "abstract": "0x0000000000000000000000000000000000000000",
     "arbitrum": "0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9",
     "aurora": "0x0000000000000000000000000000000000000000",
     "avalanche": "0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9",
