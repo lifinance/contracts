@@ -30,6 +30,19 @@ contract DeployScript is DeployScriptBase {
 
         // the original RouteProcessor4.sol is also deployed with address(0) for _bentoBox
 
-        return abi.encode(address(0), priviledgedUsers);
+        // get path of global config file
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
+
+        // read file into json variable
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract withdrawWallet address
+        address withdrawWalletAddress = globalConfigJson.readAddress(
+            ".withdrawWallet"
+        );
+        return abi.encode(address(0), priviledgedUsers, withdrawWalletAddress);
     }
 }
