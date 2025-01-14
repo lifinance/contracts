@@ -24,7 +24,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -39,7 +39,7 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "GnosisBridgeFacet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
@@ -82,7 +82,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -96,7 +96,7 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -211,7 +211,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AllBridgeFacet": "2.0.0",
         "AmarokFacet": "3.0.0",
         "AmarokFacetPacked": "1.0.0",
@@ -219,7 +219,7 @@
         "CBridgeFacetPacked": "1.0.3",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "MayanFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
@@ -254,11 +254,11 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AmarokFacet": "3.0.0",
         "AmarokFacetPacked": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -290,11 +290,11 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0"
       }
@@ -326,14 +326,14 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AllBridgeFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "MayanFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
@@ -369,7 +369,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -383,7 +383,7 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -421,7 +421,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -435,7 +435,7 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -529,7 +529,8 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "ReceiverStargateV2": "1.0.0"
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
       }
     }
   },
@@ -623,7 +624,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -632,7 +633,7 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -694,12 +695,12 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "ReceiverAcrossV3": "1.0.0",
         "AmarokFacet": "3.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -806,9 +807,9 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AmarokFacet": "3.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
@@ -840,7 +841,7 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -848,7 +849,7 @@
         "ReceiverAcrossV3": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
@@ -880,14 +881,14 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
         "AcrossFacetPackedV3": "1.0.0",
         "ReceiverAcrossV3": "1.0.0",
         "AmarokFacet": "3.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -979,7 +980,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
@@ -987,7 +988,7 @@
         "ReceiverAcrossV3": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1017,7 +1018,8 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "ReceiverStargateV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1077,8 +1079,8 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipPeriphery": "1.0.1",
+        "GasZipFacet": "2.0.2",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1109,11 +1111,11 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "RelayerCelerIM": "2.0.0",
-        "GasZipFacet": "2.0.0",
+        "GasZipFacet": "2.0.2",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1346,10 +1348,10 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "GasZipFacet": "2.0.0"
+        "GasZipFacet": "2.0.2"
       }
     }
   },
@@ -1430,11 +1432,11 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacetV3": "1.0.0",
         "AcrossFacetPackedV3": "1.0.0",
         "ReceiverAcrossV3": "1.0.0",
-        "GasZipFacet": "2.0.0"
+        "GasZipFacet": "2.0.2"
       }
     }
   },
@@ -1462,11 +1464,11 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacetV3": "1.0.0",
         "AcrossFacetPackedV3": "1.0.0",
         "ReceiverAcrossV3": "1.0.0",
-        "GasZipFacet": "2.0.0"
+        "GasZipFacet": "2.0.2"
       }
     }
   },
@@ -1494,11 +1496,10 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "AcrossFacetV3": "1.0.0",
-        "AcrossFacetPackedV3": "1.0.0",
-        "ReceiverAcrossV3": "1.0.0",
+        "Permit2Proxy": "1.0.2",
+        "GasZipFacet": "2.0.2",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.0.1"
+        "ReceiverStargateV2": "1.1.0"
       }
     }
   },
@@ -1555,9 +1556,38 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
-        "Permit2Proxy": "1.0.0",
-        "GasZipPeriphery": "1.0.0",
-        "GasZipFacet": "2.0.0"
+        "Permit2Proxy": "1.0.2",
+        "GasZipPeriphery": "1.0.1",
+        "GasZipFacet": "2.0.2"
+      }
+    }
+  },
+  "sonic": {
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.1",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "LIFuelFacet": "1.0.1",
+        "CalldataVerificationFacet": "1.2.0",
+        "StandardizedCallFacet": "1.1.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "Receiver": "2.1.0",
+        "LiFuelFeeCollector": "1.0.2",
+        "TokenWrapper": "1.1.0",
+        "LiFiDEXAggregator": "1.6.0",
+        "GasZipPeriphery": "1.0.1",
+        "GasZipFacet": "2.0.2"
       }
     }
   }
