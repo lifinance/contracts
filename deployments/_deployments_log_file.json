@@ -2133,6 +2133,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x054A2a335812E559A2582ad79a629266F1B475A3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 10:26:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -3142,6 +3156,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x5bE192BA156263af2ddc5AF633e91490Ac5828e6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 10:47:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -3850,6 +3878,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe24756bC0f197AB82660Ec4312987FBB9a8420f5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 10:58:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -4541,6 +4583,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5dD995420b61deBB1071637aa19DEad85347BC53",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 10:35:25",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5251,6 +5307,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x192C2Efe1A5E38cc65A0a85fe887aE64F6D297E3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 11:04:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -5930,6 +6000,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000057fdff2e36de6c8a8cde297b150ae291132eae8d",
             "SALT": "",
             "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4f8C9056bb8A3616693a76922FA35d53C056E5b3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 12:47:12",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000a9bd7d5304a24c005d37dc7dfe844464f9ca718c",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7686,6 +7770,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x67Ae9269BB0363d4d1171eFCB750AAA0D62c0903",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 11:17:56",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -9167,6 +9265,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "abstract": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x195d5CBEe915E364B5Ea0ed9B7578aDA41bF23F3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 11:10:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -16299,6 +16411,10 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "zksync": {
       "production": {
         "1.0.0": [
@@ -19467,6 +19583,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x481e2911229B05CcA1b912f73201D54D87155730",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 13:12:55",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CalldataVerificationFacet": {
@@ -20210,6 +20340,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "abstract": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0x93452E214CF7cE333Ea1c4139FF9ACd81B4399a9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 13:20:18",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23070,6 +23214,20 @@
             "ADDRESS": "0xBa713B18c806EcdEEE49FAec623dE2D872192872",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-11-25 10:30:44",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "abstract": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x8A942C47151Ee6209c5De84Aa033678eE9663787",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-14 11:42:24",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"

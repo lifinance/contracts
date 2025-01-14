@@ -2807,6 +2807,10 @@ function getChainId() {
     echo "1"
     return 0
     ;;
+  "abstract")
+    echo "2741"
+    return 0
+    ;;
   "blast")
     echo "81457"
     return 0

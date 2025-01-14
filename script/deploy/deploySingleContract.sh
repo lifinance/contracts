@@ -206,10 +206,10 @@ deploySingleContract() {
       # Clean all old artifacts
       rm -fr ./out
       rm -fr ./zkout
-      # Clean zksync cache
+      # # Clean zksync cache
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
-
-      # Run zksync specific fork of forge
+      #
+      # # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
 
