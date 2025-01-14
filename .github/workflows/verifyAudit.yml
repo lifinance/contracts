@@ -47,6 +47,7 @@ jobs:
           if [[ -z $FILES ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
             echo "CONTINUE=false" >> "$GITHUB_ENV"
+            exit 1
           fi
 
           ##### Initialize empty variables
@@ -69,8 +70,10 @@ jobs:
             echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
             echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
-            echo "CONTINUE=true" >> "$GITHUB_ENV"
           fi
+
+          ##### Set continue flag to true to make sure subsequent steps will run
+          echo "CONTINUE=true" >> "$GITHUB_ENV"
 
       - name: Assign, update, and verify labels based on check outcome
         uses: actions/github-script@v7
