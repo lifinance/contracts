@@ -76,11 +76,12 @@ jobs:
         uses: actions/github-script@v7
         env:
           AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}
+          CONTINUE: ${{ env.CONTINUE }}
         with:
           script: |
             const { execSync } = require('child_process');
 
-            console.log(`CONTINUE=${CONTINUE}`)
+            console.log(`CONTINUE=${core.read}`)
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
               reset: "\033[0m",
