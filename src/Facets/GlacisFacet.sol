@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
+
+import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { SwapperV2 } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
+import { IGlacisAirlift, QuoteSendInfo } from "../Interfaces/IGlacisAirlift.sol";
+
+import { console } from "forge-std/console.sol";
+
+/// @title Glacis Facet
+/// @author LI.FI (https://li.fi/)
+/// @notice Integration of the Glacis airlift (wrapper for native token bridging standards)
+/// @custom:version 1.0.0
+contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
+
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.glacis"); // Optional. Only use if you need to store data in the diamond storage.
+
+    IGlacisAirlift public immutable airlift;
+
+    /// Types ///
+
+    /// @param refund Refund address
+    // TODO
+    struct GlacisData {
+        address refund;
+    }
+
+    /// Constructor ///
+    /// @notice Initializes the GlacisFacet contract
+    /// @param _airlift The address of Glacis Airlift contract.
+    constructor(IGlacisAirlift _airlift) {
+        airlift = _airlift;
+    }
+
+    /// External Methods ///
+
+    /// @notice Bridges tokens via Glacis
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _glacisData Data specific to Glacis
+    function startBridgeTokensViaGlacis(
+        ILiFi.BridgeData memory _bridgeData,
+        GlacisData calldata _glacisData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+    {
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+        uint256 fees = _calculateFees(_bridgeData, _glacisData);
+        _startBridge(_bridgeData, _glacisData, fees);
+    }
+
+    /// @notice Performs a swap before bridging via Glacis
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _glacisData Data specific to Glacis
+    function swapAndStartBridgeTokensViaGlacis(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        GlacisData calldata _glacisData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
+    {
+        uint256 fees = _calculateFees(_bridgeData, _glacisData);
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender),
+            fees
+        );
+        _startBridge(_bridgeData, _glacisData, fees);
+    }
+
+    /// Internal Methods ///
+
+    /// @dev Contains the business logic for the bridge via Glacis
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _glacisData Data specific to Glacis
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        GlacisData calldata _glacisData,
+        uint256 _fee
+    ) internal {
+        bytes32 receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
+        // uint256 tokenFee = sendInfo.gmpFee.tokenFee + sendInfo.AirliftFeeInfo.airliftFee.tokenFee; // TODO
+
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // Give the Airlift approval to bridge tokens
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(airlift),
+                _bridgeData.minAmount
+            );
+            airlift.send{ value: _fee }(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                receiver,
+                _bridgeData.destinationChainId,
+                _glacisData.refund
+            );
+        } else {
+            // cant have tokenFee is it's native asset bridging
+            airlift.send{ value: _bridgeData.minAmount + _fee }(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                receiver,
+                _bridgeData.destinationChainId,
+                _glacisData.refund
+            );
+        }
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// Private Methods ///
+
+    function _calculateFees(
+        ILiFi.BridgeData memory _bridgeData,
+        GlacisData calldata _glacisData
+    ) internal returns (uint256 nativeFees) {
+        console.log(
+            "============================ _calculateFees 0.1 ========================"
+        );
+        (bool ok, bytes memory result) = address(airlift).staticcall(
+            abi.encodeWithSignature(
+                "quoteSend(address,uint256,bytes32,uint256,address,uint256)",
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _bridgeData.destinationChainId,
+                _glacisData.refund,
+                1 ether // TODO!!!
+                // !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) ? 0 : _bridgeData.minAmount
+            )
+        );
+        console.log(
+            "============================ _calculateFees 0.2 ========================"
+        );
+        // TODO require ok
+        QuoteSendInfo memory sendInfo = abi.decode(result, (QuoteSendInfo));
+        console.log(
+            "============================ _calculateFees 0.3 ========================"
+        );
+
+        uint256 nativeAssetAmount = sendInfo.gmpFee.nativeFee +
+            sendInfo.AirliftFeeInfo.airliftFee.nativeFee;
+        console.log(
+            "============================ _calculateFees -> nativeAssetAmount ========================"
+        );
+        console.log(nativeAssetAmount);
+        nativeFees =
+            sendInfo.gmpFee.nativeFee +
+            sendInfo.AirliftFeeInfo.airliftFee.nativeFee;
+    }
+}
