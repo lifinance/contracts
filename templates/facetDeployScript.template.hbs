@@ -24,9 +24,13 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/{{camelCase name}}.json");
         string memory json = vm.readFile(path);
 
-        address example = json.readAddress(
-            string.concat(".", network, ".example")
-        );
+        // If you need to read an address from your config file or from a network deploy log that is supposed to be a contract, use the
+        // following helper function which makes sure that the address contains code:
+        //
+        // address example = _getConfigContractAddress(json,string.concat(".", network, ".weth"));
+        //
+        // in the address is not a supposed to be an EOA, you can use the following standard approach:
+        address example = json.readAddress(".RefundWallet");
 
         return abi.encode(example);
     }

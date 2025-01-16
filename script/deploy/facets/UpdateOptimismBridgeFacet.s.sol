@@ -30,9 +30,12 @@ contract DeployScript is UpdateScriptBase {
     function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/optimism.json");
         json = vm.readFile(path);
-        address standardBridge = json.readAddress(
+
+        address standardBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".standardBridge")
         );
+
         bytes memory rawConfig = json.parseRaw(
             string.concat(".", network, ".tokens")
         );

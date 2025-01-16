@@ -23,12 +23,13 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/arbitrum.json");
-        string memory json = vm.readFile(path);
 
-        address gatewayRouter = json.readAddress(
+        address gatewayRouter = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".gatewayRouter")
         );
-        address inbox = json.readAddress(
+        address inbox = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".inbox")
         );
 

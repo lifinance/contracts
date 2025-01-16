@@ -23,10 +23,10 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/dln.json");
-        string memory json = vm.readFile(path);
 
-        address dlnSource = json.readAddress(
-            string.concat(".networks.", network, ".dlnSource")
+        address dlnSource = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".dlnSource")
         );
 
         return abi.encode(dlnSource);
