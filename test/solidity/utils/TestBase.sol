@@ -236,16 +236,6 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
                 ADDRESS_WRAPPED_NATIVE = ADDRESS_WRAPPED_NATIVE_POL;
                 ADDRESS_UNISWAP = ADDRESS_SUSHISWAP_POL;
             }
-            if (
-                keccak256(abi.encode(customRpcUrlForForking)) ==
-                keccak256(abi.encode("ETH_NODE_URI_OPTIMISM"))
-            ) {
-                ADDRESS_USDC = ADDRESS_USDC_OPTIMISM;
-                ADDRESS_USDT = ADDRESS_USDT_OPTIMISM;
-                ADDRESS_DAI = ADDRESS_DAI_OPTIMISM;
-                ADDRESS_WRAPPED_NATIVE = ADDRESS_WRAPPED_NATIVE_OPTIMISM;
-                ADDRESS_UNISWAP = ADDRESS_UNISWAP_OPTIMISM;
-            }
         }
     }
 
