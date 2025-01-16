@@ -163,7 +163,7 @@ jobs:
               core.exportVariable('AUDIT_COMPLETED_ASSIGNED', 'true');
             }
             else
-              console.log(`Label 'AuditCompleted' is currently not assigned`);
+              console.log(`${colors.green}Label 'AuditCompleted' is currently not assigned${colors.reset}`);
 
             // set CONTINUE to true to make sure the following steps are executed
             core.exportVariable('CONTINUE', 'true');
@@ -174,14 +174,11 @@ jobs:
         if: always() && env.CONTINUE == 'true' # always() ensures that validation is always executed, even if env variable is not set
         run: |
 
-          echo "CONTINUE=$CONTINUE"
-          echo "CONTINUE=false" >> "$GITHUB_ENV"
-          echo "CONTINUE=$CONTINUE"
-
-
-
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
           echo "It will also make sure that no information is missing in the audit log and that the information is meaningful."
+
+          # set CONTINUE to false to ensure that action fails (correctly) if an error occurs unexpectedly
+          echo "CONTINUE=false" >> "$GITHUB_ENV"
 
           # load list of protected contracts
           PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
