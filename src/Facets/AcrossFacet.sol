@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-/// @custom:version 2.0.0
+/// @custom:version 2.1.0
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -45,6 +45,8 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         spokePool = _spokePool;
         wrappedNative = _wrappedNative;
     }
+
+    function bla() external {}
 
     /// External Methods ///
 
