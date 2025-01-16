@@ -80,6 +80,7 @@ jobs:
           script: |
             const { execSync } = require('child_process');
 
+            console.log(`CONTINUE=${CONTINUE}`)
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
               reset: "\033[0m",
@@ -171,6 +172,9 @@ jobs:
         id: check-audit-log
         if: always() && env.CONTINUE == 'true' # always() ensures that validation is always executed, even if env variable is not set
         run: |
+
+          echo "CONTINUE=$CONTINUE"
+
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
           echo "It will also make sure that no information is missing in the audit log and that the information is meaningful."
