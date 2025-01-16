@@ -81,7 +81,6 @@ jobs:
           script: |
             const { execSync } = require('child_process');
 
-            console.log(`CONTINUE=${core.read}`)
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
               reset: "\033[0m",
