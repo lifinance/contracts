@@ -170,7 +170,7 @@ jobs:
       - name: Check Audit Log
         continue-on-error: true
         id: check-audit-log
-        if: always() && env.CONTINUE == 'true' # always() ensures that validation is always executed, even if env variable is not set
+        if: ${{ always() && env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
         run: |
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
