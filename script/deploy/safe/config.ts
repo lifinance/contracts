@@ -2,6 +2,7 @@ import { ContractNetworksConfig } from '@safe-global/protocol-kit'
 
 export const safeApiUrls: Record<string, string> = {
   mainnet: 'https://safe-transaction-mainnet.safe.global/api',
+  abstract: 'https://transaction.multisig-abs.w3us.site/api',
   arbitrum: 'https://safe-transaction-arbitrum.safe.global/api',
   aurora: 'https://safe-transaction-aurora.safe.global/api',
   avalanche: 'https://safe-transaction-avalanche.safe.global/api',
@@ -38,6 +39,7 @@ export const safeApiUrls: Record<string, string> = {
 export const safeAddresses: Record<string, string> = {
   mainnet: '0x37347dD595C49212C5FC2D95EA10d1085896f51E',
   arbitrum: '0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15',
+  abstract: '0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c',
   aurora: '0xC7291F249424A35b17976F057D2C97B30c92b88C',
   avalanche: '0x27d4eb2854d93a1A7Df8e2aeD1a535b080a6f6e4',
   base: '0x1F6974C11B833Eb52ea07E0B442510165D87d82e',
@@ -93,6 +95,7 @@ export const getSafeUtilityContracts = (chainId: number) => {
       }
       break
     case 324:
+    case 2741:
       // zkSync
       contractNetworks = {
         [chainId.toString()]: {

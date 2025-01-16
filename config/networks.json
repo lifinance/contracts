@@ -29,11 +29,11 @@
     "verificationType": "etherscan",
     "explorerUrl": "https://abscan.io",
     "explorerApiUrl": "https://api.abscan.io/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "multicallAddress": "0xAa4De41dba0Ca5dCBb288b7cC6b708F3aaC759E7",
     "safeApiUrl": "https://transaction.multisig-abs.w3us.site/api",
-    "safeAddress": "abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
+    "safeAddress": "0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
     "safeWebUrl": "https://multisig-abs.w3us.site/home?safe=abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
-    "gasZipChainId": null
+    "gasZipChainId": 110
   },
   "arbitrum": {
     "name": "arbitrum",

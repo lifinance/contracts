@@ -56,13 +56,17 @@
       "0x52c10d81CcfF1DE7c510e0BA26ECaD66816e1e8D": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
+      },
+      "0x79ae44B0C33FDC804EB0A6e4A1c1434565264cfE": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.2"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x3C2b4f5916AFe9b9e7cA8F5944e776a713035e01",
       "Executor": "0xbA3274Ff65466bDC217745dC276394da4Ffe02b7",
       "FeeCollector": "0xde6A2171959d7b82aAD8e8B14cc84684C3a186AC",
-      "GasZipPeriphery": "",
+      "GasZipPeriphery": "0x2A3e04627E554b57163C078fd1d6698A655aeA12",
       "LiFiDEXAggregator": "0xFC863E1418C0C5935e7Bd9C8f3129Aa0442153DF",
       "LiFuelFeeCollector": "",
       "Permit2Proxy": "",
