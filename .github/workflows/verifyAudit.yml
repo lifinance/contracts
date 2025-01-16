@@ -127,6 +127,12 @@ jobs:
               console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.${colors.reset}`);
             }
 
+            // Remove the AuditCompleted label if it is present
+            if (assignedLabels.includes('AuditCompleted')) {
+              console.log(`Now removing AuditCompleted label`);
+              execSync(`gh pr edit ${{ github.event.pull_request.number }} --remove-label "AuditCompleted"`, { stdio: 'inherit' });
+            }
+
             // fetch all currently assigned labels again
             assignedLabels = []
             try {
