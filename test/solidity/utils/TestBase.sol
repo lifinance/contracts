@@ -168,17 +168,6 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
     address internal ADDRESS_WRAPPED_NATIVE_POL =
         0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270; // WMATIC
-    // Contract addresses (OPTIMISM)
-    address internal ADDRESS_UNISWAP_OPTIMISM =
-        0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2;
-    address internal ADDRESS_USDC_OPTIMISM =
-        0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
-    address internal ADDRESS_USDT_OPTIMISM =
-        0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
-    address internal ADDRESS_DAI_OPTIMISM =
-        0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
-    address internal ADDRESS_WRAPPED_NATIVE_OPTIMISM =
-        0x4200000000000000000000000000000000000006;
     // User accounts (Whales: ETH only)
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC, USDT, WETH & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
