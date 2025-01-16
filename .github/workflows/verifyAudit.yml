@@ -175,6 +175,9 @@ jobs:
         run: |
 
           echo "CONTINUE=$CONTINUE"
+          echo "CONTINUE=false" >> "$GITHUB_ENV"
+          echo "CONTINUE=$CONTINUE"
+
 
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
