@@ -46,7 +46,7 @@ jobs:
           ##### Make sure that there are modified files
           if [[ -z $FILES ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV"
+            echo "CONTINUE=false" >> "$GITHUB_ENV" # explicit assignment, even though already initialized with false
             exit 1
           fi
 
@@ -71,9 +71,6 @@ jobs:
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
             echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
           fi
-
-          ##### Set continue flag to true to make sure subsequent steps will run
-          echo "CONTINUE=true" >> "$GITHUB_ENV"
 
       - name: Assign, update, and verify labels based on check outcome
         uses: actions/github-script@v7
@@ -159,6 +156,9 @@ jobs:
             }
             else
               console.log(`Label 'AuditCompleted' is currently not assigned`);
+
+            // set CONTINUE to true to make sure the following steps are executed
+            core.exportVariable('CONTINUE', 'true');
 
       - name: Check Audit Log
         continue-on-error: true
