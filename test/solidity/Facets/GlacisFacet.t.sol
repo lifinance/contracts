@@ -86,9 +86,6 @@ contract GlacisFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultWORMHOLEAmount;
         bridgeData.destinationChainId = 10;
 
-        // produce valid GlacisData
-        validGlacisData = GlacisFacet.GlacisData({ refund: REFUND_WALLET });
-
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(address(airlift))
             .quoteSend(
                 bridgeData.sendingAssetId,
@@ -99,17 +96,18 @@ contract GlacisFacetTest is TestBaseFacet {
                 payableAmount
             );
 
-        // tokenFee =
-        //     quoteSendInfo.gmpFee.tokenFee +
-        //     quoteSendInfo.AirliftFeeInfo.airliftFee.tokenFee; // TODO Can we ignore tokenFee from smart contracts side? As far as I understand smart contract doesnt need to do any calculation with token fees. It will be only shown on the frontend side?
-
         addToMessageValue =
             quoteSendInfo.gmpFee.nativeFee +
             quoteSendInfo.AirliftFeeInfo.airliftFee.nativeFee;
+
+        // produce valid GlacisData
+        validGlacisData = GlacisFacet.GlacisData({
+            refund: REFUND_WALLET,
+            nativeFee: addToMessageValue
+        });
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {
-        // bridgeData.minAmount -= tokenFee;
         glacisFacet.startBridgeTokensViaGlacis{ value: addToMessageValue }(
             bridgeData,
             validGlacisData

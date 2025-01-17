@@ -10,15 +10,12 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "../Interfaces/IGlacisAirlift.sol";
 
-import { console } from "forge-std/console.sol";
-
 /// @title Glacis Facet
 /// @author LI.FI (https://li.fi/)
 /// @notice Integration of the Glacis airlift (wrapper for native token bridging standards)
 /// @custom:version 1.0.0
 contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.glacis"); // Optional. Only use if you need to store data in the diamond storage.
 
     IGlacisAirlift public immutable airlift;
@@ -26,9 +23,11 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param refund Refund address
+    /// @param nativeFee TODO
     // TODO
     struct GlacisData {
         address refund;
+        uint256 nativeFee;
     }
 
     /// Constructor ///
@@ -59,8 +58,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        uint256 fees = _calculateFees(_bridgeData, _glacisData);
-        _startBridge(_bridgeData, _glacisData, fees);
+        _startBridge(_bridgeData, _glacisData);
     }
 
     /// @notice Performs a swap before bridging via Glacis
@@ -80,15 +78,13 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        uint256 fees = _calculateFees(_bridgeData, _glacisData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender),
-            fees
+            payable(msg.sender)
         );
-        _startBridge(_bridgeData, _glacisData, fees);
+        _startBridge(_bridgeData, _glacisData);
     }
 
     /// Internal Methods ///
@@ -98,11 +94,9 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _glacisData Data specific to Glacis
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        GlacisData calldata _glacisData,
-        uint256 _fee
+        GlacisData calldata _glacisData
     ) internal {
         bytes32 receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
-        // uint256 tokenFee = sendInfo.gmpFee.tokenFee + sendInfo.AirliftFeeInfo.airliftFee.tokenFee; // TODO
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Give the Airlift approval to bridge tokens
@@ -111,7 +105,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 address(airlift),
                 _bridgeData.minAmount
             );
-            airlift.send{ value: _fee }(
+            airlift.send{ value: _glacisData.nativeFee }(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 receiver,
@@ -120,7 +114,9 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // cant have tokenFee is it's native asset bridging
-            airlift.send{ value: _bridgeData.minAmount + _fee }(
+            airlift.send{
+                value: _bridgeData.minAmount + _glacisData.nativeFee
+            }(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 receiver,
@@ -130,46 +126,5 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// Private Methods ///
-
-    function _calculateFees(
-        ILiFi.BridgeData memory _bridgeData,
-        GlacisData calldata _glacisData
-    ) internal returns (uint256 nativeFees) {
-        console.log(
-            "============================ _calculateFees 0.1 ========================"
-        );
-        (bool ok, bytes memory result) = address(airlift).staticcall(
-            abi.encodeWithSignature(
-                "quoteSend(address,uint256,bytes32,uint256,address,uint256)",
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
-                _bridgeData.destinationChainId,
-                _glacisData.refund,
-                1 ether // TODO!!!
-                // !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) ? 0 : _bridgeData.minAmount
-            )
-        );
-        console.log(
-            "============================ _calculateFees 0.2 ========================"
-        );
-        // TODO require ok
-        QuoteSendInfo memory sendInfo = abi.decode(result, (QuoteSendInfo));
-        console.log(
-            "============================ _calculateFees 0.3 ========================"
-        );
-
-        uint256 nativeAssetAmount = sendInfo.gmpFee.nativeFee +
-            sendInfo.AirliftFeeInfo.airliftFee.nativeFee;
-        console.log(
-            "============================ _calculateFees -> nativeAssetAmount ========================"
-        );
-        console.log(nativeAssetAmount);
-        nativeFees =
-            sendInfo.gmpFee.nativeFee +
-            sendInfo.AirliftFeeInfo.airliftFee.nativeFee;
     }
 }
