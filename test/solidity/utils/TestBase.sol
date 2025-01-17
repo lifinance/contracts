@@ -443,6 +443,32 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         );
     }
 
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint amountADesired,
+        uint amountBDesired
+    ) internal returns (uint amountA, uint amountB, uint liquidity) {
+        deal(tokenA, address(this), amountADesired);
+        deal(tokenB, address(this), amountBDesired);
+
+        ERC20(tokenA).approve(address(uniswap), amountADesired);
+        ERC20(tokenB).approve(address(uniswap), amountBDesired);
+
+        (amountA, amountB, liquidity) = uniswap.addLiquidity(
+            tokenA,
+            tokenB,
+            amountADesired,
+            amountBDesired,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+
+        return (amountA, amountB, liquidity);
+    }
+
     //#region Utility Functions (may be used in tests)
 
     function printBridgeData(ILiFi.BridgeData memory _bridgeData) internal {

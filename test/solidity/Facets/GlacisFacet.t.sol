@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
+import { InsufficientBalance } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -22,6 +23,7 @@ contract TestGlacisFacet is GlacisFacet {
 contract GlacisFacetTest is TestBaseFacet {
     GlacisFacet.GlacisData internal validGlacisData;
     TestGlacisFacet internal glacisFacet;
+    ERC20 internal wormhole;
     uint256 internal defaultWORMHOLEAmount;
     uint256 internal tokenFee;
 
@@ -29,6 +31,7 @@ contract GlacisFacetTest is TestBaseFacet {
         IGlacisAirlift(0xE0A049955E18CFfd09C826C2c2e965439B6Ab272);
     address internal ADDRESS_WORMHOLE_TOKEN =
         0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91;
+
     uint256 internal payableAmount = 1 ether;
 
     function setUp() public {
@@ -36,19 +39,19 @@ contract GlacisFacetTest is TestBaseFacet {
         customBlockNumberForForking = 295706031;
         initTestBase();
 
-        defaultWORMHOLEAmount =
-            1_000 *
-            10 ** ERC20(ADDRESS_WORMHOLE_TOKEN).decimals();
+        wormhole = ERC20(ADDRESS_WORMHOLE_TOKEN);
+
+        defaultWORMHOLEAmount = 1_000 * 10 ** wormhole.decimals();
 
         deal(
             ADDRESS_WORMHOLE_TOKEN,
             USER_SENDER,
-            100_000 * 10 ** ERC20(ADDRESS_WORMHOLE_TOKEN).decimals()
+            100_000 * 10 ** wormhole.decimals()
         );
         deal(
             ADDRESS_WORMHOLE_TOKEN,
             address(airlift),
-            100_000 * 10 ** ERC20(ADDRESS_WORMHOLE_TOKEN).decimals()
+            100_000 * 10 ** wormhole.decimals()
         );
 
         glacisFacet = new TestGlacisFacet(airlift);
@@ -64,7 +67,7 @@ contract GlacisFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
-        glacisFacet.addDex(ADDRESS_UNISWAP_ARB);
+        glacisFacet.addDex(ADDRESS_UNISWAP);
         glacisFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
@@ -86,21 +89,6 @@ contract GlacisFacetTest is TestBaseFacet {
         // produce valid GlacisData
         validGlacisData = GlacisFacet.GlacisData({ refund: REFUND_WALLET });
 
-        console.log(
-            "============================ here0.1 ========================"
-        );
-        // (bool ok, bytes memory result) = address(airlift).staticcall(
-        //     abi.encodeWithSignature(
-        //         "quoteSend(address,uint256,bytes32,uint256,address,uint256)",
-        //         bridgeData.sendingAssetId,
-        //         bridgeData.minAmount,
-        //         bytes32(uint256(uint160(bridgeData.receiver))),
-        //         bridgeData.destinationChainId,
-        //         REFUND_WALLET,
-        //         payableAmount // TODO
-        //     )
-        // );
-        // require(ok);
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(address(airlift))
             .quoteSend(
                 bridgeData.sendingAssetId,
@@ -147,10 +135,7 @@ contract GlacisFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // approval
-        ERC20(ADDRESS_WORMHOLE_TOKEN).approve(
-            address(glacisFacet),
-            bridgeData.minAmount
-        );
+        wormhole.approve(address(glacisFacet), bridgeData.minAmount);
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(glacisFacet));
@@ -163,11 +148,11 @@ contract GlacisFacetTest is TestBaseFacet {
     // TODO
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
         //     // TODO can be related to this issue: https://github.com/glacislabs/airlift-evm/blob/main/test/tokens/MIM.t.sol#L23-L31
-        //     vm.assume(amount > 1_000 * 10 ** ERC20(ADDRESS_WORMHOLE_TOKEN).decimals() && amount < 100_000 * 10 ** ERC20(ADDRESS_WORMHOLE_TOKEN).decimals());
+        //     vm.assume(amount > 1_000 * 10 ** wormhole.decimals() && amount < 100_000 * 10 ** wormhole.decimals());
         //     vm.startPrank(USER_SENDER);
         //     bridgeData.minAmount = amount;
         //     // approval
-        //     ERC20(ADDRESS_WORMHOLE_TOKEN).approve(address(glacisFacet), bridgeData.minAmount);
+        //     wormhole.approve(address(glacisFacet), bridgeData.minAmount);
         //     QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(address(airlift)).quoteSend(
         //         bridgeData.sendingAssetId,
         //         bridgeData.minAmount,
@@ -192,12 +177,12 @@ contract GlacisFacetTest is TestBaseFacet {
 
     function setDefaultSwapDataSingleDAItoWORMHOLE() internal virtual {
         delete swapData;
-        // Swap DAI -> USDC
+        // Swap DAI -> WORMHOLE
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_WORMHOLE_TOKEN;
 
-        uint256 amountOut = defaultUSDCAmount;
+        uint256 amountOut = defaultWORMHOLEAmount;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
@@ -225,22 +210,23 @@ contract GlacisFacetTest is TestBaseFacet {
 
     function testBase_CanSwapAndBridgeTokens()
         public
-        virtual
         override
-        assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(swapData[0].fromAmount)
-        )
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_WORMHOLE_TOKEN, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_WORMHOLE_TOKEN, USER_RECEIVER, 0)
     {
-        vm.startPrank(USER_SENDER);
+        // add liquidity for dex pair
+        addLiquidity(
+            ADDRESS_DAI,
+            ADDRESS_WORMHOLE_TOKEN,
+            100_000 * 10 ** ERC20(ADDRESS_DAI).decimals(),
+            100_000 * 10 ** wormhole.decimals()
+        );
 
+        uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
+        vm.startPrank(USER_SENDER);
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
-
         // reset swap data
         setDefaultSwapDataSingleDAItoWORMHOLE();
 
@@ -251,7 +237,7 @@ contract GlacisFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit AssetSwapped(
             bridgeData.transactionId,
-            ADDRESS_UNISWAP_ARB,
+            address(uniswap),
             ADDRESS_DAI,
             ADDRESS_WORMHOLE_TOKEN,
             swapData[0].fromAmount,
@@ -261,10 +247,15 @@ contract GlacisFacetTest is TestBaseFacet {
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-
-        // execute call in child contract
-        // TODO because there isnt any WORMHOLE pair on sushiswap
+        uint256 initialETHBalance = USER_SENDER.balance;
         initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            dai.balanceOf(USER_SENDER),
+            initialDAIBalance - swapData[0].fromAmount
+        );
+        assertEq(USER_SENDER.balance, initialETHBalance - addToMessageValue);
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal override {
@@ -277,35 +268,26 @@ contract GlacisFacetTest is TestBaseFacet {
 
     function test_CanSwapAndBridgeAndPayFeeWithBridgedToken() public {}
 
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
-    // function testBase_CanBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-    //
-    // function testBase_CanSwapAndBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
+    function testBase_Revert_CallerHasInsufficientFunds() public override {
+        vm.startPrank(USER_SENDER);
+
+        wormhole.approve(
+            address(_facetTestContractAddress),
+            defaultWORMHOLEAmount
+        );
+
+        // send all available W balance to different account to ensure sending wallet has no W funds
+        wormhole.transfer(USER_RECEIVER, wormhole.balanceOf(USER_SENDER));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientBalance.selector,
+                bridgeData.minAmount,
+                0
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
 }
