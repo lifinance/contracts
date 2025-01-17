@@ -1,4 +1,8 @@
 {
+  "apechain": {
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "mainnet": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
