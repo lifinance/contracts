@@ -101,7 +101,7 @@ contract CelerIMFacetTest is TestBaseFacet {
 
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy), address(this));
 
         celerIMFacet = new TestCelerIMFacet(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),

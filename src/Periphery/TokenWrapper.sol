@@ -3,6 +3,8 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// External wrapper interface
 interface IWrapper {
@@ -14,8 +16,8 @@ interface IWrapper {
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
-/// @custom:version 1.0.0
-contract TokenWrapper {
+/// @custom:version 1.1.0
+contract TokenWrapper is WithdrawablePeriphery {
     uint256 private constant MAX_INT = 2 ** 256 - 1;
     address public wrappedToken;
 
@@ -24,7 +26,10 @@ contract TokenWrapper {
 
     /// Constructor ///
     // solhint-disable-next-line no-empty-blocks
-    constructor(address _wrappedToken) {
+    constructor(
+        address _wrappedToken,
+        address _owner
+    ) WithdrawablePeriphery(_owner) {
         wrappedToken = _wrappedToken;
         IERC20(wrappedToken).approve(address(this), MAX_INT);
     }
@@ -46,10 +51,7 @@ contract TokenWrapper {
         uint256 wad = IERC20(wrappedToken).balanceOf(msg.sender);
         IERC20(wrappedToken).transferFrom(msg.sender, address(this), wad);
         IWrapper(wrappedToken).withdraw(wad);
-        (bool success, ) = payable(msg.sender).call{ value: wad }("");
-        if (!success) {
-            revert WithdrawFailure();
-        }
+        SafeTransferLib.safeTransferETH(msg.sender, wad);
     }
 
     // Needs to be able to receive native on `withdraw`

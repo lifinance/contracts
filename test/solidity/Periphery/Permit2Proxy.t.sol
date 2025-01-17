@@ -484,6 +484,64 @@ contract Permit2ProxyTest is TestBase {
         assertEq(permit2Proxy.nextNonceAfter(address(this), 1), 2);
     }
 
+    function test_eip2612_flow_is_resistant_to_frontrun_attack()
+        public
+        returns (TestDataEIP2612 memory)
+    {
+        // Record initial balance
+        uint256 initialBalance = ERC20(ADDRESS_USDC).balanceOf(PERMIT2_USER);
+
+        vm.startPrank(PERMIT2_USER);
+
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
+
+        vm.stopPrank();
+
+        vm.startPrank(address(0xA));
+        // Attacker calls ERC20.permit directly
+        ERC20Permit(ADDRESS_USDC).permit(
+            PERMIT2_USER, //victim address
+            address(permit2Proxy),
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s
+        );
+        vm.stopPrank();
+
+        vm.startPrank(PERMIT2_USER);
+
+        // User's TX should succeed
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            testdata.diamondCalldata
+        );
+        vm.stopPrank();
+
+        // Verify tokens were moved from PERMIT2_USER
+        uint256 finalBalance = ERC20(ADDRESS_USDC).balanceOf(PERMIT2_USER);
+        assertEq(
+            finalBalance,
+            initialBalance - defaultUSDCAmount,
+            "User balance should have decreased by defaultUSDCAmount"
+        );
+
+        return testdata;
+    }
+
     /// Helper Functions ///
 
     function _getPermit2TransferFromParamsSignedByPERMIT2_USER()
