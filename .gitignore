@@ -19,7 +19,8 @@ diamond.json
 .idea
 
 node_modules/
-.env
+.env*
+!.env.example
 
 .yalc
 yalc.lock
