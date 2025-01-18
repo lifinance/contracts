@@ -22,9 +22,11 @@ graph LR;
 The methods listed above take a variable labeled `_glacisData`. This data is specific to glacis and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct glacisData {
-  string example;
+/// @param refund Refund address
+/// @param nativeFee The fee amount in native token required by the Glacis Airlift.
+struct GlacisData {
+    address refund;
+    uint256 nativeFee;
 }
 ```
 
