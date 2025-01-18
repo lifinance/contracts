@@ -16,15 +16,14 @@ import { IGlacisAirlift, QuoteSendInfo } from "../Interfaces/IGlacisAirlift.sol"
 /// @custom:version 1.0.0
 contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.glacis"); // Optional. Only use if you need to store data in the diamond storage.
 
+    /// @notice The contract address of the glacis airlift on the source chain.
     IGlacisAirlift public immutable airlift;
 
     /// Types ///
 
     /// @param refund Refund address
-    /// @param nativeFee TODO
-    // TODO
+    /// @param nativeFee The fee amount in native token required by the Glacis Airlift.
     struct GlacisData {
         address refund;
         uint256 nativeFee;
@@ -96,34 +95,19 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        bytes32 receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
-
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // Give the Airlift approval to bridge tokens
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                address(airlift),
-                _bridgeData.minAmount
-            );
-            airlift.send{ value: _glacisData.nativeFee }(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                receiver,
-                _bridgeData.destinationChainId,
-                _glacisData.refund
-            );
-        } else {
-            // cant have tokenFee is it's native asset bridging
-            airlift.send{
-                value: _bridgeData.minAmount + _glacisData.nativeFee
-            }(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                receiver,
-                _bridgeData.destinationChainId,
-                _glacisData.refund
-            );
-        }
+        // Give the Airlift approval to bridge tokens
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(airlift),
+            _bridgeData.minAmount
+        );
+        airlift.send{ value: _glacisData.nativeFee }(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount,
+            bytes32(uint256(uint160(_bridgeData.receiver))),
+            _bridgeData.destinationChainId,
+            _glacisData.refund
+        );
 
         emit LiFiTransferStarted(_bridgeData);
     }
