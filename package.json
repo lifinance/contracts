@@ -5,6 +5,7 @@
   "engines": {
     "node": ">= 12.18.0"
   },
+  "type":"module",
   "repository": "github:lifinance/contracts",
   "author": "LI.FI",
   "license": "MIT",
