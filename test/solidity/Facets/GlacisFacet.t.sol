@@ -114,6 +114,12 @@ contract GlacisFacetTest is TestBaseFacet {
         );
     }
 
+    function initiateSwapAndBridgeTxWithFacet(bool) internal override {
+        glacisFacet.swapAndStartBridgeTokensViaGlacis{
+            value: addToMessageValue
+        }(bridgeData, swapData, validGlacisData);
+    }
+
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
     }
@@ -145,28 +151,28 @@ contract GlacisFacetTest is TestBaseFacet {
 
     // TODO
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
-        //     // TODO can be related to this issue: https://github.com/glacislabs/airlift-evm/blob/main/test/tokens/MIM.t.sol#L23-L31
-        //     vm.assume(amount > 1_000 * 10 ** wormhole.decimals() && amount < 100_000 * 10 ** wormhole.decimals());
-        //     vm.startPrank(USER_SENDER);
-        //     bridgeData.minAmount = amount;
-        //     // approval
-        //     wormhole.approve(address(glacisFacet), bridgeData.minAmount);
-        //     QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(address(airlift)).quoteSend(
-        //         bridgeData.sendingAssetId,
-        //         bridgeData.minAmount,
-        //         bytes32(uint256(uint160(bridgeData.receiver))),
-        //         bridgeData.destinationChainId,
-        //         REFUND_WALLET,
-        //         payableAmount
-        //     );
-        //     addToMessageValue =
-        //         quoteSendInfo.gmpFee.nativeFee +
-        //         quoteSendInfo.AirliftFeeInfo.airliftFee.nativeFee;
-        //     //prepare check for events
-        //     vm.expectEmit(true, true, true, true, address(glacisFacet));
-        //     emit LiFiTransferStarted(bridgeData);
-        //     initiateBridgeTxWithFacet(false);
-        //     vm.stopPrank();
+        // TODO can be related to this issue: https://github.com/glacislabs/airlift-evm/blob/main/test/tokens/MIM.t.sol#L23-L31
+        // vm.assume(amount > 1_000 * 10 ** wormhole.decimals() && amount < 100_000 * 10 ** wormhole.decimals());
+        // vm.startPrank(USER_SENDER);
+        // bridgeData.minAmount = amount;
+        // // approval
+        // wormhole.approve(address(glacisFacet), bridgeData.minAmount);
+        // QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(address(airlift)).quoteSend(
+        //     bridgeData.sendingAssetId,
+        //     bridgeData.minAmount,
+        //     bytes32(uint256(uint160(bridgeData.receiver))),
+        //     bridgeData.destinationChainId,
+        //     REFUND_WALLET,
+        //     payableAmount
+        // );
+        // addToMessageValue =
+        //     quoteSendInfo.gmpFee.nativeFee +
+        //     quoteSendInfo.AirliftFeeInfo.airliftFee.nativeFee;
+        // //prepare check for events
+        // vm.expectEmit(true, true, true, true, address(glacisFacet));
+        // emit LiFiTransferStarted(bridgeData);
+        // initiateBridgeTxWithFacet(false);
+        // vm.stopPrank();
     }
 
     function testBase_CanSwapAndBridgeNativeTokens() public override {
@@ -254,12 +260,6 @@ contract GlacisFacetTest is TestBaseFacet {
             initialDAIBalance - swapData[0].fromAmount
         );
         assertEq(USER_SENDER.balance, initialETHBalance - addToMessageValue);
-    }
-
-    function initiateSwapAndBridgeTxWithFacet(bool) internal override {
-        glacisFacet.swapAndStartBridgeTokensViaGlacis{
-            value: addToMessageValue
-        }(bridgeData, swapData, validGlacisData);
     }
 
     function test_CanBridgeAndPayFeeWithBridgedToken() public {}

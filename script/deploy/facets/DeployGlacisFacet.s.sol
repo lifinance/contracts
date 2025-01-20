@@ -24,7 +24,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         address airlift = json.readAddress(
-            string.concat(".", network, ".example")
+            string.concat(".", network, ".airlift")
         );
 
         return abi.encode(airlift);
