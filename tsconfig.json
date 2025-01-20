@@ -12,7 +12,7 @@
     "types": ["node"]
   },
   "include": [
-    "hardhat.config.ts",
+    "hardhat.config.tsm",
     "./script",
     "./deploy",
     "./test",
