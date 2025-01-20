@@ -31,9 +31,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".weth")
         );
 
-        //TODO: REMOVE
-        address erc20Proxy = _getConfigContractAddress(path, ".ERC20Proxy");
-
         return abi.encode(acrossSpokePool, weth);
     }
 }
