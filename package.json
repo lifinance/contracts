@@ -78,7 +78,7 @@
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'shanghai' --ir-minimum && ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
-    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
+    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && tsx tasks/generateDiamondABI.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
     "healthcheck": "tsx ./script/deploy/healthCheck.ts",
