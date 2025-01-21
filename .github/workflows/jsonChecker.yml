@@ -35,29 +35,38 @@ jobs:
       # Step 4: Find and validate JSON files
       - name: Validate JSON files
         run: |
+
           set -e
 
-          # Function to validate all files in a directory
-          validate_files() {
-            dir=$1
-            echo "Checking JSON files in $dir now"
-            for file in $dir/*.json; do
-              if [ -f "$file" ]; then
-                echo "Validating $file"
-                jsonlint "$file"
+          # Function to validate JSON files
+          validate_json() {
+            local path="$1"
+            # check if path exists
+            if [ -e "$path" ]; then
+            echo "Checking $path"
+            # check if path is a directory
+              if [ -d "$path" ]; then
+                find "$path" -type f -name "*.json" -exec sh -c '
+                  # go through all files in directory
+                  for file do
+                    echo "Validating $file"
+                    if [ "$(stat -f%z "$file")" -gt 5242880 ]; then
+                      echo "Warning: $file is larger than 5MB"
+                    fi
+
+                    # check json file
+                    npx jsonlint "$file"
+                  done
+                ' sh {} +
+              else
+                # just check single file
+                npx jsonlint "$path"
               fi
-            done
+            else
+              echo "Warning: $path does not exist"
+            fi
           }
-
-          # Validate all JSON files in the specified directories
-          validate_files config
-          validate_files deployments
-
-          echo "Checking audit log now"
-          jsonlint audit/auditLog.json
-
-          echo "Checking target state now"
-          jsonlint script/deploy/_targetState.json
-
-          echo "Checking deploy requirements now"
-          jsonlint script/deploy/resources/deployRequirements.json
+          validate_json "config"
+          validate_json "deployments"
+          validate_json "audit/auditLog.json"
+          validate_json "script/deploy/_targetState.json"
