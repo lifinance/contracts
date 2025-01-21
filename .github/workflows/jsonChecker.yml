@@ -41,31 +41,30 @@ jobs:
           # Function to validate JSON files
           validate_json() {
             local path="$1"
-            # check if path exists
+            # Check if path exists
             if [ -e "$path" ]; then
-            echo "Checking $path"
-            # check if path is a directory
+              echo "Checking $path"
+              # Check if path is a directory
               if [ -d "$path" ]; then
                 find "$path" -type f -name "*.json" -exec sh -c '
-                  # go through all files in directory
-                  for file do
+                  for file; do
                     echo "Validating $file"
                     if [ "$(stat -f%z "$file")" -gt 5242880 ]; then
                       echo "Warning: $file is larger than 5MB"
                     fi
-
-                    # check json file
-                    npx jsonlint "$file"
+                    # Validate JSON and exit with error if it fails
+                    npx jsonlint "$file" || exit 1
                   done
                 ' sh {} +
               else
-                # just check single file
-                npx jsonlint "$path"
+                # Validate a single file
+                npx jsonlint "$path" || exit 1
               fi
             else
               echo "Warning: $path does not exist"
             fi
           }
+
           validate_json "config"
           validate_json "deployments"
           validate_json "audit/auditLog.json"
