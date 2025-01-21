@@ -50,3 +50,6 @@ jobs:
 
           echo "Checking target state now"
           jsonlint script/deploy/_targetState.json
+
+          echo "Checking deploy requirements now"
+          jsonlint script/deploy/resources/deployRequirements.json
