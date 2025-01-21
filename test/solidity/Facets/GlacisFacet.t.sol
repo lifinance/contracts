@@ -48,11 +48,6 @@ contract GlacisFacetTest is TestBaseFacet {
             USER_SENDER,
             500_000 * 10 ** wormhole.decimals()
         );
-        deal(
-            ADDRESS_WORMHOLE_TOKEN,
-            address(airlift),
-            500_000 * 10 ** wormhole.decimals()
-        );
 
         glacisFacet = new TestGlacisFacet(airlift);
         bytes4[] memory functionSelectors = new bytes4[](4);

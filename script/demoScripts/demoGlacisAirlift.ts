@@ -1,92 +1,117 @@
-import { providers, Wallet, utils, constants, Contract } from 'ethers'
-import chalk from 'chalk'
-import { GlacisFacet__factory, ERC20__factory } from '../../typechain'
-import { node_url } from '../utils/network'
+import { utils, constants, Contract, ethers, BigNumber } from 'ethers'
+import {
+  GlacisFacet__factory,
+  ERC20__factory,
+  ILiFi,
+  type GlacisFacet,
+} from '../../typechain'
+import deployments from '../../deployments/arbitrum.staging.json'
 import config from '../../config/glacis.json'
-
-const msg = (msg: string) => {
-  console.log(chalk.green(msg))
-}
-
-const LIFI_ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' // LIFI Diamond on Arbitrum
-const WORMHOLE_ADDRESS = '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91' // Wormhole token on Arbitrum
-const amountToBridge = '1'
-const destinationChainId = 10 // Optimism
+import { zeroPadValue } from 'ethers6'
+import dotenv from 'dotenv'
+dotenv.config()
 
 async function main() {
-  msg(`Transfer ${amountToBridge} Wormhole on Arbitrum to Wormhole on Optimism`)
-  let wallet = Wallet.fromMnemonic(<string>process.env.MNEMONIC)
-  const provider1 = new providers.JsonRpcProvider(node_url('arbitrum'))
-  const provider = new providers.FallbackProvider([provider1])
-  wallet = wallet.connect(provider)
-  const walletAddress = await wallet.getAddress()
+  const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM
+  const PRIVATE_KEY = process.env.PRIVATE_KEY
+  const LIFI_ADDRESS = deployments.LiFiDiamond
+  const WORMHOLE_ADDRESS = '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91' // Wormhole token on Arbitrum
+  const destinationChainId = 10 // Optimism
 
-  const lifi = GlacisFacet__factory.connect(LIFI_ADDRESS, wallet) as any
+  const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
+  const signer = new ethers.Wallet(PRIVATE_KEY as string, provider)
+  const glacis = GlacisFacet__factory.connect(LIFI_ADDRESS, provider) as any
 
-  const token = ERC20__factory.connect(WORMHOLE_ADDRESS, wallet)
-  const amount = utils.parseEther(amountToBridge)
+  const address = await signer.getAddress()
 
-  const allowance = await token.allowance(walletAddress, LIFI_ADDRESS)
-  if (amount.gt(allowance)) {
-    await token.approve(lifi.address, amount)
+  const token = ERC20__factory.connect(WORMHOLE_ADDRESS, provider)
+  const amount = utils.parseUnits('0.5', 18)
+  console.info(
+    `Transfer ${amount} Wormhole on Arbitrum to Wormhole on Optimism`
+  )
+  console.info(`Currently connected to ${address}`)
 
-    msg('Token approved for swapping')
+  const balance = await token.balanceOf(address)
+  console.info(`Token balance for connected wallet: ${balance.toString()}`)
+  if (balance.eq(0)) {
+    console.error(`Connected account has no funds.`)
+    console.error(`Exiting...`)
+    process.exit(1)
   }
 
-  const lifiData = {
+  console.info('Sending WORMHOLE...')
+  const currentAllowance = await token.allowance(
+    await signer.getAddress(),
+    LIFI_ADDRESS
+  )
+
+  if (currentAllowance.lt(amount)) {
+    console.info('Allowance is insufficient. Approving the required amount...')
+    const gasPrice = await provider.getGasPrice()
+    const tx = await token
+      .connect(signer)
+      .approve(LIFI_ADDRESS, amount, { gasPrice })
+    await tx.wait()
+
+    console.info('Approval transaction complete. New allowance set.')
+  } else {
+    console.info('Sufficient allowance already exists. No need to approve.')
+  }
+  console.info('Sent WORMHOLE')
+
+  const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: utils.randomBytes(32),
+    bridge: 'glacis',
     integrator: 'ACME Devs',
     referrer: constants.AddressZero,
     sendingAssetId: WORMHOLE_ADDRESS,
-    receivingAssetId: constants.AddressZero,
-    receiver: walletAddress,
+    receiver: address,
     destinationChainId: destinationChainId,
-    amount: amount,
+    minAmount: amount,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
   }
 
   const airlift = new Contract(config.arbitrum.airlift, [
-    'function send(address token, uint256 amount, bytes32 receiver, uint256 destinationChainId, address refundAddress) external payable',
+    'function quoteSend(address token, uint256 amount, bytes32 receiver, uint256 destinationChainId, address refundAddress, uint256 msgValue) external returns ((uint256, uint256), uint256, uint256, ((uint256, uint256), uint256, uint256))',
   ])
+
   // calculate native fee
-  const estimatedFees = await airlift.quoteSend.staticCall(
+  const estimatedFees = await airlift.connect(signer).callStatic.quoteSend(
     WORMHOLE_ADDRESS,
     amount,
-    walletAddress,
+    zeroPadValue(address, 32), // address to bytes32
     destinationChainId,
-    walletAddress, //refund
+    address, //refund
     utils.parseEther('1')
   )
   const structuredFees = {
     gmpFee: {
-      nativeFee: estimatedFees[0][0],
-      tokenFee: estimatedFees[0][1],
+      nativeFee: BigNumber.from(estimatedFees[0][0]),
+      tokenFee: BigNumber.from(estimatedFees[0][1]),
     },
     airliftFee: {
-      nativeFee: estimatedFees[3][0][0],
-      tokenFee: estimatedFees[3][0][1],
+      nativeFee: BigNumber.from(estimatedFees[3][0][0]),
+      tokenFee: BigNumber.from(estimatedFees[3][0][1]),
     },
   }
-  console.log(structuredFees)
-  const estimatedValue =
-    structuredFees.gmpFee.nativeFee + structuredFees.airliftFee.nativeFee
-
-  const glacisBridgeData = {
-    receiver: walletAddress,
-    amount: amount,
-  }
-
-  const trx = await lifi.startBridgeTokensViaGlacis(
-    lifiData,
-    glacisBridgeData,
-    {
-      value: estimatedValue,
-      gasLimit: 500000,
-    }
+  const nativeFee = structuredFees.gmpFee.nativeFee.add(
+    structuredFees.airliftFee.nativeFee
   )
 
-  msg('Bridge process started on sending chain')
+  const glacisBridgeData: GlacisFacet.GlacisDataStruct = {
+    refund: address,
+    nativeFee,
+  }
 
-  await trx.wait()
+  console.info('Bridging WORMHOLE...')
+  const tx = await glacis
+    .connect(signer)
+    .startBridgeTokensViaGlacis(bridgeData, glacisBridgeData, {
+      value: nativeFee,
+    })
+  await tx.wait()
+  console.info('Bridged WORMHOLE...')
 }
 
 main()

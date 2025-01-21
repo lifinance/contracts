@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20, SafeERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
@@ -94,6 +94,11 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
+        SafeERC20.safeTransfer(
+            IERC20(_bridgeData.sendingAssetId),
+            address(airlift),
+            _bridgeData.minAmount
+        );
         airlift.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
