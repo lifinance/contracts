@@ -49,9 +49,6 @@ jobs:
                 find "$path" -type f -name "*.json" -exec sh -c '
                   for file; do
                     echo "Validating $file"
-                    if [ "$(stat -f%z "$file")" -gt 5242880 ]; then
-                      echo "Warning: $file is larger than 5MB"
-                    fi
                     # Validate JSON and exit with error if it fails
                     npx jsonlint "$file" || exit 1
                   done
