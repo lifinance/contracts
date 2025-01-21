@@ -28,13 +28,22 @@ jobs:
       - name: Validate JSON files
         run: |
           set -e
+
+          # Function to validate all files in a directory
+          validate_files() {
+            dir=$1
+            echo "Checking JSON files in $dir now"
+            for file in $dir/*.json; do
+              if [ -f "$file" ]; then
+                echo "Validating $file"
+                jsonlint "$file"
+              fi
+            done
+          }
+
           # Validate all JSON files in the specified directories
-
-          echo "Checking JSON files in config/ now"
-          jsonlint config/*.json
-
-          echo "Checking JSON files in deployments/ now"
-          jsonlint deployments/*.json
+          validate_files config
+          validate_files deployments
 
           echo "Checking audit log now"
           jsonlint audit/auditLog.json
