@@ -60,7 +60,7 @@
       "auditCompletedOn": "02.12.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2024-12-02_RelayFacet(v1.0.0).pdf",
+      "auditReportPath": "./audit/reports/2024.12.02_RelayFacet(v1.0.0).pdf",
       "auditCommitHash": "291d0a78bc4174b3ec29bb2ce0b27c6b5d3e8ec8"
     },
     "audit20241203": {
@@ -116,7 +116,7 @@
       "auditCompletedOn": "10.01.2025",
       "auditedBy": "Cantina (security firm)",
       "auditorGitHandle": "cantinaxyz",
-      "auditReportPath": "./audit/reports/2025.01.10_Cantina Pre-Comp Audit.pdf",
+      "auditReportPath": "./audit/reports/2025.01.10_Cantina_PreComp.pdf",
       "auditCommitHash": "c9e6246167f4ff44f4535e466a4ceb902552aa13"
     },
     "audit20250110_2": {
