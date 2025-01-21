@@ -107,7 +107,7 @@ const main = defineCommand({
 
     const globalConfig = await import('../../config/global.json')
 
-    const chain = getViemChainForNetworkName(network)
+    const chain = getViemChainForNetworkName(network.toLowerCase())
 
     const publicClient = createPublicClient({
       batch: { multicall: true },
