@@ -74,7 +74,7 @@ base = "${ETH_NODE_URI_BASE}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
-apechain = { key = "${APECHAIN_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=33139", chain = "33139" }
+apechain = { key = "${APECHAIN_ETHERSCAN_API_KEY}", url = "https://api.apescan.io/api", chain = "33139" }
 arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42161", chain = "42161" }
 aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://explorer.mainnet.aurora.dev/api", chain = "1313161554", verifier = "blockscout" }
 avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=43114", chain = "43114" }
