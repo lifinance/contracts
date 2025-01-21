@@ -2,13 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { IGlacisAirlift, QuoteSendInfo } from "../Interfaces/IGlacisAirlift.sol";
+import { IGlacisAirlift } from "../Interfaces/IGlacisAirlift.sol";
 
 /// @title Glacis Facet
 /// @author LI.FI (https://li.fi/)
@@ -95,12 +94,6 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        // Give the Airlift approval to bridge tokens
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(airlift),
-            _bridgeData.minAmount
-        );
         airlift.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
