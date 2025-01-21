@@ -16299,6 +16299,10 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "zksync": {
       "production": {
         "1.0.0": [
