@@ -1,5 +1,11 @@
 name: JSON Checker
 # - checks selected JSON files for semantic issues and fails if any issues are found
+# - validates the following locations/files:
+#   - config/*.json
+#   - deployments/*.json
+#   - audit/auditLog.json
+#   - script/deploy/_targetState.json
+#   - script/deploy/resources/deployRequirements.json
 
 on:
   pull_request:
@@ -8,6 +14,8 @@ on:
 jobs:
   validate-json:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       # Step 1: Checkout code
@@ -18,7 +26,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4.1.0
         with:
-          node-version: 16 # Use a stable Node.js version
+          node-version: 20
 
       # Step 3: Install jsonlint
       - name: Install jsonlint
