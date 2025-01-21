@@ -1,0 +1,73 @@
+{
+    "LiFiDiamond": {
+        "Facets": {
+            "0x038799a3Cf7CF9D7c5f7C35CfD4fe96F3a28f03d": {
+                "Name": "DiamondCutFacet",
+                "Version": "2.0.2"
+            },
+            "0x69f63ba76ca0441E3Ac85F115E9323AB255B8446": {
+                "Name": "DiamondLoupeFacet",
+                "Version": "2.0.2"
+            },
+            "0x6af9C39a890dB3483C8F55BF4729Ab2f8cAC1A72": {
+                "Name": "OwnershipFacet",
+                "Version": "2.0.2"
+            },
+            "0xca67b97CcfC3f73ce31Ec87785b7E3EFad7e066B": {
+                "Name": "WithdrawFacet",
+                "Version": "2.0.2"
+            },
+            "0xaa399DB23bF265fc77F5AD7b193E621ecF769bF9": {
+                "Name": "DexManagerFacet",
+                "Version": "2.0.2"
+            },
+            "0x973ee18114b0140Ca23ceFF1F72e6eee37d59f25": {
+                "Name": "AccessManagerFacet",
+                "Version": "2.0.2"
+            },
+            "0x838aC5b19f79EaC53845fDE0042aBF66ef7cc956": {
+                "Name": "PeripheryRegistryFacet",
+                "Version": "2.0.2"
+            },
+            "0xFabDAb3a746472377Ac6Aa6e15E479C42aFA9069": {
+                "Name": "LIFuelFacet",
+                "Version": "2.0.2"
+            },
+            "0xcc8AA07E93fC6EB22E200F287ED2b6e10B023408": {
+                "Name": "GenericSwapFacet",
+                "Version": "2.0.2"
+            },
+            "0x988eF13024846c61A16756ff2801Cb44e98a97e8": {
+                "Name": "GenericSwapFacetV3",
+                "Version": "2.0.2"
+            },
+            "0x59264E21a330221C2c8a718C98b291345049ecD7": {
+                "Name": "StandardizedCallFacet",
+                "Version": "2.0.2"
+            },
+            "0x332a1C41A67eE5ACb2ea9d8CD90DC95fdeB84678": {
+                "Name": "CalldataVerificationFacet",
+                "Version": "2.0.2"
+            },
+            "0x7EF44602678f8071729ccfa0dd6d0C3661fD2a34": {
+                "Name": "GasZipFacet",
+                "Version": "2.0.2"
+            },
+            "0x4dBa0A2A7Cd2dbaE0885424499fFf5A3079F49dc": {
+                "Name": "EmergencyPauseFacet",
+                "Version": "2.0.2"
+            }
+        },
+        "Periphery": {
+            "ERC20Proxy": "0xDF28E193B15A366308fEdA4dA0D52855dC1fB5dF",
+            "Executor": "0x1b5e83C306A5E79A1BC784356405E2E1636a9291",
+            "FeeCollector": "0xEe80aaE1e39b1d25b9FC99c8edF02bCd81f9eA30",
+            "Receiver": "0x52C556256eBB7B7488bFc01Ff085810A15A6B3b5",
+            "LiFuelFeeCollector": "0x6e067b6E29791126CD21f7DB316704E29d38447D",
+            "TokenWrapper": "0x92A30698e56091f50a2a12947593A6cC46c55E39",
+            "LiFiDEXAggregator": "0x2D4ffb5219fC3C84905ec7CAEe2740d9dDa8271D",
+            "Permit2Proxy": "0xD9dBf70E874000A3d4F73bdf49D167fe1702197C",
+            "GasZipPeriphery": "0x160832f05241fdDAd01aa0CbC88869852D92fAB1"
+        }
+    }
+}

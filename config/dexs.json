@@ -92,6 +92,7 @@
     "0xf332761c673b59b21ff6dfa8ada44d78c12def09",
     "0x70cBb871E8f30Fc8Ce23609E9E0Ea87B6b222F58"
   ],
+  "apechain": [],
   "aurora": [
     "0x5215E9fd223BC909083fbdB2860213873046e45d",
     "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6",
@@ -847,7 +848,9 @@
     "0xf91bb752490473b8342a3e964e855b9f9a2a668e"
   ],
   "avalancheFujiTestnet": [],
-  "bscTestnet": ["0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"],
+  "bscTestnet": [
+    "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"
+  ],
   "localanvil": [],
   "mumbai": [
     "0x5215E9fd223BC909083fbdB2860213873046e45d",
