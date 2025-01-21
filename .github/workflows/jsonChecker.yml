@@ -1,5 +1,11 @@
 name: JSON Checker
 # - checks selected JSON files for semantic issues and fails if any issues are found
+# - validates the following locations/files:
+#   - config/*.json
+#   - deployments/*.json
+#   - audit/auditLog.json
+#   - script/deploy/_targetState.json
+#   - script/deploy/resources/deployRequirements.json
 
 on:
   pull_request:
