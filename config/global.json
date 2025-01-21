@@ -34,7 +34,7 @@
       "sig": "0x44e2b18c",
       "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
     }
-  ],
+  ]
   "safeAddresses": {
     "mainnet": "0x37347dD595C49212C5FC2D95EA10d1085896f51E",
     "arbitrum": "0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15",

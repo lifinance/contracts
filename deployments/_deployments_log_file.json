@@ -25,7 +25,7 @@
           }
         ]
       }
-    }
+    },
     "arbitrum": {
       "production": {
         "1.0.0": [
