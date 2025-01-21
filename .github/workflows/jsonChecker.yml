@@ -1,0 +1,43 @@
+name: JSON Checker
+# - checks selected JSON files for semantic issues and fails if any issues are found
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  validate-json:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: 16 # Use a stable Node.js version
+
+      # Step 3: Install jsonlint
+      - name: Install jsonlint
+        run: npm install -g jsonlint
+
+      # Step 4: Find and validate JSON files
+      - name: Validate JSON files
+        run: |
+          set -e
+          # Validate all JSON files in the specified directories
+
+          echo "Checking JSON files in config/ now"
+          jsonlint config/*.json
+
+          echo "Checking JSON files in deployments/ now"
+          jsonlint deployments/*.json
+
+          echo "Checking audit log now"
+          jsonlint audit/auditLog.json
+
+          echo "Checking target state now"
+          jsonlint script/deploy/_targetState.json
