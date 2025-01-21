@@ -22,10 +22,6 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "31072024",
             "VERIFIED": "true"
-          }
-        ]
-      }
-    },
     "arbitrum": {
       "production": {
         "1.0.0": [
