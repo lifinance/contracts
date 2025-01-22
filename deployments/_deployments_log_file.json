@@ -21263,6 +21263,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 18:04:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "arbitrum": {
@@ -21272,6 +21284,130 @@
             "ADDRESS": "0xE15C7585636e62b88bA47A40621287086E0c2E33",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-10-15 09:42:45",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 16:58:31",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-17 10:36:45",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 17:06:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 17:08:50",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xfac73BA460aa736bf7173359dD1E077e629B85eB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 17:26:14",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 17:36:05",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 17:47:26",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 17:49:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x25B14BB3C349cc8B4076B5D75bfF2Ddebc7daE6D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-16 18:09:02",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
             "SALT": "",
             "VERIFIED": "true"
