@@ -111,7 +111,7 @@ async function main() {
       value: nativeFee,
     })
   await tx.wait()
-  console.info('Bridged WORMHOLE...')
+  console.info('Bridged WORMHOLE')
 }
 
 main()
