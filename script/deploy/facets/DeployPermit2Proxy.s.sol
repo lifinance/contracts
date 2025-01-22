@@ -42,7 +42,15 @@ contract DeployScript is DeployScriptBase {
         string memory permit2ProxyConfigJSON = vm.readFile(permit2ProxyConfig);
 
         address permit2Address = permit2ProxyConfigJSON.readAddress(
-            string.concat(".", network)
+            string.concat(".", network, ".Permit2")
+        );
+
+        bytes memory rawForwarders = permit2ProxyConfigJSON.parseRaw(
+            string.concat(".", network, ".TrustedForwarders")
+        );
+        address[] memory trustedForwarders = abi.decode(
+            rawForwarders,
+            (address[])
         );
 
         // get the multisig SAFE address for the given network
@@ -57,6 +65,12 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".safeAddress")
         );
 
-        return abi.encode(diamond, permit2Address, safeAddress);
+        return
+            abi.encode(
+                diamond,
+                permit2Address,
+                safeAddress,
+                trustedForwarders
+            );
     }
 }
