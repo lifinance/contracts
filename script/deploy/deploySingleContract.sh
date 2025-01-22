@@ -94,12 +94,18 @@ deploySingleContract() {
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
   if [[ $NETWORK == "zksync" ]]; then
+    # update the deploy script directory to point to zksync-specific scripts
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
   fi
 
   if [[ -z "$CONTRACT" ]]; then
-    # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    if [[ $NETWORK == "zksync" ]]; then
+      # get user-selected deploy script and contract from list
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    else
+      # get user-selected deploy script and contract from list
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    fi
     local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
     SCRIPT="Deploy"$CONTRACT
@@ -116,7 +122,12 @@ deploySingleContract() {
   fi
 
   # check if deploy script exists
-  local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  if [[ $NETWORK == "zksync" ]]; then
+    FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".zksync.s.sol""
+  else
+    FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  fi
+
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
     if [[ -z "$EXIT_ON_ERROR" ]]; then
