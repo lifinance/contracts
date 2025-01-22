@@ -50,12 +50,12 @@ jobs:
                   for file; do
                     echo "Validating $file"
                     # Validate JSON and exit with error if it fails
-                    npx jsonlint "$file" || exit 1
+                    jsonlint "$file" || exit 1
                   done
                 ' sh {} +
               else
                 # Validate a single file
-                npx jsonlint "$path" || exit 1
+                jsonlint "$path" || exit 1
               fi
             else
               echo "Warning: $path does not exist"
