@@ -116,7 +116,12 @@ deploySingleContract() {
   fi
 
   # check if deploy script exists
-  local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  if [[ $NETWORK == "zksync" ]]; then
+    FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".zkysync.s.sol""
+  elif
+    FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  fi
+
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
     if [[ -z "$EXIT_ON_ERROR" ]]; then
