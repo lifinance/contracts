@@ -144,9 +144,7 @@ contract GlacisFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    // TODO
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
-        // TODO can be related to this issue: https://github.com/glacislabs/airlift-evm/blob/main/test/tokens/MIM.t.sol#L23-L31
         vm.assume(
             amount > 0 * 10 ** wormhole.decimals() &&
                 amount < 100_000 * 10 ** wormhole.decimals()
