@@ -8,10 +8,6 @@
     "MULTI_SEND": 5
   },
   "config": {
-    "hardhat": {
-      "chainId": 1,
-      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
-    },
     "mainnet": {
       "chainId": 1,
       "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
