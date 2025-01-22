@@ -6,7 +6,7 @@ struct QuoteSendInfo {
     Fee gmpFee;
     uint256 amountSent;
     uint256 valueSent;
-    AirliftFeeInfo AirliftFeeInfo;
+    AirliftFeeInfo airliftFeeInfo;
 }
 
 struct AirliftFeeInfo {

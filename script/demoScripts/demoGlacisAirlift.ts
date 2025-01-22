@@ -48,11 +48,15 @@ async function main() {
   if (currentAllowance.lt(amount)) {
     console.info('Allowance is insufficient. Approving the required amount...')
     const gasPrice = await provider.getGasPrice()
-    const tx = await token
-      .connect(signer)
-      .approve(LIFI_ADDRESS, amount, { gasPrice })
-    await tx.wait()
-
+    try {
+      const tx = await token
+        .connect(signer)
+        .approve(LIFI_ADDRESS, amount, { gasPrice })
+      await tx.wait()
+    } catch (error) {
+      console.error('Approval failed:', error)
+      process.exit(1)
+    }
     console.info('Approval transaction complete. New allowance set.')
   } else {
     console.info('Sufficient allowance already exists. No need to approve.')
@@ -77,14 +81,23 @@ async function main() {
   ])
 
   // calculate native fee
-  const estimatedFees = await airlift.connect(signer).callStatic.quoteSend(
-    WORMHOLE_ADDRESS,
-    amount,
-    zeroPadValue(address, 32), // address to bytes32
-    destinationChainId,
-    address, //refund
-    utils.parseEther('1')
-  )
+  let estimatedFees
+  try {
+    estimatedFees = await airlift
+      .connect(signer)
+      .callStatic.quoteSend(
+        WORMHOLE_ADDRESS,
+        amount,
+        zeroPadValue(address, 32),
+        destinationChainId,
+        address,
+        utils.parseEther('1')
+      )
+    if (!estimatedFees) throw new Error('Invalid fee estimation')
+  } catch (error) {
+    console.error('Fee estimation failed:', error)
+    process.exit(1)
+  }
   const structuredFees = {
     gmpFee: {
       nativeFee: BigNumber.from(estimatedFees[0][0]),
@@ -105,12 +118,17 @@ async function main() {
   }
 
   console.info('Bridging WORMHOLE...')
-  const tx = await glacis
-    .connect(signer)
-    .startBridgeTokensViaGlacis(bridgeData, glacisBridgeData, {
-      value: nativeFee,
-    })
-  await tx.wait()
+  try {
+    const tx = await glacis
+      .connect(signer)
+      .startBridgeTokensViaGlacis(bridgeData, glacisBridgeData, {
+        value: nativeFee,
+      })
+    await tx.wait()
+  } catch (error) {
+    console.error('Approval failed:', error)
+    process.exit(1)
+  }
   console.info('Bridged WORMHOLE')
 }
 

@@ -93,7 +93,7 @@ contract GlacisFacetTest is TestBaseFacet {
 
         addToMessageValue =
             quoteSendInfo.gmpFee.nativeFee +
-            quoteSendInfo.AirliftFeeInfo.airliftFee.nativeFee;
+            quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
 
         // produce valid GlacisData
         validGlacisData = GlacisFacet.GlacisData({
@@ -166,7 +166,7 @@ contract GlacisFacetTest is TestBaseFacet {
             );
         addToMessageValue =
             quoteSendInfo.gmpFee.nativeFee +
-            quoteSendInfo.AirliftFeeInfo.airliftFee.nativeFee;
+            quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(glacisFacet));
         emit LiFiTransferStarted(bridgeData);
