@@ -94,7 +94,7 @@ deploySingleContract() {
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
   if [[ $NETWORK == "zksync" ]]; then
-    # update the deploy script directory
+    # update the deploy script directory to point to zksync-specific scripts
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
   fi
 
