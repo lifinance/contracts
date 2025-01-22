@@ -126,7 +126,7 @@ async function main() {
       })
     await tx.wait()
   } catch (error) {
-    console.error('Approval failed:', error)
+    console.error('Bridge transaction failed:', error)
     process.exit(1)
   }
   console.info('Bridged WORMHOLE')
