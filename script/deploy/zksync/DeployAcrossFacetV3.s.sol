@@ -21,12 +21,15 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/across.json");
-        string memory json = vm.readFile(path);
 
-        address acrossSpokePool = json.readAddress(
+        address acrossSpokePool = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".acrossSpokePool")
         );
-        address weth = json.readAddress(string.concat(".", network, ".weth"));
+        address weth = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".weth")
+        );
 
         return abi.encode(acrossSpokePool, weth);
     }

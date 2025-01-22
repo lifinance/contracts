@@ -37,7 +37,9 @@ contract DeployScript is UpdateScriptBase {
             string.concat(".", network, ".tokensToApprove")
         );
         address[] memory tokens = abi.decode(rawConfig, (address[]));
-        address cBridge = json.readAddress(
+
+        address cBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".cBridge")
         );
 
