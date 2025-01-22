@@ -7,12 +7,16 @@ import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { ERC2771ContextCustom } from "lifi/Security/ERC2771ContextCustom.sol";
 
 contract Permit2ProxyTest is TestBase {
     using PermitHash for ISignatureTransfer.PermitTransferFrom;
 
     /// Constants ///
 
+    address internal constant GELATO_1BALANCEERC2771 =
+        0xd8253782c45a12053594b9deB72d8e8aB2Fca54c;
     address internal constant PERMIT2_ADDRESS =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
     uint256 internal PRIVATE_KEY = 0x1234567890;
@@ -50,11 +54,16 @@ contract Permit2ProxyTest is TestBase {
         customBlockNumberForForking = 20261175;
         initTestBase();
 
+        // add Gelato relayer address as trusted forwarder
+        address[] memory trustedForwarders = new address[](1);
+        trustedForwarders[0] = GELATO_1BALANCEERC2771;
+
         uniPermit2 = ISignatureTransfer(PERMIT2_ADDRESS);
         permit2Proxy = new Permit2Proxy(
             DIAMOND_ADDRESS,
             uniPermit2,
-            USER_DIAMOND_OWNER
+            USER_DIAMOND_OWNER,
+            trustedForwarders
         );
         PERMIT_WITH_WITNESS_TYPEHASH = keccak256(
             abi.encodePacked(
@@ -75,6 +84,243 @@ contract Permit2ProxyTest is TestBase {
     /// Tests ///
 
     /// EIP2612 (native permit) related test cases ///
+
+    /// Trusted Forwarder Tests ///
+
+    function testRevert_RevertsIfForwarderIsNotTrusted()
+        public
+        assertBalanceChange(ADDRESS_USDC, PERMIT2_USER, 0)
+    {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
+
+        vm.stopPrank();
+
+        // send transaction from a non-trusted address
+        vm.startPrank(USER_SENDER);
+
+        // call Permit2Proxy with signature
+        bytes memory callData = abi.encodeWithSelector(
+            permit2Proxy
+                .callDiamondWithEIP2612SignatureViaTrustedForwarder
+                .selector,
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            testdata.diamondCalldata
+        );
+
+        // append msg.sender to calldata as specified in ERC2771
+        bytes memory callDataWithMsgSenderAppended = abi.encodePacked(
+            callData,
+            PERMIT2_USER
+        );
+
+        // expect tx to revert as we call fom untrusted address
+        vm.expectRevert(UnAuthorized.selector);
+
+        // // call Permit2Proxy from Gelato contract with msgSender appended to calldata
+        (bool success, ) = address(permit2Proxy).call(
+            callDataWithMsgSenderAppended
+        );
+
+        if (!success) revert();
+
+        vm.stopPrank();
+    }
+
+    function test_can_execute_calldata_using_eip2612_signature_usdc_via_trustedForwarder()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            -int256(defaultUSDCAmount)
+        )
+    {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
+
+        vm.stopPrank();
+
+        // send transaction from Gelato contract to mock relayed tx behavior
+        vm.startPrank(GELATO_1BALANCEERC2771);
+
+        // expect LifiTransferStarted event to be emitted by our diamond contract
+        vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
+        emit LiFiTransferStarted(bridgeData);
+
+        // call Permit2Proxy with signature
+        bytes memory callData = abi.encodeWithSelector(
+            permit2Proxy
+                .callDiamondWithEIP2612SignatureViaTrustedForwarder
+                .selector,
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            testdata.diamondCalldata
+        );
+
+        bytes memory callDataWithMsgSenderAppended = abi.encodePacked(
+            callData,
+            PERMIT2_USER
+        );
+
+        // // call Permit2Proxy from Gelato contract with msgSender appended to calldata
+        (bool success, ) = address(permit2Proxy).call(
+            callDataWithMsgSenderAppended
+        );
+
+        if (!success) revert();
+
+        vm.stopPrank();
+    }
+
+    function testRevert_RevertsIfPermitApprovalFails() public {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
+
+        vm.stopPrank();
+
+        // send transaction from Gelato contract to mock relayed tx behavior
+        vm.startPrank(GELATO_1BALANCEERC2771);
+
+        // make all permit calls to USDC revert
+        vm.mockCallRevert(
+            ADDRESS_USDC,
+            abi.encodeWithSelector(ERC20Permit.permit.selector),
+            abi.encodeWithSignature("Error(string)", "Mocked Call Revert")
+        );
+
+        // call Permit2Proxy with signature
+        bytes memory callData = abi.encodeWithSelector(
+            permit2Proxy
+                .callDiamondWithEIP2612SignatureViaTrustedForwarder
+                .selector,
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            testdata.diamondCalldata
+        );
+
+        bytes memory callDataWithMsgSenderAppended = abi.encodePacked(
+            callData,
+            PERMIT2_USER
+        );
+
+        // expect the call to revert for the mocked call revert reason as this is bubbled up by the contract
+        vm.expectRevert("Mocked Call Revert");
+
+        // // call Permit2Proxy from Gelato contract with msgSender appended to calldata
+        (bool success, ) = address(permit2Proxy).call(
+            callDataWithMsgSenderAppended
+        );
+
+        if (!success) revert();
+
+        vm.stopPrank();
+    }
+
+    function test_allowsOwnerToUpdateTrustedForwarderAddresses() public {
+        // make sure address is not trusted yet
+        assertEq(
+            ERC2771ContextCustom(address(permit2Proxy)).isTrustedForwarder(
+                USER_REFUND
+            ),
+            false
+        );
+        // prepare arguments for trusted forwarder update
+        address[] memory trustedForwarders = new address[](1);
+        trustedForwarders[0] = USER_REFUND;
+
+        bool[] memory isTrusted = new bool[](1);
+        isTrusted[0] = true;
+
+        // update trusted forwarder addresses
+        permit2Proxy.setTrustedForwarders(trustedForwarders, isTrusted);
+
+        // make sure update was successful
+        assertEq(
+            ERC2771ContextCustom(address(permit2Proxy)).isTrustedForwarder(
+                USER_REFUND
+            ),
+            true
+        );
+    }
+
+    function testRevert_RevertsIfNonOwnerTriesToUpdateTrustedForwarder()
+        public
+    {
+        // make sure address is not trusted yet
+        assertEq(
+            ERC2771ContextCustom(address(permit2Proxy)).isTrustedForwarder(
+                GELATO_1BALANCEERC2771
+            ),
+            true
+        );
+        // prepare arguments for trusted forwarder update
+        address[] memory trustedForwarders = new address[](1);
+        trustedForwarders[0] = GELATO_1BALANCEERC2771;
+
+        bool[] memory isTrusted = new bool[](1);
+        isTrusted[0] = false;
+
+        vm.startPrank(USER_SENDER);
+
+        // expect tx to revert as we call fom untrusted address
+        vm.expectRevert(UnAuthorized.selector);
+
+        // update trusted forwarder addresses
+        permit2Proxy.setTrustedForwarders(trustedForwarders, isTrusted);
+
+        // make sure update was successful
+        assertEq(
+            ERC2771ContextCustom(address(permit2Proxy)).isTrustedForwarder(
+                GELATO_1BALANCEERC2771
+            ),
+            true
+        );
+    }
+
+    /// Tx sent by user Tests ///
 
     function test_can_execute_calldata_using_eip2612_signature_usdc()
         public
@@ -247,6 +493,44 @@ contract Permit2ProxyTest is TestBase {
 
         // expect call to revert since signature was created by a different address
         vm.expectRevert("EIP2612: invalid signature");
+        // call Permit2Proxy with signature
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_RevertsIfPermitCallToTokenFails() public {
+        vm.startPrank(USER_SENDER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp
+            );
+
+        // make all permit calls to USDC revert
+        vm.mockCallRevert(
+            ADDRESS_USDC,
+            abi.encodeWithSelector(ERC20Permit.permit.selector),
+            abi.encodeWithSignature("Error(string)", "Mocked Call Revert")
+        );
+
+        // expect call to revert since signature was created by a different address
+        vm.expectRevert("Mocked Call Revert");
+
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,

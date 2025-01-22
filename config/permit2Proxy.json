@@ -1,31 +1,122 @@
 {
-  "mainnet": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "arbitrum": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "aurora": "",
-  "avalanche": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "base": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "blast": "0x000000000022d473030f116ddee9f6b43ac78ba3",
-  "boba": "",
-  "bsc": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "celo": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "fantom": "",
-  "fraxtal": "",
-  "fuse": "",
-  "gnosis": "",
-  "gravity": "",
-  "immutablezkevm": "",
-  "linea": "",
-  "mantle": "",
-  "metis": "",
-  "mode": "",
-  "moonbeam": "",
-  "moonriver": "",
-  "optimism": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "polygon": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-  "polygonzkevm": "",
-  "rootstock": "",
-  "scroll": "",
-  "sei": "",
-  "taiko": "",
-  "zksync": "0x0000000000225e31d15943971f47ad3022f714fa"
+  "mainnet": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "arbitrum": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "aurora": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "avalanche": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "base": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "blast": {
+    "Permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "boba": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "bsc": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "celo": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": [""]
+  },
+  "fantom": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "fraxtal": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "fuse": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "gnosis": {
+    "Permit2": "",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "gravity": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "immutablezkevm": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "linea": {
+    "Permit2": "",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "mantle": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "metis": {
+    "Permit2": "",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "mode": {
+    "Permit2": "",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "moonbeam": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "moonriver": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "optimism": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "polygon": {
+    "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "polygonzkevm": {
+    "Permit2": "",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "rootstock": {
+    "Permit2": "",
+    "TrustedForwarders": ["0xd8253782c45a12053594b9deB72d8e8aB2Fca54c"]
+  },
+  "scroll": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "sei": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "sonic": {
+    "Permit2": "",
+    "TrustedForwarders": ["0x61F2976610970AFeDc1d83229e1E21bdc3D5cbE4"]
+  },
+  "taiko": {
+    "Permit2": "",
+    "TrustedForwarders": [""]
+  },
+  "zksync": {
+    "Permit2": "0x0000000000225e31d15943971f47ad3022f714fa",
+    "TrustedForwarders": ["0x97015cD4C3d456997DD1C40e2a18c79108FCc412"]
+  }
 }

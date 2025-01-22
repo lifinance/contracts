@@ -6,14 +6,17 @@ import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { ERC2771ContextCustom } from "lifi/Security/ERC2771ContextCustom.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { UnAuthorized } from "../Errors/GenericErrors.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.2
-contract Permit2Proxy is WithdrawablePeriphery {
+/// @custom:version 1.1.0
+contract Permit2Proxy is WithdrawablePeriphery, ERC2771ContextCustom {
     /// Storage ///
 
     address public immutable LIFI_DIAMOND;
@@ -45,8 +48,12 @@ contract Permit2Proxy is WithdrawablePeriphery {
     constructor(
         address _lifiDiamond,
         ISignatureTransfer _permit2,
-        address _owner
-    ) WithdrawablePeriphery(_owner) {
+        address _owner,
+        address[] memory _trustedForwarderAddresses
+    )
+        WithdrawablePeriphery(_owner)
+        ERC2771ContextCustom(_trustedForwarderAddresses)
+    {
         LIFI_DIAMOND = _lifiDiamond;
         PERMIT2 = _permit2;
 
@@ -59,6 +66,66 @@ contract Permit2Proxy is WithdrawablePeriphery {
     }
 
     /// External Functions ///
+
+    /// @notice Same functionality as callDiamondWithEIP2612Signature(...) but allows the transaction to be executed by a (whitelisted)
+    ///         trusted forwarder that implements ERC2771 such as Gelato
+    ///         see https://docs.gelato.network/web3-services/relay/erc-2771-recommended
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param deadline Transaction must be completed before this timestamp
+    /// @param v User signature (recovery ID)
+    /// @param r User signature (ECDSA output)
+    /// @param s User signature (ECDSA output)
+    /// @param diamondCalldata calldata to execute
+    function callDiamondWithEIP2612SignatureViaTrustedForwarder(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        // only allow this function to be called by pre-whitelisted trusted forwarders
+        if (!isTrustedForwarder(msg.sender)) revert UnAuthorized();
+
+        // // Get the original msg.sender from ERC2771Context (i.e. the user address)
+        address msgSender = _msgSender();
+
+        // call permit on token contract to register approval using signature
+        try
+            ERC20Permit(tokenAddress).permit(
+                msgSender,
+                address(this),
+                amount,
+                deadline,
+                v,
+                r,
+                s
+            )
+        {} catch Error(string memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msgSender, address(this)) <
+                amount
+            ) {
+                revert(reason);
+            }
+        }
+
+        // deposit assets
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msgSender,
+            address(this),
+            amount
+        );
+
+        // maxApprove token to diamond if current allowance is insufficient
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
+
+        // call our diamond to execute calldata
+        return _executeCalldata(diamondCalldata);
+    }
 
     /// @notice Allows to bridge tokens through a LI.FI diamond contract using
     /// an EIP2612 gasless permit (only works with tokenAddresses that
