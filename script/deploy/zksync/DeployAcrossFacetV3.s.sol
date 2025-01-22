@@ -31,6 +31,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".weth")
         );
 
-        return abi.encode(acrossSpokePool, weth);
+        return abi.encode(acrossSpokePool, weth, deployerAddress);
     }
 }
