@@ -412,7 +412,7 @@
   "Executor": {
     "contractAddresses": {
       "ERC20Proxy": {
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
@@ -436,7 +436,7 @@
     },
     "contractAddresses": {
       "Executor": {
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
@@ -460,7 +460,7 @@
     },
     "contractAddresses": {
       "Executor": {
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
@@ -534,7 +534,7 @@
       "_relaySolver": {
         "configFileName": "relay.json",
         "keyInConfigFile": ".<NETWORK>.relaySolver",
-          "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
