@@ -1,0 +1,596 @@
+# This git action combines version control and audit checks
+# Version Control:
+# - will check all modified or new contracts in src/*
+# - makes sure that all contracts that have changes in audit-relevant code require a contract version update
+# - relevant changes => anything except for changes of license identifier, solidity pragma or pure comment changes
+# - fails if a version was not updated despite relevant changes
+# - fails if a new contract was added without a ///custom:version tag
+# - will update the PR title to contain contract names with version changes (incl. their new version)
+# Audit Checker:
+# - will only run if version-control job passed successfully
+# - will remove the (protected) "AuditCompleted" label in the beginning to prevent erroneous states
+# - reuses the list of relevant contracts identified by the version-control job
+# - will assign "AuditRequired" label if relevant contracts were identified, otherwise it wil assign "AuditNotRequired"
+# - requires an audit for each of the relevant contracts
+# - checks if the logged audit information is coherent
+# - checks include:
+#   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
+#   - ensuring that an audit report has been added at the logged path
+#   - ensuring that the commit hash that was audited is actually part of this PR
+# - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
+# - KNOWN LIMITATIONS
+#   - will only check the last 100 commits for any matches with audit commit hashes
+#   - only one audit can be registered per contract (in a specific version)
+
+name: VersionControlAndAuditVerification
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, review_requested, ready_for_review]
+
+jobs:
+  version-control:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    env:
+      CONTINUE: false # makes sure that variable is correctly initialized in all cases
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get list of modified files by this PR
+        id: modified_files
+        run: |
+
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+
+          ##### initialize empty file so that artifact upload step cannot fail
+          echo "" > contracts_for_audit.txt
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only "origin/${BASE_REF}" HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action\033[0m"
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          CONTRACTS=""
+
+          ##### go through all file paths and identify all files in src/ folder (version control is only active in this folder)
+          while IFS= read -r FILE; do
+            if echo "${FILE}" | grep -E '^src/.*\.sol$'; then
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
+            fi
+          done <<< "${FILES}"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$CONTRACTS" ]]; then
+            echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            # set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo -e "$CONTRACTS" > modified_contracts.txt
+
+      - name: Verify version updates on modified contracts
+        id: verify_version_changes
+        if: env.CONTINUE == 'true'
+        run: |
+
+          ##### Read tmp file into variable
+          CONTRACTS=$(cat modified_contracts.txt)
+
+          ##### Initialize variables
+          MISSING_VERSION_TAG=()
+          MISSING_VERSION_UPDATE=()
+          CONTRACTS_FOR_TITLE=()
+          CONTRACTS_FOR_AUDIT=()
+
+          echo "--------------------"
+
+          ##### Process each file separately
+          while IFS= read -r FILE_PATH; do
+            echo "Now checking contract: $FILE_PATH"
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
+            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+
+            ##### Extract the filename without extension
+            FILENAME=$(basename "$FILE_PATH" .sol)
+
+            ##### Check if a version tag exists in the contract file
+            if [[ -z "$VERSION_TAG" ]]; then
+              echo -e "\033[31mFile does not contain a version tag\033[0m"
+              MISSING_VERSION_TAG+=("$FILE_PATH")
+            else
+              echo -e "\033[32mFile contains a custom:version tag\033[0m"
+              ##### get all changes of the current file/contract
+              DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
+
+              ##### Check if the version was updated in this PR
+              if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
+                echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
+                NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
+                CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
+                CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
+              else
+                ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
+                if echo "$DIFF_OUTPUT" | grep -qE '^\+\/\/\/|^\+pragma|^\+// SPDX-License-Identifier:'; then
+                  echo -e "\033[32mChange is non-relevant (comments/formatting/pragma/license). No version update required.\033[0m"
+                else
+                  ##### add to files with missing version updates
+                  echo -e "\033[31mThe file changed but the file version was not updated\033[0m"
+                  MISSING_VERSION_UPDATE+=("$FILE_PATH")
+                fi
+              fi
+            fi
+            echo "--------------------"
+          done <<< "$CONTRACTS"
+
+
+          ##### If any contract files are missing a version tag, this must be corrected before continuing
+          if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
+            echo "--------------------"
+            echo ">>>>>>"
+            echo -e "\033[31mThe following files are missing a custom:version tag in their code:\033[0m"
+            echo "${MISSING_VERSION_TAG[*]}"
+            echo -e "\033[31mEvery version-controlled contract needs to have a custom:version tag in its code.\033[0m"
+            echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
+            exit 1
+          fi
+
+          ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
+          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+            echo "--------------------"
+            echo ">>>>>>"
+            echo -e "\033[31mThe following contract(s) have been modified but their version tags were not updated:\033[0m"
+            echo "${MISSING_VERSION_UPDATE[*]}"
+            echo -e "\033[31mPlease make sure to update a contract's version whenever there are changes in the file.\033[0m"
+            echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
+            echo ""
+            exit 1
+          fi
+
+          ##### store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
+          if [[ ${#CONTRACTS_FOR_AUDIT[@]} -ne 0 ]]; then
+            ##### create a string from the array with all contracts
+            CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
+            CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
+            echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
+          else
+            echo -e "\033[32mDid not find any contracts for which version control is activated.\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          ##### Upload this file in any case to prevent error in following job when trying to download this file
+          echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
+          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR[*]}"
+          echo "##############file written"
+
+      - name: Compose updated PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          ##### Read tmp files into variables
+          if [ -f contracts_for_title.txt ]; then
+            UPDATED_CONTRACTS=$(cat contracts_for_title.txt)
+          else
+            UPDATED_CONTRACTS=""
+          fi
+
+          echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
+
+          ##### Step 1: Remove everything in and including brackets from the current title
+          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[.*$//')
+          echo "BASE_TITLE: $BASE_TITLE"
+
+          ##### Step 2: Trim whitespace from the base title
+          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/[[:space:]]*$//')"
+
+          ##### Step 3: Construct the new title if there are updated contracts
+          if [[ -n "$UPDATED_CONTRACTS" ]]; then
+            # Create new title with updated contracts
+            PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
+          else
+            # If no updated contracts, keep the title as the base title
+            PR_TITLE_UPDATED="$BASE_TITLE"
+          fi
+
+          ##### Step 4: Trim whitespace from the updated title
+          PR_TITLE_UPDATED="$(echo -e "${PR_TITLE_UPDATED}" | sed 's/[[:space:]]*$//')"
+
+          ##### Step 5: Log current and new titles and check if an update is needed
+          echo "Current PR Title: '$PR_TITLE'"
+          echo "New PR Title: '$PR_TITLE_UPDATED'"
+
+          if [[ "$PR_TITLE" != "$PR_TITLE_UPDATED" ]]; then
+            echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
+            echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          else
+            echo -e "\033[32mNo PR title updates are required. This Github action will end here.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+      - name: Update the PR title on GitHub
+        if: env.CONTINUE == 'true'
+        env:
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
+        run: |
+
+          ##### unset the default git token (does not have sufficient rights to perform the update)
+          unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
+          if ! gh auth login --with-token <<< "$GH_PAT"; then
+            echo -e "\033[31mFailed to authenticate with GitHub. Git action cannot continue\033[0m"
+            exit 1
+          fi
+          ##### update the PR title
+          if ! gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"; then
+            echo "::error::Failed to update PR title"
+            echo -e "\033[31mFailed to update PR title. Git action cannot continue\033[0m"
+            exit 1
+          fi
+
+      - name: Save updated contracts for downstream jobs
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: contracts_for_audit
+          path: contracts_for_audit.txt
+        # ------------------------ end of version control checker ------------------------
+
+  audit-verification:
+    if: ${{ github.event.pull_request.draft == false }}
+    needs: version-control
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+      AUDIT_LOG_PATH: 'audit/auditLog.json'
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      AUDIT_REQUIRED: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download list of audit-relevant contracts from previous version control step
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: contracts_for_audit
+
+      # makes sure that the "AuditCompleted" label is always removed in the beginning to make sure that this label is never assigned in (case of) error
+      - name: Remove label "AuditCompleted", if currently assigned
+        uses: actions-ecosystem/action-remove-labels@v1
+        continue-on-error: true
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
+          labels: 'AuditCompleted'
+          number: ${{ env.PR_NUMBER }}
+          fail_on_error: false
+
+      - name: Check if audit is required for modified contracts
+        id: check_contract_for_audit_required
+        run: |
+
+          MODIFIED_CONTRACTS=$(cat contracts_for_audit.txt)
+          echo "MODIFIED_CONTRACTS: $MODIFIED_CONTRACTS"
+
+          ##### Make sure that there are modified files
+          if [ -z "$MODIFIED_CONTRACTS" ]; then
+            echo -e "\033[32mNo protected contracts found in this PR.\033[0m"
+            echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
+          else
+            echo -e "\033[31mProtected contracts have audit-relevant changes in this PR.\033[0m"
+            echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Assign, update, and verify labels based on check outcome
+        uses: actions/github-script@v7
+        env:
+          AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            // ANSI escape codes for colors (used for colored output in Git action console)
+            const colors = {
+              reset: "\033[0m",
+              red: "\033[31m",
+              green: "\033[32m",
+            };
+
+            // Fetch currently assigned labels from GitHub using GitHub CLI
+            let assignedLabels = [];
+            try {
+              // Fetch the labels directly from the pull request
+              const labelsOutput = execSync(`gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name'`).toString();
+
+              // Split the labels output into an array and trim each label
+              assignedLabels = labelsOutput.split('\n').map(label => label.trim()).filter(Boolean);
+            } catch (error) {
+              console.error(`${colors.red}Error fetching assigned labels: ${error.message}${colors.reset}`);
+              process.exit(1);
+            }
+
+            // check if audit is required (determined by previous step)
+            const auditRequired = process.env.AUDIT_REQUIRED === 'true';
+
+            // determine which label should be assigned and which should be removed
+            const labelToAssign = auditRequired ? 'AuditRequired' : 'AuditNotRequired';
+            const oppositeLabel = auditRequired ? 'AuditNotRequired' : 'AuditRequired';
+
+            console.log(`Currently assigned labels: ${JSON.stringify(assignedLabels)}`);
+            console.log(`Label '${labelToAssign}' has to be assigned to this PR`);
+            console.log(`Label '${oppositeLabel}' will be removed, if currently present`);
+
+            // Assign the required label if not already present
+            if (!assignedLabels.includes(labelToAssign)) {
+              console.log(`Now assigning label: ${labelToAssign}`);
+              execSync(`gh pr edit ${{ github.event.pull_request.number }} --add-label "${labelToAssign}"`, { stdio: 'inherit' });
+            } else {
+              console.log(`${colors.green}Label "${labelToAssign}" is already assigned. No action needed.${colors.reset}`);
+            }
+
+            // Remove the opposite label if it is present
+            if (assignedLabels.includes(oppositeLabel)) {
+              console.log(`Now removing opposite label: ${oppositeLabel}`);
+              execSync(`gh pr edit ${{ github.event.pull_request.number }} --remove-label "${oppositeLabel}"`, { stdio: 'inherit' });
+            } else {
+              console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.${colors.reset}`);
+            }
+
+            // fetch all currently assigned labels again
+            assignedLabels = []
+            try {
+              // Fetch the labels directly from the pull request
+              const labelsOutput = execSync(`gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name'`).toString();
+
+              // Split the labels output into an array and trim each label
+              assignedLabels = labelsOutput.split('\n').map(label => label.trim()).filter(Boolean);
+            } catch (error) {
+              console.error(`${colors.red}Error fetching assigned labels: ${error.message}${colors.reset}`);
+              process.exit(1);
+            }
+
+            // Verify that exactly one of the two labels is assigned
+            const totalLabelsAssigned = assignedLabels.filter(label => ['AuditRequired', 'AuditNotRequired'].includes(label)).length;
+
+            if (totalLabelsAssigned !== 1) {
+              console.error(`${colors.red}Error: Exactly one of the two protected labels should be assigned but found ${totalLabelsAssigned} assigned labels.${colors.reset}`);
+              process.exit(1);
+            } else {
+              console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
+            }
+
+            console.log(`Currently assigned labels: ${JSON.stringify(assignedLabels)}`);
+
+      - name: Check Audit Log
+        id: check-audit-log
+        if: ${{ always() && env.AUDIT_REQUIRED == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
+        run: |
+
+          echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
+          echo "It will also make sure that no information is missing in the audit log and that the information is meaningful."
+
+          # load list of protected contracts
+          PROTECTED_CONTRACTS=$(cat contracts_for_audit.txt)
+          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+
+          ##### make sure that there are any protected contracts
+          if [[ -z $PROTECTED_CONTRACTS ]]; then
+            echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
+            exit 1
+          fi
+
+          # iterate through all contracts
+          while IFS= read -r FILE; do
+            echo "-----------"
+            echo "now checking file $FILE"
+            ##### load contract version
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+
+            ##### make sure that contract version was extracted successfully
+            if [[ -z $VERSION ]]; then
+              echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
+              exit 1
+            fi
+
+            ##### see if audit log contains an entry with those values
+            FILENAME=$(basename "$FILE" .sol)
+
+            ##### Check if the contract and version exist in the JSON and get the audit IDs
+            AUDIT_IDS=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
+              'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
+
+            ##### Count the number of audits found in the log for this contract/version
+            if [[ -z "$AUDIT_IDS" ]]; then
+              AUDIT_COUNT=0
+            else
+              AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+            fi
+
+            ##### Ensure exactly one audit is logged; handle errors if not
+            if [[ $AUDIT_COUNT -ne 1 ]]; then
+              if [[ $AUDIT_COUNT -gt 1 ]]; then
+                echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
+                echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
+              else
+                echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
+              fi
+
+              exit 1
+            fi
+
+
+            ##### Extract the single audit ID
+            AUDIT_ID=$(echo "$AUDIT_IDS" | head -n 1)
+
+            ##### Extract audit entry details for the single audit ID
+            AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
+
+            ##### Check if AUDIT_ENTRY is valid JSON
+            if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
+              echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILE seems to be invalid.\033[0m"
+              exit 1
+            fi
+
+            echo "File $FILE was audited in $AUDIT_ID"
+            echo "Now checking if all required information is logged for this audit..."
+
+            ##### Extract log entry values into variables
+            AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
+            AUDITED_BY=$(echo "$AUDIT_ENTRY" | jq -r '.auditedBy')
+            AUDITOR_GIT_HANDLE=$(echo "$AUDIT_ENTRY" | jq -r '.auditorGitHandle')
+            AUDIT_REPORT_PATH=$(echo "$AUDIT_ENTRY" | jq -r '.auditReportPath')
+            AUDIT_COMMIT_HASH=$(echo "$AUDIT_ENTRY" | jq -r '.auditCommitHash')
+
+            ##### make sure that audit log entry contains date
+            if [ -z "$AUDIT_COMPLETED_ON" ]; then
+              echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              exit 1
+            else
+              echo "The audit log contains a date for $AUDIT_ID: $AUDIT_COMPLETED_ON"
+            fi
+
+            ##### make sure that audit log entry contains auditor's (company) name
+            if [ -z "$AUDITED_BY" ]; then
+              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              exit 1
+            else
+              echo "The audit log contains the auditor's name for $AUDIT_ID: $AUDITED_BY"
+            fi
+
+            ##### make sure that audit log entry contains auditor's git handle
+            if [ -z "$AUDITOR_GIT_HANDLE" ]; then
+              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              exit 1
+            else
+              echo "The audit log contains the auditor's github handle for $AUDIT_ID: $AUDITOR_GIT_HANDLE"
+            fi
+
+            ##### make sure that a file exists at the audit report path
+            if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+              echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              exit 1
+            else
+              echo "The audit report for $AUDIT_ID was found in path $AUDIT_REPORT_PATH"
+            fi
+
+            ##### make sure that audit log entry contains audit commit hash
+            if [ -z "$AUDIT_COMMIT_HASH" ]; then
+              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              exit 1
+            else
+              echo "The audit log contains the commit hash that was audited in $AUDIT_ID: $AUDIT_COMMIT_HASH"
+            fi
+            echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
+
+            echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
+            ##### Fetch the list of commits associated with the PR
+            COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
+
+            ##### Check if the target commit is in the list
+            if echo "$COMMIT_LIST" | grep -q "$TARGET_COMMIT"; then
+              echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
+            else
+              echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
+              exit 1
+            fi
+
+
+            ##### Check if the auditor git handle exists on github
+            echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
+            if gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
+              echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
+            else
+              echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
+              echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
+              echo -e "\033[31mCheck failed.\033[0m"
+              exit 1
+            fi
+
+            # ##### -----------------------------------------------------------------------------
+            # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW)
+            # ##### Fetch PR reviews using the GitHub API via gh cli
+            # echo "now checking if the auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
+            # REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state == "APPROVED") | @json')
+
+            # ##### Check if the output is empty or not valid JSON
+            # if [[ -z "$REVIEWS" ]]; then
+            #   echo "ERROR: No reviews found or failed to fetch reviews for PR #$PR_NUMBER"
+            #   exit 1
+            # fi
+            # ##### Flag to track if the review by the specified person is found
+            # FOUND_REVIEW=false
+
+            # ##### Check if the desired reviewer is present among the reviews
+            # echo "$REVIEWS" | jq -c '.' | while read -r REVIEW; do
+            #   AUTHOR=$(echo "$REVIEW" | jq -r '.user.login // empty')
+            #   STATE=$(echo "$REVIEW" | jq -r '.state // empty')
+
+            #   echo "found review by $AUTHOR with state $STATE"
+
+
+            #   ##### Check if the reviewer is the person we're looking for
+            #   if [ "$AUTHOR" == "$REVIEWER" ]; then
+            #     echo "Approving review found by $REVIEWER"
+            #     FOUND_REVIEW=true
+            #     exit 0
+            #   fi
+            # done
+
+            # ##### If no matching review was found, exit with an error
+            # if [ "$FOUND_REVIEW" == true ]; then
+            #   echo -e "\033[32mPR $PR_NUMBER has an approving review by $AUDITOR_GIT_HANDLE\033[0m"
+            #   echo -e "\033[32mCheck passed\033[0m"
+            #   exit 0
+            # else
+            #   echo -e "\033[31mERROR: No review found by git user '$AUDITOR_GIT_HANDLE' (= the auditor)\033[0m"
+            #   echo -e "\033[31mCheck failed\033[0m"
+            #   exit 1
+            # fi
+            # ##### -----------------------------------------------------------------------------
+
+
+          done <<< "$PROTECTED_CONTRACTS"
+
+          echo -e "\033[32mSuccessfully verified that all contracts in this PRs are audited.\033[0m"
+          echo -e "\033[32mCheck passed.\033[0m"
+          echo "Assigning label 'AuditCompleted' next"
+
+      - name: Assign label "AuditCompleted" if all checks passed
+        if: ${{ env.AUDIT_REQUIRED == 'true' }}
+        uses: actions-ecosystem/action-add-labels@v1
+        id: assign_label
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
+          labels: 'AuditCompleted'
+          number: ${{ env.PR_NUMBER }}
