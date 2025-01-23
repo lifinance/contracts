@@ -220,8 +220,7 @@ jobs:
           ##### unset the default git token (does not have sufficient rights to perform the update)
           unset GITHUB_TOKEN
           ##### use the Personal Access Token to log into git CLI
-          echo $GH_PAT | gh auth login --with-token
-          if ! echo $GH_PAT | gh auth login --with-token; then
+          if ! gh auth login --with-token <<< "$GH_PAT"; then
             echo -e "\033[31mFailed to authenticate with GitHub. Git action cannot continue\033[0m"
             exit 1
           fi
