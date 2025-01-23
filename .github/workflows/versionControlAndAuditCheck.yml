@@ -31,6 +31,9 @@ jobs:
 
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
+          ##### initialize empty file so that upload step cannot fail
+          echo -e "" > contracts_for_audit.txt
+
           ##### get all files modified by this PR
           FILES=$(git diff --name-only "origin/${BASE_REF}" HEAD)
 
@@ -76,8 +79,8 @@ jobs:
           ##### Initialize variables
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
-          UPDATED_CONTRACTS_FOR_TITLE=()
-          UPDATED_CONTRACTS=()
+          CONTRACTS_FOR_TITLE=()
+          CONTRACTS_FOR_AUDIT=()
 
           echo "--------------------"
 
