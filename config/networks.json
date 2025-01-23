@@ -296,7 +296,7 @@
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://public-en.node.kaia.io",
-    "verificationType": "etherscan",
+    "verificationType": "blockscout",
     "explorerUrl": "https://kaiascope.com",
     "explorerApiUrl": "https://api-cypress.klaytnscope.com/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
