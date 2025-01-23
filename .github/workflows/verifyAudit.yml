@@ -168,7 +168,6 @@ jobs:
             core.exportVariable('CONTINUE', 'true');
 
       - name: Check Audit Log
-        continue-on-error: true
         id: check-audit-log
         if: ${{ always() && env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
         run: |
