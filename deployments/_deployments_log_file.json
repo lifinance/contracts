@@ -27450,9 +27450,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x3a8ce701D1c8fBa838a56cF9d6bFE8B223927Ed0",
+            "ADDRESS": "0x3aF0c2dB91f75f05493E51cFcF92eC5276bc85F8",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-01-22 09:50:46",
+            "TIMESTAMP": "2025-01-23 14:43:01",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e0a049955e18cffd09c826c2c2e965439b6ab272",
             "SALT": "",
             "VERIFIED": "true"
