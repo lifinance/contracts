@@ -38,6 +38,7 @@ jobs:
       # makes sure that the "AuditCompleted" label is always removed in the beginning to make sure that this label is never assigned in (case of) error
       - name: Remove label "AuditCompleted" in case it is assigned
         uses: actions-ecosystem/action-remove-labels@v1
+        continue-on-error: true
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
@@ -370,7 +371,7 @@ jobs:
           echo "Assigning label 'AuditCompleted' next"
 
       - name: Assign label "AuditCompleted" if all checks passed
-        if: ${{ success() && env.AUDIT_REQUIRED }}
+        if: ${{ steps.check-audit-log.outcome == 'success' && env.AUDIT_REQUIRED == 'true' }}
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
