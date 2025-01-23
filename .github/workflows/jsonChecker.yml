@@ -55,7 +55,7 @@ jobs:
                       exit 1
                     fi
                     # Validate JSON and exit with error if it fails
-                    jsonlint "$file" || exit 1
+                    jsonlint --quiet "$file" || exit 1
                   done
                 ' sh {} +
               else
@@ -69,7 +69,7 @@ jobs:
                   echo -e "\033[31mError: $path exceeds 5MB limit\033[0m"
                   exit 1
                 fi
-                jsonlint "$path" || exit 1
+                jsonlint --quiet "$path" || exit 1
               fi
             else
               echo -e "\033[31mWarning: $path does not exist\033[0m"
