@@ -32,7 +32,7 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           ##### get all files modified by this PR
-          FILES=$(git diff --name-only "origin/${BASE_REF}"" HEAD)
+          FILES=$(git diff --name-only "origin/${BASE_REF}" HEAD)
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
