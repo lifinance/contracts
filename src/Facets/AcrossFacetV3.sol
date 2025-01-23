@@ -11,10 +11,10 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 
-/// @title AcrossFacetV3
+/// @title AcrossFacetV3 - TITLE CHANGED
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-/// @custom:version 1.2.0
+/// @custom:version 1.1.0
 contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -25,8 +25,6 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address public immutable wrappedNative;
 
     /// Types ///
-
-    function bla() external {}
 
     /// @param receiverAddress The address that will receive the token on dst chain (our Receiver contract or the user-defined receiver address)
     /// @param refundAddress The address that will be used for potential bridge refunds

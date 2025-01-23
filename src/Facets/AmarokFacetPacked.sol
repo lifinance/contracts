@@ -12,7 +12,7 @@ import { console2 } from "forge-std/console2.sol";
 /// @title AmarokFacetPacked
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Amarok in a gas-optimized way
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract AmarokFacetPacked is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
