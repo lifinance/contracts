@@ -2,7 +2,7 @@ name: Version Control Checker
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, review_requested, ready_for_review]
+    types: [opened]
 
 jobs:
   check-version:
