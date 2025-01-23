@@ -114,9 +114,9 @@ diamondUpdateFacet() {
           PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
           echoDebug "Calculating facet cuts for $SCRIPT..."
           if [[ $NETWORK == "zksync" ]]; then
-            RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy --slow --zksync)
+            RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK --json --skip-simulation --legacy --slow --zksync)
           else
-            RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+            RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK --json --skip-simulation --legacy)
           fi
           CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
           FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
@@ -128,7 +128,7 @@ diamondUpdateFacet() {
           fi
         else
           # STAGING: just deploy normally without further checks
-          RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+          RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --legacy)
       fi
     else
       # check if we are deploying to PROD
@@ -137,7 +137,7 @@ diamondUpdateFacet() {
         UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$SCRIPT".s.sol)
         PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
         echoDebug "Calculating facet cuts for $script..."
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK --json --skip-simulation --legacy)
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
         FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
         if [ "$FACET_CUT" != "0x" ]; then
@@ -147,25 +147,32 @@ diamondUpdateFacet() {
         fi
       else
         # STAGING: just deploy normally without further checks
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --legacy)
       fi
      fi
     RETURN_CODE=$?
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+    # echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check the return code the last call
     if [ "$RETURN_CODE" -eq 0 ]; then
-      # extract the "logs" property and its contents from return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
+      if [[ "$ENVIRONMENT" != "production" ]]; then
+        # extract the "logs" property and its contents from return data
+        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+        echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
 
-      # extract the "returns" property and its contents from logs
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
-      #echoDebug "RETURN_DATA: $RETURN_DATA"
+        # extract the "returns" property and its contents from logs
+        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+        # echoDebug "RETURN_DATA: $RETURN_DATA"
 
-      # get the facet addresses that are known to the diamond from the return data
-      FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
-      if [[ $FACETS != "{}" ]]; then
-        break # exit the loop if the operation was successful
+        # get the facet addresses that are known to the diamond from the return data
+        FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
+        if [[ $FACETS != "{}" ]]; then
+          break # exit the loop if the operation was successful
+        fi
+      else
+        # if deploying to PROD and RETURN_CODE is OK then we can assume that the proposal to SAFE worked fine
+        break
       fi
     fi
 
