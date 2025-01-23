@@ -158,7 +158,7 @@ jobs:
               console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
             }
 
-            console.log(`The following labels are currently assigned: ${JSON.stringify(assignedLabels)}`)
+            console.log(`Currently assigned labels: ${JSON.stringify(assignedLabels)}`);
 
       - name: Check Audit Log
         id: check-audit-log
