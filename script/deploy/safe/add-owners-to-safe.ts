@@ -4,7 +4,7 @@ import { getAddress } from 'viem'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
-import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
+import { getSafeUtilityContracts } from './config'
 import {
   NetworksObject,
   getViemChainForNetworkName,

@@ -19,7 +19,10 @@ diamond.json
 .idea
 
 node_modules/
-.env
+
+# Ignore all .env files except .env.example
+.env*
+!.env.example
 
 .yalc
 yalc.lock

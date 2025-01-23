@@ -23,16 +23,13 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/networks.json"
-        );
+        string memory path = string.concat(root, "/config/networks.json");
 
         // read file into json variable
-        string memory globalConfigJson = vm.readFile(globalConfigPath);
+        string memory json = vm.readFile(path);
 
         // extract network's native address
-        address nativeAddress = globalConfigJson.readAddress(
+        address nativeAddress = json.readAddress(
             string.concat(".", network, ".nativeAddress")
         );
 
