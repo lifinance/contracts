@@ -148,14 +148,16 @@ jobs:
             ##### create a string from the array with all contracts
             CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
             CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
-            echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
             echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
-          else
+            else
             echo -e "\033[32mDid not find any contracts for which version control is activated.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
-          fi
+            fi
+
+          ##### Upload this file in all cases to prevent later download to fail
+          echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
 
       - name: Compose updated PR title
         env:
