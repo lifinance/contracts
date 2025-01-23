@@ -292,7 +292,7 @@ jobs:
           echo "MODIFIED_CONTRACTS: $MODIFIED_CONTRACTS"
 
           ##### Make sure that there are modified files
-          if [ -z $"MODIFIED_CONTRACTS".txt ]; then
+          if [ -z $"MODIFIED_CONTRACTS" ]; then
             echo -e "\033[32mNo protected contracts found in this PR.\033[0m"
             echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
           else
