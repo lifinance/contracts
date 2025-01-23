@@ -1,12 +1,20 @@
-name: Version Control Checker
+name: VersionControAndAuditVerification
 
 on:
   pull_request:
     types: [opened, edited, synchronize, review_requested, ready_for_review]
 
 jobs:
-  check-version:
-    # will only run once the PR is in "Ready for Review" state
+  # - Github Version Control Checker
+
+  # - Watches changes on version-controlled contracts and makes sure that versions are bumped in case of relevant changes:
+  # - Relevant changes == anything except for changes of license identifier, solidity pragma of pure comment changes
+  # - watched paths: src/*
+  # - will check all modified or new contracts in watched paths
+  # - will fail if a new contract was added to watched paths without contract version
+  # - will fail if an existing contract was modified but version was not updated
+  # - will update the PR title to contain all contract names and their new versions (watched paths only)
+  version-control-checker:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
@@ -15,12 +23,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 ##### Fetch all history for all branches
+          fetch-depth: 0
 
       - name: Get list of modified files by this PR
         id: modified_files
         run: |
-
 
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
@@ -216,3 +223,30 @@ jobs:
             echo -e "\033[31mFailed to update PR title. Git action cannot continue\033[0m"
             exit 1
           fi
+
+      - name: Save updated contracts for downstream jobs
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: updated-contracts
+          path: updated_contracts.txt
+
+  audit-verifier:
+    if: ${{ github.event.pull_request.draft == false }}
+    needs: version-control-checker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download updated contracts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: updated-contracts
+
+      - name: Verify Audit for Updated Contracts
+        run: |
+          UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+          echo "Verifying audit for the following contracts: $UPDATED_CONTRACTS"
+          # Audit Verifier logic
