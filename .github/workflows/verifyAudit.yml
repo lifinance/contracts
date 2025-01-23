@@ -35,6 +35,14 @@ jobs:
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
 
+      - name: Remove label "AuditCompleted" in case it is assigned
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
+          labels: 'AuditCompleted'
+          number: ${{ env.PR_NUMBER }}
+          fail_on_error: false
+
       - name: Check PR for changes in protected folders ('src/*')
         id: check_git_diff_for_protectected_folders
         run: |

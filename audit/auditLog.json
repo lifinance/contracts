@@ -20,7 +20,7 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.09.13_EmergencyPauseFacet.pdf",
       "auditCommitHash": "77441a088e0789513db4e068f7ef6c5c0988ee42"
-    }
+    },
     "audit20241007": {
       "auditCompletedOn": "07.10.2024",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
