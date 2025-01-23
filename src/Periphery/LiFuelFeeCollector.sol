@@ -64,7 +64,7 @@ contract LiFuelFeeCollector is TransferrableOwnership {
             receiver,
             feeAmount
         );
-        uint256 amountMinusFees = msg.value - feeAmount;
+        uint256 amountMinusFees = msg.value - feeAmount - 1;
         if (amountMinusFees > 0) {
             SafeTransferLib.safeTransferETH(msg.sender, amountMinusFees);
         }
