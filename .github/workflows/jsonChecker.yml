@@ -50,10 +50,16 @@ jobs:
                   for file; do
                     echo "Validating $file"
                     # Check file size
-                    file_size=$(wc -c < "$file")
-                    if [ "$file_size" -gt '"$max_size"' ]; then
-                      echo -e "\033[31mError: $file exceeds 5MB limit\033[0m"
-                      exit 1
+                    file_size=$(wc -c < "$file" | tr -d " ")
+                    if [ -z "$file_size" ] || ! [ "$file_size" -eq "$file_size" ] 2>/dev/null; then
+                      echo -e "\033[33mError: Unable to determine file size for $file\033[0m"
+                    else
+                      # check file size only if its available
+                      echo "file size: $file_size"
+                      if [ "$file_size" -gt '"$max_size"' ]; then
+                        echo -e "\033[31mError: $file exceeds 5MB limit\033[0m"
+                        exit 1
+                      fi
                     fi
                     # Validate JSON and exit with error if it fails
                     jsonlint --quiet "$file" || exit 1
