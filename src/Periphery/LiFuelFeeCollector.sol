@@ -28,6 +28,8 @@ contract LiFuelFeeCollector is TransferrableOwnership {
         uint256 amount
     );
 
+    mapping(address => uint256) balances;
+
     /// Constructor ///
 
     // solhint-disable-next-line no-empty-blocks
@@ -68,6 +70,18 @@ contract LiFuelFeeCollector is TransferrableOwnership {
         if (amountMinusFees > 0) {
             SafeTransferLib.safeTransferETH(msg.sender, amountMinusFees);
         }
+    }
+
+    // Withdraw Ether (vulnerable to reentrancy attack) test
+    function withdraw(uint256 _amount) public {
+        require(balances[msg.sender] >= _amount, "Insufficient balance");
+
+        // Transfer Ether to the caller
+        (bool success, ) = msg.sender.call{ value: _amount }("");
+        require(success, "Transfer failed");
+
+        // Update the balance (This should have been done before the transfer)
+        balances[msg.sender] -= _amount;
     }
 
     /// @notice Withdraws fees
