@@ -63,13 +63,13 @@ jobs:
           }
 
           validate_json "config"
-          echo -e "\032[31mAll files in folder config/ validated.\033[0m"
+          echo -e "\033[32mAll files in folder config/ validated.\033[0m"
 
           validate_json "deployments"
-          echo -e "\032[31mAll files in folder deployments/ validated.\033[0m"
+          echo -e "\033[32mAll files in folder deployments/ validated.\033[0m"
 
           validate_json "audit/auditLog.json"
-          echo -e "\032[31mauditLog.json validated.\033[0m"
+          echo -e "\033[32mauditLog.json validated.\033[0m"
 
           validate_json "script/deploy/_targetState.json"
-          echo -e "\032[31m_targetState.json validated.\033[0m"
+          echo -e "\033[32m_targetState.json validated.\033[0m"
