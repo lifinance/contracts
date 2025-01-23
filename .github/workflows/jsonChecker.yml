@@ -1,12 +1,4 @@
 name: JSON Checker
-# - Checks selected JSON files for semantic issues and fails if any issues are found
-# - Validates the following locations/files:
-#   - config/*.json
-#   - deployments/*.json
-#   - audit/auditLog.json
-#   - script/deploy/_targetState.json
-#   - script/deploy/resources/deployRequirements.json
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -68,8 +60,9 @@ jobs:
 
               if [ -d "$path" ]; then
                 # If path is a directory, find all JSON files and validate them
-                find "$path" -type f -not -type l -name "*.json" -exec sh -c '
+                find "$path" -type f -not -type l -name "*.json" -exec bash -c '
                   for file; do
+                    source <(declare -f validate_file) # Import the function
                     validate_file "$file"
                   done
                 ' sh {} +
