@@ -31,7 +31,7 @@ jobs:
 
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
-          ##### initialize empty file so that upload step cannot fail
+          ##### initialize empty file so that artifact upload step cannot fail
           echo -e "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
@@ -272,14 +272,8 @@ jobs:
         with:
           name: contracts_for_audit
 
-      # - name: Verify Audit for Updated Contracts
-      #   run: |
-      #     CONTRACTS_FOR_AUDIT=$(cat contracts_for_audit.txt)
-      #     echo "Verifying audit for the following contracts: $CONTRACTS_FOR_AUDIT"
-      #     # Audit Verifier logic
-
       # makes sure that the "AuditCompleted" label is always removed in the beginning to make sure that this label is never assigned in (case of) error
-      - name: Remove label "AuditCompleted" in case it is assigned
+      - name: Remove label "AuditCompleted", if currently assigned
         uses: actions-ecosystem/action-remove-labels@v1
         continue-on-error: true
         with:
@@ -288,40 +282,19 @@ jobs:
           number: ${{ env.PR_NUMBER }}
           fail_on_error: false
 
-      - name: Check PR for changes in protected folders ('src/*')
-        id: check_git_diff_for_protectected_folders
+      - name: Check if audit is required for modified contracts
+        id: check_contract_for_audit_required
         run: |
 
-
-          ##### Get all files modified by this PR
-          FILES=$(git diff --name-only origin/main HEAD)
-
           ##### Make sure that there are modified files
-          if [[ -z $FILES ]]; then
-            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
-            exit 1
-          fi
-
-          ##### Initialize empty variables
-          PROTECTED_CONTRACTS=""
-
-          ##### Go through all modified file names/paths and identify contracts with path 'src/*'
-          while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
-              ##### Contract found
-              PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
-            fi
-          done <<< "$FILES"
-
-          ##### Determine if audit is required
-          if [[ -z "$PROTECTED_CONTRACTS" ]]; then
+          MODIFIED_CONTRACTS=${cat contracts_for_audit.txt}
+          if [ ! -s $MODIFIED_CONTRACTS ]; then
             echo -e "\033[32mNo protected contracts found in this PR.\033[0m"
             echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
           else
-            echo -e "\033[31mProtected contracts found in this PR.\033[0m"
-            echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+            echo -e "\033[31mProtected contracts were modified by this PR.\033[0m"
+            echo "MODIFIED_CONTRACTS: $MODIFIED_CONTRACTS"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
-            echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
           fi
 
       - name: Assign, update, and verify labels based on check outcome
