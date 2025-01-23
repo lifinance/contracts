@@ -178,7 +178,6 @@ jobs:
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
             echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 1
           fi
 
@@ -192,7 +191,6 @@ jobs:
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
               echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             fi
 
@@ -360,7 +358,6 @@ jobs:
             # else
             #   echo -e "\033[31mERROR: No review found by git user '$AUDITOR_GIT_HANDLE' (= the auditor)\033[0m"
             #   echo -e "\033[31mCheck failed\033[0m"
-            #   echo "CONTINUE=false" >> "$GITHUB_ENV"
             #   exit 1
             # fi
             # ##### -----------------------------------------------------------------------------
@@ -373,7 +370,7 @@ jobs:
           echo "Assigning label 'AuditCompleted' next"
 
       - name: Assign label "AuditCompleted" if all checks passed
-        if: ${{ always() && env.AUDIT_REQUIRED }}
+        if: ${{ success() && env.AUDIT_REQUIRED }}
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
