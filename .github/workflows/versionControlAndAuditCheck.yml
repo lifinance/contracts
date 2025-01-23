@@ -161,6 +161,7 @@ jobs:
 
           ##### Upload this file in any case to prevent error in following job when trying to download this file
           echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
+          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR[*]}"
           echo "##############file written"
 
       - name: Compose updated PR title
@@ -289,7 +290,7 @@ jobs:
           echo "MODIFIED_CONTRACTS: $MODIFIED_CONTRACTS"
 
           ##### Make sure that there are modified files
-          if [ ! -s $contracts_for_audit.txt ]; then
+          if [ -z $"MODIFIED_CONTRACTS".txt ]; then
             echo -e "\033[32mNo protected contracts found in this PR.\033[0m"
             echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
           else
