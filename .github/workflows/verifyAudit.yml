@@ -135,12 +135,6 @@ jobs:
               console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.${colors.reset}`);
             }
 
-            // Remove the AuditCompleted label if it is present
-            if (assignedLabels.includes('AuditCompleted')) {
-              console.log(`Now removing AuditCompleted label`);
-              execSync(`gh pr edit ${{ github.event.pull_request.number }} --remove-label "AuditCompleted"`, { stdio: 'inherit' });
-            }
-
             // fetch all currently assigned labels again
             assignedLabels = []
             try {
@@ -164,12 +158,7 @@ jobs:
               console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
             }
 
-            if(assignedLabels.includes('AuditCompleted')) {
-              console.log(`Label 'AuditCompleted' is currently assigned`);
-              core.exportVariable('AUDIT_COMPLETED_ASSIGNED', 'true');
-            }
-            else
-              console.log(`${colors.green}Label 'AuditCompleted' is currently not assigned${colors.reset}`);
+            console.log(`The following labels are currently assigned: ${JSON.stringify(assignedLabels)}`)
 
       - name: Check Audit Log
         id: check-audit-log
