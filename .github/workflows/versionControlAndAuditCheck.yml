@@ -1,3 +1,27 @@
+# This git action combines version control and audit checks
+# Version Control:
+# - will check all modified or new contracts in src/*
+# - makes sure that all contracts that have changes in audit-relevant code require a contract version update
+# - relevant changes => anything except for changes of license identifier, solidity pragma or pure comment changes
+# - fails if a version was not updated despite relevant changes
+# - fails if a new contract was added without a ///custom:version tag
+# - will update the PR title to contain contract names with version changes (incl. their new version)
+# Audit Checker:
+# - will only run if version-control job passed successfully
+# - will remove the (protected) "AuditCompleted" label in the beginning to prevent erroneous states
+# - reuses the list of relevant contracts identified by the version-control job
+# - will assign "AuditRequired" label if relevant contracts were identified, otherwise it wil assign "AuditNotRequired"
+# - requires an audit for each of the relevant contracts
+# - checks if the logged audit information is coherent
+# - checks include:
+#   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
+#   - ensuring that an audit report has been added at the logged path
+#   - ensuring that the commit hash that was audited is actually part of this PR
+# - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
+# - KNOWN LIMITATIONS
+#   - will only check the last 100 commits for any matches with audit commit hashes
+#   - only one audit can be registered per contract (in a specific version)
+
 name: VersionControlAndAuditVerification
 
 on:
@@ -5,16 +29,7 @@ on:
     types: [opened, edited, synchronize, review_requested, ready_for_review]
 
 jobs:
-  # - Github Version Control Checker
-
-  # - Watches changes on version-controlled contracts and makes sure that versions are bumped in case of relevant changes:
-  # - Relevant changes == anything except for changes of license identifier, solidity pragma of pure comment changes
-  # - watched paths: src/*
-  # - will check all modified or new contracts in watched paths
-  # - will fail if a new contract was added to watched paths without contract version
-  # - will fail if an existing contract was modified but version was not updated
-  # - will update the PR title to contain all contract names and their new versions (watched paths only)
-  version-control-checker:
+  version-control:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
@@ -32,7 +47,7 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           ##### initialize empty file so that artifact upload step cannot fail
-          echo -e "" > contracts_for_audit.txt
+          echo "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
           FILES=$(git diff --name-only "origin/${BASE_REF}" HEAD)
@@ -239,22 +254,9 @@ jobs:
           path: contracts_for_audit.txt
         # ------------------------ end of version control checker ------------------------
 
-  # Audit Verifier
-  # - checks if an audit is required and assigns a (protected) label based on the result ('AuditRequired' or 'AuditNotRequired')
-  # - if an audit is required, it will verify that the audit was actually completed and then assign label "AuditCompleted"
-  # - verification includes:
-  #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
-  #   - ensuring that an audit report has been added
-  #   - ensuring that the PR is approved by the auditor (uses auditor git handle from audit log)
-  #   - ensuring that the commit hash that was audited is actually part of this PR
-  # - if "AuditCompleted" was assigned earlier but conditions are not met anymore due to changes submitted after the check, label "AuditCompleted" will be removed by this action
-
-  # KNOWN LIMITATIONS
-  # - will only check the last 100 commits for any matches with audit commit hashes
-  # - only one audit can be registered per contract (in a specific version)
-  audit-verifier:
+  audit-verification:
     if: ${{ github.event.pull_request.draft == false }}
-    needs: version-control-checker
+    needs: version-control
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
