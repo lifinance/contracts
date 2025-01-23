@@ -21,23 +21,18 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        string memory tokenWrapperConfig = string.concat(
-            root,
-            "/config/networks.json"
+        string memory path = string.concat(root, "/config/networks.json");
+
+        // extract wrapped token address for the given network
+        address wrappedNativeAddress = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".wrappedNativeAddress")
         );
 
         // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
             "/config/global.json"
-        );
-
-        // read file into json variable
-        string memory tokenWrapperConfigJSON = vm.readFile(tokenWrapperConfig);
-
-        // extract wrapped token address for the given network
-        address wrappedNativeAddress = tokenWrapperConfigJSON.readAddress(
-            string.concat(".", network, ".wrappedNativeAddress")
         );
 
         // read file into json variable

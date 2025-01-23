@@ -21,12 +21,11 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/thorswap.json");
-        string memory json = vm.readFile(path);
 
-        address thorchainRouter = json.readAddress(
+        address thorchainRouter = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".thorchainRouter")
         );
-
         return abi.encode(thorchainRouter);
     }
 }

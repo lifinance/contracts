@@ -38,18 +38,20 @@ contract DeployScript is DeployScriptBase {
     function getConstructorArgs() internal override returns (bytes memory) {
         // get messageBus address
         string memory path = string.concat(root, "/config/cbridge.json");
-        string memory json = vm.readFile(path);
 
-        address messageBus = json.readAddress(
+        address messageBus = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".messageBus")
         );
 
+        // get address of cfUSDC token (required for mainnet only, otherwise address(0))
         address cfUSDCAddress;
         if (
             keccak256(abi.encodePacked(network)) ==
             keccak256(abi.encodePacked("mainnet"))
         ) {
-            cfUSDCAddress = json.readAddress(
+            cfUSDCAddress = _getConfigContractAddress(
+                path,
                 string.concat(".", network, ".cfUSDC")
             );
         }
@@ -63,7 +65,6 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
 
         // check which diamond to use (from env variable)
         string memory diamondType = vm.envString("DIAMOND_TYPE");
@@ -73,8 +74,8 @@ contract DeployScript is DeployScriptBase {
 
         // get address of the correct diamond contract from network log file
         address diamondAddress = deployMutable
-            ? json.readAddress(".LiFiDiamond")
-            : json.readAddress(".LiFiDiamondImmutable");
+            ? _getConfigContractAddress(path, ".LiFiDiamond")
+            : _getConfigContractAddress(path, ".LiFiDiamondImmutable");
 
         // get path of global config file
         string memory globalConfigPath = string.concat(

@@ -23,12 +23,15 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/celerCircle.json");
-        string memory json = vm.readFile(path);
 
-        address circleBridgeProxy = json.readAddress(
+        address circleBridgeProxy = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".circleBridgeProxy")
         );
-        address usdc = json.readAddress(string.concat(".", network, ".usdc"));
+        address usdc = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".usdc")
+        );
 
         return abi.encode(circleBridgeProxy, usdc);
     }

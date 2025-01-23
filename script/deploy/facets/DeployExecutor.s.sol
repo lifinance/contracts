@@ -28,9 +28,8 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        string memory json = vm.readFile(path);
 
-        address erc20Proxy = json.readAddress(".ERC20Proxy");
+        address erc20Proxy = _getConfigContractAddress(path, ".ERC20Proxy");
 
         // get path of global config file
         string memory globalConfigPath = string.concat(

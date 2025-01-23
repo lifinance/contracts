@@ -276,6 +276,12 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "sonic": {
+    "chainId": 146,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "worldchain": {
     "chainId": 480,
     "connextHandler": "0x0000000000000000000000000000000000000000",
