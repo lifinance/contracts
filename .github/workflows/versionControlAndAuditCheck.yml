@@ -230,6 +230,13 @@ jobs:
           fi
 
       - name: Save updated contracts for downstream jobs
+        run: |
+          if [ -s contracts_for_audit.txt ]; then
+            echo "contracts_for_audit.txt exists and is not empty. Uploading..."
+          else
+            echo "::error::contracts_for_audit.txt is missing or empty. Skipping upload."
+            exit 1
+          fi
         uses: actions/upload-artifact@v4.6.0
         with:
           name: contracts_for_audit
