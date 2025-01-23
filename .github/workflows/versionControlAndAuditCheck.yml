@@ -76,6 +76,7 @@ jobs:
           ##### Initialize variables
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
+          UPDATED_CONTRACTS_FOR_TITLE=()
           UPDATED_CONTRACTS=()
 
           echo "--------------------"
@@ -102,8 +103,8 @@ jobs:
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                TARGET_STRING="${FILENAME} v${NEW_VERSION}"
-                UPDATED_CONTRACTS+=("$TARGET_STRING")
+                CONTRACTS_FOR_AUDIT+=("${FILENAME}")
+                CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
               else
                 ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
                 if echo "$DIFF_OUTPUT" | grep -qE '^\+\/\/\/|^\+pragma|^\+// SPDX-License-Identifier:'; then
@@ -143,11 +144,12 @@ jobs:
           fi
 
           ##### store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
-          if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
+          if [[ ${#CONTRACTS_FOR_AUDIT[@]} -ne 0 ]]; then
             ##### create a string from the array with all contracts
-            UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
-            echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
-            echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
+            CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
+            CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
+            echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
+            echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
           else
             echo -e "\033[32mDid not find any contracts for which version control is activated.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
@@ -160,8 +162,8 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           ##### Read tmp files into variables
-          if [ -f updated_contracts.txt ]; then
-            UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+          if [ -f contracts_for_title.txt ]; then
+            UPDATED_CONTRACTS=$(cat contracts_for_title.txt)
           else
             UPDATED_CONTRACTS=""
           fi
@@ -227,8 +229,8 @@ jobs:
       - name: Save updated contracts for downstream jobs
         uses: actions/upload-artifact@v4.6.0
         with:
-          name: updated-contracts
-          path: updated_contracts.txt
+          name: contracts_for_audit
+          path: contracts_for_audit.txt
 
   audit-verifier:
     if: ${{ github.event.pull_request.draft == false }}
@@ -243,10 +245,10 @@ jobs:
       - name: Download updated contracts
         uses: actions/download-artifact@v4.1.8
         with:
-          name: updated-contracts
+          name: contracts_for_audit
 
       - name: Verify Audit for Updated Contracts
         run: |
-          UPDATED_CONTRACTS=$(cat updated_contracts.txt)
-          echo "Verifying audit for the following contracts: $UPDATED_CONTRACTS"
+          CONTRACTS_FOR_AUDIT=$(cat contracts_for_audit.txt)
+          echo "Verifying audit for the following contracts: $CONTRACTS_FOR_AUDIT"
           # Audit Verifier logic
