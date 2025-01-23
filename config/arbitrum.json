@@ -1,8 +1,4 @@
 {
-  "hardhat": {
-    "gatewayRouter": "0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef",
-    "inbox": "0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f"
-  },
   "mainnet": {
     "gatewayRouter": "0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef",
     "inbox": "0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f"
