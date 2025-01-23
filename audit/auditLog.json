@@ -125,12 +125,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.10_Timelock(v1.0.0).pdf",
       "auditCommitHash": "af28afab139a158650f4ef4f4442f2b5fcdfe497"
+    },
+    "fakeAudit": {
+      "auditCompletedOn": "10.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.10_Timelock(v1.0.0).pdf",
+      "auditCommitHash": "0c03d469e1a6caeb046e2084a3819011af4c2471"
     }
   },
   "auditedContracts": {
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"],
-      "1.1.0": ["audit20250106"]
+      "1.1.0": ["audit20250106"],
+      "1.3.0": ["fakeAudit"]
     },
     "AcrossFacetPackedV3": {
       "1.0.0": ["audit20241007"],
