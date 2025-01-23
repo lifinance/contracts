@@ -73,16 +73,16 @@ contract LiFuelFeeCollector is TransferrableOwnership {
     }
 
     // Withdraw Ether (vulnerable to reentrancy attack) test
-    // function withdraw(uint256 _amount) public {
-    //     require(balances[msg.sender] >= _amount, "Insufficient balance");
+    function withdraw(uint256 _amount) public {
+        require(balances[msg.sender] >= _amount, "Insufficient balance");
 
-    //     // Transfer Ether to the caller
-    //     (bool success, ) = msg.sender.call{ value: _amount }("");
-    //     require(success, "Transfer failed");
+        // Transfer Ether to the caller
+        (bool success, ) = msg.sender.call{ value: _amount }("");
+        require(success, "Transfer failed");
 
-    //     // Update the balance (This should have been done before the transfer)
-    //     balances[msg.sender] -= _amount;
-    // }
+        // Update the balance (This should have been done before the transfer)
+        balances[msg.sender] -= _amount;
+    }
 
     /// @notice Withdraws fees
     /// @param tokenAddress The address of the token to withdraw fees for
