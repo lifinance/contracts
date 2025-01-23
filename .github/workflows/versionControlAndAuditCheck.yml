@@ -103,7 +103,7 @@ jobs:
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                CONTRACTS_FOR_AUDIT+=("${FILENAME}")
+                CONTRACTS_FOR_AUDIT+=("${FILE}")
                 CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
               else
                 ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
