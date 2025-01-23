@@ -285,12 +285,14 @@ jobs:
         id: check_contract_for_audit_required
         run: |
 
+          MODIFIED_CONTRACTS=$(cat contracts_for_audit.txt)
+          echo "MODIFIED_CONTRACTS: $MODIFIED_CONTRACTS"
+
           ##### Make sure that there are modified files
           if [ ! -s $contracts_for_audit.txt ]; then
             echo -e "\033[32mNo protected contracts found in this PR.\033[0m"
             echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
           else
-            MODIFIED_CONTRACTS=$(cat contracts_for_audit.txt)
             echo -e "\033[31mProtected contracts were modified by this PR.\033[0m"
             echo "MODIFIED_CONTRACTS: $MODIFIED_CONTRACTS"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
