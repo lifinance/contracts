@@ -250,6 +250,11 @@ jobs:
     if: ${{ github.event.pull_request.draft == false }}
     needs: version-control-checker
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+      AUDIT_LOG_PATH: 'audit/auditLog.json'
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      AUDIT_REQUIRED: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
