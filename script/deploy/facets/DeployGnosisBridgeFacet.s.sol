@@ -23,9 +23,9 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/gnosis.json");
-        string memory json = vm.readFile(path);
 
-        address xDaiBridge = json.readAddress(
+        address xDaiBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".xDaiBridge")
         );
 
