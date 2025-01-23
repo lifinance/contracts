@@ -26,6 +26,8 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
+    function bla() external {}
+
     /// @param receiverAddress The address that will receive the token on dst chain (our Receiver contract or the user-defined receiver address)
     /// @param refundAddress The address that will be used for potential bridge refunds
     /// @param receivingAssetId The address of the token to be received at destination chain
