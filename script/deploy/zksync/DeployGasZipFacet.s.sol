@@ -20,14 +20,10 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory gasZipConfig = string.concat(
-            root,
-            "/config/gaszip.json"
-        );
+        string memory path = string.concat(root, "/config/gaszip.json");
 
-        string memory gasZipConfigJson = vm.readFile(gasZipConfig);
-
-        address gasZipRouter = gasZipConfigJson.readAddress(
+        address gasZipRouter = _getConfigContractAddress(
+            path,
             string.concat(".gasZipRouters.", network)
         );
 

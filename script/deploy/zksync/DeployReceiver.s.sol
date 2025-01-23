@@ -36,17 +36,17 @@ contract DeployScript is DeployScriptBase {
 
         // obtain address of Stargate router in current network from config file
         string memory path = string.concat(root, "/config/stargate.json");
-        string memory json = vm.readFile(path);
 
-        address stargateRouter = json.readAddress(
+        address stargateRouter = _getConfigContractAddress(
+            path,
             string.concat(".composers.", network)
         );
 
         // obtain address of Amarok router in current network from config file
         path = string.concat(root, "/config/amarok.json");
-        json = vm.readFile(path);
 
-        address amarokRouter = json.readAddress(
+        address amarokRouter = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".connextHandler")
         );
 
@@ -58,8 +58,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
-        address executor = json.readAddress(".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor");
 
         return
             abi.encode(

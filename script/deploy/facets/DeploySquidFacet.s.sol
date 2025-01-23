@@ -21,9 +21,9 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/squid.json");
-        string memory json = vm.readFile(path);
 
-        address router = json.readAddress(
+        address router = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".router")
         );
 

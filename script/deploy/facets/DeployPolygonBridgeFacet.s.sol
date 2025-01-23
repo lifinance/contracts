@@ -23,12 +23,13 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/polygon.json");
-        string memory json = vm.readFile(path);
 
-        address rootChainManager = json.readAddress(
+        address rootChainManager = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".rootChainManager")
         );
-        address erc20Predicate = json.readAddress(
+        address erc20Predicate = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".erc20Predicate")
         );
 
