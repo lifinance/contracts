@@ -22,16 +22,16 @@ async function main() {
   const signer = new ethers.Wallet(PRIVATE_KEY as string, provider)
   const glacis = GlacisFacet__factory.connect(LIFI_ADDRESS, provider) as any
 
-  const address = await signer.getAddress()
+  const signerAddress = await signer.getAddress()
 
   const token = ERC20__factory.connect(WORMHOLE_ADDRESS, provider)
   const amount = utils.parseUnits('0.5', 18)
   console.info(
     `Transfer ${amount} Wormhole on Arbitrum to Wormhole on Optimism`
   )
-  console.info(`Currently connected to ${address}`)
+  console.info(`Currently connected to ${signerAddress}`)
 
-  const balance = await token.balanceOf(address)
+  const balance = await token.balanceOf(signerAddress)
   console.info(`Token balance for connected wallet: ${balance.toString()}`)
   if (balance.eq(0)) {
     console.error(`Connected account has no funds.`)
@@ -39,7 +39,6 @@ async function main() {
     process.exit(1)
   }
 
-  console.info('Sending WORMHOLE...')
   const currentAllowance = await token.allowance(
     await signer.getAddress(),
     LIFI_ADDRESS
@@ -61,7 +60,6 @@ async function main() {
   } else {
     console.info('Sufficient allowance already exists. No need to approve.')
   }
-  console.info('Sent WORMHOLE')
 
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: utils.randomBytes(32),
@@ -69,28 +67,28 @@ async function main() {
     integrator: 'ACME Devs',
     referrer: constants.AddressZero,
     sendingAssetId: WORMHOLE_ADDRESS,
-    receiver: address,
+    receiver: signerAddress,
     destinationChainId: destinationChainId,
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
-  const airlift = new Contract(config.arbitrum.airlift, [
+  const airliftContract = new Contract(config.arbitrum.airlift, [
     'function quoteSend(address token, uint256 amount, bytes32 receiver, uint256 destinationChainId, address refundAddress, uint256 msgValue) external returns ((uint256, uint256), uint256, uint256, ((uint256, uint256), uint256, uint256))',
   ])
 
   // calculate native fee
   let estimatedFees
   try {
-    estimatedFees = await airlift
+    estimatedFees = await airliftContract
       .connect(signer)
       .callStatic.quoteSend(
         WORMHOLE_ADDRESS,
         amount,
-        zeroPadValue(address, 32),
+        zeroPadValue(signerAddress, 32),
         destinationChainId,
-        address,
+        signerAddress,
         utils.parseEther('1')
       )
     if (!estimatedFees) throw new Error('Invalid fee estimation')
@@ -113,7 +111,7 @@ async function main() {
   )
 
   const glacisBridgeData: GlacisFacet.GlacisDataStruct = {
-    refund: address,
+    refundAddress: signerAddress,
     nativeFee,
   }
 

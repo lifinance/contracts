@@ -20,14 +20,6 @@ struct Fee {
     uint256 tokenFee;
 }
 
-error GlacisAirlift__NotEnoughValueFee();
-error GlacisAirlift__NotEnoughTokenFee();
-error GlacisAirlift__FeeTransferUnsuccessful();
-error GlacisAirliftFacet__TokenNotSupportedForBridging();
-error GlacisAirliftFacet__TokenFacetReverted(address token, bytes4 selector);
-error GlacisAirliftFacet__SelectorAndTokenArrayMustBeSameLength();
-error GlacisAirliftFacet__NotOnWhitelist();
-
 interface IGlacisAirlift {
     /// Registers function selectors to multiple token. A selector's function must be added to the Diamond as a facet.
     /// @param diamondSelectors The bytes4 selector of the token's handler function.

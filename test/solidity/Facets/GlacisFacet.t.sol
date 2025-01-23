@@ -36,7 +36,7 @@ contract GlacisFacetTest is TestBaseFacet {
 
     function setUp() public {
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
-        customBlockNumberForForking = 297418708;
+        customBlockNumberForForking = 298446895;
         initTestBase();
 
         wormhole = ERC20(ADDRESS_WORMHOLE_TOKEN);
@@ -81,6 +81,9 @@ contract GlacisFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultWORMHOLEAmount;
         bridgeData.destinationChainId = 10;
 
+        // Call `quoteSend` to estimate the required native fee for the transfer.
+        // This is necessary to ensure the transaction has sufficient gas for execution.
+        // The `payableAmount` parameter simulates the amount of native tokens required for the estimation.
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(address(airlift))
             .quoteSend(
                 bridgeData.sendingAssetId,
@@ -97,7 +100,7 @@ contract GlacisFacetTest is TestBaseFacet {
 
         // produce valid GlacisData
         validGlacisData = GlacisFacet.GlacisData({
-            refund: REFUND_WALLET,
+            refundAddress: REFUND_WALLET,
             nativeFee: addToMessageValue
         });
     }
@@ -168,6 +171,7 @@ contract GlacisFacetTest is TestBaseFacet {
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(glacisFacet));
         emit LiFiTransferStarted(bridgeData);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
@@ -216,7 +220,8 @@ contract GlacisFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_WORMHOLE_TOKEN, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_WORMHOLE_TOKEN, USER_RECEIVER, 0)
     {
-        // add liquidity for dex pair
+        // add liquidity for dex pair DAI-WORMHOLE
+        // this is necessary because Glacis does not provide routes for stablecoins like USDT or USDC, forcing us to work with custom tokens that often lack liquidity on V2 dexes
         addLiquidity(
             ADDRESS_DAI,
             ADDRESS_WORMHOLE_TOKEN,
@@ -225,14 +230,19 @@ contract GlacisFacetTest is TestBaseFacet {
         );
 
         uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
+
         vm.startPrank(USER_SENDER);
+
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
+
         // reset swap data
         setDefaultSwapDataSingleDAItoWORMHOLE();
 
         // approval
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 initialETHBalance = USER_SENDER.balance;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -248,7 +258,7 @@ contract GlacisFacetTest is TestBaseFacet {
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-        uint256 initialETHBalance = USER_SENDER.balance;
+
         initiateSwapAndBridgeTxWithFacet(false);
 
         // check balances after call

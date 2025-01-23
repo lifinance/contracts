@@ -21,10 +21,10 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param refund Refund address
+    /// @param refundAddress Refund address
     /// @param nativeFee The fee amount in native token required by the Glacis Airlift.
     struct GlacisData {
-        address refund;
+        address refundAddress;
         uint256 nativeFee;
     }
 
@@ -94,17 +94,21 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
+        // Transfer the tokens to the Airlift contract.
+        // This step ensures that the tokens are already in place before calling the `send` function.
+        // The `send` function assumes the tokens are pre-transferred to the contract.
         SafeERC20.safeTransfer(
             IERC20(_bridgeData.sendingAssetId),
             address(airlift),
             _bridgeData.minAmount
         );
+
         airlift.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
             bytes32(uint256(uint160(_bridgeData.receiver))),
             _bridgeData.destinationChainId,
-            _glacisData.refund
+            _glacisData.refundAddress
         );
 
         emit LiFiTransferStarted(_bridgeData);
