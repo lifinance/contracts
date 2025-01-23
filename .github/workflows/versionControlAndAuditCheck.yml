@@ -50,10 +50,10 @@ jobs:
           echo "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
-          FILES=$(git diff --name-only "origin/${BASE_REF}" HEAD)
+          FILES="$(git diff --name-only "origin/${BASE_REF}" HEAD)"
 
           ##### make sure that there are modified files
-          if [[ -z $FILES ]]; then
+          if [[ -z "$FILES" ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action\033[0m"
             exit 1
           fi
@@ -69,7 +69,7 @@ jobs:
           done <<< "${FILES}"
 
           ##### if none found, exit here as there is nothing to do
-          if [[ -z "$CONTRACTS" ]]; then
+          if [[ -z "${CONTRACTS}" ]]; then
             echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
             # set action output to false
