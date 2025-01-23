@@ -25,7 +25,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
       AUDIT_LOG_PATH: 'audit/auditLog.json'
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      CONTINUE: false # makes sure that variable is correctly initialized in all cases
+      AUDIT_REQUIRED: false
 
     permissions:
       pull-requests: write
@@ -34,6 +34,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
+
+      # makes sure that the "AuditCompleted" label is always removed in the beginning to make sure that this label is never assigned in (case of) error
+      - name: Remove label "AuditCompleted" in case it is assigned
+        uses: actions-ecosystem/action-remove-labels@v1
+        continue-on-error: true
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
+          labels: 'AuditCompleted'
+          number: ${{ env.PR_NUMBER }}
+          fail_on_error: false
 
       - name: Check PR for changes in protected folders ('src/*')
         id: check_git_diff_for_protectected_folders
@@ -46,7 +56,6 @@ jobs:
           ##### Make sure that there are modified files
           if [[ -z $FILES ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV" # explicit assignment, even though already initialized with false
             exit 1
           fi
 
@@ -76,7 +85,6 @@ jobs:
         uses: actions/github-script@v7
         env:
           AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}
-          CONTINUE: ${{ env.CONTINUE }}
         with:
           script: |
             const { execSync } = require('child_process');
@@ -128,12 +136,6 @@ jobs:
               console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.${colors.reset}`);
             }
 
-            // Remove the AuditCompleted label if it is present
-            if (assignedLabels.includes('AuditCompleted')) {
-              console.log(`Now removing AuditCompleted label`);
-              execSync(`gh pr edit ${{ github.event.pull_request.number }} --remove-label "AuditCompleted"`, { stdio: 'inherit' });
-            }
-
             // fetch all currently assigned labels again
             assignedLabels = []
             try {
@@ -157,27 +159,15 @@ jobs:
               console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
             }
 
-            if(assignedLabels.includes('AuditCompleted')) {
-              console.log(`Label 'AuditCompleted' is currently assigned`);
-              core.exportVariable('AUDIT_COMPLETED_ASSIGNED', 'true');
-            }
-            else
-              console.log(`${colors.green}Label 'AuditCompleted' is currently not assigned${colors.reset}`);
-
-            // set CONTINUE to true to make sure the following steps are executed
-            core.exportVariable('CONTINUE', 'true');
+            console.log(`Currently assigned labels: ${JSON.stringify(assignedLabels)}`);
 
       - name: Check Audit Log
-        continue-on-error: true
         id: check-audit-log
-        if: ${{ always() && env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
+        if: ${{ always() && env.AUDIT_REQUIRED == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
         run: |
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
           echo "It will also make sure that no information is missing in the audit log and that the information is meaningful."
-
-          # set CONTINUE to false to ensure that action fails (correctly) if an error occurs unexpectedly
-          echo "CONTINUE=false" >> "$GITHUB_ENV"
 
           # load list of protected contracts
           PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
@@ -189,7 +179,6 @@ jobs:
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
             echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 1
           fi
 
@@ -203,7 +192,6 @@ jobs:
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
               echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             fi
 
@@ -223,8 +211,6 @@ jobs:
 
             ##### Ensure exactly one audit is logged; handle errors if not
             if [[ $AUDIT_COUNT -ne 1 ]]; then
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
-
               if [[ $AUDIT_COUNT -gt 1 ]]; then
                 echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
                 echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
@@ -247,7 +233,6 @@ jobs:
             ##### Check if AUDIT_ENTRY is valid JSON
             if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
               echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILE seems to be invalid.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             fi
 
@@ -266,7 +251,6 @@ jobs:
               echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
               echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
               echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             else
               echo "The audit log contains a date for $AUDIT_ID: $AUDIT_COMPLETED_ON"
@@ -277,7 +261,6 @@ jobs:
               echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
               echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
               echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             else
               echo "The audit log contains the auditor's name for $AUDIT_ID: $AUDITED_BY"
@@ -288,7 +271,6 @@ jobs:
               echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
               echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
               echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             else
               echo "The audit log contains the auditor's github handle for $AUDIT_ID: $AUDITOR_GIT_HANDLE"
@@ -299,7 +281,6 @@ jobs:
               echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
               echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
               echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             else
               echo "The audit report for $AUDIT_ID was found in path $AUDIT_REPORT_PATH"
@@ -310,7 +291,6 @@ jobs:
               echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
               echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
               echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             else
               echo "The audit log contains the commit hash that was audited in $AUDIT_ID: $AUDIT_COMMIT_HASH"
@@ -323,11 +303,10 @@ jobs:
 
             ##### Check if the target commit is in the list
             if echo "$COMMIT_LIST" | grep -q "$TARGET_COMMIT"; then
-            echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
+              echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
             else
-            echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV"
-            exit 1
+              echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
+              exit 1
             fi
 
 
@@ -339,7 +318,6 @@ jobs:
               echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
               echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
               echo -e "\033[31mCheck failed.\033[0m"
-              echo "CONTINUE=false" >> "$GITHUB_ENV"
               exit 1
             fi
 
@@ -381,7 +359,6 @@ jobs:
             # else
             #   echo -e "\033[31mERROR: No review found by git user '$AUDITOR_GIT_HANDLE' (= the auditor)\033[0m"
             #   echo -e "\033[31mCheck failed\033[0m"
-            #   echo "CONTINUE=false" >> "$GITHUB_ENV"
             #   exit 1
             # fi
             # ##### -----------------------------------------------------------------------------
@@ -391,30 +368,13 @@ jobs:
 
           echo -e "\033[32mSuccessfully verified that all contracts in this PRs are audited.\033[0m"
           echo -e "\033[32mCheck passed.\033[0m"
-          echo "CONTINUE=true" >> "$GITHUB_ENV"
           echo "Assigning label 'AuditCompleted' next"
 
       - name: Assign label "AuditCompleted" if all checks passed
-        if: ${{ always() && env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }}
+        if: ${{ env.AUDIT_REQUIRED == 'true' }}
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
           number: ${{ env.PR_NUMBER }}
-
-      - name: Remove label "AuditCompleted" in case check was not successful but label was assigned in earlier checks
-        continue-on-error: true # This ensures the step will execute even if the job has a failed status.
-        uses: actions-ecosystem/action-remove-labels@v1
-        if: ${{ always() && env.AUDIT_COMPLETED_ASSIGNED && (env.CONTINUE == 'false' || (env.CONTINUE == 'true' && env.AUDIT_REQUIRED == 'false'))}}
-        with:
-          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
-          labels: 'AuditCompleted'
-          number: ${{ env.PR_NUMBER }}
-
-      - name: Fail the git action if any critical step failed
-        if: always() && env.CONTINUE == 'false' # This step runs only if a failure was recorded
-        run: |
-
-          echo -e "\033[31mError: One or more critical steps failed. Failing the job.\033[0m"
-          exit 1
