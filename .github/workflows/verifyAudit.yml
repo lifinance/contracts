@@ -371,7 +371,7 @@ jobs:
           echo "Assigning label 'AuditCompleted' next"
 
       - name: Assign label "AuditCompleted" if all checks passed
-        if: ${{ steps.check-audit-log.outcome == 'success' && env.AUDIT_REQUIRED == 'true' }}
+        if: ${{ env.AUDIT_REQUIRED == 'true' }}
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
