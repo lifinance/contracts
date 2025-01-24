@@ -17,11 +17,6 @@ export default function (
       },
       {
         type: 'input',
-        name: 'author',
-        message: 'Who is the author of this facet?',
-      },
-      {
-        type: 'input',
         name: 'email',
         message: 'What is the email of the author of this facet?',
       },
