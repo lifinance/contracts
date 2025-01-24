@@ -32,11 +32,10 @@ const EXAMPLE_ABI = [{...}] // optional define example ABI
 dotenv.config()
 
 async function main() {
-  // Retrieve env vars & set up clients
+  // === Set up parameters, retrieve env vars and set up clients ===
   // `srcChain` is the source chain for the operation (change as needed).
   // RPC URL and private key are dynamically fetched based on the chain.
   const srcChain: SupportedChain = "mainnet"; // Set source chain
-  const destinationChainId = 10 // Set destination chain id
   const RPC_URL = getRpcUrl(srcChain)
   const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
@@ -53,15 +52,15 @@ async function main() {
   })
   const signerAddress = walletAccount.address
 
-  // Contract addresses / chain info
+  // === Contract addresses ===
   // LIFI_ADDRESS is the address of the LiFi Diamond contract for bridging.
   // SRC_TOKEN_ADDRESS is the token to be bridged (set its address for the source chain).
   // EXAMPLE_ADDRESS is a custom contract address for a contract that your facet interacts with.
-  const LIFI_ADDRESS = deployments.LiFiDiamond as `0x${string}` // Set deployments import
+  const LIFI_ADDRESS = deployments.LiFiDiamond as `0x${string}` // Set correct LiFiDiamond address
   const SRC_TOKEN_ADDRESS = '' as `0x${string}` // Set the source token address here.
   const EXAMPLE_ADDRESS = config.mainnet.example as `0x${string}` // Update for the correct chain.
 
-  // Instantiate contracts
+  // === Instantiate contracts ===
   const srcTokenContract = getContract({
     address: SRC_TOKEN_ADDRESS,
     abi: ERC20_ABI,
@@ -84,10 +83,10 @@ async function main() {
   const srcTokenSymbol = await srcTokenContract.read.symbol() as string
   const amount = parseUnits('10', 18) // 10 * 1e18
 
-  console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`) // change chain names
+  console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`) // Set destination chain name
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  // Check token balance
+  // === Check token balance ===
   const balance = await srcTokenContract.read.balanceOf([signerAddress])
   console.info(`Token balance for connected wallet: ${balance}`)
 
@@ -96,7 +95,7 @@ async function main() {
     process.exit(1)
   }
 
-  // Check allowance
+  // === Check allowance ===
   const currentAllowance = await srcTokenContract.read.allowance([
     signerAddress,
     LIFI_ADDRESS,
@@ -118,12 +117,12 @@ async function main() {
     console.info('Sufficient allowance already exists. No need to approve.')
   }
 
-  // In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. 
+  // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
 
 
 
 
-  // Prepare LiFi Bridge Data
+  // === Prepare bridge data ===
   // Generate types by running command `yarn typechain`
   const bridgeData: ILiFi.BridgeDataStruct = {
     // Edit fields as needed
@@ -133,18 +132,17 @@ async function main() {
     referrer: zeroAddress,
     sendingAssetId: SRC_TOKEN_ADDRESS,
     receiver: signerAddress,
-    destinationChainId: destinationChainId,
+    destinationChainId: 10, // Set destination chain id
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
-  // Prepare bridge-specific data (replace or add required fields if needed here).
   const {{camelCase name}}BridgeData: {{titleCase name}}Facet.{{titleCase name}}DataStruct = {
     // Add your specific fields for {{titleCase name}} here.
   }
 
-  // Start bridging
+  // === Start bridging ===
   try {
     const hash = await lifiDiamondContract.write.startBridgeTokensVia{{titleCase name}}(
       [bridgeData, {{camelCase name}}BridgeData], 
