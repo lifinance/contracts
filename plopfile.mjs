@@ -15,11 +15,6 @@ export default function (
         name: 'description',
         message: 'Describe what this facet does:',
       },
-      {
-        type: 'input',
-        name: 'email',
-        message: 'What is the email of the author of this facet?',
-      },
     ], // array of inquirer prompts
     actions: [
       {
