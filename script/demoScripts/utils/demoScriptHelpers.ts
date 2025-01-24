@@ -451,3 +451,23 @@ const getProviderForChainId = (chainId: number) => {
     throw Error(`Could not find a provider for network ${networkName}`)
   else return provider
 }
+
+export const getEnvVar = (varName: string): string => {
+  const value = process.env[varName]
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${varName}`)
+  }
+  return value
+}
+
+export const normalizePrivateKey = (pk: string): `0x${string}` => {
+  if (!pk.startsWith('0x')) {
+    return `0x${pk}` as `0x${string}`
+  }
+  return pk as `0x${string}`
+}
+
+export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
+  const hexAddress = address.replace(/^0x/, '')
+  return `0x${hexAddress.padStart(64, '0')}`
+}
