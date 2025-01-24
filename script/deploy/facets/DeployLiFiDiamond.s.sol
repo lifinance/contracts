@@ -28,9 +28,10 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        string memory json = vm.readFile(path);
-
-        address diamondCut = json.readAddress(".DiamondCutFacet");
+        address diamondCut = _getConfigContractAddress(
+            path,
+            ".DiamondCutFacet"
+        );
 
         return abi.encode(deployerAddress, diamondCut);
     }
