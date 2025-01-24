@@ -1,0 +1,156 @@
+import {
+  createPublicClient,
+  createWalletClient,
+  getContract,
+  http,
+  parseUnits,
+  parseEther,
+  Narrow,
+  zeroAddress
+} from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { randomBytes } from 'crypto'
+import dotenv from 'dotenv'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+import {{camelCase name}}FacetArtifact from '../../out/{{titleCase name}}Facet.sol/{{titleCase name}}Facet.json'
+import config from '../../config/{{camelCase name}}.json'
+import { {{titleCase name}}Facet, ILiFi } from '../../typechain'
+import {
+  getEnvVar,
+  normalizePrivateKey,
+  zeroPadAddressToBytes32,
+} from './utils/demoScriptHelpers'
+import { getRpcUrl, getViemChain, SupportedChain } from './utils/demoScriptChainConfig'
+
+dotenv.config()
+
+const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
+const {{constantCase name}}_FACET_ABI = {{camelCase name}}FacetArtifact.abi as Narrow<typeof {{camelCase name}}FacetArtifact.abi>
+
+import deployments from '../../deployments/mainnet.staging.json' // change source chain
+
+async function main() {
+  // Retrieve env vars & set up clients
+  const srcChain: SupportedChain = "mainnet"; // change source chain
+  const RPC_URL = getRpcUrl(srcChain)
+  const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
+  const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
+
+  const publicClient = createPublicClient({
+    chain: getViemChain(srcChain),
+    transport: http(RPC_URL),
+  })
+  const walletAccount = privateKeyToAccount(typedPrivateKey)
+  const walletClient = createWalletClient({
+    chain: getViemChain(srcChain),
+    transport: http(RPC_URL),
+    account: walletAccount,
+  })
+  const signerAddress = walletAccount.address
+
+  // Contract addresses / chain info
+  const LIFI_ADDRESS = deployments.LiFiDiamond as `0x${string}`
+  const SRC_TOKEN_ADDRESS = '' as `0x${string}` // // change source token addres that will be bridged
+  const EXAMPLE_ADDRESS = config.mainnet.example as `0x${string}` // change source chain
+  const destinationChainId = 10
+  const amount = parseUnits('10', 18) // 10 * 1e18
+
+  // Instantiate contracts
+  const srcTokenContract = getContract({
+    address: SRC_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    client: { public: publicClient, wallet: walletClient }
+  })
+
+  const exampleContract = getContract({
+    address: EXAMPLE_ADDRESS,
+    abi: EXAMPLE_ABI,
+    client: { public: publicClient, wallet: walletClient }
+  })
+
+  const lifiDiamondContract = getContract({
+    address: LIFI_ADDRESS,
+    abi: {{constantCase name}}_FACET_ABI,
+    client: { public: publicClient, wallet: walletClient }
+  })
+
+  const srcTokenName = await srcTokenContract.read.name() as string
+  const srcTokenSymbol = await srcTokenContract.read.symbol() as string
+
+  console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`) // change chain names
+  console.info(`Connected wallet address: ${signerAddress}`)
+
+  // Check token balance
+  const balance = await srcTokenContract.read.balanceOf([signerAddress])
+  console.info(`Token balance for connected wallet: ${balance}`)
+
+  if (balance === 0n) {
+    console.error(`Connected account has no ${srcTokenName} (${srcTokenSymbol}) tokens. Exiting...`)
+    process.exit(1)
+  }
+
+  // Check allowance
+  const currentAllowance = await srcTokenContract.read.allowance([
+    signerAddress,
+    LIFI_ADDRESS,
+  ]) as bigint;
+
+  console.log('Current allowance:', currentAllowance.toString())
+  
+  if (currentAllowance < amount) {
+    console.info('Allowance is insufficient. Approving required amount...')
+    try {
+      const hash = await srcTokenContract.write.approve([LIFI_ADDRESS, amount])
+      console.info(`Approval transaction sent (hash): ${hash}`)
+    } catch (error) {
+      console.error('Approval failed:', error)
+      process.exit(1)
+    }
+    console.info('Approval transaction complete. New allowance set.')
+  } else {
+    console.info('Sufficient allowance already exists. No need to approve.')
+  }
+
+  // In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. 
+
+
+
+
+  // Prepare LiFi Bridge Data
+  const bridgeData: ILiFi.BridgeDataStruct = {
+    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    bridge: '{{camelCase name}}',
+    integrator: 'ACME Devs',
+    referrer: zeroAddress,
+    sendingAssetId: SRC_TOKEN_ADDRESS,
+    receiver: signerAddress,
+    destinationChainId: destinationChainId,
+    minAmount: amount,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
+  }
+
+  const {{camelCase name}}BridgeData: {{titleCase name}}Facet.{{titleCase name}}DataStruct = {
+  }
+
+  // Start bridging
+  try {
+    const hash = await lifiDiamondContract.write.startBridgeTokensVia{{titleCase name}}(
+      [bridgeData, {{camelCase name}}BridgeData],
+      { value: nativeFee }, // must send the fee in native
+    )
+
+    console.info(`Bridge transaction sent (hash): ${hash}`)
+    console.info(`Bridged ${srcTokenName} (${srcTokenSymbol}) successfully.`)
+  } catch (error) {
+    console.error('Bridge transaction failed:', error)
+    process.exit(1)
+  }
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })

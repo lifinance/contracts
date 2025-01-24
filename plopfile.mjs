@@ -52,6 +52,11 @@ export default function (
         path: 'script/deploy/facets/Update{{properCase name}}Facet.s.sol',
         templateFile: 'templates/facetUpdateScript.template.hbs',
       },
+      {
+        type: 'add',
+        path: 'script/demoScripts/demo{{properCase name}}.ts',
+        templateFile: 'templates/facetDemoScript.template.hbs',
+      },
     ], // array of actions
   })
 }
