@@ -1,9 +1,20 @@
+import { privateKeyToAccount } from 'viem/accounts'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
 import { node_url } from '../../utils/network'
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
 import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
-import { Chain, parseAbi } from 'viem'
+import {
+  Chain,
+  createPublicClient,
+  createWalletClient,
+  getContract,
+  http,
+  Narrow,
+  parseAbi,
+} from 'viem'
 import networks from '../../../config/networks.json'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
 
@@ -454,6 +465,16 @@ const getProviderForChainId = (chainId: number) => {
 }
 
 /**
+ * Convert an Ethereum address to a 32-byte hexadecimal string.
+ * The address is stripped of its "0x" prefix and zero-padded to 64 characters.
+ *
+ */
+export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
+  const hexAddress = address.replace(/^0x/, '')
+  return `0x${hexAddress.padStart(64, '0')}`
+}
+
+/**
  * Retrieve the value of an environment variable.
  * Throws an error if the environment variable is not defined.
  */
@@ -470,7 +491,7 @@ export const getEnvVar = (varName: string): string => {
  * If the private key already starts with "0x", it is returned unchanged.
  *
  */
-export const normalizePrivateKey = (pk: string): `0x${string}` => {
+const normalizePrivateKey = (pk: string): `0x${string}` => {
   if (!pk.startsWith('0x')) {
     return `0x${pk}` as `0x${string}`
   }
@@ -478,20 +499,10 @@ export const normalizePrivateKey = (pk: string): `0x${string}` => {
 }
 
 /**
- * Convert an Ethereum address to a 32-byte hexadecimal string.
- * The address is stripped of its "0x" prefix and zero-padded to 64 characters.
- *
- */
-export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
-  const hexAddress = address.replace(/^0x/, '')
-  return `0x${hexAddress.padStart(64, '0')}`
-}
-
-/**
  * Return the correct RPC environment variable
  * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
  */
-export const getRpcUrl = (chain: SupportedChain) => {
+const getRpcUrl = (chain: SupportedChain) => {
   const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
   return getEnvVar(envKey) as string
 }
@@ -500,7 +511,7 @@ export const getRpcUrl = (chain: SupportedChain) => {
  * Return the `Chain` object from viem. If you request a chain that doesn't
  * exist in `viemChainMap`, this will throw an error.
  */
-export const getViemChain = (chain: SupportedChain): Chain => {
+const getViemChain = (chain: SupportedChain): Chain => {
   const viemChain = viemChainMap[chain]
   if (!viemChain) {
     throw new Error(
@@ -508,4 +519,191 @@ export const getViemChain = (chain: SupportedChain): Chain => {
     )
   }
   return viemChain
+}
+
+/**
+ * Utility function to dynamically import the deployments file for a chain.
+ */
+const getDeployments = async (
+  chain: SupportedChain,
+  environment: 'staging' | 'production' = 'staging'
+) => {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url))
+  const fileName =
+    environment === 'production' ? `${chain}.json` : `${chain}.staging.json`
+  const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
+
+  try {
+    const deployments = await import(filePath)
+    return deployments
+  } catch (error) {
+    throw new Error(
+      `Deployments file not found for ${chain} (${environment}): ${filePath}`
+    )
+  }
+}
+
+/**
+ * Sets up the environment for interacting with a blockchain network and its contracts.
+ *
+ * This function initializes public and wallet clients, retrieves deployment information,
+ * and prepares a specific contract instance for interaction.
+ */
+export const setupEnvironment = async (
+  chain: SupportedChain,
+  facetAbi: Narrow<readonly any[]>,
+  environment: 'staging' | 'production' = 'staging'
+) => {
+  const RPC_URL = getRpcUrl(chain)
+  const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
+  const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
+
+  const publicClient = createPublicClient({
+    chain: getViemChain(chain),
+    transport: http(RPC_URL),
+  })
+
+  const walletAccount = privateKeyToAccount(typedPrivateKey)
+
+  const walletClient = createWalletClient({
+    chain: getViemChain(chain),
+    transport: http(RPC_URL),
+    account: walletAccount,
+  })
+
+  const deployments = await getDeployments(chain, environment)
+
+  const client = { public: publicClient, wallet: walletClient }
+
+  const lifiDiamondAddress = deployments.LiFiDiamond as `0x${string}`
+
+  const lifiDiamondContract = getContract({
+    address: lifiDiamondAddress,
+    abi: facetAbi,
+    client,
+  })
+
+  return {
+    walletAccount,
+    lifiDiamondContract,
+    lifiDiamondAddress,
+    publicClient,
+    client,
+  }
+}
+
+/**
+ * Retrieves a specific element from the configuration for a given blockchain chain.
+ */
+export const getConfigElement = (
+  config: Record<string, any>,
+  chain: SupportedChain,
+  elementName: string
+) => {
+  const chainConfig = config[chain]
+  if (!chainConfig || !chainConfig[elementName]) {
+    throw new Error(
+      `Element '${elementName}' not found for chain '${chain}' in the config.`
+    )
+  }
+  return chainConfig[elementName]
+}
+
+/**
+ * Executes a blockchain transaction, validates its receipt (optional), and handles errors.
+ */
+export const executeTransaction = async <T>(
+  transaction: () => Promise<T>,
+  transactionDescription: string,
+  publicClient?: any,
+  validateReceipt = false
+): Promise<T | null> => {
+  try {
+    console.info(`Executing: ${transactionDescription}`)
+    const result = await transaction()
+    console.info(
+      `${transactionDescription} broadcasted successfully with hash: ${result}`
+    )
+
+    if (validateReceipt && publicClient) {
+      console.info(`Waiting for transaction receipt...`)
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: result as any,
+      })
+      if (receipt.status === 'success') {
+        console.info(
+          `${transactionDescription} completed successfully, included in a block.`
+        )
+      } else {
+        console.error(
+          `${transactionDescription} failed. Receipt failure:`,
+          receipt
+        )
+        process.exit(1)
+      }
+    }
+
+    return result
+  } catch (error) {
+    console.error(`${transactionDescription} failed:`, error)
+    process.exit(1)
+  }
+}
+
+/**
+ * Ensures that the address wallet has the required token balance.
+ */
+export const ensureBalance = async (
+  contract: any,
+  address: string,
+  requiredAmount: bigint
+): Promise<void> => {
+  const balance: bigint = (await contract.read.balanceOf([address])) as bigint
+
+  if (balance < requiredAmount) {
+    console.error(
+      `Insufficient balance. Required: ${requiredAmount}, Available: ${balance}`
+    )
+    process.exit(1)
+  } else {
+    console.info(`Balance: ${balance}`)
+  }
+}
+
+/**
+ * Ensures that the owner wallet has approved the required allowance for a spender.
+ */
+export const ensureAllowance = async (
+  contract: any,
+  owner: string,
+  spenderAddress: string,
+  requiredAmount: bigint,
+  publicClient: any
+): Promise<void> => {
+  const allowance: bigint = (await contract.read.allowance([
+    owner,
+    spenderAddress,
+  ])) as bigint
+
+  if (allowance < requiredAmount) {
+    console.info(`Required amount: ${requiredAmount}`)
+    console.info(`Allowance is insufficient. Approving required amount...`)
+    const hash = await contract.write.approve([spenderAddress, requiredAmount])
+    console.info(`Approval transaction broadcasted (hash): ${hash}`)
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+    if (receipt.status === 'success') {
+      console.info(
+        'Token allowance approved successfully, included in a block.'
+      )
+    } else {
+      console.error(
+        'Approval transaction failed. Receipt indicates a failure:',
+        receipt
+      )
+      process.exit(1)
+    }
+  } else {
+    console.info('Sufficient allowance already exists.')
+  }
 }
