@@ -1,7 +1,6 @@
 import {
   getContract,
   parseUnits,
-  parseEther,
   Narrow,
   zeroAddress
 } from 'viem'
@@ -9,10 +8,9 @@ import { randomBytes } from 'crypto'
 import dotenv from 'dotenv'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import {{camelCase name}}FacetArtifact from '../../out/{{titleCase name}}Facet.sol/{{titleCase name}}Facet.json'
-import config from '../../config/{{camelCase name}}.json'
 import { {{titleCase name}}Facet, ILiFi } from '../../typechain'
 import { SupportedChain } from './utils/demoScriptChainConfig'
-import { checkBalance, ensureAllowance, executeTransaction, getConfigElement, setupEnvironment, zeroPadAddressToBytes32 } from './utils/demoScriptHelpers'
+import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment } from './utils/demoScriptHelpers'
 
 dotenv.config()
 
@@ -38,7 +36,11 @@ async function main() {
 
   // If you need to retrieve a specific address from your config file 
   // based on the chain and element name, use this helper function.
+  // 
+  // First, ensure you import the relevant config file:
+  // import config from '../../config/{{camelCase name}}.json'
   //
+  // Then, retrieve the address:
   // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
   //
 
@@ -67,9 +69,9 @@ async function main() {
   console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`) // Set destination chain name
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureBalance(wormholeTokenContract, signerAddress, amount);
+  await ensureBalance(srcTokenContract, signerAddress, amount);
 
-  await ensureAllowance(wormholeTokenContract, signerAddress, lifiDiamondAddress, amount, publicClient); 
+  await ensureAllowance(srcTokenContract, signerAddress, lifiDiamondAddress, amount, publicClient); 
 
   // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
 
@@ -100,7 +102,7 @@ async function main() {
     () =>
       lifiDiamondContract.write.startBridgeTokensVia{{titleCase name}}(
         [bridgeData, {{camelCase name}}BridgeData],
-        { value: nativeFee }
+        // { value: fee } optional value
       ),
     'Starting bridge tokens via {{titleCase name}}',
     publicClient,
