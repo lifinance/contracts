@@ -17,9 +17,11 @@ import config from '../../config/{{camelCase name}}.json'
 import { {{titleCase name}}Facet, ILiFi } from '../../typechain'
 import {
   getEnvVar,
-  normalizePrivateKey
+  normalizePrivateKey,
+  getRpcUrl,
+  getViemChain
 } from './utils/demoScriptHelpers'
-import { getRpcUrl, getViemChain, SupportedChain } from './utils/demoScriptChainConfig'
+import { SupportedChain } from './utils/demoScriptChainConfig'
 
 // #region ABIs
 

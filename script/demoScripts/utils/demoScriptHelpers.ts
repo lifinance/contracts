@@ -3,8 +3,9 @@ import { node_url } from '../../utils/network'
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
 import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
-import { parseAbi } from 'viem'
+import { Chain, parseAbi } from 'viem'
 import networks from '../../../config/networks.json'
+import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
 
 export const DEV_WALLET_ADDRESS = '0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7'
 
@@ -452,6 +453,10 @@ const getProviderForChainId = (chainId: number) => {
   else return provider
 }
 
+/**
+ * Retrieve the value of an environment variable.
+ * Throws an error if the environment variable is not defined.
+ */
 export const getEnvVar = (varName: string): string => {
   const value = process.env[varName]
   if (!value) {
@@ -460,6 +465,11 @@ export const getEnvVar = (varName: string): string => {
   return value
 }
 
+/**
+ * Normalize a private key to ensure it starts with "0x".
+ * If the private key already starts with "0x", it is returned unchanged.
+ *
+ */
 export const normalizePrivateKey = (pk: string): `0x${string}` => {
   if (!pk.startsWith('0x')) {
     return `0x${pk}` as `0x${string}`
@@ -467,7 +477,35 @@ export const normalizePrivateKey = (pk: string): `0x${string}` => {
   return pk as `0x${string}`
 }
 
+/**
+ * Convert an Ethereum address to a 32-byte hexadecimal string.
+ * The address is stripped of its "0x" prefix and zero-padded to 64 characters.
+ *
+ */
 export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
   const hexAddress = address.replace(/^0x/, '')
   return `0x${hexAddress.padStart(64, '0')}`
+}
+
+/**
+ * Return the correct RPC environment variable
+ * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
+ */
+export const getRpcUrl = (chain: SupportedChain) => {
+  const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
+  return getEnvVar(envKey) as string
+}
+
+/**
+ * Return the `Chain` object from viem. If you request a chain that doesn't
+ * exist in `viemChainMap`, this will throw an error.
+ */
+export const getViemChain = (chain: SupportedChain): Chain => {
+  const viemChain = viemChainMap[chain]
+  if (!viemChain) {
+    throw new Error(
+      `No viem chain object defined for chain: ${chain}. Please take a look at viemChainMap`
+    )
+  }
+  return viemChain
 }
