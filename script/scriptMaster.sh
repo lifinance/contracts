@@ -131,13 +131,13 @@ scriptMaster() {
     # Handle ZkSync
     # We need to make sure that the zksync fork of foundry is available before
     # we can deploy contracts to zksync.
-    if [[ $NETWORK == "zksync" ]]; then
+    if isZkEvmNetwork "$NETWORK"; then
       # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
     fi
-  
+
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')

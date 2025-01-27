@@ -21,6 +21,8 @@ cache = true
 solc_version = '0.8.26'
 test = "notest"
 script = "script/deploy/zksync"
+cache_path = "./.zkcache"
+out = "zkout"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
