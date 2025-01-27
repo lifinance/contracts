@@ -7,7 +7,8 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { ScriptExt } from "forge-zksync-std/ScriptExt.sol";
+
+// import { ScriptExt } from "forge-zksync-std/ScriptExt.sol";
 
 contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
@@ -30,7 +31,7 @@ contract UpdateScriptBase is ScriptBase {
     bool internal useDefaultDiamond;
 
     constructor() {
-        vmExt.zkVm(false);
+        // vmExt.zkVm(false);
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 
