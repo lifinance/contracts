@@ -80,7 +80,8 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _glacisData.nativeFee
         );
         _startBridge(_bridgeData, _glacisData);
     }
