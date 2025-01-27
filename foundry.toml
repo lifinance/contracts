@@ -12,7 +12,6 @@ fs_permissions = [
   { access = "read", path = "./config/" },
   { access = "read-write", path = "./test/logs/" },
   { access = "read", path = "./zkout/" },
-  { access = "read", path = "./out/" },
 ]
 ffi = true
 libs = ["node_modules", "lib"]
@@ -24,7 +23,6 @@ test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
-ffi = true
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
