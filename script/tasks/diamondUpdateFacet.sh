@@ -85,8 +85,12 @@ diamondUpdateFacet() {
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
   fi
 
-  # determine full (relative) path of deploy script
-  SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
+  # Handle ZkSync specific paths and extensions
+  if isZkEvmNetwork "$NETWORK"; then
+    SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"zksync/$SCRIPT.zksync.s.sol"
+  else
+    SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
+  fi
 
   # set flag for mutable/immutable diamond
   USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
@@ -110,13 +114,21 @@ diamondUpdateFacet() {
       # check if we are deploying to PROD
       if [[ "$ENVIRONMENT" == "production" ]]; then
           # PROD: suggest diamondCut transaction to SAFE
-          UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT".s.sol)
+          if isZkEvmNetwork "$NETWORK"; then
+            UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"zksync/"$SCRIPT".zksync.s.sol)
+          else
+            UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT".s.sol)
+          fi
           PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
           echoDebug "Calculating facet cuts for $SCRIPT..."
           if [[ $NETWORK == "zksync" ]]; then
             RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy --slow --zksync)
           else
-            RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+            if isZkEvmNetwork "$NETWORK"; then
+              RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy --slow --zksync)
+            else
+              RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+            fi
           fi
           CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
           FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
@@ -147,7 +159,11 @@ diamondUpdateFacet() {
         fi
       else
         # STAGING: just deploy normally without further checks
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+        if isZkEvmNetwork "$NETWORK"; then
+          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
+        else
+          RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+        fi
       fi
      fi
     RETURN_CODE=$?

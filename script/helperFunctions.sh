@@ -2797,6 +2797,20 @@ function getPrivateKey() {
     fi
   fi
 }
+function isZkEvmNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  case $NETWORK in
+    "zksync"|"abstract")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 function getChainId() {
   # read function arguments into variables
   NETWORK="$1"
