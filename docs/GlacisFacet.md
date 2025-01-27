@@ -23,7 +23,7 @@ The methods listed above take a variable labeled `_glacisData`. This data is spe
 
 ```solidity
 /// @param refundAddress The address that would receive potential refunds on destination chain
-/// @param nativeFee The fee amount in native token required by the Glacis Airlift.
+/// @param nativeFee The fee amount in native token required by the Glacis Airlift
 struct GlacisData {
     address refundAddress;
     uint256 nativeFee;
