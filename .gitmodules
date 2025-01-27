@@ -25,3 +25,6 @@
 [submodule "lib/Permit2"]
 	path = lib/Permit2
 	url = https://github.com/Uniswap/Permit2
+[submodule "lib/forge-zksync-std"]
+	path = lib/forge-zksync-std
+	url = https://github.com/Moonsong-Labs/forge-zksync-std
