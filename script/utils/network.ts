@@ -75,6 +75,7 @@ export function getAllNetworks(): string[] {
 
 // viem chain handling
 const chainNameMappings: Record<string, string> = {
+  apechain: 'apeChain',
   zksync: 'zkSync',
   polygonzkevm: 'polygonZkEvm',
 }
