@@ -68,6 +68,7 @@ interface IGlacisAirlift {
     /// @param receiver The target address that should receive the funds on the destination chain.
     /// @param destinationChainId The Ethereum chain ID of the destination chain.
     /// @param refundAddress The address that should receive any funds in the case the cross-chain gas value is too high.
+    /// @return The amount of token and value fees required to send the token across chains.
     function quoteSend(
         address token,
         uint256 amount,

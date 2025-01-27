@@ -2,12 +2,7 @@
 
 ## How it works
 
-The Glacis Facet works by forwarding calls to the [GlacisAirlift](https://github.com/glacislabs/airlift-evm/blob/main/src/facets/GlacisAirliftFacet.sol) core contract on the source chain. Glacis Airlift streamlines diverse mechanisms of General Message Passing protocols (GMPs) like Axelar, LayerZero, Wormhole by integrating interchain transfer adapters for each standard and maintaining a registry of curated addresses associated with the respective interchain tokens. This design allows users to simply specify a token address for bridging. Glacis Airlift automatically forwards the request, along with the necessary bridging data, to the appropriate adapter, ensuring seamless execution of the bridging process.
-
-Bridge doesn’t support stablecoins like **USDT** or **USDC**. They are custom tokens focused. We can find possible routes in [`routes.ts`](https://github.com/glacislabs/airlift-evm/blob/main/node-scripts/src/tests/routes.ts).
-
-The [`send`](https://github.com/glacislabs/airlift-evm/blob/main/src/facets/GlacisAirliftFacet.sol#L94) function is used to execute the cross-chain transfer. 
-Before calling [`send`](https://github.com/glacislabs/airlift-evm/blob/main/src/facets/GlacisAirliftFacet.sol#L94), the tokens must first be sent to the contract, as the function assumes the tokens are already in place. This function is preferred over [`sendAfterApproval`](https://github.com/glacislabs/airlift-evm/blob/af935df67c3fff873edea9758ef73cd46e1908c7/src/facets/GlacisAirliftFacet.sol#L112) because it eliminates the need for redundant token transfer steps, as tokens are already transferred to the contract beforehand.
+The Glacis Facet works by forwarding calls to the [GlacisAirlift](https://github.com/glacislabs/airlift-evm/blob/main/src/facets/GlacisAirliftFacet.sol) core contract on the source chain. Glacis Airlift serves as a unified interface for facilitating token bridging across various native token bridging standards, such as those employed by Axelar, LayerZero, and Wormhole. While these standards may leverage General Message Passing protocols (GMPs), the primary focus of Glacis Airlift lies in enabling seamless interaction with the token bridging mechanisms themselves.
 
 ```mermaid
 graph LR;
@@ -27,7 +22,7 @@ graph LR;
 The methods listed above take a variable labeled `_glacisData`. This data is specific to glacis and is represented as the following struct type:
 
 ```solidity
-/// @param refundAddress Refund address
+/// @param refundAddress The address that would receive potential refunds on destination chain
 /// @param nativeFee The fee amount in native token required by the Glacis Airlift.
 struct GlacisData {
     address refundAddress;

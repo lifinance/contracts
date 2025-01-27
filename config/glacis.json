@@ -1,4 +1,5 @@
 {
+  "important": "these values are test deployments only. We need to update this file when Glacis has deployed their final versions",
   "arbitrum": {
     "airlift": "0xE0A049955E18CFfd09C826C2c2e965439B6Ab272"
   },

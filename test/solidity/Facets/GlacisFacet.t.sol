@@ -77,7 +77,9 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         bridgeData.destinationChainId = destinationChainId;
 
         // add liquidity for dex pair DAI-{SOURCE TOKEN}
-        // this is necessary because Glacis does not provide routes for stablecoins like USDT or USDC, forcing us to work with custom tokens that often lack liquidity on V2 dexes
+        // this is necessary because Glacis does not provide routes for stablecoins
+        // like USDT or USDC, forcing us to work with custom tokens that often lack
+        // liquidity on V2 dexes
         addLiquidity(
             ADDRESS_DAI,
             ADDRESS_SRC_TOKEN,
