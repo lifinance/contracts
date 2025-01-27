@@ -3,6 +3,7 @@
     "---ListOfRouterAddresses---": "https://dev.gas.zip/gas/chain-support/inbound",
     "mainnet": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "arbitrum": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "apechain": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "avalanche": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "base": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "bsc": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
