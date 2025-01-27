@@ -7,6 +7,7 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
+import { ScriptExt } from "forge-zksync-std/ScriptExt.sol";
 
 contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
@@ -29,6 +30,7 @@ contract UpdateScriptBase is ScriptBase {
     bool internal useDefaultDiamond;
 
     constructor() {
+        vmExt.zkVm(false);
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 
@@ -98,7 +100,7 @@ contract UpdateScriptBase is ScriptBase {
         bytes4[] memory _exclude
     ) internal returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
-        cmd[0] = "script/deploy/facets/utils/contract-selectors.sh";
+        cmd[0] = "script/deploy/zksync/utils/contract-selectors.sh";
         cmd[1] = _facetName;
         string memory exclude;
         for (uint256 i; i < _exclude.length; i++) {
@@ -208,59 +210,5 @@ contract UpdateScriptBase is ScriptBase {
             result[2 * i + 3] = toHexDigit(uint8(code[i]) % 16);
         }
         return string(result);
-    }
-
-    function approveRefundWallet() internal {
-        // get refund wallet address from global config file
-        path = string.concat(root, "/config/global.json");
-        json = vm.readFile(path);
-        address refundWallet = json.readAddress(".refundWallet");
-
-        // get function signatures that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(".approvedSigsForRefundWallet");
-
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSignature[])
-        );
-
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
-            // Register refundWallet as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
-                refundWallet,
-                true
-            );
-        }
-    }
-
-    function approveDeployerWallet() internal {
-        // get refund wallet address from global config file
-        path = string.concat(root, "/config/global.json");
-        json = vm.readFile(path);
-        address refundWallet = json.readAddress(".deployerWallet");
-
-        // get function signatures that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(
-            ".approvedSigsForDeployerWallet"
-        );
-
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSignature[])
-        );
-
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
-            // Register refundWallet as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
-                refundWallet,
-                true
-            );
-        }
     }
 }

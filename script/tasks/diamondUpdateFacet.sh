@@ -92,9 +92,6 @@ diamondUpdateFacet() {
     CONTRACT_NAME=$(basename "$ZK_SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//')
     # Check if the foundry-zksync binaries exist, if not fetch them
     install_foundry_zksync
-
-    # Run zksync specific fork of forge
-    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   else
     SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
     CONTRACT_NAME=""  # Not needed for non-zkEVM networks
@@ -131,7 +128,7 @@ diamondUpdateFacet() {
       echoDebug "Calculating facet cuts for $SCRIPT..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
       else
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --skip-simulation --legacy)
       fi
@@ -147,7 +144,7 @@ diamondUpdateFacet() {
     else
       # STAGING: just deploy normally without further checks
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$UPDATE_SCRIPT" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$UPDATE_SCRIPT" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
       else
         RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --skip-simulation --legacy)
       fi
