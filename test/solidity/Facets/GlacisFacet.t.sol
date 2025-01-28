@@ -90,6 +90,14 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // Call `quoteSend` to estimate the required native fee for the transfer.
         // This is necessary to ensure the transaction has sufficient gas for execution.
         // The `payableAmount` parameter simulates the amount of native tokens required for the estimation.
+
+        // While we are estimating nativeFee, we initially don't know what
+        // `msg.value` is "enough." That's why we need to provide an overestimation,
+        // for example, 1 ETH. It goes through the full
+        // bridging logic and determines "I only need 0.005ETH from that 1ETH."
+        // The nativeFee is then returned in QuoteSendInfo. By using 1 ETH,
+        // we’re just on the safe side of overestimation to prevent the function
+        // from reverting.
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(
             address(airliftContract)
         ).quoteSend(
