@@ -125,6 +125,34 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.10_Timelock(v1.0.0).pdf",
       "auditCommitHash": "af28afab139a158650f4ef4f4442f2b5fcdfe497"
+    },
+    "audit20250117_1": {
+      "auditCompletedOn": "17.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditCommitHash": "n/a (one deployed contract instance was audited)"
+    },
+    "audit20250117_2": {
+      "auditCompletedOn": "17.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditCommitHash": "n/a (one deployed contract instance was audited)"
+    },
+    "audit20250117_3": {
+      "auditCompletedOn": "17.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditCommitHash": "n/a (one deployed contract instance was audited)"
+    },
+    "audit20250117_4": {
+      "auditCompletedOn": "17.01.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditCommitHash": "n/a (one deployed contract instance was audited)"
     }
   },
   "auditedContracts": {
@@ -174,6 +202,10 @@
       "1.0.2": ["audit20250110_1"]
     },
     "LiFiDEXAggregator": {
+      "1.1.0": ["audit20250117_1"],
+      "1.2.0": ["audit20250117_2"],
+      "1.3.0": ["audit20250117_3"],
+      "1.4.0": ["audit20250117_4"],
       "1.5.0": ["audit20241203"],
       "1.6.0": ["audit20250109_2"],
       "1.5.1": ["audit20250109_3"]
