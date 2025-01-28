@@ -495,6 +495,11 @@ export const getEnvVar = (varName: string): string => {
  *
  */
 const normalizePrivateKey = (pk: string): `0x${string}` => {
+  // Private key should be 64 characters (32 bytes) excluding '0x'
+  const cleanPk = pk.replace(/^0x/, '')
+  if (!/^[a-fA-F0-9]{64}$/.test(cleanPk)) {
+    throw new Error('Invalid private key format')
+  }
   if (!pk.startsWith('0x')) {
     return `0x${pk}` as `0x${string}`
   }
