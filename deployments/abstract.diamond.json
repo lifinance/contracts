@@ -29,8 +29,8 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x195d5CBEe915E364B5Ea0ed9B7578aDA41bF23F3": {
-        "Name": "LIFuelFacet",
+      "0xDD5ae29dfA6634b186C8f842064A12a09bE9d2F8": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
       "0x67Ae9269BB0363d4d1171eFCB750AAA0D62c0903": {
@@ -72,7 +72,7 @@
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
       "Receiver": "0x09f5fb29BadCF59d51ad2e64701071b8aB5c4F7A",
-      "ReceiverStargateV2": "0x37d7fD457Bef56E79bE3b8bd286eeBEFF14b578f",
+      "ReceiverStargateV2": "0x83D2B4f5834d7aDE97E5837781ecfC99D9Cbe004",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x527868EDbF533C3Ac540f4457405f701D9d4c7c1"
     }
