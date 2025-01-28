@@ -91,6 +91,11 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // This is necessary to ensure the transaction has sufficient gas for execution.
         // The `payableAmount` parameter simulates the amount of native tokens required for the estimation.
 
+        // Since `quoteSend` is a view function and therefore not payable,
+        // we receive `msg.value` as a parameter. When quoting, you can simulate
+        // the impact on your `msg.value` by passing a sample amount (payableAmount), such as 1 ETH,
+        // to see how it would be adjusted during an actual send.
+
         // While we are estimating nativeFee, we initially don't know what
         // `msg.value` is "enough." That's why we need to provide an overestimation,
         // for example, 1 ETH. It goes through the full
