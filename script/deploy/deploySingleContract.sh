@@ -123,9 +123,9 @@ deploySingleContract() {
 
   # check if deploy script exists
   if [[ $NETWORK == "zksync" ]]; then
-    FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".zksync.s.sol""
+    FULL_SCRIPT_PATH="${DEPLOY_SCRIPT_DIRECTORY}${SCRIPT}.zksync.s.sol"
   else
-    FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+    FULL_SCRIPT_PATH="${DEPLOY_SCRIPT_DIRECTORY}${SCRIPT}.s.sol"
   fi
 
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
