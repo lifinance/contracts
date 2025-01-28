@@ -20,11 +20,13 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/symbiosis.json");
-        string memory json = vm.readFile(path);
-        address metaRouter = json.readAddress(
+
+        address metaRouter = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".metaRouter")
         );
-        address gateway = json.readAddress(
+        address gateway = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".gateway")
         );
 

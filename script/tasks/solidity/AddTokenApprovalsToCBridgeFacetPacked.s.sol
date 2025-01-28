@@ -14,7 +14,10 @@ contract DeployScript is UpdateScriptBase {
     address[] internal tokensToApprove;
 
     function run() public returns (address[] memory facets) {
-        address facet = json.readAddress(".CBridgeFacetPacked");
+        address facet = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".CBridgeFacetPacked")
+        );
 
         // The CBridgeFacetPacked owner is the refund wallet because we need access to trigger refunds
         // As there is only one owner, that address also needs to execute the approvals.
@@ -37,7 +40,9 @@ contract DeployScript is UpdateScriptBase {
             string.concat(".", network, ".tokensToApprove")
         );
         address[] memory tokens = abi.decode(rawConfig, (address[]));
-        address cBridge = json.readAddress(
+
+        address cBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".cBridge")
         );
 
