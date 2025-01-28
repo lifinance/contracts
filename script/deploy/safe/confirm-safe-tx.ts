@@ -1,8 +1,9 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import { Abi, Chain, Hex, decodeFunctionData, parseAbi } from 'viem'
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
-import SafeApiKit from '@safe-global/api-kit'
+import { EthersAdapter } from '@safe-global/protocol-kit'
+const { default: SafeApiKit } = await import('@safe-global/api-kit')
+const { default: Safe } = await import('@safe-global/protocol-kit')
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
@@ -16,6 +17,11 @@ import * as dotenv from 'dotenv'
 import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
 import networksConfig from '../../../config/networks.json'
 dotenv.config()
+
+enum privateKeyType {
+  SAFE_SIGNER,
+  DEPLOYER,
+}
 
 const networks: NetworksObject = networksConfig
 
@@ -93,7 +99,12 @@ for (const [k, v] of Object.entries(chains)) {
   chainMap[k] = v
 }
 
-const func = async (network: string, privateKey: string, rpcUrl?: string) => {
+const func = async (
+  network: string,
+  privateKey: string,
+  privKeyType: privateKeyType,
+  rpcUrl?: string
+) => {
   console.info(' ')
   consola.info('-'.repeat(80))
 
@@ -274,12 +285,15 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       continue
     }
 
+    // if this script is run with the SAFE_SIGNER_PRIVATE_KEY then execution is never an option so we can blindly select the SIGN action here
     const action =
-      storedResponse ??
-      (await consola.prompt('Action', {
-        type: 'select',
-        options: ['Sign & Execute Now', 'Sign', 'Execute Now'],
-      }))
+      privKeyType == privateKeyType.SAFE_SIGNER
+        ? 'Sign'
+        : storedResponse ??
+          (await consola.prompt('Action', {
+            type: 'select',
+            options: ['Sign & Execute Now', 'Sign', 'Execute Now'],
+          }))
     storedResponses[tx.data!] = action
 
     const txToConfirm = await retry(() =>
@@ -361,7 +375,14 @@ const main = defineCommand({
     }
 
     for (const network of networks) {
-      await func(network, privateKey, args.rpcUrl)
+      await func(
+        network,
+        privateKey,
+        privateKey == 'PRIVATE_KEY_PRODUCTION'
+          ? privateKeyType.DEPLOYER
+          : privateKeyType.SAFE_SIGNER,
+        args.rpcUrl
+      )
     }
   },
 })
