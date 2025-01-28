@@ -50,9 +50,22 @@ elif [[ "$OS" == "Darwin" ]]; then
   # Check if Homebrew is installed
   if ! command -v brew &> /dev/null; then
     echo "Homebrew is not installed. Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    # Download script first to allow inspection
+    BREW_SCRIPT=$(mktemp)
+    if ! curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$BREW_SCRIPT"; then
+      echo "Failed to download Homebrew install script"
+      rm -f "$BREW_SCRIPT"
+      exit 1
+    fi
+    # Execute the downloaded script
+    if ! /bin/bash "$BREW_SCRIPT"; then
+      echo "Failed to install Homebrew"
+      rm -f "$BREW_SCRIPT"
+      exit 1
+    fi
+    rm -f "$BREW_SCRIPT"
     # Add Homebrew to PATH for immediate use
-    eval "$($(brew --prefix)/bin/brew shellenv)"
+    eval "$("$(brew --prefix)/bin/brew" shellenv)"
   fi
 
   install_package_mac jq
