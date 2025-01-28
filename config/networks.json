@@ -25,14 +25,14 @@
     "wrappedNativeAddress": "0x3439153EB7AF838Ad19d56E1571FBD09333C2809",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://api.raas.matterhosted.dev",
+    "rpcUrl": "https://api.mainnet.abs.xyz",
     "verificationType": "etherscan",
     "explorerUrl": "https://abscan.io",
     "explorerApiUrl": "https://api.abscan.io/api",
     "multicallAddress": "0xAa4De41dba0Ca5dCBb288b7cC6b708F3aaC759E7",
-    "safeApiUrl": "https://transaction.multisig-abs.w3us.site/api",
+    "safeApiUrl": "https://transaction.abstract-safe.protofire.io/api",
     "safeAddress": "0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
-    "safeWebUrl": "https://multisig-abs.w3us.site/home?safe=abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
+    "safeWebUrl": "https://abstract-safe.protofire.io/home?safe=abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
     "gasZipChainId": 110
   },
   "apechain": {
