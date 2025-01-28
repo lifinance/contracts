@@ -470,6 +470,9 @@ const getProviderForChainId = (chainId: number) => {
  *
  */
 export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error('Invalid Ethereum address format')
+  }
   const hexAddress = address.replace(/^0x/, '')
   return `0x${hexAddress.padStart(64, '0')}`
 }
