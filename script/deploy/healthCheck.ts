@@ -106,8 +106,9 @@ const main = defineCommand({
     ] as Address[]
 
     const globalConfig = await import('../../config/global.json')
+    const networksConfig = await import('../../config/networks.json')
 
-    const chain = getViemChainForNetworkName(network)
+    const chain = getViemChainForNetworkName(network.toLowerCase())
 
     const publicClient = createPublicClient({
       batch: { multicall: true },
@@ -378,8 +379,9 @@ const main = defineCommand({
       }
 
       // Check that Diamond is owned by SAFE
-      if (globalConfig.safeAddresses[network.toLowerCase()]) {
-        const safeAddress = globalConfig.safeAddresses[network.toLowerCase()]
+      if (networksConfig[network.toLowerCase()].safeAddress) {
+        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
+
         await checkOwnership(
           'LiFiDiamond',
           safeAddress,

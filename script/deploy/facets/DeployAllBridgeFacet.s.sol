@@ -21,9 +21,9 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/allbridge.json");
-        string memory json = vm.readFile(path);
 
-        address allBridge = json.readAddress(
+        address allBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".allBridge")
         );
 

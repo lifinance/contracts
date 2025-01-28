@@ -38,12 +38,13 @@ contract DeployScript is DeployScriptBase {
 
         // obtain address of LayerZero's EndPointV2 contract in current network from config file
         string memory path = string.concat(root, "/config/stargate.json");
-        string memory json = vm.readFile(path);
 
-        address endpointV2 = json.readAddress(
+        address endpointV2 = _getConfigContractAddress(
+            path,
             string.concat(".endpointV2.", network)
         );
-        address tokenMessaging = json.readAddress(
+        address tokenMessaging = _getConfigContractAddress(
+            path,
             string.concat(".tokenMessaging.", network)
         );
 
@@ -56,8 +57,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
-        address executor = json.readAddress(".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor");
 
         return
             abi.encode(

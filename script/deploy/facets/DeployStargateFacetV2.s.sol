@@ -21,9 +21,9 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/stargate.json");
-        string memory json = vm.readFile(path);
 
-        address tokenMessaging = json.readAddress(
+        address tokenMessaging = _getConfigContractAddress(
+            path,
             string.concat(".tokenMessaging.", network)
         );
 

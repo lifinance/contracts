@@ -21,19 +21,15 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // get gasZipRouter address
-        string memory gasZipConfig = string.concat(
-            root,
-            "/config/gaszip.json"
-        );
+        string memory path = string.concat(root, "/config/gaszip.json");
 
-        string memory gasZipConfigJson = vm.readFile(gasZipConfig);
-
-        address gasZipRouter = gasZipConfigJson.readAddress(
+        address gasZipRouter = _getConfigContractAddress(
+            path,
             string.concat(".gasZipRouters.", network)
         );
 
         // get LiFiDEXAggregator address
-        string memory deployLog = string.concat(
+        path = string.concat(
             root,
             "/deployments/",
             network,
@@ -41,16 +37,17 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        string memory json = vm.readFile(deployLog);
 
-        address liFiDEXAggregator = json.readAddress(".LiFiDEXAggregator");
+        address liFiDEXAggregator = _getConfigContractAddress(
+            path,
+            ".LiFiDEXAggregator"
+        );
 
         // get network's SAFE address to become contract owner for potential fund withdrawals
-        string memory networks = string.concat(root, "/config/networks.json");
+        path = string.concat(root, "/config/networks.json");
 
-        string memory networksJson = vm.readFile(networks);
-
-        address safeAddress = networksJson.readAddress(
+        address safeAddress = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".safeAddress")
         );
 

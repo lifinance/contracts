@@ -19,11 +19,13 @@ jobs:
       contents: read
     env:
       ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
-      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
-      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      # keep the rest in alphabetic order
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+      ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
       - uses: actions/checkout@v4.1.7
@@ -50,7 +52,7 @@ jobs:
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
-          npx ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          npx tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
 
           echo "Coverage report successfully filtered"
 
