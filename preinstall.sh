@@ -5,6 +5,11 @@ echo "Setting up the development environment..."
 # Function to install a package if not already installed
 install_package_linux() {
   PACKAGE=$1
+  # Check for apt-get availability
+  if ! command -v apt-get &> /dev/null; then
+    echo "apt-get not found. Please install packages manually."
+    exit 1
+  fi
   if ! command -v $PACKAGE &> /dev/null; then
     echo "Installing $PACKAGE on Linux..."
     sudo apt-get update -y
@@ -18,7 +23,10 @@ install_package_mac() {
   PACKAGE=$1
   if ! command -v $PACKAGE &> /dev/null; then
     echo "Installing $PACKAGE on macOS..."
-    brew install $PACKAGE
+    if ! brew install "$PACKAGE"; then
+      echo "Failed to install $PACKAGE"
+      exit 1
+    fi
   else
     echo "$PACKAGE is already installed."
   fi
@@ -26,6 +34,11 @@ install_package_mac() {
 
 # Detect the operating system
 OS=$(uname -s)
+
+if [[ "$OS" == "Linux" ]] && ! command -v sudo &> /dev/null; then
+  echo "sudo is required but not available"
+  exit 1
+fi
 
 if [[ "$OS" == "Linux" ]]; then
   echo "Detected Linux. Using apt package manager."
