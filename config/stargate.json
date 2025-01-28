@@ -2,7 +2,7 @@
   "endpointV2": {
     "LinkToDeployedToAddresses": "https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts",
     "mainnet": "0x1a44076050125825900e736c501f859c50fE728c",
-    "abstract": "0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF",
+    "abstract": "0x5c6cfF4b7C49805F8295Ff73C204ac83f3bC4AE7",
     "arbitrum": "0x1a44076050125825900e736c501f859c50fE728c",
     "aurora": "0x1a44076050125825900e736c501f859c50fE728c",
     "avalanche": "0x1a44076050125825900e736c501f859c50fE728c",
