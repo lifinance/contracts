@@ -2,20 +2,32 @@
 
 echo "Setting up the development environment..."
 
-# Function to install a package if not already installed
 install_package_linux() {
-  PACKAGE=$1
-  # Check for apt-get availability
-  if ! command -v apt-get &> /dev/null; then
-    echo "apt-get not found. Please install packages manually."
-    exit 1
-  fi
-  if ! command -v $PACKAGE &> /dev/null; then
-    echo "Installing $PACKAGE on Linux..."
-    sudo apt-get update -y
-    sudo apt-get install -y $PACKAGE
+  local PACKAGE=$1
+
+  # apt-get for Debian Ubuntu
+  if command -v apt-get &> /dev/null; then
+    if ! command -v "$PACKAGE" &> /dev/null; then
+      echo "Installing $PACKAGE using apt-get..."
+      sudo apt-get update -y
+      sudo apt-get install -y "$PACKAGE"
+    else
+      echo "$PACKAGE is already installed."
+    fi
+
+  # try dnf for Fedora or RedHat
+  elif command -v dnf &> /dev/null; then
+    if ! command -v "$PACKAGE" &> /dev/null; then
+      echo "Installing $PACKAGE using dnf..."
+      sudo dnf install -y "$PACKAGE"
+    else
+      echo "$PACKAGE is already installed."
+    fi
+
   else
-    echo "$PACKAGE is already installed."
+    echo "No recognized package manager found."
+    echo "Please install $PACKAGE manually."
+    exit 1
   fi
 }
 
