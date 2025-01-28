@@ -137,21 +137,21 @@
       "auditCompletedOn": "17.01.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.2.0)",
       "auditCommitHash": "n/a (one deployed contract instance was audited)"
     },
     "audit20250117_3": {
       "auditCompletedOn": "17.01.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.3.0)",
       "auditCommitHash": "n/a (one deployed contract instance was audited)"
     },
     "audit20250117_4": {
       "auditCompletedOn": "17.01.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.1.0)",
+      "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.4.0)",
       "auditCommitHash": "n/a (one deployed contract instance was audited)"
     }
   },
