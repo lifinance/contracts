@@ -5,7 +5,7 @@ echo "Setting up the development environment..."
 install_package_linux() {
   local PACKAGE=$1
 
-  # apt-get for Debian Ubuntu
+  # try to use apt-get (default package manager for Debian/Ubuntu) 
   if command -v apt-get &> /dev/null; then
     if ! command -v "$PACKAGE" &> /dev/null; then
       echo "Installing $PACKAGE using apt-get..."
@@ -15,7 +15,7 @@ install_package_linux() {
       echo "$PACKAGE is already installed."
     fi
 
-  # try dnf for Fedora or RedHat
+  # try to use dnf (default package manager for Fedora/RedHat) 
   elif command -v dnf &> /dev/null; then
     if ! command -v "$PACKAGE" &> /dev/null; then
       echo "Installing $PACKAGE using dnf..."
@@ -47,12 +47,11 @@ install_package_mac() {
 # Detect the operating system
 OS=$(uname -s)
 
-if [[ "$OS" == "Linux" ]] && ! command -v sudo &> /dev/null; then
-  echo "sudo is required but not available"
-  exit 1
-fi
-
 if [[ "$OS" == "Linux" ]]; then
+  if ! command -v sudo &> /dev/null; then
+    echo "sudo is required but not available"
+    exit 1
+  fi
   echo "Detected Linux. Using apt package manager."
   install_package_linux jq
   install_package_linux bc
