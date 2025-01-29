@@ -90,26 +90,28 @@ deploySingleContract() {
     echo ""
   fi
 
+  FILE_EXTENSION=".s.sol"
+
   # Handle ZkSync
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
   if [[ $NETWORK == "zksync" ]]; then
     # update the deploy script directory to point to zksync-specific scripts
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+    FILE_EXTENSION=".zksync.s.sol"
   fi
 
   if [[ -z "$CONTRACT" ]]; then
-    if [[ $NETWORK == "zksync" ]]; then
-      # get user-selected deploy script and contract from list
-      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    else
-      # get user-selected deploy script and contract from list
-      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    fi
+    # select which contract should be deployed
+    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e "s/${FILE_EXTENSION}//" | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
+    # the to-be-deployed contract was already selected prior to calling this script
     SCRIPT="Deploy"$CONTRACT
   fi
+
+  # define the full path to the deploy script
+  FULL_SCRIPT_PATH="${DEPLOY_SCRIPT_DIRECTORY}${SCRIPT}${FILE_EXTENSION}"
 
   # Display contract-specific information, if existing
   if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
@@ -122,12 +124,6 @@ deploySingleContract() {
   fi
 
   # check if deploy script exists
-  if [[ $NETWORK == "zksync" ]]; then
-    FULL_SCRIPT_PATH="${DEPLOY_SCRIPT_DIRECTORY}${SCRIPT}.zksync.s.sol"
-  else
-    FULL_SCRIPT_PATH="${DEPLOY_SCRIPT_DIRECTORY}${SCRIPT}.s.sol"
-  fi
-
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
     if [[ -z "$EXIT_ON_ERROR" ]]; then
@@ -149,6 +145,7 @@ deploySingleContract() {
   echoDebug "CONTRACT=$CONTRACT"
   echoDebug "NETWORK=$NETWORK"
   echoDebug "SCRIPT=$SCRIPT"
+  echoDebug "FULL_SCRIPT_PATH=$FULL_SCRIPT_PATH"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "VERSION=$VERSION"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
