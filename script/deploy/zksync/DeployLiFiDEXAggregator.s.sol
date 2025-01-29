@@ -29,16 +29,7 @@ contract DeployScript is DeployScriptBase {
         priviledgedUsers[0] = json.readAddress(".pauserWallet");
 
         // the original RouteProcessor4.sol is also deployed with address(0) for _bentoBox
-
-        // get path of global config file
-        // extract withdrawWallet address
-        address withdrawWalletAddress = globalConfigJson.readAddress(
-            ".withdrawWallet"
-        );
-        require(
-            withdrawWalletAddress != address(0),
-            "Withdraw wallet cannot be zero address"
-        );
+        address withdrawWalletAddress = json.readAddress(".withdrawWallet");
         return abi.encode(address(0), priviledgedUsers, withdrawWalletAddress);
     }
 }
