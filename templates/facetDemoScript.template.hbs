@@ -66,7 +66,7 @@ async function main() {
   const srcTokenSymbol = await srcTokenContract.read.symbol() as string
   const amount = parseUnits('10', 18) // 10 * 1e18
 
-  console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`) // Set destination chain name
+  console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`)
   console.info(`Connected wallet address: ${signerAddress}`)
 
   await ensureBalance(srcTokenContract, signerAddress, amount);
@@ -93,7 +93,7 @@ async function main() {
     hasDestinationCall: false,
   }
 
-  const {{camelCase name}}BridgeData: {{titleCase name}}Facet.{{titleCase name}}DataStruct = {
+  const {{camelCase name}}Data: {{titleCase name}}Facet.{{titleCase name}}DataStruct = {
     // Add your specific fields for {{titleCase name}} here.
   }
 
@@ -101,7 +101,7 @@ async function main() {
   await executeTransaction(
     () =>
       lifiDiamondContract.write.startBridgeTokensVia{{titleCase name}}(
-        [bridgeData, {{camelCase name}}BridgeData],
+        [bridgeData, {{camelCase name}}Data],
         // { value: fee } optional value
       ),
     'Starting bridge tokens via {{titleCase name}}',

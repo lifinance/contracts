@@ -606,15 +606,15 @@ export const setupEnvironment = async (
 export const getConfigElement = (
   config: Record<string, any>,
   chain: SupportedChain,
-  elementName: string
+  elementKey: string
 ) => {
   const chainConfig = config[chain]
-  if (!chainConfig || !chainConfig[elementName]) {
+  if (!chainConfig || !chainConfig[elementKey]) {
     throw new Error(
-      `Element '${elementName}' not found for chain '${chain}' in the config.`
+      `Element '${elementKey}' not found for chain '${chain}' in the config.`
     )
   }
-  return chainConfig[elementName]
+  return chainConfig[elementKey]
 }
 
 /**
@@ -662,11 +662,13 @@ export const executeTransaction = async <T>(
  * Ensures that the address wallet has the required token balance.
  */
 export const ensureBalance = async (
-  contract: any,
-  address: string,
+  tokenContract: any,
+  walletAddress: string,
   requiredAmount: bigint
 ): Promise<void> => {
-  const balance: bigint = (await contract.read.balanceOf([address])) as bigint
+  const balance: bigint = (await tokenContract.read.balanceOf([
+    walletAddress,
+  ])) as bigint
 
   if (balance < requiredAmount) {
     console.error(
@@ -682,21 +684,24 @@ export const ensureBalance = async (
  * Ensures that the owner wallet has approved the required allowance for a spender.
  */
 export const ensureAllowance = async (
-  contract: any,
-  owner: string,
+  tokenContract: any,
+  ownerAddress: string,
   spenderAddress: string,
   requiredAmount: bigint,
   publicClient: any
 ): Promise<void> => {
-  const allowance: bigint = (await contract.read.allowance([
-    owner,
+  const allowance: bigint = (await tokenContract.read.allowance([
+    ownerAddress,
     spenderAddress,
   ])) as bigint
 
   if (allowance < requiredAmount) {
     console.info(`Required amount: ${requiredAmount}`)
     console.info(`Allowance is insufficient. Approving required amount...`)
-    const hash = await contract.write.approve([spenderAddress, requiredAmount])
+    const hash = await tokenContract.write.approve([
+      spenderAddress,
+      requiredAmount,
+    ])
     console.info(`Approval transaction broadcasted (hash): ${hash}`)
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
