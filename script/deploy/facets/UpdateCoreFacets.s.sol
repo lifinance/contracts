@@ -20,17 +20,39 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
-        address ownership = json.readAddress(".OwnershipFacet");
-        address withdraw = json.readAddress(".WithdrawFacet");
-        address dexMgr = json.readAddress(".DexManagerFacet");
-        address accessMgr = json.readAddress(".AccessManagerFacet");
-        address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
-        address liFuelAddress = json.readAddress(".LIFuelFacet");
-        address genSwapAddress = json.readAddress(".GenericSwapFacet");
-        address genSwapV3Address = json.readAddress(".GenericSwapFacetV3");
-        address standCallAddress = json.readAddress(".StandardizedCallFacet");
-        address calldVerifAddress = json.readAddress(
+        address diamondLoupe = _getConfigContractAddress(
+            path,
+            ".DiamondLoupeFacet"
+        );
+        address ownership = _getConfigContractAddress(path, ".OwnershipFacet");
+        address withdraw = _getConfigContractAddress(path, ".WithdrawFacet");
+        address dexMgr = _getConfigContractAddress(path, ".DexManagerFacet");
+        address accessMgr = _getConfigContractAddress(
+            path,
+            ".AccessManagerFacet"
+        );
+        address peripheryRgs = _getConfigContractAddress(
+            path,
+            ".PeripheryRegistryFacet"
+        );
+        address liFuelAddress = _getConfigContractAddress(
+            path,
+            ".LIFuelFacet"
+        );
+        address genSwapAddress = _getConfigContractAddress(
+            path,
+            ".GenericSwapFacet"
+        );
+        address genSwapV3Address = _getConfigContractAddress(
+            path,
+            ".GenericSwapFacetV3"
+        );
+        address standCallAddress = _getConfigContractAddress(
+            path,
+            ".StandardizedCallFacet"
+        );
+        address calldVerifAddress = _getConfigContractAddress(
+            path,
             ".CalldataVerificationFacet"
         );
 

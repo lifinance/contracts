@@ -23,9 +23,9 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/amarok.json");
-        string memory json = vm.readFile(path);
 
-        address connextHandler = json.readAddress(
+        address connextHandler = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".connextHandler")
         );
 
