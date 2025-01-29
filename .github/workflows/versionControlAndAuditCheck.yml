@@ -415,8 +415,11 @@ jobs:
             FILENAME=$(basename "$FILE" .sol)
 
             ##### Check if the contract and version exist in the JSON and get the audit IDs
-            AUDIT_IDS=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
-              'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
+            AUDIT_IDS=$(jq -e -r --arg filename "$FILENAME" --arg version "$VERSION" \
+              'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH") || {
+              echo "::error::Failed to parse audit log JSON for $FILENAME v$VERSION"
+              exit 1
+            }
 
             ##### Count the number of audits found in the log for this contract/version
             if [[ -z "$AUDIT_IDS" ]]; then
