@@ -78,7 +78,6 @@ const main = defineCommand({
       txServiceUrl: networks[args.network.toLowerCase()].safeApiUrl,
     }
 
-    // const safeService = new SafeApiKit(config)
     const safeService = new SafeApiKit(config)
 
     const safeAddress = networks[args.network.toLowerCase()].safeAddress
