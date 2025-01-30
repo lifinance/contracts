@@ -53,6 +53,7 @@
     "hardhat/**/@ethereumjs/tx": "3.5.0"
   },
   "scripts": {
+    "preinstall": "bash preinstall.sh",
     "postinstall": "patch-package",
     "prepare": "yarn prepare:husky",
     "prepare:husky": "husky install",
