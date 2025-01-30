@@ -14,19 +14,15 @@ jobs:
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v45
-        with:
-            files: |
-              **/*.sol
       - name: Convert changed files to args
+        if: steps.changed-files.outputs.any_changed == 'true'
         id: format-args
         run: |
-          if [[ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then
-            args=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | xargs -I {} printf "%s " "{}")
-            # echo "ARGS=$args" >> $GITHUB_OUTPUT
-          fi
+          args=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | xargs -I {} printf "%s " "{}")
+          echo "ARGS=$args" >> $GITHUB_OUTPUT
 
       - name: Run Olympix Integrated Security
-        if: steps.changed-markdown-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.any_changed == 'true'
 
         uses: olympix/integrated-security@main
         env:
@@ -35,6 +31,7 @@ jobs:
           args: --output-format sarif --output-path ./ ${{ steps.format-args.outputs.args }}
 
       - name: Upload result to GitHub Code Scanning
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: olympix.sarif
