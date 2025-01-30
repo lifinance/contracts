@@ -15,16 +15,6 @@ export default function (
         name: 'description',
         message: 'Describe what this facet does:',
       },
-      {
-        type: 'input',
-        name: 'author',
-        message: 'Who is the author of this facet?',
-      },
-      {
-        type: 'input',
-        name: 'email',
-        message: 'What is the email of the author of this facet?',
-      },
     ], // array of inquirer prompts
     actions: [
       {
@@ -56,6 +46,11 @@ export default function (
         type: 'add',
         path: 'script/deploy/facets/Update{{properCase name}}Facet.s.sol',
         templateFile: 'templates/facetUpdateScript.template.hbs',
+      },
+      {
+        type: 'add',
+        path: 'script/demoScripts/demo{{properCase name}}.ts',
+        templateFile: 'templates/facetDemoScript.template.hbs',
       },
     ], // array of actions
   })
