@@ -16,7 +16,7 @@ import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 interface CelerToken {
     function canonical() external returns (address);
 }
-
+// TEST: TODO: remove this
 interface CelerIM {
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
     /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
