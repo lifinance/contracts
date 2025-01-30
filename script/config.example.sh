@@ -97,3 +97,9 @@ MNEMONIC="test test test test test test test test test test test junk"
 PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
+
+# all the periphery contracts listed here will automatically be whitelisted as DEX when deploying "all contracts"
+WHITELIST_PERIPHERY="FeeCollector,LiFuelFeeCollector,TokenWrapper,LiFiDEXAggregator"
+
+# if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
+COMPILE_ON_STARTUP=false

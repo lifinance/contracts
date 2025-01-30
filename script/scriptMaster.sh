@@ -43,7 +43,9 @@ scriptMaster() {
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
 
   # make sure that all compiled artifacts are current
-  forge build
+  if [[ "$COMPILE_ON_STARTUP" == "true" ]]; then
+    forge build
+  fi
 
   # start local anvil network if flag in config is set
   if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then
