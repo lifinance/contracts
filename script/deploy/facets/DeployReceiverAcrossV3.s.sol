@@ -38,9 +38,9 @@ contract DeployScript is DeployScriptBase {
 
         // obtain address of Across's Spokepool contract in current network from config file
         string memory path = string.concat(root, "/config/across.json");
-        string memory json = vm.readFile(path);
 
-        address spokePool = json.readAddress(
+        address acrossSpokePool = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".acrossSpokePool")
         );
 
@@ -53,12 +53,16 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
-        address executor = json.readAddress(".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor");
 
         uint256 recoverGas = 100000;
 
         return
-            abi.encode(refundWalletAddress, executor, spokePool, recoverGas);
+            abi.encode(
+                refundWalletAddress,
+                executor,
+                acrossSpokePool,
+                recoverGas
+            );
     }
 }

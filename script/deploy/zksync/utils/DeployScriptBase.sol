@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase } from "./ScriptBase.sol";
+import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
 
 import { stdJson } from "forge-std/Script.sol";
 
