@@ -3,6 +3,10 @@
     "metaRouter": "0xf621Fb08BBE51aF70e7E0F4EA63496894166Ff7F",
     "gateway": "0xfCEF2Fe72413b65d3F393d278A714caD87512bcd"
   },
+  "abstract": {
+    "metaRouter": "0x2E818E50b913457015E1277B43E469b63AC5D3d7",
+    "gateway": "0x664376638fE57642342009f49E1Ca4caf74b26D3"
+  },
   "arbitrum": {
     "metaRouter": "0xf7e96217347667064DEE8f20DB747B1C7df45DDe",
     "gateway": "0x80ddDDa846e779cceE463bDC0BCc2Ae296feDaF9"
@@ -43,6 +47,18 @@
     "metaRouter": "0x9A31bAC4b3B958C835C243800B474818D04393dd",
     "gateway": "0x83f71AabdDBb9F0E3B6462Cc7635b6fFAD0f2f2e"
   },
+  "metis": {
+    "metaRouter": "0xf85FC807D05d3Ab2309364226970aAc57b4e1ea4",
+    "gateway": "0xcd7C056b39DdFB568E451923ABEDb9B6a7Aeb885"
+  },
+  "mode": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
+  "mantle": {
+    "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
+    "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
+  },
   "optimism": {
     "metaRouter": "0x0f91052dc5B4baE53d0FeA5DAe561A117268f5d2",
     "gateway": "0x200a0fe876421DC49A26508e3Efd0a1008fD12B5"
@@ -50,10 +66,6 @@
   "polygon": {
     "metaRouter": "0xa260E3732593E4EcF9DdC144fD6C4c5fe7077978",
     "gateway": "0xAb83653fd41511D638b69229afBf998Eb9B0F30c"
-  },
-  "zksync": {
-    "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",
-    "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1"
   },
   "polygonzkevm": {
     "metaRouter": "0xb91d3060C90aac7c4c706aef2B37997b3b2a1DcF",
@@ -67,24 +79,20 @@
     "metaRouter": "0x624FFe62eBa13e6057878bCA1D7A9E35651E1D9c",
     "gateway": "0x49952ff32FcBc3408D447E1E91Da2b44BD2D1AFE"
   },
-  "metis": {
-    "metaRouter": "0xf85FC807D05d3Ab2309364226970aAc57b4e1ea4",
-    "gateway": "0xcd7C056b39DdFB568E451923ABEDb9B6a7Aeb885"
-  },
-  "mode": {
-    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
-    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
-  },
-  "mantle": {
-    "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
-    "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
-  },
   "sei": {
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
+  "sonic": {
+    "metaRouter": "0xda8057acB94905eb6025120cB2c38415Fd81BfEB",
+    "gateway": "0xb7aF032a0C8d350705eD7E4E3802377731a0cA07"
+  },
   "taiko": {
     "metaRouter": "0x7057aB3fB2BeE9c18e0cDe4240DE4ff7f159E365",
     "gateway": "0xa0079829B9F1Edc5DD0DE3eC104f281745C4bD81"
+  },
+  "zksync": {
+    "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",
+    "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1"
   }
 }
