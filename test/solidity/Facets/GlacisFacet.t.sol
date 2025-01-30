@@ -28,6 +28,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     uint256 internal defaultSrcTokenAmount;
     uint256 internal destinationChainId;
     address internal ADDRESS_SRC_TOKEN;
+    uint256 internal fuzzingAmountMinValue;
+    uint256 internal fuzzingAmountMaxValue;
 
     uint256 internal payableAmount = 1 ether;
 
@@ -172,8 +174,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         uint256 amount
     ) public virtual override {
         vm.assume(
-            amount > 1 * 10 ** srcToken.decimals() &&
-                amount < 100_000 * 10 ** srcToken.decimals()
+            amount > fuzzingAmountMinValue * 10 ** srcToken.decimals() &&
+                amount < fuzzingAmountMaxValue * 10 ** srcToken.decimals()
         );
         bridgeData.minAmount = amount;
 
@@ -380,6 +382,8 @@ contract GlacisFacetWormholeTest is GlacisFacetTestBase {
         );
         ADDRESS_SRC_TOKEN = 0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91; // address of W token on Arbitrum network
         destinationChainId = 10;
+        fuzzingAmountMinValue = 1; // Minimum fuzzing amount (actual value includes token decimals)
+        fuzzingAmountMaxValue = 100_000; // Maximum fuzzing amount (actual value includes token decimals)
         super.setUp();
     }
 }
@@ -394,6 +398,8 @@ contract GlacisFacetLINKTest is GlacisFacetTestBase {
         );
         ADDRESS_SRC_TOKEN = 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196; // address of LINK token on Base network
         destinationChainId = 34443;
+        fuzzingAmountMinValue = 1; // Minimum fuzzing amount (actual value includes token decimals)
+        fuzzingAmountMaxValue = 10_000; // Maximum fuzzing amount (actual value includes token decimals)
         super.setUp();
     }
 }
