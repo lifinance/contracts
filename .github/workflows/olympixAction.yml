@@ -1,18 +1,40 @@
 name: Olympix Integrated Security Workflow
-on: push
+on: 
+  pull_request:
+    paths:
+      - '**/*.sol'
+      - 'github/workflows/olympixAction.yml'
 jobs:
   security:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+            files: |
+              **/*.sol
+      - name: Convert changed files to args
+        id: format-args 
+        run: |
+          if [[ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then
+            args=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | xargs -I {} printf "%s " "{}")
+            # echo "ARGS=$args" >> $GITHUB_OUTPUT
+          fi      
+                   
       - name: Run Olympix Integrated Security
+        if: steps.changed-markdown-files.outputs.any_changed == 'true'
+  
         uses: olympix/integrated-security@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
+        with:
+          args: --output-format sarif --output-path ./ ${{ steps.format-args.outputs.args }}
 
       - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: olympix.sarif
