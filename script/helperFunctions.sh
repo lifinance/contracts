@@ -2797,193 +2797,24 @@ function getPrivateKey() {
     fi
   fi
 }
+
 function getChainId() {
-  # read function arguments into variables
-  NETWORK="$1"
+  local NETWORK="$1"
+  local NETWORKS_JSON="config/networks.json"
 
-  # return chainId
-  case $NETWORK in
-  "mainnet")
-    echo "1"
-    return 0
-    ;;
-  "abstract")
-    echo "2741"
-    return 0
-    ;;
-  "blast")
-    echo "81457"
-    return 0
-    ;;
-  "bsc")
-    echo "56"
-    return 0
-    ;;
-  "polygon")
-    echo "137"
-    return 0
-    ;;
-  "polygonzkevm")
-    echo "1101"
-    return 0
-    ;;
-  "rootstock")
-    echo "30"
-    return 0
-    ;;
-  "gnosis")
-    echo "100"
-    return 0
-    ;;
-  "fraxtal")
-    echo "252"
-    return 0
-    ;;
-  "fantom")
-    echo "250"
-    return 0
-    ;;
-  "gravity")
-    echo "1625"
-    return 0
-    ;;
-  "okx")
-    echo "66"
-    return 0
-    ;;
-  "avalanche")
-    echo "43114"
-    return 0
-    ;;
-  "arbitrum")
-    echo "42161"
-    return 0
-    ;;
-  "optimism")
-    echo "10"
-    return 0
-    ;;
-  "moonriver")
-    echo "1285"
-    return 0
-    ;;
-  "moonbeam")
-    echo "1284"
-    return 0
-    ;;
-  "celo")
-    echo "42220"
-    return 0
-    ;;
-  "fuse")
-    echo "122"
-    return 0
-    ;;
-  "cronos")
-    echo "25"
-    return 0
-    ;;
-  "velas")
-    echo "106"
-    return 0
-    ;;
-  "harmony")
-    echo "1666600000"
-    return 0
-    ;;
-  "evmos")
-    echo "9001"
-    return 0
-    ;;
-  "aurora")
-    echo "1313161554"
-    return 0
-    ;;
-  "base")
-    echo "8453"
-    return 0
-    ;;
-  "boba")
-    echo "288"
-    return 0
-    ;;
-  "nova")
-    echo "87"
-    return 0
-    ;;
-  "mode")
-    echo "34443"
-    return 0
-    ;;
-  "scroll")
-    echo "534352"
-    return 0
-    ;;
-  "goerli")
-    echo "5"
-    return 0
-    ;;
-  "bsc-testnet")
-    echo "97"
-    return 0
-    ;;
-  "sepolia")
-    echo "11155111"
-    return 0
-    ;;
-  "mumbai")
-    echo "80001"
-    return 0
-    ;;
-  "lineatest")
-    echo "59140"
-    return 0
-    ;;
-  "linea")
-    echo "59144"
-    return 0
-    ;;
-  "opbnb")
-    echo "204"
-    return 0
-    ;;
-  "metis")
-    echo "1088"
-    return 0
-    ;;
-  "localanvil")
-    echo "31337"
-    return 0
-    ;;
-  "zksync")
-    echo "324"
-    return 0
-    ;;
-  "mantle")
-    echo "5000"
-    return 0
-    ;;
-  "sei")
-    echo "1329"
-    return 0
-    ;;
-  "immutablezkevm")
-    echo "13371"
-    return 0
-    ;;
-  "xlayer")
-    echo "196"
-    return 0
-    ;;
-  "taiko")
-    echo "167000"
-    return 0
-    ;;
-  *)
+  if [[ ! -f "$NETWORKS_JSON" ]]; then
+    echo "Error: JSON file '$NETWORKS_JSON' not found." >&2
     return 1
-    ;;
-  esac
+  fi
 
+  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON")
+
+  if [[ -z "$CHAIN_ID" ]]; then
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON'." >&2
+    return 1
+  fi
+
+  echo "$CHAIN_ID"
 }
 
 function getCreate3FactoryAddress() {
