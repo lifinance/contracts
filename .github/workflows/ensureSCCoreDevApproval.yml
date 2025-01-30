@@ -12,8 +12,6 @@ jobs:
   core-dev-approval:
     if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
     runs-on: ubuntu-latest
-    env:
-      CONTINUE: false # makes sure that variable is correctly initialized in all cases
     steps:
       - name: Get smart-contract-core Team Members
         env:
@@ -46,7 +44,6 @@ jobs:
           #### check if any members were returned
           if [[ -z $MEMBERS ]]; then
             echo -e "\033[31mERROR: Could not retrieve team members of group $TEAM_SLUG\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 1
           fi
 
@@ -54,11 +51,10 @@ jobs:
           echo "$MEMBERS"
 
           echo -e "$MEMBERS" > sc_core_dev_members.txt
-          echo "CONTINUE=true" >> "$GITHUB_ENV"
 
       - name: Check if PR is approved by at least one SC core dev
         id: check-core-dev-approval
-        if: env.CONTINUE == 'true'
+        if: success()
         uses: actions/github-script@v7
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.review.pull_request.number }}
