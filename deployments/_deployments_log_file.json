@@ -22649,6 +22649,34 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe4db6A19c9F53fB946D31772a48002e1f9cB8763",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-30 08:23:59",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002e818e50b913457015e1277b43e469b63ac5d3d7000000000000000000000000664376638fe57642342009f49e1ca4caf74b26d3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sonic": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC8C286F373c5b4a4c6a2D6369003477D76584D7F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-30 08:38:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000da8057acb94905eb6025120cb2c38415fd81bfeb000000000000000000000000b7af032a0c8d350705ed7e4e3802377731a0ca07",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "MayanBridgeFacet": {
