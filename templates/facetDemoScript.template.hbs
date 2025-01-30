@@ -64,7 +64,8 @@ async function main() {
 
   const srcTokenName = await srcTokenContract.read.name() as string
   const srcTokenSymbol = await srcTokenContract.read.symbol() as string
-  const amount = parseUnits('10', 18) // 10 * 1e18
+  const srcTokenDecimals = await srcTokenContract.read.decimals() as bigint
+  const amount = parseUnits('10', srcTokenDecimals) // 10 * 1e{source token decimals}
 
   console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`)
   console.info(`Connected wallet address: ${signerAddress}`)
