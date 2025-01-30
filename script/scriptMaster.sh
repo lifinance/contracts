@@ -107,7 +107,7 @@ scriptMaster() {
       "8) Verify all unverified contracts" \
       "9) Review deploy status (vs. target state)" \
       "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
-      "11) Update all diamond log files" \
+      "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE"
   )
 
