@@ -14,11 +14,16 @@ jobs:
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v45
+        with: 
+          files: |
+           **/*.sol
       - name: Convert changed files to args
         if: steps.changed-files.outputs.any_changed == 'true'
         id: format-args
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          args=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | xargs -I {} printf "%s " "{}")
+          args=$(echo $ALL_CHANGED_FILES | xargs -n 1 -I {} printf -- "-p %s " "{}")
           echo "ARGS=$args" >> $GITHUB_OUTPUT
 
       - name: Run Olympix Integrated Security
