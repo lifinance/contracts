@@ -155,7 +155,7 @@ async function main() {
   const nativeFee =
     structuredFees.gmpFee.nativeFee + structuredFees.airliftFee.nativeFee
 
-  console.info(`Estimated native fee: ${nativeFee}\n`)
+  console.info(`Estimated native fee: ${nativeFee}`)
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
