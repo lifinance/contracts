@@ -1,9 +1,9 @@
 name: Olympix Integrated Security Workflow
-on: 
+on:
   pull_request:
     paths:
       - '**/*.sol'
-      - 'github/workflows/olympixAction.yml'
+      - '.github/workflows/olympixAction.yml'
 jobs:
   security:
     runs-on: ubuntu-latest
@@ -18,16 +18,16 @@ jobs:
             files: |
               **/*.sol
       - name: Convert changed files to args
-        id: format-args 
+        id: format-args
         run: |
           if [[ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then
             args=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | xargs -I {} printf "%s " "{}")
             # echo "ARGS=$args" >> $GITHUB_OUTPUT
-          fi      
-                   
+          fi
+
       - name: Run Olympix Integrated Security
         if: steps.changed-markdown-files.outputs.any_changed == 'true'
-  
+
         uses: olympix/integrated-security@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
