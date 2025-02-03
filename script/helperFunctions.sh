@@ -860,40 +860,110 @@ function checkIfFileExists() {
     return 0
   fi
 }
+# function checkRequiredVariablesInDotEnv() {
+#   # read function arguments into variables
+#   local NETWORK=$1
+
+#   # skip for local network
+#   if [[ "$NETWORK" == "localanvil" ]]; then
+#     return 0
+#   fi
+
+#   # skip for local network
+#   if [[ "$NETWORK" == "localanvil" ]]; then
+#     return 0
+#   fi
+
+#   local PRIVATE_KEY="$PRIVATE_KEY"
+#   local RPC_URL=$(getRPCUrl "$NETWORK")
+
+#   # special handling for BSC testnet
+#   # uses same block explorer key as bsc mainnet
+#   if [[ "$NETWORK" == "bsc-testnet" ]]; then
+#     NETWORK="bsc"
+#     RPC_URL="${!ETH_NODE_URI_BSCTEST}"
+#   fi
+
+#   local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")""_ETHERSCAN_API_KEY"
+#   local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
+
+#   if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
+#     # throw error if any of the essential keys is missing
+#     error "your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
+#     return 1
+#   fi
+
+#   # all good - continue
+#   return 0
+# }
 function checkRequiredVariablesInDotEnv() {
-  # read function arguments into variables
   local NETWORK=$1
 
-  # skip for local network
+  # Skip for local network
   if [[ "$NETWORK" == "localanvil" ]]; then
     return 0
   fi
 
-  # skip for local network
-  if [[ "$NETWORK" == "localanvil" ]]; then
-    return 0
+  # Find the root directory where foundry.toml is located
+  local FOUNDROOT
+  FOUNDROOT=$(git rev-parse --show-toplevel 2>/dev/null || realpath "$(dirname "$0")/..")
+
+  if [[ ! -f "$FOUNDROOT/foundry.toml" ]]; then
+    error "Error: could not find foundry.toml in $FOUNDROOT"
+    return 1
+  fi
+
+  # Extract the API key variable name from foundry.toml
+  local KEY_VAR
+  KEY_VAR=$(awk -v network="$NETWORK" '
+    {
+      gsub(/^[ \t]+|[ \t]+$/, "", $0);  # Trim leading and trailing spaces
+    }
+
+    # Match lines starting with "network = { key ="
+    tolower($0) ~ "^" network " *= *\\{ *key *= *" {
+      n = split($0, parts, "\"");  # Split by double quotes
+      for (i = 1; i <= n; i++) {
+        if (index(parts[i], "${") == 1) {  # Look for ${...}
+          gsub(/[\${}]/, "", parts[i]);  # Remove ${ and }
+          print parts[i];  # Output the extracted key
+          exit;
+        }
+      }
+    }
+  ' "$FOUNDROOT/foundry.toml")
+
+  echo "Extracted Block Explorer Key: $KEY_VAR"
+
+  # Ensure we found a key variable
+  if [[ -z "$KEY_VAR" ]]; then
+    error "Could not determine API key for network $NETWORK in foundry.toml."
+    return 1
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
   local RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # special handling for BSC testnet
-  # uses same block explorer key as bsc mainnet
-  if [[ "$NETWORK" == "bsc-testnet" ]]; then
-    NETWORK="bsc"
-    RPC_URL="${!ETH_NODE_URI_BSCTEST}"
+  # Check if it's using MAINNET_ETHERSCAN_API_KEY
+  if [[ "$KEY_VAR" == "MAINNET_ETHERSCAN_API_KEY" ]]; then
+    # Mainnet or EtherscanV2-supported network >> API key is MAINNET_ETHERSCAN_API_KEY
+    local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
+
+    # Ensure required variables exist
+    if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
+      error "Your .env file is missing essential entries for this network (required: PRIVATE_KEY, RPC_URL, $KEY_VAR)."
+      return 1
+    fi
+  else
+    # Etherscan V2: Ensure a valid API key is present in the .env file
+    local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
+
+    if [[ -z "$BLOCKEXPLORER_API_KEY" ]]; then
+      error "Network $NETWORK uses EtherscanV2 but the required API key ($KEY_VAR) is missing in the .env file."
+      return 1
+    fi
   fi
 
-  local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")""_ETHERSCAN_API_KEY"
-  local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
-
-  if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
-    # throw error if any of the essential keys is missing
-    error "your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
-    return 1
-  fi
-
-  # all good - continue
   return 0
 }
 function getContractNamesInFolder() {
@@ -1443,13 +1513,14 @@ function verifyContract() {
         fi
       fi
     else
+      # case: verify with constructor arguments
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
         if [[ $NETWORK == "zksync" ]]; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
         fi
       else
         if [[ $NETWORK == "zksync" ]]; then
