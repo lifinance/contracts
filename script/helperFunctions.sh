@@ -899,7 +899,7 @@ function checkIfFileExists() {
 function checkRequiredVariablesInDotEnv() {
   local NETWORK=$1
 
-  # Skip for local network
+  # skip for local network
   if [[ "$NETWORK" == "localanvil" ]]; then
     return 0
   fi
@@ -932,8 +932,6 @@ function checkRequiredVariablesInDotEnv() {
       }
     }
   ' "$FOUNDROOT/foundry.toml")
-
-  echo "Extracted Block Explorer Key: $KEY_VAR"
 
   # Ensure we found a key variable
   if [[ -z "$KEY_VAR" ]]; then
