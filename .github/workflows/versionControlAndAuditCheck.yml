@@ -27,11 +27,16 @@ name: VersionControlAndAuditVerification
 on:
   pull_request:
     types: [opened, edited, synchronize, review_requested, ready_for_review]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   version-control:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: sc-core-dev-approval-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
     steps:
