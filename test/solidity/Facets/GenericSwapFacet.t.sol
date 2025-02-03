@@ -56,6 +56,10 @@ contract GenericSwapFacetTest is TestBase {
         );
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override{
+        //
+    }
+
     function testCanSwapERC20() public {
         vm.startPrank(USDC_HOLDER);
         usdc.approve(

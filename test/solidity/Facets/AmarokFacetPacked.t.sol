@@ -8,6 +8,7 @@ import { IConnextHandler } from "lifi/Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { console, TestBase } from "../utils/TestBase.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
 
@@ -140,6 +141,21 @@ contract AmarokFacetPackedTest is TestBase {
         );
         usdc.approve(CONNEXT_HANDLER, type(uint256).max);
         vm.stopPrank();
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        AmarokFacetPacked standaloneAmarokFacetPacked = new AmarokFacetPacked(IConnextHandler(CONNEXT_HANDLER), address(this));
+
+        bytes memory code = address(standaloneAmarokFacetPacked).code;
+
+        bytes memory expectedConnextRouter = abi.encodePacked(CONNEXT_HANDLER);
+        address expectedOwner = standaloneAmarokFacetPacked.owner();
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedConnextRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "connextRouter value not found in bytecode");
+        assertEq(expectedOwner, address(this), "wrong owner");
     }
 
     function test_canBridgeERC20TokensViaPackedFunction_Facet_PayFeeWithAsset()

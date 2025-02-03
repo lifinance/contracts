@@ -64,6 +64,10 @@ contract CalldataVerificationFacetTest is TestBase {
         );
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        // constructor without parameters
+    }
+
     function test_DeploysWithoutErrors() public {
         calldataVerificationFacet = new CalldataVerificationFacet();
     }

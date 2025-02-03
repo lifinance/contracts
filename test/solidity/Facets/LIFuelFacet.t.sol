@@ -69,6 +69,10 @@ contract LIFuelFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 100;
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             lifuelFacet.startBridgeTokensViaLIFuel{

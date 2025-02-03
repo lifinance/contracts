@@ -92,6 +92,10 @@ contract HopFacetTest is TestBaseFacet {
         });
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount }(

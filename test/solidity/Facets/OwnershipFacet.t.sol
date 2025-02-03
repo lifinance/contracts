@@ -13,6 +13,10 @@ contract OwnershipFacetTest is TestBase {
         ownershipFacet = OwnershipFacet(address(diamond));
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function testOwnerCanTransferOwnership() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         ownershipFacet.transferOwnership(newOwner);

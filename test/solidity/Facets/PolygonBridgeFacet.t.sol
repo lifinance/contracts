@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
 
@@ -70,6 +71,23 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         );
 
         bridgeData.bridge = "polygon";
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        PolygonBridgeFacet standalonePolygonBridgeFacet = new PolygonBridgeFacet(IRootChainManager(ROOT_CHAIN_MANAGER),
+            ERC20_PREDICATE);
+
+        bytes memory code = address(standalonePolygonBridgeFacet).code;
+
+        bytes memory expectedRootChainManager = abi.encodePacked(ROOT_CHAIN_MANAGER);
+        bytes memory expectedErc20Predicate = abi.encodePacked(ERC20_PREDICATE);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedRootChainManager);
+        uint256 pos2 = BytesLib.indexOf(code, expectedErc20Predicate);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "rootChainManager value not found in bytecode");
+        assertTrue(pos2 != type(uint256).max, "erc20Predicate value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

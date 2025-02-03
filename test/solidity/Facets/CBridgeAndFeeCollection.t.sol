@@ -10,6 +10,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
@@ -63,6 +64,19 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         cBridge.setFunctionApprovalBySignature(
             bytes4(uniswap.swapETHForExactTokens.selector)
         );
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        CBridgeFacet standaloneCBridgeFacet = new CBridgeFacet(ICBridge(CBRIDGE_ROUTER));
+
+        bytes memory code = address(standaloneCBridgeFacet).code;
+
+        bytes memory expectedCBridgeRouter = abi.encodePacked(CBRIDGE_ROUTER);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "cBridgeRouter value not found in bytecode");
     }
 
     function testCanCollectTokenFeesAndBridgeTokens() public {

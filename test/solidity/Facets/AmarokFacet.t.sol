@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { IConnextHandler } from "lifi/Interfaces/IConnextHandler.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount, InformationMismatch } from "src/Errors/GenericErrors.sol";
@@ -81,6 +82,19 @@ contract AmarokFacetTest is TestBaseFacet {
 
         // make sure relayerFee is sent with every transaction
         addToMessageValue = 1 * 10 ** 15;
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        AmarokFacet standaloneAmarokFacet = new AmarokFacet(IConnextHandler(CONNEXT_HANDLER));
+
+        bytes memory code = address(standaloneAmarokFacet).code;
+
+        bytes memory expectedConnextRouter = abi.encodePacked(CONNEXT_HANDLER);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedConnextRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "connextRouter value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

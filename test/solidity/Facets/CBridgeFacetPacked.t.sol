@@ -7,12 +7,17 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 
 contract MockLiquidityBridge is TestBase {
     function mockWithdraw(uint256 _amount) external {
         // same call as in cbridge implementation
         (bool sent, ) = msg.sender.call{ value: _amount, gas: 50000 }("");
         require(sent, "failed to send native token");
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        // can be left empty
     }
 }
 
@@ -146,6 +151,21 @@ contract CBridgeFacetPackedTest is TestBase {
             address(cBridgeFacetPacked),
             "CBridgeFacetPacked"
         );
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        CBridgeFacetPacked standaloneCBridgeFacetPacked = new CBridgeFacetPacked(ICBridge(CBRIDGE_ROUTER), address(this));
+
+        bytes memory code = address(standaloneCBridgeFacetPacked).code;
+
+        bytes memory expectedCBridgeRouter = abi.encodePacked(CBRIDGE_ROUTER);
+        address expectedOwner = standaloneCBridgeFacetPacked.owner();
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "cBridgeRouter value not found in bytecode");
+        assertEq(expectedOwner, address(this), "wrong owner");
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {

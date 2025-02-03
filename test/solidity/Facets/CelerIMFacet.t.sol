@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { CelerIMFacetMutable, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "lifi/Facets/CelerIMFacetMutable.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
@@ -153,6 +154,25 @@ contract CelerIMFacetTest is TestBaseFacet {
             messageBusFee: 0,
             bridgeType: MsgDataTypes.BridgeSendType.Liquidity
         });
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        CelerIMFacetMutable standaloneCelerIMFacetMutable = new CelerIMFacetMutable(IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
+            REFUND_WALLET,
+            address(diamond),
+            CFUSDC);
+
+        bytes memory code = address(standaloneCelerIMFacetMutable).code;
+
+        bytes memory expectedCBridgeMessageBusETH = abi.encodePacked(CBRIDGE_MESSAGEBUS_ETH);
+        bytes memory expectedCFUSDC = abi.encodePacked(CFUSDC);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeMessageBusETH);
+        uint256 pos2 = BytesLib.indexOf(code, expectedCFUSDC);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "cBridgeMessageBusEth value not found in bytecode");
+        assertTrue(pos2 != type(uint256).max, "cfUSDC value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

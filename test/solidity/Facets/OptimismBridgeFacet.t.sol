@@ -108,6 +108,10 @@ contract OptimismBridgeFacetTest is TestBase {
         );
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function testRevertToBridgeTokensWhenSendingAmountIsZero() public {
         vm.startPrank(DAI_L1_HOLDER);
 

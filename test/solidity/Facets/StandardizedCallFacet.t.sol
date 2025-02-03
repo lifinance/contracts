@@ -109,6 +109,10 @@ contract StandardizedCallFacetTest is TestBase {
         mockDiamond = Diamond(address(tmpDiamond));
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function testMakeACallWithinTheContextOfTheDiamond() public {
         ILiFi.BridgeData memory bridgeData;
         bytes memory data = abi.encodeWithSelector(

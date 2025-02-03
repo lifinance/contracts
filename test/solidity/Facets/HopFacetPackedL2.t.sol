@@ -225,6 +225,16 @@ contract HopFacetPackedL2Test is TestBase {
         setFacetAddressInTestBase(address(hopFacetPacked), "HopFacetPackedL2");
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        HopFacetPacked standaloneHopFacetPacked = new HopFacetPacked(address(this), address(0));
+
+        assertEq(standaloneHopFacetPacked.nativeBridge(), address(0), "nativeBridge address doesn't match");
+        assertEq(standaloneHopFacetPacked.nativeL2CanonicalToken(), address(0), "nativeL2CanonicalToken address doesn't match");
+        assertEq(standaloneHopFacetPacked.nativeHToken(), address(0), "nativeHToken address doesn't match");
+        assertEq(standaloneHopFacetPacked.nativeExchangeAddress(), address(0), "nativeExchangeAddress address doesn't match");
+        assertEq(standaloneHopFacetPacked.owner(), address(this), "wrong owner");
+    }
+
     // L2 Native
     function testStartBridgeTokensViaHopL2NativePacked() public {
         vm.startPrank(WHALE);

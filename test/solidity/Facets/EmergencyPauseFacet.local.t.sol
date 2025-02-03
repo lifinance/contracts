@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { OnlyContractOwner, InvalidConfig, InvalidCallData, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
@@ -52,6 +53,20 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
             address(emergencyPauseFacet),
             "EmergencyPauseFacet"
         );
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override{
+        EmergencyPauseFacet standaloneDeBridgeDlnFacet = new EmergencyPauseFacet(USER_PAUSER);
+
+        bytes memory code = address(standaloneDeBridgeDlnFacet).code;
+
+        bytes memory expectedEmergencyPauseFacetAddress = abi.encodePacked(address(standaloneDeBridgeDlnFacet));
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedEmergencyPauseFacetAddress);
+
+        assertEq(standaloneDeBridgeDlnFacet.pauserWallet(), address(USER_PAUSER), "pauserWallet address doesn't match");
+        // assert that address is found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "dlnSource value not found in bytecode");
     }
 
     function test_PauserWalletCanPauseDiamond() public {

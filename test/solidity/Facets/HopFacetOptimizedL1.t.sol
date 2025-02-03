@@ -103,6 +103,10 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         });
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             hopFacet.startBridgeTokensViaHopL1Native{

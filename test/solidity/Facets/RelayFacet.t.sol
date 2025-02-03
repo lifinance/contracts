@@ -92,6 +92,13 @@ contract RelayFacetTest is TestBaseFacet {
         });
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        RelayFacet standaloneRelayFacet = new RelayFacet(address(this), address(0));
+
+        assertEq(standaloneRelayFacet.relayReceiver(), address(0), "relayReceiver address doesn't match");
+        assertEq(standaloneRelayFacet.relaySolver(), address(0), "relaySolver address doesn't match");
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         validRelayData.signature = signData(bridgeData, validRelayData);
         if (isNative) {

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { SquidFacet } from "lifi/Facets/SquidFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
@@ -85,6 +86,19 @@ contract SquidFacetTest is TestBaseFacet {
         vm.label(SQUID_MULTICALL, "SquidMulticall");
         vm.label(0xdAC17F958D2ee523a2206206994597C13D831ec7, "USDT_TOKEN");
         vm.label(0x99a58482BD75cbab83b27EC03CA68fF489b5788f, "Vyper_contract");
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        SquidFacet standaloneSquidFacet = new SquidFacet(ISquidRouter(SQUID_ROUTER));
+
+        bytes memory code = address(standaloneSquidFacet).code;
+
+        bytes memory expectedSquidRouter = abi.encodePacked(SQUID_ROUTER);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedSquidRouter);
+
+        // assert that address is found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "squidRouter value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

@@ -107,6 +107,10 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         });
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
         if (isNative) {

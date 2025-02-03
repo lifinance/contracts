@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 
@@ -93,6 +94,19 @@ contract CBridgeFacetTest is TestBaseFacet {
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        CBridgeFacet standaloneCBridgeFacet = new CBridgeFacet(ICBridge(CBRIDGE_ROUTER));
+
+        bytes memory code = address(standaloneCBridgeFacet).code;
+
+        bytes memory expectedCBridgeRouter = abi.encodePacked(CBRIDGE_ROUTER);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "cBridgeRouter value not found in bytecode");
     }
 
     function testFail_ReentrantCallBridge() internal {

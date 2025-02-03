@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
 
@@ -89,6 +90,22 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             MAX_SUBMISSION_COST +
             MAX_GAS_PRICE *
             MAX_GAS;
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        ArbitrumBridgeFacet standaloneArbitrumBridgeFacet = new ArbitrumBridgeFacet(IGatewayRouter(GATEWAY_ROUTER), IGatewayRouter(INBOX));
+
+        bytes memory code = address(standaloneArbitrumBridgeFacet).code;
+
+        bytes memory expectedGatewayRouter = abi.encodePacked(GATEWAY_ROUTER);
+        bytes memory expectedInbox = abi.encodePacked(INBOX);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedGatewayRouter);
+        uint256 pos2 = BytesLib.indexOf(code, expectedInbox);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "gatewayRouter value not found in bytecode");
+        assertTrue(pos2 != type(uint256).max, "inbox value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

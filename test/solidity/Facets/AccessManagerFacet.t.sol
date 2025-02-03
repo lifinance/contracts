@@ -36,6 +36,11 @@ contract AccessManagerFacetTest is TestBase {
         setFacetAddressInTestBase(address(accessMgr), "AccessManagerFacet");
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        // this contract does not accept any arguments during deployment
+        // there are no constructor parameters to store or validate.
+    }
+
     function testAccessIsRestricted() public {
         vm.expectRevert(UnAuthorized.selector);
         vm.prank(address(0xb33f));

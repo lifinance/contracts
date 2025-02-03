@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, LiFiDiamond } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { OnlyContractOwner, InvalidConfig, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
@@ -127,6 +128,19 @@ contract StargateFacetTest is TestBaseFacet {
             stargateData
         );
         nativeAddToMessageValue = nativeFees;
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        StargateFacet standaloneStargateFacet = new StargateFacet(IStargateRouter(MAINNET_COMPOSER));
+
+        bytes memory code = address(standaloneStargateFacet).code;
+
+        bytes memory expectedComposer = abi.encodePacked(MAINNET_COMPOSER);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedComposer);
+
+        // assert that address is found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "composer value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

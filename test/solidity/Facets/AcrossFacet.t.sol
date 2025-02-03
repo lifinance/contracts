@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 
@@ -24,6 +25,8 @@ contract TestAcrossFacet is AcrossFacet {
 }
 
 contract AcrossFacetTest is TestBaseFacet {
+    using BytesLib for bytes;
+
     address internal constant ETH_HOLDER =
         0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
     address internal constant WETH_HOLDER =
@@ -77,6 +80,22 @@ contract AcrossFacetTest is TestBaseFacet {
         });
 
         vm.label(SPOKE_POOL, "SpokePool");
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        AcrossFacet standaloneAcrossFacet = new AcrossFacet(IAcrossSpokePool(SPOKE_POOL), ADDRESS_WRAPPED_NATIVE);
+
+        bytes memory code = address(standaloneAcrossFacet).code;
+
+        bytes memory expectedSpokePool = abi.encodePacked(SPOKE_POOL);
+        bytes memory expectedWrappedNative = abi.encodePacked(ADDRESS_WRAPPED_NATIVE);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedSpokePool);
+        uint256 pos2 = BytesLib.indexOf(code, expectedWrappedNative);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "spokePool value not found in bytecode");
+        assertTrue(pos2 != type(uint256).max, "wrappedNative value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

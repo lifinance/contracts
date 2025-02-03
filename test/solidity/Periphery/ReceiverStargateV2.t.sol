@@ -59,6 +59,13 @@ contract ReceiverStargateV2Test is TestBase {
         transferId = keccak256("123");
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        assertEq(address(receiver.executor()), address(executor), "executor address doesn't match");
+        assertEq(address(receiver.tokenMessaging()), STARGATE_TOKEN_MESSAGING_MAINNET, "tokenMessaging address doesn't match");
+        assertEq(address(receiver.endpointV2()), ENDPOINT_V2_MAINNET, "endpointV2 address doesn't match");
+        assertEq(address(receiver.recoverGas()), RECOVER_GAS_VALUE, "recoverGas address doesn't match");
+    }
+
     function test_OwnerCanWithdrawERC20Token() public {
         // fund receiver with ERC20 tokens
         deal(ADDRESS_DAI, address(receiver), 1000);

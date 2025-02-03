@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { InsufficientBalance } from "src/Errors/GenericErrors.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
@@ -73,6 +74,19 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 100;
 
         setDefaultSwapData();
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        GnosisBridgeFacet standaloneGnosisBridgeFacet = new GnosisBridgeFacet(IXDaiBridge(XDAI_BRIDGE));
+
+        bytes memory code = address(standaloneGnosisBridgeFacet).code;
+
+        bytes memory expectedXDaiBridge = abi.encodePacked(XDAI_BRIDGE);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedXDaiBridge);
+
+        // assert that address is found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "xDaiBridge value not found in bytecode");
     }
 
     function setDefaultSwapData() internal {

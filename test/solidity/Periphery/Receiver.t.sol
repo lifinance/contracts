@@ -61,6 +61,13 @@ contract ReceiverTest is TestBase {
         transferId = keccak256("123");
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public {
+        assertEq(receiver.sgRouter(), address(stargateRouter), "sgRouter address doesn't match");
+        assertEq(address(receiver.executor()), address(executor), "executor address doesn't match");
+        assertEq(address(receiver.recoverGas()), 100000, "recoverGas address doesn't match");
+        assertEq(address(receiver.amarokRouter()), amarokRouter, "amarokRouter address doesn't match");
+    }
+
     function test_revert_OwnerCanWithdrawToken() public {
         // send token to receiver
         vm.startPrank(USER_SENDER);

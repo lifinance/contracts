@@ -531,4 +531,8 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.roll(targetBlock);
     }
     //#endregion
+
+    //#region Base tests
+    function testBase_WillStoreConstructorParametersCorrectly() public virtual;
+    //#endregion
 }

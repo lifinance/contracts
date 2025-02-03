@@ -96,6 +96,12 @@ contract MayanFacetTest is TestBaseFacet {
         setFacetAddressInTestBase(address(mayanBridgeFacet), "MayanFacet");
     }
 
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        MayanFacet standaloneMayanFacet = new MayanFacet(MAYAN_FORWARDER);
+
+        assertEq(standaloneMayanFacet.mayan(), MAYAN_FORWARDER, "mayan address doesn't match");
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             mayanBridgeFacet.startBridgeTokensViaMayan{

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
@@ -97,6 +98,19 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         vm.label(address(DLN_SOURCE), "DLN_SOURCE");
         FIXED_FEE = DLN_SOURCE.globalFixedNativeFee();
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        DeBridgeDlnFacet standaloneDeBridgeDlnFacet = new DeBridgeDlnFacet(DLN_SOURCE);
+
+        bytes memory code = address(standaloneDeBridgeDlnFacet).code;
+
+        bytes memory expectedDlnSource = abi.encodePacked(DLN_SOURCE);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedDlnSource);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "dlnSource value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

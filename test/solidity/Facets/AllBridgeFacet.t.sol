@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 
@@ -79,6 +80,19 @@ contract AllBridgeFacetTest is TestBaseFacet {
             payFeeWithSendingAsset: false
         });
         addToMessageValue = validAllBridgeData.fees;
+    }
+
+    function testBase_WillStoreConstructorParametersCorrectly() public override {
+        AllBridgeFacet standaloneAllBridgeFacet = new AllBridgeFacet(allBridgeRouter);
+
+        bytes memory code = address(standaloneAllBridgeFacet).code;
+
+        bytes memory expectedAllBridgeRouter = abi.encodePacked(allBridgeRouter);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedAllBridgeRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(pos1 != type(uint256).max, "allBridgeRouter value not found in bytecode");
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {
