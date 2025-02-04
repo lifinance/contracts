@@ -2811,6 +2811,10 @@ function getChainId() {
     echo "81457"
     return 0
     ;;
+  "berachain")
+    echo "80094"
+    return 0
+    ;;
   "bsc")
     echo "56"
     return 0
