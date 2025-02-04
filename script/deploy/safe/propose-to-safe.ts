@@ -9,7 +9,6 @@ import {
   type SafeTransactionDataPartial,
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
-import { getSafeUtilityContracts } from './config'
 import {
   NetworksObject,
   getViemChainForNetworkName,
@@ -18,6 +17,12 @@ import data from '../../../config/networks.json'
 const networks: NetworksObject = data as NetworksObject
 import consola from 'consola'
 
+/**
+ * Retries a function multiple times if it fails
+ * @param func - The async function to retry
+ * @param retries - Number of retries remaining
+ * @returns The result of the function
+ */
 const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
   try {
     const result = await func()
@@ -40,6 +45,9 @@ for (const [k, v] of Object.entries(chains)) {
   chainMap[k] = v
 }
 
+/**
+ * Main command definition for proposing transactions to a Safe
+ */
 const main = defineCommand({
   meta: {
     name: 'propose-to-safe',
@@ -71,6 +79,10 @@ const main = defineCommand({
       required: true,
     },
   },
+  /**
+   * Executes the propose-to-safe command
+   * @param args - Command arguments including network, rpcUrl, privateKey, to address, and calldata
+   */
   async run({ args }) {
     const chain = getViemChainForNetworkName(args.network)
 

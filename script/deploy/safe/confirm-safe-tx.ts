@@ -5,17 +5,12 @@ import { MongoClient } from 'mongodb'
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
-import { getSafeUtilityContracts } from './config'
 import {
   NetworksObject,
-  getAllActiveNetworks,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
-import {
-  SafeMultisigTransactionResponse,
-  SafeTransaction,
-} from '@safe-global/safe-core-sdk-types'
+import { SafeTransaction } from '@safe-global/safe-core-sdk-types'
 import networksConfig from '../../../config/networks.json'
 dotenv.config()
 
@@ -136,6 +131,12 @@ const storedResponses: Record<string, string> = {}
   return this.toString()
 }
 
+/**
+ * Retries a function multiple times if it fails
+ * @param func - The async function to retry
+ * @param retries - Number of retries remaining
+ * @returns The result of the function
+ */
 const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
   try {
     const result = await func()
@@ -156,6 +157,13 @@ for (const [k, v] of Object.entries(chains)) {
   chainMap[k] = v
 }
 
+/**
+ * Main function to process Safe transactions for a given network
+ * @param network - Network name
+ * @param privateKey - Private key of the signer
+ * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
+ * @param rpcUrl - Optional RPC URL override
+ */
 const func = async (
   network: string,
   privateKey: string,
@@ -212,7 +220,11 @@ const func = async (
     })
     .toArray()
 
-  // Initialize a SafeTransaction from MongoDB data
+  /**
+   * Initializes a SafeTransaction from MongoDB document data
+   * @param txFromMongo - Transaction document from MongoDB
+   * @returns Initialized SafeTransaction with signatures
+   */
   const initializeSafeTransaction = async (txFromMongo: any) => {
     const safeTransaction = await protocolKit.createTransaction({
       transactions: [txFromMongo.safeTx.data],
@@ -228,7 +240,11 @@ const func = async (
     return safeTransaction
   }
 
-  // Sign a SafeTransaction
+  /**
+   * Signs a SafeTransaction
+   * @param safeTransaction - The transaction to sign
+   * @returns The signed transaction
+   */
   const signTransaction = async (safeTransaction: SafeTransaction) => {
     consola.info('Signing transaction')
     const signedTx = await protocolKit.signTransaction(safeTransaction)
@@ -236,7 +252,10 @@ const func = async (
     return signedTx
   }
 
-  // Execute a SafeTransaction
+  /**
+   * Executes a SafeTransaction and updates its status in MongoDB
+   * @param safeTransaction - The transaction to execute
+   */
   async function executeTransaction(safeTransaction: SafeTransaction) {
     consola.info('Executing transaction')
     try {
@@ -257,7 +276,12 @@ const func = async (
     console.info(' ')
   }
 
-  // Helper functions to check signature status
+  /**
+   * Checks if a SafeTransaction has enough signatures to execute
+   * @param safeTx - The transaction to check
+   * @param threshold - Number of signatures required
+   * @returns True if the transaction has enough signatures
+   */
   const hasEnoughSignatures = (
     safeTx: SafeTransaction,
     threshold: number
@@ -266,6 +290,12 @@ const func = async (
     return sigCount >= threshold
   }
 
+  /**
+   * Checks if the current signer has already signed the transaction
+   * @param safeTx - The transaction to check
+   * @param signerAddress - Address of the current signer
+   * @returns True if the signer has already signed
+   */
   const isSignedByCurrentSigner = (
     safeTx: SafeTransaction,
     signerAddress: string
@@ -277,6 +307,12 @@ const func = async (
     return signers.includes(signerAddress.toLowerCase())
   }
 
+  /**
+   * Checks if adding current signer's signature would meet the threshold
+   * @param safeTx - The transaction to check
+   * @param threshold - Number of signatures required
+   * @returns True if adding a signature would meet the threshold
+   */
   const wouldMeetThreshold = (
     safeTx: SafeTransaction,
     threshold: number
@@ -459,6 +495,9 @@ const func = async (
   await mongoClient.close()
 }
 
+/**
+ * Main command definition for the script
+ */
 const main = defineCommand({
   meta: {
     name: 'propose-to-safe',
