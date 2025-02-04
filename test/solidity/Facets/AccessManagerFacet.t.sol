@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized, CannotAuthoriseSelf } from "lifi/Errors/GenericErrors.sol";
 import { TestBase, LibAccess, console, LiFiDiamond } from "../utils/TestBase.sol";
 
 contract RestrictedContract {
@@ -22,12 +22,16 @@ contract AccessManagerFacetTest is TestBase {
         accessMgr = new AccessManagerFacet();
         restricted = new RestrictedContract();
 
-        bytes4[] memory functionSelectors = new bytes4[](1);
-        functionSelectors[0] = accessMgr.setCanExecute.selector;
-        addFacet(diamond, address(accessMgr), functionSelectors);
+        bytes4[] memory allowedFunctionSelectors = new bytes4[](2);
+        allowedFunctionSelectors[0] = accessMgr.setCanExecute.selector;
+        allowedFunctionSelectors[1] = accessMgr
+            .addressCanExecuteMethod
+            .selector;
+        addFacet(diamond, address(accessMgr), allowedFunctionSelectors);
 
-        functionSelectors[0] = restricted.restrictedMethod.selector;
-        addFacet(diamond, address(restricted), functionSelectors);
+        bytes4[] memory restrictedFunctionSelectors = new bytes4[](1);
+        restrictedFunctionSelectors[0] = restricted.restrictedMethod.selector;
+        addFacet(diamond, address(restricted), restrictedFunctionSelectors);
 
         accessMgr = AccessManagerFacet(address(diamond));
         restricted = RestrictedContract(address(diamond));
@@ -66,5 +70,88 @@ contract AccessManagerFacetTest is TestBase {
         vm.expectRevert(UnAuthorized.selector);
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
+    }
+
+    function testRevertCannotAuthorizeSelf() public {
+        vm.expectRevert(CannotAuthoriseSelf.selector);
+        accessMgr.setCanExecute(
+            AccessManagerFacet.setCanExecute.selector,
+            address(accessMgr),
+            true
+        );
+    }
+
+    function testDefaultAccessIsFalse() public {
+        bool canExecute = accessMgr.addressCanExecuteMethod(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f)
+        );
+        assertEq(canExecute, false, "Default access should be false");
+    }
+
+    function testCanCheckGrantedAccess() public {
+        accessMgr.setCanExecute(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f),
+            true
+        );
+
+        bool canExecute = accessMgr.addressCanExecuteMethod(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f)
+        );
+        assertEq(canExecute, true, "Access should be granted");
+    }
+
+    function testCanCheckRevokedAccess() public {
+        accessMgr.setCanExecute(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f),
+            true
+        );
+
+        accessMgr.setCanExecute(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f),
+            false
+        );
+
+        bool canExecute = accessMgr.addressCanExecuteMethod(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f)
+        );
+        assertEq(canExecute, false, "Access should be revoked");
+    }
+
+    function testDifferentMethodSelectorReturnsFalse() public {
+        accessMgr.setCanExecute(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f),
+            true
+        );
+
+        bool canExecute = accessMgr.addressCanExecuteMethod(
+            bytes4(keccak256("anotherMethod()")),
+            address(0xb33f)
+        );
+        assertEq(
+            canExecute,
+            false,
+            "Different method selector should return false"
+        );
+    }
+
+    function testDifferentExecutorReturnsFalse() public {
+        accessMgr.setCanExecute(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xb33f),
+            true
+        );
+
+        bool canExecute = accessMgr.addressCanExecuteMethod(
+            RestrictedContract.restrictedMethod.selector,
+            address(0xcafe)
+        );
+        assertEq(canExecute, false, "Different executor should return false");
     }
 }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
@@ -26,6 +27,12 @@ contract CBridgeFacetTest is TestBaseFacet {
     address internal constant CBRIDGE_ROUTER =
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     TestCBridgeFacet internal cBridge;
+
+    event CBridgeRefund(
+        address indexed _assetAddress,
+        address indexed _to,
+        uint256 amount
+    );
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         // a) prepare the facet-specific data
@@ -71,13 +78,14 @@ contract CBridgeFacetTest is TestBaseFacet {
     function setUp() public {
         initTestBase();
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
+        functionSelectors[4] = cBridge.triggerRefund.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
@@ -193,6 +201,87 @@ contract CBridgeFacetTest is TestBaseFacet {
         );
 
         vm.stopPrank();
+    }
+
+    function test_triggerRefund_Success() public {
+        address callTo = address(CBRIDGE_ROUTER);
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        deal(ADDRESS_USDT, address(cBridge), amount);
+
+        vm.mockCall(callTo, callData, abi.encode(true));
+
+        vm.expectEmit(true, true, true, true, address(cBridge));
+        emit CBridgeRefund(assetAddress, to, amount);
+
+        cBridge.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+    }
+
+    function testRevert_triggerRefund_CallerNotOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        address callTo = address(CBRIDGE_ROUTER);
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        cBridge.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_triggerRefund_InvalidCallToAddress() public {
+        address callTo = address(0xdeadbeef);
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+
+        cBridge.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+    }
+
+    function testRevert_triggerRefund_ExternalCallFails() public {
+        address callTo = address(CBRIDGE_ROUTER); // must match the expected `CBRIDGE_ROUTER` address
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(ExternalCallFailed.selector);
+
+        cBridge.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {

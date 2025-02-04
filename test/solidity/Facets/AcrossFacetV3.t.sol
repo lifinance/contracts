@@ -6,6 +6,7 @@ import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { InformationMismatch } from "src/Errors/GenericErrors.sol";
 
 // Stub AcrossFacetV3 Contract
 contract TestAcrossFacetV3 is AcrossFacetV3 {
@@ -270,5 +271,24 @@ contract AcrossFacetV3Test is TestBaseFacet {
             acrossFacetV3.wrappedNative() == ADDRESS_WRAPPED_NATIVE,
             true
         );
+    }
+
+    function test_revert_InformationMismatch() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV3), type(uint256).max);
+
+        bridgeData.hasDestinationCall = false;
+
+        bridgeData.receiver = USER_RECEIVER;
+        validAcrossData.receiverAddress = address(0xbadbeef);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        acrossFacetV3.startBridgeTokensViaAcrossV3(
+            bridgeData,
+            validAcrossData
+        );
+
+        vm.stopPrank();
     }
 }

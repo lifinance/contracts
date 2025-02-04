@@ -7,6 +7,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract MockLiquidityBridge is TestBase {
     function mockWithdraw(uint256 _amount) external {
@@ -488,6 +489,64 @@ contract CBridgeFacetPackedTest is TestBase {
             postRefundBalance - preRefundBalance,
             REFUND_AMOUNT,
             "Refund amount should be correct"
+        );
+    }
+
+    function testRevert_triggerRefund_OnlyOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        address callTo = address(CBRIDGE_ROUTER);
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_triggerRefund_InvalidCallToAddress() public {
+        address callTo = address(0xdeadbeef);
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+    }
+
+    function testRevert_triggerRefund_ExternalCallFails() public {
+        address callTo = address(CBRIDGE_ROUTER); // must match the expected `CBRIDGE_ROUTER` address
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(ExternalCallFailed.selector);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
         );
     }
 }

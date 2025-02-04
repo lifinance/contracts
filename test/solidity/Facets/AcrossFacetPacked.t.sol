@@ -8,6 +8,7 @@ import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { MockFailingContract } from "../utils/MockFailingContract.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console2 } from "forge-std/console2.sol";
@@ -615,5 +616,19 @@ contract AcrossFacetPackedTest is TestBase {
             amountUSDT
         );
         vm.stopPrank();
+    }
+
+    function test_revert_WithdrawFailed() public {
+        MockFailingContract failingContract = new MockFailingContract();
+
+        vm.expectRevert(AcrossFacetPacked.WithdrawFailed.selector);
+
+        acrossStandAlone.executeCallAndWithdraw(
+            address(failingContract),
+            WITHDRAW_REWARDS_CALLDATA,
+            ADDRESS_USDT,
+            address(this),
+            amountUSDT
+        );
     }
 }
