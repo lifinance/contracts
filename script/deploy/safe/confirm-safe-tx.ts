@@ -151,6 +151,53 @@ const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
   }
 }
 
+async function decodeDiamondCut(diamondCutData: any, chainId: number) {
+  const actionMap: Record<number, string> = {
+    0: 'Add',
+    1: 'Replace',
+    2: 'Remove',
+  }
+  consola.info('Diamond Cut Details:')
+  consola.info('-'.repeat(80))
+  // diamondCutData.args[0] contains an array of modifications.
+  const modifications = diamondCutData.args[0]
+  for (const mod of modifications) {
+    // Each mod is [facetAddress, action, selectors]
+    const [facetAddress, actionValue, selectors] = mod
+    try {
+      consola.info(`Fetching ABI for Facet Address: ${facetAddress}`)
+      const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
+      const response = await fetch(url)
+      const resData = await response.json()
+      consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
+      if (resData && resData.abi) {
+        consola.info(`Contract Name: ${resData.name || 'unknown'}`)
+        for (const selector of selectors) {
+          let decodedSignature = `function unknown() [${selector}]`
+          try {
+            const decoded = decodeFunctionData({
+              abi: resData.abi,
+              data: selector,
+            })
+            decodedSignature = `function ${decoded.functionName}() [${selector}]`
+            consola.info(decodedSignature)
+          } catch (error) {
+            consola.info(decodedSignature)
+          }
+        }
+      } else {
+        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+      }
+    } catch (error) {
+      consola.error(`Error fetching ABI for ${facetAddress}:`, error)
+    }
+    consola.info('-'.repeat(80))
+  }
+  // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
+  consola.info(`Init Address: ${diamondCutData.args[1]}`)
+  consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
+}
+
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
   // @ts-ignore
@@ -393,9 +440,13 @@ const func = async (
     consola.info('-'.repeat(80))
 
     if (abi) {
-      consola.info('Method:', abi)
-      if (decoded) {
-        consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
+      if (decoded && decoded.functionName === 'diamondCut') {
+        await decodeDiamondCut(decoded, chain.id)
+      } else {
+        consola.info('Method:', abi)
+        if (decoded) {
+          consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
+        }
       }
     }
 
