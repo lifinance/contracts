@@ -82,20 +82,31 @@ contract AcrossFacetTest is TestBaseFacet {
         vm.label(SPOKE_POOL, "SpokePool");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        AcrossFacet standaloneAcrossFacet = new AcrossFacet(IAcrossSpokePool(SPOKE_POOL), ADDRESS_WRAPPED_NATIVE);
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        AcrossFacet standaloneAcrossFacet = new AcrossFacet(
+            IAcrossSpokePool(SPOKE_POOL),
+            ADDRESS_WRAPPED_NATIVE
+        );
 
         bytes memory code = address(standaloneAcrossFacet).code;
 
         bytes memory expectedSpokePool = abi.encodePacked(SPOKE_POOL);
-        bytes memory expectedWrappedNative = abi.encodePacked(ADDRESS_WRAPPED_NATIVE);
+        bytes memory expectedWrappedNative = abi.encodePacked(
+            ADDRESS_WRAPPED_NATIVE
+        );
 
         uint256 pos1 = BytesLib.indexOf(code, expectedSpokePool);
         uint256 pos2 = BytesLib.indexOf(code, expectedWrappedNative);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "spokePool value not found in bytecode");
-        assertTrue(pos2 != type(uint256).max, "wrappedNative value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "spokePool value not found in bytecode"
+        );
+        assertTrue(
+            pos2 != type(uint256).max,
+            "wrappedNative value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

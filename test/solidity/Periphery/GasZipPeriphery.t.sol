@@ -86,7 +86,7 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(LIFI_DEX_AGGREGATOR_MAINNET, "LiFiDEXAggregator");
     }
 
-    function test_WillStoreConstructorParametersCorrectly() public {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         gasZipPeriphery = new TestGasZipPeriphery(
             GAS_ZIP_ROUTER_MAINNET,
             LIFI_DEX_AGGREGATOR_MAINNET,

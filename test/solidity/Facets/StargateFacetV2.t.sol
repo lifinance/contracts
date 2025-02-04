@@ -137,6 +137,18 @@ contract StargateFacetV2Test is TestBaseFacet {
         addToMessageValue = fees.nativeFee;
     }
 
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        StargateFacetV2 standaloneStargateFacetV2 = new StargateFacetV2(
+            TOKEN_MESSAGING
+        );
+
+        assertEq(
+            address(standaloneStargateFacetV2.tokenMessaging()),
+            address(TOKEN_MESSAGING),
+            "tokenMessaging address doesn't match"
+        );
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             stargateFacetV2.startBridgeTokensViaStargate{

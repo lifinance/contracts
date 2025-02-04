@@ -103,7 +103,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         });
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         //
     }
 

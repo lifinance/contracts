@@ -108,7 +108,7 @@ contract OptimismBridgeFacetTest is TestBase {
         );
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         //
     }
 

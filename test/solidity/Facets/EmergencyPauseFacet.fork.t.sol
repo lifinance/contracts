@@ -91,8 +91,10 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         vm.stopPrank();
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        EmergencyPauseFacet standaloneEmergencyPauseFacet = new EmergencyPauseFacet(USER_PAUSER);
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        EmergencyPauseFacet standaloneEmergencyPauseFacet = new EmergencyPauseFacet(
+                USER_PAUSER
+            );
 
         bytes memory code = address(standaloneEmergencyPauseFacet).code;
 
@@ -101,7 +103,10 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         uint256 pos1 = BytesLib.indexOf(code, expectedDlnSource);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "user pauser value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "user pauser value not found in bytecode"
+        );
     }
 
     function test_PauserWalletCanPauseDiamond() public {

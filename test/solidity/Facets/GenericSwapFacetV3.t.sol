@@ -160,9 +160,15 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         vm.label(address(genericSwapFacetV3), "GenericSwapFacetV3");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override{
-        GenericSwapFacetV3 standaloneGenericSwapFacetV3 = new GenericSwapFacetV3(address(0xCAFE));
-        assertEq(standaloneGenericSwapFacetV3.NATIVE_ADDRESS(), address(0xCAFE), "NATIVE_ADDRESS address doesn't match");
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        GenericSwapFacetV3 standaloneGenericSwapFacetV3 = new GenericSwapFacetV3(
+                address(0xCAFE)
+            );
+        assertEq(
+            standaloneGenericSwapFacetV3.NATIVE_ADDRESS(),
+            address(0xCAFE),
+            "NATIVE_ADDRESS address doesn't match"
+        );
     }
 
     // SINGLE SWAP ERC20 >> ERC20

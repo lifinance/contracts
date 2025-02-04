@@ -69,7 +69,7 @@ contract LIFuelFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 100;
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         //
     }
 

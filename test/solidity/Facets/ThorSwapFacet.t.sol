@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 import { IThorSwap } from "lifi/Interfaces/IThorSwap.sol";
 
@@ -70,6 +71,24 @@ contract ThorSwapFacetTest is TestBaseFacet {
         );
 
         vm.label(THORCHAIN_ROUTER, "THORCHAIN_ROUTER");
+    }
+
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        ThorSwapFacet standaloneThorSwapFacet = new ThorSwapFacet(
+            THORCHAIN_ROUTER
+        );
+
+        bytes memory code = address(standaloneThorSwapFacet).code;
+
+        bytes memory expectedRouter = abi.encodePacked(THORCHAIN_ROUTER);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedRouter);
+
+        // assert that address is found somewhere in the bytecode.
+        assertTrue(
+            pos1 != type(uint256).max,
+            "expectedRouter value not found in bytecode"
+        );
     }
 
     function testBase_Revert_SendingDeprecatedRune() public {

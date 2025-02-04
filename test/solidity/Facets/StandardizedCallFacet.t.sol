@@ -109,7 +109,7 @@ contract StandardizedCallFacetTest is TestBase {
         mockDiamond = Diamond(address(tmpDiamond));
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         //
     }
 

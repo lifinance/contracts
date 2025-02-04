@@ -36,7 +36,7 @@ contract AccessManagerFacetTest is TestBase {
         setFacetAddressInTestBase(address(accessMgr), "AccessManagerFacet");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         // this contract does not accept any arguments during deployment
         // there are no constructor parameters to store or validate.
     }

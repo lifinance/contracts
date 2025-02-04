@@ -58,6 +58,10 @@ contract SwapperV2Test is TestBase {
         swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
     }
 
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function testSwapCleanup() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);

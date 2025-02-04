@@ -13,7 +13,7 @@ contract OwnershipFacetTest is TestBase {
         ownershipFacet = OwnershipFacet(address(diamond));
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         //
     }
 

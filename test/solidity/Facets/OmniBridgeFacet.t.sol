@@ -73,21 +73,31 @@ contract OmniBridgeFacetTest is TestBaseFacet {
         bridgeData.bridge = "omni";
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        OmniBridgeFacet standaloneOmniBridgeFacet = new OmniBridgeFacet(IOmniBridge(FOREIGN_BRIDGE),
-            IOmniBridge(WETH_BRIDGE));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        OmniBridgeFacet standaloneOmniBridgeFacet = new OmniBridgeFacet(
+            IOmniBridge(FOREIGN_BRIDGE),
+            IOmniBridge(WETH_BRIDGE)
+        );
 
         bytes memory code = address(standaloneOmniBridgeFacet).code;
 
-        bytes memory expectedForeignOmniBridge = abi.encodePacked(FOREIGN_BRIDGE);
+        bytes memory expectedForeignOmniBridge = abi.encodePacked(
+            FOREIGN_BRIDGE
+        );
         bytes memory expectedWethOmniBridge = abi.encodePacked(WETH_BRIDGE);
 
         uint256 pos1 = BytesLib.indexOf(code, expectedForeignOmniBridge);
         uint256 pos2 = BytesLib.indexOf(code, expectedWethOmniBridge);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "foreignOmniBridge value not found in bytecode");
-        assertTrue(pos2 != type(uint256).max, "wethOmniBridge value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "foreignOmniBridge value not found in bytecode"
+        );
+        assertTrue(
+            pos2 != type(uint256).max,
+            "wethOmniBridge value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

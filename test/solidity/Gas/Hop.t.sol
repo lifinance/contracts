@@ -39,6 +39,10 @@ contract HopGasTest is TestBase {
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
     }
 
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        //
+    }
+
     function testDirectBridge() public {
         uint256 amount = 100 * 10 ** usdc.decimals();
         uint256 amountOutMin = 99 * 10 ** usdc.decimals();

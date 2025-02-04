@@ -55,18 +55,32 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         );
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override{
-        EmergencyPauseFacet standaloneDeBridgeDlnFacet = new EmergencyPauseFacet(USER_PAUSER);
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        EmergencyPauseFacet standaloneDeBridgeDlnFacet = new EmergencyPauseFacet(
+                USER_PAUSER
+            );
 
         bytes memory code = address(standaloneDeBridgeDlnFacet).code;
 
-        bytes memory expectedEmergencyPauseFacetAddress = abi.encodePacked(address(standaloneDeBridgeDlnFacet));
+        bytes memory expectedEmergencyPauseFacetAddress = abi.encodePacked(
+            address(standaloneDeBridgeDlnFacet)
+        );
 
-        uint256 pos1 = BytesLib.indexOf(code, expectedEmergencyPauseFacetAddress);
+        uint256 pos1 = BytesLib.indexOf(
+            code,
+            expectedEmergencyPauseFacetAddress
+        );
 
-        assertEq(standaloneDeBridgeDlnFacet.pauserWallet(), address(USER_PAUSER), "pauserWallet address doesn't match");
+        assertEq(
+            standaloneDeBridgeDlnFacet.pauserWallet(),
+            address(USER_PAUSER),
+            "pauserWallet address doesn't match"
+        );
         // assert that address is found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "dlnSource value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "dlnSource value not found in bytecode"
+        );
     }
 
     function test_PauserWalletCanPauseDiamond() public {

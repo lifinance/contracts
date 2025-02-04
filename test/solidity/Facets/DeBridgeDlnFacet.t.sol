@@ -100,8 +100,10 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         FIXED_FEE = DLN_SOURCE.globalFixedNativeFee();
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        DeBridgeDlnFacet standaloneDeBridgeDlnFacet = new DeBridgeDlnFacet(DLN_SOURCE);
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        DeBridgeDlnFacet standaloneDeBridgeDlnFacet = new DeBridgeDlnFacet(
+            DLN_SOURCE
+        );
 
         bytes memory code = address(standaloneDeBridgeDlnFacet).code;
 
@@ -110,7 +112,10 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         uint256 pos1 = BytesLib.indexOf(code, expectedDlnSource);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "dlnSource value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "dlnSource value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

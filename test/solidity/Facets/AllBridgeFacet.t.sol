@@ -82,17 +82,24 @@ contract AllBridgeFacetTest is TestBaseFacet {
         addToMessageValue = validAllBridgeData.fees;
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        AllBridgeFacet standaloneAllBridgeFacet = new AllBridgeFacet(allBridgeRouter);
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        AllBridgeFacet standaloneAllBridgeFacet = new AllBridgeFacet(
+            allBridgeRouter
+        );
 
         bytes memory code = address(standaloneAllBridgeFacet).code;
 
-        bytes memory expectedAllBridgeRouter = abi.encodePacked(allBridgeRouter);
+        bytes memory expectedAllBridgeRouter = abi.encodePacked(
+            allBridgeRouter
+        );
 
         uint256 pos1 = BytesLib.indexOf(code, expectedAllBridgeRouter);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "allBridgeRouter value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "allBridgeRouter value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {

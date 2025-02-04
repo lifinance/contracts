@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestFacet } from "../utils/TestBase.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
 import { ISymbiosisMetaRouter } from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
 
@@ -97,6 +98,33 @@ contract SymbiosisFacetTest is TestBaseFacet {
             _approvedTokens, // approvedTokens
             RELAY_RECIPIENT, // bridging entrypoint
             _otherSideCalldata // core bridging calldata
+        );
+    }
+
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        SymbiosisFacet standaloneSymbiosisFacet = new SymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            SYMBIOSIS_GATEWAY
+        );
+
+        bytes memory code = address(standaloneSymbiosisFacet).code;
+
+        bytes memory expectedMetaRouter = abi.encodePacked(
+            SYMBIOSIS_METAROUTER
+        );
+        bytes memory expectedGateway = abi.encodePacked(SYMBIOSIS_GATEWAY);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedMetaRouter);
+        uint256 pos2 = BytesLib.indexOf(code, expectedGateway);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(
+            pos1 != type(uint256).max,
+            "symbiosisMetaRouter value not found in bytecode"
+        );
+        assertTrue(
+            pos2 != type(uint256).max,
+            "symbiosisGateway value not found in bytecode"
         );
     }
 

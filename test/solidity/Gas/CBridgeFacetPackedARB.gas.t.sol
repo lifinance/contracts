@@ -4,6 +4,7 @@ import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi, ERC20 } from "../utils/TestBase.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 
 contract CBridgeGasARBTest is TestBase {
     address internal constant CBRIDGE_ROUTER =
@@ -102,6 +103,27 @@ contract CBridgeGasARBTest is TestBase {
             address(cBridgeFacetPacked),
             "CBridgeFacetPacked"
         );
+    }
+
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        CBridgeFacetPacked standaloneCBridgeFacetPacked = new CBridgeFacetPacked(
+                ICBridge(CBRIDGE_ROUTER),
+                address(this)
+            );
+
+        bytes memory code = address(standaloneCBridgeFacetPacked).code;
+
+        bytes memory expectedCBridgeRouter = abi.encodePacked(CBRIDGE_ROUTER);
+        address expectedOwner = standaloneCBridgeFacetPacked.owner();
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeRouter);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(
+            pos1 != type(uint256).max,
+            "cBridgeRouter value not found in bytecode"
+        );
+        assertEq(expectedOwner, address(this), "wrong owner");
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {

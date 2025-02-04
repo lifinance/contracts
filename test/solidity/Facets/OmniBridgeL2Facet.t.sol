@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { BytesLib } from "../utils/BytesLib.sol";
 import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
 
@@ -79,6 +80,33 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
         setFacetAddressInTestBase(address(omniBridgeFacet), "OmniBridgeFacet");
 
         bridgeData.bridge = "omni";
+    }
+
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        OmniBridgeFacet standaloneOmniBridgeFacet = new OmniBridgeFacet(
+            IOmniBridge(FOREIGN_BRIDGE),
+            IOmniBridge(WETH_BRIDGE)
+        );
+
+        bytes memory code = address(standaloneOmniBridgeFacet).code;
+
+        bytes memory expectedForeignOmniBridge = abi.encodePacked(
+            FOREIGN_BRIDGE
+        );
+        bytes memory expectedWethOmniBridge = abi.encodePacked(WETH_BRIDGE);
+
+        uint256 pos1 = BytesLib.indexOf(code, expectedForeignOmniBridge);
+        uint256 pos2 = BytesLib.indexOf(code, expectedWethOmniBridge);
+
+        // assert that both addresses are found somewhere in the bytecode.
+        assertTrue(
+            pos1 != type(uint256).max,
+            "foreignOmniBridge value not found in bytecode"
+        );
+        assertTrue(
+            pos2 != type(uint256).max,
+            "wethOmniBridge value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

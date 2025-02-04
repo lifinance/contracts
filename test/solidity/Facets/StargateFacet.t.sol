@@ -130,8 +130,10 @@ contract StargateFacetTest is TestBaseFacet {
         nativeAddToMessageValue = nativeFees;
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        StargateFacet standaloneStargateFacet = new StargateFacet(IStargateRouter(MAINNET_COMPOSER));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        StargateFacet standaloneStargateFacet = new StargateFacet(
+            IStargateRouter(MAINNET_COMPOSER)
+        );
 
         bytes memory code = address(standaloneStargateFacet).code;
 
@@ -140,7 +142,10 @@ contract StargateFacetTest is TestBaseFacet {
         uint256 pos1 = BytesLib.indexOf(code, expectedComposer);
 
         // assert that address is found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "composer value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "composer value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

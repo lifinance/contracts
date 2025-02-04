@@ -41,7 +41,7 @@ contract ReceiverAcrossV3Test is TestBase {
         vm.label(address(erc20Proxy), "ERC20Proxy");
     }
 
-    function test_contractIsSetUpCorrectly() public {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         receiver = new ReceiverAcrossV3(
             address(this),
             address(executor),

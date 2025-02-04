@@ -104,9 +104,15 @@ contract GasZipFacetTest is TestBaseFacet {
         vm.label(ADDRESS_UNISWAP, "UNISWAP_V2_ROUTER");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override{
-        GasZipFacet standaloneGasZipFacet = new GasZipFacet(GAS_ZIP_ROUTER_MAINNET);
-        assertEq(address(standaloneGasZipFacet.gasZipRouter()), address(USER_PAUSER), "gasZipRouter address doesn't match");
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        GasZipFacet standaloneGasZipFacet = new GasZipFacet(
+            GAS_ZIP_ROUTER_MAINNET
+        );
+        assertEq(
+            address(standaloneGasZipFacet.gasZipRouter()),
+            address(GAS_ZIP_ROUTER_MAINNET),
+            "gasZipRouter address doesn't match"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

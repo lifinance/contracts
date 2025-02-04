@@ -22,7 +22,7 @@ contract MockLiquidityBridge is TestBase {
         require(sent, "failed to send native token");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         //
     }
 }
@@ -74,17 +74,28 @@ contract RelayerCelerIMTest is TestBase {
         );
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         RelayerCelerIM standaloneDeBridgeDlnFacet = new RelayerCelerIM(
             CBRIDGE_MESSAGEBUS_ETH,
             address(this),
             address(diamond)
         );
 
-        assertEq(address(standaloneDeBridgeDlnFacet.cBridgeMessageBus()), address(CBRIDGE_MESSAGEBUS_ETH), "cBridgeMessageBus address doesn't match");
-        assertEq(address(standaloneDeBridgeDlnFacet.diamondAddress()), address(diamond), "diamond address doesn't match");
-        assertEq(address(standaloneDeBridgeDlnFacet.owner()), address(this), "wrong owner");
-
+        assertEq(
+            address(standaloneDeBridgeDlnFacet.cBridgeMessageBus()),
+            address(CBRIDGE_MESSAGEBUS_ETH),
+            "cBridgeMessageBus address doesn't match"
+        );
+        assertEq(
+            address(standaloneDeBridgeDlnFacet.diamondAddress()),
+            address(diamond),
+            "diamond address doesn't match"
+        );
+        assertEq(
+            address(standaloneDeBridgeDlnFacet.owner()),
+            address(this),
+            "wrong owner"
+        );
     }
 
     function test_canExecuteMessageOnDestChain() public {

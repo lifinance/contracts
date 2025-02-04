@@ -143,8 +143,11 @@ contract AmarokFacetPackedTest is TestBase {
         vm.stopPrank();
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        AmarokFacetPacked standaloneAmarokFacetPacked = new AmarokFacetPacked(IConnextHandler(CONNEXT_HANDLER), address(this));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        AmarokFacetPacked standaloneAmarokFacetPacked = new AmarokFacetPacked(
+            IConnextHandler(CONNEXT_HANDLER),
+            address(this)
+        );
 
         bytes memory code = address(standaloneAmarokFacetPacked).code;
 
@@ -154,7 +157,10 @@ contract AmarokFacetPackedTest is TestBase {
         uint256 pos1 = BytesLib.indexOf(code, expectedConnextRouter);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "connextRouter value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "connextRouter value not found in bytecode"
+        );
         assertEq(expectedOwner, address(this), "wrong owner");
     }
 

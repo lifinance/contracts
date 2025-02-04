@@ -84,8 +84,10 @@ contract AmarokFacetTest is TestBaseFacet {
         addToMessageValue = 1 * 10 ** 15;
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        AmarokFacet standaloneAmarokFacet = new AmarokFacet(IConnextHandler(CONNEXT_HANDLER));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        AmarokFacet standaloneAmarokFacet = new AmarokFacet(
+            IConnextHandler(CONNEXT_HANDLER)
+        );
 
         bytes memory code = address(standaloneAmarokFacet).code;
 
@@ -94,7 +96,10 @@ contract AmarokFacetTest is TestBaseFacet {
         uint256 pos1 = BytesLib.indexOf(code, expectedConnextRouter);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "connextRouter value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "connextRouter value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

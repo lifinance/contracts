@@ -92,11 +92,22 @@ contract RelayFacetTest is TestBaseFacet {
         });
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        RelayFacet standaloneRelayFacet = new RelayFacet(address(this), address(0));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        RelayFacet standaloneRelayFacet = new RelayFacet(
+            address(0xABC),
+            address(0xCAFE)
+        );
 
-        assertEq(standaloneRelayFacet.relayReceiver(), address(0), "relayReceiver address doesn't match");
-        assertEq(standaloneRelayFacet.relaySolver(), address(0), "relaySolver address doesn't match");
+        assertEq(
+            standaloneRelayFacet.relayReceiver(),
+            address(0xABC),
+            "relayReceiver address doesn't match"
+        );
+        assertEq(
+            standaloneRelayFacet.relaySolver(),
+            address(0xCAFE),
+            "relaySolver address doesn't match"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

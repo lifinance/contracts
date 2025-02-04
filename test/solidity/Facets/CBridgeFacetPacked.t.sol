@@ -16,7 +16,7 @@ contract MockLiquidityBridge is TestBase {
         require(sent, "failed to send native token");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
+    function testBase_StoreConstructorParametersCorrectly() public override {
         // can be left empty
     }
 }
@@ -153,8 +153,11 @@ contract CBridgeFacetPackedTest is TestBase {
         );
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        CBridgeFacetPacked standaloneCBridgeFacetPacked = new CBridgeFacetPacked(ICBridge(CBRIDGE_ROUTER), address(this));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        CBridgeFacetPacked standaloneCBridgeFacetPacked = new CBridgeFacetPacked(
+                ICBridge(CBRIDGE_ROUTER),
+                address(this)
+            );
 
         bytes memory code = address(standaloneCBridgeFacetPacked).code;
 
@@ -164,7 +167,10 @@ contract CBridgeFacetPackedTest is TestBase {
         uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeRouter);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "cBridgeRouter value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "cBridgeRouter value not found in bytecode"
+        );
         assertEq(expectedOwner, address(this), "wrong owner");
     }
 

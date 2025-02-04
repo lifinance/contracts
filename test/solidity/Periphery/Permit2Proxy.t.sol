@@ -74,6 +74,24 @@ contract Permit2ProxyTest is TestBase {
 
     /// Tests ///
 
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        assertEq(
+            permit2Proxy.LIFI_DIAMOND(),
+            DIAMOND_ADDRESS,
+            "LIFI_DIAMOND address doesn't match"
+        );
+        assertEq(
+            address(permit2Proxy.PERMIT2()),
+            address(uniPermit2),
+            "PERMIT2 address doesn't match"
+        );
+        assertEq(
+            permit2Proxy.PERMIT_WITH_WITNESS_TYPEHASH(),
+            PERMIT_WITH_WITNESS_TYPEHASH,
+            "PERMIT_WITH_WITNESS_TYPEHASH address doesn't match"
+        );
+    }
+
     /// EIP2612 (native permit) related test cases ///
 
     function test_can_execute_calldata_using_eip2612_signature_usdc()

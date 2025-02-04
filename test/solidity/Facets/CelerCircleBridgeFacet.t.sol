@@ -81,20 +81,31 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 43114;
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        CelerCircleBridgeFacet standaloneCelerCircleBridgeFacet = new CelerCircleBridgeFacet(ICircleBridgeProxy(TOKEN_MESSENGER), ADDRESS_USDC);
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        CelerCircleBridgeFacet standaloneCelerCircleBridgeFacet = new CelerCircleBridgeFacet(
+                ICircleBridgeProxy(TOKEN_MESSENGER),
+                ADDRESS_USDC
+            );
 
         bytes memory code = address(standaloneCelerCircleBridgeFacet).code;
 
-        bytes memory expectedTokenMessenger = abi.encodePacked(TOKEN_MESSENGER);
+        bytes memory expectedTokenMessenger = abi.encodePacked(
+            TOKEN_MESSENGER
+        );
         bytes memory expectedUSDC = abi.encodePacked(ADDRESS_USDC);
 
         uint256 pos1 = BytesLib.indexOf(code, expectedTokenMessenger);
         uint256 pos2 = BytesLib.indexOf(code, expectedUSDC);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "tokenMessenger value not found in bytecode");
-        assertTrue(pos2 != type(uint256).max, "usdc value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "tokenMessenger value not found in bytecode"
+        );
+        assertTrue(
+            pos2 != type(uint256).max,
+            "usdc value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {

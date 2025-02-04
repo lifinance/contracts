@@ -201,21 +201,33 @@ contract AcrossFacetPackedTest is TestBase {
         vm.stopPrank();
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        AcrossFacetPacked standaloneAcrossFacetPacked = new AcrossFacetPacked(across, ADDRESS_WRAPPED_NATIVE, address(this));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        AcrossFacetPacked standaloneAcrossFacetPacked = new AcrossFacetPacked(
+            across,
+            ADDRESS_WRAPPED_NATIVE,
+            address(this)
+        );
 
         bytes memory code = address(standaloneAcrossFacetPacked).code;
 
         bytes memory expectedSpokePool = abi.encodePacked(ACROSS_SPOKE_POOL);
-        bytes memory expectedWrappedNative = abi.encodePacked(ADDRESS_WRAPPED_NATIVE);
+        bytes memory expectedWrappedNative = abi.encodePacked(
+            ADDRESS_WRAPPED_NATIVE
+        );
         address expectedOwner = standaloneAcrossFacetPacked.owner();
 
         uint256 pos1 = BytesLib.indexOf(code, expectedSpokePool);
         uint256 pos2 = BytesLib.indexOf(code, expectedWrappedNative);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "spokePool value not found in bytecode");
-        assertTrue(pos2 != type(uint256).max, "wrappedNative value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "spokePool value not found in bytecode"
+        );
+        assertTrue(
+            pos2 != type(uint256).max,
+            "wrappedNative value not found in bytecode"
+        );
         assertEq(expectedOwner, address(this), "wrong owner");
     }
 

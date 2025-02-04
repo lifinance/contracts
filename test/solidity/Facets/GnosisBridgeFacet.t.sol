@@ -76,8 +76,10 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         setDefaultSwapData();
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        GnosisBridgeFacet standaloneGnosisBridgeFacet = new GnosisBridgeFacet(IXDaiBridge(XDAI_BRIDGE));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        GnosisBridgeFacet standaloneGnosisBridgeFacet = new GnosisBridgeFacet(
+            IXDaiBridge(XDAI_BRIDGE)
+        );
 
         bytes memory code = address(standaloneGnosisBridgeFacet).code;
 
@@ -86,7 +88,10 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         uint256 pos1 = BytesLib.indexOf(code, expectedXDaiBridge);
 
         // assert that address is found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "xDaiBridge value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "xDaiBridge value not found in bytecode"
+        );
     }
 
     function setDefaultSwapData() internal {

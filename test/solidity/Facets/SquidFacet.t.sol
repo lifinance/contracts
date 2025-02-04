@@ -88,8 +88,10 @@ contract SquidFacetTest is TestBaseFacet {
         vm.label(0x99a58482BD75cbab83b27EC03CA68fF489b5788f, "Vyper_contract");
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        SquidFacet standaloneSquidFacet = new SquidFacet(ISquidRouter(SQUID_ROUTER));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        SquidFacet standaloneSquidFacet = new SquidFacet(
+            ISquidRouter(SQUID_ROUTER)
+        );
 
         bytes memory code = address(standaloneSquidFacet).code;
 
@@ -98,7 +100,10 @@ contract SquidFacetTest is TestBaseFacet {
         uint256 pos1 = BytesLib.indexOf(code, expectedSquidRouter);
 
         // assert that address is found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "squidRouter value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "squidRouter value not found in bytecode"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

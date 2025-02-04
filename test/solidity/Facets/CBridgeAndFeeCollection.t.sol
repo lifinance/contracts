@@ -66,8 +66,10 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         );
     }
 
-    function testBase_WillStoreConstructorParametersCorrectly() public override {
-        CBridgeFacet standaloneCBridgeFacet = new CBridgeFacet(ICBridge(CBRIDGE_ROUTER));
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        CBridgeFacet standaloneCBridgeFacet = new CBridgeFacet(
+            ICBridge(CBRIDGE_ROUTER)
+        );
 
         bytes memory code = address(standaloneCBridgeFacet).code;
 
@@ -76,7 +78,10 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         uint256 pos1 = BytesLib.indexOf(code, expectedCBridgeRouter);
 
         // assert that both addresses are found somewhere in the bytecode.
-        assertTrue(pos1 != type(uint256).max, "cBridgeRouter value not found in bytecode");
+        assertTrue(
+            pos1 != type(uint256).max,
+            "cBridgeRouter value not found in bytecode"
+        );
     }
 
     function testCanCollectTokenFeesAndBridgeTokens() public {

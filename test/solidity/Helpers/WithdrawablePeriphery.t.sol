@@ -37,6 +37,18 @@ contract WithdrawablePeripheryTest is TestBase {
         deal(address(withdrawable), 1 ether);
     }
 
+    function testBase_StoreConstructorParametersCorrectly() public override {
+        TestContract standaloneTestContractWithWithdrawablePeriphery = new TestContract(
+                address(this)
+            );
+
+        assertEq(
+            standaloneTestContractWithWithdrawablePeriphery.owner(),
+            address(this),
+            "wrong owner"
+        );
+    }
+
     function test_AllowsOwnerToWithdrawNative() public {
         uint256 withdrawAmount = 0.1 ether;
 
