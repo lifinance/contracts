@@ -121,7 +121,7 @@
     "explorerApiUrl": "https://80094.routescan.io/api",
     "multicallAddress": "",
     "safeApiUrl": "",
-    "safeAddress": "",
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "safeWebUrl": "",
     "gasZipChainId": 0
   },
