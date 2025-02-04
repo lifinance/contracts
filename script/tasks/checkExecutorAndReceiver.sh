@@ -58,7 +58,7 @@ checkExecutorAndReceiver() {
     echo "[info] now check Executor and Receiver on network: $NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK -vvvv --json --silent --skip-simulation --legacy --tc DeployScript)
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK -vvvvv --json --skip-simulation --legacy --tc DeployScript)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
