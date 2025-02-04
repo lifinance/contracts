@@ -116,13 +116,13 @@
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://bold-skilled-sheet.furtim-network.quiknode.pro/cece5b4f5d66ab9b4db94dbaa82daac45bc9013e/",
-    "verificationType": "",
+    "verificationType": "etherscan",
     "explorerUrl": "https://80094.routescan.io",
     "explorerApiUrl": "https://80094.routescan.io/api",
     "multicallAddress": "",
-    "safeApiUrl": "",
+    "safeApiUrl": "https://transaction.bp.w3us.site/api",
     "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
-    "safeWebUrl": "",
+    "safeWebUrl": "https://www.basdf1234.xyz/transactions/queue?safe=berachain:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 0
   },
   "blast": {
