@@ -79,3 +79,11 @@ jobs:
           args: 'Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+      - name: Send Reminder to Slack PR Review Channel
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_REVIEW }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
