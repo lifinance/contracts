@@ -1,8 +1,8 @@
+import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import type { Chain } from 'viem'
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
-import SafeApiKit from '@safe-global/api-kit'
+import Safe from '@safe-global/protocol-kit'
+import { MongoClient } from 'mongodb'
 import { ethers } from 'ethers6'
 import {
   OperationType,
@@ -23,11 +23,13 @@ const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
     const result = await func()
     return result
   } catch (e) {
+    consola.error('Error details:', {
+      error: e,
+      remainingRetries: retries - 1,
+    })
     if (retries > 0) {
-      consola.error('Retry after error:', e)
       return retry(func, retries - 1)
     }
-
     throw e
   }
 }
@@ -72,12 +74,13 @@ const main = defineCommand({
   async run({ args }) {
     const chain = getViemChainForNetworkName(args.network)
 
-    const config: SafeApiKitConfig = {
-      chainId: BigInt(chain.id),
-      txServiceUrl: networks[args.network.toLowerCase()].safeApiUrl,
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is required')
     }
 
-    const safeService = new SafeApiKit(config)
+    const mongoClient = new MongoClient(process.env.MONGODB_URI)
+    const db = mongoClient.db('SAFE')
+    const pendingTransactions = db.collection('pendingTransactions')
 
     const safeAddress = networks[args.network.toLowerCase()].safeAddress
 
@@ -85,18 +88,25 @@ const main = defineCommand({
     const provider = new ethers.JsonRpcProvider(rpcUrl)
     const signer = new ethers.Wallet(args.privateKey, provider)
 
-    const ethAdapter = new EthersAdapter({
-      ethers,
-      signerOrProvider: signer,
+    const protocolKit = await Safe.init({
+      provider: rpcUrl,
+      signer: args.privateKey,
+      safeAddress,
     })
 
-    const protocolKit = await Safe.create({
-      ethAdapter,
-      safeAddress: safeAddress,
-      contractNetworks: getSafeUtilityContracts(chain.id),
-    })
+    const latestTx = await pendingTransactions
+      .find({
+        safeAddress,
+        network: args.network.toLowerCase(),
+        chainId: chain.id,
+        status: 'pending',
+      })
+      .sort({ nonce: -1 })
+      .limit(1)
+      .toArray()
 
-    const nextNonce = await safeService.getNextNonce(safeAddress)
+    const nextNonce =
+      latestTx.length > 0 ? latestTx[0].nonce + 1 : await protocolKit.getNonce()
     const safeTransactionData: SafeTransactionDataPartial = {
       to: args.to,
       value: '0',
@@ -105,29 +115,51 @@ const main = defineCommand({
       nonce: nextNonce,
     }
 
-    const safeTransaction = await protocolKit.createTransaction({
+    let safeTransaction = await protocolKit.createTransaction({
       transactions: [safeTransactionData],
     })
 
     const senderAddress = await signer.getAddress()
+    safeTransaction = await protocolKit.signTransaction(safeTransaction)
     const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
-    const signature = await protocolKit.signHash(safeTxHash)
 
     console.info('Signer Address', senderAddress)
     console.info('Safe Address', safeAddress)
     console.info('Network', chain.name)
     console.info('Proposing transaction to', args.to)
 
-    // Propose transaction to the service
-    await retry(async () => {
-      safeService.proposeTransaction({
+    // Store transaction in MongoDB
+    try {
+      const txDoc = {
         safeAddress: await protocolKit.getAddress(),
-        safeTransactionData: safeTransaction.data,
+        network: args.network.toLowerCase(),
+        chainId: chain.id,
+        safeTx: safeTransaction,
         safeTxHash,
-        senderAddress,
-        senderSignature: signature.data,
+        proposer: senderAddress,
+        timestamp: new Date(),
+        status: 'pending',
+      }
+
+      console.info('Attempting to insert document:', txDoc)
+
+      const result = await retry(async () => {
+        const insertResult = await pendingTransactions.insertOne(txDoc)
+        console.info('MongoDB insertion result:', insertResult)
+        return insertResult
       })
-    })
+
+      if (!result.acknowledged) {
+        throw new Error('MongoDB insert was not acknowledged')
+      }
+
+      console.info('Transaction successfully stored in MongoDB')
+    } catch (error) {
+      console.error('Failed to store transaction in MongoDB:', error)
+      throw error
+    } finally {
+      await mongoClient.close()
+    }
 
     console.info('Transaction proposed')
   },
