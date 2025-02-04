@@ -86,10 +86,10 @@ jobs:
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
-      - name: Send Discord message
-        uses: Ilshidur/action-discord@0.3.2
+      - name: Send Reminder to Slack SC-general Channel
+        uses: slackapi/slack-github-action@v2.0.0
         with:
-          args: |
-            :warning: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
