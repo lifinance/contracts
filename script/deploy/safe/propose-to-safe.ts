@@ -141,11 +141,8 @@ const main = defineCommand({
         status: 'pending',
       }
 
-      console.info('Attempting to insert document:', txDoc)
-
       const result = await retry(async () => {
         const insertResult = await pendingTransactions.insertOne(txDoc)
-        console.info('MongoDB insertion result:', insertResult)
         return insertResult
       })
 
