@@ -23,15 +23,14 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/global.json");
+        string memory json = vm.readFile(path);
 
         address[] memory priviledgedUsers = new address[](1);
         priviledgedUsers[0] = _getConfigContractAddress(path, ".pauserWallet");
 
         // the original RouteProcessor4.sol is also deployed with address(0) for _bentoBox
-        address withdrawWalletAddress = _getConfigContractAddress(
-            path,
-            ".withdrawWallet"
-        );
-        return abi.encode(address(0), priviledgedUsers, withdrawWalletAddress);
+        address refundWalletAddress = json.readAddress(".refundWallet");
+
+        return abi.encode(address(0), priviledgedUsers, refundWalletAddress);
     }
 }
