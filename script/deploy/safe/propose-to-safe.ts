@@ -2,8 +2,8 @@ import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import type { Chain } from 'viem'
 import { EthersAdapter } from '@safe-global/protocol-kit'
-const { default: SafeApiKit } = await import('@safe-global/api-kit')
 const { default: Safe } = await import('@safe-global/protocol-kit')
+const { default: SafeApiKit } = await import('@safe-global/api-kit')
 import { ethers } from 'ethers6'
 import {
   OperationType,

@@ -28123,6 +28123,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3C9a1eb020448792F299f2Fa88cbDf6dF0C51f17",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-01-23 08:52:35",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007f4babd2c7d35221e72ab67ea72cba99573a0089000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
