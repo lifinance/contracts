@@ -12,6 +12,12 @@
       "0xdac17f958d2ee523a2206206994597c13d831ec7"
     ]
   },
+  "abstract": {
+    "chainId": 2741,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "optimism": {
     "chainId": 10,
     "connextHandler": "0x8f7492DE823025b4CfaAB1D34c58963F2af5DEDA",
@@ -110,6 +116,12 @@
   },
   "lisk": {
     "chainId": 1135,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "apechain": {
+    "chainId": 33139,
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []
@@ -266,6 +278,12 @@
   },
   "taiko": {
     "chainId": 167000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "sonic": {
+    "chainId": 146,
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []

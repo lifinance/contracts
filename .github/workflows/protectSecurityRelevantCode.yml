@@ -136,6 +136,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pullNumber,
+              per_page: 100, // makes sure that only the LATEST 100 items are fetched (without this flag it gets all, starting with the first items)
             });
 
             // make sure that reviews are available

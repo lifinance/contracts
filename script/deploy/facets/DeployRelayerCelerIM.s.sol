@@ -35,9 +35,9 @@ contract DeployScript is DeployScriptBase {
         );
 
         string memory path = string.concat(root, "/config/cbridge.json");
-        string memory json = vm.readFile(path);
 
-        address messageBus = json.readAddress(
+        address messageBus = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".messageBus")
         );
 
@@ -49,9 +49,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
-
-        address diamond = json.readAddress(".LiFiDiamond");
+        address diamond = _getConfigContractAddress(path, ".LiFiDiamond");
 
         return abi.encode(refundWalletAddress, messageBus, diamond);
     }

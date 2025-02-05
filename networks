@@ -1,5 +1,7 @@
 mainnet
+abstract
 arbitrum
+apechain
 aurora
 avalanche
 base
@@ -29,6 +31,7 @@ polygonzkevm
 rootstock
 scroll
 sei
+sonic
 taiko
 worldchain
 xlayer

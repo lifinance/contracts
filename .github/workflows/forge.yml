@@ -19,12 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
-      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
-      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      # keep the rest in alphabetic order
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+      ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-
+      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
     steps:
       - uses: actions/checkout@v4.1.7
         with:
@@ -38,16 +39,14 @@ jobs:
         run: yarn install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.2.0
-        with:
-          version: nightly
+        uses: foundry-rs/foundry-toolchain@v1.3.1
 
       - name: Install Dependencies
         run: forge install
 
       - name: Run forge tests (with auto-repeat in case of error)
-        uses: Wandalen/wretry.action@v3.7.2
+        uses: Wandalen/wretry.action@v3.8.0
         with:
-          command: forge test --evm-version 'shanghai'
+          command: forge test
           attempt_limit: 10
           attempt_delay: 15000

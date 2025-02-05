@@ -1,10 +1,11 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import { getAddress } from 'viem'
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
-import SafeApiKit from '@safe-global/api-kit'
+import { EthersAdapter } from '@safe-global/protocol-kit'
+const { default: SafeApiKit } = await import('@safe-global/api-kit')
+const { default: Safe } = await import('@safe-global/protocol-kit')
 import { ethers } from 'ethers6'
-import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
+import { getSafeUtilityContracts } from './config'
 import {
   NetworksObject,
   getViemChainForNetworkName,
