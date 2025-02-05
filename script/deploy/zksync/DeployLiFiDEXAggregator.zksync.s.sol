@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         address[] memory priviledgedUsers = new address[](1);
-        priviledgedUsers[0] = _getConfigContractAddress(path, ".pauserWallet");
+        priviledgedUsers[0] = json.readAddress(".pauserWallet");
 
         // the original RouteProcessor4.sol is also deployed with address(0) for _bentoBox
         address refundWalletAddress = json.readAddress(".refundWallet");
