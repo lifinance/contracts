@@ -90,6 +90,8 @@ deploySingleContract() {
     echo ""
   fi
 
+  FILE_EXTENSION=".s.sol"
+
   # Handle ZkSync and Abstract
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm

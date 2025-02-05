@@ -60,6 +60,10 @@
       "0x79ae44B0C33FDC804EB0A6e4A1c1434565264cfE": {
         "Name": "GasZipFacet",
         "Version": "2.0.2"
+      },
+      "0xe4db6A19c9F53fB946D31772a48002e1f9cB8763": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -70,8 +74,8 @@
       "LiFiDEXAggregator": "0xFC863E1418C0C5935e7Bd9C8f3129Aa0442153DF",
       "LiFuelFeeCollector": "",
       "Permit2Proxy": "",
-      "ReceiverAcrossV3": "",
       "Receiver": "0x09f5fb29BadCF59d51ad2e64701071b8aB5c4F7A",
+      "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "0x83D2B4f5834d7aDE97E5837781ecfC99D9Cbe004",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x527868EDbF533C3Ac540f4457405f701D9d4c7c1"
