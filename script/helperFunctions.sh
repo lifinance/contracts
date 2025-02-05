@@ -860,42 +860,7 @@ function checkIfFileExists() {
     return 0
   fi
 }
-# function checkRequiredVariablesInDotEnv() {
-#   # read function arguments into variables
-#   local NETWORK=$1
 
-#   # skip for local network
-#   if [[ "$NETWORK" == "localanvil" ]]; then
-#     return 0
-#   fi
-
-#   # skip for local network
-#   if [[ "$NETWORK" == "localanvil" ]]; then
-#     return 0
-#   fi
-
-#   local PRIVATE_KEY="$PRIVATE_KEY"
-#   local RPC_URL=$(getRPCUrl "$NETWORK")
-
-#   # special handling for BSC testnet
-#   # uses same block explorer key as bsc mainnet
-#   if [[ "$NETWORK" == "bsc-testnet" ]]; then
-#     NETWORK="bsc"
-#     RPC_URL="${!ETH_NODE_URI_BSCTEST}"
-#   fi
-
-#   local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")""_ETHERSCAN_API_KEY"
-#   local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
-
-#   if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
-#     # throw error if any of the essential keys is missing
-#     error "your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
-#     return 1
-#   fi
-
-#   # all good - continue
-#   return 0
-# }
 function checkRequiredVariablesInDotEnv() {
   local NETWORK=$1
 
