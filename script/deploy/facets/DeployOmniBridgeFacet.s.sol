@@ -21,12 +21,13 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/omni.json");
-        string memory json = vm.readFile(path);
 
-        address foreignOmniBridge = json.readAddress(
+        address foreignOmniBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".foreignOmniBridge")
         );
-        address wethOmniBridge = json.readAddress(
+        address wethOmniBridge = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".wethOmniBridge")
         );
 

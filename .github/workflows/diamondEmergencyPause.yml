@@ -49,6 +49,8 @@ jobs:
           ./script/utils/diamondEMERGENCYPauseGitHub.sh
         env:
           ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+          ETH_NODE_URI_ABSTRACT: ${{ secrets.ETH_NODE_URI_ABSTRACT }}
+          ETH_NODE_URI_APECHAIN: ${{ secrets.ETH_NODE_URI_APECHAIN }}
           ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
           ETH_NODE_URI_AURORA: ${{ secrets.ETH_NODE_URI_AURORA }}
           ETH_NODE_URI_AVALANCHE: ${{ secrets.ETH_NODE_URI_AVALANCHE }}
@@ -78,6 +80,7 @@ jobs:
           ETH_NODE_URI_ROOTSTOCK: ${{ secrets.ETH_NODE_URI_ROOTSTOCK }}
           ETH_NODE_URI_SCROLL: ${{ secrets.ETH_NODE_URI_SCROLL }}
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
+          ETH_NODE_URI_SONIC: ${{ secrets.ETH_NODE_URI_SONIC }}
           ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
           ETH_NODE_URI_WORLDCHAIN: ${{ secrets.ETH_NODE_URI_WORLDCHAIN }}
           ETH_NODE_URI_XLAYER: ${{ secrets.ETH_NODE_URI_XLAYER }}

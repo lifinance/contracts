@@ -184,7 +184,7 @@ function handleNetwork() {
         echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig now"
 
         local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")
-        ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       fi
     else
       echoDebug "[network: $NETWORK] removing $FACET_CONTRACT_NAME now"

@@ -43,13 +43,13 @@ updateFacetConfig() {
   SCRIPT_PATH=$CONFIG_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
 
   DIAMOND_CONTRACT_NAME="LiFiDiamond"
-  
+
   # set flag for mutable/immutable diamond
   USE_MUTABLE_DIAMOND="true"
 
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-  
+
   for NETWORK in "${NETWORKS[@]}"; do
     # get deployer wallet balance
     echo "[info] loading deployer wallet balance for network $NETWORK..."
@@ -60,7 +60,7 @@ updateFacetConfig() {
     # ensure all required .env values are set
     checkRequiredVariablesInDotEnv $NETWORK
 
-    
+
     # repeatedly call selected script until it's succeeded or out of attempts
     ATTEMPTS=1
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
@@ -68,11 +68,11 @@ updateFacetConfig() {
 
       if [[ "$DEBUG" == *"true"* ]]; then
         # print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
         RETURN_CODE=$?
       else
         # do not print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy) 2>/dev/null
         RETURN_CODE=$?
       fi
 
