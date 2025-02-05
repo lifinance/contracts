@@ -38,7 +38,6 @@ const coreFacets = [
   'PeripheryRegistryFacet',
   'GenericSwapFacet',
   'GenericSwapFacetV3',
-  'LIFuelFacet',
   'CalldataVerificationFacet',
   'StandardizedCallFacet',
 ]
@@ -48,7 +47,6 @@ const corePeriphery = [
   'Executor',
   'Receiver',
   'FeeCollector',
-  'LiFuelFeeCollector',
   'TokenWrapper',
 ]
 

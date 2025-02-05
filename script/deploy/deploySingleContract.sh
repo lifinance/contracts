@@ -90,13 +90,10 @@ deploySingleContract() {
     echo ""
   fi
 
-  FILE_EXTENSION=".s.sol"
-
-  # Handle ZkSync
+  # Handle ZkSync and Abstract
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
-  if [[ $NETWORK == "zksync" ]]; then
-    # update the deploy script directory to point to zksync-specific scripts
+  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     FILE_EXTENSION=".zksync.s.sol"
   fi
@@ -199,7 +196,7 @@ deploySingleContract() {
     fi
   fi
 
-  if [[ $NETWORK == "zksync" ]]; then
+  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
       # Check if a zksync contract has already been deployed for a specific
       # version otherwise it might fail since create2 will try to deploy to the
       # same address
@@ -214,10 +211,10 @@ deploySingleContract() {
       # Clean all old artifacts
       rm -fr ./out
       rm -fr ./zkout
-      # Clean zksync cache
+      # # Clean zksync cache
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
-
-      # Run zksync specific fork of forge
+      #
+      # # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
 
@@ -230,7 +227,7 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    if [[ $NETWORK == "zksync" ]]; then
+    if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
       # Deploy zksync scripts using the zksync specific fork of forge
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
