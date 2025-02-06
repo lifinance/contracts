@@ -92,11 +92,10 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkSync
+  # Handle ZkSync and Abstract
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
-  if [[ $NETWORK == "zksync" ]]; then
-    # update the deploy script directory to point to zksync-specific scripts
+  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     FILE_EXTENSION=".zksync.s.sol"
   fi
@@ -199,7 +198,7 @@ deploySingleContract() {
     fi
   fi
 
-  if [[ $NETWORK == "zksync" ]]; then
+  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
       # Check if a zksync contract has already been deployed for a specific
       # version otherwise it might fail since create2 will try to deploy to the
       # same address
@@ -214,10 +213,10 @@ deploySingleContract() {
       # Clean all old artifacts
       rm -fr ./out
       rm -fr ./zkout
-      # Clean zksync cache
+      # # Clean zksync cache
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
-
-      # Run zksync specific fork of forge
+      #
+      # # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
 
@@ -230,18 +229,18 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    if [[ $NETWORK == "zksync" ]]; then
+    if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync)
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
     fi
 
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
-    # echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then

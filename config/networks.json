@@ -17,6 +17,24 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=eth:0x37347dD595C49212C5FC2D95EA10d1085896f51E",
     "gasZipChainId": 255
   },
+  "abstract": {
+    "name": "abstract",
+    "chainId": 2741,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x3439153EB7AF838Ad19d56E1571FBD09333C2809",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://api.mainnet.abs.xyz",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://abscan.org",
+    "explorerApiUrl": "https://api.abscan.org/api",
+    "multicallAddress": "0xAa4De41dba0Ca5dCBb288b7cC6b708F3aaC759E7",
+    "safeApiUrl": "https://transaction.abstract-safe.protofire.io/api",
+    "safeAddress": "0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
+    "safeWebUrl": "https://abstract-safe.protofire.io/home?safe=abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
+    "gasZipChainId": 110
+  },
   "apechain": {
     "name": "Ape Chain",
     "chainId": 33139,

@@ -72,6 +72,10 @@
       "0xbb44687E13B0DdB11682FA9299F5F982Ba3cc029": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x3C9a1eb020448792F299f2Fa88cbDf6dF0C51f17": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -82,8 +86,8 @@
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0x134f525AC05E4724e55C363A9C4FA35ceB13F88d",
       "Permit2Proxy": "",
-      "ReceiverAcrossV3": "",
       "Receiver": "0x2DeB3bFa2b19024A0c1Ba299b6b79276f1F77b14",
+      "ReceiverAcrossV3": "",
       "ReceiverStargateV2": "0x6A3d6652fb7be72200a47313C092342218aAeb72",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C"
