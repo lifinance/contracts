@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Glacis Facet works by ...
+The Glacis Facet works by forwarding calls to the [GlacisAirlift](https://github.com/glacislabs/airlift-evm/blob/main/src/facets/GlacisAirliftFacet.sol) core contract on the source chain. Glacis Airlift serves as a unified interface for facilitating token bridging across various native token bridging standards, such as those employed by Axelar, LayerZero, and Wormhole. While these standards may leverage General Message Passing protocols (GMPs), the primary focus of Glacis Airlift lies in enabling seamless interaction with the token bridging mechanisms themselves.
 
 ```mermaid
 graph LR;
@@ -22,9 +22,11 @@ graph LR;
 The methods listed above take a variable labeled `_glacisData`. This data is specific to glacis and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct glacisData {
-  string example;
+/// @param refundAddress The address that would receive potential refunds on destination chain
+/// @param nativeFee The fee amount in native token required by the Glacis Airlift
+struct GlacisData {
+  address refundAddress;
+  uint256 nativeFee;
 }
 ```
 

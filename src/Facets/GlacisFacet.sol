@@ -2,39 +2,37 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IGlacisAirlift } from "../Interfaces/IGlacisAirlift.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20, SafeERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { IGlacisAirlift } from "../Interfaces/IGlacisAirlift.sol";
 
 /// @title Glacis Facet
-/// @author LI.FI (https://li.fi)
-/// @notice Integrates Glacis Airlift (a wrapper for various native token bridging standards)
+/// @author LI.FI (https://li.fi/)
+/// @notice Integration of the Glacis airlift (wrapper for native token bridging standards)
 /// @custom:version 1.0.0
 contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    using SafeTransferLib for ERC20;
     /// Storage ///
 
-    IGlacisAirlift public immutable glacisAirlift;
+    /// @notice The contract address of the glacis airlift on the source chain.
+    IGlacisAirlift public immutable airlift;
 
     /// Types ///
 
-    /// @dev Optional bridge specific struct
-    /// @param refundAddress The address that should receive potential refunds
+    /// @param refundAddress The address that would receive potential refunds on destination chain
+    /// @param nativeFee The fee amount in native token required by the Glacis Airlift
     struct GlacisData {
         address refundAddress;
+        uint256 nativeFee;
     }
 
     /// Constructor ///
-
-    /// @notice Constructor for the contract.
-    /// @param _glacisAirlift the address of the GlacisAirlift diamond contract
-    constructor(address _glacisAirlift) {
-        glacisAirlift = IGlacisAirlift(_glacisAirlift);
+    /// @notice Initializes the GlacisFacet contract
+    /// @param _airlift The address of Glacis Airlift contract.
+    constructor(IGlacisAirlift _airlift) {
+        airlift = _airlift;
     }
 
     /// External Methods ///
@@ -82,7 +80,8 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _glacisData.nativeFee
         );
         _startBridge(_bridgeData, _glacisData);
     }
@@ -96,14 +95,16 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        // forward the tokens to the glacis contract
-        ERC20(_bridgeData.sendingAssetId).transfer(
-            address(glacisAirlift),
+        // Transfer the tokens to the Airlift contract.
+        // This step ensures that the tokens are already in place before calling the `send` function.
+        // The `send` function assumes the tokens are pre-transferred to the contract.
+        SafeERC20.safeTransfer(
+            IERC20(_bridgeData.sendingAssetId),
+            address(airlift),
             _bridgeData.minAmount
         );
 
-        // call the glacis airlift send function to make a deposit
-        glacisAirlift.send(
+        airlift.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
             bytes32(uint256(uint160(_bridgeData.receiver))),

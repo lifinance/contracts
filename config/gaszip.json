@@ -2,7 +2,9 @@
   "gasZipRouters": {
     "---ListOfRouterAddresses---": "https://dev.gas.zip/gas/chain-support/inbound",
     "mainnet": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "abstract": "0x252fb662e4D7435D2a5DED8EC94d8932CF76C178",
     "arbitrum": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "apechain": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "avalanche": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "base": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "bsc": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
@@ -18,6 +20,7 @@
     "optimism": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "polygon": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "scroll": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "sonic": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "taiko": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "worldchain": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "xlayer": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",

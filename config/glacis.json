@@ -1,6 +1,12 @@
 {
-  "glacisAirlift": {
-    "mainnet": "toBeAdded",
-    "anynet": "toBeAdded"
+  "important": "these values are test deployments only. We need to update this file when Glacis has deployed their final versions",
+  "arbitrum": {
+    "airlift": "0xE0A049955E18CFfd09C826C2c2e965439B6Ab272"
+  },
+  "optimism": {
+    "airlift": "0x1B388F7ee9e44BD5aA0b13ca9dF35F2489F1c717"
+  },
+  "base": {
+    "airlift": "0x56e20a6260644cc9f0b7d79a8c8e1e3fabc15cea"
   }
 }

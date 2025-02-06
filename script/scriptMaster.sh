@@ -43,7 +43,9 @@ scriptMaster() {
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
 
   # make sure that all compiled artifacts are current
-  forge build
+  if [[ "$COMPILE_ON_STARTUP" == "true" ]]; then
+    forge build
+  fi
 
   # start local anvil network if flag in config is set
   if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then
@@ -105,7 +107,7 @@ scriptMaster() {
       "8) Verify all unverified contracts" \
       "9) Review deploy status (vs. target state)" \
       "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
-      "11) Update all diamond log files" \
+      "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE"
   )
 
@@ -132,14 +134,18 @@ scriptMaster() {
     # We need to make sure that the zksync fork of foundry is available before
     # we can deploy contracts to zksync.
     if [[ $NETWORK == "zksync" ]]; then
-      # Use zksync specific scripts
+      # update the deploy script directory to point to zksync-specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
+      # get user-selected deploy script and contract from list
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    else
+      # get user-selected deploy script and contract from list
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     fi
-  
-    # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+
+    # extract contract name
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for

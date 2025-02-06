@@ -44,7 +44,6 @@ jobs:
           #### check if any members were returned
           if [[ -z $MEMBERS ]]; then
             echo -e "\033[31mERROR: Could not retrieve team members of group $TEAM_SLUG\033[0m"
-            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 1
           fi
 
@@ -52,11 +51,10 @@ jobs:
           echo "$MEMBERS"
 
           echo -e "$MEMBERS" > sc_core_dev_members.txt
-          echo "CONTINUE=true" >> "$GITHUB_ENV"
 
       - name: Check if PR is approved by at least one SC core dev
         id: check-core-dev-approval
-        if: env.CONTINUE == 'true'
+        if: success()
         uses: actions/github-script@v7
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.review.pull_request.number }}
@@ -82,11 +80,12 @@ jobs:
               return;
             }
 
-            // get all reviewers that have approved this PR
+            // Fetch only the latest 100 reviews
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pullNumber,
+              per_page: 100, // makes sure that only the LATEST 100 items are fetched (without this flag it gets all, starting with the first items)
             });
 
             // make sure that reviews are available

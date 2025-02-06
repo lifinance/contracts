@@ -20,14 +20,13 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // If you don't have a constructor or it doesn't take any arguments, you can remove this function
         string memory path = string.concat(root, "/config/glacis.json");
         string memory json = vm.readFile(path);
 
-        address example = json.readAddress(
-            string.concat(".glacisAirlift.", network)
+        address airlift = json.readAddress(
+            string.concat(".", network, ".airlift")
         );
 
-        return abi.encode(example);
+        return abi.encode(airlift);
     }
 }

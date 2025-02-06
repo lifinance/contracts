@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
     "target": "es2020",
-    "module": "commonjs",
+    "module": "ESNext",
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
@@ -11,12 +12,5 @@
     "lib": ["es2020", "DOM"],
     "types": ["node"]
   },
-  "include": [
-    "hardhat.config.ts",
-    "./script",
-    "./deploy",
-    "./test",
-    "typechain/**/*",
-    "config"
-  ]
+  "include": ["./script", "./deploy", "./test", "typechain/**/*", "config"]
 }
