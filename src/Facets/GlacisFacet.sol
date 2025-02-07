@@ -95,10 +95,10 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        // Transfer the tokens to the Airlift contract.
-        // This step ensures that the tokens are already in place before calling the `send` function.
-        // The `send` function assumes the tokens are pre-transferred to the contract.
-        SafeERC20.safeTransfer(
+        // Approve the Airlift contract to spend the required amount of tokens.
+        // The `send` function assumes that the caller has already approved the token transfer,
+        // ensuring that the cross-chain transaction and token transfer happen atomically.
+        LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(airlift),
             _bridgeData.minAmount

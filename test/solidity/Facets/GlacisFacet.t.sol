@@ -376,7 +376,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 contract GlacisFacetWormholeTest is GlacisFacetTestBase {
     function setUp() public virtual override {
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
-        customBlockNumberForForking = 298468086;
+        customBlockNumberForForking = 303669576;
 
         airliftContract = IGlacisAirlift(
             0xE0A049955E18CFfd09C826C2c2e965439B6Ab272
@@ -392,7 +392,7 @@ contract GlacisFacetWormholeTest is GlacisFacetTestBase {
 contract GlacisFacetLINKTest is GlacisFacetTestBase {
     function setUp() public virtual override {
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
-        customBlockNumberForForking = 25427676;
+        customBlockNumberForForking = 26082794;
 
         airliftContract = IGlacisAirlift(
             0x56E20A6260644CC9F0B7d79a8C8E1e3Fabc15CEA
