@@ -3,6 +3,9 @@ import { defineCommand, runMain } from 'citty'
 import type { Chain } from 'viem'
 import Safe from '@safe-global/protocol-kit'
 import { MongoClient } from 'mongodb'
+import { EthersAdapter } from '@safe-global/protocol-kit'
+const { default: Safe } = await import('@safe-global/protocol-kit')
+const { default: SafeApiKit } = await import('@safe-global/api-kit')
 import { ethers } from 'ethers6'
 import {
   OperationType,

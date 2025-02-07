@@ -5,7 +5,7 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("CalldataVerificationFacetFacet") {}
+    constructor() DeployScriptBase("CalldataVerificationFacet") {}
 
     function run() public returns (CalldataVerificationFacet deployed) {
         deployed = CalldataVerificationFacet(
