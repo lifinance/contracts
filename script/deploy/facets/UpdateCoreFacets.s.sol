@@ -9,6 +9,7 @@ import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
