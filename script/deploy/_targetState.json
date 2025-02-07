@@ -18,7 +18,6 @@
         "ERC20Proxy": "1.1.0",
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
-        "FeeCollector": "1.0.1",
         "Receiver": "2.1.0",
         "LiFuelFeeCollector": "1.0.2",
         "TokenWrapper": "1.1.0",

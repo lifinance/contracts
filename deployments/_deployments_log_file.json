@@ -760,20 +760,6 @@
           }
         ]
       }
-    },
-    "berachain": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x53d3837f141655a62ddc6778aB8d9eE80b9e60FF",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-02-07 10:19:11",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "20250207",
-            "VERIFIED": "true"
-          }
-        ]
-      }
     }
   },
   "DiamondLoupeFacet": {
