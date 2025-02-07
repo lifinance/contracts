@@ -39,7 +39,6 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "GasZipFacet": "2.0.2",
-        "GasZipFacet": "2.0.2",
         "GnosisBridgeFacet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
@@ -96,7 +95,6 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.2",
         "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
@@ -221,7 +219,6 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "GasZipFacet": "2.0.2",
-        "GasZipFacet": "2.0.2",
         "MayanFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "SquidFacet": "1.0.0",
@@ -261,7 +258,6 @@
         "AmarokFacetPacked": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "GasZipFacet": "2.0.2",
-        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -297,7 +293,6 @@
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.2",
         "GasZipFacet": "2.0.2",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0"
@@ -336,7 +331,6 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.2",
         "GasZipFacet": "2.0.2",
         "MayanFacet": "1.0.0",
         "RelayFacet": "1.0.0",
@@ -387,7 +381,6 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.2",
         "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
@@ -440,7 +433,6 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "GasZipFacet": "2.0.2",
         "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
@@ -703,7 +695,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "GasZipFacet": "2.0.2",
-        "GasZipFacet": "2.0.2",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -811,7 +802,6 @@
         "LiFiDEXAggregator": "1.6.0",
         "GasZipPeriphery": "1.0.1",
         "AmarokFacet": "3.0.0",
-        "GasZipFacet": "2.0.2",
         "GasZipFacet": "2.0.2",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
@@ -1019,7 +1009,6 @@
         "TokenWrapper": "1.1.0",
         "LiFiDEXAggregator": "1.6.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1343,7 +1332,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "GasZipFacet": "2.0.2"
-        "GasZipFacet": "2.0.2"
       }
     }
   },
@@ -1458,7 +1446,6 @@
         "AcrossFacetV3": "1.0.0",
         "AcrossFacetPackedV3": "1.0.0",
         "ReceiverAcrossV3": "1.0.0",
-        "GasZipFacet": "2.0.2"
         "GasZipFacet": "2.0.2"
       }
     }
