@@ -1,6 +1,13 @@
 import { defineCommand, runMain } from 'citty'
-import { Abi, Chain, Hex, decodeFunctionData, parseAbi } from 'viem'
-import Safe from '@safe-global/protocol-kit'
+import {
+  Abi,
+  Chain,
+  Hex,
+  decodeFunctionData,
+  parseAbi,
+  toFunctionSelector,
+} from 'viem'
+const { default: Safe } = await import('@safe-global/protocol-kit')
 import { MongoClient } from 'mongodb'
 import { ethers } from 'ethers6'
 import consola from 'consola'
@@ -165,24 +172,36 @@ async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
-      consola.info(`Fetching ABI for Facet Address: ${facetAddress}`)
+      consola.info(
+        `Fetching ABI for Facet Address: \u001b[34m${facetAddress}\u001b[0m`
+      )
       const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
       const response = await fetch(url)
       const resData = await response.json()
       consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
       if (resData && resData.abi) {
-        consola.info(`Contract Name: ${resData.name || 'unknown'}`)
+        consola.info(
+          `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
+        )
+
         for (const selector of selectors) {
-          let decodedSignature = `function unknown() [${selector}]`
           try {
-            const decoded = decodeFunctionData({
-              abi: resData.abi,
-              data: selector,
+            // Find matching function in ABI
+            const matchingFunction = resData.abi.find((abiItem: any) => {
+              if (abiItem.type !== 'function') return false
+              const calculatedSelector = toFunctionSelector(abiItem)
+              return calculatedSelector === selector
             })
-            decodedSignature = `function ${decoded.functionName}() [${selector}]`
-            consola.info(decodedSignature)
+
+            if (matchingFunction) {
+              consola.info(
+                `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
+              )
+            } else {
+              consola.warn(`Unknown function [${selector}]`)
+            }
           } catch (error) {
-            consola.info(decodedSignature)
+            consola.warn(`Failed to decode selector: ${selector}`)
           }
         }
       } else {
@@ -451,12 +470,12 @@ const func = async (
     }
 
     consola.info(`Transaction:
-    Nonce:     ${tx.safeTx.data.nonce}
-    To:        ${tx.safeTx.data.to}
-    Value:     ${tx.safeTx.data.value}
-    Data:      ${tx.safeTx.data.data}
-    Proposer:  ${tx.proposer}
-    Hash:      ${tx.safeTxHash}`)
+    Nonce:     \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
+    To:        \u001b[32m${tx.safeTx.data.to}\u001b[0m
+    Value:     \u001b[32m${tx.safeTx.data.value}\u001b[0m
+    Data:      \u001b[32m${tx.safeTx.data.data}\u001b[0m
+    Proposer:  \u001b[32m${tx.proposer}\u001b[0m
+    Hash:      \u001b[32m${tx.safeTxHash}\u001b[0m`)
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]
