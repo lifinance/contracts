@@ -760,6 +760,20 @@
           }
         ]
       }
+    },
+    "berachain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x53d3837f141655a62ddc6778aB8d9eE80b9e60FF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-07 10:19:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "20250207",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -12443,10 +12457,10 @@
           {
             "ADDRESS": "0xf89Cc8190c911DB1AFd1f3B1ee711179b6867A23",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-02-07 13:11:04",
+            "TIMESTAMP": "2025-02-07 11:32:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000988764fd9f705163c530388b42dd7181eda3f502000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "2025020701",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
