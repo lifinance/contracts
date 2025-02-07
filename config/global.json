@@ -48,5 +48,17 @@
     "LiFuelFeeCollector",
     "TokenWrapper",
     "LiFiDEXAggregator"
+  ],
+  "coreFacets": [
+    "DiamondCutFacet",
+    "DiamondLoupeFacet",
+    "OwnershipFacet",
+    "DexManagerFacet",
+    "AccessManagerFacet",
+    "WithdrawFacet",
+    "PeripheryRegistryFacet",
+    "GenericSwapFacet",
+    "StandardizedCallFacet",
+    "CalldataVerificationFacet"
   ]
 }

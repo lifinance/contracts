@@ -1977,6 +1977,37 @@ function getAllNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+# Function to retrieve coreFacets from global.json
+function getCoreFacetsArray() {
+  # Ensure GLOBAL_FILE_PATH is set and not empty
+  if [[ -z "$GLOBAL_FILE_PATH" ]]; then
+    echo "Error: GLOBAL_FILE_PATH is not set or empty."
+    exit 1
+  fi
+
+  local FILE="$GLOBAL_FILE_PATH"
+  local ARRAY=()
+
+  # Ensure the global file exists
+  if [[ ! -f "$FILE" ]]; then
+    echo "Error: Global configuration file $FILE not found at $FILE."
+    exit 1
+  fi
+
+  # Read coreFacets array from JSON using jq
+  ARRAY=($(jq -r '.coreFacets[]' "$FILE"))
+
+  # Ensure the coreFacets array is not empty
+  if [[ ${#ARRAY[@]} -eq 0 ]]; then
+    echo "Error: coreFacets array is empty in $FILE."
+    exit 1
+  fi
+
+  printf '%s\n' "${ARRAY[@]}"
+}
+
+
 function getIncludedNetworksArray() {
   # prepare required variables
   local FILE="$NETWORKS_FILE_PATH"
@@ -2057,8 +2088,8 @@ function getIncludedAndSortedFacetContractsArray() {
   # get all facet contracts
   FACET_CONTRACTS=($(getIncludedFacetContractsArray "$EXCLUDE_CONFIG"))
 
-  # convert CORE_FACETS into an array
-  CORE_FACETS_ARRAY=($(echo "$CORE_FACETS" | tr ',' ' '))
+  # Get core facets from global.json
+  CORE_FACETS_ARRAY=($(getCoreFacetsArray))
 
   # initialize empty arrays for core and non-core facet contracts
   CORE_FACET_CONTRACTS=()
@@ -2417,8 +2448,9 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # get list of all core facet contracts from config
-  IFS=',' read -ra FACETS_NAMES <<<"$CORE_FACETS"
+  # Get list of all core facet contracts from global.json
+  local FACETS_NAMES=($(getCoreFacetsArray))
+
 
   # get a list of all facets that the diamond knows
   local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
