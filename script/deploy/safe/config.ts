@@ -23,7 +23,8 @@ export const getSafeUtilityContracts = (chainId: number) => {
       }
       break
     case 324:
-      // zkSync
+    case 2741:
+      // zkSync && abstract
       contractNetworks = {
         [chainId.toString()]: {
           multiSendAddress: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
