@@ -21,16 +21,6 @@ struct Fee {
 }
 
 interface IGlacisAirlift {
-    /// Registers function selectors to multiple token. A selector's function must be added to the Diamond as a facet.
-    /// @param diamondSelectors The bytes4 selector of the token's handler function.
-    /// @param facetSelectors The bytes4 selector of the token's handler function.
-    /// @param token The token to register.
-    function addSelectorsToToken(
-        bytes4[] memory diamondSelectors,
-        bytes4[] memory facetSelectors,
-        address token
-    ) external;
-
     /// Use to send a token from chain A to chain B after sending this contract the token already.
     /// This function should only be used when a smart contract calls it, so that the token's transfer
     /// and the cross-chain send are atomic within a single transaction.

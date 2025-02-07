@@ -183,6 +183,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
         // approval
         srcToken.approve(address(glacisFacet), bridgeData.minAmount);
+
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(
             address(airliftContract)
         ).quoteSend(
