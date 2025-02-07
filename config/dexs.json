@@ -191,6 +191,11 @@
     "0x6b2c0c7be2048daa9b5527982c29f48062b34d58",
     "0x57df6092665eb6058DE53939612413ff4B09114E"
   ],
+  "berachain": [
+    "0x070EC43b4222E0f17EEcD2C839cb9D1D5adeF73c",
+    "0xbf7d441A5015d92357bB41DB2552E11619D62326",
+    "0x6295b30297C254108E0bF16C70D513d2043E3d45"
+  ],
   "blast": [
     "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
     "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
@@ -862,9 +867,7 @@
     "0xf91bb752490473b8342a3e964e855b9f9a2a668e"
   ],
   "avalancheFujiTestnet": [],
-  "bscTestnet": [
-    "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"
-  ],
+  "bscTestnet": ["0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"],
   "localanvil": [],
   "mumbai": [
     "0x5215E9fd223BC909083fbdB2860213873046e45d",
