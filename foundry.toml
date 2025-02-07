@@ -24,6 +24,7 @@ script = "script/deploy/zksync"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
+abstract = "${ETH_NODE_URI_ABSTRACT}"
 apechain = "${ETH_NODE_URI_APECHAIN}"
 arbitrum = "${ETH_NODE_URI_ARBITRUM}"
 aurora = "${ETH_NODE_URI_AURORA}"
@@ -73,6 +74,7 @@ localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
+abstract = { key = "${ABSTRACT_ETHERSCAN_API_KEY}", url = "https://api.abscan.org/api", chain = "2741" }
 apechain = { key = "${APECHAIN_ETHERSCAN_API_KEY}", url = "https://api.apescan.io/api", chain = "33139" }
 arbitrum = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42161", chain = "42161" }
 aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://explorer.mainnet.aurora.dev/api", chain = "1313161554", verifier = "blockscout" }

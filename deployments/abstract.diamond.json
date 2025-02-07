@@ -1,0 +1,84 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0xA9bD7d5304a24c005D37Dc7Dfe844464F9ca718c": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xABf05526621346D3526abBa79515D3A0182bAe05": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x054A2a335812E559A2582ad79a629266F1B475A3": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x5dD995420b61deBB1071637aa19DEad85347BC53": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x5bE192BA156263af2ddc5AF633e91490Ac5828e6": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.1"
+      },
+      "0xe24756bC0f197AB82660Ec4312987FBB9a8420f5": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x192C2Efe1A5E38cc65A0a85fe887aE64F6D297E3": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0xDD5ae29dfA6634b186C8f842064A12a09bE9d2F8": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0x67Ae9269BB0363d4d1171eFCB750AAA0D62c0903": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x8A942C47151Ee6209c5De84Aa033678eE9663787": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
+      },
+      "0x481e2911229B05CcA1b912f73201D54D87155730": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.1.0"
+      },
+      "0x93452E214CF7cE333Ea1c4139FF9ACd81B4399a9": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.2.0"
+      },
+      "0xa408554D876FC52533EDFaA8f7D298912f4B905d": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
+      },
+      "0x52c10d81CcfF1DE7c510e0BA26ECaD66816e1e8D": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0x79ae44B0C33FDC804EB0A6e4A1c1434565264cfE": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.2"
+      },
+      "0xe4db6A19c9F53fB946D31772a48002e1f9cB8763": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0x3C2b4f5916AFe9b9e7cA8F5944e776a713035e01",
+      "Executor": "0xbA3274Ff65466bDC217745dC276394da4Ffe02b7",
+      "FeeCollector": "0xde6A2171959d7b82aAD8e8B14cc84684C3a186AC",
+      "GasZipPeriphery": "0x2A3e04627E554b57163C078fd1d6698A655aeA12",
+      "LiFiDEXAggregator": "0xFC863E1418C0C5935e7Bd9C8f3129Aa0442153DF",
+      "LiFuelFeeCollector": "",
+      "Permit2Proxy": "",
+      "Receiver": "0x09f5fb29BadCF59d51ad2e64701071b8aB5c4F7A",
+      "ReceiverAcrossV3": "",
+      "ReceiverStargateV2": "0x83D2B4f5834d7aDE97E5837781ecfC99D9Cbe004",
+      "RelayerCelerIM": "",
+      "TokenWrapper": "0x527868EDbF533C3Ac540f4457405f701D9d4c7c1"
+    }
+  }
+}

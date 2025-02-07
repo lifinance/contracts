@@ -64,6 +64,10 @@
       "0xb40044Bf27c2448e05e1f34ED83Ca4A3DfA54D19": {
         "Name": "GasZipFacet",
         "Version": "2.0.0"
+      },
+      "0x08F7800449ad6681bd607EF21d3cc9C9dDDaF1C8": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
