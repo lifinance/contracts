@@ -68,7 +68,7 @@ DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
 NETWORKS_FILE_PATH="./networks"
 
 # the path to the file that contains a list of all networks
-GLOBAL_FILE_PATH="./global"
+GLOBAL_FILE_PATH="$(dirname "$0")/../config/global.json"
 
 # script will use all periphery contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_PERIPHERY_CONTRACTS=""
