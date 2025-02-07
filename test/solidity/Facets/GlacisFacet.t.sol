@@ -379,7 +379,7 @@ contract GlacisFacetWormholeTest is GlacisFacetTestBase {
         customBlockNumberForForking = 303669576;
 
         airliftContract = IGlacisAirlift(
-            0xE0A049955E18CFfd09C826C2c2e965439B6Ab272
+            0xD9E7f6f7Dc7517678127D84dBf0F0b4477De14E0
         );
         ADDRESS_SRC_TOKEN = 0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91; // address of W token on Arbitrum network
         destinationChainId = 10;
@@ -395,7 +395,7 @@ contract GlacisFacetLINKTest is GlacisFacetTestBase {
         customBlockNumberForForking = 26082794;
 
         airliftContract = IGlacisAirlift(
-            0x56E20A6260644CC9F0B7d79a8C8E1e3Fabc15CEA
+            0x30095227Eb6d72FA6c09DfdeFFC766c33f7FA2DD
         );
         ADDRESS_SRC_TOKEN = 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196; // address of LINK token on Base network
         destinationChainId = 34443;
