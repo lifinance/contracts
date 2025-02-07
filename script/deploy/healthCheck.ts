@@ -2,12 +2,10 @@
 import { consola } from 'consola'
 import { $, spinner } from 'zx'
 import { defineCommand, runMain } from 'citty'
-import * as chains from 'viem/chains'
 import * as path from 'path'
 import * as fs from 'fs'
 import {
   Address,
-  Chain,
   Hex,
   PublicClient,
   createPublicClient,
@@ -20,7 +18,6 @@ import {
   Network,
   networks,
   getViemChainForNetworkName,
-  type NetworksObject,
 } from '../utils/viemScriptHelpers'
 
 const SAFE_THRESHOLD = 3
@@ -39,7 +36,7 @@ const coreFacets = [
   'GenericSwapFacet',
   'GenericSwapFacetV3',
   'CalldataVerificationFacet',
-  'StandardizedCallFacet',
+  // 'StandardizedCallFacet',
 ]
 
 const corePeriphery = [
