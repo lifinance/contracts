@@ -1,0 +1,54 @@
+name: Health Check for New Network Deployment
+
+on:
+  push:
+    paths:
+      - 'networks.json'
+  pull_request:
+    paths:
+      - 'networks.json'
+
+jobs:
+  check-new-network-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Detect Newly Added Networks
+        id: detect-changes
+        run: |
+          echo "Comparing networks.json with the previous commit..."
+          git fetch origin main --depth=1
+          OLD_NETWORKS=$(git show origin/main:networks.json | jq 'keys')
+          NEW_NETWORKS=$(jq 'keys' networks.json)
+          
+          echo "Old Networks: $OLD_NETWORKS"
+          echo "New Networks: $NEW_NETWORKS"
+
+          ADDED_NETWORKS=$(jq -n --argjson old "$OLD_NETWORKS" --argjson new "$NEW_NETWORKS" '$new - $old')
+
+          if [[ "$ADDED_NETWORKS" == "[]" ]]; then
+            echo "No new networks detected."
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          else
+            echo "New networks detected: $ADDED_NETWORKS"
+            echo "added_networks=$ADDED_NETWORKS" >> $GITHUB_ENV
+          fi
+
+      - name: Run Health Checks on New Networks
+        if: env.CONTINUE != 'true'
+        run: |
+          echo "Running health check for new networks..."
+          for network in $(echo $added_networks | jq -r '.[]'); do
+            echo "🔍 Checking network: $network"
+            bun run script/deploy/healthCheck.ts $network || exit 1
+          done
