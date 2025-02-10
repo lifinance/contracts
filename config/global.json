@@ -59,6 +59,8 @@
     "PeripheryRegistryFacet",
     "GenericSwapFacet",
     "StandardizedCallFacet",
-    "CalldataVerificationFacet"
+    "CalldataVerificationFacet",
+    "GenericSwapFacetV3",
+    "EmergencyPauseFacet"
   ]
 }
