@@ -2001,6 +2001,12 @@ function getCoreFacetsArray() {
     return 1
   fi
 
+  # check if the array is empty
+  if [[ ${#ARRAY[@]} -eq 0 ]]; then
+    error "The coreFacets array is empty in $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
   printf '%s\n' "${ARRAY[@]}"
 }
 

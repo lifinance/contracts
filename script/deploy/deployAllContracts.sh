@@ -86,9 +86,6 @@ deployAllContracts() {
   CORE_FACETS_OUTPUT=$(getCoreFacetsArray)
   checkFailure $? "retrieve core facets array from global.json"
 
-  # process the output:
-  # 1. use xargs to collapse the multi-line output into a single line with space-separated facets.
-  # 2. use tr to replace spaces with pipe characters.
   local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
   # loop through facet contract names
