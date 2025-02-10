@@ -15,20 +15,16 @@ import {
 dotenv.config()
 
 // #region ABIs
-
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
 const CHAINFLIP_FACET_ABI = chainflipFacetArtifact.abi as Narrow<
   typeof chainflipFacetArtifact.abi
 >
-
 // #endregion
-
-dotenv.config()
 
 async function main() {
   // === Set up environment ===
-  const srcChain: SupportedChain = 'mainnet' // Set source chain
-  const destinationChainId = 1 // Set destination chain id
+  const srcChain: SupportedChain = 'mainnet'
+  const destinationChainId = 42161 // Arbitrum
 
   const {
     client,
@@ -40,17 +36,9 @@ async function main() {
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
-  const SRC_TOKEN_ADDRESS = '' as `0x${string}` // Set the source token address here.
-
-  // If you need to retrieve a specific address from your config file
-  // based on the chain and element name, use this helper function.
-  //
-  // First, ensure you import the relevant config file:
-  // import config from '../../config/chainflip.json'
-  //
-  // Then, retrieve the address:
-  // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
-  //
+  // Using USDC on mainnet as an example
+  const SRC_TOKEN_ADDRESS =
+    '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}`
 
   // === Instantiate contracts ===
   const srcTokenContract = getContract({
@@ -59,24 +47,13 @@ async function main() {
     client,
   })
 
-  // If you need to interact with a contract, use the following helper.
-  // Provide the contract address, ABI, and a client instance to initialize
-  // the contract for both read and write operations.
-  //
-  // const exampleContract = getContract({
-  //   address: EXAMPLE_ADDRESS,
-  //   abi: EXAMPLE_ABI,
-  //   client
-  // });
-  //
-
   const srcTokenName = (await srcTokenContract.read.name()) as string
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
   const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
-  const amount = parseUnits('10', srcTokenDecimals) // 10 * 1e{source token decimals}
+  const amount = parseUnits('10', Number(srcTokenDecimals)) // 10 USDC
 
   console.info(
-    `\nBridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`
+    `\nBridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> Arbitrum`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
@@ -90,11 +67,8 @@ async function main() {
     publicClient
   )
 
-  // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
-
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
-    // Edit fields as needed
     transactionId: `0x${randomBytes(32).toString('hex')}`,
     bridge: 'chainflip',
     integrator: 'ACME Devs',
@@ -108,16 +82,17 @@ async function main() {
   }
 
   const chainflipData: ChainflipFacet.ChainflipDataStruct = {
-    // Add your specific fields for Chainflip here.
+    dstToken: 6, // Using same value as in the test
+    cfParameters: '0x', // Empty parameters as per implementation
   }
 
   // === Start bridging ===
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.startBridgeTokensViaChainflip(
-        [bridgeData, chainflipData]
-        // { value: fee } optional value
-      ),
+      lifiDiamondContract.write.startBridgeTokensViaChainflip([
+        bridgeData,
+        chainflipData,
+      ]),
     'Starting bridge tokens via Chainflip',
     publicClient,
     true
