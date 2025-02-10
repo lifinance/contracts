@@ -1978,30 +1978,27 @@ function getAllNetworksArray() {
   printf '%s\n' "${ARRAY[@]}"
 }
 
-# Function to retrieve coreFacets from global.json
+# function to retrieve coreFacets from global.json
 function getCoreFacetsArray() {
-  # Ensure GLOBAL_FILE_PATH is set and not empty
+  # ensure GLOBAL_FILE_PATH is set and not empty
   if [[ -z "$GLOBAL_FILE_PATH" ]]; then
-    echo "Error: GLOBAL_FILE_PATH is not set or empty."
-    exit 1
+    error "GLOBAL_FILE_PATH is not set or empty." >&2
+    return 1
   fi
 
-  local FILE="$GLOBAL_FILE_PATH"
   local ARRAY=()
 
-  # Ensure the global file exists
-  if [[ ! -f "$FILE" ]]; then
-    echo "Error: Global configuration file $FILE not found at $FILE."
-    exit 1
+  # ensure the global file exists
+  if [[ ! -f "$GLOBAL_FILE_PATH" ]]; then
+    error "Global configuration file not found at $GLOBAL_FILE_PATH ." >&2
+    return 1
   fi
 
-  # Read coreFacets array from JSON using jq
-  ARRAY=($(jq -r '.coreFacets[]' "$FILE"))
-
-  # Ensure the coreFacets array is not empty
-  if [[ ${#ARRAY[@]} -eq 0 ]]; then
-    echo "Error: coreFacets array is empty in $FILE."
-    exit 1
+  # read coreFacets array from JSON using jq
+  ARRAY=($(jq -r '.coreFacets[]' "$GLOBAL_FILE_PATH"))
+  if [[ $? -ne 0 ]]; then
+    error "Failed to parse coreFacets array from $GLOBAL_FILE_PATH." >&2
+    return 1
   fi
 
   printf '%s\n' "${ARRAY[@]}"
@@ -2090,6 +2087,7 @@ function getIncludedAndSortedFacetContractsArray() {
 
   # Get core facets from global.json
   CORE_FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # initialize empty arrays for core and non-core facet contracts
   CORE_FACET_CONTRACTS=()
@@ -2448,8 +2446,9 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # Get list of all core facet contracts from global.json
-  local FACETS_NAMES=($(getCoreFacetsArray))
+  # get list of all core facet contracts from global.json
+  FACETS_NAMES=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
 
   # get a list of all facets that the diamond knows

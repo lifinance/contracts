@@ -31,7 +31,8 @@ deployCoreFacets() {
   echo ""
 
   # get list of all core facet contracts
-  local FACETS_ARRAY=($(getCoreFacetsArray))
+  FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # loop through all contracts
   for CONTRACT in "${FACETS_ARRAY[@]}"; do
