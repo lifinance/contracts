@@ -58,7 +58,6 @@
     "WithdrawFacet",
     "PeripheryRegistryFacet",
     "GenericSwapFacet",
-    "StandardizedCallFacet",
     "CalldataVerificationFacet",
     "GenericSwapFacetV3",
     "EmergencyPauseFacet"
