@@ -2,37 +2,49 @@
 
 ## How it works
 
-The Chainflip Facet works by ...
+The Chainflip Facet enables cross-chain token transfers using Chainflip's protocol. It supports both EVM chains (Ethereum, Arbitrum) and non-EVM chains (Solana, Bitcoin) as destinations.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->ChainflipFacet;
-    ChainflipFacet -- CALL --> C(Chainflip)
+    ChainflipFacet -- CALL --> ChainflipVault[Chainflip Vault]
 ```
 
 ## Public Methods
 
 - `function startBridgeTokensViaChainflip(BridgeData calldata _bridgeData, ChainflipData calldata _chainflipData)`
-  - Simply bridges tokens using chainflip
-- `swapAndStartBridgeTokensViaChainflip(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, chainflipData memory _chainflipData)`
-  - Performs swap(s) before bridging tokens using chainflip
+  - Bridges tokens using Chainflip without performing any swaps
+- `swapAndStartBridgeTokensViaChainflip(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, ChainflipData memory _chainflipData)`
+  - Performs swap(s) before bridging tokens using Chainflip
 
-## chainflip Specific Parameters
+## Chainflip Specific Parameters
 
-The methods listed above take a variable labeled `_chainflipData`. This data is specific to chainflip and is represented as the following struct type:
+The methods listed above take a variable labeled `_chainflipData`. This data is specific to Chainflip and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct chainflipData {
-  string example;
+struct ChainflipData {
+    uint32 dstToken;      // Token identifier on the destination chain
+    bytes32 nonEvmAddress; // Destination address for non-EVM chains (Solana, Bitcoin)
+    bytes cfParameters;    // Additional parameters for future features
 }
 ```
+
+For non-EVM destinations (Solana, Bitcoin), set the `receiver` in `BridgeData` to `LibAsset.NON_EVM_ADDRESS` and provide the destination address in `nonEvmAddress`.
+
+## Supported Chains
+
+The facet supports the following chains with their respective IDs:
+
+- Ethereum (1)
+- Arbitrum (42161)
+- Solana (1151111081099710)
+- Bitcoin (20000000000001)
 
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata that can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
@@ -77,16 +89,16 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 
 ### Cross Only
 
-To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
+To get a transaction for a transfer from USDC on Ethereum to USDC on Arbitrum you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=chainflip&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=1000000&fromToken=USDC&toChain=ARB&toToken=USDC&slippage=0.03&allowBridges=chainflip&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
 
-To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
+To get a transaction for a transfer from USDT on Ethereum to USDC on Arbitrum you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=chainflip&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=1000000&fromToken=USDT&toChain=ARB&toToken=USDC&slippage=0.03&allowBridges=chainflip&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
