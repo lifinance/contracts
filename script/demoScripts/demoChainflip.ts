@@ -83,6 +83,8 @@ async function main() {
 
   const chainflipData: ChainflipFacet.ChainflipDataStruct = {
     dstToken: 6, // Using same value as in the test
+    nonEvmAddress:
+      '0x0000000000000000000000000000000000000000000000000000000000000000',
     cfParameters: '0x', // Empty parameters as per implementation
   }
 

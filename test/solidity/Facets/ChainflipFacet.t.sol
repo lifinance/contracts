@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 using stdJson for string;
@@ -24,6 +25,11 @@ contract ChainflipFacetTest is TestBaseFacet {
     ChainflipFacet.ChainflipData internal validChainflipData;
     TestChainflipFacet internal chainflipFacet;
     address internal CHAINFLIP_VAULT;
+
+    uint256 internal constant CHAIN_ID_ETHEREUM = 1;
+    uint256 internal constant CHAIN_ID_ARBITRUM = 42161;
+    uint256 internal constant CHAIN_ID_SOLANA = 1151111081099710;
+    uint256 internal constant CHAIN_ID_BITCOIN = 20000000000001;
 
     function setUp() public {
         customBlockNumberForForking = 18277082;
@@ -74,6 +80,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // produce valid ChainflipData
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 6,
+            nonEvmAddress: bytes32(0), // Default to empty for EVM addresses
             cfParameters: ""
         });
     }
@@ -137,5 +144,94 @@ contract ChainflipFacetTest is TestBaseFacet {
                 validChainflipData
             );
         }
+    }
+
+    function test_CanBridgeTokensToSolana()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = CHAIN_ID_SOLANA;
+        validChainflipData = ChainflipFacet.ChainflipData({
+            dstToken: 6,
+            nonEvmAddress: bytes32(
+                abi.encodePacked(
+                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
+                )
+            ), // Example Solana address
+            cfParameters: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeTokensToBitcoin()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
+        validChainflipData = ChainflipFacet.ChainflipData({
+            dstToken: 6,
+            nonEvmAddress: bytes32(
+                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+            ), // Example Bitcoin address
+            cfParameters: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenUsingEmptyNonEVMAddress() public {
+        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = CHAIN_ID_SOLANA;
+        validChainflipData = ChainflipFacet.ChainflipData({
+            dstToken: 6,
+            nonEvmAddress: bytes32(0), // Empty address should fail
+            cfParameters: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(ChainflipFacet.EmptyNonEvmAddress.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 }

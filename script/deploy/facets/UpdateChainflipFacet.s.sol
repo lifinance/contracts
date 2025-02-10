@@ -21,7 +21,7 @@ contract DeployScript is UpdateScriptBase {
         return new bytes4[](0);
     }
 
-    function getCallData() internal override returns (bytes memory) {
+    function getCallData() internal pure override returns (bytes memory) {
         // No initialization needed
         return new bytes(0);
     }

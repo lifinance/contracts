@@ -17,6 +17,15 @@ import { console } from "forge-std/console.sol";
 /// @notice Allows bridging assets via Chainflip
 /// @custom:version 1.0.0
 contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Events ///
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes32 receiver
+    );
+
+    /// Errors ///
+    error EmptyNonEvmAddress();
     address public immutable chainflipVault;
 
     uint256 private constant CHAIN_ID_ETHEREUM = 1;
@@ -36,6 +45,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param cfParameters Additional metadata for future features (currently unused)
     struct ChainflipData {
         uint32 dstToken;
+        bytes32 nonEvmAddress;
         bytes cfParameters;
     }
 
@@ -120,10 +130,25 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert("ChainflipFacet: Unsupported destination chain");
         }
 
-        // Encode destination address to bytes format as required by Chainflip
-        bytes memory encodedDstAddress = abi.encodePacked(
-            _bridgeData.receiver
-        );
+        // Handle address encoding based on destination chain type
+        bytes memory encodedDstAddress;
+        if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
+            // For non-EVM chains (Solana, Bitcoin), use the raw bytes32 from chainflipData
+            if (_chainflipData.nonEvmAddress == bytes32(0)) {
+                revert EmptyNonEvmAddress();
+            }
+            encodedDstAddress = abi.encodePacked(_chainflipData.nonEvmAddress);
+
+            // Emit special event for non-EVM transfers
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _chainflipData.nonEvmAddress
+            );
+        } else {
+            // For EVM chains, encode the address
+            encodedDstAddress = abi.encodePacked(_bridgeData.receiver);
+        }
 
         // Handle native token case
         if (_bridgeData.sendingAssetId == address(0)) {
