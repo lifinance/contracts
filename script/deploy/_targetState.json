@@ -1596,7 +1596,9 @@
         "Permit2Proxy": "1.0.2",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipFacet": "2.0.2",
+        "GasZipPeriphery": "1.0.1"
       }
     }
   }
