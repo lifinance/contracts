@@ -36,7 +36,7 @@ const coreFacets = [
   'GenericSwapFacet',
   'GenericSwapFacetV3',
   'CalldataVerificationFacet',
-  // 'StandardizedCallFacet',
+  'StandardizedCallFacet',
 ]
 
 const corePeriphery = [
