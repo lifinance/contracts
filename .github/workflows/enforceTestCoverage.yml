@@ -7,6 +7,8 @@ name: Enforce Min Test Coverage
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**'  # Only trigger if files in src/ are modified
 
 jobs:
   enforce-min-test-coverage:
