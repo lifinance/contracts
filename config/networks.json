@@ -141,7 +141,7 @@
     "safeApiUrl": "https://transaction.safe.berachain.com/api",
     "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "safeWebUrl": "https://safe.berachain.com/home?safe=berachain:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
-    "gasZipChainId": 0
+    "gasZipChainId": 143
   },
   "blast": {
     "name": "blast",
