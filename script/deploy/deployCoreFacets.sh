@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # deploys all "core facet" contracts to the given network/environment
-# core facets are contracts that are listed under CORE_FACETS in config.sh
+# core facets are contracts that are listed under coreFacets in global.json
 deployCoreFacets() {
   echo ""
   echo ""
@@ -31,7 +31,8 @@ deployCoreFacets() {
   echo ""
 
   # get list of all core facet contracts
-  IFS=',' read -ra FACETS_ARRAY <<< "$CORE_FACETS"
+  FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # loop through all contracts
   for CONTRACT in "${FACETS_ARRAY[@]}"; do
