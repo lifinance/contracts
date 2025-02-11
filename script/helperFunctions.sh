@@ -1977,6 +1977,40 @@ function getAllNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+# function to retrieve coreFacets from global.json
+function getCoreFacetsArray() {
+  # ensure GLOBAL_FILE_PATH is set and not empty
+  if [[ -z "$GLOBAL_FILE_PATH" ]]; then
+    error "GLOBAL_FILE_PATH is not set or empty." >&2
+    return 1
+  fi
+
+  local ARRAY=()
+
+  # ensure the global file exists
+  if [[ ! -f "$GLOBAL_FILE_PATH" ]]; then
+    error "Global configuration file not found at $GLOBAL_FILE_PATH ." >&2
+    return 1
+  fi
+
+  # read coreFacets array from JSON using jq
+  ARRAY=($(jq -r '.coreFacets[]' "$GLOBAL_FILE_PATH"))
+  if [[ $? -ne 0 ]]; then
+    error "Failed to parse coreFacets array from $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  # check if the array is empty
+  if [[ ${#ARRAY[@]} -eq 0 ]]; then
+    error "The coreFacets array is empty in $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  printf '%s\n' "${ARRAY[@]}"
+}
+
+
 function getIncludedNetworksArray() {
   # prepare required variables
   local FILE="$NETWORKS_FILE_PATH"
@@ -2057,8 +2091,9 @@ function getIncludedAndSortedFacetContractsArray() {
   # get all facet contracts
   FACET_CONTRACTS=($(getIncludedFacetContractsArray "$EXCLUDE_CONFIG"))
 
-  # convert CORE_FACETS into an array
-  CORE_FACETS_ARRAY=($(echo "$CORE_FACETS" | tr ',' ' '))
+  # Get core facets from global.json
+  CORE_FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # initialize empty arrays for core and non-core facet contracts
   CORE_FACET_CONTRACTS=()
@@ -2417,8 +2452,10 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # get list of all core facet contracts from config
-  IFS=',' read -ra FACETS_NAMES <<<"$CORE_FACETS"
+  # get list of all core facet contracts from global.json
+  FACETS_NAMES=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
+
 
   # get a list of all facets that the diamond knows
   local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
