@@ -17,15 +17,15 @@ jobs:
         id: check-file-change
         run: |
           if git diff --name-only origin/main...HEAD | grep -q "config/networks.json"; then
-            echo "✅ config/networks.json has been modified in this branch"
-            echo "run_check=true" >> $GITHUB_ENV
+            echo "config/networks.json has been modified in this branch"
+            echo "CONTINUE=true" >> $GITHUB_ENV
           else
-            echo "❌ No changes in config/networks.json detected in this branch"
-            echo "run_check=false" >> $GITHUB_ENV
+            echo "No changes in config/networks.json detected in this branch"
+            echo "CONTINUE=false" >> $GITHUB_ENV
           fi
 
       - name: Detect Newly Added Networks
-        if: env.run_check == 'true'
+        if: env.CONTINUE == 'true'
         id: detect-changes
         run: |
           echo "Comparing config/networks.json with the previous commit..."
@@ -47,14 +47,14 @@ jobs:
 
           if [[ "$ADDED_NETWORKS" == "[]" ]]; then
             echo "No new networks detected."
-            echo "skip_check=true" >> $GITHUB_ENV
+            echo "SKIP_CHECK=true" >> $GITHUB_ENV
           else
             echo "New networks detected: $ADDED_NETWORKS"
             echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
           fi
 
       - name: Validate Network Deployment Files
-        if: env.run_check == 'true' && env.skip_check != 'true'
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
           echo "Validating required files for new networks..."
           for network in $(echo $added_networks | jq -r '.[]'); do
@@ -74,21 +74,21 @@ jobs:
           done
 
       - name: Install Bun
-        if: env.run_check == 'true' && env.skip_check != 'true'
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install Foundry (provides cast)
-        if: env.run_check == 'true' && env.skip_check != 'true'
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Install dependencies
-        if: env.run_check == 'true' && env.skip_check != 'true'
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: bun install
 
       - name: Run Health Checks on New Networks
-        if: env.run_check == 'true' && env.skip_check != 'true'
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
           echo "Running health check for new networks..."
           set -e
