@@ -2,11 +2,7 @@ name: Health Check for New Network Deployment
 
 on:
   push:
-    paths:
-      - 'networks.json'
   pull_request:
-    paths:
-      - 'networks.json'
 
 jobs:
   check-new-network-health:
@@ -14,23 +10,36 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          fetch-depth: 0 
 
-      - name: Install dependencies
-        run: bun install
+      - name: Check if config/networks.json was changed in this branch
+        id: check-file-change
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -q "config/networks.json"; then
+            echo "✅ config/networks.json has been modified in this branch"
+            echo "run_check=true" >> $GITHUB_ENV
+          else
+            echo "❌ No changes in config/networks.json detected in this branch"
+            echo "run_check=false" >> $GITHUB_ENV
+          fi
 
       - name: Detect Newly Added Networks
+        if: env.run_check == 'true'
         id: detect-changes
         run: |
-          echo "Comparing networks.json with the previous commit..."
-          git fetch origin main --depth=1
-          OLD_NETWORKS=$(git show origin/main:networks.json | jq 'keys')
-          NEW_NETWORKS=$(jq 'keys' networks.json)
-          
+          echo "Comparing config/networks.json with the previous commit..."
+          git fetch origin main --depth=1 || echo "No previous commit found."
+
+          if git show origin/main:config/networks.json > /dev/null 2>&1; then
+            OLD_NETWORKS=$(git show origin/main:config/networks.json | jq 'keys')
+          else
+            echo "No previous networks.json found, assuming all networks are new."
+            OLD_NETWORKS="[]"
+          fi
+
+          NEW_NETWORKS=$(jq 'keys' config/networks.json)
+
           echo "Old Networks: $OLD_NETWORKS"
           echo "New Networks: $NEW_NETWORKS"
 
@@ -38,17 +47,53 @@ jobs:
 
           if [[ "$ADDED_NETWORKS" == "[]" ]]; then
             echo "No new networks detected."
-            echo "CONTINUE=true" >> $GITHUB_ENV
+            echo "skip_check=true" >> $GITHUB_ENV
           else
             echo "New networks detected: $ADDED_NETWORKS"
-            echo "added_networks=$ADDED_NETWORKS" >> $GITHUB_ENV
+            echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
           fi
 
+      - name: Validate Network Deployment Files
+        if: env.run_check == 'true' && env.skip_check != 'true'
+        run: |
+          echo "Validating required files for new networks..."
+          for network in $(echo $added_networks | jq -r '.[]'); do
+            echo "🔍 Checking files for network: $network"
+
+            # Check if network exists in _targetState.json
+            if ! jq -e 'has("'"$network"'")' script/deploy/_targetState.json > /dev/null; then
+              echo "❌ Error: Network '$network' not found in script/deploy/_targetState.json"
+              exit 1
+            fi
+
+            # Check if deployments/{network}.json file exists
+            if [[ ! -f "deployments/$network.json" ]]; then
+              echo "❌ Error: Missing deployment file: deployments/$network.json"
+              exit 1
+            fi
+          done
+
+      - name: Install Bun
+        if: env.run_check == 'true' && env.skip_check != 'true'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Foundry (provides cast)
+        if: env.run_check == 'true' && env.skip_check != 'true'
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        if: env.run_check == 'true' && env.skip_check != 'true'
+        run: bun install
+
       - name: Run Health Checks on New Networks
-        if: env.CONTINUE != 'true'
+        if: env.run_check == 'true' && env.skip_check != 'true'
         run: |
           echo "Running health check for new networks..."
+          set -e
           for network in $(echo $added_networks | jq -r '.[]'); do
             echo "🔍 Checking network: $network"
-            bun run script/deploy/healthCheck.ts $network || exit 1
+            bun run script/deploy/healthCheck.ts --network "$network" || exit 1
           done
+
