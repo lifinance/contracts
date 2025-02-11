@@ -26,11 +26,14 @@ contract DeployScript is DeployScriptBase {
 
         address gatewayRouter = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".gatewayRouter")
+            string.concat(".", network, ".gatewayRouter"),
+            false
         );
+
         address inbox = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".inbox")
+            string.concat(".", network, ".inbox"),
+            false
         );
 
         return abi.encode(gatewayRouter, inbox);

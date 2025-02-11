@@ -26,7 +26,8 @@ contract DeployScript is DeployScriptBase {
 
         address connextHandler = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".connextHandler")
+            string.concat(".", network, ".connextHandler"),
+            false
         );
 
         return abi.encode(connextHandler, deployerAddress);

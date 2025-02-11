@@ -24,11 +24,13 @@ contract DeployScript is DeployScriptBase {
 
         address relayReceiver = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".relayReceiver")
+            string.concat(".", network, ".relayReceiver"),
+            false
         );
         address relaySolver = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".relaySolver")
+            string.concat(".", network, ".relaySolver"),
+            false
         );
 
         return abi.encode(relayReceiver, relaySolver);

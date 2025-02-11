@@ -26,11 +26,13 @@ contract DeployScript is DeployScriptBase {
 
         address acrossSpokePool = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".acrossSpokePool")
+            string.concat(".", network, ".acrossSpokePool"),
+            false
         );
         address weth = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".weth")
+            string.concat(".", network, ".weth"),
+            false
         );
 
         return abi.encode(acrossSpokePool, weth, deployerAddress);

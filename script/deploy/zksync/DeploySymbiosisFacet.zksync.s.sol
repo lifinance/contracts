@@ -23,11 +23,13 @@ contract DeployScript is DeployScriptBase {
 
         address metaRouter = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".metaRouter")
+            string.concat(".", network, ".metaRouter"),
+            false
         );
         address gateway = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".gateway")
+            string.concat(".", network, ".gateway"),
+            false
         );
 
         return abi.encode(metaRouter, gateway);

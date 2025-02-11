@@ -25,7 +25,8 @@ contract DeployScript is DeployScriptBase {
 
         address gasZipRouter = _getConfigContractAddress(
             path,
-            string.concat(".gasZipRouters.", network)
+            string.concat(".gasZipRouters.", network),
+            false
         );
 
         // get LiFiDEXAggregator address
@@ -40,7 +41,8 @@ contract DeployScript is DeployScriptBase {
 
         address liFiDEXAggregator = _getConfigContractAddress(
             path,
-            ".LiFiDEXAggregator"
+            ".LiFiDEXAggregator",
+            false
         );
 
         // get network's SAFE address to become contract owner for potential fund withdrawals
@@ -48,7 +50,8 @@ contract DeployScript is DeployScriptBase {
 
         address safeAddress = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".safeAddress")
+            string.concat(".", network, ".safeAddress"),
+            false
         );
 
         return abi.encode(gasZipRouter, liFiDEXAggregator, safeAddress);

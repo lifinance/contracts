@@ -26,11 +26,14 @@ contract DeployScript is DeployScriptBase {
 
         address circleBridgeProxy = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".circleBridgeProxy")
+            string.concat(".", network, ".circleBridgeProxy"),
+            false
         );
+
         address usdc = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".usdc")
+            string.concat(".", network, ".usdc"),
+            false
         );
 
         return abi.encode(circleBridgeProxy, usdc);

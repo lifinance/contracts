@@ -24,7 +24,8 @@ contract DeployScript is DeployScriptBase {
 
         address gasZipRouter = _getConfigContractAddress(
             path,
-            string.concat(".gasZipRouters.", network)
+            string.concat(".gasZipRouters.", network),
+            false
         );
 
         return abi.encode(gasZipRouter);
