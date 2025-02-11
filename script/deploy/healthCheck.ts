@@ -22,22 +22,9 @@ import {
   getViemChainForNetworkName,
   type NetworksObject,
 } from '../utils/viemScriptHelpers'
+import { coreFacets } from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
-
-const coreFacets = [
-  'DiamondCutFacet',
-  'DiamondLoupeFacet',
-  'OwnershipFacet',
-  'WithdrawFacet',
-  'DexManagerFacet',
-  'PeripheryRegistryFacet',
-  'AccessManagerFacet',
-  'PeripheryRegistryFacet',
-  'GenericSwapFacet',
-  'GenericSwapFacetV3',
-  'CalldataVerificationFacet',
-]
 
 const corePeriphery = [
   'ERC20Proxy',
