@@ -618,7 +618,7 @@ contract AcrossFacetPackedTest is TestBase {
         vm.stopPrank();
     }
 
-    function test_revert_WithdrawFailed() public {
+    function testRevert_WithdrawFailed() public {
         MockFailingContract failingContract = new MockFailingContract();
 
         vm.expectRevert(AcrossFacetPacked.WithdrawFailed.selector);

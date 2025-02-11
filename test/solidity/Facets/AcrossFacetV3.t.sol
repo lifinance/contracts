@@ -273,7 +273,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
         );
     }
 
-    function test_revert_InformationMismatch() public {
+    function testRevert_InformationMismatch() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(acrossFacetV3), type(uint256).max);
 

@@ -492,7 +492,7 @@ contract CBridgeFacetPackedTest is TestBase {
         );
     }
 
-    function testRevert_triggerRefund_OnlyOwner() public {
+    function testRevert_TriggerRefundFailsWhenCalledByNonOwner() public {
         vm.startPrank(USER_SENDER);
 
         address callTo = address(CBRIDGE_ROUTER);
@@ -514,7 +514,9 @@ contract CBridgeFacetPackedTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_triggerRefund_InvalidCallToAddress() public {
+    function testRevert_TriggerRefundFailsWhenCallToAddressIsNotAllowed()
+        public
+    {
         address callTo = address(0xdeadbeef);
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
@@ -532,8 +534,8 @@ contract CBridgeFacetPackedTest is TestBase {
         );
     }
 
-    function testRevert_triggerRefund_ExternalCallFails() public {
-        address callTo = address(CBRIDGE_ROUTER); // must match the expected `CBRIDGE_ROUTER` address
+    function testRevert_TriggerRefundFailsWhenExternalCallFails() public {
+        address callTo = CBRIDGE_ROUTER; // must match the expected `CBRIDGE_ROUTER` address
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
         address to = USER_RECEIVER;

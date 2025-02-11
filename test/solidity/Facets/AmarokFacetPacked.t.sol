@@ -413,95 +413,61 @@ contract AmarokFacetPackedTest is TestBase {
         assertEq(amarokData.relayerFee == defaultRelayerFee, true);
     }
 
-    function test_getChainIdForDomain_ETH() public {
-        uint32 domainId = 6648936;
-        uint32 expectedChainId = 1;
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(
-            result,
-            expectedChainId,
-            "ETH domainId should return chainId 1"
-        );
+    struct DomainChainTestCase {
+        uint32 domainId;
+        uint32 expectedChainId;
+        string description;
     }
 
-    function test_getChainIdForDomain_POL() public {
-        uint32 domainId = 1886350457;
-        uint32 expectedChainId = 137;
+    function test_getChainIdForValidDomains() public {
+        DomainChainTestCase[] memory testCases = new DomainChainTestCase[](7);
+        testCases[0] = DomainChainTestCase({
+            domainId: 6648936,
+            expectedChainId: 1,
+            description: "ETH domainId should return chainId 1"
+        });
+        testCases[1] = DomainChainTestCase({
+            domainId: 1886350457,
+            expectedChainId: 137,
+            description: "POL domainId should return chainId 137"
+        });
+        testCases[2] = DomainChainTestCase({
+            domainId: 6450786,
+            expectedChainId: 56,
+            description: "BSC domainId should return chainId 56"
+        });
+        testCases[3] = DomainChainTestCase({
+            domainId: 1869640809,
+            expectedChainId: 10,
+            description: "OPT domainId should return chainId 10"
+        });
+        testCases[4] = DomainChainTestCase({
+            domainId: 6778479,
+            expectedChainId: 100,
+            description: "GNO domainId should return chainId 100"
+        });
+        testCases[5] = DomainChainTestCase({
+            domainId: 1634886255,
+            expectedChainId: 42161,
+            description: "ARB domainId should return chainId 42161"
+        });
+        testCases[6] = DomainChainTestCase({
+            domainId: 1818848877,
+            expectedChainId: 59144,
+            description: "LIN domainId should return chainId 59144"
+        });
 
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
+        for (uint256 i = 0; i < testCases.length; i++) {
+            uint32 result = amarokFacetPacked.getChainIdForDomain(
+                testCases[i].domainId
+            );
 
-        assertEq(
-            result,
-            expectedChainId,
-            "POL domainId should return chainId 137"
-        );
-    }
-
-    function test_getChainIdForDomain_BSC() public {
-        uint32 domainId = 6450786;
-        uint32 expectedChainId = 56;
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(
-            result,
-            expectedChainId,
-            "BSC domainId should return chainId 56"
-        );
-    }
-
-    function test_getChainIdForDomain_OPT() public {
-        uint32 domainId = 1869640809;
-        uint32 expectedChainId = 10;
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(
-            result,
-            expectedChainId,
-            "OPT domainId should return chainId 10"
-        );
-    }
-
-    function test_getChainIdForDomain_GNO() public {
-        uint32 domainId = 6778479;
-        uint32 expectedChainId = 100;
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(
-            result,
-            expectedChainId,
-            "GNO domainId should return chainId 100"
-        );
-    }
-
-    function test_getChainIdForDomain_ARB() public {
-        uint32 domainId = 1634886255;
-        uint32 expectedChainId = 42161;
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(
-            result,
-            expectedChainId,
-            "ARB domainId should return chainId 42161"
-        );
-    }
-
-    function test_getChainIdForDomain_LIN() public {
-        uint32 domainId = 1818848877;
-        uint32 expectedChainId = 59144;
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(
-            result,
-            expectedChainId,
-            "LIN domainId should return chainId 59144"
-        );
+            assertEq(
+                result,
+                testCases[i].expectedChainId,
+                testCases[i].description
+            );
+        }
     }
 
     function test_getChainIdForDomain_InvalidDomainId() public {
@@ -512,7 +478,7 @@ contract AmarokFacetPackedTest is TestBase {
         assertEq(result, 0, "Unknown domainId should return 0");
     }
 
-    function test_revert_cannotUseRelayerFeeAboveUint128Max_ERC20() public {
+    function testRevert_cannotUseRelayerFeeAboveUint128Max_ERC20() public {
         uint256 invalidRelayerFee = uint256(type(uint128).max) + 1;
 
         vm.expectRevert("relayerFee value passed too big to fit in uint128");

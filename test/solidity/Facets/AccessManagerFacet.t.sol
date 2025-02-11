@@ -42,6 +42,7 @@ contract AccessManagerFacetTest is TestBase {
 
     function testAccessIsRestricted() public {
         vm.expectRevert(UnAuthorized.selector);
+
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }
@@ -52,6 +53,7 @@ contract AccessManagerFacetTest is TestBase {
             address(0xb33f),
             true
         );
+
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }
@@ -67,13 +69,16 @@ contract AccessManagerFacetTest is TestBase {
             address(0xb33f),
             false
         );
+
         vm.expectRevert(UnAuthorized.selector);
+
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }
 
-    function testRevertCannotAuthorizeSelf() public {
+    function testRevert_CannotAuthorizeSelf() public {
         vm.expectRevert(CannotAuthoriseSelf.selector);
+
         accessMgr.setCanExecute(
             AccessManagerFacet.setCanExecute.selector,
             address(accessMgr),
@@ -86,6 +91,7 @@ contract AccessManagerFacetTest is TestBase {
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f)
         );
+
         assertEq(canExecute, false, "Default access should be false");
     }
 
@@ -100,6 +106,7 @@ contract AccessManagerFacetTest is TestBase {
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f)
         );
+
         assertEq(canExecute, true, "Access should be granted");
     }
 
@@ -120,6 +127,7 @@ contract AccessManagerFacetTest is TestBase {
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f)
         );
+
         assertEq(canExecute, false, "Access should be revoked");
     }
 
@@ -134,6 +142,7 @@ contract AccessManagerFacetTest is TestBase {
             bytes4(keccak256("anotherMethod()")),
             address(0xb33f)
         );
+
         assertEq(
             canExecute,
             false,
@@ -152,6 +161,7 @@ contract AccessManagerFacetTest is TestBase {
             RestrictedContract.restrictedMethod.selector,
             address(0xcafe)
         );
+
         assertEq(canExecute, false, "Different executor should return false");
     }
 }
