@@ -28,6 +28,7 @@ contract DeployScript is DeployScriptBase {
             path,
             string.concat(".", network, ".gatewayRouter")
         );
+
         address inbox = _getConfigContractAddress(
             path,
             string.concat(".", network, ".inbox")
