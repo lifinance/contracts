@@ -24,8 +24,7 @@ contract DeployScript is DeployScriptBase {
 
         address composer = _getConfigContractAddress(
             path,
-            string.concat(".composers.", network),
-            false
+            string.concat(".composers.", network)
         );
 
         return abi.encode(composer);

@@ -26,13 +26,11 @@ contract DeployScript is DeployScriptBase {
 
         address rootChainManager = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".rootChainManager"),
-            false
+            string.concat(".", network, ".rootChainManager")
         );
         address erc20Predicate = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".erc20Predicate"),
-            false
+            string.concat(".", network, ".erc20Predicate")
         );
 
         return abi.encode(rootChainManager, erc20Predicate);

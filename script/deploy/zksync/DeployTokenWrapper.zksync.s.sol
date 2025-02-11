@@ -26,8 +26,7 @@ contract DeployScript is DeployScriptBase {
         // extract wrapped token address for the given network
         address wrappedNativeAddress = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".wrappedNativeAddress"),
-            false
+            string.concat(".", network, ".wrappedNativeAddress")
         );
 
         // get path of global config file

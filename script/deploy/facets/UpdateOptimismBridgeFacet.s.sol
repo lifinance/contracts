@@ -33,8 +33,7 @@ contract DeployScript is UpdateScriptBase {
 
         address standardBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".standardBridge"),
-            false
+            string.concat(".", network, ".standardBridge")
         );
 
         bytes memory rawConfig = json.parseRaw(

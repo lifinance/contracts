@@ -30,19 +30,14 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
 
-        address diamond = _getConfigContractAddress(
-            path,
-            ".LiFiDiamond",
-            false
-        );
+        address diamond = _getConfigContractAddress(path, ".LiFiDiamond");
 
         // get the Permit2 contract address for the given network
         path = string.concat(root, "/config/permit2Proxy.json");
 
         address permit2Address = _getConfigContractAddress(
             path,
-            string.concat(".", network),
-            false
+            string.concat(".", network)
         );
 
         // get the multisig SAFE address for the given network
@@ -50,8 +45,7 @@ contract DeployScript is DeployScriptBase {
 
         address safeAddress = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".safeAddress"),
-            false
+            string.concat(".", network, ".safeAddress")
         );
 
         return abi.encode(diamond, permit2Address, safeAddress);

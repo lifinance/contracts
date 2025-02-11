@@ -60,7 +60,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        address executor = _getConfigContractAddress(path, ".Executor", false);
+        address executor = _getConfigContractAddress(path, ".Executor");
 
         return
             abi.encode(

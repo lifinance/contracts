@@ -26,8 +26,7 @@ contract DeployScript is DeployScriptBase {
 
         address dlnSource = _getConfigContractAddress(
             path,
-            string.concat(".networks.", network, ".dlnSource"),
-            false
+            string.concat(".networks.", network, ".dlnSource")
         );
 
         return abi.encode(dlnSource);
