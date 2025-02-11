@@ -23,7 +23,6 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The WETH address on the current chain.
     address public immutable wrappedNative;
-    address public dd;
 
     /// Types ///
 
