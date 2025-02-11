@@ -24,8 +24,7 @@ contract DeployScript is DeployScriptBase {
 
         address cBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".cBridge"),
-            false
+            string.concat(".", network, ".cBridge")
         );
 
         return abi.encode(cBridge);

@@ -22,58 +22,38 @@ contract DeployScript is UpdateScriptBase {
     {
         address diamondLoupe = _getConfigContractAddress(
             path,
-            ".DiamondLoupeFacet",
-            false
+            ".DiamondLoupeFacet"
         );
-        address ownership = _getConfigContractAddress(
-            path,
-            ".OwnershipFacet",
-            false
-        );
-        address withdraw = _getConfigContractAddress(
-            path,
-            ".WithdrawFacet",
-            false
-        );
-        address dexMgr = _getConfigContractAddress(
-            path,
-            ".DexManagerFacet",
-            false
-        );
+        address ownership = _getConfigContractAddress(path, ".OwnershipFacet");
+        address withdraw = _getConfigContractAddress(path, ".WithdrawFacet");
+        address dexMgr = _getConfigContractAddress(path, ".DexManagerFacet");
         address accessMgr = _getConfigContractAddress(
             path,
-            ".AccessManagerFacet",
-            false
+            ".AccessManagerFacet"
         );
         address peripheryRgs = _getConfigContractAddress(
             path,
-            ".PeripheryRegistryFacet",
-            false
+            ".PeripheryRegistryFacet"
         );
         address liFuelAddress = _getConfigContractAddress(
             path,
-            ".LIFuelFacet",
-            false
+            ".LIFuelFacet"
         );
         address genSwapAddress = _getConfigContractAddress(
             path,
-            ".GenericSwapFacet",
-            false
+            ".GenericSwapFacet"
         );
         address genSwapV3Address = _getConfigContractAddress(
             path,
-            ".GenericSwapFacetV3",
-            false
+            ".GenericSwapFacetV3"
         );
         address standCallAddress = _getConfigContractAddress(
             path,
-            ".StandardizedCallFacet",
-            false
+            ".StandardizedCallFacet"
         );
         address calldVerifAddress = _getConfigContractAddress(
             path,
-            ".CalldataVerificationFacet",
-            false
+            ".CalldataVerificationFacet"
         );
 
         bytes4[] memory exclude;

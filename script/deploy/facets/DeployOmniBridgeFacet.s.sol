@@ -24,13 +24,11 @@ contract DeployScript is DeployScriptBase {
 
         address foreignOmniBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".foreignOmniBridge"),
-            false
+            string.concat(".", network, ".foreignOmniBridge")
         );
         address wethOmniBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".wethOmniBridge"),
-            false
+            string.concat(".", network, ".wethOmniBridge")
         );
 
         return abi.encode(foreignOmniBridge, wethOmniBridge);

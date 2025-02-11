@@ -29,11 +29,7 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
 
-        address erc20Proxy = _getConfigContractAddress(
-            path,
-            ".ERC20Proxy",
-            false
-        );
+        address erc20Proxy = _getConfigContractAddress(path, ".ERC20Proxy");
 
         // get path of global config file
         string memory globalConfigPath = string.concat(
