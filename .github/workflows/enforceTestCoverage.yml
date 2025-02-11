@@ -8,7 +8,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'src/**'  # Only trigger if files in src/ are modified
+      - 'src/**'
 
 jobs:
   enforce-min-test-coverage:
