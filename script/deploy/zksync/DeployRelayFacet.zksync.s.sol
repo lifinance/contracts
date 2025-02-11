@@ -25,8 +25,7 @@ contract DeployScript is DeployScriptBase {
 
         address relayReceiver = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".relayReceiver"),
-            false
+            string.concat(".", network, ".relayReceiver")
         );
 
         // the relaySolver address is the same address on all mainnets (and it's not a contract)

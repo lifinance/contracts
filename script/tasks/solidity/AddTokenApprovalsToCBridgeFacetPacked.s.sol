@@ -16,8 +16,7 @@ contract DeployScript is UpdateScriptBase {
     function run() public returns (address[] memory facets) {
         address facet = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".CBridgeFacetPacked"),
-            false
+            string.concat(".", network, ".CBridgeFacetPacked")
         );
 
         // The CBridgeFacetPacked owner is the refund wallet because we need access to trigger refunds
@@ -44,8 +43,7 @@ contract DeployScript is UpdateScriptBase {
 
         address cBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".cBridge"),
-            false
+            string.concat(".", network, ".cBridge")
         );
 
         // Filter out any already approved tokens

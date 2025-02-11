@@ -24,8 +24,7 @@ contract DeployScript is DeployScriptBase {
 
         address tokenMessaging = _getConfigContractAddress(
             path,
-            string.concat(".tokenMessaging.", network),
-            false
+            string.concat(".tokenMessaging.", network)
         );
 
         return abi.encode(tokenMessaging);

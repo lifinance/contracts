@@ -13,8 +13,8 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (bool) {
-        address executor = _getConfigContractAddress(path, ".Executor", false);
-        address receiver = _getConfigContractAddress(path, ".Receiver", false);
+        address executor = _getConfigContractAddress(path, ".Executor");
+        address receiver = _getConfigContractAddress(path, ".Receiver");
 
         return executor == address(IReceiver(receiver).executor());
     }
