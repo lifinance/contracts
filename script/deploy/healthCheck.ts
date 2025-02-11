@@ -19,25 +19,11 @@ import {
   networks,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
+import { coreFacets } from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
 
 const louperCmd = 'louper-cli'
-
-const coreFacets = [
-  'DiamondCutFacet',
-  'DiamondLoupeFacet',
-  'OwnershipFacet',
-  'WithdrawFacet',
-  'DexManagerFacet',
-  'PeripheryRegistryFacet',
-  'AccessManagerFacet',
-  'PeripheryRegistryFacet',
-  'GenericSwapFacet',
-  'GenericSwapFacetV3',
-  'CalldataVerificationFacet',
-  'StandardizedCallFacet',
-]
 
 const corePeriphery = [
   'ERC20Proxy',

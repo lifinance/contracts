@@ -30,7 +30,8 @@ contract DeployScript is DeployScriptBase {
         );
         address diamondCut = _getConfigContractAddress(
             path,
-            ".DiamondCutFacet"
+            ".DiamondCutFacet",
+            false
         );
 
         return abi.encode(deployerAddress, diamondCut);

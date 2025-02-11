@@ -41,7 +41,8 @@ contract DeployScript is DeployScriptBase {
 
         address acrossSpokePool = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".acrossSpokePool")
+            string.concat(".", network, ".acrossSpokePool"),
+            false
         );
 
         // get Executor address from deploy log
@@ -53,7 +54,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        address executor = _getConfigContractAddress(path, ".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor", false);
 
         uint256 recoverGas = 100000;
 

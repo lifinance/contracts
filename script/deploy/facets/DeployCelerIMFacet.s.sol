@@ -41,7 +41,8 @@ contract DeployScript is DeployScriptBase {
 
         address messageBus = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".messageBus")
+            string.concat(".", network, ".messageBus"),
+            false
         );
 
         // get address of cfUSDC token (required for mainnet only, otherwise address(0))
@@ -52,7 +53,8 @@ contract DeployScript is DeployScriptBase {
         ) {
             cfUSDCAddress = _getConfigContractAddress(
                 path,
-                string.concat(".", network, ".cfUSDC")
+                string.concat(".", network, ".cfUSDC"),
+                false
             );
         }
 
@@ -74,8 +76,8 @@ contract DeployScript is DeployScriptBase {
 
         // get address of the correct diamond contract from network log file
         address diamondAddress = deployMutable
-            ? _getConfigContractAddress(path, ".LiFiDiamond")
-            : _getConfigContractAddress(path, ".LiFiDiamondImmutable");
+            ? _getConfigContractAddress(path, ".LiFiDiamond", false)
+            : _getConfigContractAddress(path, ".LiFiDiamondImmutable", false);
 
         // get path of global config file
         string memory globalConfigPath = string.concat(

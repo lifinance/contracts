@@ -39,7 +39,8 @@ contract DeployScript is DeployScriptBase {
 
         address stargateRouter = _getConfigContractAddress(
             path,
-            string.concat(".composers.", network)
+            string.concat(".composers.", network),
+            true
         );
 
         // obtain address of Amarok router in current network from config file
@@ -47,7 +48,8 @@ contract DeployScript is DeployScriptBase {
 
         address amarokRouter = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".connextHandler")
+            string.concat(".", network, ".connextHandler"),
+            true
         );
 
         path = string.concat(
@@ -58,7 +60,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        address executor = _getConfigContractAddress(path, ".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor", false);
 
         return
             abi.encode(

@@ -24,7 +24,8 @@ contract DeployScript is DeployScriptBase {
 
         address router = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".router")
+            string.concat(".", network, ".router"),
+            false
         );
 
         return abi.encode(router);

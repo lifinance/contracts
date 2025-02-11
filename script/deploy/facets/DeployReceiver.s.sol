@@ -34,23 +34,20 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        // obtain address of Stargate router in current network from config file
+        // obtain address of Stargate router in current network from config file (may be address(0), if stargate is not available on this chain)
         string memory path = string.concat(root, "/config/stargate.json");
-        string memory stargateJson = vm.readFile(path);
-
-        // we cannot use our helper function here since we sometimes deploy with address(0) where stargate is not available and this will fail
-        address stargateRouter = stargateJson.readAddress(
-            string.concat(".composers.", network)
+        address stargateRouter = _getConfigContractAddress(
+            path,
+            string.concat(".composers.", network),
+            true
         );
 
-        // obtain address of Amarok router in current network from config file
-
+        // obtain address of Amarok router in current network from config file (may be address(0), if amarok is not available on this chain)
         path = string.concat(root, "/config/amarok.json");
-        string memory amarokJson = vm.readFile(path);
-
-        // we cannot use our helper function here since we sometimes deploy with address(0) where stargate is not available and this will fail
-        address amarokRouter = amarokJson.readAddress(
-            string.concat(".", network, ".connextHandler")
+        address amarokRouter = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".connextHandler"),
+            true
         );
 
         path = string.concat(
@@ -61,7 +58,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        address executor = _getConfigContractAddress(path, ".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor", false);
 
         return
             abi.encode(

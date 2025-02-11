@@ -38,7 +38,8 @@ contract DeployScript is DeployScriptBase {
 
         address messageBus = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".messageBus")
+            string.concat(".", network, ".messageBus"),
+            false
         );
 
         path = string.concat(
@@ -49,7 +50,11 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        address diamond = _getConfigContractAddress(path, ".LiFiDiamond");
+        address diamond = _getConfigContractAddress(
+            path,
+            ".LiFiDiamond",
+            false
+        );
 
         return abi.encode(refundWalletAddress, messageBus, diamond);
     }

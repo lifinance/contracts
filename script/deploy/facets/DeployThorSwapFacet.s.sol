@@ -24,7 +24,8 @@ contract DeployScript is DeployScriptBase {
 
         address thorchainRouter = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".thorchainRouter")
+            string.concat(".", network, ".thorchainRouter"),
+            false
         );
         return abi.encode(thorchainRouter);
     }

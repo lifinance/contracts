@@ -41,11 +41,13 @@ contract DeployScript is DeployScriptBase {
 
         address endpointV2 = _getConfigContractAddress(
             path,
-            string.concat(".endpointV2.", network)
+            string.concat(".endpointV2.", network),
+            false
         );
         address tokenMessaging = _getConfigContractAddress(
             path,
-            string.concat(".tokenMessaging.", network)
+            string.concat(".tokenMessaging.", network),
+            false
         );
 
         // get Executor address from deploy log
@@ -57,7 +59,7 @@ contract DeployScript is DeployScriptBase {
             fileSuffix,
             "json"
         );
-        address executor = _getConfigContractAddress(path, ".Executor");
+        address executor = _getConfigContractAddress(path, ".Executor", false);
 
         return
             abi.encode(
