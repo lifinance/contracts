@@ -28186,5 +28186,21 @@
         ]
       }
     }
+  },
+  "ChainflipFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x01eA7231A7CFb81388171eD6Fbe02e88285BD0B9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-12 11:08:58",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000079001a5e762f3befc8e5871b42f6734e00498920",
+            "SALT": "28012025",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
