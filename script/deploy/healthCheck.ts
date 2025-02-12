@@ -31,8 +31,9 @@ const louperCmd = 'louper-cli'
 const corePeriphery = [
   'ERC20Proxy',
   'Executor',
-  'Receiver',
   'FeeCollector',
+  'LiFiDEXAggregator',
+  'Receiver',
   'TokenWrapper',
 ]
 
@@ -82,7 +83,7 @@ const main = defineCommand({
         !coreFacets.includes(k) &&
         !corePeriphery.includes(k) &&
         k !== 'LiFiDiamond' &&
-        k.endsWith('Facet')
+        k.includes('Facet')
       )
     })
     const dexs = (await import(`../../config/dexs.json`))[
@@ -263,22 +264,22 @@ const main = defineCommand({
       })
       const approvedDexs = await dexManager.read.approvedDexs()
 
-      // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and TokenWrapper
+      // Loop through DEXs excluding the address for FeeCollector, LiFiDEXAggregator and TokenWrapper
       let numMissing = 0
       for (const dex of dexs.filter(
         (d) => !corePeriphery.includes(getAddress(d))
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
-          logError(`Dex ${dex} not approved in Diamond`)
+          logError(`DEX ${dex} not approved in Diamond`)
           numMissing++
         }
       }
 
-      // Check that FeeCollector, LiFuelFeeCollector and TokenWrapper are included in approvedDexs
+      // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
       const feeCollectors = corePeriphery.filter(
         (p) =>
           p === 'FeeCollector' ||
-          p === 'LiFuelFeeCollector' ||
+          p === 'LiFiDEXAggregator' ||
           p === 'TokenWrapper'
       )
       for (const f of feeCollectors) {
