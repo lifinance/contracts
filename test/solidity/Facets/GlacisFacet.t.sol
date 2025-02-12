@@ -5,7 +5,7 @@ import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
+import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -390,6 +390,35 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         );
 
         initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenTryToBridgeNativeAsset() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.sendingAssetId = address(0); // address zero is considered as native asset
+
+        vm.expectRevert(
+            abi.encodeWithSelector(NativeAssetNotSupported.selector)
+        );
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenTryToSwapAndBridgeNativeAsset() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0); // address zero is considered as native asset
+
+        vm.expectRevert(
+            abi.encodeWithSelector(NativeAssetNotSupported.selector)
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
 
         vm.stopPrank();
     }
