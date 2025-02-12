@@ -3,15 +3,13 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase, console } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet, IDiamondLoupe } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
-import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -122,14 +120,6 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(selectors, peripheryRgs);
         }
 
-        // LIFuelFacet
-        selectors = getSelectors("LIFuelFacet", exclude);
-        if (loupeExists) {
-            buildDiamondCut(selectors, liFuelAddress);
-        } else {
-            buildInitialCut(selectors, liFuelAddress);
-        }
-
         // GenericSwapFacet
         selectors = getSelectors("GenericSwapFacet", exclude);
         if (loupeExists) {
@@ -146,14 +136,6 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(selectors, genSwapV3Address);
         }
 
-        // StandardizedCallFacet
-        selectors = getSelectors("StandardizedCallFacet", exclude);
-        if (loupeExists) {
-            buildDiamondCut(selectors, standCallAddress);
-        } else {
-            buildInitialCut(selectors, standCallAddress);
-        }
-
         // CalldataVerificationFacet
         selectors = getSelectors("CalldataVerificationFacet", exclude);
         if (loupeExists) {
@@ -161,6 +143,8 @@ contract DeployScript is UpdateScriptBase {
         } else {
             buildInitialCut(selectors, calldVerifAddress);
         }
+
+        console.log("facet cuts successfully generated");
 
         // if noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
         if (noBroadcast) {
