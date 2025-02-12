@@ -611,7 +611,7 @@ const checkIsDeployed = async (
 const finish = () => {
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
-    process.exit(0)
+    process.exit(1)
   } else {
     consola.success('Deployment checks passed')
     process.exit(0)
