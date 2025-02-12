@@ -90,9 +90,7 @@
     "chainId": 34443,
     "connextHandler": "0x7380511493DD4c2f1dD75E9CCe5bD52C787D4B51",
     "domain": "1836016741",
-    "tokensToApprove": [
-      "0x4200000000000000000000000000000000000006"
-    ]
+    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
   },
   "arbitrum": {
     "chainId": 42161,
@@ -284,6 +282,12 @@
   },
   "sonic": {
     "chainId": 146,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "unichain": {
+    "chainId": 130,
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []

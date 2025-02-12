@@ -119,6 +119,11 @@
     "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
+  "unichain": {
+    "chainId": 130,
+    "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "zora": {
     "chainId": 7777777,
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
