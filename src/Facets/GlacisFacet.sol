@@ -35,6 +35,10 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         airlift = _airlift;
     }
 
+    /// Errors ///
+
+    error InvalidRefundAddress();
+
     /// External Methods ///
 
     /// @notice Bridges tokens via Glacis
@@ -95,6 +99,8 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
+        if (_glacisData.refundAddress == address(0))
+            revert InvalidRefundAddress();
         // Approve the Airlift contract to spend the required amount of tokens.
         // The `send` function assumes that the caller has already approved the token transfer,
         // ensuring that the cross-chain transaction and token transfer happen atomically.

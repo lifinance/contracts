@@ -21,7 +21,7 @@ contract TestGlacisFacet is GlacisFacet {
 }
 
 abstract contract GlacisFacetTestBase is TestBaseFacet {
-    GlacisFacet.GlacisData internal validGlacisData;
+    GlacisFacet.GlacisData internal glacisData;
     IGlacisAirlift internal airliftContract;
     TestGlacisFacet internal glacisFacet;
     ERC20 internal srcToken;
@@ -121,7 +121,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
 
         // produce valid GlacisData
-        validGlacisData = GlacisFacet.GlacisData({
+        glacisData = GlacisFacet.GlacisData({
             refundAddress: REFUND_WALLET,
             nativeFee: addToMessageValue
         });
@@ -130,14 +130,14 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool) internal virtual override {
         glacisFacet.startBridgeTokensViaGlacis{ value: addToMessageValue }(
             bridgeData,
-            validGlacisData
+            glacisData
         );
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal virtual override {
         glacisFacet.swapAndStartBridgeTokensViaGlacis{
             value: addToMessageValue
-        }(bridgeData, swapData, validGlacisData);
+        }(bridgeData, swapData, glacisData);
     }
 
     function testBase_CanBridgeNativeTokens() public virtual override {
@@ -369,6 +369,28 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         );
 
         initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidRefundAddress() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: address(0),
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GlacisFacet.InvalidRefundAddress.selector)
+        );
+
+        initiateBridgeTxWithFacet(false);
+
         vm.stopPrank();
     }
 }
