@@ -8,8 +8,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'src/**'
-      - 'test/**'
+      - 'src/**.sol'
+      - 'test/**.sol'
 
 jobs:
   enforce-min-test-coverage:
