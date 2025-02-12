@@ -180,19 +180,19 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   // get minAmountOut from Uniswap router
   console.log(`finalFromAmount  : ${fromAmount}`)
 
-  const finalMinAmountOut =
-    minAmountOut.toString() !== '0'
-      ? minAmountOut
-      : BigNumber.from(
-          await getAmountsOutUniswap(
-            uniswapAddress,
-            chainId,
-            [sendingAssetId, receivingAssetId],
-            fromAmount
-          )
-        )
-          .mul(99)
-          .div(100) // Apply 1% slippage tolerance by default
+  let finalMinAmountOut: BigNumber
+  if (minAmountOut.toString() !== '0') {
+    finalMinAmountOut = minAmountOut
+  } else {
+    const amountsOut = await getAmountsOutUniswap(
+      uniswapAddress,
+      chainId,
+      [sendingAssetId, receivingAssetId],
+      fromAmount
+    )
+    // Use the second element (index 1) as the estimated output
+    finalMinAmountOut = BigNumber.from(amountsOut[1]).mul(99).div(100)
+  }
   console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
 
   const uniswapCalldata = (
@@ -309,7 +309,7 @@ export const getUniswapDataERC20toExactERC20 = async (
     // Get the required input amount for the exact output
     const amounts = await uniswap.getAmountsIn(exactAmountOut, path)
     const requiredInputAmount = amounts[0]
-    const maxAmountIn = BigNumber.from(requiredInputAmount).mul(105).div(100) // 5% max slippage
+    const maxAmountIn = BigNumber.from(requiredInputAmount).mul(110).div(100) // 10% max slippage
 
     console.log('Required input amount:', requiredInputAmount.toString())
     console.log('Max input with slippage:', maxAmountIn.toString())

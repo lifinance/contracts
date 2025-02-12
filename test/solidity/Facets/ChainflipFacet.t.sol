@@ -79,7 +79,7 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // produce valid ChainflipData
         validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 6,
+            dstToken: 7,
             nonEvmAddress: bytes32(0), // Default to empty for EVM addresses
             cfParameters: ""
         });
