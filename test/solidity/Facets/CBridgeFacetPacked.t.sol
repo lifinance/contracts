@@ -534,7 +534,9 @@ contract CBridgeFacetPackedTest is TestBase {
         );
     }
 
-    function testRevert_TriggerRefundFailsWhenExternalCallFails() public {
+    function testRevert_TriggerRefundFailsWhenCallToCBridgeRouterFails()
+        public
+    {
         address callTo = CBRIDGE_ROUTER; // must match the expected `CBRIDGE_ROUTER` address
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
