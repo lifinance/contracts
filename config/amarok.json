@@ -35,6 +35,12 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "berachain": {
+    "chainId": 80094,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "bsc": {
     "chainId": 56,
     "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
