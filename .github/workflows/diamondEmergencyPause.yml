@@ -55,6 +55,7 @@ jobs:
           ETH_NODE_URI_AURORA: ${{ secrets.ETH_NODE_URI_AURORA }}
           ETH_NODE_URI_AVALANCHE: ${{ secrets.ETH_NODE_URI_AVALANCHE }}
           ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
+          ETH_NODE_URI_BERACHAIN: ${{ secrets.ETH_NODE_URI_BERACHAIN }}
           ETH_NODE_URI_BLAST: ${{ secrets.ETH_NODE_URI_BLAST }}
           ETH_NODE_URI_BOBA: ${{ secrets.ETH_NODE_URI_BOBA }}
           ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}

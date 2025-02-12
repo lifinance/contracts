@@ -28059,6 +28059,20 @@
           }
         ]
       }
+    },
+    "berachain": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0x7B47250AAbDE56A6c927F2144ffd770D9F93D9d2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-11 18:57:58",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -28406,6 +28420,20 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762000000000000000000000000adf8d87723ec7f011ae56ddd6dc10fa8b2c3863a00000000000000000000000037dc6c2c8db8b027e818592cbae6b5acdc1381be",
             "SALT": "",
             "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "berachain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xe2Bd045c9C7c765D0920BB4e12D5B584eA682C29",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-11 19:01:29",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000006295b30297c254108e0bf16c70d513d2043e3d45000000000000000000000000df61270fdc1a892874fd3c0143a0a4cba74f4ef1",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
