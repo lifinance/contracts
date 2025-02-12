@@ -42,7 +42,6 @@ jobs:
 
           NEW_NETWORKS=$(jq 'keys' config/networks.json)
 
-          echo "Old Networks: $OLD_NETWORKS"
           echo "New Networks: $NEW_NETWORKS"
 
           ADDED_NETWORKS=$(jq -n --argjson old "$OLD_NETWORKS" --argjson new "$NEW_NETWORKS" '$new - $old')
@@ -96,6 +95,10 @@ jobs:
           set -e
           for network in $(echo $added_networks | jq -r '.[]'); do
             echo "🔍 Checking network: $network"
-            bun run script/deploy/healthCheck.ts --network "$network" || exit 1
+            if bun run script/deploy/healthCheck.ts --network "$network"; then
+              echo "✅ $network is fine."
+            else
+              echo "❌ Health check failed for $network. Exiting..."
+              exit 1
+            fi
           done
-
