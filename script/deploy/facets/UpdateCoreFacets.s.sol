@@ -11,6 +11,7 @@ import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
@@ -35,10 +36,6 @@ contract DeployScript is UpdateScriptBase {
             path,
             ".PeripheryRegistryFacet"
         );
-        address liFuelAddress = _getConfigContractAddress(
-            path,
-            ".LIFuelFacet"
-        );
         address genSwapAddress = _getConfigContractAddress(
             path,
             ".GenericSwapFacet"
@@ -47,13 +44,13 @@ contract DeployScript is UpdateScriptBase {
             path,
             ".GenericSwapFacetV3"
         );
-        address standCallAddress = _getConfigContractAddress(
-            path,
-            ".StandardizedCallFacet"
-        );
         address calldVerifAddress = _getConfigContractAddress(
             path,
             ".CalldataVerificationFacet"
+        );
+        address emergencyPauseAddress = _getConfigContractAddress(
+            path,
+            ".EmergencyPauseFacet"
         );
 
         bytes4[] memory exclude;
@@ -122,14 +119,6 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(selectors, peripheryRgs);
         }
 
-        // LIFuelFacet
-        selectors = getSelectors("LIFuelFacet", exclude);
-        if (loupeExists) {
-            buildDiamondCut(selectors, liFuelAddress);
-        } else {
-            buildInitialCut(selectors, liFuelAddress);
-        }
-
         // GenericSwapFacet
         selectors = getSelectors("GenericSwapFacet", exclude);
         if (loupeExists) {
@@ -146,20 +135,20 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(selectors, genSwapV3Address);
         }
 
-        // StandardizedCallFacet
-        selectors = getSelectors("StandardizedCallFacet", exclude);
-        if (loupeExists) {
-            buildDiamondCut(selectors, standCallAddress);
-        } else {
-            buildInitialCut(selectors, standCallAddress);
-        }
-
         // CalldataVerificationFacet
         selectors = getSelectors("CalldataVerificationFacet", exclude);
         if (loupeExists) {
             buildDiamondCut(selectors, calldVerifAddress);
         } else {
             buildInitialCut(selectors, calldVerifAddress);
+        }
+
+        // EmergencyPauseFacet
+        selectors = getSelectors("EmergencyPauseFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, emergencyPauseAddress);
+        } else {
+            buildInitialCut(selectors, emergencyPauseAddress);
         }
 
         // if noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
