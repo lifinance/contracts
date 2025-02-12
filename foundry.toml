@@ -30,6 +30,7 @@ arbitrum = "${ETH_NODE_URI_ARBITRUM}"
 aurora = "${ETH_NODE_URI_AURORA}"
 avalanche = "${ETH_NODE_URI_AVALANCHE}"
 base = "${ETH_NODE_URI_BASE}"
+berachain = "${ETH_NODE_URI_BERACHAIN}"
 blast = "${ETH_NODE_URI_BLAST}"
 boba = "${ETH_NODE_URI_BOBA}"
 bsc = "${ETH_NODE_URI_BSC}"
@@ -79,6 +80,7 @@ arbitrum = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.
 aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://explorer.mainnet.aurora.dev/api", chain = "1313161554", verifier = "blockscout" }
 avalanche = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=43114", chain = "43114" }
 base = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = "8453" }
+berachain = { key = "${BERACHAIN_ETHERSCAN_API_KEY}", url = "https://api.berascan.com", chain = "80094" }
 blast = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=81457", chain = "81457" }
 boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api", chain = "288" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
