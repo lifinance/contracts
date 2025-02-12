@@ -40,14 +40,14 @@ contract AccessManagerFacetTest is TestBase {
         setFacetAddressInTestBase(address(accessMgr), "AccessManagerFacet");
     }
 
-    function testAccessIsRestricted() public {
+    function test_AccessIsRestricted() public {
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }
 
-    function testCanGrantAccess() public {
+    function test_CanGrantAccess() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
@@ -62,7 +62,7 @@ contract AccessManagerFacetTest is TestBase {
         restricted.restrictedMethod();
     }
 
-    function testCanRemoveAccess() public {
+    function test_CanRemoveAccess() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
@@ -112,7 +112,7 @@ contract AccessManagerFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testDefaultAccessIsFalse() public {
+    function test_DefaultAccessIsFalse() public {
         bool canExecute = accessMgr.addressCanExecuteMethod(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f)
@@ -121,7 +121,7 @@ contract AccessManagerFacetTest is TestBase {
         assertEq(canExecute, false, "Default access should be false");
     }
 
-    function testCanCheckGrantedAccess() public {
+    function test_CanCheckGrantedAccess() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
@@ -140,7 +140,7 @@ contract AccessManagerFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanCheckRevokedAccess() public {
+    function test_CanCheckRevokedAccess() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
@@ -165,7 +165,7 @@ contract AccessManagerFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testDifferentMethodSelectorReturnsFalse() public {
+    function test_DifferentMethodSelectorReturnsFalse() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
@@ -188,7 +188,7 @@ contract AccessManagerFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testDifferentExecutorReturnsFalse() public {
+    function test_DifferentExecutorReturnsFalse() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(

@@ -420,7 +420,7 @@ contract AmarokFacetPackedTest is TestBase {
     }
 
     function test_getChainIdForValidDomains() public {
-        DomainChainTestCase[] memory testCases = new DomainChainTestCase[](7);
+        DomainChainTestCase[] memory testCases = new DomainChainTestCase[](8);
         testCases[0] = DomainChainTestCase({
             domainId: 6648936,
             expectedChainId: 1,
@@ -456,6 +456,11 @@ contract AmarokFacetPackedTest is TestBase {
             expectedChainId: 59144,
             description: "LIN domainId should return chainId 59144"
         });
+        testCases[7] = DomainChainTestCase({
+            domainId: 9999999,
+            expectedChainId: 0,
+            description: "Unknown domainId should return 0"
+        });
 
         for (uint256 i = 0; i < testCases.length; i++) {
             uint32 result = amarokFacetPacked.getChainIdForDomain(
@@ -468,14 +473,6 @@ contract AmarokFacetPackedTest is TestBase {
                 testCases[i].description
             );
         }
-    }
-
-    function test_getChainIdForDomain_InvalidDomainId() public {
-        uint32 domainId = 9999999; // undefined domainId
-
-        uint32 result = amarokFacetPacked.getChainIdForDomain(domainId);
-
-        assertEq(result, 0, "Unknown domainId should return 0");
     }
 
     function testRevert_cannotUseRelayerFeeAboveUint128Max_ERC20() public {

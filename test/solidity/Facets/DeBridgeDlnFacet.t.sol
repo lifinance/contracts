@@ -351,6 +351,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         uint256 deBridgeChainId = 1234; // mapped chain ID
 
         vm.expectEmit(true, true, true, true);
+
         emit DeBridgeChainIdSet(chainId, deBridgeChainId);
 
         deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
@@ -390,6 +391,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         uint256 unknownChainId = 999999;
 
         vm.expectRevert(UnknownDeBridgeChain.selector);
+
         deBridgeDlnFacet.getDeBridgeChainId(unknownChainId);
     }
 
