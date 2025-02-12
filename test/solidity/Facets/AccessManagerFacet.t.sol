@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { UnAuthorized, CannotAuthoriseSelf } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized, CannotAuthoriseSelf, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 import { TestBase, LibAccess, console, LiFiDiamond } from "../utils/TestBase.sol";
 
 contract RestrictedContract {
@@ -48,17 +48,23 @@ contract AccessManagerFacetTest is TestBase {
     }
 
     function testCanGrantAccess() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f),
             true
         );
 
+        vm.stopPrank();
+
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }
 
     function testCanRemoveAccess() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f),
@@ -70,6 +76,8 @@ contract AccessManagerFacetTest is TestBase {
             false
         );
 
+        vm.stopPrank();
+
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(address(0xb33f));
@@ -77,6 +85,8 @@ contract AccessManagerFacetTest is TestBase {
     }
 
     function testRevert_CannotAuthorizeSelf() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(CannotAuthoriseSelf.selector);
 
         accessMgr.setCanExecute(
@@ -84,6 +94,22 @@ contract AccessManagerFacetTest is TestBase {
             address(accessMgr),
             true
         );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_IfNotContractOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        accessMgr.setCanExecute(
+            AccessManagerFacet.setCanExecute.selector,
+            address(0xb33f),
+            true
+        );
+
+        vm.stopPrank();
     }
 
     function testDefaultAccessIsFalse() public {
@@ -96,6 +122,8 @@ contract AccessManagerFacetTest is TestBase {
     }
 
     function testCanCheckGrantedAccess() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f),
@@ -108,9 +136,13 @@ contract AccessManagerFacetTest is TestBase {
         );
 
         assertEq(canExecute, true, "Access should be granted");
+
+        vm.stopPrank();
     }
 
     function testCanCheckRevokedAccess() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f),
@@ -129,9 +161,13 @@ contract AccessManagerFacetTest is TestBase {
         );
 
         assertEq(canExecute, false, "Access should be revoked");
+
+        vm.stopPrank();
     }
 
     function testDifferentMethodSelectorReturnsFalse() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f),
@@ -148,9 +184,13 @@ contract AccessManagerFacetTest is TestBase {
             false,
             "Different method selector should return false"
         );
+
+        vm.stopPrank();
     }
 
     function testDifferentExecutorReturnsFalse() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f),
@@ -163,5 +203,7 @@ contract AccessManagerFacetTest is TestBase {
         );
 
         assertEq(canExecute, false, "Different executor should return false");
+
+        vm.stopPrank();
     }
 }
