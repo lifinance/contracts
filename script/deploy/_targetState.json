@@ -262,7 +262,9 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
-        "OmniBridgeFacet": "1.0.0"
+        "OmniBridgeFacet": "1.0.0",
+        "StargateFacetV2": "2.2.0",
+        "ReceiverStargateV2": "1.1.0"
       }
     }
   },
