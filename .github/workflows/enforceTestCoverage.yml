@@ -9,6 +9,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/**'
+      - 'test/**'
 
 jobs:
   enforce-min-test-coverage:
