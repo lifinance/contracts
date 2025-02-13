@@ -10,7 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IChainflipVault } from "../Interfaces/IChainflip.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { console } from "forge-std/console.sol";
+import { InformationMismatch } from "../Errors/GenericErrors.sol";
 
 /// @title Chainflip Facet
 /// @author LI.FI (https://li.fi)
@@ -72,7 +72,6 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -95,7 +94,6 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
@@ -150,18 +148,39 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             encodedDstAddress = abi.encodePacked(_bridgeData.receiver);
         }
 
-        // Handle native token case
-        if (_bridgeData.sendingAssetId == address(0)) {
-            IChainflipVault(chainflipVault).xSwapNative{
-                value: _bridgeData.minAmount
-            }(
-                dstChain,
-                encodedDstAddress,
-                _chainflipData.dstToken,
-                _chainflipData.cfParameters
-            );
+        // Validate destination call flag matches message presence
+        if (
+            _bridgeData.hasDestinationCall !=
+            (_chainflipData.cfParameters.length > 0)
+        ) {
+            revert InformationMismatch();
         }
-        // Handle ERC20 token case
+
+        // Handle native token case with or without CCM
+        if (_bridgeData.sendingAssetId == address(0)) {
+            if (_bridgeData.hasDestinationCall) {
+                IChainflipVault(chainflipVault).xCallNative{
+                    value: _bridgeData.minAmount
+                }(
+                    dstChain,
+                    encodedDstAddress,
+                    _chainflipData.dstToken,
+                    _chainflipData.cfParameters, // Used as message for CCM
+                    0, // Gas budget - currently unused by Chainflip
+                    _chainflipData.cfParameters // Additional parameters
+                );
+            } else {
+                IChainflipVault(chainflipVault).xSwapNative{
+                    value: _bridgeData.minAmount
+                }(
+                    dstChain,
+                    encodedDstAddress,
+                    _chainflipData.dstToken,
+                    _chainflipData.cfParameters
+                );
+            }
+        }
+        // Handle ERC20 token case with or without CCM
         else {
             // Approve vault to spend tokens
             LibAsset.maxApproveERC20(
@@ -170,14 +189,27 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            IChainflipVault(chainflipVault).xSwapToken(
-                dstChain,
-                encodedDstAddress,
-                _chainflipData.dstToken,
-                IERC20(_bridgeData.sendingAssetId),
-                _bridgeData.minAmount,
-                _chainflipData.cfParameters
-            );
+            if (_bridgeData.hasDestinationCall) {
+                IChainflipVault(chainflipVault).xCallToken(
+                    dstChain,
+                    encodedDstAddress,
+                    _chainflipData.dstToken,
+                    _chainflipData.cfParameters, // Used as message for CCM
+                    0, // Gas budget - currently unused by Chainflip
+                    IERC20(_bridgeData.sendingAssetId),
+                    _bridgeData.minAmount,
+                    _chainflipData.cfParameters // Additional parameters
+                );
+            } else {
+                IChainflipVault(chainflipVault).xSwapToken(
+                    dstChain,
+                    encodedDstAddress,
+                    _chainflipData.dstToken,
+                    IERC20(_bridgeData.sendingAssetId),
+                    _bridgeData.minAmount,
+                    _chainflipData.cfParameters
+                );
+            }
         }
 
         emit LiFiTransferStarted(_bridgeData);

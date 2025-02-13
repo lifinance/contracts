@@ -19,4 +19,24 @@ interface IChainflipVault {
         uint256 amount,
         bytes calldata cfParameters
     ) external;
+
+    function xCallNative(
+        uint32 dstChain,
+        bytes calldata dstAddress,
+        uint32 dstToken,
+        bytes calldata message,
+        uint256 gasAmount,
+        bytes calldata cfParameters
+    ) external payable;
+
+    function xCallToken(
+        uint32 dstChain,
+        bytes calldata dstAddress,
+        uint32 dstToken,
+        bytes calldata message,
+        uint256 gasAmount,
+        IERC20 srcToken,
+        uint256 amount,
+        bytes calldata cfParameters
+    ) external;
 }
