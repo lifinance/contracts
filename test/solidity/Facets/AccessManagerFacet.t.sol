@@ -84,7 +84,7 @@ contract AccessManagerFacetTest is TestBase {
         restricted.restrictedMethod();
     }
 
-    function testRevert_CannotAuthorizeSelf() public {
+    function testRevert_CannotSetMethodAccessForAccessManager() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(CannotAuthoriseSelf.selector);
@@ -98,7 +98,7 @@ contract AccessManagerFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_IfNotContractOwner() public {
+    function testRevert_FailsIfNonOwnerTriesToGrantAccess() public {
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(OnlyContractOwner.selector);
@@ -130,14 +130,14 @@ contract AccessManagerFacetTest is TestBase {
             true
         );
 
+        vm.stopPrank();
+
         bool canExecute = accessMgr.addressCanExecuteMethod(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f)
         );
 
         assertEq(canExecute, true, "Access should be granted");
-
-        vm.stopPrank();
     }
 
     function test_CanCheckRevokedAccess() public {
@@ -155,14 +155,14 @@ contract AccessManagerFacetTest is TestBase {
             false
         );
 
+        vm.stopPrank();
+
         bool canExecute = accessMgr.addressCanExecuteMethod(
             RestrictedContract.restrictedMethod.selector,
             address(0xb33f)
         );
 
         assertEq(canExecute, false, "Access should be revoked");
-
-        vm.stopPrank();
     }
 
     function test_DifferentMethodSelectorReturnsFalse() public {
@@ -174,6 +174,8 @@ contract AccessManagerFacetTest is TestBase {
             true
         );
 
+        vm.stopPrank();
+
         bool canExecute = accessMgr.addressCanExecuteMethod(
             bytes4(keccak256("anotherMethod()")),
             address(0xb33f)
@@ -184,8 +186,6 @@ contract AccessManagerFacetTest is TestBase {
             false,
             "Different method selector should return false"
         );
-
-        vm.stopPrank();
     }
 
     function test_DifferentExecutorReturnsFalse() public {
@@ -197,13 +197,13 @@ contract AccessManagerFacetTest is TestBase {
             true
         );
 
+        vm.stopPrank();
+
         bool canExecute = accessMgr.addressCanExecuteMethod(
             RestrictedContract.restrictedMethod.selector,
             address(0xcafe)
         );
 
         assertEq(canExecute, false, "Different executor should return false");
-
-        vm.stopPrank();
     }
 }
