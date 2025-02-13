@@ -107,7 +107,7 @@ polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.i
 polygonzkevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1101", chain = "1101" }
 rootstock= { key = "${ROOTSTOCK_ETHERSCAN_API_KEY}", url = "https://rootstock.blockscout.com/api", chain = "30", verifier = "blockscout" }
 scroll = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = "534352" }
-soneium = { key = "${SONEIUM_ETHERSCAN_API_KEY}", url = "https://soneium.blockscout.com/api/", verifier = "blockscout", chain = "1868" }
+soneium = { key = "${SONEIUM_ETHERSCAN_API_KEY}", url = "https://soneium.blockscout.com/api", verifier = "blockscout", chain = "1868" }
 sonic = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=146", chain = "146" }
 sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
