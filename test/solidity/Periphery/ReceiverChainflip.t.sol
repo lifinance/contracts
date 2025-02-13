@@ -26,13 +26,10 @@ contract ReceiverChainflipTest is TestBase {
         customBlockNumberForForking = 18277082;
         initTestBase();
 
-        // Read chainflip vault address from config
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/chainflip.json"
+        chainflipVault = getConfigAddressFromPath(
+            "chainflip.json",
+            ".chainflipVault.mainnet"
         );
-        string memory json = vm.readFile(path);
-        chainflipVault = json.readAddress(".mainnet.chainflipVault");
         vm.label(chainflipVault, "Chainflip Vault");
 
         erc20Proxy = new ERC20Proxy(address(this));

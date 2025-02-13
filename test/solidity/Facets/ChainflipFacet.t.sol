@@ -36,7 +36,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // Read chainflip vault address from config using the new helper
         CHAINFLIP_VAULT = getConfigAddressFromPath(
             "chainflip.json",
-            ".mainnet.chainflipVault"
+            ".chainflipVault.mainnet"
         );
         vm.label(CHAINFLIP_VAULT, "Chainflip Vault");
         console.log("Chainflip Vault Address:", CHAINFLIP_VAULT);

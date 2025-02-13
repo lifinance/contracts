@@ -574,7 +574,7 @@
     "configData": {
       "_chainflipVault": {
         "configFileName": "chainflip.json",
-        "keyInConfigFile": ".<NETWORK>.chainflipVault",
+        "keyInConfigFile": ".chainflipVault.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -588,7 +588,7 @@
       },
       "_chainflipVault": {
         "configFileName": "chainflip.json",
-        "keyInConfigFile": ".<NETWORK>.chainflipVault",
+        "keyInConfigFile": ".chainflipVault.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
     },

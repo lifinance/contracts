@@ -41,7 +41,7 @@ contract DeployScript is DeployScriptBase {
 
         address chainflipVault = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".chainflipVault")
+            string.concat(".chainflipVault.", network)
         );
 
         // get Executor address from deploy log
