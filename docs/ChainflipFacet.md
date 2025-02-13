@@ -23,9 +23,9 @@ The methods listed above take a variable labeled `_chainflipData`. This data is 
 
 ```solidity
 struct ChainflipData {
-    uint32 dstToken;      // Token identifier on the destination chain
-    bytes32 nonEvmAddress; // Destination address for non-EVM chains (Solana, Bitcoin)
-    bytes cfParameters;    // Additional parameters for future features
+  uint32 dstToken; // Token identifier on the destination chain
+  bytes32 nonEvmAddress; // Destination address for non-EVM chains (Solana, Bitcoin)
+  bytes cfParameters; // Additional parameters for future features
 }
 ```
 
@@ -39,6 +39,8 @@ The facet supports the following chains with their respective IDs:
 - Arbitrum (42161)
 - Solana (1151111081099710)
 - Bitcoin (20000000000001)
+
+[Reference](https://docs.chainflip.io/swapping/integrations/advanced/vault-swaps#supported-chains)
 
 ## Swap Data
 
