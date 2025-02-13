@@ -83,7 +83,10 @@ deployAllContracts() {
   local FACETS_PATH="$CONTRACT_DIRECTORY""Facets/"
 
   # prepare regExp to exclude core facets
-  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS" | tr ',' '|'))$"
+  CORE_FACETS_OUTPUT=$(getCoreFacetsArray)
+  checkFailure $? "retrieve core facets array from global.json"
+
+  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
   # loop through facet contract names
   for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do

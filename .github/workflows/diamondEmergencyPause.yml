@@ -49,11 +49,13 @@ jobs:
           ./script/utils/diamondEMERGENCYPauseGitHub.sh
         env:
           ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+          ETH_NODE_URI_ABSTRACT: ${{ secrets.ETH_NODE_URI_ABSTRACT }}
           ETH_NODE_URI_APECHAIN: ${{ secrets.ETH_NODE_URI_APECHAIN }}
           ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
           ETH_NODE_URI_AURORA: ${{ secrets.ETH_NODE_URI_AURORA }}
           ETH_NODE_URI_AVALANCHE: ${{ secrets.ETH_NODE_URI_AVALANCHE }}
           ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
+          ETH_NODE_URI_BERACHAIN: ${{ secrets.ETH_NODE_URI_BERACHAIN }}
           ETH_NODE_URI_BLAST: ${{ secrets.ETH_NODE_URI_BLAST }}
           ETH_NODE_URI_BOBA: ${{ secrets.ETH_NODE_URI_BOBA }}
           ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
@@ -86,10 +88,10 @@ jobs:
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
-      - name: Send Discord message
-        uses: Ilshidur/action-discord@0.3.2
+      - name: Send Reminder to Slack SC-general Channel
+        uses: slackapi/slack-github-action@v2.0.0
         with:
-          args: |
-            :warning: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'

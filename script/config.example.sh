@@ -67,14 +67,14 @@ DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
 
+# the path to the file that contains a list of all networks
+GLOBAL_FILE_PATH="$(dirname "$0")/../config/global.json"
+
 # script will use all periphery contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_PERIPHERY_CONTRACTS=""
 
 # scripts will use all facet contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_FACET_CONTRACTS=""
-
-# contains a list of all facets that are considered core facets (and will be deployed to every network)
-CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet,LIFuelFacet,GenericSwapFacet,StandardizedCallFacet,CalldataVerificationFacet"
 
 # enable/disable notification sounds for long-running scripts
 NOTIFICATION_SOUNDS=true

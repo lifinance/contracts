@@ -2,12 +2,10 @@
 import { consola } from 'consola'
 import { $, spinner } from 'zx'
 import { defineCommand, runMain } from 'citty'
-import * as chains from 'viem/chains'
 import * as path from 'path'
 import * as fs from 'fs'
 import {
   Address,
-  Chain,
   Hex,
   PublicClient,
   createPublicClient,
@@ -20,35 +18,18 @@ import {
   Network,
   networks,
   getViemChainForNetworkName,
-  type NetworksObject,
 } from '../utils/viemScriptHelpers'
+import { coreFacets } from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
 
 const louperCmd = 'louper-cli'
-
-const coreFacets = [
-  'DiamondCutFacet',
-  'DiamondLoupeFacet',
-  'OwnershipFacet',
-  'WithdrawFacet',
-  'DexManagerFacet',
-  'PeripheryRegistryFacet',
-  'AccessManagerFacet',
-  'PeripheryRegistryFacet',
-  'GenericSwapFacet',
-  'GenericSwapFacetV3',
-  'LIFuelFacet',
-  'CalldataVerificationFacet',
-  'StandardizedCallFacet',
-]
 
 const corePeriphery = [
   'ERC20Proxy',
   'Executor',
   'Receiver',
   'FeeCollector',
-  'LiFuelFeeCollector',
   'TokenWrapper',
 ]
 

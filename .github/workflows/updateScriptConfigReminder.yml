@@ -12,9 +12,10 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Discord message
-        uses: Ilshidur/action-discord@0.3.2
+      - name: Send Reminder to Slack SC-general Channel
+        uses: slackapi/slack-github-action@v2.0.0
         with:
-          args: "Hey team, please update your scripts/config.sh file (see config.example.sh for latest changes)"
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "Hey team, please update your scripts/config.sh file (see config.example.sh for latest changes)"

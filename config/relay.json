@@ -5,9 +5,18 @@
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
+  "abstract": {
+    "relayReceiver": "0x634e831ce6d460c2cd5067af98d6452eb280e374",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "optimism": {
     "chainId": 10,
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "berachain": {
+    "chainId": 80094,
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
   "bsc": {

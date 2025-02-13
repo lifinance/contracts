@@ -29,7 +29,8 @@ contract DeployScript is DeployScriptBase {
         priviledgedUsers[0] = json.readAddress(".pauserWallet");
 
         // the original RouteProcessor4.sol is also deployed with address(0) for _bentoBox
+        address refundWalletAddress = json.readAddress(".refundWallet");
 
-        return abi.encode(address(0), priviledgedUsers);
+        return abi.encode(address(0), priviledgedUsers, refundWalletAddress);
     }
 }
