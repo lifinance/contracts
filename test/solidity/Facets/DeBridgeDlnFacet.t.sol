@@ -437,7 +437,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_GetStorage() public {
+    function test_CanGetStorage() public {
         bytes32 namespace = keccak256("com.lifi.facets.debridgedln");
 
         uint256 chainIdKey = 1;

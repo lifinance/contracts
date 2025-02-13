@@ -147,7 +147,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_FailsIfAddingDEXThatIsNotAContract() public {
+    function testRevert_FailsIfAddingDexThatIsNotAContract() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(InvalidContract.selector);
