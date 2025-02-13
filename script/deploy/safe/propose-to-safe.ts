@@ -100,11 +100,17 @@ const main = defineCommand({
     const provider = new ethers.JsonRpcProvider(rpcUrl)
     const signer = new ethers.Wallet(args.privateKey, provider)
 
-    const protocolKit = await Safe.init({
-      provider: rpcUrl,
-      signer: args.privateKey,
-      safeAddress,
-    })
+    let protocolKit: Safe
+    try {
+      protocolKit = await Safe.init({
+        provider: rpcUrl,
+        signer: args.privateKey,
+        safeAddress,
+      })
+    } catch (error) {
+      console.error('Failed to initialize Safe protocol kit:', error)
+      throw error
+    }
 
     const latestTx = await pendingTransactions
       .find({
