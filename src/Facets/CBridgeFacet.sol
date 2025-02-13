@@ -22,6 +22,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
+    ICBridge private a;
 
     /// Types ///
 
