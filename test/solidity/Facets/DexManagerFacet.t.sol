@@ -13,6 +13,7 @@ contract Foo {}
 contract DexManagerFacetTest is DSTest, DiamondTest {
     address internal constant USER_PAUSER = address(0xdeadbeef);
     address internal constant USER_DIAMOND_OWNER = address(0x123456);
+    address internal constant NOT_DIAMOND_OWNER = address(0xabc123456);
 
     LiFiDiamond internal diamond;
     DexManagerFacet internal dexMgr;
@@ -175,25 +176,30 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_addDex_NotOwner() public {
+    function testRevert_FailToAddDexFromNotOwner() public {
+        vm.startPrank(NOT_DIAMOND_OWNER); // prank a non-owner to attempt adding a DEX
+
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xdead)); // prank a non-owner to attempt adding a DEX
         dexMgr.addDex(address(c1));
+
+        vm.stopPrank();
     }
 
-    function testRevert_batchAddDex_NotOwner() public {
+    function testRevert_FailToBatchAddDexFromNotOwner() public {
+        vm.startPrank(NOT_DIAMOND_OWNER);
         address[] memory dexs = new address[](2);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
 
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xdead));
         dexMgr.batchAddDex(dexs);
+
+        vm.stopPrank();
     }
 
-    function testRevert_batchAddDex_CannotAuthoriseSelf() public {
+    function testRevert_FailToAddDexWhereDexIsDexManager() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](2);
@@ -207,17 +213,20 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_removeDex_NotOwner() public {
+    function testRevert_FailToRemoveDexFromNotOwner() public {
         vm.prank(USER_DIAMOND_OWNER);
+
         dexMgr.addDex(address(c1));
+
+        vm.stopPrank();
 
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xdead));
+        vm.prank(NOT_DIAMOND_OWNER);
         dexMgr.removeDex(address(c1));
     }
 
-    function testRevert_batchRemoveDex_NotOwner() public {
+    function testRevert_FailToBatchRemoveDexFromNotOwner() public {
         address[] memory dexs = new address[](2);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
@@ -227,20 +236,24 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
 
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xdead));
+        vm.prank(NOT_DIAMOND_OWNER);
         dexMgr.batchRemoveDex(dexs);
     }
 
-    function testRevert_setFunctionApprovalBySignature_NotOwner() public {
+    function testRevert_FailToSetFunctionApprovalBySignatureFromNotOwner()
+        public
+    {
         bytes4 signature = hex"faceface";
 
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xdead));
+        vm.prank(NOT_DIAMOND_OWNER);
         dexMgr.setFunctionApprovalBySignature(signature, true);
     }
 
-    function testRevert_batchSetFunctionApprovalBySignature_NotOwner() public {
+    function testRevert_FailToBatchSetFunctionApprovalBySignatureFromNotOwner()
+        public
+    {
         bytes4[] memory signatures = new bytes4[](3);
         signatures[0] = bytes4(hex"faceface");
         signatures[1] = bytes4(hex"deadbeef");
@@ -248,11 +261,11 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
 
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xdead));
+        vm.prank(NOT_DIAMOND_OWNER);
         dexMgr.batchSetFunctionApprovalBySignature(signatures, true);
     }
 
-    function test_setFunctionApprovalBySignature_CanRemoveSignature() public {
+    function testRevert_CanSetFunctionApprovalBySignatureFromOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 signature = hex"faceface";
@@ -266,7 +279,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_batchSetFunctionApprovalBySignature_CanRemoveSignatures()
+    function testRevert_CanSetBatchFunctionApprovalBySignatureFromOwner()
         public
     {
         vm.startPrank(USER_DIAMOND_OWNER);

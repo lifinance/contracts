@@ -618,7 +618,9 @@ contract AcrossFacetPackedTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_WithdrawFailed() public {
+    function testRevert_FailsIfCallToExternalContractFails() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         MockFailingContract failingContract = new MockFailingContract();
 
         vm.expectRevert(AcrossFacetPacked.WithdrawFailed.selector);
@@ -630,5 +632,7 @@ contract AcrossFacetPackedTest is TestBase {
             address(this),
             amountUSDT
         );
+
+        vm.startPrank(USER_DIAMOND_OWNER);
     }
 }

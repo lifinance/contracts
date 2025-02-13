@@ -273,8 +273,9 @@ contract AcrossFacetV3Test is TestBaseFacet {
         );
     }
 
-    function testRevert_InformationMismatch() public {
+    function testRevert_RevertIfReceiverAddressesDontMatch() public {
         vm.startPrank(USER_SENDER);
+
         usdc.approve(address(acrossFacetV3), type(uint256).max);
 
         bridgeData.hasDestinationCall = false;
