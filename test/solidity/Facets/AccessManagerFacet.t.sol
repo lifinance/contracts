@@ -49,7 +49,7 @@ contract AccessManagerFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function test_CanGrantAccess() public {
+    function test_CanGrantAccessByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
@@ -64,7 +64,7 @@ contract AccessManagerFacetTest is TestBase {
         restricted.restrictedMethod();
     }
 
-    function test_CanRemoveAccess() public {
+    function test_CanRemoveAccessByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
