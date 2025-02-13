@@ -1408,7 +1408,9 @@
         "AcrossFacetV3": "1.0.0",
         "AcrossFacetPackedV3": "1.0.0",
         "ReceiverAcrossV3": "1.0.0",
-        "RelayFacet": "1.0.0"
+        "RelayFacet": "1.0.0",
+        "GasZipFacet": "2.0.2",
+        "GasZipPeriphery": "1.0.1"
       }
     }
   },
