@@ -40,11 +40,13 @@ contract AccessManagerFacetTest is TestBase {
         setFacetAddressInTestBase(address(accessMgr), "AccessManagerFacet");
     }
 
-    function test_AccessIsRestricted() public {
+    function test_AccessIsRestrictedFromNotOwner() public {
+        vm.startPrank(USER_SENDER);
+
         vm.expectRevert(UnAuthorized.selector);
 
-        vm.prank(address(0xb33f));
         restricted.restrictedMethod();
+        vm.stopPrank();
     }
 
     function test_CanGrantAccess() public {

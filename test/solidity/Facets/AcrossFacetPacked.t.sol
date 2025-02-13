@@ -618,7 +618,7 @@ contract AcrossFacetPackedTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_FailsIfCallToExternalContractFails() public {
+    function testRevert_FailIfCallToExternalContractFails() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         MockFailingContract failingContract = new MockFailingContract();
