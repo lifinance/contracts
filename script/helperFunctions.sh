@@ -1977,6 +1977,40 @@ function getAllNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+# function to retrieve coreFacets from global.json
+function getCoreFacetsArray() {
+  # ensure GLOBAL_FILE_PATH is set and not empty
+  if [[ -z "$GLOBAL_FILE_PATH" ]]; then
+    error "GLOBAL_FILE_PATH is not set or empty." >&2
+    return 1
+  fi
+
+  local ARRAY=()
+
+  # ensure the global file exists
+  if [[ ! -f "$GLOBAL_FILE_PATH" ]]; then
+    error "Global configuration file not found at $GLOBAL_FILE_PATH ." >&2
+    return 1
+  fi
+
+  # read coreFacets array from JSON using jq
+  ARRAY=($(jq -r '.coreFacets[]' "$GLOBAL_FILE_PATH"))
+  if [[ $? -ne 0 ]]; then
+    error "Failed to parse coreFacets array from $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  # check if the array is empty
+  if [[ ${#ARRAY[@]} -eq 0 ]]; then
+    error "The coreFacets array is empty in $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  printf '%s\n' "${ARRAY[@]}"
+}
+
+
 function getIncludedNetworksArray() {
   # prepare required variables
   local FILE="$NETWORKS_FILE_PATH"
@@ -2057,8 +2091,9 @@ function getIncludedAndSortedFacetContractsArray() {
   # get all facet contracts
   FACET_CONTRACTS=($(getIncludedFacetContractsArray "$EXCLUDE_CONFIG"))
 
-  # convert CORE_FACETS into an array
-  CORE_FACETS_ARRAY=($(echo "$CORE_FACETS" | tr ',' ' '))
+  # Get core facets from global.json
+  CORE_FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # initialize empty arrays for core and non-core facet contracts
   CORE_FACET_CONTRACTS=()
@@ -2352,14 +2387,7 @@ function getContractAddressFromSalt() {
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const result = web3.utils.soliditySha3({t: 'string', v: '$SALT'},{t: 'string', v: '$CONTRACT_NAME'})
-    console.log(result);"
-
-  # execute code using web3
-  ACTUAL_SALT=$(node -e "$jsCode")
+  ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
   RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
@@ -2375,15 +2403,8 @@ function getDeployerAddress() {
 
   PRIV_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
 
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIV_KEY')).address
-    const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
-    console.log(checksumAddress);"
-
-  # execute code using web3
-  DEPLOYER_ADDRESS=$(node -e "$jsCode")
+  # get deployer address from private key
+  DEPLOYER_ADDRESS=$(cast wallet address "$PRIV_KEY")
 
   # return deployer address
   echo "$DEPLOYER_ADDRESS"
@@ -2417,8 +2438,10 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # get list of all core facet contracts from config
-  IFS=',' read -ra FACETS_NAMES <<<"$CORE_FACETS"
+  # get list of all core facet contracts from global.json
+  FACETS_NAMES=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
+
 
   # get a list of all facets that the diamond knows
   local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
@@ -2592,28 +2615,19 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
-  NODE_URL=${!NODE_URL_KEY}
+  RPC_URL=$(getRPCUrl "$NETWORK")
 
   # check if NODE_URL is available
-  if [ -z "$NODE_URL" ]; then
+  if [ -z "$RPC_URL" ]; then
     error ": no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
     return 1
   fi
 
   # make sure address is in correct checksum format
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const address = '$ADDRESS';
-    const checksumAddress = web3.utils.toChecksumAddress(address);
-    console.log(checksumAddress);"
-  CHECKSUM_ADDRESS=$(node -e "$jsCode")
+  CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
 
-  # get CONTRACT code from ADDRESS using web3
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3('$NODE_URL');
-    web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
-  contract_code=$(node -e "$jsCode")
+  # get CONTRACT code from ADDRESS using
+  contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
 
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
   if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
