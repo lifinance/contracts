@@ -309,7 +309,7 @@ export const getUniswapDataERC20toExactERC20 = async (
     // Get the required input amount for the exact output
     const amounts = await uniswap.getAmountsIn(exactAmountOut, path)
     const requiredInputAmount = amounts[0]
-    const maxAmountIn = BigNumber.from(requiredInputAmount).mul(110).div(100) // 10% max slippage
+    const maxAmountIn = BigNumber.from(requiredInputAmount).mul(105).div(100) // 5% max slippage
 
     console.log('Required input amount:', requiredInputAmount.toString())
     console.log('Max input with slippage:', maxAmountIn.toString())

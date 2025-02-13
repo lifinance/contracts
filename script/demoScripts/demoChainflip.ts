@@ -12,8 +12,7 @@ import {
   setupEnvironment,
   ADDRESS_USDC_ARB,
   ADDRESS_USDT_ARB,
-  getUniswapSwapDataERC20ToERC20,
-  getAmountsOutUniswap,
+  getUniswapDataERC20toExactERC20,
   ADDRESS_UNISWAP_ARB,
 } from './utils/demoScriptHelpers'
 
@@ -43,8 +42,9 @@ async function main() {
   const signerAddress = walletAccount.address
 
   // === Instantiate contracts ===
+  const tokenToApprove = withSwap ? ADDRESS_USDT_ARB : ADDRESS_USDC_ARB
   const srcTokenContract = getContract({
-    address: srcTokenAddress,
+    address: tokenToApprove,
     abi: ERC20_ABI,
     client,
   })
@@ -52,7 +52,7 @@ async function main() {
   const srcTokenName = (await srcTokenContract.read.name()) as string
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
   const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
-  const amount = parseUnits('10', Number(srcTokenDecimals)) // 10 USDC
+  const amount = parseUnits('10', Number(srcTokenDecimals))
 
   console.info(
     `\nBridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> Arbitrum`
@@ -61,21 +61,13 @@ async function main() {
 
   await ensureBalance(srcTokenContract, signerAddress, amount)
 
-  await ensureAllowance(
-    srcTokenContract,
-    signerAddress,
-    lifiDiamondAddress,
-    amount,
-    publicClient
-  )
-
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: `0x${randomBytes(32).toString('hex')}`,
     bridge: 'chainflip',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
-    sendingAssetId: srcTokenAddress,
+    sendingAssetId: withSwap ? ADDRESS_USDC_ARB : tokenToApprove,
     receiver: signerAddress,
     destinationChainId,
     minAmount: amount,
@@ -84,7 +76,7 @@ async function main() {
   }
 
   const chainflipData: ChainflipFacet.ChainflipDataStruct = {
-    dstToken: 3, // USDC
+    dstToken: 3, // Chainflip designator for USDC on ETH
     nonEvmAddress:
       '0x0000000000000000000000000000000000000000000000000000000000000000',
     cfParameters: '0x', // Empty parameters as per implementation
@@ -92,34 +84,23 @@ async function main() {
 
   // === Start bridging ===
   if (withSwap) {
-    // Get expected output from swapping the specified amount of USDT to USDC.
-    const amountsOut = await getAmountsOutUniswap(
-      ADDRESS_UNISWAP_ARB,
-      42161,
-      [ADDRESS_USDT_ARB, ADDRESS_USDC_ARB],
-      amount
-    )
-    console.log('Swap amounts out:', amountsOut)
-
-    // Adjust bridgeData.minAmount to a lower value to allow for slippage.
-    // Here we set it to 98% of the estimated output.
-    const expectedOutput = (BigInt(amountsOut[1]) * 98n) / 100n
-    bridgeData.minAmount = expectedOutput
-    console.log(
-      'Updated bridgeData.minAmount:',
-      bridgeData.minAmount.toString()
-    )
-
-    // Generate real swap data to swap USDT -> USDC.
-    const swapData = await getUniswapSwapDataERC20ToERC20(
+    // Generate swap data to swap USDT -> exact USDC amount
+    const swapData = await getUniswapDataERC20toExactERC20(
       ADDRESS_UNISWAP_ARB, // Uniswap router address on Arbitrum
       42161, // Arbitrum chain id
       ADDRESS_USDT_ARB, // Swap from USDT
       ADDRESS_USDC_ARB, // Swap to USDC
-      expectedOutput, // Pass the expected output (in USDC) as the exact output amount
+      amount, // The exact output amount we want in USDC
       lifiDiamondAddress, // Receiver for the swapped tokens (the diamond)
-      true, // requiresDeposit flag
-      0 // minAmountOut (0 lets the helper calculate slippage tolerance automatically)
+      true // requiresDeposit flag
+    )
+
+    await ensureAllowance(
+      srcTokenContract,
+      signerAddress,
+      lifiDiamondAddress,
+      swapData.fromAmount,
+      publicClient
     )
 
     await executeTransaction(
@@ -134,6 +115,14 @@ async function main() {
       true
     )
   } else {
+    await ensureAllowance(
+      srcTokenContract,
+      signerAddress,
+      lifiDiamondAddress,
+      amount,
+      publicClient
+    )
+
     await executeTransaction(
       () =>
         lifiDiamondContract.write.startBridgeTokensViaChainflip([
