@@ -5,7 +5,7 @@ import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/T
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { NotInitialized } from "src/Errors/GenericErrors.sol";
+import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
@@ -346,7 +346,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         initiateSwapAndBridgeTxWithFacet(true);
     }
 
-    function test_setDeBridgeChainId() public {
+    function test_CanSetDeBridgeChainIdFromOwner() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         uint256 chainId = 137; // example chain ID
         uint256 deBridgeChainId = 1234; // mapped chain ID
 
@@ -360,6 +362,21 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             deBridgeDlnFacet.getDeBridgeChainId(chainId),
             deBridgeChainId
         );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailToSetDeBridgeChainIdFromNotOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 chainId = 137;
+        uint256 deBridgeChainId = 1234;
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
+
+        vm.stopPrank();
     }
 
     function testRevert_FailsToSetDeBridgeChainIdIfNotInitialized() public {

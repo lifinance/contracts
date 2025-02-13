@@ -6,7 +6,7 @@ import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
-import { CannotAuthoriseSelf, UnAuthorized } from "src/Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf, UnAuthorized, InvalidContract } from "src/Errors/GenericErrors.sol";
 
 contract Foo {}
 
@@ -47,7 +47,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         dexMgr = DexManagerFacet(address(diamond));
     }
 
-    function test_CanAddDEX() public {
+    function test_CanAddDEXByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         dexMgr.addDex(address(c1));
@@ -57,7 +57,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanRemoveDEX() public {
+    function test_CanRemoveDEXByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         dexMgr.addDex(address(c1));
@@ -68,7 +68,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanBatchAddDEXs() public {
+    function test_CanBatchAddDEXsByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
@@ -85,7 +85,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanBatchRemoveDEXs() public {
+    function test_CanBatchRemoveDEXsByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
@@ -106,7 +106,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanApproveFunctionSignature() public {
+    function test_CanApproveFunctionSignatureByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 signature = hex"faceface";
@@ -116,7 +116,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanApproveBatchFunctionSignature() public {
+    function test_CanApproveBatchFunctionSignatureByOwner() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4[] memory signatures = new bytes4[](5);
@@ -136,41 +136,51 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testFail_AddZeroAddress() public {
+    function testRevert_CannotAddZeroAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(InvalidContract.selector);
 
         dexMgr.addDex(address(0));
 
         vm.stopPrank();
     }
 
-    function testFail_AddNonContract() public {
+    function testRevert_CannotAddNonContract() public {
         vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(InvalidContract.selector);
 
         dexMgr.addDex(address(1337));
 
         vm.stopPrank();
     }
 
-    function testFail_BatchAddZeroAddress() public {
+    function testRevert_CannotBatchAddZeroAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
         dexs[2] = address(0);
+
+        vm.expectRevert(InvalidContract.selector);
+
         dexMgr.batchAddDex(dexs);
 
         vm.stopPrank();
     }
 
-    function testFail_BatchAddNonContract() public {
+    function testRevert_CannotBatchAddNonContract() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
         dexs[2] = address(1337);
+
+        vm.expectRevert(InvalidContract.selector);
+
         dexMgr.batchAddDex(dexs);
 
         vm.stopPrank();
