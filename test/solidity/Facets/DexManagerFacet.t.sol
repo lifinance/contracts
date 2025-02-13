@@ -47,7 +47,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         dexMgr = DexManagerFacet(address(diamond));
     }
 
-    function test_CanAddDEXByOwner() public {
+    function test_SucceedsIfOwnerAddsDex() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         dexMgr.addDex(address(c1));
@@ -57,18 +57,19 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanRemoveDEXByOwner() public {
+    function test_SucceedsIfOwnerRemovesDex() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         dexMgr.addDex(address(c1));
         dexMgr.removeDex(address(c1));
-        address[] memory approved = dexMgr.approvedDexs();
-        assertEq(approved.length, 0);
 
         vm.stopPrank();
+
+        address[] memory approved = dexMgr.approvedDexs();
+        assertEq(approved.length, 0);
     }
 
-    function test_CanBatchAddDEXsByOwner() public {
+    function test_SucceedsIfOwnerBatchAddsDexes() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
@@ -85,7 +86,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanBatchRemoveDEXsByOwner() public {
+    function test_SucceedsIfOwnerBatchRemovesDexes() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
@@ -106,7 +107,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanApproveFunctionSignatureByOwner() public {
+    function test_SucceedsIfOwnerApprovesFunctionSignature() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 signature = hex"faceface";
@@ -116,7 +117,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanApproveBatchFunctionSignatureByOwner() public {
+    function test_SucceedsIfOwnerBatchApprovesFunctionSignatures() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4[] memory signatures = new bytes4[](5);

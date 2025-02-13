@@ -203,7 +203,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_TriggerRefundSucceedsWhenCalledByOwnerWithExplicitReceiver()
+    function test_SucceedsWhenOwnerTriggersRefundWithExplicitReceiver()
         public
         assertBalanceChange(ADDRESS_USDT, USER_RECEIVER, 100_000)
     {
@@ -242,7 +242,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_TriggerRefundSucceedsWhenCalledByOwnerWithoutExplicitReceiver()
+    function test_SucceedsWhenOwnerTriggersRefundWithoutExplicitReceiver()
         public
         assertBalanceChange(ADDRESS_USDT, USER_DIAMOND_OWNER, 100_000)
     {
@@ -281,7 +281,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_TriggerRefundFailsWhenCalledByNonOwner() public {
+    function testRevert_FailsWhenTriggerRefundIsCalledByNonOwner() public {
         vm.startPrank(USER_SENDER);
 
         address callTo = CBRIDGE_ROUTER;
@@ -303,7 +303,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_TriggerRefundFailsWhenTryingToCallDiffrentContractThanCBridgeRouter()
+    function testRevert_FailsWhenTriggerRefundTryingToCallDiffrentContractThanCBridgeRouter()
         public
     {
         vm.startPrank(USER_DIAMOND_OWNER);
@@ -327,7 +327,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_TriggerRefundFailsWhenCallToCBridgeRouterFails()
+    function testRevert_FailsWhenTriggerRefundCallToCBridgeRouterFails()
         public
     {
         vm.startPrank(USER_DIAMOND_OWNER);

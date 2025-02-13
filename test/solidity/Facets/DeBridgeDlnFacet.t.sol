@@ -401,11 +401,11 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
 
+        vm.stopPrank();
+
         uint256 returnedChainId = deBridgeDlnFacet.getDeBridgeChainId(chainId);
 
         assertEq(returnedChainId, deBridgeChainId);
-
-        vm.stopPrank();
     }
 
     function testRevert_FailsIfAttemptingToGetUnknownDeBridgeChainId() public {

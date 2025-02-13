@@ -419,7 +419,7 @@ contract AmarokFacetPackedTest is TestBase {
         string description;
     }
 
-    function test_getChainIdForValidDomains() public {
+    function test_CanGetChainIdForValidDomains() public {
         DomainChainTestCase[] memory testCases = new DomainChainTestCase[](8);
         testCases[0] = DomainChainTestCase({
             domainId: 6648936,
