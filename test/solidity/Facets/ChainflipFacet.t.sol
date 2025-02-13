@@ -5,9 +5,6 @@ import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFa
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-
-using stdJson for string;
 
 // Stub ChainflipFacet Contract
 contract TestChainflipFacet is ChainflipFacet {
@@ -36,13 +33,11 @@ contract ChainflipFacetTest is TestBaseFacet {
         customBlockNumberForForking = 18277082;
         initTestBase();
 
-        // Read chainflip vault address from config
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/chainflip.json"
+        // Read chainflip vault address from config using the new helper
+        CHAINFLIP_VAULT = getConfigAddressFromPath(
+            "chainflip.json",
+            ".mainnet.chainflipVault"
         );
-        string memory json = vm.readFile(path);
-        CHAINFLIP_VAULT = json.readAddress(".mainnet.chainflipVault");
         vm.label(CHAINFLIP_VAULT, "Chainflip Vault");
         console.log("Chainflip Vault Address:", CHAINFLIP_VAULT);
 
