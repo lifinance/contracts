@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
+import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
@@ -203,14 +203,22 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_TriggerRefundSucceedsWhenCalledByOwner() public {
-        address callTo = address(CBRIDGE_ROUTER);
+    function test_TriggerRefundSucceedsWhenCalledByOwnerWithExplicitReceiver()
+        public
+        assertBalanceChange(ADDRESS_USDT, USER_RECEIVER, 100_000)
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address callTo = CBRIDGE_ROUTER;
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
         address to = USER_RECEIVER;
-        uint256 amount = 100 * 10 ** usdt.decimals();
+        uint256 amount = 100_000;
 
         deal(ADDRESS_USDT, address(cBridge), amount);
+        uint256 cBridgeBalanceBefore = ERC20(ADDRESS_USDT).balanceOf(
+            address(cBridge)
+        );
 
         vm.mockCall(callTo, callData, abi.encode(true));
 
@@ -224,12 +232,59 @@ contract CBridgeFacetTest is TestBaseFacet {
             to,
             amount
         );
+
+        uint256 cBridgeBalanceAfter = ERC20(ADDRESS_USDT).balanceOf(
+            address(cBridge)
+        );
+
+        assertEq(cBridgeBalanceBefore - cBridgeBalanceAfter, amount);
+
+        vm.stopPrank();
+    }
+
+    function test_TriggerRefundSucceedsWhenCalledByOwnerWithoutExplicitReceiver()
+        public
+        assertBalanceChange(ADDRESS_USDT, USER_DIAMOND_OWNER, 100_000)
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address callTo = CBRIDGE_ROUTER;
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = address(0);
+        uint256 amount = 100_000;
+
+        deal(ADDRESS_USDT, address(cBridge), amount);
+        uint256 cBridgeBalanceBefore = ERC20(ADDRESS_USDT).balanceOf(
+            address(cBridge)
+        );
+
+        vm.mockCall(callTo, callData, abi.encode(true));
+
+        vm.expectEmit(true, true, true, true, address(cBridge));
+        emit CBridgeRefund(assetAddress, USER_DIAMOND_OWNER, amount);
+
+        cBridge.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        uint256 cBridgeBalanceAfter = ERC20(ADDRESS_USDT).balanceOf(
+            address(cBridge)
+        );
+
+        assertEq(cBridgeBalanceBefore - cBridgeBalanceAfter, amount);
+
+        vm.stopPrank();
     }
 
     function testRevert_TriggerRefundFailsWhenCalledByNonOwner() public {
         vm.startPrank(USER_SENDER);
 
-        address callTo = address(CBRIDGE_ROUTER);
+        address callTo = CBRIDGE_ROUTER;
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
         address to = USER_RECEIVER;
@@ -248,9 +303,11 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_TriggerRefundFailsWhenCallToAddressIsNotAllowed()
+    function testRevert_TriggerRefundFailsWhenTryingToCallDiffrentContractThanCBridgeRouter()
         public
     {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         address callTo = address(0xdeadbeef);
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
@@ -266,11 +323,15 @@ contract CBridgeFacetTest is TestBaseFacet {
             to,
             amount
         );
+
+        vm.stopPrank();
     }
 
     function testRevert_TriggerRefundFailsWhenCallToCBridgeRouterFails()
         public
     {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         address callTo = CBRIDGE_ROUTER; // must match the expected `CBRIDGE_ROUTER` address
         bytes memory callData = abi.encodeWithSignature("someFunction()");
         address assetAddress = ADDRESS_USDT;
@@ -286,6 +347,8 @@ contract CBridgeFacetTest is TestBaseFacet {
             to,
             amount
         );
+
+        vm.stopPrank();
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
