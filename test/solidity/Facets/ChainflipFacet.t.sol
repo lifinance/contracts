@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 using stdJson for string;
@@ -84,38 +85,6 @@ contract ChainflipFacetTest is TestBaseFacet {
             cfParameters: ""
         });
     }
-
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
-    // function testBase_CanBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-    //
-    // function testBase_CanSwapAndBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
@@ -216,6 +185,56 @@ contract ChainflipFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function test_CanBridgeTokensToEthereum()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        // Set source chain to Arbitrum for this test
+        vm.chainId(CHAIN_ID_ARBITRUM);
+        vm.roll(208460950); // Set specific block number for Arbitrum chain
+
+        // Set destination to Ethereum
+        bridgeData.destinationChainId = CHAIN_ID_ETHEREUM;
+        validChainflipData = ChainflipFacet.ChainflipData({
+            dstToken: 3, // USDC on Ethereum
+            nonEvmAddress: bytes32(0), // Not needed for EVM chains
+            cfParameters: ""
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenUsingUnsupportedDestinationChain() public {
+        // Set destination chain to Polygon (unsupported)
+        bridgeData.destinationChainId = 137;
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert("ChainflipFacet: Unsupported destination chain");
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenUsingEmptyNonEVMAddress() public {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
@@ -231,6 +250,50 @@ contract ChainflipFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(ChainflipFacet.EmptyNonEvmAddress.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeTokensWithDestinationCall()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        // Set destination to Arbitrum where our receiver contract is
+        bridgeData.destinationChainId = CHAIN_ID_ARBITRUM;
+        bridgeData.hasDestinationCall = true;
+
+        // Create swap data for the destination chain
+        LibSwap.SwapData[] memory destSwapData = new LibSwap.SwapData[](0);
+
+        // Encode the message for the receiver contract
+        bytes memory message = abi.encode(
+            bridgeData.transactionId,
+            destSwapData,
+            USER_RECEIVER // Final receiver of the tokens
+        );
+
+        validChainflipData = ChainflipFacet.ChainflipData({
+            dstToken: 7, // USDC on Arbitrum
+            nonEvmAddress: bytes32(0), // Not needed for EVM chains
+            cfParameters: message // Pass the encoded message for CCM
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
