@@ -124,8 +124,9 @@ diamondUpdateFacet() {
           if [ "$FACET_CUT" == "0x" ] || [ -z "$FACET_CUT" ]; then
             error "Unable to extract facet cut data from RPC response at logs.returns.cutData.value"
           else
+            # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
             if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-              echo "DEPLOY_NEW_NETWORK_MODE is activated - executing facet cut for $script on network $NETWORK..."
+              echo "DEPLOY_NEW_NETWORK_MODE is activated - executing facet cut for $SCRIPT on network $NETWORK..."
               RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
             else
               echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
@@ -143,20 +144,21 @@ diamondUpdateFacet() {
         # PROD: suggest diamondCut transaction to SAFE
         UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$SCRIPT".s.sol)
         PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
-        echoDebug "Calculating facet cuts for $script..."
+        echoDebug "Calculating facet cuts for $SCRIPT..."
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy)
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
         FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
         if [ "$FACET_CUT" == "0x" ] || [ -z "$FACET_CUT" ]; then
           error "Unable to extract facet cut data from RPC response at logs.returns.cutData.value"
         else
+          # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
           if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
             echo "DEPLOY_NEW_NETWORK_MODE is activated - executing facet cut for $script on network $NETWORK..."
             RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
           else
             echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
             DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-            npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+            npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl "$NETWORK")" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
           fi
         fi
       else
