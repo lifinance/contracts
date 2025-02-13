@@ -648,7 +648,7 @@
     "gasZipChainId": 249
   },
   "unichain": {
-    "name": "UniChain",
+    "name": "Unichain",
     "chainId": 130,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -663,7 +663,7 @@
     "safeApiUrl": "https://safe-transaction-unichain.safe.global/api",
     "safeAddress": "0x428653b7537717cA9B81b453601436D576081aF6",
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=unichain:0x428653b7537717cA9B81b453601436D576081aF6",
-    "gasZipChainId": 0
+    "gasZipChainId": 362
   },
   "worldchain": {
     "name": "World Chain",
