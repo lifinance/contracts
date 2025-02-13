@@ -136,7 +136,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_CannotAddZeroAddress() public {
+    function testRevert_FailsIfAddingDexWithZeroAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(InvalidContract.selector);
@@ -146,7 +146,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_CannotAddNonContract() public {
+    function testRevert_FailsIfAddingDEXThatIsNotAContract() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(InvalidContract.selector);
@@ -156,7 +156,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_CannotBatchAddZeroAddress() public {
+    function testRevert_FailsIfBatchAddingDexsWithZeroAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
@@ -171,7 +171,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_CannotBatchAddNonContract() public {
+    function testRevert_FailsIfBatchAddingDexsThatAreNotAContracts() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](3);
@@ -186,7 +186,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_FailToAddDexFromNotOwner() public {
+    function testRevert_FailsIfNonOwnerTriesToAddDex() public {
         vm.startPrank(NOT_DIAMOND_OWNER); // prank a non-owner to attempt adding a DEX
 
         vm.expectRevert(UnAuthorized.selector);
@@ -196,7 +196,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_FailToBatchAddDexFromNotOwner() public {
+    function testRevert_FailsIfNonOwnerTriesToBatchAddDex() public {
         vm.startPrank(NOT_DIAMOND_OWNER);
         address[] memory dexs = new address[](2);
         dexs[0] = address(c1);
@@ -209,7 +209,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_FailToAddDexWhereDexIsDexManager() public {
+    function testRevert_FailsIfAddingDexThatIsDexManager() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         address[] memory dexs = new address[](2);
@@ -223,7 +223,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_FailToRemoveDexFromNotOwner() public {
+    function testRevert_FailsIfNonOwnerTriesToRemoveDex() public {
         vm.prank(USER_DIAMOND_OWNER);
 
         dexMgr.addDex(address(c1));
@@ -236,7 +236,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         dexMgr.removeDex(address(c1));
     }
 
-    function testRevert_FailToBatchRemoveDexFromNotOwner() public {
+    function testRevert_FailsIfNonOwnerTriesToBatchRemoveDex() public {
         address[] memory dexs = new address[](2);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
@@ -250,7 +250,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         dexMgr.batchRemoveDex(dexs);
     }
 
-    function testRevert_FailToSetFunctionApprovalBySignatureFromNotOwner()
+    function testRevert_FailsIfNonOwnerTriesToSetFunctionApprovalBySignature()
         public
     {
         bytes4 signature = hex"faceface";
@@ -261,7 +261,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         dexMgr.setFunctionApprovalBySignature(signature, true);
     }
 
-    function testRevert_FailToBatchSetFunctionApprovalBySignatureFromNotOwner()
+    function testRevert_FailsIfNonOwnerTriesToBatchSetFunctionApprovalBySignature()
         public
     {
         bytes4[] memory signatures = new bytes4[](3);
@@ -275,7 +275,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         dexMgr.batchSetFunctionApprovalBySignature(signatures, true);
     }
 
-    function testRevert_CanSetFunctionApprovalBySignatureFromOwner() public {
+    function test_SucceedsIfOwnerSetsFunctionApprovalBySignature() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 signature = hex"faceface";
@@ -289,7 +289,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevert_CanSetBatchFunctionApprovalBySignatureFromOwner()
+    function test_SucceedsIfOwnerBatchSetsFunctionApprovalBySignature()
         public
     {
         vm.startPrank(USER_DIAMOND_OWNER);
