@@ -43,7 +43,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Parameters specific to Chainflip bridge
     /// @param dstToken Token to be received on the destination chain (uint32)
-    /// @param cfParameters Additional metadata
+    /// @param cfParameters Used to encode cross-chain messages
     struct ChainflipData {
         uint32 dstToken;
         bytes32 nonEvmAddress;
@@ -162,12 +162,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             } else {
                 IChainflipVault(chainflipVault).xSwapNative{
                     value: _bridgeData.minAmount
-                }(
-                    dstChain,
-                    encodedDstAddress,
-                    _chainflipData.dstToken,
-                    _chainflipData.cfParameters
-                );
+                }(dstChain, encodedDstAddress, _chainflipData.dstToken, "");
             }
         }
         // Handle ERC20 token case with or without CCM
@@ -197,7 +192,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     _chainflipData.dstToken,
                     IERC20(_bridgeData.sendingAssetId),
                     _bridgeData.minAmount,
-                    _chainflipData.cfParameters
+                    ""
                 );
             }
         }
