@@ -75,12 +75,12 @@ async function main() {
   }
 
   const chainflipData: ChainflipFacet.ChainflipDataStruct = {
-    dstToken: 3, // Chainflip designator for USDC on ETH
-    nonEvmAddress:
+    nonEVMReceiver:
       '0x0000000000000000000000000000000000000000000000000000000000000000',
-    message: '0x', // Add empty message
-    gasAmount: 0n, // Add gas amount
-    cfParameters: '0x', // Empty parameters as per implementation
+    dstToken: 3, // Chainflip designator for USDC on ETH
+    message: '', // Empty bytes but properly formatted
+    gasAmount: 0n,
+    cfParameters: '', // Empty bytes but properly formatted
   }
 
   // === Start bridging ===
