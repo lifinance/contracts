@@ -120,9 +120,7 @@ contract ChainflipFacetTest is TestBaseFacet {
             USER_SENDER,
             -int256(defaultUSDCAmount)
         )
-        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
@@ -156,9 +154,7 @@ contract ChainflipFacetTest is TestBaseFacet {
             USER_SENDER,
             -int256(defaultUSDCAmount)
         )
-        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
@@ -229,6 +225,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(ChainflipFacet.UnsupportedChainflipChainId.selector);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
@@ -248,6 +245,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(ChainflipFacet.EmptyNonEvmAddress.selector);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }

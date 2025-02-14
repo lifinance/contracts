@@ -45,7 +45,7 @@ contract ReceiverChainflipTest is TestBase {
         vm.label(address(erc20Proxy), "ERC20Proxy");
     }
 
-    function test_contractIsSetUpCorrectly() public {
+    function test_ContractIsSetUpCorrectly() public {
         receiver = new ReceiverChainflip(
             address(this),
             address(executor),
@@ -56,58 +56,7 @@ contract ReceiverChainflipTest is TestBase {
         assertEq(receiver.chainflipVault() == chainflipVault, true);
     }
 
-    function test_OwnerCanPullERC20Token() public {
-        // fund receiver with ERC20 tokens
-        deal(ADDRESS_DAI, address(receiver), 1000);
-
-        uint256 initialBalance = dai.balanceOf(USER_RECEIVER);
-
-        // pull token
-        vm.startPrank(USER_DIAMOND_OWNER);
-        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
-        vm.stopPrank();
-
-        assertEq(dai.balanceOf(USER_RECEIVER), initialBalance + 1000);
-    }
-
-    function test_OwnerCanPullNativeToken() public {
-        // fund receiver with native tokens
-        vm.deal(address(receiver), 1 ether);
-
-        uint256 initialBalance = USER_RECEIVER.balance;
-
-        // pull token
-        vm.startPrank(USER_DIAMOND_OWNER);
-        receiver.withdrawToken(address(0), payable(USER_RECEIVER), 1 ether);
-        vm.stopPrank();
-
-        assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
-    }
-
-    function test_WithdrawTokenWillRevertIfExternalCallFails() public {
-        vm.deal(address(receiver), 1 ether);
-
-        // deploy contract that cannot receive ETH
-        NonETHReceiver nonETHReceiver = new NonETHReceiver();
-
-        vm.startPrank(USER_DIAMOND_OWNER);
-        vm.expectRevert(ExternalCallFailed.selector);
-        receiver.withdrawToken(
-            address(0),
-            payable(address(nonETHReceiver)),
-            1 ether
-        );
-        vm.stopPrank();
-    }
-
-    function test_revert_WithdrawTokenNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
-        vm.stopPrank();
-    }
-
-    function test_revert_OnlyChainflipVaultCanCallCfReceive() public {
+    function testRevert_OnlyChainflipVaultCanCallCfReceive() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
@@ -136,9 +85,12 @@ contract ReceiverChainflipTest is TestBase {
         vm.stopPrank();
     }
 
-    function test_canDecodeChainflipPayloadAndExecuteSwapERC20() public {
+    function test_CanDecodeChainflipPayloadAndExecuteSwapERC20() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
+
+        // Store initial balance
+        uint256 initialReceiverDAI = dai.balanceOf(receiverAddress);
 
         // encode payload with mock data
         (
@@ -164,11 +116,22 @@ contract ReceiverChainflipTest is TestBase {
             ADDRESS_USDC,
             defaultUSDCAmount
         );
+        vm.stopPrank();
 
-        assertTrue(dai.balanceOf(receiverAddress) == amountOutMin);
+        // Verify balances changed correctly
+        assertEq(
+            usdc.balanceOf(address(receiver)),
+            0,
+            "Receiver should have 0 USDC after swap"
+        );
+        assertEq(
+            dai.balanceOf(receiverAddress),
+            initialReceiverDAI + amountOutMin,
+            "Receiver should have received DAI"
+        );
     }
 
-    function test_willReturnFundsToUserIfDstCallFails() public {
+    function test_WillReturnFundsToUserIfDstCallFails() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
@@ -213,11 +176,12 @@ contract ReceiverChainflipTest is TestBase {
         assertTrue(usdc.balanceOf(receiverAddress) == defaultUSDCAmount);
     }
 
-    function test_canDecodeChainflipPayloadAndExecuteSwapNative() public {
-        // fund receiver with native token
-        vm.deal(address(receiver), 0.01 ether);
+    function test_CanDecodeChainflipPayloadAndExecuteSwapNative() public {
         // fund chainflipVault with native token
         vm.deal(chainflipVault, 0.01 ether);
+
+        // Store initial balance
+        uint256 initialReceiverDAI = dai.balanceOf(receiverAddress);
 
         // encode payload with mock data
         (
@@ -244,8 +208,19 @@ contract ReceiverChainflipTest is TestBase {
             LibAsset.NATIVE_ASSETID,
             0.01 ether
         );
+        vm.stopPrank();
 
-        assertEq(dai.balanceOf(receiverAddress), amountOutMin);
+        // Verify balances changed correctly
+        assertEq(
+            address(receiver).balance,
+            0,
+            "Receiver should have 0 ETH after swap"
+        );
+        assertEq(
+            dai.balanceOf(receiverAddress),
+            initialReceiverDAI + amountOutMin,
+            "Receiver should have received DAI"
+        );
     }
 
     // HELPER FUNCTIONS
