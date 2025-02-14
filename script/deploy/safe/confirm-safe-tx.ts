@@ -484,10 +484,13 @@ const func = async (
     // Determine available actions based on signature status
     let action: string
     if (privKeyType === privateKeyType.SAFE_SIGNER) {
-      action = 'Sign'
-      consola.info(
-        'Using SAFE_SIGNER_PRIVATE_KEY - automatically selecting "Sign" action'
-      )
+      const options = ['Do Nothing', 'Sign']
+      action =
+        storedResponse ||
+        (await consola.prompt('Select action:', {
+          type: 'select',
+          options,
+        }))
     } else {
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
@@ -507,10 +510,10 @@ const func = async (
           type: 'select',
           options,
         }))
+    }
 
-      if (action === 'Do Nothing') {
-        continue
-      }
+    if (action === 'Do Nothing') {
+      continue
     }
     storedResponses[tx.safeTx.data.data!] = action
 
