@@ -52,29 +52,6 @@ interface AugmentedSafeTxDocument extends SafeTxDocument {
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
-  safeAddress: string
-  network: string
-  chainId: number
-  safeTx: {
-    data: {
-      to: string
-      value: string
-      data: string
-      operation: number
-      nonce: number
-    }
-    signatures?: Record<
-      string,
-      {
-        signer: string
-        data: string
-      }
-    >
-  }
-  safeTxHash: string
-  proposer: string
-  timestamp: Date
-  status: 'pending' | 'executed'
 }
 
 enum privateKeyType {
