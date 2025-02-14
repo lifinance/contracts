@@ -27,7 +27,6 @@ const CHAINFLIP_FACET_ABI = chainflipFacetArtifact.abi as Narrow<
 
 async function main() {
   const withSwap = process.argv.includes('--with-swap')
-  const srcTokenAddress = withSwap ? ADDRESS_USDT_ARB : ADDRESS_USDC_ARB
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
   const destinationChainId = 1 // Mainnet
@@ -79,6 +78,8 @@ async function main() {
     dstToken: 3, // Chainflip designator for USDC on ETH
     nonEvmAddress:
       '0x0000000000000000000000000000000000000000000000000000000000000000',
+    message: '0x', // Add empty message
+    gasAmount: 0n, // Add gas amount
     cfParameters: '0x', // Empty parameters as per implementation
   }
 

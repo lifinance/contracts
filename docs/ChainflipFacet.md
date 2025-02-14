@@ -23,13 +23,15 @@ The methods listed above take a variable labeled `_chainflipData`. This data is 
 
 ```solidity
 struct ChainflipData {
+  bytes32 nonEVMReceiver; // Destination address for non-EVM chains (Solana, Bitcoin)
   uint32 dstToken; // Token identifier on the destination chain
-  bytes32 nonEvmAddress; // Destination address for non-EVM chains (Solana, Bitcoin)
+  bytes message; // Message that is passed to the destination address for cross-chain messaging
+  uint256 gasAmount; // Gas budget for the call on the destination chain
   bytes cfParameters; // Additional parameters for future features
 }
 ```
 
-For non-EVM destinations (Solana, Bitcoin), set the `receiver` in `BridgeData` to `LibAsset.NON_EVM_ADDRESS` and provide the destination address in `nonEvmAddress`.
+For non-EVM destinations (Solana, Bitcoin), set the `receiver` in `BridgeData` to `LibAsset.NON_EVM_ADDRESS` and provide the destination address in `nonEVMReceiver`.
 
 ## Supported Chains
 

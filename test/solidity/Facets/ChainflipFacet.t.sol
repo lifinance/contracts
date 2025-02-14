@@ -78,8 +78,10 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // produce valid ChainflipData
         validChainflipData = ChainflipFacet.ChainflipData({
+            nonEVMReceiver: bytes32(0), // Default to empty for EVM addresses
             dstToken: 7,
-            nonEvmAddress: bytes32(0), // Default to empty for EVM addresses
+            message: "", // Add new field
+            gasAmount: 0, // Add new field
             cfParameters: ""
         });
     }
@@ -126,11 +128,13 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 6,
-            nonEvmAddress: bytes32(
+            nonEVMReceiver: bytes32(
                 abi.encodePacked(
                     "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
                 )
             ), // Example Solana address
+            message: "",
+            gasAmount: 0,
             cfParameters: ""
         });
 
@@ -160,9 +164,11 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 6,
-            nonEvmAddress: bytes32(
+            nonEVMReceiver: bytes32(
                 abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
             ), // Example Bitcoin address
+            message: "",
+            gasAmount: 0,
             cfParameters: ""
         });
 
@@ -198,7 +204,9 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = CHAIN_ID_ETHEREUM;
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 3, // USDC on Ethereum
-            nonEvmAddress: bytes32(0), // Not needed for EVM chains
+            nonEVMReceiver: bytes32(0), // Not needed for EVM chains
+            message: "",
+            gasAmount: 0,
             cfParameters: ""
         });
 
@@ -235,7 +243,9 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 6,
-            nonEvmAddress: bytes32(0), // Empty address should fail
+            nonEVMReceiver: bytes32(0), // Empty address should fail
+            message: "",
+            gasAmount: 0,
             cfParameters: ""
         });
 
@@ -277,8 +287,10 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 7, // USDC on Arbitrum
-            nonEvmAddress: bytes32(0), // Not needed for EVM chains
-            cfParameters: message // Pass the encoded message for CCM
+            nonEVMReceiver: bytes32(0), // Not needed for EVM chains
+            message: message, // Use message here
+            gasAmount: 0, // Add gas amount
+            cfParameters: "" // Empty parameters
         });
 
         vm.startPrank(USER_SENDER);

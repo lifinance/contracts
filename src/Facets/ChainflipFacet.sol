@@ -42,11 +42,16 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @dev Parameters specific to Chainflip bridge
+    /// @param nonEVMReceiver Destination address for non-EVM chains (Solana, Bitcoin)
     /// @param dstToken Token to be received on the destination chain (uint32)
-    /// @param cfParameters Used to encode cross-chain messages
+    /// @param message Message that is passed to the destination address for cross-chain messaging
+    /// @param gasAmount Gas budget for the call on the destination chain
+    /// @param cfParameters Additional metadata for future features
     struct ChainflipData {
+        bytes32 nonEVMReceiver;
         uint32 dstToken;
-        bytes32 nonEvmAddress;
+        bytes message;
+        uint256 gasAmount;
         bytes cfParameters;
     }
 
@@ -122,16 +127,18 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes memory encodedDstAddress;
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
             // For non-EVM chains (Solana, Bitcoin), use the raw bytes32 from chainflipData
-            if (_chainflipData.nonEvmAddress == bytes32(0)) {
+            if (_chainflipData.nonEVMReceiver == bytes32(0)) {
                 revert EmptyNonEvmAddress();
             }
-            encodedDstAddress = abi.encodePacked(_chainflipData.nonEvmAddress);
+            encodedDstAddress = abi.encodePacked(
+                _chainflipData.nonEVMReceiver
+            );
 
             // Emit special event for non-EVM transfers
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
-                _chainflipData.nonEvmAddress
+                _chainflipData.nonEVMReceiver
             );
         } else {
             // For EVM chains, encode the address
@@ -141,7 +148,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Validate destination call flag matches message presence
         if (
             _bridgeData.hasDestinationCall !=
-            (_chainflipData.cfParameters.length > 0)
+            (_chainflipData.message.length > 0)
         ) {
             revert InformationMismatch();
         }
@@ -155,14 +162,19 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
-                    _chainflipData.cfParameters, // Used as message for CCM
-                    0, // Gas budget - currently unused by Chainflip
+                    _chainflipData.message, // Use message param
+                    _chainflipData.gasAmount, // Use gasAmount param
                     _chainflipData.cfParameters // Additional parameters
                 );
             } else {
                 IChainflipVault(chainflipVault).xSwapNative{
                     value: _bridgeData.minAmount
-                }(dstChain, encodedDstAddress, _chainflipData.dstToken, "");
+                }(
+                    dstChain,
+                    encodedDstAddress,
+                    _chainflipData.dstToken,
+                    _chainflipData.cfParameters
+                );
             }
         }
         // Handle ERC20 token case with or without CCM
@@ -179,8 +191,8 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
-                    _chainflipData.cfParameters, // Used as message for CCM
-                    0, // Gas budget - currently unused by Chainflip
+                    _chainflipData.message, // Use message param
+                    _chainflipData.gasAmount, // Use gasAmount param
                     IERC20(_bridgeData.sendingAssetId),
                     _bridgeData.minAmount,
                     _chainflipData.cfParameters // Additional parameters
@@ -192,7 +204,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     _chainflipData.dstToken,
                     IERC20(_bridgeData.sendingAssetId),
                     _bridgeData.minAmount,
-                    ""
+                    _chainflipData.cfParameters
                 );
             }
         }
