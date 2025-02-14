@@ -162,9 +162,9 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
-                    _chainflipData.message, // Use message param
-                    _chainflipData.gasAmount, // Use gasAmount param
-                    _chainflipData.cfParameters // Additional parameters
+                    _chainflipData.message,
+                    _chainflipData.gasAmount,
+                    _chainflipData.cfParameters
                 );
             } else {
                 IChainflipVault(chainflipVault).xSwapNative{
@@ -191,11 +191,11 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
-                    _chainflipData.message, // Use message param
-                    _chainflipData.gasAmount, // Use gasAmount param
+                    _chainflipData.message,
+                    _chainflipData.gasAmount,
                     IERC20(_bridgeData.sendingAssetId),
                     _bridgeData.minAmount,
-                    _chainflipData.cfParameters // Additional parameters
+                    _chainflipData.cfParameters
                 );
             } else {
                 IChainflipVault(chainflipVault).xSwapToken(
