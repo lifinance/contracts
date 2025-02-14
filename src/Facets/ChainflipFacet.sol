@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -26,13 +25,15 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Errors ///
     error EmptyNonEvmAddress();
-    address public immutable chainflipVault;
+    error UnsupportedChainflipChainId();
 
+    /// Storage ///
+
+    IChainflipVault public immutable chainflipVault;
     uint256 private constant CHAIN_ID_ETHEREUM = 1;
     uint256 private constant CHAIN_ID_ARBITRUM = 42161;
     uint256 private constant CHAIN_ID_SOLANA = 1151111081099710;
     uint256 private constant CHAIN_ID_BITCOIN = 20000000000001;
-
     uint32 private constant CHAINFLIP_ID_ETHEREUM = 1;
     uint32 private constant CHAINFLIP_ID_ARBITRUM = 4;
     uint32 private constant CHAINFLIP_ID_SOLANA = 5;
@@ -42,7 +43,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Parameters specific to Chainflip bridge
     /// @param dstToken Token to be received on the destination chain (uint32)
-    /// @param cfParameters Additional metadata for future features (currently unused)
+    /// @param cfParameters Additional metadata
     struct ChainflipData {
         uint32 dstToken;
         bytes32 nonEvmAddress;
@@ -53,7 +54,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Constructor for the contract.
     /// @param _chainflipVault Address of the Chainflip vault contract
-    constructor(address _chainflipVault) {
+    constructor(IChainflipVault _chainflipVault) {
         chainflipVault = _chainflipVault;
     }
 
@@ -107,26 +108,15 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Methods ///
 
-    /// @dev Contains the business logic for the bridge via Chainflip
-    /// @param _bridgeData The core information needed for bridging
-    /// @param _chainflipData Data specific to Chainflip
+    /// @notice Contains the business logic for bridging via Chainflip
+    /// @param _bridgeData The core information needed for bridging, including sending/receiving details
+    /// @param _chainflipData Data specific to Chainflip, including destination token and parameters
+    /// @dev Handles both EVM and non-EVM destinations, native and ERC20 tokens, and cross-chain messaging
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         ChainflipData calldata _chainflipData
     ) internal {
-        // Map the destination chain ID to Chainflip format
-        uint32 dstChain;
-        if (_bridgeData.destinationChainId == CHAIN_ID_ETHEREUM) {
-            dstChain = CHAINFLIP_ID_ETHEREUM;
-        } else if (_bridgeData.destinationChainId == CHAIN_ID_ARBITRUM) {
-            dstChain = CHAINFLIP_ID_ARBITRUM;
-        } else if (_bridgeData.destinationChainId == CHAIN_ID_SOLANA) {
-            dstChain = CHAINFLIP_ID_SOLANA;
-        } else if (_bridgeData.destinationChainId == CHAIN_ID_BITCOIN) {
-            dstChain = CHAINFLIP_ID_BITCOIN;
-        } else {
-            revert("ChainflipFacet: Unsupported destination chain");
-        }
+        uint32 dstChain = _getChainflipChainId(_bridgeData.destinationChainId);
 
         // Handle address encoding based on destination chain type
         bytes memory encodedDstAddress;
@@ -185,7 +175,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // Approve vault to spend tokens
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                chainflipVault,
+                address(chainflipVault),
                 _bridgeData.minAmount
             );
 
@@ -213,5 +203,26 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @notice Converts LiFi chain IDs to Chainflip chain IDs
+    /// @param destinationChainId The LiFi chain ID to convert
+    /// @return The corresponding Chainflip chain ID (uint32)
+    /// @dev Supports Ethereum (1), Arbitrum (4), Solana (5), and Bitcoin (3)
+    /// @dev Reverts if the destination chain is not supported
+    function _getChainflipChainId(
+        uint256 destinationChainId
+    ) internal pure returns (uint32) {
+        if (destinationChainId == CHAIN_ID_ETHEREUM) {
+            return CHAINFLIP_ID_ETHEREUM;
+        } else if (destinationChainId == CHAIN_ID_ARBITRUM) {
+            return CHAINFLIP_ID_ARBITRUM;
+        } else if (destinationChainId == CHAIN_ID_SOLANA) {
+            return CHAINFLIP_ID_SOLANA;
+        } else if (destinationChainId == CHAIN_ID_BITCOIN) {
+            return CHAINFLIP_ID_BITCOIN;
+        } else {
+            revert UnsupportedChainflipChainId();
+        }
     }
 }

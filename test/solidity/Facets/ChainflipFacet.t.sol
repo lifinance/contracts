@@ -3,12 +3,15 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
+import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 // Stub ChainflipFacet Contract
 contract TestChainflipFacet is ChainflipFacet {
-    constructor(address _chainflipVault) ChainflipFacet(_chainflipVault) {}
+    constructor(
+        address _chainflipVault
+    ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -225,7 +228,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert("ChainflipFacet: Unsupported destination chain");
+        vm.expectRevert(ChainflipFacet.UnsupportedChainflipChainId.selector);
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
