@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LiFiDiamondImmutable } from "lifi/LiFiDiamondImmutable.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";

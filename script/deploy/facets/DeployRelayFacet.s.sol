@@ -21,13 +21,15 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/relay.json");
+        string memory json = vm.readFile(path);
 
         address relayReceiver = _getConfigContractAddress(
             path,
             string.concat(".", network, ".relayReceiver")
         );
-        address relaySolver = _getConfigContractAddress(
-            path,
+
+        // the relaySolver address is the same address on all mainnets (and it's not a contract)
+        address relaySolver = json.readAddress(
             string.concat(".", network, ".relaySolver")
         );
 

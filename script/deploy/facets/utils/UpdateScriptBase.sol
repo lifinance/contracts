@@ -62,15 +62,20 @@ contract UpdateScriptBase is ScriptBase {
 
         buildDiamondCut(getSelectors(name, excludes), facet);
 
+        // prepare full diamondCut calldata and log for debugging purposes
+        if (cut.length > 0) {
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                callData.length > 0 ? facet : address(0),
+                callData
+            );
+
+            console.log("DiamondCutCalldata: ");
+            console.logBytes(cutData);
+        }
+
         if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    callData.length > 0 ? facet : address(0),
-                    callData
-                );
-            }
             return (facets, cutData);
         }
 

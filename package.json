@@ -42,7 +42,7 @@
     "prettier-plugin-solidity": "^1.0.0-beta.19",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
-    "solidity-coverage": "^0.7.20",
+    "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
     "ts-node": "^10.7.0",
     "typechain": "^8.0.0",
@@ -50,7 +50,8 @@
     "zksync-web3": "^0.14.3"
   },
   "resolutions": {
-    "hardhat/**/@ethereumjs/tx": "3.5.0"
+    "hardhat/**/@ethereumjs/tx": "3.5.0",
+    "web3": "4.16.0"
   },
   "scripts": {
     "preinstall": "bash preinstall.sh",
