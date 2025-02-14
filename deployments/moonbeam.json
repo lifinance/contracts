@@ -1,6 +1,6 @@
 {
-  "DiamondCutFacet": "0xaD50118509eB4c8e3E39a370151B0fD5D5957013",
-  "DiamondLoupeFacet": "0xc21a00a346d5b29955449Ca912343a3bB4c5552f",
+  "DiamondCutFacet": "0xf7993a8df974ad022647e63402d6315137c58abf",
+  "DiamondLoupeFacet": "0xf5ba8db6fea7af820de35c8d0c294e17dbc1b9d2",
   "OwnershipFacet": "0x6faA6906b9e4A59020e673910105567e809789E0",
   "DexManagerFacet": "0x22B31a1a81d5e594315c866616db793E799556c5",
   "AccessManagerFacet": "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc",
@@ -29,5 +29,6 @@
   "SquidFacet": "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c",
   "GenericSwapFacetV3": "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F",
   "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-  "EmergencyPauseFacet": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61"
+  "EmergencyPauseFacet": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+  "OFTWrapperFacet": "0x69ec2e2070442cfe534ca57087b6273c22e50b2b"
 }
