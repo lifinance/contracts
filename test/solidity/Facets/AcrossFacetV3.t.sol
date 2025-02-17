@@ -285,7 +285,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
         validAcrossData.quoteTimestamp = uint32(block.timestamp - 100 days);
 
-        bridgeData.receiver = USER_REFUND; // does not match with USER_RECEIVER
+        bridgeData.receiver = address(0x123); // does not match with USER_RECEIVER
 
         vm.expectRevert(InformationMismatch.selector);
 
