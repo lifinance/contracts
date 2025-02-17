@@ -775,6 +775,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2407c1598650f8CD4Aaa0c1a4BCcd12D4999a6E9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:02",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.0.0": [
@@ -1553,6 +1567,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1E007BB710D4330109B4Cf4f3D4D8e25a8b54BEB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:09",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.0.0": [
@@ -2325,6 +2353,20 @@
             "TIMESTAMP": "2025-02-07 10:20:42",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "20250207",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x42e4Ef53e8d905A5D02CC12b8C60D27800F76121",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -3409,6 +3451,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x668442675e54Af64E6cD551CB1C061EF5f26C237",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:06:55",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.0.1": [
@@ -4187,6 +4243,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcdEC3efD307BaC9dD88c7EdD962F7681C79eD90E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:06:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.0.0": [
@@ -4946,6 +5016,20 @@
             "TIMESTAMP": "2025-02-07 10:22:56",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "20250207",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC20773bbD1c8Fb749E7DaE5236800A5Dd5F39ed8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:55",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -5728,6 +5812,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6adB9BBCaAbf760f401bdA7730Aa4F6C1eF65456",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:48",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.0.0": [
@@ -6475,6 +6573,20 @@
             "TIMESTAMP": "2025-02-07 11:07:39",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c00000000000000000000000053d3837f141655a62ddc6778ab8d9ee80b9e60ff",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x864b314D4C5a0399368609581d3E8933a63b9232",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:08:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000002407c1598650f8cd4aaa0c1a4bccd12d4999a6e9",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -8298,6 +8410,20 @@
             "TIMESTAMP": "2025-02-07 10:25:15",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "20250207",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x85a52070bf96f96B6bD4e06Ec536991879058BDF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:25",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -11807,6 +11933,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:14:56",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.1.0": [
@@ -12759,6 +12899,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:17:40",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e16150617a4560925ef8e68e8efa3d68bec3bb7f000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "2.1.0": [
@@ -13507,6 +13661,20 @@
             "TIMESTAMP": "2025-02-07 12:03:42",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x8295805320853d6B28778fC8f5199327e62e3d87",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:18:20",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -14815,6 +14983,20 @@
             "TIMESTAMP": "2025-02-07 12:10:15",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f89cc8190c911db1afd1f3b1ee711179b6867a2300000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x614Fe86aF0b9740946A94a5Cb8f07C1Dc9d77eBC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:25:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ca847a739ba26238488cb85a2a28a4ad677716e100000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -21296,6 +21478,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0x091EBD75fCD19286b082Ce27b955F01816Af16d2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:06:45",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.2.0": [
@@ -23753,6 +23949,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:20:45",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.1.0": [
@@ -24519,6 +24729,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x09d0AD68C55F44ea64A8B758c457ED63a3177b11",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:33",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.0.1": [
@@ -24979,6 +25203,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x2f257730442765d7A489FaCaEA1bbC905eCBB701",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:13:40",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000af54be5b6eec24d6bfacf1cce4eaf680a8239398",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "gnosis": {
       "production": {
         "1.0.1": [
@@ -25282,6 +25520,20 @@
             "TIMESTAMP": "2025-02-07 12:57:06",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000f89cc8190c911db1afd1f3b1ee711179b6867a23000000000000000000000000af5191b0de278c7286d6c7cc6ab6bb8a73ba2cd60000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x65B6093ff981113AC6efb5b77B2D74D96edF4593",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:47:17",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ca847a739ba26238488cb85a2a28a4ad677716e1000000000000000000000000af54be5b6eec24d6bfacf1cce4eaf680a82393980000000000000000000000004bcb6a963a9563c33569d7a512d35754221f3a1900000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -25888,6 +26140,20 @@
             "TIMESTAMP": "2025-02-07 12:14:05",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.6.0": [
+          {
+            "ADDRESS": "0x9679d1f7D955C81827c6842b3119B911943958eE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:19:00",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -26512,6 +26778,20 @@
             "TIMESTAMP": "2025-02-12 08:31:51",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xE48CA2A762503bc317C62f56B46D4270bA41835E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:07:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -26863,6 +27143,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xE6b06df46a7bde3973DBa0876d9fB319177abAe6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:11:29",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd960000000000000000000000004200000000000000000000000000000000000006",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.1.0": [
@@ -27204,6 +27498,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:45:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ca847a739ba26238488cb85a2a28a4ad677716e10000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd9600000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.1.0": [
@@ -27534,6 +27842,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0xd28932aB46626CdB224Ff95BaA42ed1dc75712f0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:09:24",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd96000000000000000000000000420000000000000000000000000000000000000600000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "1.2.0": [
@@ -27737,6 +28059,20 @@
             "TIMESTAMP": "2025-02-07 13:15:19",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f909c4ae16622898b885b89d7f839e0244851c66000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000df61270fdc1a892874fd3c0143a0a4cba74f4ef1",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x4BDB8cb372AeF4047626869dD5580536DBA9b053",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:19:37",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000864b314d4c5a0399368609581d3e8933a63b9232000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000245b16cace8730b009c5352186dce7d73c3037a1",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -28130,6 +28466,20 @@
         ]
       }
     },
+    "soneium": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0xBfc367eedaC8Ad5Bc80869760ce7a777cd8FE11C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:14:39",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "unichain": {
       "production": {
         "2.0.2": [
@@ -28502,6 +28852,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-11 19:01:29",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000006295b30297c254108e0bf16c70d513d2043e3d45000000000000000000000000df61270fdc1a892874fd3c0143a0a4cba74f4ef1",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf89901c677c9fb8D04BdE96e8aa6c6eAB5cA5Fd4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:23:12",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000009679d1f7d955c81827c6842b3119b911943958ee000000000000000000000000245b16cace8730b009c5352186dce7d73c3037a1",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -28891,6 +29255,20 @@
             "TIMESTAMP": "2025-02-07 12:48:24",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000007f4babd2c7d35221e72ab67ea72cba99573a0089000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
             "SALT": "2025020701",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2010a7848E26D3B83038269953305075D65F7141",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 08:12:33",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007f4babd2c7d35221e72ab67ea72cba99573a0089000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]

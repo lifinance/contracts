@@ -103,3 +103,6 @@ WHITELIST_PERIPHERY="FeeCollector,LiFuelFeeCollector,TokenWrapper,LiFiDEXAggrega
 
 # if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
 COMPILE_ON_STARTUP=false
+
+# if this flag is set to true, diamondCut and registerPeriphery tx will not be proposed to SAFE but executed directly
+DEPLOY_NEW_NETWORK_MODE=true

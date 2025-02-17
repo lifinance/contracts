@@ -81,6 +81,7 @@ jobs:
           ETH_NODE_URI_ROOTSTOCK: ${{ secrets.ETH_NODE_URI_ROOTSTOCK }}
           ETH_NODE_URI_SCROLL: ${{ secrets.ETH_NODE_URI_SCROLL }}
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
+          ETH_NODE_URI_SONEIUM: ${{ secrets.ETH_NODE_URI_SONEIUM }}
           ETH_NODE_URI_SONIC: ${{ secrets.ETH_NODE_URI_SONIC }}
           ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
           ETH_NODE_URI_UNICHAIN: ${{ secrets.ETH_NODE_URI_UNICHAIN }}
