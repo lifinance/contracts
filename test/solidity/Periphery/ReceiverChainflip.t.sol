@@ -176,6 +176,102 @@ contract ReceiverChainflipTest is TestBase {
         assertTrue(usdc.balanceOf(receiverAddress) == defaultUSDCAmount);
     }
 
+    function test_WillReturnNativeTokensToUserIfDstCallFails() public {
+        // Fund chainflipVault with native token as well
+        vm.deal(chainflipVault, 1 ether);
+
+        // Create mock DEX that will revert
+        string memory revertReason = "Just because";
+        MockUniswapDEX mockDEX = new MockUniswapDEX();
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(mockDEX),
+            approveTo: address(mockDEX),
+            sendingAssetId: LibAsset.NATIVE_ASSETID,
+            receivingAssetId: ADDRESS_DAI,
+            fromAmount: 1 ether,
+            callData: abi.encodeWithSelector(
+                mockDEX.mockSwapWillRevertWithReason.selector,
+                revertReason
+            ),
+            requiresDeposit: false
+        });
+
+        bytes memory payload = abi.encode(guid, swapData, receiverAddress);
+
+        uint256 initialBalance = receiverAddress.balance;
+
+        vm.startPrank(chainflipVault);
+
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit LiFiTransferRecovered(
+            guid,
+            LibAsset.NATIVE_ASSETID,
+            receiverAddress,
+            1 ether,
+            block.timestamp
+        );
+
+        receiver.cfReceive{ value: 1 ether }(
+            4, // srcChain (Arbitrum)
+            abi.encodePacked(address(0)),
+            payload,
+            LibAsset.NATIVE_ASSETID,
+            1 ether
+        );
+
+        assertEq(receiverAddress.balance, initialBalance + 1 ether);
+        vm.stopPrank();
+    }
+
+    function testRevert_IfNativeTransferFails() public {
+        // Fund receiver with native token
+        vm.deal(address(receiver), 1 ether);
+        // Fund chainflipVault with native token
+        vm.deal(chainflipVault, 1 ether);
+
+        // Create a contract that can't receive ETH
+        NonETHReceiver nonEthReceiver = new NonETHReceiver();
+
+        // Create mock DEX that will revert
+        MockUniswapDEX mockDEX = new MockUniswapDEX();
+
+        // Create swap data that will fail when trying to send ETH
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(mockDEX),
+            approveTo: address(mockDEX),
+            sendingAssetId: LibAsset.NATIVE_ASSETID,
+            receivingAssetId: LibAsset.NATIVE_ASSETID, // Try to get ETH back
+            fromAmount: 1 ether,
+            callData: abi.encodeWithSelector(
+                mockDEX.mockSwapWillRevertWithReason.selector,
+                "Mock swap failed"
+            ),
+            requiresDeposit: false
+        });
+
+        bytes memory payload = abi.encode(
+            guid,
+            swapData,
+            address(nonEthReceiver)
+        );
+
+        vm.startPrank(chainflipVault);
+
+        vm.expectRevert();
+        receiver.cfReceive{ value: 1 ether }(
+            4, // srcChain (Arbitrum)
+            abi.encodePacked(address(0)),
+            payload,
+            LibAsset.NATIVE_ASSETID,
+            1 ether
+        );
+
+        vm.stopPrank();
+    }
+
     function test_CanDecodeChainflipPayloadAndExecuteSwapNative() public {
         // fund chainflipVault with native token
         vm.deal(chainflipVault, 0.01 ether);
