@@ -8,6 +8,7 @@ import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
@@ -44,6 +45,10 @@ contract DeployScript is UpdateScriptBase {
         address calldVerifAddress = _getConfigContractAddress(
             path,
             ".CalldataVerificationFacet"
+        );
+        address emergencyPauseAddress = _getConfigContractAddress(
+            path,
+            ".EmergencyPauseFacet"
         );
 
         bytes4[] memory exclude;
@@ -134,6 +139,14 @@ contract DeployScript is UpdateScriptBase {
             buildDiamondCut(selectors, calldVerifAddress);
         } else {
             buildInitialCut(selectors, calldVerifAddress);
+        }
+
+        // EmergencyPauseFacet
+        selectors = getSelectors("EmergencyPauseFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, emergencyPauseAddress);
+        } else {
+            buildInitialCut(selectors, emergencyPauseAddress);
         }
 
         console.log("facet cuts successfully generated");
