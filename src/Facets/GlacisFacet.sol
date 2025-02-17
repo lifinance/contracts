@@ -21,7 +21,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param refundAddress The address that would receive potential refunds on destination chain
+    /// @param refundAddress The address that would receive potential refunds on source chain
     /// @param nativeFee The fee amount in native token required by the Glacis Airlift
     struct GlacisData {
         address refundAddress;
