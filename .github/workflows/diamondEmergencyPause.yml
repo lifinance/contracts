@@ -83,6 +83,7 @@ jobs:
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
           ETH_NODE_URI_SONIC: ${{ secrets.ETH_NODE_URI_SONIC }}
           ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
+          ETH_NODE_URI_UNICHAIN: ${{ secrets.ETH_NODE_URI_UNICHAIN }}
           ETH_NODE_URI_WORLDCHAIN: ${{ secrets.ETH_NODE_URI_WORLDCHAIN }}
           ETH_NODE_URI_XLAYER: ${{ secrets.ETH_NODE_URI_XLAYER }}
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
