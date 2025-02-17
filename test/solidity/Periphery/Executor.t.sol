@@ -6,11 +6,11 @@ import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 // Stub Vault Contract
 contract Vault {
@@ -548,7 +548,7 @@ contract ExecutorTest is DSTest {
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
     }
 
-    function testFailWhenCallingERC20ProxyDirectly() public {
+    function testRevert_DoesNotAllowToCallERC20ProxyDirectly() public {
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
 
@@ -556,8 +556,8 @@ contract ExecutorTest is DSTest {
 
         // Get some Token B
         swapData[0] = LibSwap.SwapData(
-            address(amm),
-            address(amm),
+            address(erc20Proxy),
+            address(erc20Proxy),
             address(tokenA),
             address(tokenB),
             0.2 ether,
@@ -572,6 +572,8 @@ contract ExecutorTest is DSTest {
         );
         tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(erc20Proxy), 1 ether);
+
+        vm.expectRevert(UnAuthorized.selector);
 
         executor.swapAndExecute(
             "",

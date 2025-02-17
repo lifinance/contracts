@@ -36,6 +36,8 @@ contract AcrossFacetV3Test is TestBaseFacet {
     AcrossFacetV3.AcrossV3Data internal validAcrossData;
     TestAcrossFacetV3 internal acrossFacetV3;
 
+    error InvalidQuoteTimestamp();
+
     function setUp() public {
         customBlockNumberForForking = 19960294;
         initTestBase();
@@ -249,11 +251,13 @@ contract AcrossFacetV3Test is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
-        vm.startPrank(WETH_HOLDER);
-        weth.approve(address(acrossFacetV3), 10_000 * 10 ** weth.decimals());
+    function testRevert_FailsIfCalledWithOutdatedQuote() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV3), bridgeData.minAmount);
 
-        validAcrossData.quoteTimestamp = uint32(block.timestamp + 20 minutes);
+        validAcrossData.quoteTimestamp = uint32(block.timestamp - 100 days);
+
+        vm.expectRevert(InvalidQuoteTimestamp.selector);
 
         acrossFacetV3.startBridgeTokensViaAcrossV3(
             bridgeData,

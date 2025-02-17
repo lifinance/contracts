@@ -6,6 +6,7 @@ import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
+import { InvalidContract } from "lifi/Errors/GenericErrors.sol";
 
 contract Foo {}
 
@@ -111,27 +112,37 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         }
     }
 
-    function testFailAddZeroAddress() public {
+    function testRevert_CannotAddZeroAddress() public {
+        vm.expectRevert(InvalidContract.selector);
+
         dexMgr.addDex(address(0));
     }
 
-    function testFailAddNonContract() public {
+    function testRevert_CannotAddNonContract() public {
+        vm.expectRevert(InvalidContract.selector);
+
         dexMgr.addDex(address(1337));
     }
 
-    function testFailBatchAddZeroAddress() public {
+    function testRevert_CannotBatchAddZeroAddress() public {
         address[] memory dexs = new address[](3);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
         dexs[2] = address(0);
+
+        vm.expectRevert(InvalidContract.selector);
+
         dexMgr.batchAddDex(dexs);
     }
 
-    function testFailBatchAddNonContract() public {
+    function testRevert_CannotBatchAddNonContract() public {
         address[] memory dexs = new address[](3);
         dexs[0] = address(c1);
         dexs[1] = address(c2);
         dexs[2] = address(1337);
+
+        vm.expectRevert(InvalidContract.selector);
+
         dexMgr.batchAddDex(dexs);
     }
 }

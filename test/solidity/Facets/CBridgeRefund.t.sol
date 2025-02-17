@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
+import { UnAuthorized, NotAContract } from "lifi/Errors/GenericErrors.sol";
 
 // Test CBridge refund by forking polygon at 25085298
 // Actual refund was processed at 25085299(Feb-18-2022 03:24:09 PM +UTC)
@@ -26,6 +27,8 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
     address internal constant REFUND_ADDRESS =
         0x3db00D1334B5faDd2A897D8A702cDCbb6F159D87;
     uint256 internal constant REFUND_AMOUNT = 92734538876076486098;
+
+    error WithdrawFailed();
 
     bytes internal CALLDATA;
 
@@ -126,7 +129,11 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     /// @notice Fails to execute extra call and withdraw from non-owner.
     /// @dev It calls executeCallAndWithdraw from address that is not OWNER_ADDRESS.
-    function testFailExecuteCallAndWithdrawFromNonOwner() public {
+    function testRevert_NonOwnerCannotWithdrawFunds() public {
+        vm.startPrank(LIFI_ADDRESS);
+
+        vm.expectRevert(UnAuthorized.selector);
+
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
             CALLDATA,
@@ -138,9 +145,13 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     /// @notice Fails to execute extra call and withdraw when callTo is invalid.
     /// @dev It tries to execute extra call at REFUND_ADDRESS instead of CBRIDGE_ADDRESS.
-    function testFailExecuteCallAndWithdraw() public {
+    function testRevert_FailsWhenCalledWithInvalidCallToAddress() public {
+        vm.startPrank(OWNER_ADDRESS);
+
+        vm.expectRevert(NotAContract.selector);
+
         withdrawFacet.executeCallAndWithdraw(
-            payable(REFUND_ADDRESS),
+            payable(REFUND_ADDRESS), //invalid callTo address
             CALLDATA,
             REFUND_ASSET,
             REFUND_ADDRESS,
@@ -151,7 +162,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
     /// @notice Fails to execute extra call and withdraw when refund is already processed.
     /// @dev It tries to withdraw multiple times.
     ///     First withdraw should be success but second withdraw should be failed.
-    function testFailExecuteCallAndWithdrawMultiple() public {
+    function testRevert_RevertsIfRefundWasAlreadyProcessed() public {
         ERC20 asset = ERC20(REFUND_ASSET);
         uint256 assetBalance = asset.balanceOf(REFUND_ADDRESS);
 
@@ -167,6 +178,8 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         assert(
             asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT
         );
+
+        vm.expectRevert(WithdrawFailed.selector);
 
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
