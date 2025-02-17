@@ -28479,6 +28479,20 @@
           }
         ]
       }
+    },
+    "unichain": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0x2B7D697018626E32c2E3252eCB47488A3a694166",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 18:28:07",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "1234",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -28853,6 +28867,20 @@
             "TIMESTAMP": "2025-02-13 08:23:12",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000009679d1f7d955c81827c6842b3119b911943958ee000000000000000000000000245b16cace8730b009c5352186dce7d73c3037a1",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "unichain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x808151156cB5054418B689af97639CaeAF7712aC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-13 18:29:09",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000009679d1f7d955c81827c6842b3119b911943958ee000000000000000000000000428653b7537717ca9b81b453601436d576081af6",
+            "SALT": "1234",
             "VERIFIED": "true"
           }
         ]
