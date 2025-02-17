@@ -16,7 +16,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.2.0
+/// @custom:version 1.3.0
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
