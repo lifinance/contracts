@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 // Stub AcrossFacetV3 Contract
 contract TestAcrossFacetV3 is AcrossFacetV3 {
@@ -274,5 +275,24 @@ contract AcrossFacetV3Test is TestBaseFacet {
             acrossFacetV3.wrappedNative() == ADDRESS_WRAPPED_NATIVE,
             true
         );
+    }
+
+    function testRevert_WillFailIfBridgeDataReceiverDoesNotMatchWithAcrossData()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV3), bridgeData.minAmount);
+
+        validAcrossData.quoteTimestamp = uint32(block.timestamp - 100 days);
+
+        bridgeData.receiver = USER_REFUND; // does not match with USER_RECEIVER
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        acrossFacetV3.startBridgeTokensViaAcrossV3(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
     }
 }
