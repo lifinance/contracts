@@ -97,13 +97,17 @@
         "Name": "GasZipFacet",
         "Version": "2.0.0"
       },
+      "0x5656E307E4dEd573695Dd3eAC64EC4778F910DcA": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.0"
+      },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
       "0x5656E307E4dEd573695Dd3eAC64EC4778F910DcA": {
-        "Name": "",
-        "Version": ""
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       },
       "0xCB68AAcEb848E5007B56b1ff09D240CE8946B4EC": {
         "Name": "StargateFacetV2",
