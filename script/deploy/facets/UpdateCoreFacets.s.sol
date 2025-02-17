@@ -33,10 +33,6 @@ contract DeployScript is UpdateScriptBase {
             path,
             ".PeripheryRegistryFacet"
         );
-        address liFuelAddress = _getConfigContractAddress(
-            path,
-            ".LIFuelFacet"
-        );
         address genSwapAddress = _getConfigContractAddress(
             path,
             ".GenericSwapFacet"
@@ -44,10 +40,6 @@ contract DeployScript is UpdateScriptBase {
         address genSwapV3Address = _getConfigContractAddress(
             path,
             ".GenericSwapFacetV3"
-        );
-        address standCallAddress = _getConfigContractAddress(
-            path,
-            ".StandardizedCallFacet"
         );
         address calldVerifAddress = _getConfigContractAddress(
             path,

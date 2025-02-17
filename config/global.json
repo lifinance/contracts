@@ -51,16 +51,16 @@
     "LiFiDEXAggregator"
   ],
   "coreFacets": [
+    "AccessManagerFacet",
+    "CalldataVerificationFacet",
+    "DexManagerFacet",
     "DiamondCutFacet",
     "DiamondLoupeFacet",
-    "OwnershipFacet",
-    "DexManagerFacet",
-    "AccessManagerFacet",
-    "WithdrawFacet",
-    "PeripheryRegistryFacet",
+    "EmergencyPauseFacet",
     "GenericSwapFacet",
-    "CalldataVerificationFacet",
     "GenericSwapFacetV3",
-    "EmergencyPauseFacet"
+    "PeripheryRegistryFacet",
+    "OwnershipFacet",
+    "WithdrawFacet"
   ]
 }
