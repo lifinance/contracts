@@ -88,9 +88,11 @@ contract OwnershipFacetTest is TestBase {
 
         vm.startPrank(newOwner);
 
-        ownershipFacet.confirmOwnershipTransfer();
+        vm.expectRevert(OnlyContractOwner.selector);
 
-        assert(ownershipFacet.owner() == newOwner);
+        ownershipFacet.cancelOwnershipTransfer();
+
+        assert(ownershipFacet.owner() != newOwner);
 
         vm.stopPrank();
     }

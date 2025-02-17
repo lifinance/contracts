@@ -918,11 +918,11 @@ function checkRequiredVariablesInDotEnv() {
       return 1
     fi
   else
-    # Etherscan V2: Ensure a valid API key is present in the .env file
+    # Individual API Key
     local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
 
     if [[ -z "$BLOCKEXPLORER_API_KEY" ]]; then
-      error "Network $NETWORK uses EtherscanV2 but the required API key ($KEY_VAR) is missing in the .env file."
+      error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
       return 1
     fi
   fi
