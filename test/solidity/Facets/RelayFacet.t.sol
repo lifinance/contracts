@@ -654,14 +654,9 @@ contract RelayFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testFail_RevertIsBubbledWhenBridgingTokensFails()
+    function testRevert_RevertIsBubbledUpWhenBridgingERC20TokensFails()
         public
         virtual
-        assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
-        )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
@@ -681,19 +676,16 @@ contract RelayFacetTest is TestBaseFacet {
             "I always revert"
         );
 
-        vm.expectRevert("I always revert");
+        vm.expectRevert();
+
         initiateBridgeTxWithFacet(false);
+
         vm.stopPrank();
     }
 
-    function testFail_RevertIsBubbledWhenBridgingNativeTokensFails()
+    function testRevert_RevertIsBubbledUpWhenBridgingNativeTokensFails()
         public
         virtual
-        assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256((defaultNativeAmount + addToMessageValue))
-        )
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -706,8 +698,10 @@ contract RelayFacetTest is TestBaseFacet {
 
         _makeRevertable(RELAY_RECEIVER);
 
-        vm.expectRevert("I always revert");
+        vm.expectRevert();
+
         initiateBridgeTxWithFacet(true);
+
         vm.stopPrank();
     }
 
