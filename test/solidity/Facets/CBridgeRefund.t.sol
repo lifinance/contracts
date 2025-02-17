@@ -151,7 +151,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         vm.expectRevert(NotAContract.selector);
 
         withdrawFacet.executeCallAndWithdraw(
-            payable(REFUND_ADDRESS), //invalid callTo address
+            payable(address(0x123)), //invalid callTo address
             CALLDATA,
             REFUND_ASSET,
             REFUND_ADDRESS,
