@@ -13,13 +13,73 @@ contract OwnershipFacetTest is TestBase {
     error NoPendingOwnershipTransfer();
     error NotPendingOwner();
 
+    event OwnershipTransferRequested(
+        address indexed _from,
+        address indexed _to
+    );
+
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
     function setUp() public {
         initTestBase();
 
         ownershipFacet = OwnershipFacet(address(diamond));
     }
 
-    function testOwnerCanTransferOwnership() public {
+    function test_OwnerCanTransferOwnership() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address newOwner = address(0x1234567890123456789012345678901234567890);
+
+        vm.expectEmit(true, true, true, true, address(ownershipFacet));
+        emit OwnershipTransferRequested(address(this), newOwner);
+
+        ownershipFacet.transferOwnership(newOwner);
+
+        assert(ownershipFacet.owner() != newOwner);
+
+        vm.stopPrank();
+        vm.startPrank(newOwner);
+
+        vm.expectEmit(true, true, true, true, address(ownershipFacet));
+        emit OwnershipTransferred(address(USER_DIAMOND_OWNER), newOwner);
+
+        ownershipFacet.confirmOwnershipTransfer();
+
+        assert(ownershipFacet.owner() == newOwner);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_CannotCancelNonPendingOwnershipTransfer() public {
+        assert(ownershipFacet.owner() == USER_DIAMOND_OWNER);
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(NoPendingOwnershipTransfer.selector);
+
+        ownershipFacet.cancelOwnershipTransfer();
+
+        assert(ownershipFacet.owner() == USER_DIAMOND_OWNER);
+
+        vm.stopPrank();
+    }
+
+    function test_OwnerCanCancelOwnershipTransfer() public {
+        address newOwner = address(0x1234567890123456789012345678901234567890);
+
+        ownershipFacet.transferOwnership(newOwner);
+
+        assert(ownershipFacet.owner() != newOwner);
+
+        ownershipFacet.cancelOwnershipTransfer();
+
+        assert(ownershipFacet.owner() != newOwner);
+    }
+
+    function testRevert_NonOwnerCannotCancelOwnershipTransfer() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
 
         ownershipFacet.transferOwnership(newOwner);
