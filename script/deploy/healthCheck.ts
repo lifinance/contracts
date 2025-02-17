@@ -274,13 +274,13 @@ const main = defineCommand({
       }
 
       // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
-      const feeCollectors = corePeriphery.filter(
+      const mustBeWhitelisted = corePeriphery.filter(
         (p) =>
           p === 'FeeCollector' ||
           p === 'LiFiDEXAggregator' ||
           p === 'TokenWrapper'
       )
-      for (const f of feeCollectors) {
+      for (const f of mustBeWhitelisted) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
           logError(`Periphery contract ${f} not approved as a DEX`)
           numMissing++

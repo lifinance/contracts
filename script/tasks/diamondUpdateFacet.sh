@@ -167,7 +167,7 @@ diamondUpdateFacet() {
       fi
      fi
     RETURN_CODE=$?
-    # echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check the return code the last call
     if [ "$RETURN_CODE" -eq 0 ]; then
@@ -175,7 +175,7 @@ diamondUpdateFacet() {
       if [[ "$ENVIRONMENT" != "production" ]]; then
         # extract the "logs" property and its contents from return data
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-        echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+        # echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
 
         # extract the "returns" property and its contents from logs
         RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
