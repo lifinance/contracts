@@ -108,19 +108,22 @@ contract AcrossFacetTest is TestBaseFacet {
         }
     }
 
-    function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
-        console.logBytes4(IAcrossSpokePool.deposit.selector);
-        vm.startPrank(WETH_HOLDER);
-        ERC20 weth = ERC20(ADDRESS_WRAPPED_NATIVE);
-        weth.approve(address(acrossFacet), 10_000 * 10 ** weth.decimals());
+    function testRevert_FailsIfCalledWithOutdatedQuote() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(acrossFacet), bridgeData.minAmount);
 
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             0, // Relayer fee
-            uint32(block.timestamp + 20 minutes),
+            uint32(block.timestamp - 100 days),
             "",
             type(uint256).max
         );
+
+        vm.expectRevert("invalid quote time");
+
         acrossFacet.startBridgeTokensViaAcross(bridgeData, data);
+
         vm.stopPrank();
     }
 }

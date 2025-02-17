@@ -44,7 +44,6 @@ contract DeployScriptBase is ScriptBase {
         }
 
         // reproduce and log calldata that is sent to CREATE3
-        bytes4 funcSel = CREATE3Factory.deploy.selector;
         bytes memory create3Calldata = abi.encodeWithSelector(
             CREATE3Factory.deploy.selector,
             salt,
