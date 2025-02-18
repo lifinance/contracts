@@ -9,7 +9,6 @@ import { StargateFacetV2 } from "./StargateFacetV2.sol";
 import { StargateFacet } from "./StargateFacet.sol";
 import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
-import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
@@ -17,7 +16,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.2.0
+/// @custom:version 1.3.0
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -111,16 +110,7 @@ contract CalldataVerificationFacet {
     function extractNonEVMAddress(
         bytes calldata data
     ) external pure returns (bytes32 nonEVMAddress) {
-        bytes memory callData;
-
-        if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
-        ) {
-            // standardizedCall
-            callData = abi.decode(data[4:], (bytes));
-        } else {
-            callData = data;
-        }
+        bytes memory callData = data;
 
         // Non-EVM address is always the first parameter of bridge specific data
         if (_extractBridgeData(data).hasSourceSwaps) {
@@ -169,21 +159,8 @@ contract CalldataVerificationFacet {
         }
 
         LibSwap.SwapData[] memory swapData;
-        bytes memory callData;
+        bytes memory callData = data;
         bytes4 functionSelector = bytes4(data[:4]);
-
-        // check if this is a call via StandardizedCallFacet
-        if (
-            functionSelector == StandardizedCallFacet.standardizedCall.selector
-        ) {
-            // extract nested function selector and calldata
-            // will always start at position 68
-            functionSelector = bytes4(data[68:72]);
-            callData = data[68:];
-            // callData = abi.decode(data[4:], (bytes)); // this one is also valid, even though the calldata differs slightly (add. padding)
-        } else {
-            callData = data;
-        }
 
         if (
             functionSelector ==
@@ -274,14 +251,6 @@ contract CalldataVerificationFacet {
         bytes calldata dstCalldata
     ) external pure returns (bool isValid) {
         bytes memory callData = data;
-
-        // Handle standardizedCall
-        if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
-        ) {
-            callData = abi.decode(data[4:], (bytes));
-        }
-
         bytes4 selector = abi.decode(callData, (bytes4));
 
         // ---------------------------------------
@@ -477,18 +446,6 @@ contract CalldataVerificationFacet {
     function _extractBridgeData(
         bytes calldata data
     ) internal pure returns (ILiFi.BridgeData memory bridgeData) {
-        if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
-        ) {
-            // StandardizedCall
-            bytes memory unwrappedData = abi.decode(data[4:], (bytes));
-            bridgeData = abi.decode(
-                unwrappedData.slice(4, unwrappedData.length - 4),
-                (ILiFi.BridgeData)
-            );
-            return bridgeData;
-        }
-        // normal call
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
     }
 
@@ -498,18 +455,6 @@ contract CalldataVerificationFacet {
     function _extractSwapData(
         bytes calldata data
     ) internal pure returns (LibSwap.SwapData[] memory swapData) {
-        if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
-        ) {
-            // standardizedCall
-            bytes memory unwrappedData = abi.decode(data[4:], (bytes));
-            (, swapData) = abi.decode(
-                unwrappedData.slice(4, unwrappedData.length - 4),
-                (ILiFi.BridgeData, LibSwap.SwapData[])
-            );
-            return swapData;
-        }
-        // normal call
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
