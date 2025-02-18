@@ -1,5 +1,7 @@
 import { Chain, defineChain, getAddress } from 'viem'
 import networksConfig from '../../config/networks.json'
+import { config } from 'dotenv'
+config() // Load environment variables from .env
 
 export type NetworksObject = {
   [key: string]: Omit<Network, 'id'>
@@ -41,6 +43,10 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Chain ${networkName} does not exist. Please check that the network exists in 'config/networks.json'`
     )
 
+  // Construct the environment variable key dynamically
+  const envKey = `ETH_NODE_URI_${networkName.toUpperCase()}`
+  const rpcUrl = process.env[envKey] || network.rpcUrl // Use .env value if available, otherwise fallback
+
   const chain = defineChain({
     id: network.chainId,
     name: network.name,
@@ -51,7 +57,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
     },
     rpcUrls: {
       default: {
-        http: [network.rpcUrl],
+        http: [rpcUrl],
       },
     },
     contracts: {
