@@ -5,6 +5,11 @@ name: Security Alerts Review
 # - prevents merging a PR if any alerts are unresolved or dismissed without a comment.
 # - helps maintain a transparent and collaborative security review process by generating a pr comment summarizing the status of all security alerts.
 
+# Limitations:
+# - currently, this action must be triggered manually after dismissing or resolving alerts.
+# - in the future, we plan to automate this process so that the action is re-triggered automatically when a dismissal comment is added.
+#   This will eliminate the need for manual intervention and ensure a more seamless workflow.
+
 on:
   push:
     paths:
