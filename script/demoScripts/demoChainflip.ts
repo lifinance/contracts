@@ -1,3 +1,83 @@
+// Import required libraries and artifacts
+/**
+ * Executes a direct bridge transaction without any swaps
+ * Transfers tokens directly from source to destination chain
+ */
+async function executeDirect(
+  lifiDiamondContract: any,
+  bridgeData: ILiFi.BridgeDataStruct,
+  chainflipData: ChainflipFacet.ChainflipDataStruct,
+  publicClient: any
+) {
+  await executeTransaction(
+    () =>
+      lifiDiamondContract.write.startBridgeTokensViaChainflip([
+        bridgeData,
+        chainflipData,
+      ]),
+    'Starting bridge tokens via Chainflip',
+    publicClient,
+    true
+  )
+}
+
+/**
+ * Executes a bridge transaction with a source chain swap
+ * Swaps tokens on the source chain before bridging
+ */
+async function executeWithSourceSwap(
+  lifiDiamondContract: any,
+  bridgeData: ILiFi.BridgeDataStruct,
+  chainflipData: ChainflipFacet.ChainflipDataStruct,
+  amount: bigint,
+  publicClient: any
+) {
+  const swapData = await getUniswapDataERC20toExactERC20(
+    ADDRESS_UNISWAP_ARB,
+    42161,
+    ADDRESS_USDT_ARB,
+    ADDRESS_USDC_ARB,
+    amount,
+    lifiDiamondAddress,
+    true
+  )
+
+  await executeTransaction(
+    () =>
+      lifiDiamondContract.write.swapAndStartBridgeTokensViaChainflip([
+        bridgeData,
+        [swapData],
+        chainflipData,
+      ]),
+    'Swapping and starting bridge tokens via Chainflip',
+    publicClient,
+    true
+  )
+}
+
+/**
+ * Executes a bridge transaction with a destination chain call
+ * Bridges ETH and includes instructions for a swap on the destination chain
+ */
+async function executeWithDestinationCall(
+  lifiDiamondContract: any,
+  bridgeData: ILiFi.BridgeDataStruct,
+  chainflipData: ChainflipFacet.ChainflipDataStruct,
+  amount: bigint,
+  publicClient: any
+) {
+  await executeTransaction(
+    () =>
+      lifiDiamondContract.write.startBridgeTokensViaChainflip(
+        [bridgeData, chainflipData],
+        { value: amount }
+      ),
+    'Starting bridge tokens via Chainflip with destination call',
+    publicClient,
+    true
+  )
+}
+
 import {
   getContract,
   parseUnits,
@@ -30,12 +110,22 @@ import deployments from '../../deployments/mainnet.staging.json'
 
 dotenv.config()
 
+// Contract addresses and ABIs
 const RECEIVER_CHAINFLIP = deployments.ReceiverChainflip
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
 const CHAINFLIP_FACET_ABI = chainflipFacetArtifact.abi as Narrow<
   typeof chainflipFacetArtifact.abi
 >
 
+/**
+ * Creates a message for cross-chain execution on the destination chain
+ * This message will be used to swap received ETH for USDC using Uniswap
+ * @param transactionId Unique identifier for the transaction
+ * @param finalReceiver Address that will receive the swapped tokens
+ * @param totalETHAmount Total amount of ETH being bridged
+ * @param gasAmount Amount of ETH reserved for gas on destination chain
+ * @returns Encoded message containing swap instructions
+ */
 async function createDestinationCallMessage(
   transactionId: string,
   finalReceiver: string,
@@ -43,9 +133,10 @@ async function createDestinationCallMessage(
   gasAmount: bigint
 ): Promise<string> {
   // Calculate exact ETH amount for swap (total - gas)
+  // Reserve some ETH for gas fees on destination chain
   const swapETHAmount = totalETHAmount - gasAmount
 
-  // Get swap data for ETH -> USDC on mainnet
+  // Prepare swap parameters for ETH -> USDC on Ethereum mainnet
   const swapData = await getUniswapDataExactETHToERC20(
     ADDRESS_UNISWAP_ETH,
     1, // Mainnet chainId
@@ -55,7 +146,7 @@ async function createDestinationCallMessage(
     false
   )
 
-  // Encode the complete message for the receiver contract
+  // Encode the message according to the ReceiverChainflip contract's expected format
   return encodeAbiParameters(
     [
       { type: 'bytes32' }, // transactionId
@@ -169,50 +260,29 @@ async function main() {
     cfParameters: '',
   }
 
-  // === Execute the transaction ===
+  // === Execute the appropriate transaction type ===
   if (withDestinationCall) {
-    await executeTransaction(
-      () =>
-        lifiDiamondContract.write.startBridgeTokensViaChainflip(
-          [bridgeData, chainflipData],
-          { value: amount }
-        ),
-      'Starting bridge tokens via Chainflip with destination call',
-      publicClient,
-      true
+    await executeWithDestinationCall(
+      lifiDiamondContract,
+      bridgeData,
+      chainflipData,
+      amount,
+      publicClient
     )
   } else if (withSwap) {
-    const swapData = await getUniswapDataERC20toExactERC20(
-      ADDRESS_UNISWAP_ARB,
-      42161,
-      ADDRESS_USDT_ARB,
-      ADDRESS_USDC_ARB,
+    await executeWithSourceSwap(
+      lifiDiamondContract,
+      bridgeData,
+      chainflipData,
       amount,
-      lifiDiamondAddress,
-      true
-    )
-
-    await executeTransaction(
-      () =>
-        lifiDiamondContract.write.swapAndStartBridgeTokensViaChainflip([
-          bridgeData,
-          [swapData],
-          chainflipData,
-        ]),
-      'Swapping and starting bridge tokens via Chainflip',
-      publicClient,
-      true
+      publicClient
     )
   } else {
-    await executeTransaction(
-      () =>
-        lifiDiamondContract.write.startBridgeTokensViaChainflip([
-          bridgeData,
-          chainflipData,
-        ]),
-      'Starting bridge tokens via Chainflip',
-      publicClient,
-      true
+    await executeDirect(
+      lifiDiamondContract,
+      bridgeData,
+      chainflipData,
+      publicClient
     )
   }
 }

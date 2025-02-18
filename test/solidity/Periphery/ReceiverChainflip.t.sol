@@ -16,6 +16,8 @@ contract ReceiverChainflipTest is TestBase {
     ReceiverChainflip internal receiver;
     bytes32 guid = bytes32("12345");
     address receiverAddress = USER_RECEIVER;
+    address constant CHAINFLIP_NATIVE_ADDRESS =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     Executor executor;
     ERC20Proxy erc20Proxy;
@@ -217,7 +219,7 @@ contract ReceiverChainflipTest is TestBase {
             4, // srcChain (Arbitrum)
             abi.encodePacked(address(0)),
             payload,
-            LibAsset.NATIVE_ASSETID,
+            CHAINFLIP_NATIVE_ADDRESS,
             1 ether
         );
 
@@ -265,7 +267,7 @@ contract ReceiverChainflipTest is TestBase {
             4, // srcChain (Arbitrum)
             abi.encodePacked(address(0)),
             payload,
-            LibAsset.NATIVE_ASSETID,
+            CHAINFLIP_NATIVE_ADDRESS,
             1 ether
         );
 
@@ -301,7 +303,7 @@ contract ReceiverChainflipTest is TestBase {
             4, // srcChain (Arbitrum)
             abi.encodePacked(address(0)),
             payload,
-            LibAsset.NATIVE_ASSETID,
+            CHAINFLIP_NATIVE_ADDRESS,
             0.01 ether
         );
         vm.stopPrank();

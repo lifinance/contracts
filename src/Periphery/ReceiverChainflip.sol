@@ -22,6 +22,9 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     IExecutor public immutable executor;
     /// @notice The Chainflip vault contract that is authorized to call this contract
     address public immutable chainflipVault;
+    /// @notice Chainflip's native token address representation
+    address constant CHAINFLIP_NATIVE_ADDRESS =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// Modifiers ///
 
@@ -105,28 +108,33 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
         address payable receiver,
         uint256 amount
     ) private {
+        // Convert Chainflip's native token address to LibAsset.NATIVE_ASSETID
+        address actualAssetId = assetId == CHAINFLIP_NATIVE_ADDRESS
+            ? LibAsset.NATIVE_ASSETID
+            : assetId;
+
         // Don't need approval for native token
-        if (assetId != LibAsset.NATIVE_ASSETID) {
-            assetId.safeApproveWithRetry(address(executor), amount);
+        if (actualAssetId != LibAsset.NATIVE_ASSETID) {
+            actualAssetId.safeApproveWithRetry(address(executor), amount);
         }
 
         try
             executor.swapAndCompleteBridgeTokens{
-                value: assetId == LibAsset.NATIVE_ASSETID ? amount : 0
-            }(_transactionId, _swapData, assetId, receiver)
+                value: actualAssetId == LibAsset.NATIVE_ASSETID ? amount : 0
+            }(_transactionId, _swapData, actualAssetId, receiver)
         {} catch {
             // send the bridged (and unswapped) funds to receiver address
-            if (assetId == LibAsset.NATIVE_ASSETID) {
+            if (actualAssetId == LibAsset.NATIVE_ASSETID) {
                 // Handle native token using safeTransferETH
                 receiver.safeTransferETH(amount);
             } else {
                 // Handle ERC20 token
-                assetId.safeTransfer(receiver, amount);
+                actualAssetId.safeTransfer(receiver, amount);
             }
 
             emit LiFiTransferRecovered(
                 _transactionId,
-                assetId,
+                actualAssetId,
                 receiver,
                 amount,
                 block.timestamp
@@ -134,8 +142,8 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
         }
 
         // Only reset approval for non-native tokens
-        if (assetId != LibAsset.NATIVE_ASSETID) {
-            assetId.safeApprove(address(executor), 0);
+        if (actualAssetId != LibAsset.NATIVE_ASSETID) {
+            actualAssetId.safeApprove(address(executor), 0);
         }
     }
 
