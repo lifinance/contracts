@@ -3,10 +3,8 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { AmarokFacet } from "./AmarokFacet.sol";
 import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { StargateFacetV2 } from "./StargateFacetV2.sol";
-import { StargateFacet } from "./StargateFacet.sol";
 import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
@@ -17,7 +15,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.2.0
+/// @custom:version 1.3.0
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -283,58 +281,6 @@ contract CalldataVerificationFacet {
         }
 
         bytes4 selector = abi.decode(callData, (bytes4));
-
-        // ---------------------------------------
-        // Case: Amarok
-        if (selector == AmarokFacet.startBridgeTokensViaAmarok.selector) {
-            (, AmarokFacet.AmarokData memory amarokData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (ILiFi.BridgeData, AmarokFacet.AmarokData)
-            );
-
-            return
-                keccak256(dstCalldata) == keccak256(amarokData.callData) &&
-                abi.decode(callTo, (address)) == amarokData.callTo;
-        }
-        if (
-            selector == AmarokFacet.swapAndStartBridgeTokensViaAmarok.selector
-        ) {
-            (, , AmarokFacet.AmarokData memory amarokData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (ILiFi.BridgeData, LibSwap.SwapData[], AmarokFacet.AmarokData)
-            );
-            return
-                keccak256(dstCalldata) == keccak256(amarokData.callData) &&
-                abi.decode(callTo, (address)) == amarokData.callTo;
-        }
-
-        // ---------------------------------------
-        // Case: Stargate
-        if (selector == StargateFacet.startBridgeTokensViaStargate.selector) {
-            (, StargateFacet.StargateData memory stargateData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (ILiFi.BridgeData, StargateFacet.StargateData)
-            );
-            return
-                keccak256(dstCalldata) == keccak256(stargateData.callData) &&
-                keccak256(callTo) == keccak256(stargateData.callTo);
-        }
-        if (
-            selector ==
-            StargateFacet.swapAndStartBridgeTokensViaStargate.selector
-        ) {
-            (, , StargateFacet.StargateData memory stargateData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (
-                    ILiFi.BridgeData,
-                    LibSwap.SwapData[],
-                    StargateFacet.StargateData
-                )
-            );
-            return
-                keccak256(dstCalldata) == keccak256(stargateData.callData) &&
-                keccak256(callTo) == keccak256(stargateData.callTo);
-        }
 
         // ---------------------------------------
         // Case: StargateV2

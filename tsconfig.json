@@ -12,5 +12,15 @@
     "lib": ["es2020", "DOM"],
     "types": ["node"]
   },
-  "include": ["./script", "./deploy", "./test", "typechain/**/*", "config"]
+  "include": [
+    "./script",
+    "./deploy",
+    "./test",
+    "typechain/**/*",
+    "config",
+    "archive/scripts/demoScripts/demoAmarokBridge.ts",
+    "archive/scripts/demoScripts/demoDeBridge.ts",
+    "archive/scripts/demoScripts/demoMultichainTx.ts",
+    "archive/scripts/demoScripts/demoSynapseBridge.ts"
+  ]
 }
