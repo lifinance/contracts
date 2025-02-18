@@ -11,17 +11,9 @@ name: Security Alerts Review
 #   This will eliminate the need for manual intervention and ensure a more seamless workflow.
 
 on:
-  push:
-    paths:
-      - 'src/**.sol'
   pull_request:
     types:
-      - synchronize
-      - reopened
       - ready_for_review
-  pull_request_review:
-    types:
-      - submitted
   workflow_dispatch:
 
 jobs:
@@ -60,21 +52,24 @@ jobs:
             exit 1
           fi
 
-      - name: Fetch PR Number
+      - uses: actions/checkout@v4
+
+      - uses: jwalton/gh-find-current-pr@master
+        id: findPr
+
+      - name: Validate and set PR Number
         id: fetch_pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r '.[0].number')
-
-          if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "null" ]]; then
-            echo "No open PR found, skipping check."
-            exit 0
+          if [ -z "${{ steps.findPr.outputs.number }}" ]; then
+            echo "Error: No pull request found for this push." >&2
+            exit 1
           fi
-
+          echo "Found PR number: ${{ steps.findPr.outputs.number }}"
+          PR_NUMBER=${{ steps.findPr.outputs.number }}
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
-          echo "PR number: $PR_NUMBER"
+          echo "Pull Request Number is: $PR_NUMBER"
 
       - name: Fetch Security Alerts for PR
         env:
@@ -211,23 +206,34 @@ jobs:
               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
           fi
 
-      - name: Check if Action Should Fail
+      - name: Check if Action Should Fail And Revert To Draft
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ensure PR_NUMBER is set in an earlier step
+          PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
-          echo "🔍 Checking if the workflow should fail based on security alerts..."
-          echo "UNRESOLVED_COUNT: $UNRESOLVED_COUNT"
-          echo "DISMISSED_COUNT: $DISMISSED_COUNT"
+          echo "🔍 Checking if the workflow should fail and revert PR to draft based on security alerts..."
 
-          # Fail the workflow if there are unresolved alerts.
-          if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
-            echo "❌ ERROR: $UNRESOLVED_COUNT unresolved security alerts found!"
+          # Check if there are any unresolved alerts or dismissed alerts without comments.
+          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="⚠️ **Please resolve the above issues before merging.**\n\n"
+
+            echo "❌ ERROR: Found issues in the PR:"
+            if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
+              echo "- $UNRESOLVED_COUNT unresolved security alert(s) found!"
+            fi
+            if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
+              echo "- $DISMISSED_COUNT security alert(s) were dismissed without comments!"
+            fi
             echo "⚠️ These alerts must be resolved before merging."
-            exit 1
-          fi
 
-          # Fail the workflow if there are dismissed alerts without comments.
-          if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
-            echo "❌ ERROR: $DISMISSED_COUNT security alerts were dismissed without comments!"
-            echo "⚠️ Please provide a dismissal reason for these alerts."
+            # Revert the PR to draft.
+            echo "Reverting PR #${PR_NUMBER} to draft state due to blocking security issues..."
+            curl -X PATCH \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"draft": true}' \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}"
             exit 1
           fi
 
