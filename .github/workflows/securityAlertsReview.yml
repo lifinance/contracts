@@ -1,14 +1,11 @@
 name: Security Alerts Review
 
-# - ensures that all security alerts from olympix static analysis are properly handled before merging.
-# - enforces a strict review policy where every alert must be either resolved or dismissed with a justification.
-# - prevents merging a PR if any alerts are unresolved or dismissed without a comment.
-# - helps maintain a transparent and collaborative security review process by generating a pr comment summarizing the status of all security alerts.
-
-# Limitations:
-# - currently, this action must be triggered manually after dismissing or resolving alerts.
-# - in the future, we plan to automate this process so that the action is re-triggered automatically when a dismissal comment is added.
-#   This will eliminate the need for manual intervention and ensure a more seamless workflow.
+# - ensures that all security alerts from olympix static analysis are properly handled before merging
+# - enforces a strict review policy where every alert must be either resolved or dismissed with a justification
+# - prevents merging a PR if any alerts are unresolved or dismissed without a comment
+# - helps maintain a transparent and collaborative security review process by generating a pr comment summarizing the status of all security alerts
+# - automatically reverts the PR to draft status if blocking alerts exist
+# - leaves a summary of all alerts in a comment starting with "🤖 GitHub Action: Security Alerts Review 🔍"
 
 on:
   pull_request:
@@ -30,7 +27,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH_NAME: ${{ github.head_ref }}
         run: |
-
           # Fallback in case BRANCH_NAME is empty.
           if [ -z "$BRANCH_NAME" ]; then
             BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF##*/}}"
@@ -95,6 +91,9 @@ jobs:
           UNRESOLVED_COUNT=$(echo "$UNRESOLVED_ALERTS" | jq -r 'length')
           DISMISSED_COUNT=$(echo "$DISMISSED_ALERTS" | jq -r 'length')
           COMMENTED_COUNT=$(echo "$RESOLVED_ALERTS" | jq -r 'length')
+          
+          # Count dismissed alerts with the invalid reason "Used in tests" (invalid because only production code is analyzed)
+          INVALID_REASON_COUNT=$(echo "$RESOLVED_ALERTS" | jq -r '[.[] | select(.dismissed_reason == "used in tests")] | length')
 
           # Output for debugging
           echo "UNRESOLVED_ALERTS: $UNRESOLVED_ALERTS"
@@ -103,6 +102,7 @@ jobs:
           echo "UNRESOLVED_COUNT: $UNRESOLVED_COUNT"
           echo "DISMISSED_COUNT: $DISMISSED_COUNT"
           echo "COMMENTED_COUNT: $COMMENTED_COUNT"
+          echo "INVALID_REASON_COUNT: $INVALID_REASON_COUNT"
 
           # Save values in the environment as single-line JSON
           echo "UNRESOLVED_ALERTS=$UNRESOLVED_ALERTS" >> $GITHUB_ENV
@@ -111,6 +111,7 @@ jobs:
           echo "UNRESOLVED_COUNT=$UNRESOLVED_COUNT" >> $GITHUB_ENV
           echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
           echo "COMMENTED_COUNT=$COMMENTED_COUNT" >> $GITHUB_ENV
+          echo "INVALID_REASON_COUNT=$INVALID_REASON_COUNT" >> $GITHUB_ENV
 
       - name: Find Existing PR Comment
         id: find_comment
@@ -164,16 +165,40 @@ jobs:
             done < <(echo "$DISMISSED_ALERTS" | jq -c '.[]')
           fi
 
-          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 ]]; then
+
+          # Add alerts dismissed with an invalid reason ("Used in tests")
+          if [[ "$INVALID_REASON_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="❌ **Invalid Dismissal Reasons Found!** ❌\n"
+            COMMENT_BODY+="The following alerts were dismissed with the reason **Used in tests**, which is not allowed for production code. Please provide a valid dismissal reason.\n\n"
+
+            while IFS= read -r row; do
+              ALERT_URL=$(echo "$row" | jq -r '.html_url')
+              ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
+              ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
+              DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
+              CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
+              
+              COMMENT_BODY+="❌ [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
+              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
+              COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON** (invalid for production code)\n\n"
+            done < <(echo "$RESOLVED_ALERTS" | jq -c '.[] | select(.dismissed_reason == "used in tests")')
+          fi
+
+          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 || "$INVALID_REASON_COUNT" -gt 0 ]]; then
             COMMENT_BODY+="⚠️ **Please resolve the above issues before merging.**\n\n"
           fi
 
-          # Add Dismissed Alerts With Comments (Successful dismissals)
+          # Add Dismissed alerts With valid comments (successful dismissals)
           if [[ "$COMMENTED_COUNT" -gt 0 ]]; then
             COMMENT_BODY+="🟢 **Dismissed Security Alerts with Comments**\n"
             COMMENT_BODY+="The following alerts were dismissed with proper comments:\n\n"
 
             while IFS= read -r row; do
+              # Skip alerts that were dismissed with an invalid reason
+              if echo "$row" | jq -e 'select(.dismissed_reason == "used in tests")' > /dev/null; then
+                continue
+              fi
+
               ALERT_URL=$(echo "$row" | jq -r '.html_url')
               ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
               ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
@@ -188,8 +213,8 @@ jobs:
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
-          # If no unresolved alerts and no dismissed alerts missing comments, add overall success message
-          if [[ "$UNRESOLVED_COUNT" -eq 0 && "$DISMISSED_COUNT" -eq 0 ]]; then
+          # If no unresolved alerts and no dismissed alerts missing comments or with invalid reasons, add overall success message
+          if [[ "$UNRESOLVED_COUNT" -eq 0 && "$DISMISSED_COUNT" -eq 0 && "$INVALID_REASON_COUNT" -eq 0 ]]; then
             COMMENT_BODY+="✅ **No unresolved security alerts!** 🎉\n\n"
           fi
 
@@ -209,15 +234,12 @@ jobs:
       - name: Check if Action Should Fail And Revert To Draft
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Ensure PR_NUMBER is set in an earlier step
           PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
           echo "🔍 Checking if the workflow should fail and revert PR to draft based on security alerts..."
 
-          # Check if there are any unresolved alerts or dismissed alerts without comments.
-          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="⚠️ **Please resolve the above issues before merging.**\n\n"
-
+          # Check if there are any unresolved alerts, dismissed alerts missing comments, or invalid dismissal reasons.
+          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 || "$INVALID_REASON_COUNT" -gt 0 ]]; then
             echo "❌ ERROR: Found issues in the PR:"
             if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
               echo "- $UNRESOLVED_COUNT unresolved security alert(s) found!"
@@ -225,15 +247,22 @@ jobs:
             if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
               echo "- $DISMISSED_COUNT security alert(s) were dismissed without comments!"
             fi
+            if [[ "$INVALID_REASON_COUNT" -gt 0 ]]; then
+              echo "- $INVALID_REASON_COUNT alert(s) have an invalid dismissal reason (\"Used in tests\")."
+            fi
             echo "⚠️ These alerts must be resolved before merging."
+
+          # Retrieve PR Node ID directly from github event
+          PULL_REQUEST_NODE_ID="${{ github.event.pull_request.node_id }}"
+          echo "PR Node ID: $PULL_REQUEST_NODE_ID"
 
             # Revert the PR to draft.
             echo "Reverting PR #${PR_NUMBER} to draft state due to blocking security issues..."
-            curl -X PATCH \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d '{"draft": true}' \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}"
+            curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+                 -H "Content-Type: application/json" \
+                 -X POST \
+                 -d '{"query": "mutation { convertPullRequestToDraft(input: {pullRequestId: \"'"$PULL_REQUEST_NODE_ID"'\"}) { pullRequest { id isDraft } } }"}' \
+                 https://api.github.com/graphql
             exit 1
           fi
 
