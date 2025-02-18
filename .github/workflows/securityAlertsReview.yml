@@ -90,16 +90,16 @@ jobs:
           # Extract dismissed alerts without comments (empty dismissed_comment)
           DISMISSED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment == null or .dismissed_comment == ""))]' || echo "[]")
           # Extract dismissed alerts with comments (successful dismissals)
-          DISMISSED_AND_COMMENTED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment != null and .dismissed_comment != ""))]' || echo "[]")
+          RESOLVED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment != null and .dismissed_comment != ""))]' || echo "[]")
 
           UNRESOLVED_COUNT=$(echo "$UNRESOLVED_ALERTS" | jq -r 'length')
           DISMISSED_COUNT=$(echo "$DISMISSED_ALERTS" | jq -r 'length')
-          COMMENTED_COUNT=$(echo "$DISMISSED_AND_COMMENTED_ALERTS" | jq -r 'length')
+          COMMENTED_COUNT=$(echo "$RESOLVED_ALERTS" | jq -r 'length')
 
           # Output for debugging
           echo "UNRESOLVED_ALERTS: $UNRESOLVED_ALERTS"
           echo "DISMISSED_ALERTS (without comments): $DISMISSED_ALERTS"
-          echo "DISMISSED_AND_COMMENTED_ALERTS (with comments): $DISMISSED_AND_COMMENTED_ALERTS"
+          echo "RESOLVED_ALERTS (with comments): $RESOLVED_ALERTS"
           echo "UNRESOLVED_COUNT: $UNRESOLVED_COUNT"
           echo "DISMISSED_COUNT: $DISMISSED_COUNT"
           echo "COMMENTED_COUNT: $COMMENTED_COUNT"
@@ -107,7 +107,7 @@ jobs:
           # Save values in the environment as single-line JSON
           echo "UNRESOLVED_ALERTS=$UNRESOLVED_ALERTS" >> $GITHUB_ENV
           echo "DISMISSED_ALERTS=$DISMISSED_ALERTS" >> $GITHUB_ENV
-          echo "DISMISSED_AND_COMMENTED_ALERTS=$DISMISSED_AND_COMMENTED_ALERTS" >> $GITHUB_ENV
+          echo "RESOLVED_ALERTS=$RESOLVED_ALERTS" >> $GITHUB_ENV
           echo "UNRESOLVED_COUNT=$UNRESOLVED_COUNT" >> $GITHUB_ENV
           echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
           echo "COMMENTED_COUNT=$COMMENTED_COUNT" >> $GITHUB_ENV
@@ -185,7 +185,7 @@ jobs:
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
               COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT\n\n"
-            done < <(echo "$DISMISSED_AND_COMMENTED_ALERTS" | jq -c '.[]')
+            done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
           # If no unresolved alerts and no dismissed alerts missing comments, add overall success message
