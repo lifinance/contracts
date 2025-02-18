@@ -28944,5 +28944,21 @@
         ]
       }
     }
+  },
+  "ReceiverChainflip": {
+    "mainnet": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5DFcEbB675F3cA2049d4b6791Ce2284EA940204a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-18 10:33:37",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000be27f03c8e6a61e2a4b1ee7940dbcb9204744d1c000000000000000000000000f5e10380213880111522dd0efd3dbb45b9f62bcc",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
