@@ -10,6 +10,7 @@ import {
   PublicClient,
   createPublicClient,
   getAddress,
+  formatEther,
   getContract,
   http,
   parseAbi,
@@ -19,7 +20,7 @@ import {
   networks,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
-import { coreFacets } from '../../config/global.json'
+import { coreFacets, pauserWallet } from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
 
@@ -28,8 +29,9 @@ const louperCmd = 'louper-cli'
 const corePeriphery = [
   'ERC20Proxy',
   'Executor',
-  'Receiver',
   'FeeCollector',
+  'LiFiDEXAggregator',
+  'Receiver',
   'TokenWrapper',
 ]
 
@@ -79,7 +81,7 @@ const main = defineCommand({
         !coreFacets.includes(k) &&
         !corePeriphery.includes(k) &&
         k !== 'LiFiDiamond' &&
-        k.endsWith('Facet')
+        k.includes('Facet')
       )
     })
     const dexs = (await import(`../../config/dexs.json`))[
@@ -260,25 +262,25 @@ const main = defineCommand({
       })
       const approvedDexs = await dexManager.read.approvedDexs()
 
-      // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and TokenWrapper
+      // Loop through DEXs excluding the address for FeeCollector, LiFiDEXAggregator and TokenWrapper
       let numMissing = 0
       for (const dex of dexs.filter(
         (d) => !corePeriphery.includes(getAddress(d))
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
-          logError(`Dex ${dex} not approved in Diamond`)
+          logError(`DEX ${dex} not approved in Diamond`)
           numMissing++
         }
       }
 
-      // Check that FeeCollector, LiFuelFeeCollector and TokenWrapper are included in approvedDexs
-      const feeCollectors = corePeriphery.filter(
+      // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
+      const mustBeWhitelisted = corePeriphery.filter(
         (p) =>
           p === 'FeeCollector' ||
-          p === 'LiFuelFeeCollector' ||
+          p === 'LiFiDEXAggregator' ||
           p === 'TokenWrapper'
       )
-      for (const f of feeCollectors) {
+      for (const f of mustBeWhitelisted) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
           logError(`Periphery contract ${f} not approved as a DEX`)
           numMissing++
@@ -417,10 +419,24 @@ const main = defineCommand({
 
         if (!exists) {
           logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        }
+        } else
+          consola.success(
+            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
+          )
       } catch (error: any) {
         logError(`Error checking workflow file: ${error.message}`)
       }
+      console.log('')
+
+      const pauserBalance = formatEther(
+        await publicClient.getBalance({
+          address: pauserWallet,
+        })
+      )
+
+      if (!pauserBalance || pauserBalance === '0')
+        logError(`PauserWallet does not have any native balance`)
+      else consola.success(`PauserWallet is funded: ${pauserBalance}`)
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check access permissions                 │
