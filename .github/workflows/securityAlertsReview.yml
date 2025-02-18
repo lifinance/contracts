@@ -1,0 +1,194 @@
+name: Security Alerts Review
+
+on:
+  push:
+    paths:
+      - 'src/**.sol'
+      - ".github/workflows/securityAlertsReview.yml"
+  pull_request:
+    types:
+      - synchronize
+      - reopened
+      - ready_for_review
+  pull_request_review:
+    types:
+      - submitted
+  workflow_dispatch:
+
+jobs:
+  check-security-alerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch PR Number
+        id: fetch_pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r '.[0].number')
+
+          if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "null" ]]; then
+            echo "No open PR found, skipping check."
+            exit 0
+          fi
+
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR number: $PR_NUMBER"
+
+      - name: Fetch Security Alerts for PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching security alerts for PR #${PR_NUMBER}..."
+          
+          # Fetch security alerts via GitHub API
+          ALERTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
+
+          # Log raw API response for debugging
+          echo "Raw API Response:"
+          echo "$ALERTS"
+
+          # Extract unresolved alerts (open alerts)
+          UNRESOLVED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "open") ]' || echo "[]")
+          # Extract dismissed alerts without comments (empty dismissed_comment)
+          DISMISSED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment == null or .dismissed_comment == ""))]' || echo "[]")
+          # Extract dismissed alerts with comments (successful dismissals)
+          COMMENTED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment != null and .dismissed_comment != ""))]' || echo "[]")
+
+          UNRESOLVED_COUNT=$(echo "$UNRESOLVED_ALERTS" | jq -r 'length')
+          DISMISSED_COUNT=$(echo "$DISMISSED_ALERTS" | jq -r 'length')
+          COMMENTED_COUNT=$(echo "$COMMENTED_ALERTS" | jq -r 'length')
+
+          # Output for debugging
+          echo "UNRESOLVED_ALERTS: $UNRESOLVED_ALERTS"
+          echo "DISMISSED_ALERTS (without comments): $DISMISSED_ALERTS"
+          echo "COMMENTED_ALERTS (with comments): $COMMENTED_ALERTS"
+          echo "UNRESOLVED_COUNT: $UNRESOLVED_COUNT"
+          echo "DISMISSED_COUNT: $DISMISSED_COUNT"
+          echo "COMMENTED_COUNT: $COMMENTED_COUNT"
+
+          # Save values in the environment as single-line JSON
+          echo "UNRESOLVED_ALERTS=$UNRESOLVED_ALERTS" >> $GITHUB_ENV
+          echo "DISMISSED_ALERTS=$DISMISSED_ALERTS" >> $GITHUB_ENV
+          echo "COMMENTED_ALERTS=$COMMENTED_ALERTS" >> $GITHUB_ENV
+          echo "UNRESOLVED_COUNT=$UNRESOLVED_COUNT" >> $GITHUB_ENV
+          echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
+          echo "COMMENTED_COUNT=$COMMENTED_COUNT" >> $GITHUB_ENV
+
+      - name: Find Existing PR Comment
+        id: find_comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Searching for existing PR comment..."
+          
+          COMMENT_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" | jq -r \
+            '.[] | select(.body | startswith("### 🤖 GitHub Action: Security Alerts Review")) | .id')
+
+          if [[ -n "$COMMENT_ID" && "$COMMENT_ID" != "null" ]]; then
+            echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> $GITHUB_ENV
+          fi
+
+          echo "Found comment ID: $COMMENT_ID"
+
+      - name: Post or Update PR Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY="### 🤖 GitHub Action: Security Alerts Review 🔍\n\n"
+
+          # Add Unresolved Alerts
+          if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="🚨 **Unresolved Security Alerts Found!** 🚨\n"
+            COMMENT_BODY+="The following security alerts must be **resolved** before merging:\n\n"
+
+            while IFS= read -r row; do
+              ALERT_URL=$(echo "$row" | jq -r '.html_url')
+              ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
+              ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
+
+              COMMENT_BODY+="🔴 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
+              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n\n"
+            done < <(echo "$UNRESOLVED_ALERTS" | jq -c '.[]')
+          fi
+
+          # Add Dismissed Alerts Without Comments
+          if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="The following alerts were dismissed but require a dismissal comment:\n\n"
+
+            while IFS= read -r row; do
+              ALERT_URL=$(echo "$row" | jq -r '.html_url')
+              ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
+              ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
+
+              COMMENT_BODY+="🟡 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
+              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n\n"
+            done < <(echo "$DISMISSED_ALERTS" | jq -c '.[]')
+          fi
+
+          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="⚠️ **Please resolve the above issues before merging.**\n\n"
+          fi
+
+          # Add Dismissed Alerts With Comments (Successful dismissals)
+          if [[ "$COMMENTED_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="🟢 **Dismissed Security Alerts with Comments**\n"
+            COMMENT_BODY+="The following alerts were dismissed with proper comments:\n\n"
+
+            while IFS= read -r row; do
+              ALERT_URL=$(echo "$row" | jq -r '.html_url')
+              ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
+              ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
+              DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
+              DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
+              CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
+
+              COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
+              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
+              COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
+              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT\n\n"
+            done < <(echo "$COMMENTED_ALERTS" | jq -c '.[]')
+          fi
+
+          # If no unresolved alerts and no dismissed alerts missing comments, add overall success message
+          if [[ "$UNRESOLVED_COUNT" -eq 0 && "$DISMISSED_COUNT" -eq 0 ]]; then
+            COMMENT_BODY+="✅ **No unresolved security alerts!** 🎉\n\n"
+          fi
+
+          # Update existing comment if found; otherwise, post a new one.
+          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
+            echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
+            curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
+          else
+            echo "Posting new comment to PR..."
+            curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+          fi
+
+      - name: Check if Action Should Fail
+        run: |
+          echo "🔍 Checking if the workflow should fail based on security alerts..."
+          echo "UNRESOLVED_COUNT: $UNRESOLVED_COUNT"
+          echo "DISMISSED_COUNT: $DISMISSED_COUNT"
+
+          # Fail the workflow if there are unresolved alerts.
+          if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
+            echo "❌ ERROR: $UNRESOLVED_COUNT unresolved security alerts found!"
+            echo "⚠️ These alerts must be resolved before merging."
+            exit 1
+          fi
+
+          # Fail the workflow if there are dismissed alerts without comments.
+          if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
+            echo "❌ ERROR: $DISMISSED_COUNT security alerts were dismissed without comments!"
+            echo "⚠️ Please provide a dismissal reason for these alerts."
+            exit 1
+          fi
+
+          echo "✅ No blocking security issues found. The workflow will pass successfully."
