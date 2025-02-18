@@ -6,7 +6,8 @@ import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
-import { CannotAuthoriseSelf, UnAuthorized, InvalidContract } from "src/Errors/GenericErrors.sol";
+import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
+import { InvalidContract, OnlyContractOwner, CannotAuthoriseSelf, UnAuthorized, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 
 contract Foo {}
 
@@ -17,6 +18,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
 
     LiFiDiamond internal diamond;
     DexManagerFacet internal dexMgr;
+    AccessManagerFacet internal accessMgr;
     Foo internal c1;
     Foo internal c2;
     Foo internal c3;
@@ -28,7 +30,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         c2 = new Foo();
         c3 = new Foo();
 
-        bytes4[] memory functionSelectors = new bytes4[](8);
+        bytes4[] memory functionSelectors = new bytes4[](9);
         functionSelectors[0] = DexManagerFacet.addDex.selector;
         functionSelectors[1] = DexManagerFacet.removeDex.selector;
         functionSelectors[2] = DexManagerFacet.batchAddDex.selector;
@@ -44,6 +46,15 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
 
         addFacet(diamond, address(dexMgr), functionSelectors);
 
+        // add AccessManagerFacet to be able to whitelist addresses for execution of protected functions
+        accessMgr = new AccessManagerFacet();
+
+        functionSelectors = new bytes4[](2);
+        functionSelectors[0] = accessMgr.setCanExecute.selector;
+        functionSelectors[1] = accessMgr.addressCanExecuteMethod.selector;
+        addFacet(diamond, address(accessMgr), functionSelectors);
+
+        accessMgr = AccessManagerFacet(address(diamond));
         dexMgr = DexManagerFacet(address(diamond));
     }
 
@@ -311,5 +322,63 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         }
 
         vm.stopPrank();
+    }
+
+    function test_AllowsWhitelistedAddressToAddContract() public {
+        vm.stopPrank();
+        vm.startPrank(USER_PAUSER);
+        vm.expectRevert(UnAuthorized.selector);
+
+        dexMgr.addDex(address(c1));
+
+        // allow USER_PAUSER address to execute addDex() function
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        accessMgr.setCanExecute(
+            DexManagerFacet.addDex.selector,
+            USER_PAUSER,
+            true
+        );
+
+        // try to call addDex()
+        vm.startPrank(USER_PAUSER);
+
+        dexMgr.addDex(address(c1));
+
+        address[] memory approved = dexMgr.approvedDexs();
+
+        assertEq(approved[0], address(c1));
+    }
+
+    function test_AllowsWhitelistedAddressToBatchAddContract() public {
+        address[] memory dexs = new address[](2);
+        dexs[0] = address(c1);
+        dexs[1] = address(c2);
+
+        vm.stopPrank();
+        vm.startPrank(USER_PAUSER);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        dexMgr.batchAddDex(dexs);
+
+        // allow USER_PAUSER address to execute batchAddDex() function
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        accessMgr.setCanExecute(
+            DexManagerFacet.batchAddDex.selector,
+            USER_PAUSER,
+            true
+        );
+
+        // try to call addDex()
+        vm.startPrank(USER_PAUSER);
+
+        dexMgr.batchAddDex(dexs);
+
+        address[] memory approved = dexMgr.approvedDexs();
+
+        assertEq(approved[0], address(c1));
+        assertEq(approved[1], address(c2));
     }
 }
