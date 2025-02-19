@@ -31,16 +31,24 @@ const main = defineCommand({
 
     consola.info(`Starting update process for network: ${network}`)
 
-    const networkDeploymentPath = path.resolve(
+    const networkDeploymentLogPath = path.resolve(
       __dirname,
       '../../deployments/',
       `${network}.json`
     )
+    const networkDiamondDeploymentLogPath = path.resolve(
+      __dirname,
+      '../../deployments/',
+      `${network}.diamond.json`
+    )
 
-    type DeployedContracts = Record<string, Address>
-    const { default: deployedContracts } = (await import(
-      networkDeploymentPath
-    )) as { default: DeployedContracts }
+    type DeployLogContracts = Record<string, Address>
+    const { default: networkDeployLogContracts } = (await import(
+      networkDeploymentLogPath
+    )) as { default: DeployLogContracts }
+    const { default: networkDiamondDeployLogContracts } = (await import(
+      networkDiamondDeploymentLogPath
+    )) as { default: DeployLogContracts }
 
     const chain = getViemChainForNetworkName(network)
     const publicClient = createPublicClient({
@@ -55,7 +63,7 @@ const main = defineCommand({
     consola.box('Checking LiFiDiamond contract deployment...')
     const diamondDeployed = await checkIsDeployed(
       'LiFiDiamond',
-      deployedContracts,
+      networkDeployLogContracts,
       publicClient
     )
 
@@ -65,7 +73,7 @@ const main = defineCommand({
     }
     consola.success('LiFiDiamond contract is deployed.')
 
-    const diamondAddress = deployedContracts['LiFiDiamond']
+    const diamondAddress = networkDeployLogContracts['LiFiDiamond']
 
     // ┌─────────────────────────────────────────────────────────┐
     // │   Check if all facets are registered in the diamond     │
@@ -109,9 +117,9 @@ const main = defineCommand({
         throw new Error('Unexpected format for on-chain facets data.')
       }
 
-      // Map on-chain facet addresses to names in config
+      // map on-chain facet addresses to names in config
       const configFacetsByAddress = Object.fromEntries(
-        Object.entries(deployedContracts)
+        Object.entries(networkDeployLogContracts)
           .filter(([name]) => name.includes('Facet'))
           .map(([name, address]) => [address.toLowerCase(), name])
       )
@@ -119,88 +127,130 @@ const main = defineCommand({
       const onChainFacetAddresses = onChainFacets.map(([address]) =>
         address.toLowerCase()
       )
-      const missingInConfig = onChainFacetAddresses.filter(
-        (address) => !configFacetsByAddress[address]
-      )
+      const missingOnChainRegisteredFacetAddressesInDeployLog =
+        onChainFacetAddresses.filter(
+          (address) => !configFacetsByAddress[address]
+        )
 
-      if (missingInConfig.length > 0) {
+      if (missingOnChainRegisteredFacetAddressesInDeployLog.length > 0) {
         consola.warn(
           `Detected missing facets in ${network}.json: ${JSON.stringify(
-            missingInConfig
+            missingOnChainRegisteredFacetAddressesInDeployLog
           )}`
         )
         consola.info(
           `This may be due to outdated addresses in ${network}.json.`
         )
 
-        // Retrieve API key
-        const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
-        const apiKey = process.env[apiKeyEnvVar]
-
-        if (!apiKey) {
-          throw new Error(
-            `Missing API key for ${network}. Ensure it's set in the environment variables.`
-          )
-        }
-
-        for (const missingContractAddress of missingInConfig) {
+        for (const missingOnChainRegisteredFacetAddressInDeployLog of missingOnChainRegisteredFacetAddressesInDeployLog) {
           consola.log(`\n`)
           consola.info(
-            `Fetching contract details for missing address: ${missingContractAddress}`
+            `Fetching contract details for missing address: ${missingOnChainRegisteredFacetAddressInDeployLog}`
           )
 
-          const url = new URL(baseUrl)
-          url.searchParams.append('module', 'contract')
-          url.searchParams.append('action', 'getsourcecode')
-          url.searchParams.append('address', missingContractAddress)
-          url.searchParams.append('apiKey', apiKey)
+          const onChainRegisteredFacetContractData = await fetchContractDetails(
+            baseUrl,
+            missingOnChainRegisteredFacetAddressInDeployLog,
+            network
+          )
 
-          const response = await fetch(url.toString())
-          const data = await response.json()
-
-          if (data.result.includes('Invalid API Key')) {
-            consola.error(data.result)
-            continue
-          }
-          if (
-            data.result.includes(
-              'Missing or unsupported chainid parameter (required for v2 api)'
-            )
-          ) {
-            consola.warn(
-              'Missing or unsupported chainid parameter (required for v2 api). Please see https://api.etherscan.io/v2/chainlist for the list of supported chainids.'
-            )
-            continue
-          }
-
-          const contractName = data.result[0]?.ContractName
-          if (!contractName) {
+          const onChainRegisteredFacetContractContractName =
+            onChainRegisteredFacetContractData.ContractName
+          if (!onChainRegisteredFacetContractContractName) {
             // TODO compare facet byte codes
             // TODO try to verify contract
             consola.error(
-              `Skipping ${missingContractAddress}: No contract name found.`
+              `Skipping ${missingOnChainRegisteredFacetAddressInDeployLog}: No contract name found.`
             )
             continue
           }
 
           consola.info(
-            `Checking if ${contractName} already exists in ${network}.json...`
+            `Checking if ${onChainRegisteredFacetContractContractName} already exists in ${network}.json...`
           )
-          if (deployedContracts[contractName]) {
-            consola.info(
-              `Updating ${contractName}: ${deployedContracts[contractName]} → ${missingContractAddress}`
+          if (
+            networkDeployLogContracts[
+              onChainRegisteredFacetContractContractName
+            ]
+          ) {
+            // check contract versions:
+            const onChainRegisteredFacetContractVersion = extractVersion(
+              onChainRegisteredFacetContractData.SourceCode
             )
+            if (onChainRegisteredFacetContractVersion == null) {
+              continue
+            }
+
+            const deployLogFacetContractData = await fetchContractDetails(
+              baseUrl,
+              networkDeployLogContracts[
+                onChainRegisteredFacetContractContractName
+              ],
+              network
+            )
+            const deployLogFacetContractVersion = extractVersion(
+              deployLogFacetContractData.SourceCode
+            )
+            if (deployLogFacetContractVersion == null) {
+              continue
+            }
+
+            // now check if onchain registered facet has the newest version compering to contract code which is in our repo
+            const contractFilePath = findContractFile(
+              `src`,
+              onChainRegisteredFacetContractContractName
+            )
+            if (!contractFilePath) {
+              consola.warn(
+                `No contract file found for ${onChainRegisteredFacetContractContractName} in src/ folder.`
+              )
+              continue
+            }
+
+            const contractSourceCode = fs.readFileSync(contractFilePath, 'utf8')
+            const repoVersion = extractVersion(contractSourceCode)
+            if (!repoVersion) {
+              consola.warn(`No version found in ${contractFilePath}.`)
+              continue
+            }
+            if (
+              compareVersions(
+                repoVersion,
+                onChainRegisteredFacetContractVersion
+              )
+            ) {
+              consola.error(
+                `Onchain registered facet is not the newest version! Found newer version in the repo for ${onChainRegisteredFacetContractContractName} contract. Please update diamond first! Contract name: ${onChainRegisteredFacetContractContractName}, Deploy log contract address: ${networkDeployLogContracts[onChainRegisteredFacetContractContractName]} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
+              )
+              if (
+                compareVersions(repoVersion, deployLogFacetContractVersion) == 0
+              ) {
+                // equal
+                consola.error(
+                  `But there is POTENTIALLY existing deployed facet but it's not registered ${missingOnChainRegisteredFacetAddressInDeployLog}`
+                )
+              }
+            } else {
+              consola.info(
+                `Updating ${onChainRegisteredFacetContractContractName}: ${networkDeployLogContracts[onChainRegisteredFacetContractContractName]} → ${missingOnChainRegisteredFacetAddressInDeployLog}`
+              )
+              networkDeployLogContracts[
+                onChainRegisteredFacetContractContractName
+              ] = missingOnChainRegisteredFacetAddressInDeployLog
+            }
           } else {
             consola.info(
-              `Adding new contract: ${contractName} (${missingContractAddress})`
+              `Adding new registered facet contract: ${onChainRegisteredFacetContractContractName} (${missingOnChainRegisteredFacetAddressInDeployLog})`
             )
+            networkDeployLogContracts[
+              onChainRegisteredFacetContractContractName
+            ] = missingOnChainRegisteredFacetAddressInDeployLog
           }
-          deployedContracts[contractName] = missingContractAddress
         }
 
         fs.writeFileSync(
-          networkDeploymentPath,
-          JSON.stringify(deployedContracts, null, 2)
+          networkDeploymentLogPath,
+          JSON.stringify(networkDeployLogContracts, null, 2)
         )
         consola.success('Deployment file updated successfully.')
       } else {
@@ -217,12 +267,100 @@ const main = defineCommand({
   },
 })
 
+function findContractFile(
+  baseDir: string,
+  contractName: string
+): string | null {
+  const files = fs.readdirSync(baseDir, { withFileTypes: true })
+
+  for (const file of files) {
+    const filePath = path.join(baseDir, file.name)
+
+    if (file.isDirectory()) {
+      const result = findContractFile(filePath, contractName)
+      if (result) return result
+    } else if (file.name === `${contractName}.sol`) {
+      return filePath
+    }
+  }
+  return null
+}
+
+const fetchContractDetails = async (
+  baseUrl: string,
+  contractAddress: string,
+  network: string
+) => {
+  consola.log(`\n`)
+  consola.info(
+    `Fetching contract details for missing address: ${contractAddress}`
+  )
+
+  // Retrieve API key
+  const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
+  const apiKey = process.env[apiKeyEnvVar]
+
+  if (!apiKey) {
+    throw new Error(
+      `Missing API key for ${network}. Ensure it's set in the environment variables.`
+    )
+  }
+
+  const url = new URL(baseUrl)
+  url.searchParams.append('module', 'contract')
+  url.searchParams.append('action', 'getsourcecode')
+  url.searchParams.append('address', contractAddress)
+  url.searchParams.append('apiKey', apiKey)
+
+  const response = await fetch(url.toString())
+  const data = await response.json()
+
+  if (data.result.includes('Invalid API Key')) {
+    consola.error(data.result)
+    return null
+  }
+  if (
+    data.result.includes(
+      'Missing or unsupported chainid parameter (required for v2 api)'
+    )
+  ) {
+    consola.warn(
+      'Missing or unsupported chainid parameter (required for v2 api). Please see https://api.etherscan.io/v2/chainlist for the list of supported chainids.'
+    )
+    return null
+  }
+
+  return data.result[0] ?? null
+}
+
+function extractVersion(sourceCode: string): string | null {
+  const versionMatch = sourceCode.match(/@custom:version\s+([\d.]+)/)
+  return versionMatch ? versionMatch[1] : null
+}
+
+function parseVersion(version: string): number[] {
+  return version.split('.').map((num) => parseInt(num, 10) || 0)
+}
+
+function compareVersions(versionA: string, versionB: string): number {
+  const aParts = parseVersion(versionA)
+  const bParts = parseVersion(versionB)
+
+  for (let i = 0; i < 3; i++) {
+    const a = aParts[i] || 0 // default to 0 if missing
+    const b = bParts[i] || 0
+    if (a > b) return 1 // versionA is greater
+    if (a < b) return -1 // versionB is greater
+  }
+  return 0 // versions are equal
+}
+
 const checkIsDeployed = async (
   contract: string,
-  deployedContracts: Record<string, Address>,
+  networkDeployLogContracts: Record<string, Address>,
   publicClient: PublicClient
 ): Promise<boolean> => {
-  const address = deployedContracts[contract]
+  const address = networkDeployLogContracts[contract]
   if (!address) return false
 
   const code = await publicClient.getCode({ address })
