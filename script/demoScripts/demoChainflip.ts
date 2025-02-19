@@ -1,4 +1,43 @@
 // Import required libraries and artifacts
+import {
+  getContract,
+  parseUnits,
+  Narrow,
+  zeroAddress,
+  encodeAbiParameters,
+  formatEther,
+  formatUnits,
+} from 'viem'
+import { randomBytes } from 'crypto'
+import dotenv from 'dotenv'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
+import { ChainflipFacet, ILiFi } from '../../typechain'
+import { SupportedChain } from './utils/demoScriptChainConfig'
+import {
+  ensureBalance,
+  ensureAllowance,
+  executeTransaction,
+  ADDRESS_USDC_ARB,
+  ADDRESS_USDT_ARB,
+  ADDRESS_USDC_ETH,
+  ADDRESS_UNISWAP_ETH,
+  getUniswapDataERC20toExactERC20,
+  getUniswapDataExactETHToERC20,
+  ADDRESS_UNISWAP_ARB,
+  setupEnvironment,
+} from './utils/demoScriptHelpers'
+import deployments from '../../deployments/mainnet.staging.json'
+
+dotenv.config()
+
+// Contract addresses and ABIs
+const RECEIVER_CHAINFLIP = deployments.ReceiverChainflip
+const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
+const CHAINFLIP_FACET_ABI = chainflipFacetArtifact.abi as Narrow<
+  typeof chainflipFacetArtifact.abi
+>
+
 /**
  * Executes a direct bridge transaction without any swaps
  * Transfers tokens directly from source to destination chain
@@ -77,45 +116,6 @@ async function executeWithDestinationCall(
     true
   )
 }
-
-import {
-  getContract,
-  parseUnits,
-  Narrow,
-  zeroAddress,
-  encodeAbiParameters,
-  formatEther,
-  formatUnits,
-} from 'viem'
-import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
-import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
-import { ChainflipFacet, ILiFi } from '../../typechain'
-import { SupportedChain } from './utils/demoScriptChainConfig'
-import {
-  ensureBalance,
-  ensureAllowance,
-  executeTransaction,
-  ADDRESS_USDC_ARB,
-  ADDRESS_USDT_ARB,
-  ADDRESS_USDC_ETH,
-  ADDRESS_UNISWAP_ETH,
-  getUniswapDataERC20toExactERC20,
-  getUniswapDataExactETHToERC20,
-  ADDRESS_UNISWAP_ARB,
-  setupEnvironment,
-} from './utils/demoScriptHelpers'
-import deployments from '../../deployments/mainnet.staging.json'
-
-dotenv.config()
-
-// Contract addresses and ABIs
-const RECEIVER_CHAINFLIP = deployments.ReceiverChainflip
-const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
-const CHAINFLIP_FACET_ABI = chainflipFacetArtifact.abi as Narrow<
-  typeof chainflipFacetArtifact.abi
->
 
 /**
  * Creates a message for cross-chain execution on the destination chain
