@@ -2,7 +2,7 @@ name: Security Alerts Review
 
 # - ensures that all security alerts from olympix static analysis are properly handled before merging
 # - enforces a strict review policy where every alert must be either resolved or dismissed with a justification
-# - prevents merging a PR if any alerts are unresolved or dismissed without a comment
+# - prevents merging a PR if any alerts are unresolved or dismissed without a comment or wrong dismissed reason
 # - helps maintain a transparent and collaborative security review process by generating a pr comment summarizing the status of all security alerts
 # - automatically reverts the PR to draft status if blocking alerts exist
 # - leaves a summary of all alerts in a comment starting with "🤖 GitHub Action: Security Alerts Review 🔍"
@@ -59,7 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "${{ steps.findPr.outputs.number }}" ]; then
-            echo "Error: No pull request found for this push." >&2
+            echo "Error: No pull request found." >&2
             exit 1
           fi
           echo "Found PR number: ${{ steps.findPr.outputs.number }}"
@@ -73,7 +73,7 @@ jobs:
         run: |
           echo "Fetching security alerts for PR #${PR_NUMBER}..."
           
-          # Fetch security alerts via GitHub API
+          # Fetch security alerts
           ALERTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
 
@@ -85,7 +85,7 @@ jobs:
           UNRESOLVED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "open") ]' || echo "[]")
           # Extract dismissed alerts without comments (empty dismissed_comment)
           DISMISSED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment == null or .dismissed_comment == ""))]' || echo "[]")
-          # Extract dismissed alerts with comments (successful dismissals)
+          # Extract resolved alerts (dismissed alerts with comments) - successful dismissals
           RESOLVED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "dismissed" and (.dismissed_comment != null and .dismissed_comment != ""))]' || echo "[]")
 
           UNRESOLVED_COUNT=$(echo "$UNRESOLVED_ALERTS" | jq -r 'length')
@@ -188,7 +188,7 @@ jobs:
             COMMENT_BODY+="⚠️ **Please resolve the above issues before merging.**\n\n"
           fi
 
-          # Add Dismissed alerts With valid comments (successful dismissals)
+          # Add Dismissed Alerts With Valid Comments (Successful dismissals)
           if [[ "$COMMENTED_COUNT" -gt 0 ]]; then
             COMMENT_BODY+="🟢 **Dismissed Security Alerts with Comments**\n"
             COMMENT_BODY+="The following alerts were dismissed with proper comments:\n\n"
@@ -238,7 +238,7 @@ jobs:
         run: |
           echo "🔍 Checking if the workflow should fail and revert PR to draft based on security alerts..."
 
-          # Check if there are any unresolved alerts, dismissed alerts missing comments, or invalid dismissal reasons.
+          # Check if there are any unresolved alerts, dismissed alerts missing comments or invalid dismissal reasons.
           if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 || "$INVALID_REASON_COUNT" -gt 0 ]]; then
             echo "❌ ERROR: Found issues in the PR:"
             if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
@@ -252,11 +252,12 @@ jobs:
             fi
             echo "⚠️ These alerts must be resolved before merging."
 
-          # Retrieve PR Node ID directly from github event
+          # Retrieve PR Node ID
           PULL_REQUEST_NODE_ID="${{ github.event.pull_request.node_id }}"
           echo "PR Node ID: $PULL_REQUEST_NODE_ID"
 
             # Revert the PR to draft.
+            # To convert a PR to a draft GitHub only provides a GraphQL api, there is no REST API for this
             echo "Reverting PR #${PR_NUMBER} to draft state due to blocking security issues..."
             curl -H "Authorization: Bearer $GITHUB_TOKEN" \
                  -H "Content-Type: application/json" \
