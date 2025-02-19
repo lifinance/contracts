@@ -5,6 +5,7 @@ import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/T
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
@@ -30,13 +31,17 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     // Errors
     error EmptyNonEVMAddress();
+    error UnknownDeBridgeChain();
+
+    // Events
+    event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
 
     function setUp() public {
         customBlockNumberForForking = 19279222;
         initTestBase();
 
         deBridgeDlnFacet = new TestDeBridgeDlnFacet(DLN_SOURCE);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = deBridgeDlnFacet
             .startBridgeTokensViaDeBridgeDln
             .selector;
@@ -47,7 +52,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[3] = deBridgeDlnFacet
             .setFunctionApprovalBySignature
             .selector;
-        functionSelectors[4] = DeBridgeDlnFacet.initDeBridgeDln.selector;
+        functionSelectors[4] = deBridgeDlnFacet.setDeBridgeChainId.selector;
+        functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
+        functionSelectors[6] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
@@ -337,5 +344,117 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         vm.expectRevert(EmptyNonEVMAddress.selector);
         initiateSwapAndBridgeTxWithFacet(true);
+    }
+
+    function test_CanSetDeBridgeChainIdFromOwner() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        uint256 chainId = 137; // example chain ID
+        uint256 deBridgeChainId = 1234; // mapped chain ID
+
+        vm.expectEmit(true, true, true, true);
+
+        emit DeBridgeChainIdSet(chainId, deBridgeChainId);
+
+        deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
+
+        assertEq(
+            deBridgeDlnFacet.getDeBridgeChainId(chainId),
+            deBridgeChainId
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailToSetDeBridgeChainIdFromNotOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 chainId = 137;
+        uint256 deBridgeChainId = 1234;
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsToSetDeBridgeChainIdIfNotInitialized() public {
+        vm.startPrank(address(0)); // address zero because facet is not set in the diamond so current contract owner is address zero
+
+        TestDeBridgeDlnFacet uninitializedFacet = new TestDeBridgeDlnFacet(
+            DLN_SOURCE
+        );
+
+        vm.expectRevert(NotInitialized.selector);
+
+        uninitializedFacet.setDeBridgeChainId(137, 1001);
+
+        vm.stopPrank();
+    }
+
+    function test_CanGetDeBridgeChainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        uint256 chainId = 137;
+        uint256 deBridgeChainId = 1234;
+
+        deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
+
+        vm.stopPrank();
+
+        uint256 returnedChainId = deBridgeDlnFacet.getDeBridgeChainId(chainId);
+
+        assertEq(returnedChainId, deBridgeChainId);
+    }
+
+    function testRevert_FailsIfAttemptingToGetUnknownDeBridgeChainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        uint256 unknownChainId = 999999;
+
+        vm.expectRevert(UnknownDeBridgeChain.selector);
+
+        deBridgeDlnFacet.getDeBridgeChainId(unknownChainId);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfAttemptingToStartBridgingWithEmptyReceiverAddress()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        validDeBridgeDlnData.receiver = ""; // empty receiver
+
+        vm.expectRevert(EmptyNonEVMAddress.selector);
+
+        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: FIXED_FEE }(
+            bridgeData,
+            validDeBridgeDlnData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanGetStorage() public {
+        bytes32 namespace = keccak256("com.lifi.facets.debridgedln");
+
+        uint256 chainIdKey = 1;
+        uint256 expectedValue = 42;
+
+        // compute the correct storage slot for `deBridgeChainId[chainIdKey]`
+        bytes32 storageSlot = keccak256(abi.encode(chainIdKey, namespace));
+
+        // store the test value in the computed slot
+        vm.store(
+            address(deBridgeDlnFacet),
+            storageSlot,
+            bytes32(expectedValue)
+        );
+
+        uint256 storedValue = deBridgeDlnFacet.getDeBridgeChainId(chainIdKey);
+
+        assertEq(storedValue, expectedValue);
     }
 }
