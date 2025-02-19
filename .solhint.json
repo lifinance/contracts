@@ -15,6 +15,7 @@
     "constructor-syntax": "error",
     "func-visibility": ["error", { "ignoreConstructors": true }],
     "not-rely-on-time": "off",
-    "reason-string": ["warn", { "maxLength": 64 }]
+    "reason-string": ["warn", { "maxLength": 64 }],
+    "no-console": "off"
   }
 }
