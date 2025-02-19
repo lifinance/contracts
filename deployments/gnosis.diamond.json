@@ -104,6 +104,10 @@
       "0x5656E307E4dEd573695Dd3eAC64EC4778F910DcA": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xCB68AAcEb848E5007B56b1ff09D240CE8946B4EC": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -116,7 +120,7 @@
       "Permit2Proxy": "",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "ReceiverAcrossV3": "",
-      "ReceiverStargateV2": "",
+      "ReceiverStargateV2": "0x0dC56076590CdF0efc37114273f02f45A96B5500",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
