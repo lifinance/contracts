@@ -393,6 +393,10 @@ jobs:
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
           echo "It will also make sure that no information is missing in the audit log and that the information is meaningful."
 
+          # convert from comma-separated to newline-separated
+          CONTRACTS_FOR_AUDIT_STR=$(IFS=$'\n'; echo "${CONTRACTS_FOR_AUDIT[*]}")
+          echo -e "$CONTRACTS_FOR_AUDIT_STR" > contracts_for_audit.txt
+
           # load list of protected contracts
           PROTECTED_CONTRACTS=$(cat contracts_for_audit.txt)
           echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
