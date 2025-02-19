@@ -43,7 +43,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Parameters specific to Chainflip bridge
     /// @param nonEVMReceiver Destination address for non-EVM chains (Solana, Bitcoin)
-    /// @param dstToken Token to be received on the destination chain (uint32)
+    /// @param dstToken Chainflip specific token identifier on the destination chain
     /// @param message Message that is passed to the destination address for cross-chain messaging
     /// @param gasAmount Gas budget for the call on the destination chain
     /// @param cfParameters Additional metadata for future features
@@ -115,7 +115,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Contains the business logic for bridging via Chainflip
     /// @param _bridgeData The core information needed for bridging, including sending/receiving details
-    /// @param _chainflipData Data specific to Chainflip, including destination token and parameters
+    /// @param _chainflipData Data specific to Chainflip, including Chainflip token identifiers and parameters
     /// @dev Handles both EVM and non-EVM destinations, native and ERC20 tokens, and cross-chain messaging
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
@@ -212,10 +212,9 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @notice Converts LiFi chain IDs to Chainflip chain IDs
+    /// @notice Converts LiFi internal chain IDs to Chainflip chain IDs
     /// @param destinationChainId The LiFi chain ID to convert
-    /// @return The corresponding Chainflip chain ID (uint32)
-    /// @dev Supports Ethereum (1), Arbitrum (4), Solana (5), and Bitcoin (3)
+    /// @return The corresponding Chainflip chain ID
     /// @dev Reverts if the destination chain is not supported
     function _getChainflipChainId(
         uint256 destinationChainId

@@ -9,7 +9,7 @@ interface IChainflipVault {
     /// @notice Swaps native token to any supported asset on any supported chain
     /// @param dstChain Destination chain for the swap
     /// @param dstAddress Address where the swapped tokens will be sent to on the destination chain
-    /// @param dstToken Token to be received on the destination chain
+    /// @param dstToken Chainflip specific token identifier on the destination chain
     /// @param cfParameters Additional metadata for future features
     function xSwapNative(
         uint32 dstChain,
@@ -21,7 +21,7 @@ interface IChainflipVault {
     /// @notice Swaps ERC20 token to any supported asset on any supported chain
     /// @param dstChain Destination chain for the swap
     /// @param dstAddress Address where the swapped tokens will be sent to on the destination chain
-    /// @param dstToken Token to be received on the destination chain
+    /// @param dstToken Chainflip specific token identifier on the destination chain
     /// @param srcToken Address of the token to be swapped from the source chain
     /// @param amount Amount of the source token to be swapped
     /// @param cfParameters Additional metadata for future features
@@ -37,7 +37,7 @@ interface IChainflipVault {
     /// @notice Swaps native token and calls a contract on the destination chain with a message
     /// @param dstChain Destination chain for the swap
     /// @param dstAddress Address where the swapped tokens will be sent to on the destination chain
-    /// @param dstToken Token to be received on the destination chain
+    /// @param dstToken Chainflip specific token identifier on the destination chain
     /// @param message Message that is passed to the destination address on the destination chain
     /// @param gasAmount Gas budget for the call on the destination chain
     /// @param cfParameters Additional metadata for future features
@@ -53,7 +53,7 @@ interface IChainflipVault {
     /// @notice Swaps ERC20 token and calls a contract on the destination chain with a message
     /// @param dstChain Destination chain for the swap
     /// @param dstAddress Address where the swapped tokens will be sent to on the destination chain
-    /// @param dstToken Token to be received on the destination chain
+    /// @param dstToken Chainflip specific token identifier on the destination chain
     /// @param message Message that is passed to the destination address on the destination chain
     /// @param gasAmount Gas budget for the call on the destination chain
     /// @param srcToken Address of the token to be swapped from the source chain
