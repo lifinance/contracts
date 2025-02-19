@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { consola } from 'consola'
 import { $ } from 'zx'
 import { defineCommand, runMain } from 'citty'
@@ -6,11 +5,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import toml from 'toml' // make sure to install this: npm install toml
 import { Address, PublicClient, createPublicClient, http } from 'viem'
-import {
-  Network,
-  networks,
-  getViemChainForNetworkName,
-} from '../utils/viemScriptHelpers'
+import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 const main = defineCommand({
   meta: {
@@ -26,8 +21,13 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const { default: networksConfig } = await import(
+      '../../config/networks.json'
+    )
+    type NetworkName = keyof typeof networksConfig
+
     let { network } = args
-    network = network.toLowerCase()
+    network = network.toLowerCase() as NetworkName
 
     consola.info(`Starting update process for network: ${network}`)
 
@@ -36,8 +36,11 @@ const main = defineCommand({
       '../../deployments/',
       `${network}.json`
     )
-    const { default: deployedContracts } = await import(networkDeploymentPath)
-    const networksConfig = await import('../../config/networks.json')
+
+    type DeployedContracts = Record<string, Address>
+    const { default: deployedContracts } = (await import(
+      networkDeploymentPath
+    )) as { default: DeployedContracts }
 
     const chain = getViemChainForNetworkName(network)
     const publicClient = createPublicClient({
@@ -81,9 +84,14 @@ const main = defineCommand({
           `Etherscan configuration not found for network: ${network}`
         )
       }
-      const baseUrl = etherscanConfig.url
 
-      const rpcUrl: string = networksConfig[network]?.rpcUrl
+      if (!(network in networksConfig)) {
+        throw new Error(`Network "${network}" is not supported.`)
+      }
+
+      const baseUrl = etherscanConfig.url
+      const typedNetwork = network as NetworkName
+      const rpcUrl: string = networksConfig[typedNetwork].rpcUrl
       if (!rpcUrl) throw new Error(`RPC URL not found for network: ${network}`)
 
       const facetsResult =
@@ -200,7 +208,11 @@ const main = defineCommand({
       }
     } catch (error) {
       consola.warn('Skipping facet registration check due to an error:')
-      consola.error(error.message)
+      if (error instanceof Error) {
+        consola.error(error.message)
+      } else {
+        consola.error(String(error))
+      }
     }
   },
 })
