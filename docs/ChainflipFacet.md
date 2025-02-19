@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Chainflip Facet enables cross-chain token transfers using Chainflip's protocol. It supports both EVM chains (Ethereum, Arbitrum) and non-EVM chains (Solana, Bitcoin) as destinations.
+The Chainflip Facet enables cross-chain token transfers using Chainflip's protocol. It supports both EVM chains and non-EVM chains as destinations.
 
 ```mermaid
 graph LR;
@@ -24,23 +24,18 @@ The methods listed above take a variable labeled `_chainflipData`. This data is 
 ```solidity
 struct ChainflipData {
   bytes32 nonEVMReceiver; // Destination address for non-EVM chains (Solana, Bitcoin)
-  uint32 dstToken; // Token identifier on the destination chain
+  uint32 dstToken; // Chainflip specific token identifier on the destination chain
   bytes message; // Message that is passed to the destination address for cross-chain messaging
   uint256 gasAmount; // Gas budget for the call on the destination chain
   bytes cfParameters; // Additional parameters for future features
 }
 ```
 
-For non-EVM destinations (Solana, Bitcoin), set the `receiver` in `BridgeData` to `LibAsset.NON_EVM_ADDRESS` and provide the destination address in `nonEVMReceiver`.
+For non-EVM destinations (i.e. Solana, Bitcoin), set the `receiver` in `BridgeData` to `LibAsset.NON_EVM_ADDRESS` and provide the destination address in `nonEVMReceiver`.
 
 ## Supported Chains
 
 The facet supports the following chains with their respective IDs:
-
-- Ethereum (1)
-- Arbitrum (42161)
-- Solana (1151111081099710)
-- Bitcoin (20000000000001)
 
 [Reference](https://docs.chainflip.io/swapping/integrations/advanced/vault-swaps#supported-chains)
 
