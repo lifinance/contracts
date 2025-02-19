@@ -231,7 +231,7 @@ contract ReceiverChainflipTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_IfNativeTransferFails() public {
+    function testRevert_IfNativeRecoveryTransferFailsToSendETHToUser() public {
         // Fund receiver with native token
         vm.deal(address(receiver), 1 ether);
         // Fund chainflipVault with native token
