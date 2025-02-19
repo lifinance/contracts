@@ -13,6 +13,8 @@ import { MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 contract ReceiverChainflipTest is TestBase {
     using stdJson for string;
 
+    error ETHTransferFailed();
+
     ReceiverChainflip internal receiver;
     bytes32 guid = bytes32("12345");
     address receiverAddress = USER_RECEIVER;
@@ -262,7 +264,7 @@ contract ReceiverChainflipTest is TestBase {
 
         vm.startPrank(chainflipVault);
 
-        vm.expectRevert();
+        vm.expectRevert(ETHTransferFailed.selector);
         receiver.cfReceive{ value: 1 ether }(
             4, // srcChain (Arbitrum)
             abi.encodePacked(address(0)),
