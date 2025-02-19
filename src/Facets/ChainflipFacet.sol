@@ -153,7 +153,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
 
-        // Handle native token case with or without CCM
+        // Handle native token case with or without destination call
         if (_bridgeData.sendingAssetId == address(0)) {
             if (_bridgeData.hasDestinationCall) {
                 IChainflipVault(chainflipVault).xCallNative{
@@ -177,7 +177,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 );
             }
         }
-        // Handle ERC20 token case with or without CCM
+        // Handle ERC20 token case with or without destination call
         else {
             // Approve vault to spend tokens
             LibAsset.maxApproveERC20(

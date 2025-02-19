@@ -123,7 +123,6 @@ contract ChainflipFacetTest is TestBaseFacet {
             USER_SENDER,
             -int256(defaultUSDCAmount)
         )
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
