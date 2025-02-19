@@ -7,6 +7,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract MockLiquidityBridge is TestBase {
     function mockWithdraw(uint256 _amount) external {
@@ -45,6 +46,12 @@ contract CBridgeFacetPackedTest is TestBase {
 
     uint256 amountUSDC;
     bytes packedUSDC;
+
+    event CBridgeRefund(
+        address indexed _assetAddress,
+        address indexed _to,
+        uint256 amount
+    );
 
     function setUp() public {
         customBlockNumberForForking = 58467500;
@@ -489,5 +496,153 @@ contract CBridgeFacetPackedTest is TestBase {
             REFUND_AMOUNT,
             "Refund amount should be correct"
         );
+    }
+
+    function test_TriggerRefundSucceedsWhenCalledByOwnerWithExplicitReceiver()
+        public
+        assertBalanceChange(ADDRESS_USDT, USER_RECEIVER, 100_000)
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address callTo = CBRIDGE_ROUTER;
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100_000;
+
+        deal(ADDRESS_USDT, address(standAlone), amount);
+        uint256 cBridgeBalanceBefore = ERC20(ADDRESS_USDT).balanceOf(
+            address(standAlone)
+        );
+
+        vm.mockCall(callTo, callData, abi.encode(true));
+
+        vm.expectEmit(true, true, true, true, address(standAlone));
+        emit CBridgeRefund(assetAddress, to, amount);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        uint256 cBridgeBalanceAfter = ERC20(ADDRESS_USDT).balanceOf(
+            address(standAlone)
+        );
+
+        assertEq(cBridgeBalanceBefore - cBridgeBalanceAfter, amount);
+
+        vm.stopPrank();
+    }
+
+    function test_TriggerRefundSucceedsWhenCalledByOwnerWithoutExplicitReceiver()
+        public
+        assertBalanceChange(ADDRESS_USDT, USER_DIAMOND_OWNER, 100_000)
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address callTo = CBRIDGE_ROUTER;
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = address(0);
+        uint256 amount = 100_000;
+
+        deal(ADDRESS_USDT, address(standAlone), amount);
+        uint256 cBridgeBalanceBefore = ERC20(ADDRESS_USDT).balanceOf(
+            address(standAlone)
+        );
+
+        vm.mockCall(callTo, callData, abi.encode(true));
+
+        vm.expectEmit(true, true, true, true, address(standAlone));
+        emit CBridgeRefund(assetAddress, USER_DIAMOND_OWNER, amount);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        uint256 cBridgeBalanceAfter = ERC20(ADDRESS_USDT).balanceOf(
+            address(standAlone)
+        );
+
+        assertEq(cBridgeBalanceBefore - cBridgeBalanceAfter, amount);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TriggerRefundFailsWhenCalledByNonOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        address callTo = CBRIDGE_ROUTER;
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TriggerRefundFailsWhenTryingToCallDiffrentContractThanCBridgeRouter()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address callTo = address(0xdeadbeef);
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TriggerRefundFailsWhenCallToCBridgeRouterFails()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address callTo = CBRIDGE_ROUTER; // must match the expected `CBRIDGE_ROUTER` address
+        bytes memory callData = abi.encodeWithSignature("someFunction()");
+        address assetAddress = ADDRESS_USDT;
+        address to = USER_RECEIVER;
+        uint256 amount = 100 * 10 ** usdt.decimals();
+
+        vm.expectRevert(ExternalCallFailed.selector);
+
+        standAlone.triggerRefund(
+            payable(callTo),
+            callData,
+            assetAddress,
+            to,
+            amount
+        );
+
+        vm.stopPrank();
     }
 }

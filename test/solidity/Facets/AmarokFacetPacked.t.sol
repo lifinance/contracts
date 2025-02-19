@@ -47,7 +47,7 @@ contract AmarokFacetPackedTest is TestBase {
         amarokFacetPacked = new AmarokFacetPacked(amarok, address(this));
         amarokStandAlone = new AmarokFacetPacked(amarok, address(this));
 
-        bytes4[] memory functionSelectors = new bytes4[](9);
+        bytes4[] memory functionSelectors = new bytes4[](10);
         functionSelectors[0] = amarokFacetPacked.setApprovalForBridge.selector;
         functionSelectors[1] = amarokFacetPacked
             .startBridgeTokensViaAmarokERC20PackedPayFeeWithAsset
@@ -73,6 +73,7 @@ contract AmarokFacetPackedTest is TestBase {
         functionSelectors[8] = amarokFacetPacked
             .decode_startBridgeTokensViaAmarokERC20PackedPayFeeWithNative
             .selector;
+        functionSelectors[9] = amarokFacetPacked.getChainIdForDomain.selector;
 
         // add facet to diamond
         addFacet(diamond, address(amarokFacetPacked), functionSelectors);
@@ -412,7 +413,69 @@ contract AmarokFacetPackedTest is TestBase {
         assertEq(amarokData.relayerFee == defaultRelayerFee, true);
     }
 
-    function test_revert_cannotUseRelayerFeeAboveUint128Max_ERC20() public {
+    struct DomainChainTestCase {
+        uint32 domainId;
+        uint32 expectedChainId;
+        string description;
+    }
+
+    function test_CanGetChainIdForValidDomains() public {
+        DomainChainTestCase[] memory testCases = new DomainChainTestCase[](8);
+        testCases[0] = DomainChainTestCase({
+            domainId: 6648936,
+            expectedChainId: 1,
+            description: "ETH domainId should return chainId 1"
+        });
+        testCases[1] = DomainChainTestCase({
+            domainId: 1886350457,
+            expectedChainId: 137,
+            description: "POL domainId should return chainId 137"
+        });
+        testCases[2] = DomainChainTestCase({
+            domainId: 6450786,
+            expectedChainId: 56,
+            description: "BSC domainId should return chainId 56"
+        });
+        testCases[3] = DomainChainTestCase({
+            domainId: 1869640809,
+            expectedChainId: 10,
+            description: "OPT domainId should return chainId 10"
+        });
+        testCases[4] = DomainChainTestCase({
+            domainId: 6778479,
+            expectedChainId: 100,
+            description: "GNO domainId should return chainId 100"
+        });
+        testCases[5] = DomainChainTestCase({
+            domainId: 1634886255,
+            expectedChainId: 42161,
+            description: "ARB domainId should return chainId 42161"
+        });
+        testCases[6] = DomainChainTestCase({
+            domainId: 1818848877,
+            expectedChainId: 59144,
+            description: "LIN domainId should return chainId 59144"
+        });
+        testCases[7] = DomainChainTestCase({
+            domainId: 9999999,
+            expectedChainId: 0,
+            description: "Unknown domainId should return 0"
+        });
+
+        for (uint256 i = 0; i < testCases.length; i++) {
+            uint32 result = amarokFacetPacked.getChainIdForDomain(
+                testCases[i].domainId
+            );
+
+            assertEq(
+                result,
+                testCases[i].expectedChainId,
+                testCases[i].description
+            );
+        }
+    }
+
+    function testRevert_cannotUseRelayerFeeAboveUint128Max_ERC20() public {
         uint256 invalidRelayerFee = uint256(type(uint128).max) + 1;
 
         vm.expectRevert("relayerFee value passed too big to fit in uint128");
