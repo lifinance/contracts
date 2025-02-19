@@ -19,6 +19,15 @@ dotenv.config()
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
 const {{constantCase name}}_FACET_ABI = {{camelCase name}}FacetArtifact.abi as Narrow<typeof {{camelCase name}}FacetArtifact.abi>
 
+// If you need to import a custom ABI, follow these steps:
+// 
+// First, ensure you import the relevant artifact file:
+// import exampleArtifact from '../../out/{example artifact json file}'
+//
+// Then, define the ABI using `Narrow<typeof exampleArtifact.abi>` for proper type inference:
+// const EXAMPLE_ABI = exampleArtifact.abi as Narrow<typeof exampleArtifact.abi>
+//
+
 // #endregion
 
 dotenv.config()

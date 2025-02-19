@@ -5,6 +5,8 @@ import config from '../../config/glacis.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
 import { GlacisFacet, ILiFi } from '../../typechain'
+import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
+
 import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
   ensureBalance,
@@ -23,47 +25,7 @@ const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
 const GLACIS_FACET_ABI = glacisFacetArtifact.abi as Narrow<
   typeof glacisFacetArtifact.abi
 >
-export const AIRLIFT_ABI = [
-  {
-    name: 'quoteSend',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'token', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'receiver', type: 'bytes32' },
-      { name: 'destinationChainId', type: 'uint256' },
-      { name: 'refundAddress', type: 'address' },
-      { name: 'msgValue', type: 'uint256' },
-    ],
-    outputs: [
-      {
-        type: 'tuple',
-        components: [
-          { name: 'nativeFee', type: 'uint256' },
-          { name: 'tokenFee', type: 'uint256' },
-        ],
-      },
-      { name: 'amountSent', type: 'uint256' },
-      { name: 'valueSent', type: 'uint256' },
-      {
-        type: 'tuple',
-        components: [
-          {
-            name: 'airliftFee',
-            type: 'tuple',
-            components: [
-              { name: 'nativeFee', type: 'uint256' },
-              { name: 'tokenFee', type: 'uint256' },
-            ],
-          },
-          { name: 'correctedAmount', type: 'uint256' },
-          { name: 'correctedValue', type: 'uint256' },
-        ],
-      },
-    ],
-  },
-] as const
+const AIRLIFT_ABI = airliftArtifact.abi as Narrow<typeof airliftArtifact.abi>
 
 // #endregion
 
@@ -144,12 +106,12 @@ async function main() {
 
   const structuredFees = {
     gmpFee: {
-      nativeFee: estimatedFees[0].nativeFee as bigint,
-      tokenFee: estimatedFees[0].tokenFee as bigint,
+      nativeFee: estimatedFees.gmpFee.nativeFee as bigint,
+      tokenFee: estimatedFees.gmpFee.tokenFee as bigint,
     },
     airliftFee: {
-      nativeFee: estimatedFees[3].airliftFee.nativeFee as bigint,
-      tokenFee: estimatedFees[3].airliftFee.tokenFee as bigint,
+      nativeFee: estimatedFees.airliftFeeInfo.airliftFee.nativeFee as bigint,
+      tokenFee: estimatedFees.airliftFeeInfo.airliftFee.tokenFee as bigint,
     },
   }
   const nativeFee =

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibAsset, IERC20, SafeERC20 } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
@@ -21,7 +21,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param refundAddress The address that would receive potential refunds on destination chain
+    /// @param refundAddress The address that would receive potential refunds on source chain
     /// @param nativeFee The fee amount in native token required by the Glacis Airlift
     struct GlacisData {
         address refundAddress;
@@ -34,6 +34,10 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     constructor(IGlacisAirlift _airlift) {
         airlift = _airlift;
     }
+
+    /// Errors ///
+
+    error InvalidRefundAddress();
 
     /// External Methods ///
 
@@ -51,6 +55,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -75,6 +80,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -95,10 +101,12 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        // Transfer the tokens to the Airlift contract.
-        // This step ensures that the tokens are already in place before calling the `send` function.
-        // The `send` function assumes the tokens are pre-transferred to the contract.
-        SafeERC20.safeTransfer(
+        if (_glacisData.refundAddress == address(0))
+            revert InvalidRefundAddress();
+        // Approve the Airlift contract to spend the required amount of tokens.
+        // The `send` function assumes that the caller has already approved the token transfer,
+        // ensuring that the cross-chain transaction and token transfer happen atomically.
+        LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(airlift),
             _bridgeData.minAmount

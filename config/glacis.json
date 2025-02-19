@@ -1,12 +1,12 @@
 {
   "important": "these values are test deployments only. We need to update this file when Glacis has deployed their final versions",
   "arbitrum": {
-    "airlift": "0xE0A049955E18CFfd09C826C2c2e965439B6Ab272"
+    "airlift": "0xD9E7f6f7Dc7517678127D84dBf0F0b4477De14E0"
   },
   "optimism": {
-    "airlift": "0x1B388F7ee9e44BD5aA0b13ca9dF35F2489F1c717"
+    "airlift": "0xdEedFc11fCd2bC3E63915e8060ec48875E890BCB"
   },
   "base": {
-    "airlift": "0x56e20a6260644cc9f0b7d79a8c8e1e3fabc15cea"
+    "airlift": "0x30095227Eb6d72FA6c09DfdeFFC766c33f7FA2DD"
   }
 }

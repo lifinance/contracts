@@ -160,6 +160,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.4.0).pdf",
       "auditCommitHash": "n/a (one deployed contract instance was audited)"
+    },
+    "audit20250219_1": {
+      "auditCompletedOn": "19.02.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.02.19_GlacisFacet(v1.0.0).pdf",
+      "auditCommitHash": "9e623bc2a218399172e734af0ba6dfa3f76963a5"
     }
   },
   "auditedContracts": {
@@ -198,11 +205,17 @@
       "1.0.0": ["audit20241107"],
       "1.0.1": ["audit20250110_1"]
     },
+    "GlacisFacet": {
+      "1.0.0": ["audit20250219_1"]
+    },
     "IAcrossSpokePool": {
       "1.0.0": ["audit20250106"]
     },
     "IGasZip": {
       "1.0.0": ["audit20241107"]
+    },
+    "IGlacisAirlift": {
+      "1.0.0": ["audit20250219_1"]
     },
     "LibAsset": {
       "1.0.1": ["audit20241202"],

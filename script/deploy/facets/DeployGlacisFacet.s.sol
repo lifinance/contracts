@@ -21,9 +21,9 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/glacis.json");
-        string memory json = vm.readFile(path);
 
-        address airlift = json.readAddress(
+        address airlift = _getConfigContractAddress(
+            path,
             string.concat(".", network, ".airlift")
         );
 

@@ -5,7 +5,7 @@ import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
+import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -21,7 +21,7 @@ contract TestGlacisFacet is GlacisFacet {
 }
 
 abstract contract GlacisFacetTestBase is TestBaseFacet {
-    GlacisFacet.GlacisData internal validGlacisData;
+    GlacisFacet.GlacisData internal glacisData;
     IGlacisAirlift internal airliftContract;
     TestGlacisFacet internal glacisFacet;
     ERC20 internal srcToken;
@@ -121,7 +121,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
 
         // produce valid GlacisData
-        validGlacisData = GlacisFacet.GlacisData({
+        glacisData = GlacisFacet.GlacisData({
             refundAddress: REFUND_WALLET,
             nativeFee: addToMessageValue
         });
@@ -130,14 +130,14 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool) internal virtual override {
         glacisFacet.startBridgeTokensViaGlacis{ value: addToMessageValue }(
             bridgeData,
-            validGlacisData
+            glacisData
         );
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal virtual override {
         glacisFacet.swapAndStartBridgeTokensViaGlacis{
             value: addToMessageValue
-        }(bridgeData, swapData, validGlacisData);
+        }(bridgeData, swapData, glacisData);
     }
 
     function testBase_CanBridgeNativeTokens() public virtual override {
@@ -183,6 +183,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
         // approval
         srcToken.approve(address(glacisFacet), bridgeData.minAmount);
+
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(
             address(airliftContract)
         ).quoteSend(
@@ -370,15 +371,66 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
+
+    function testRevert_InvalidRefundAddress() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: address(0),
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GlacisFacet.InvalidRefundAddress.selector)
+        );
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenTryToBridgeNativeAsset() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.sendingAssetId = address(0); // address zero is considered as native asset
+
+        vm.expectRevert(
+            abi.encodeWithSelector(NativeAssetNotSupported.selector)
+        );
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenTryToSwapAndBridgeNativeAsset() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0); // address zero is considered as native asset
+
+        vm.expectRevert(
+            abi.encodeWithSelector(NativeAssetNotSupported.selector)
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
 }
 
 contract GlacisFacetWormholeTest is GlacisFacetTestBase {
     function setUp() public virtual override {
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
-        customBlockNumberForForking = 298468086;
+        customBlockNumberForForking = 303669576;
 
         airliftContract = IGlacisAirlift(
-            0xE0A049955E18CFfd09C826C2c2e965439B6Ab272
+            0xD9E7f6f7Dc7517678127D84dBf0F0b4477De14E0
         );
         ADDRESS_SRC_TOKEN = 0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91; // address of W token on Arbitrum network
         destinationChainId = 10;
@@ -391,10 +443,10 @@ contract GlacisFacetWormholeTest is GlacisFacetTestBase {
 contract GlacisFacetLINKTest is GlacisFacetTestBase {
     function setUp() public virtual override {
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
-        customBlockNumberForForking = 25427676;
+        customBlockNumberForForking = 26082794;
 
         airliftContract = IGlacisAirlift(
-            0x56E20A6260644CC9F0B7d79a8C8E1e3Fabc15CEA
+            0x30095227Eb6d72FA6c09DfdeFFC766c33f7FA2DD
         );
         ADDRESS_SRC_TOKEN = 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196; // address of LINK token on Base network
         destinationChainId = 34443;
