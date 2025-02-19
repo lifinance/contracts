@@ -105,7 +105,7 @@ contract ReceiverChainflipTest is TestBase {
         // fake a call from Chainflip vault
         vm.startPrank(chainflipVault);
 
-        vm.expectEmit();
+        vm.expectEmit(true, true, true, true, address(executor));
         emit LiFiTransferCompleted(
             guid,
             ADDRESS_USDC,
@@ -113,6 +113,7 @@ contract ReceiverChainflipTest is TestBase {
             amountOutMin,
             block.timestamp
         );
+
         receiver.cfReceive(
             1, // srcChain (Ethereum)
             abi.encodePacked(address(0)),
@@ -120,6 +121,7 @@ contract ReceiverChainflipTest is TestBase {
             ADDRESS_USDC,
             defaultUSDCAmount
         );
+
         vm.stopPrank();
 
         // Verify balances changed correctly
@@ -334,10 +336,7 @@ contract ReceiverChainflipTest is TestBase {
         path[1] = _receivingAssetId;
 
         uint256 amountIn = defaultUSDCAmount;
-
-        // Calculate USDC input amount
-        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
-        amountOutMin = amounts[1];
+        amountOutMin = defaultUSDCAmount; // Use same amount for exact output
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData({
@@ -347,9 +346,9 @@ contract ReceiverChainflipTest is TestBase {
             receivingAssetId: _receivingAssetId,
             fromAmount: amountIn,
             callData: abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
+                uniswap.swapTokensForExactTokens.selector,
                 amountOutMin,
+                amountIn, // Max input amount
                 path,
                 address(executor),
                 block.timestamp + 20 minutes
