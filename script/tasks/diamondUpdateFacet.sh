@@ -120,9 +120,9 @@ diamondUpdateFacet() {
           fi
           CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs.*}') # new version that removes non-JSON log output both before and after the JSON (old version removed only before)
           FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
-            echo ""
-            echo "diamondCut calldata: $FACET_CUT"
-            echo ""
+          echo ""
+          echo "DiamondCut calldata: $FACET_CUT"
+          echo ""
 
           if [ "$FACET_CUT" == "0x" ] || [ -z "$FACET_CUT" ]; then
             error "Unable to extract facet cut data from RPC response at logs.returns.cutData.value"
