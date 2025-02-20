@@ -89,12 +89,6 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     /// Private Methods ///
 
     /// @notice Performs a swap before completing a cross-chain transaction
-    /// @param _transactionId the transaction id associated with the operation
-    /// @param _swapData array of data needed for swaps
-    /// @param assetId address of the token received from the source chain
-    /// @param receiver address that will receive tokens in the end
-    /// @param amount amount of token
-    /// @notice Performs a swap before completing a cross-chain transaction
     /// @param _transactionId The transaction id associated with the operation
     /// @param _swapData Array of data needed for swaps
     /// @param assetId Address of the token received from the source chain
