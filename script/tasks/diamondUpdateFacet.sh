@@ -118,8 +118,11 @@ diamondUpdateFacet() {
           else
             RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy)
           fi
-          CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+          CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs.*}') # new version that removes non-JSON log output both before and after the JSON (old version removed only before)
           FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+            echo ""
+            echo "diamondCut calldata: $FACET_CUT"
+            echo ""
 
           if [ "$FACET_CUT" == "0x" ] || [ -z "$FACET_CUT" ]; then
             error "Unable to extract facet cut data from RPC response at logs.returns.cutData.value"
