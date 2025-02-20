@@ -393,8 +393,8 @@ jobs:
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
           echo "It will also make sure that no information is missing in the audit log and that the information is meaningful."
 
-          # load list of protected contracts
-          PROTECTED_CONTRACTS=$(cat contracts_for_audit.txt)
+          # convert from comma-separated to newline-separated
+          PROTECTED_CONTRACTS=$(tr ',' '\n' < contracts_for_audit.txt)
           echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
 
           ##### make sure that there are any protected contracts
