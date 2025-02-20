@@ -402,6 +402,8 @@ const func = async (
     return
   }
 
+  // Sort transactions by nonce in ascending order to process them in sequence
+  // This ensures we handle transactions in the correct order as required by the Safe
   for (const tx of txs.sort((a, b) => {
     if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
