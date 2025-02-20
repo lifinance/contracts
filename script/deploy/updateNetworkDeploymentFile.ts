@@ -7,6 +7,8 @@ import toml from 'toml' // make sure to install this: npm install toml
 import { Address, PublicClient, createPublicClient, http } from 'viem'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
+const contractsWithoutVersioning = ['DiamondCutFacet', 'DiamondLoupeFacet'] // TODO put more
+
 const main = defineCommand({
   meta: {
     name: 'LIFI Diamond Deployment File Update',
@@ -117,150 +119,369 @@ const main = defineCommand({
         throw new Error('Unexpected format for on-chain facets data.')
       }
 
-      // map on-chain facet addresses to names in config
-      const configFacetsByAddress = Object.fromEntries(
-        Object.entries(networkDeployLogContracts)
-          .filter(([name]) => name.includes('Facet'))
-          .map(([name, address]) => [address.toLowerCase(), name])
+      const onChainRegisteredFacetContractsAddresses = onChainFacets.map(
+        ([address]) => address.toLowerCase()
       )
 
-      const onChainFacetAddresses = onChainFacets.map(([address]) =>
-        address.toLowerCase()
-      )
-      const missingOnChainRegisteredFacetAddressesInDeployLog =
-        onChainFacetAddresses.filter(
-          (address) => !configFacetsByAddress[address]
-        )
+      for (const onChainRegisteredFacetContractAddress of onChainRegisteredFacetContractsAddresses) {
+        consola.log(`\n`)
+        // fetching on chain registered facet version
 
-      if (missingOnChainRegisteredFacetAddressesInDeployLog.length > 0) {
-        consola.warn(
-          `Detected missing facets in ${network}.json: ${JSON.stringify(
-            missingOnChainRegisteredFacetAddressesInDeployLog
-          )}`
+        const onChainRegisteredFacetContractData = await fetchContractDetails(
+          baseUrl,
+          onChainRegisteredFacetContractAddress,
+          network
         )
-        consola.info(
-          `This may be due to outdated addresses in ${network}.json.`
-        )
-
-        for (const missingOnChainRegisteredFacetAddressInDeployLog of missingOnChainRegisteredFacetAddressesInDeployLog) {
-          consola.log(`\n`)
-          consola.info(
-            `Fetching contract details for missing address: ${missingOnChainRegisteredFacetAddressInDeployLog}`
+        const onChainRegisteredFacetContractName =
+          onChainRegisteredFacetContractData.ContractName
+        if (!onChainRegisteredFacetContractName) {
+          // TODO try to verify contract
+          consola.error(
+            `${onChainRegisteredFacetContractName}: Skipping... No contract name found. Probably not verified`
           )
+          continue
+        }
 
-          const onChainRegisteredFacetContractData = await fetchContractDetails(
-            baseUrl,
-            missingOnChainRegisteredFacetAddressInDeployLog,
-            network
+        const deployLogContractAddress = networkDeployLogContracts[
+          onChainRegisteredFacetContractName
+        ]
+          ? networkDeployLogContracts[
+              onChainRegisteredFacetContractName
+            ].toLowerCase()
+          : null
+        // fetching repo facet contract version
+
+        const contractFilePath = findContractFile(
+          `src`,
+          onChainRegisteredFacetContractName
+        )
+        if (!contractFilePath) {
+          consola.error(
+            `${onChainRegisteredFacetContractName}: Contract ${onChainRegisteredFacetContractName} registered in the diamond but contract file couldn't be found in src/ folder.`
           )
-
-          const onChainRegisteredFacetContractName =
-            onChainRegisteredFacetContractData.ContractName
-          if (!onChainRegisteredFacetContractName) {
-            // TODO compare facet byte codes
-            // TODO try to verify contract
-            consola.error(
-              `Skipping ${missingOnChainRegisteredFacetAddressInDeployLog}: No contract name found.`
-            )
-            continue
-          }
-
-          const contractFilePath = findContractFile(
-            `src`,
+          // try to find in archive
+          const contractFilePathInArchive = findContractFile(
+            `archive`,
             onChainRegisteredFacetContractName
           )
-          if (!contractFilePath) {
-            consola.warn(
-              `No contract file found for ${onChainRegisteredFacetContractName} in src/ folder.`
+          if (contractFilePathInArchive) {
+            consola.error(
+              `but file found in archive/ folder. Please remove facet from diamond.`
             )
-            continue
           }
+          continue
+        }
 
-          const contractSourceCode = fs.readFileSync(contractFilePath, 'utf8')
-          const repoVersion = extractVersion(contractSourceCode)
-          if (!repoVersion) {
-            consola.warn(`No version found in ${contractFilePath}.`)
-            continue
+        const contractSourceCode = fs.readFileSync(contractFilePath, 'utf8')
+        const repoVersion = extractVersion(contractSourceCode)
+        if (!repoVersion) {
+          consola.error(
+            `${onChainRegisteredFacetContractName}: Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found in ${contractFilePath}.`
+          )
+          continue
+        }
+
+        consola.info(
+          `${onChainRegisteredFacetContractName}: Checking if ${onChainRegisteredFacetContractName} already exists in ${network}.json...`
+        )
+
+        const hasVersion = !contractsWithoutVersioning.includes(
+          onChainRegisteredFacetContractName
+        )
+        if (deployLogContractAddress) {
+          // contract with the same name exists in the config file
+          if (
+            deployLogContractAddress == onChainRegisteredFacetContractAddress
+          ) {
+            // on chain registered deployed facet contract is the same contract as in deploy log
+            if (hasVersion) {
+              const deployLogFacetContractData = await fetchContractDetails(
+                baseUrl,
+                deployLogContractAddress,
+                network
+              )
+              console.log('here1.1')
+              const deployLogFacetContractVersion = extractVersion(
+                deployLogFacetContractData.SourceCode
+              )
+              console.log('here1.1')
+              if (deployLogFacetContractVersion == null) {
+                consola.error(
+                  `Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found in ${contractFilePath}.`
+                )
+                continue
+              }
+              console.log('here1.1')
+              const onChainRegisteredFacetContractVersion = extractVersion(
+                onChainRegisteredFacetContractData.SourceCode
+              )
+              console.log('here1.1')
+              if (onChainRegisteredFacetContractVersion == null) {
+                consola.error(
+                  `Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found for address ${onChainRegisteredFacetContractAddress}.`
+                )
+                continue
+              }
+
+              // warn if there is newer version in the repo
+              if (
+                compareVersions(
+                  repoVersion,
+                  onChainRegisteredFacetContractVersion
+                )
+              ) {
+                consola.warn(
+                  `${onChainRegisteredFacetContractName}: Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. On chain registered facet contract address: ${onChainRegisteredFacetContractAddress} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
+                )
+              }
+            } else {
+              consola.success(
+                `${onChainRegisteredFacetContractName}: On chain registered deployed facet contract is the same contract as in deploy log`
+              )
+              // TODO check if this contract without version can be compared with our repo contract (other way that compering versions) - bytecode? source code?
+            }
+          } else {
+            // on chain registered facet has different address than in deploy log
+            consola.error(
+              `Contract ${onChainRegisteredFacetContractName}: Invalid deploy log contract address`
+            )
+            consola.info(`Checking versions...`)
+            if (hasVersion) {
+              const deployLogFacetContractData = await fetchContractDetails(
+                baseUrl,
+                deployLogContractAddress,
+                network
+              )
+              console.log('here1.1')
+              const deployLogFacetContractVersion = extractVersion(
+                deployLogFacetContractData.SourceCode
+              )
+              console.log('here1.1')
+              if (deployLogFacetContractVersion == null) {
+                consola.error(
+                  `Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found in ${contractFilePath}.`
+                )
+                continue
+              }
+              console.log('here1.1')
+              const onChainRegisteredFacetContractVersion = extractVersion(
+                onChainRegisteredFacetContractData.SourceCode
+              )
+              console.log('here1.1')
+              if (onChainRegisteredFacetContractVersion == null) {
+                consola.error(
+                  `Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found for address ${onChainRegisteredFacetContractAddress}.`
+                )
+                continue
+              }
+
+              if (
+                compareVersions(
+                  onChainRegisteredFacetContractVersion,
+                  deployLogFacetContractVersion
+                )
+              ) {
+                // warn if there is newer version in the repo
+                consola.warn(
+                  `${onChainRegisteredFacetContractName}: Found newer version on chain for ${onChainRegisteredFacetContractName} contract. On chain registered facet contract address: ${onChainRegisteredFacetContractAddress} with version ${onChainRegisteredFacetContractVersion}, Deploy log version ${deployLogFacetContractVersion}. Updating deploy log ${onChainRegisteredFacetContractName} contract address. ${deployLogContractAddress} -> ${onChainRegisteredFacetContractAddress}`
+                )
+                networkDeployLogContracts[onChainRegisteredFacetContractName] =
+                  onChainRegisteredFacetContractAddress // update deploy log
+                if (
+                  compareVersions(
+                    repoVersion,
+                    onChainRegisteredFacetContractVersion
+                  )
+                ) {
+                  consola.warn(
+                    `${onChainRegisteredFacetContractName}: There is newer version in the repo for ${onChainRegisteredFacetContractName} contract. Onchain version ${onChainRegisteredFacetContractVersion}, repo version ${repoVersion}`
+                  )
+                }
+              } else if (
+                compareVersions(
+                  deployLogFacetContractVersion,
+                  onChainRegisteredFacetContractVersion
+                )
+              ) {
+                consola.error(
+                  `${onChainRegisteredFacetContractName}: Found newer version on deploy log for ${onChainRegisteredFacetContractName} contract. On chain registered facet contract address: ${onChainRegisteredFacetContractAddress} with version ${onChainRegisteredFacetContractVersion}, Deploy log version ${deployLogFacetContractVersion}. Please update diamond with newer version in deploy log. ${onChainRegisteredFacetContractAddress} -> ${deployLogContractAddress}`
+                )
+                if (
+                  compareVersions(repoVersion, deployLogFacetContractVersion)
+                ) {
+                  consola.warn(
+                    `${onChainRegisteredFacetContractName}: There is newer version in the repo for ${onChainRegisteredFacetContractName} contract. Deploy log version ${deployLogFacetContractVersion}, repo version ${repoVersion}`
+                  )
+                }
+              } else {
+                // TODO check their bytecodes, source codes and creation dates
+                consola.error(
+                  `${onChainRegisteredFacetContractName}: Found different addresses for on chain and deploy log contract. Both has the same version`
+                )
+              }
+            } else {
+              // addresses dont match, contract dont have a version
+              // TODO check their bytecodes, source codes and creation dates
+              consola.error(
+                `${onChainRegisteredFacetContractName}: Found different addresses for on chain and deploy log contract.`
+              )
+            }
           }
+          // consola.info("here1");
+          // // fetching {network}.json facet contract version
+          // if (hasVersion) {
+          // console.log("here1.1");
+          // // fetching config facet contract
+          // const deployLogFacetContractData = await fetchContractDetails(
+          //   baseUrl,
+          //   deployLogContractAddress,
+          //   network
+          // )
+          // console.log("here1.2");
+          // const deployLogFacetContractVersion = extractVersion(
+          //   deployLogFacetContractData.SourceCode
+          // )
+          // console.log("here1.2.1");
+          // if (deployLogFacetContractVersion == null) {
+          //   consola.error(`Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found in ${contractFilePath}.`)
+          //   continue
+          // }
+          // console.log("here1.3");
+          // const onChainRegisteredFacetContractVersion = extractVersion(
+          //   onChainRegisteredFacetContractData.SourceCode
+          // )
+          // console.log("here1.4");
+          // if (onChainRegisteredFacetContractVersion == null) {
+          //   consola.error(`Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found for address ${onChainRegisteredFacetContractAddress}.`)
+          //   continue
+          // }
+          // // check if on chain registered facet has the same version like contract in deploy log
+          // if(compareVersions(
+          //   deployLogFacetContractVersion,
+          //   onChainRegisteredFacetContractVersion
+          // ) == 0) {
+          //   consola.warn(
+          //     `${onChainRegisteredFacetContractName}: Deploy log contract version . Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. On chain registered facet contract address: ${onChainRegisteredFacetContractAddress} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
+          //   )
+          // }
+          // // now check if onchain registered facet has the newest version compering to contract code which is in our repo
+          // consola.info("here1.5");
+          // if (
+          //   compareVersions(
+          //     repoVersion,
+          //     onChainRegisteredFacetContractVersion
+          //   )
+          // ) { // it means that repo contract has newer version than what is currently deployed and registered on chain
+          //   consola.info("here1.5.1");
+          //   consola.warn(
+          //     `${onChainRegisteredFacetContractName}: Onchain registered facet doesnt have the newest version. Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. On chain registered facet contract address: ${onChainRegisteredFacetContractAddress} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
+          //   )
+          //   if (
+          //     compareVersions(repoVersion, deployLogFacetContractVersion) == 0
+          //   ) {
+          //       consola.info("here1.5.1.1");
+          //       // equal
+          //       consola.error(
+          //         `${onChainRegisteredFacetContractName}: But there is POTENTIALLY existing deployed facet but it's not registered ${deployLogContractAddress}`
+          //       )
+          //     }
+          //   } else if (compareVersions(
+          //     repoVersion,
+          //     onChainRegisteredFacetContractVersion
+          //   ) == 0) { // repo version and onchain version are equal
+          //     consola.info("here1.6.1");
+          //     if(deployLogContractAddress != onChainRegisteredFacetContractAddress) { // deploy log address and on chain registered facet contract address dont match
+          //       consola.info("here1.6.1.1");
+          //       consola.info(
+          //         `${onChainRegisteredFacetContractName}: Updating ${onChainRegisteredFacetContractName}: ${deployLogContractAddress} → ${onChainRegisteredFacetContractAddress}`
+          //       )
+          //       networkDeployLogContracts[onChainRegisteredFacetContractName] = onChainRegisteredFacetContractAddress
+          //     }
+          //     else {
+          //       consola.info("here1.6.1.2");
+          //       consola.info(
+          //         `${onChainRegisteredFacetContractName}: On chain and config addresses are the same and they are up to date with repo version. No action needed.${deployLogContractAddress} → ${onChainRegisteredFacetContractAddress}`
+          //       )
+          //     }
+          //   } else {
+          //     consola.info("here1.6.2");
+          //     consola.error("On chain version is newer than repo version. Super error!")
+          //   }
+          // }
+          // else {
+          // console.log("here2");
+          //   // TODO verification with bytecode if matches
+          //   consola.error(
+          //     `${onChainRegisteredFacetContractName}: Because contract ${onChainRegisteredFacetContractName} is without versioning it's impossible to verify if it is up to date`
+          //   );
+          // console.log("here3");
+          //   if(deployLogContractAddress != onChainRegisteredFacetContractAddress) { // deploy log address and on chain registered facet contract address dont match
+          // console.log("here3.1");
+          //     consola.error(
+          //       `${onChainRegisteredFacetContractName}: On chain registered facet address is different that what is in {network}.json. On chain registered facet contract address: ${onChainRegisteredFacetContractAddress}. Deploy log facet contract address: ${deployLogContractAddress}`
+          //     );
+          //     const deployLogFacetContractData = await fetchContractDetails(
+          //       baseUrl,
+          //       deployLogContractAddress,
+          //       network
+          //     )
+          // console.log("here3.2");
+          //     if(deployLogFacetContractData.SourceCode == onChainRegisteredFacetContractData.SourceCode) {
+          // console.log("here3.3");
+          //       // TODO check with repo source code?
+          //       consola.info(
+          //         `${onChainRegisteredFacetContractName}: But they have the same source codes`
+          //       );
+          //     } else {
+          //       consola.error(
+          //         `${onChainRegisteredFacetContractName}: And they have the different source codes`
+          //       );
+          //     }
+          //   }
+          //   else {
+          //     console.info(`${onChainRegisteredFacetContractName}: All good on chain registered facet address matches what is in {network}.json`)
+          //   }
+          // }
+        } else {
+          // {network}.json doesnt have this contract
+          consola.warn(
+            `${onChainRegisteredFacetContractName}: Found missing ${onChainRegisteredFacetContractName} contract on chain which is missing in deploy log. Adding ${onChainRegisteredFacetContractName} contract with ${onChainRegisteredFacetContractAddress} address to deploy log`
+          )
+          networkDeployLogContracts[onChainRegisteredFacetContractName] =
+            onChainRegisteredFacetContractAddress // update deploy log
+          if (hasVersion) {
+            // fetching onchain facet contract
 
-          const deployLogFacetContractData = await fetchContractDetails(
-            baseUrl,
-            networkDeployLogContracts[onChainRegisteredFacetContractName],
-            network
-          )
-          const deployLogFacetContractVersion = extractVersion(
-            deployLogFacetContractData.SourceCode
-          )
-          if (deployLogFacetContractVersion == null) {
-            continue
-          }
-
-          consola.info(
-            `Checking if ${onChainRegisteredFacetContractName} already exists in ${network}.json...`
-          )
-          if (networkDeployLogContracts[onChainRegisteredFacetContractName]) {
-            // check contract versions:
             const onChainRegisteredFacetContractVersion = extractVersion(
               onChainRegisteredFacetContractData.SourceCode
             )
             if (onChainRegisteredFacetContractVersion == null) {
+              consola.error(
+                `Contract ${onChainRegisteredFacetContractName} registered in the diamond but no contract version found for address ${onChainRegisteredFacetContractAddress}.`
+              )
               continue
             }
-
-            // now check if onchain registered facet has the newest version compering to contract code which is in our repo
             if (
               compareVersions(
                 repoVersion,
                 onChainRegisteredFacetContractVersion
               )
             ) {
-              consola.error(
-                `Onchain registered facet is not the newest version! Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. Please update diamond first! Contract name: ${onChainRegisteredFacetContractName}, Deploy log contract address: ${networkDeployLogContracts[onChainRegisteredFacetContractName]} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
+              consola.warn(
+                `${onChainRegisteredFacetContractName}: There is newer version in the repo for ${onChainRegisteredFacetContractName} contract. Onchain version ${onChainRegisteredFacetContractVersion}, repo version ${repoVersion}`
               )
-              if (
-                compareVersions(repoVersion, deployLogFacetContractVersion) == 0
-              ) {
-                // equal
-                consola.error(
-                  `But there is POTENTIALLY existing deployed facet but it's not registered ${missingOnChainRegisteredFacetAddressInDeployLog}`
-                )
-              }
-            } else {
-              consola.info(
-                `Updating ${onChainRegisteredFacetContractName}: ${networkDeployLogContracts[onChainRegisteredFacetContractName]} → ${missingOnChainRegisteredFacetAddressInDeployLog}`
-              )
-              networkDeployLogContracts[onChainRegisteredFacetContractName] =
-                missingOnChainRegisteredFacetAddressInDeployLog
             }
           } else {
-            consola.info('There is missing registered facet contract in config')
-            consola.info(
-              'Checking if already registered facet has latest version...'
-            )
-            if (
-              compareVersions(repoVersion, deployLogFacetContractVersion) == 0
-            ) {
-              consola.info(
-                `Adding registered facet contract to ${network}.json: ${onChainRegisteredFacetContractName} (${missingOnChainRegisteredFacetAddressInDeployLog})`
-              )
-              networkDeployLogContracts[onChainRegisteredFacetContractName] =
-                missingOnChainRegisteredFacetAddressInDeployLog
-            } else {
-              consola.error(
-                `Onchain registered facet is not the newest version! Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. Please update diamond first! Contract name: ${onChainRegisteredFacetContractName}, Deploy log contract address: ${networkDeployLogContracts[onChainRegisteredFacetContractName]} with version ${deployLogFacetContractVersion}, Repo version ${repoVersion}`
-              )
-            }
+            // compare source code / byte code
           }
         }
-
-        fs.writeFileSync(
-          networkDeploymentLogPath,
-          JSON.stringify(networkDeployLogContracts, null, 2)
-        )
-        consola.success('Deployment file updated successfully.')
-      } else {
-        consola.success('All contracts are up-to-date.')
       }
+
+      fs.writeFileSync(
+        networkDeploymentLogPath,
+        JSON.stringify(networkDeployLogContracts, null, 2)
+      )
+      consola.success('Deployment file updated successfully.')
     } catch (error) {
       consola.warn('Skipping facet registration check due to an error:')
       if (error instanceof Error) {
@@ -296,10 +517,9 @@ const fetchContractDetails = async (
   contractAddress: string,
   network: string
 ) => {
+  await delay(1000)
   consola.log(`\n`)
-  consola.info(
-    `Fetching contract details for missing address: ${contractAddress}`
-  )
+  consola.info(`Fetching contract details for address: ${contractAddress}`)
 
   // Retrieve API key
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
@@ -337,6 +557,56 @@ const fetchContractDetails = async (
 
   return data.result[0] ?? null
 }
+
+const fetchContractCreationDetails = async (
+  baseUrl: string,
+  contractAddresses: string[],
+  network: string
+) => {
+  await delay(1000)
+  consola.log(`\n`)
+  consola.info(
+    `Fetching contracts details for addresses: ${contractAddresses.join(', ')}`
+  )
+
+  // Retrieve API key
+  const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
+  const apiKey = process.env[apiKeyEnvVar]
+
+  if (!apiKey) {
+    throw new Error(
+      `Missing API key for ${network}. Ensure it's set in the environment variables.`
+    )
+  }
+
+  const url = new URL(baseUrl)
+  url.searchParams.append('module', 'contract')
+  url.searchParams.append('action', 'getcontractcreation')
+  url.searchParams.append('contractaddresses', contractAddresses.join(','))
+  url.searchParams.append('apiKey', apiKey)
+
+  const response = await fetch(url.toString())
+  const data = await response.json()
+
+  if (data.result.includes('Invalid API Key')) {
+    consola.error(data.result)
+    return null
+  }
+  if (
+    data.result.includes(
+      'Missing or unsupported chainid parameter (required for v2 api)'
+    )
+  ) {
+    consola.warn(
+      'Missing or unsupported chainid parameter (required for v2 api). Please see https://api.etherscan.io/v2/chainlist for the list of supported chainids.'
+    )
+    return null
+  }
+
+  return data.result ?? null
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function extractVersion(sourceCode: string): string | null {
   const versionMatch = sourceCode.match(/@custom:version\s+([\d.]+)/)
