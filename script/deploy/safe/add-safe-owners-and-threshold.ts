@@ -11,6 +11,11 @@ import {
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import data from '../../../config/networks.json'
+import globalConfig from '../../../config/global.json'
+import * as dotenv from 'dotenv'
+dotenv.config()
+import { SafeTransaction } from '@safe-global/safe-core-sdk-types'
+
 const networks: NetworksObject = data as NetworksObject
 
 const main = defineCommand({
@@ -31,16 +36,14 @@ const main = defineCommand({
     privateKey: {
       type: 'string',
       description: 'Private key of the signer',
-      required: true,
     },
     owners: {
       type: 'string',
       description: 'List of new owners to add to the safe separated by commas',
-      required: true,
     },
   },
   async run({ args }) {
-    const { network, privateKey } = args
+    const { network, privateKeyArg } = args
 
     const chain = getViemChainForNetworkName(network)
 
@@ -49,13 +52,24 @@ const main = defineCommand({
       txServiceUrl: networks[network].safeApiUrl,
     }
 
+    const privateKey = String(
+      privateKeyArg || process.env.PRIVATE_KEY_PRODUCTION
+    )
+
+    if (!privateKey)
+      throw new Error(
+        'Private key is missing, either provide it as argument or add PRIVATE_KEY_PRODUCTION to your .env'
+      )
+
+    console.info('Setting up connection to SAFE API')
+
     const safeService = new SafeApiKit(config)
 
     const safeAddress = getAddress(networks[network].safeAddress)
 
-    const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
+    const rpcUrl = chain.rpcUrls.default.http[0] || args.rpcUrl
     const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const signer = new ethers.Wallet(args.privateKey, provider)
+    const signer = new ethers.Wallet(privateKey, provider)
 
     const ethAdapter = new EthersAdapter({
       ethers,
@@ -68,11 +82,18 @@ const main = defineCommand({
       contractNetworks: getSafeUtilityContracts(chain.id),
     })
 
-    const owners = String(args.owners).split(',')
+    const owners = globalConfig.safeOwners
 
     let nextNonce = await safeService.getNextNonce(safeAddress)
     const info = safeService.getSafeInfo(safeAddress)
+    console.info('Safe Address', safeAddress)
+    const senderAddress = await signer.getAddress()
+
+    const currentThreshold = (await info).threshold
+
+    // go through all owner addresses and add each of them individually
     for (const o of owners) {
+      console.info('-'.repeat(80))
       const owner = getAddress(o)
       const existingOwners = await protocolKit.getOwners()
       if (existingOwners.includes(owner)) {
@@ -83,34 +104,68 @@ const main = defineCommand({
       const safeTransaction = await protocolKit.createAddOwnerTx(
         {
           ownerAddress: owner,
-          threshold: (await info).threshold,
+          threshold: currentThreshold,
         },
         {
           nonce: nextNonce,
         }
       )
 
-      const senderAddress = await signer.getAddress()
-      const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
-      const signature = await protocolKit.signHash(safeTxHash)
-
       console.info('Adding owner', owner)
       console.info('Signer Address', senderAddress)
-      console.info('Safe Address', safeAddress)
 
-      // Propose transaction to the service
-      await safeService.proposeTransaction({
-        safeAddress: await protocolKit.getAddress(),
-        safeTransactionData: safeTransaction.data,
-        safeTxHash,
-        senderAddress,
-        senderSignature: signature.data,
-      })
-
-      console.info('Transaction proposed')
+      await submitAndExecuteTransaction(
+        protocolKit,
+        safeService,
+        safeTransaction,
+        senderAddress
+      )
       nextNonce++
     }
+
+    console.info('-'.repeat(80))
+
+    if (currentThreshold != 3) {
+      console.info('Now changing threshold from 1 to 3')
+      const changeThresholdTx = await protocolKit.createChangeThresholdTx(3)
+      const changeSafeTxHash = await submitAndExecuteTransaction(
+        protocolKit,
+        safeService,
+        changeThresholdTx,
+        senderAddress
+      )
+    } else console.log('Threshold is already set to 3 - no action required')
+
+    console.info('-'.repeat(80))
   },
 })
+
+async function submitAndExecuteTransaction(
+  protocolKit: any,
+  safeService: any,
+  safeTransaction: SafeTransaction,
+  senderAddress: string
+): Promise<string> {
+  const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
+  const signature = await protocolKit.signHash(safeTxHash)
+
+  // Propose the transaction
+  await safeService.proposeTransaction({
+    safeAddress: await protocolKit.getAddress(),
+    safeTransactionData: safeTransaction.data,
+    safeTxHash,
+    senderAddress,
+    senderSignature: signature.data,
+  })
+
+  console.info('Transaction proposed:', safeTxHash)
+
+  // Execute the transaction immediately
+  const execResult = await protocolKit.executeTransaction(safeTransaction)
+  await execResult.transactionResponse?.wait()
+  console.info('Transaction executed:', safeTxHash)
+
+  return safeTxHash
+}
 
 runMain(main)
