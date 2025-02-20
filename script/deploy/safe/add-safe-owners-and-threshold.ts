@@ -88,6 +88,7 @@ const main = defineCommand({
     const info = safeService.getSafeInfo(safeAddress)
     console.info('Safe Address', safeAddress)
     const senderAddress = await signer.getAddress()
+    console.info('Signer Address', senderAddress)
 
     const currentThreshold = (await info).threshold
 
@@ -112,7 +113,6 @@ const main = defineCommand({
       )
 
       console.info('Adding owner', owner)
-      console.info('Signer Address', senderAddress)
 
       await submitAndExecuteTransaction(
         protocolKit,
@@ -128,7 +128,7 @@ const main = defineCommand({
     if (currentThreshold != 3) {
       console.info('Now changing threshold from 1 to 3')
       const changeThresholdTx = await protocolKit.createChangeThresholdTx(3)
-      const changeSafeTxHash = await submitAndExecuteTransaction(
+      await submitAndExecuteTransaction(
         protocolKit,
         safeService,
         changeThresholdTx,
@@ -137,6 +137,7 @@ const main = defineCommand({
     } else console.log('Threshold is already set to 3 - no action required')
 
     console.info('-'.repeat(80))
+    console.info('Script completed without errors')
   },
 })
 
