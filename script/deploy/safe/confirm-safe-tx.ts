@@ -334,7 +334,7 @@ const func = async (
   }
 }
 
-export const confirmSafeTx = defineCommand({
+const main = defineCommand({
   meta: {
     name: 'propose-to-safe',
     description: 'Propose a transaction to a Gnosis Safe',
@@ -387,7 +387,4 @@ export const confirmSafeTx = defineCommand({
   },
 })
 
-// Only run if this module is the entry point so that the script can also imported by other scripts without automatically runnind
-if (process.argv[1] === new URL(import.meta.url).pathname) {
-  runMain(confirmSafeTx)
-}
+runMain(main)
