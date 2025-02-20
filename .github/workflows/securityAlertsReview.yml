@@ -26,7 +26,7 @@ jobs:
       - name: Check if Olympix Static Analysis has run at least once and was successful
         id: check-analysis
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           BRANCH_NAME: ${{ github.head_ref }}
         run: |
           # Fallback in case BRANCH_NAME is empty.
@@ -58,7 +58,7 @@ jobs:
       - name: Validate and set PR Number
         id: fetch_pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           if [ -z "${{ steps.findPr.outputs.number }}" ]; then
             echo "Error: No pull request found for this push." >&2
@@ -71,7 +71,7 @@ jobs:
 
       - name: Fetch Security Alerts for PR
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           echo "Fetching security alerts for PR #${PR_NUMBER}..."
           
@@ -118,7 +118,7 @@ jobs:
       - name: Find Existing PR Comment
         id: find_comment
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           echo "Searching for existing PR comment..."
           
@@ -134,7 +134,7 @@ jobs:
 
       - name: Post or Update PR Comment
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           COMMENT_BODY="### 🤖 GitHub Action: Security Alerts Review 🔍\n\n"
 
@@ -235,7 +235,7 @@ jobs:
 
       - name: Check if Action Should Fail And Revert To Draft
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
           echo "🔍 Checking if the workflow should fail and revert PR to draft based on security alerts..."
