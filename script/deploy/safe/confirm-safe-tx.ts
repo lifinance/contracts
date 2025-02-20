@@ -213,7 +213,7 @@ const func = async (
   privKeyType: privateKeyType,
   rpcUrl?: string
 ) => {
-  console.info(' ')
+  consola.info(' ')
   consola.info('-'.repeat(80))
 
   const chain = getViemChainForNetworkName(network)
@@ -315,8 +315,8 @@ const func = async (
     }
 
     consola.success('Transaction executed')
-    console.info(' ')
-    console.info(' ')
+    consola.info(' ')
+    consola.info(' ')
   }
 
   /**

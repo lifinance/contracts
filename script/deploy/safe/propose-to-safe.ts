@@ -108,7 +108,7 @@ const main = defineCommand({
         safeAddress,
       })
     } catch (error) {
-      console.error('Failed to initialize Safe protocol kit:', error)
+      consola.error('Failed to initialize Safe protocol kit:', error)
       throw error
     }
 
@@ -141,10 +141,10 @@ const main = defineCommand({
     safeTransaction = await protocolKit.signTransaction(safeTransaction)
     const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
 
-    console.info('Signer Address', senderAddress)
-    console.info('Safe Address', safeAddress)
-    console.info('Network', chain.name)
-    console.info('Proposing transaction to', args.to)
+    consola.info('Signer Address', senderAddress)
+    consola.info('Safe Address', safeAddress)
+    consola.info('Network', chain.name)
+    consola.info('Proposing transaction to', args.to)
 
     // Store transaction in MongoDB
     try {
@@ -168,15 +168,15 @@ const main = defineCommand({
         throw new Error('MongoDB insert was not acknowledged')
       }
 
-      console.info('Transaction successfully stored in MongoDB')
+      consola.info('Transaction successfully stored in MongoDB')
     } catch (error) {
-      console.error('Failed to store transaction in MongoDB:', error)
+      consola.error('Failed to store transaction in MongoDB:', error)
       throw error
     } finally {
       await mongoClient.close()
     }
 
-    console.info('Transaction proposed')
+    consola.info('Transaction proposed')
   },
 })
 
