@@ -140,6 +140,12 @@
       "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df"
     ]
   },
+  "soneium": {
+    "chainId": 1868,
+    "acrossSpokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
+    "weth": "0x4200000000000000000000000000000000000006",
+    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
+  },
   "unichain": {
     "chainId": 130,
     "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
