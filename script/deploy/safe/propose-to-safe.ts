@@ -133,11 +133,13 @@ const main = defineCommand({
       nonce: nextNonce,
     }
 
+    const senderAddress = await signer.getAddress()
+
+    // Create and prepare the Safe transaction with the provided transaction data
+    // This will be signed and proposed to the Safe for execution
     let safeTransaction = await protocolKit.createTransaction({
       transactions: [safeTransactionData],
     })
-
-    const senderAddress = await signer.getAddress()
     safeTransaction = await protocolKit.signTransaction(safeTransaction)
     const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
 
