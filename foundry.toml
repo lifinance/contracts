@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.17'
-evm_version = 'shanghai'
+solc_version = '0.8.28'
+evm_version = 'cancun'
 optimizer = true
 optimizer_runs = 1000000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
@@ -44,6 +44,7 @@ harmony = "${ETH_NODE_URI_HARMONY}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
+ink = "${ETH_NODE_URI_INK}"
 kaia = "${ETH_NODE_URI_KAIA}"
 linea = "${ETH_NODE_URI_LINEA}"
 lisk = "${ETH_NODE_URI_LISK}"
@@ -93,6 +94,7 @@ fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.i
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
+ink = { key = "${INK_ETHERSCAN_API_KEY}", url = "https://explorer.inkonchain.com/api/", verifier = "blockscout", chain = "57073"}
 immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 kaia = { key = "${KAIA_ETHERSCAN_API_KEY}", url = "https://api-cypress.klaytnscope.com/api", chain = "8217", verifier = "blockscout" }
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }
