@@ -154,9 +154,9 @@ const main = defineCommand({
             network
           )
 
-          const onChainRegisteredFacetContractContractName =
+          const onChainRegisteredFacetContractName =
             onChainRegisteredFacetContractData.ContractName
-          if (!onChainRegisteredFacetContractContractName) {
+          if (!onChainRegisteredFacetContractName) {
             // TODO compare facet byte codes
             // TODO try to verify contract
             consola.error(
@@ -165,14 +165,40 @@ const main = defineCommand({
             continue
           }
 
-          consola.info(
-            `Checking if ${onChainRegisteredFacetContractContractName} already exists in ${network}.json...`
+          const contractFilePath = findContractFile(
+            `src`,
+            onChainRegisteredFacetContractName
           )
-          if (
-            networkDeployLogContracts[
-              onChainRegisteredFacetContractContractName
-            ]
-          ) {
+          if (!contractFilePath) {
+            consola.warn(
+              `No contract file found for ${onChainRegisteredFacetContractName} in src/ folder.`
+            )
+            continue
+          }
+
+          const contractSourceCode = fs.readFileSync(contractFilePath, 'utf8')
+          const repoVersion = extractVersion(contractSourceCode)
+          if (!repoVersion) {
+            consola.warn(`No version found in ${contractFilePath}.`)
+            continue
+          }
+
+          const deployLogFacetContractData = await fetchContractDetails(
+            baseUrl,
+            networkDeployLogContracts[onChainRegisteredFacetContractName],
+            network
+          )
+          const deployLogFacetContractVersion = extractVersion(
+            deployLogFacetContractData.SourceCode
+          )
+          if (deployLogFacetContractVersion == null) {
+            continue
+          }
+
+          consola.info(
+            `Checking if ${onChainRegisteredFacetContractName} already exists in ${network}.json...`
+          )
+          if (networkDeployLogContracts[onChainRegisteredFacetContractName]) {
             // check contract versions:
             const onChainRegisteredFacetContractVersion = extractVersion(
               onChainRegisteredFacetContractData.SourceCode
@@ -181,38 +207,7 @@ const main = defineCommand({
               continue
             }
 
-            const deployLogFacetContractData = await fetchContractDetails(
-              baseUrl,
-              networkDeployLogContracts[
-                onChainRegisteredFacetContractContractName
-              ],
-              network
-            )
-            const deployLogFacetContractVersion = extractVersion(
-              deployLogFacetContractData.SourceCode
-            )
-            if (deployLogFacetContractVersion == null) {
-              continue
-            }
-
             // now check if onchain registered facet has the newest version compering to contract code which is in our repo
-            const contractFilePath = findContractFile(
-              `src`,
-              onChainRegisteredFacetContractContractName
-            )
-            if (!contractFilePath) {
-              consola.warn(
-                `No contract file found for ${onChainRegisteredFacetContractContractName} in src/ folder.`
-              )
-              continue
-            }
-
-            const contractSourceCode = fs.readFileSync(contractFilePath, 'utf8')
-            const repoVersion = extractVersion(contractSourceCode)
-            if (!repoVersion) {
-              consola.warn(`No version found in ${contractFilePath}.`)
-              continue
-            }
             if (
               compareVersions(
                 repoVersion,
@@ -220,7 +215,7 @@ const main = defineCommand({
               )
             ) {
               consola.error(
-                `Onchain registered facet is not the newest version! Found newer version in the repo for ${onChainRegisteredFacetContractContractName} contract. Please update diamond first! Contract name: ${onChainRegisteredFacetContractContractName}, Deploy log contract address: ${networkDeployLogContracts[onChainRegisteredFacetContractContractName]} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
+                `Onchain registered facet is not the newest version! Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. Please update diamond first! Contract name: ${onChainRegisteredFacetContractName}, Deploy log contract address: ${networkDeployLogContracts[onChainRegisteredFacetContractName]} with version ${onChainRegisteredFacetContractVersion}, Repo version ${repoVersion}`
               )
               if (
                 compareVersions(repoVersion, deployLogFacetContractVersion) == 0
@@ -232,19 +227,29 @@ const main = defineCommand({
               }
             } else {
               consola.info(
-                `Updating ${onChainRegisteredFacetContractContractName}: ${networkDeployLogContracts[onChainRegisteredFacetContractContractName]} → ${missingOnChainRegisteredFacetAddressInDeployLog}`
+                `Updating ${onChainRegisteredFacetContractName}: ${networkDeployLogContracts[onChainRegisteredFacetContractName]} → ${missingOnChainRegisteredFacetAddressInDeployLog}`
               )
-              networkDeployLogContracts[
-                onChainRegisteredFacetContractContractName
-              ] = missingOnChainRegisteredFacetAddressInDeployLog
+              networkDeployLogContracts[onChainRegisteredFacetContractName] =
+                missingOnChainRegisteredFacetAddressInDeployLog
             }
           } else {
+            consola.info('There is missing registered facet contract in config')
             consola.info(
-              `Adding new registered facet contract: ${onChainRegisteredFacetContractContractName} (${missingOnChainRegisteredFacetAddressInDeployLog})`
+              'Checking if already registered facet has latest version...'
             )
-            networkDeployLogContracts[
-              onChainRegisteredFacetContractContractName
-            ] = missingOnChainRegisteredFacetAddressInDeployLog
+            if (
+              compareVersions(repoVersion, deployLogFacetContractVersion) == 0
+            ) {
+              consola.info(
+                `Adding registered facet contract to ${network}.json: ${onChainRegisteredFacetContractName} (${missingOnChainRegisteredFacetAddressInDeployLog})`
+              )
+              networkDeployLogContracts[onChainRegisteredFacetContractName] =
+                missingOnChainRegisteredFacetAddressInDeployLog
+            } else {
+              consola.error(
+                `Onchain registered facet is not the newest version! Found newer version in the repo for ${onChainRegisteredFacetContractName} contract. Please update diamond first! Contract name: ${onChainRegisteredFacetContractName}, Deploy log contract address: ${networkDeployLogContracts[onChainRegisteredFacetContractName]} with version ${deployLogFacetContractVersion}, Repo version ${repoVersion}`
+              )
+            }
           }
         }
 
