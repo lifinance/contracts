@@ -1416,6 +1416,7 @@ function verifyContract() {
   local CONTRACT=$2
   local ADDRESS=$3
   local ARGS=$4
+  local FOUNDRY_PROFILE=$5
 
   # get API key for blockchain explorer
   if [[ "$NETWORK" == "bsc-testnet" ]]; then
@@ -1455,6 +1456,11 @@ function verifyContract() {
     warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
   fi
 
+  # set foundry profile to default if no value was passed
+  if [[ -z "$FOUNDRY_PROFILE" ]]; then
+    FOUNDRY_PROFILE=default
+  fi
+
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
@@ -1463,7 +1469,7 @@ function verifyContract() {
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+          FOUNDRY_PROFILE=$FOUNDRY_PROFILE forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         fi
 
         # TODO: add code that automatically identifies blockscout verification
@@ -1472,7 +1478,7 @@ function verifyContract() {
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+          FOUNDRY_PROFILE=$FOUNDRY_PROFILE forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         fi
       fi
     else
@@ -1483,14 +1489,14 @@ function verifyContract() {
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
+          FOUNDRY_PROFILE=$FOUNDRY_PROFILE forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
         fi
       else
         if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+          FOUNDRY_PROFILE=$FOUNDRY_PROFILE forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         fi
       fi
     fi

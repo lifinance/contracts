@@ -22,6 +22,8 @@ export type Network = {
   safeAddress: string
   safeWebUrl: string
   gasZipChainId: number
+  evmVersion: string
+  maxSolcVersionForDeploy: string
   id: string
 }
 
