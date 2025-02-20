@@ -125,9 +125,9 @@
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
+      "0x3c0727E3Ab7BAf3a4205f518f1b7570d68Da19ba": {
         "Name": "ThorSwapFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.1"
       },
       "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
         "Name": "WithdrawFacet",
