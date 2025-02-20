@@ -37,10 +37,6 @@ const main = defineCommand({
       type: 'string',
       description: 'Private key of the signer',
     },
-    owners: {
-      type: 'string',
-      description: 'List of new owners to add to the safe separated by commas',
-    },
   },
   async run({ args }) {
     const { network, privateKeyArg } = args
@@ -162,9 +158,17 @@ async function submitAndExecuteTransaction(
   console.info('Transaction proposed:', safeTxHash)
 
   // Execute the transaction immediately
-  const execResult = await protocolKit.executeTransaction(safeTransaction)
-  await execResult.transactionResponse?.wait()
-  console.info('Transaction executed:', safeTxHash)
+  try {
+    const execResult = await protocolKit.executeTransaction(safeTransaction)
+    const receipt = await execResult.transactionResponse?.wait()
+    if (receipt?.status === 0) {
+      throw new Error('Transaction failed')
+    }
+    console.info('Transaction executed:', safeTxHash)
+  } catch (error) {
+    console.error('Transaction execution failed:', error)
+    throw error
+  }
 
   return safeTxHash
 }
