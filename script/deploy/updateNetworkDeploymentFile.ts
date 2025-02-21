@@ -325,26 +325,52 @@ async function verifyAndUpdateFacets({
 
     // ──────────────────────────────────────────────────────────────
     // Check deploy log for facets missing on-chain.
-    // Only add an error for facets whose names include "Facet"
-    // and which have not been reported already.
+    // Only add an error for entries with "Facet" in the name and which have not been reported.
+    // Additionally, check if the contract is in src/ or in archive.
     // ──────────────────────────────────────────────────────────────
     const onChainFacetAddresses = new Set(
       onChainFacets.map(([addr]) => addr.toLowerCase())
     )
     for (const facetName in networkDeployLogContracts) {
-      // Skip non-facets and the main diamond contract.
       if (facetName === 'LiFiDiamond' || !facetName.includes('Facet')) continue
-      // Skip if already reported.
       if (facetReports.some((report) => report.facet === facetName)) continue
       const deployAddress = networkDeployLogContracts[facetName].toLowerCase()
       if (!onChainFacetAddresses.has(deployAddress)) {
-        facetReports.push({
-          facet: facetName,
-          onChain: 'N/A',
-          deployLog: deployAddress,
-          status: 'ERROR',
-          message: `Facet "${facetName}" is in deploy log but not registered on-chain. Please update the deployment file.`,
-        })
+        // First, check if the contract file exists in src
+        const srcPath = findContractFile('src', facetName)
+        if (srcPath) {
+          const contractSource = fs.readFileSync(srcPath, 'utf8')
+          const repoVersion = extractVersion(contractSource)
+          facetReports.push({
+            facet: facetName,
+            onChain: 'N/A',
+            deployLog: deployAddress,
+            status: 'ERROR',
+            message: `Facet "${facetName}" is in deploy log but not registered on-chain. Contract is in src with repo version (${
+              repoVersion || 'unknown'
+            }). Please register facet to diamond with the latest version.`,
+          })
+        } else {
+          // If not in src, check archive folder
+          const archivePath = findContractFile('archive', facetName)
+          if (archivePath) {
+            facetReports.push({
+              facet: facetName,
+              onChain: 'N/A',
+              deployLog: deployAddress,
+              status: 'ERROR',
+              message: `Facet "${facetName}" is in deploy log but not registered on-chain. Contract is in archive; it can be removed from the deploy log completely.`,
+            })
+          } else {
+            facetReports.push({
+              facet: facetName,
+              onChain: 'N/A',
+              deployLog: deployAddress,
+              status: 'ERROR',
+              message: `Facet "${facetName}" is in deploy log but not registered on-chain. Please update the deployment file or register facet to diamond.`,
+            })
+          }
+        }
       }
     }
 
