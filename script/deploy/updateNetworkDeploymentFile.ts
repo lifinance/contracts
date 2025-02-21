@@ -134,10 +134,8 @@ const main = defineCommand({
       networksConfig,
     })
     // Also check for deploy log entries missing on-chain.
-    spinner.succeed('On-chain facets verification complete.')
-    spinner.start('Verifying missing on chain facets...')
     verifyMissingOnChain(networkDeployLogContracts, onChainAddressSet)
-    spinner.succeed('Missing on chain facets verification complete.')
+    spinner.succeed('On-chain facets verification complete.')
 
     // STEP 3: Verify Diamond File vs. Deploy Log.
     spinner.start('Verifying diamond file facets against deploy log...')
@@ -253,18 +251,24 @@ async function verifyOnChainAgainstDeployLog({
           continue
         } else {
           facetName = foundName
-          message += `Assumed contract name "${facetName}" from deploy log. `
+          message += `Contract not verified. Assumed contract name "${facetName}" from deploy log. `
           status = 'INFO'
         }
       }
-      // Record processed facet name to avoid duplicates in missing check.
+      // Record processed facet name to avoid duplicates.
       processedOnChainFacets.add(facetName)
       deployLogAddr =
         networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
 
+      // Check for contract file in src/; if not found, check archive/.
       const srcPath = findContractFile('src', facetName)
       if (!srcPath) {
-        message += `Contract file not found in src/.`
+        const archivePath = findContractFile('archive', facetName)
+        if (archivePath) {
+          message += `Contract file found in archive; please remove contract from diamond and deploy log.`
+        } else {
+          message += `Contract file not found in src/.`
+        }
         status = 'ERROR'
         onChainReports.push({
           facet: facetName,
@@ -351,17 +355,23 @@ function verifyMissingOnChain(
       const deployAddr = deployLog[key].toLowerCase()
       if (!onChainSet.has(deployAddr)) {
         const srcPath = findContractFile('src', key)
-        let locationMsg = srcPath ? 'found in src' : 'not found in src'
-        if (!srcPath) {
+        let message = ''
+        if (srcPath) {
+          message = `Contract file found in src; please verify its status.`
+        } else {
           const archivePath = findContractFile('archive', key)
-          locationMsg = archivePath ? 'found in archive' : locationMsg
+          if (archivePath) {
+            message = `Contract file found in archive; please remove contract from diamond and deploy log.`
+          } else {
+            message = `Contract file not found in src.`
+          }
         }
         onChainReports.push({
           facet: key,
           onChain: 'N/A',
           deployLog: deployAddr,
           status: 'ERROR',
-          message: `Facet "${key}" is present in deploy log but not fetched on-chain. Contract file ${locationMsg}. Please verify its status.`,
+          message: `Facet "${key}" is present in deploy log but not fetched on-chain. ${message}`,
         })
       }
     }
@@ -414,7 +424,7 @@ async function verifyDiamondAgainstDeployLog({
         )
         if (diamondData && diamondData.ContractName) {
           facetName = diamondData.ContractName
-          message += `Diamond contract verified as "${facetName}". `
+          message += `Diamond log contract verified as "${facetName}". `
           deployLogAddr =
             networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
         } else {
@@ -434,7 +444,7 @@ async function verifyDiamondAgainstDeployLog({
           status = 'SUCCESS'
         }
       } else {
-        // There is an address mismatch.
+        // Address mismatch.
         const deployLogData = await fetchContractDetails(
           baseUrl,
           deployLogAddr,
@@ -585,6 +595,7 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(400)
+  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
