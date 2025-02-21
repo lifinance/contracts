@@ -610,22 +610,6 @@ async function verifyDiamondAgainstDeployLog({
 }
 
 // ---------------------------------------------------------------------
-// Process 3: (Optional) Verify Periphery (already handled above)
-// ---------------------------------------------------------------------
-interface VerifyPeripheryParams {
-  network: string
-  networkDeployLogContracts: DeployLogContracts
-  networkDiamondLog: DiamondDeployLog
-}
-async function verifyPeriphery({
-  network,
-  networkDeployLogContracts,
-  networkDiamondLog,
-}: VerifyPeripheryParams) {
-  return
-}
-
-// ---------------------------------------------------------------------
 // Additional: Verify Missing Entries in Diamond File
 // This function checks for contracts present in the deploy log but missing in the diamond file.
 // It will ignore those facets already processed in Process 2.
