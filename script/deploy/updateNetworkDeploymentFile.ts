@@ -21,7 +21,7 @@ enum VerificationStatus {
 }
 
 const NA = 'N/A'
-const NONE = 'none'
+const NO_VERSION = 'none'
 const UNKNOWN = 'unknown'
 
 // ---------------------------------------------------------------------
@@ -64,7 +64,7 @@ function hasOwnProp(obj: any, key: string): boolean {
 
 // Helper function to format version strings.
 function formatVersion(version: string | null): string {
-  return version && version.trim() !== '' ? version.trim() : NONE
+  return version && version.trim() !== '' ? version.trim() : NO_VERSION
 }
 
 // ---------------------------------------------------------------------
@@ -494,7 +494,10 @@ async function verifyDiamondAgainstDeployLog({
         message += `Facet "${facetName}" is present in diamond file but missing in deploy log.`
         status = VerificationStatus.ERROR
       } else if (deployLogAddr === diamondLogAddr) {
-        if (chainDiamondVersion.trim() === '' || chainDiamondVersion === NONE) {
+        if (
+          chainDiamondVersion.trim() === '' ||
+          chainDiamondVersion === NO_VERSION
+        ) {
           message += `On-chain diamond version is empty; facet may be unverified.`
           status = VerificationStatus.WARN
         } else {
@@ -565,15 +568,15 @@ async function verifyDiamondAgainstDeployLog({
           : null
       const diamondVersion = diamondPeriphDetails
         ? formatVersion(extractVersion(diamondPeriphDetails.SourceCode))
-        : NONE
+        : NO_VERSION
       const deployLogVersion = deployLogPeriphDetails
         ? formatVersion(extractVersion(deployLogPeriphDetails.SourceCode))
-        : NONE
+        : NO_VERSION
 
       if (deployLogPeriphAddr === diamondPeriphAddr) {
         status = VerificationStatus.SUCCESS
         message = `Periphery contract "${key}" matches.`
-        if (diamondVersion !== NONE && deployLogVersion !== NONE) {
+        if (diamondVersion !== NO_VERSION && deployLogVersion !== NO_VERSION) {
           if (diamondVersion !== deployLogVersion) {
             message += ` However, version mismatch: diamond (${diamondVersion}) vs deploy log (${deployLogVersion}).`
             status = VerificationStatus.WARN
@@ -584,7 +587,7 @@ async function verifyDiamondAgainstDeployLog({
       } else {
         status = VerificationStatus.ERROR
         message = `Periphery contract "${key}" mismatch: diamond (${diamondPeriphAddr}) vs deploy log (${deployLogPeriphAddr}).`
-        if (diamondVersion !== NONE && deployLogVersion !== NONE) {
+        if (diamondVersion !== NO_VERSION && deployLogVersion !== NO_VERSION) {
           if (diamondVersion !== deployLogVersion) {
             message += ` Versions: diamond (${diamondVersion}) vs deploy log (${deployLogVersion}).`
           } else {
