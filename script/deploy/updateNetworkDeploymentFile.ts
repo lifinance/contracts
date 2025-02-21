@@ -32,8 +32,21 @@ interface DiamondDeployLog {
   }
 }
 
+// Global arrays for reports
 const onChainReports: FacetReport[] = [] // Process 1: On-Chain vs. Deploy Log
 const diamondReports: FacetReport[] = [] // Process 2: Diamond vs. Deploy Log
+
+// Global sets to hold processed facet names
+const processedOnChainFacets = new Set<string>() // For Process 1
+const processedDiamondFacets = new Set<string>() // For Process 2
+
+// Global set to hold on-chain facet addresses (used for missing-onchain check)
+const onChainAddressSet = new Set<string>()
+
+// Helper function to safely check own property without using Object.hasOwn()
+function hasOwnProp(obj: any, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key)
+}
 
 // ──────────────────────────────────────────────────────────────
 // Main Command Definition
@@ -120,7 +133,11 @@ const main = defineCommand({
       networkDeployLogContracts,
       networksConfig,
     })
+    // Also check for deploy log entries missing on-chain.
     spinner.succeed('On-chain facets verification complete.')
+    spinner.start('Verifying missing on chain facets...')
+    verifyMissingOnChain(networkDeployLogContracts, onChainAddressSet)
+    spinner.succeed('Missing on chain facets verification complete.')
 
     // STEP 3: Verify Diamond File vs. Deploy Log.
     spinner.start('Verifying diamond file facets against deploy log...')
@@ -139,6 +156,11 @@ const main = defineCommand({
       networkDiamondLog,
     })
     spinner.succeed('Periphery contracts verification complete.')
+
+    // STEP 5: Verify Missing Entries in Diamond File.
+    spinner.start('Verifying missing entries in diamond file...')
+    verifyMissingInDiamond(networkDeployLogContracts, networkDiamondLog)
+    spinner.succeed('Missing entries verification complete.')
 
     // Print report tables.
     printReportTable(
@@ -200,6 +222,8 @@ async function verifyOnChainAgainstDeployLog({
 
     for (const [facetAddress] of onChainFacets) {
       const onChainAddr = facetAddress.toLowerCase()
+      // Add to global on-chain address set.
+      onChainAddressSet.add(onChainAddr)
       let facetName = ''
       let deployLogAddr = ''
       let status = ''
@@ -233,6 +257,8 @@ async function verifyOnChainAgainstDeployLog({
           status = 'INFO'
         }
       }
+      // Record processed facet name to avoid duplicates in missing check.
+      processedOnChainFacets.add(facetName)
       deployLogAddr =
         networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
 
@@ -311,11 +337,42 @@ async function verifyOnChainAgainstDeployLog({
   }
 }
 
+// New function: Verify Missing Facets in Deploy Log Not Fetched On-Chain.
+function verifyMissingOnChain(
+  deployLog: DeployLogContracts,
+  onChainSet: Set<string>
+) {
+  // Iterate over deploy log keys that include 'Facet' (excluding LiFiDiamond).
+  for (const key in deployLog) {
+    if (key === 'LiFiDiamond') continue
+    if (key.includes('Facet')) {
+      // Skip if already processed in Process 1.
+      if (processedOnChainFacets.has(key)) continue
+      const deployAddr = deployLog[key].toLowerCase()
+      if (!onChainSet.has(deployAddr)) {
+        const srcPath = findContractFile('src', key)
+        let locationMsg = srcPath ? 'found in src' : 'not found in src'
+        if (!srcPath) {
+          const archivePath = findContractFile('archive', key)
+          locationMsg = archivePath ? 'found in archive' : locationMsg
+        }
+        onChainReports.push({
+          facet: key,
+          onChain: 'N/A',
+          deployLog: deployAddr,
+          status: 'ERROR',
+          message: `Facet "${key}" is present in deploy log but not fetched on-chain. Contract file ${locationMsg}. Please verify its status.`,
+        })
+      }
+    }
+  }
+}
+
 // ──────────────────────────────────────────────────────────────
 // Process 2: Verify Diamond File vs. Deploy Log
 // In this process, we display only Diamond Log Address and Deploy Log Address.
 // If the diamond file facet has an unknown name or missing deploy log entry,
-// we try to fetch contract details from the diamond address to update the contract name,
+// we attempt to fetch contract details using the diamond log address to update the name,
 // then look up its deploy log address and compare versions.
 interface DiamondParams {
   network: string
@@ -341,14 +398,14 @@ async function verifyDiamondAgainstDeployLog({
     const diamondLogFacets = networkDiamondLog.LiFiDiamond.Facets
     for (const addr in diamondLogFacets) {
       const diamondLogAddr = addr.toLowerCase()
-      const facetInfo = diamondLogFacets[addr]
-      let facetName = facetInfo.Name || '(unknown)'
+      let facetName = diamondLogFacets[addr].Name || '(unknown)'
+      const diamondFileVersion = diamondLogFacets[addr].Version || ''
       let deployLogAddr =
         networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
       let status = ''
       let message = ''
 
-      // If facetName is unknown or deployLogAddr is missing, attempt to fetch contract details from the diamond log contract address.
+      // If facetName is unknown or deployLogAddr is missing, try to fetch contract details using diamond log address.
       if (facetName === '(unknown)' || deployLogAddr === 'N/A') {
         const diamondData = await fetchContractDetails(
           baseUrl,
@@ -369,7 +426,7 @@ async function verifyDiamondAgainstDeployLog({
         message += `Facet "${facetName}" is present in diamond file but missing in deploy log.`
         status = 'ERROR'
       } else if (deployLogAddr === diamondLogAddr) {
-        if (facetInfo.Version.trim() === '') {
+        if (diamondFileVersion.trim() === '') {
           message += `Diamond file version is empty; facet may be unverified.`
           status = 'WARN'
         } else {
@@ -378,7 +435,6 @@ async function verifyDiamondAgainstDeployLog({
         }
       } else {
         // There is an address mismatch.
-        // Fetch details from the deploy log address to compare versions.
         const deployLogData = await fetchContractDetails(
           baseUrl,
           deployLogAddr,
@@ -388,7 +444,6 @@ async function verifyDiamondAgainstDeployLog({
           deployLogData && typeof deployLogData.SourceCode === 'string'
             ? extractVersion(deployLogData.SourceCode) || 'none'
             : 'none'
-        const diamondFileVersion = facetInfo.Version.trim() || 'none'
         let compareMessage = ''
         if (isVersionNewer(diamondFileVersion, deployLogVersion)) {
           compareMessage = `Diamond file version (${diamondFileVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log accordingly.`
@@ -408,6 +463,7 @@ async function verifyDiamondAgainstDeployLog({
         status,
         message: message.trim(),
       })
+      processedDiamondFacets.add(facetName)
     }
 
     // Process periphery contracts.
@@ -459,6 +515,50 @@ async function verifyPeriphery({
 }
 
 // ──────────────────────────────────────────────────────────────
+// Additional: Verify Missing Entries in Diamond File
+// This function checks for contracts present in the deploy log but missing in the diamond file.
+// It will ignore those facets already processed in Process 2.
+function verifyMissingInDiamond(
+  deployLog: DeployLogContracts,
+  diamondLog: DiamondDeployLog
+) {
+  for (const key in deployLog) {
+    if (key === 'LiFiDiamond') continue
+    if (key.includes('Facet')) {
+      if (processedDiamondFacets.has(key)) continue
+      let found = false
+      for (const addr in diamondLog.LiFiDiamond.Facets) {
+        if (diamondLog.LiFiDiamond.Facets[addr].Name === key) {
+          found = true
+          break
+        }
+      }
+      if (!found) {
+        diamondReports.push({
+          facet: key,
+          onChain: 'N/A',
+          deployLog: deployLog[key].toLowerCase(),
+          diamondDeployLog: 'N/A',
+          status: 'ERROR',
+          message: `Facet "${key}" is present in deploy log but missing in diamond file.`,
+        })
+      }
+    } else {
+      if (!hasOwnProp(diamondLog.LiFiDiamond.Periphery, key)) {
+        diamondReports.push({
+          facet: key,
+          onChain: 'N/A',
+          deployLog: deployLog[key].toLowerCase(),
+          diamondDeployLog: 'N/A',
+          status: 'ERROR',
+          message: `Contract "${key}" is present in deploy log but missing in diamond file.`,
+        })
+      }
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 // Utility Functions
 // ──────────────────────────────────────────────────────────────
 
@@ -484,8 +584,7 @@ const fetchContractDetails = async (
   contractAddress: string,
   network: string
 ) => {
-  await delay(1000)
-  consola.info(`Fetching details for contract at address: ${contractAddress}`)
+  await delay(400)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
@@ -560,8 +659,6 @@ const checkIsDeployed = async (
 // Process 1 (On-Chain vs. Deploy Log): 5 columns: Facet, On-Chain Address, Deploy Log Address, Status, Action/Description.
 // Process 2 (Diamond vs. Deploy Log): 5 columns: Facet, Diamond Log Address, Deploy Log Address, Status, Action/Description.
 // Column widths are set accordingly.
-// ──────────────────────────────────────────────────────────────
-
 function printReportTable(
   reportArray: FacetReport[],
   title: string,
