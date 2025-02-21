@@ -267,7 +267,7 @@ async function verifyOnChainAgainstDeployLog({
         if (archivePath) {
           message += `Contract file found in archive; please remove contract from diamond and deploy log.`
         } else {
-          message += `Contract file not found in src/.`
+          message += `Contract file not found in src.`
         }
         status = 'ERROR'
         onChainReports.push({
@@ -384,6 +384,7 @@ function verifyMissingOnChain(
 // If the diamond file facet has an unknown name or missing deploy log entry,
 // we attempt to fetch contract details using the diamond log address to update the name,
 // then look up its deploy log address and compare versions.
+// Additionally, we now check whether the contract file exists in src/ (or in archive/) and add a proper comment.
 interface DiamondParams {
   network: string
   networkDeployLogContracts: DeployLogContracts
@@ -429,6 +430,29 @@ async function verifyDiamondAgainstDeployLog({
             networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
         } else {
           message += `Diamond contract at ${diamondLogAddr} is not verified. `
+        }
+      }
+
+      // Check for contract file in src/; if not found, check archive/.
+      const srcPath = findContractFile('src', facetName)
+      if (!srcPath) {
+        const archivePath = findContractFile('archive', facetName)
+        if (archivePath) {
+          message += `Contract file found in archive; please remove contract from diamond and deploy log. `
+          status = 'ERROR'
+          diamondReports.push({
+            facet: facetName,
+            onChain: 'N/A',
+            deployLog: deployLogAddr,
+            diamondDeployLog: diamondLogAddr,
+            status,
+            message: message.trim(),
+          })
+          processedDiamondFacets.add(facetName)
+          continue
+        } else {
+          message += `Contract file not found in src. `
+          status = 'ERROR'
         }
       }
 
@@ -484,12 +508,45 @@ async function verifyDiamondAgainstDeployLog({
         networkDeployLogContracts[key]?.toLowerCase() || 'N/A'
       let status = ''
       let message = ''
+
+      // Fetch contract details for version comparison.
+      const diamondPeriphDetails = await fetchContractDetails(
+        baseUrl,
+        diamondPeriphAddr,
+        network
+      )
+      const deployLogPeriphDetails =
+        deployLogPeriphAddr !== 'N/A'
+          ? await fetchContractDetails(baseUrl, deployLogPeriphAddr, network)
+          : null
+      const diamondVersion = diamondPeriphDetails
+        ? extractVersion(diamondPeriphDetails.SourceCode)
+        : 'none'
+      const deployLogVersion = deployLogPeriphDetails
+        ? extractVersion(deployLogPeriphDetails.SourceCode)
+        : 'none'
+
       if (deployLogPeriphAddr === diamondPeriphAddr) {
         status = 'SUCCESS'
         message = `Periphery contract "${key}" matches.`
+        if (diamondVersion !== 'none' && deployLogVersion !== 'none') {
+          if (diamondVersion !== deployLogVersion) {
+            message += ` However, version mismatch: diamond (${diamondVersion}) vs deploy log (${deployLogVersion}).`
+            status = 'WARN'
+          } else {
+            message += ` Versions match (${diamondVersion}).`
+          }
+        }
       } else {
         status = 'ERROR'
         message = `Periphery contract "${key}" mismatch: diamond (${diamondPeriphAddr}) vs deploy log (${deployLogPeriphAddr}).`
+        if (diamondVersion !== 'none' && deployLogVersion !== 'none') {
+          if (diamondVersion !== deployLogVersion) {
+            message += ` Versions: diamond (${diamondVersion}) vs deploy log (${deployLogVersion}).`
+          } else {
+            message += ` Versions identical (${diamondVersion}) but addresses differ.`
+          }
+        }
       }
       diamondReports.push({
         facet: key,
@@ -595,7 +652,6 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(400)
-  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
