@@ -110,13 +110,13 @@ const main = defineCommand({
       throw new Error('Diamond contract not found on-chain.')
     }
     spinner.succeed('LiFiDiamond contract is deployed.')
-    const diamondAddress = networkDeployLogContracts['LiFiDiamond']
+    const diamondLogAddress = networkDeployLogContracts['LiFiDiamond']
 
     // STEP 2: Verify On-Chain Facets vs. Deploy Log.
     spinner.start('Verifying on-chain facets against deploy log...')
     await verifyOnChainAgainstDeployLog({
       network,
-      diamondAddress,
+      diamondLogAddress,
       networkDeployLogContracts,
       networksConfig,
     })
@@ -164,13 +164,13 @@ const main = defineCommand({
 
 interface OnChainParams {
   network: string
-  diamondAddress: Address
+  diamondLogAddress: Address
   networkDeployLogContracts: DeployLogContracts
   networksConfig: any
 }
 async function verifyOnChainAgainstDeployLog({
   network,
-  diamondAddress,
+  diamondLogAddress,
   networkDeployLogContracts,
   networksConfig,
 }: OnChainParams) {
@@ -188,7 +188,7 @@ async function verifyOnChainAgainstDeployLog({
     if (!rpcUrl) throw new Error(`RPC URL not found for network: ${network}`)
 
     const facetsCmd =
-      await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
+      await $`cast call ${diamondLogAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
     const rawData = facetsCmd.stdout
     const jsonStr = rawData
       .replace(/\(/g, '[')
@@ -314,10 +314,9 @@ async function verifyOnChainAgainstDeployLog({
 // ──────────────────────────────────────────────────────────────
 // Process 2: Verify Diamond File vs. Deploy Log
 // In this process, we display only Diamond Log Address and Deploy Log Address.
-// We compare the diamond file's facet address (key) with the deploy log's address for the facet name.
-// If they differ, we build a detailed message using the deploy log's info.
-// ──────────────────────────────────────────────────────────────
-
+// If the diamond file facet has an unknown name or missing deploy log entry,
+// we try to fetch contract details from the diamond address to update the contract name,
+// then look up its deploy log address and compare versions.
 interface DiamondParams {
   network: string
   networkDeployLogContracts: DeployLogContracts
@@ -329,23 +328,47 @@ async function verifyDiamondAgainstDeployLog({
   networkDiamondLog,
 }: DiamondParams) {
   try {
-    const diamondFacets = networkDiamondLog.LiFiDiamond.Facets
-    for (const addr in diamondFacets) {
-      const diamondAddr = addr.toLowerCase()
-      const facetInfo = diamondFacets[addr]
-      const facetName = facetInfo.Name || '(unknown)'
-      const deployLogAddr =
+    const foundryTomlPath = path.resolve(__dirname, '../../foundry.toml')
+    const foundryTomlContent = fs.readFileSync(foundryTomlPath, 'utf8')
+    const foundryConfig = toml.parse(foundryTomlContent)
+    const etherscanConfig = foundryConfig.etherscan[network]
+    if (!etherscanConfig)
+      throw new Error(
+        `Etherscan configuration not found for network: ${network}`
+      )
+    const baseUrl = etherscanConfig.url
+
+    const diamondLogFacets = networkDiamondLog.LiFiDiamond.Facets
+    for (const addr in diamondLogFacets) {
+      const diamondLogAddr = addr.toLowerCase()
+      const facetInfo = diamondLogFacets[addr]
+      let facetName = facetInfo.Name || '(unknown)'
+      let deployLogAddr =
         networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
       let status = ''
       let message = ''
 
-      // If the deploy log address is missing, report an error.
+      // If facetName is unknown or deployLogAddr is missing, attempt to fetch contract details from the diamond log contract address.
+      if (facetName === '(unknown)' || deployLogAddr === 'N/A') {
+        const diamondData = await fetchContractDetails(
+          baseUrl,
+          diamondLogAddr,
+          network
+        )
+        if (diamondData && diamondData.ContractName) {
+          facetName = diamondData.ContractName
+          message += `Diamond contract verified as "${facetName}". `
+          deployLogAddr =
+            networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
+        } else {
+          message += `Diamond contract at ${diamondLogAddr} is not verified. `
+        }
+      }
+
       if (deployLogAddr === 'N/A') {
         message += `Facet "${facetName}" is present in diamond file but missing in deploy log.`
         status = 'ERROR'
-      }
-      // If addresses match, then it's a success (but warn if the Version field in diamond file is empty).
-      else if (deployLogAddr === diamondAddr) {
+      } else if (deployLogAddr === diamondLogAddr) {
         if (facetInfo.Version.trim() === '') {
           message += `Diamond file version is empty; facet may be unverified.`
           status = 'WARN'
@@ -353,23 +376,41 @@ async function verifyDiamondAgainstDeployLog({
           message += `Facet "${facetName}" matches between diamond file and deploy log.`
           status = 'SUCCESS'
         }
-      }
-      // Otherwise, if addresses do not match, then report an error with a detailed message.
-      else {
-        message += `Address mismatch for facet "${facetName}": diamond file shows (${diamondAddr}) vs deploy log (${deployLogAddr}). Please update the deploy log accordingly.`
+      } else {
+        // There is an address mismatch.
+        // Fetch details from the deploy log address to compare versions.
+        const deployLogData = await fetchContractDetails(
+          baseUrl,
+          deployLogAddr,
+          network
+        )
+        const deployLogVersion =
+          deployLogData && typeof deployLogData.SourceCode === 'string'
+            ? extractVersion(deployLogData.SourceCode) || 'none'
+            : 'none'
+        const diamondFileVersion = facetInfo.Version.trim() || 'none'
+        let compareMessage = ''
+        if (isVersionNewer(diamondFileVersion, deployLogVersion)) {
+          compareMessage = `Diamond file version (${diamondFileVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log accordingly.`
+        } else if (isVersionNewer(deployLogVersion, diamondFileVersion)) {
+          compareMessage = `Deploy log version (${deployLogVersion}) is newer than diamond file version (${diamondFileVersion}). Please register facet from deploy log.`
+        } else {
+          compareMessage = `Versions are identical but addresses differ. Please reconcile.`
+        }
+        message += `Address mismatch for facet "${facetName}": diamond file shows (${diamondLogAddr}) vs deploy log (${deployLogAddr}). ${compareMessage}`
         status = 'ERROR'
       }
       diamondReports.push({
         facet: facetName,
         onChain: 'N/A',
         deployLog: deployLogAddr,
-        diamondDeployLog: diamondAddr,
+        diamondDeployLog: diamondLogAddr,
         status,
         message: message.trim(),
       })
     }
 
-    // For periphery contracts.
+    // Process periphery contracts.
     const diamondPeriphery = networkDiamondLog.LiFiDiamond.Periphery
     for (const key in diamondPeriphery) {
       const diamondPeriphAddr = diamondPeriphery[key].toLowerCase()
@@ -518,6 +559,7 @@ const checkIsDeployed = async (
 // Reporting: Print a Terminal Table of Verification Results
 // Process 1 (On-Chain vs. Deploy Log): 5 columns: Facet, On-Chain Address, Deploy Log Address, Status, Action/Description.
 // Process 2 (Diamond vs. Deploy Log): 5 columns: Facet, Diamond Log Address, Deploy Log Address, Status, Action/Description.
+// Column widths are set accordingly.
 // ──────────────────────────────────────────────────────────────
 
 function printReportTable(
@@ -536,7 +578,7 @@ function printReportTable(
       'Status',
       'Action / Description',
     ]
-    colWidths = [35, 50, 50, 10, 60]
+    colWidths = [40, 55, 55, 10, 60]
   } else {
     head = [
       'Facet',
