@@ -41,17 +41,18 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @dev Parameters specific to Chainflip bridge
+    /// @notice Parameters specific to Chainflip bridge operations
     /// @param nonEVMReceiver Destination address for non-EVM chains (Solana, Bitcoin)
     /// @param dstToken Chainflip specific token identifier on the destination chain
-    /// @param message Message that is passed to the destination address for cross-chain messaging
+    /// @param dstCallReceiver Receiver contract address used for destination calls. Ignored if no destination call
+    /// @param dstCallSwapData Swap data to be used in destination calls. Ignored if no destination call
     /// @param gasAmount Gas budget for the call on the destination chain
-    /// @param cfParameters Additional metadata for future features
+    /// @param cfParameters Additional parameters for future features
     struct ChainflipData {
         bytes32 nonEVMReceiver;
         uint32 dstToken;
         address dstCallReceiver;
-        bytes message;
+        LibSwap.SwapData[] dstCallSwapData;
         uint256 gasAmount;
         bytes cfParameters;
     }
@@ -148,11 +149,20 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
+        // Initialize message variable at function scope level
+        bytes memory message;
+
         // Validate destination call flag matches message presence
-        if (
-            _bridgeData.hasDestinationCall !=
-            (_chainflipData.message.length > 0)
-        ) {
+        if (_bridgeData.hasDestinationCall) {
+            if (_chainflipData.dstCallSwapData.length == 0) {
+                revert InformationMismatch();
+            }
+            message = abi.encode(
+                _bridgeData.transactionId,
+                _chainflipData.dstCallSwapData,
+                _bridgeData.receiver
+            );
+        } else if (_chainflipData.dstCallSwapData.length > 0) {
             revert InformationMismatch();
         }
 
@@ -165,7 +175,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
-                    _chainflipData.message,
+                    message,
                     _chainflipData.gasAmount,
                     _chainflipData.cfParameters
                 );
@@ -194,7 +204,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
-                    _chainflipData.message,
+                    message,
                     _chainflipData.gasAmount,
                     IERC20(_bridgeData.sendingAssetId),
                     _bridgeData.minAmount,

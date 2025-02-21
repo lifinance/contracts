@@ -27,6 +27,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     ChainflipFacet.ChainflipData internal validChainflipData;
     TestChainflipFacet internal chainflipFacet;
     address internal CHAINFLIP_VAULT;
+    LibSwap.SwapData[] internal dstSwapData;
 
     uint256 internal constant CHAIN_ID_ETHEREUM = 1;
     uint256 internal constant CHAIN_ID_ARBITRUM = 42161;
@@ -77,15 +78,8 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.bridge = "chainflip";
         bridgeData.destinationChainId = 42161; // Arbitrum chain ID
 
-        // produce valid ChainflipData
-        validChainflipData = ChainflipFacet.ChainflipData({
-            nonEVMReceiver: bytes32(0), // Default to empty for EVM addresses
-            dstToken: 7,
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        // Most properties are unused for normal bridging
+        validChainflipData.dstToken = 7;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -127,18 +121,10 @@ contract ChainflipFacetTest is TestBaseFacet {
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 6,
-            nonEVMReceiver: bytes32(
-                abi.encodePacked(
-                    "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
-                )
-            ), // Example Solana address
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 6;
+        validChainflipData.nonEVMReceiver = bytes32(
+            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        );
 
         vm.startPrank(USER_SENDER);
 
@@ -164,16 +150,10 @@ contract ChainflipFacetTest is TestBaseFacet {
     {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 6,
-            nonEVMReceiver: bytes32(
-                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
-            ), // Example Bitcoin address
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 6;
+        validChainflipData.nonEVMReceiver = bytes32(
+            abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+        );
 
         vm.startPrank(USER_SENDER);
 
@@ -205,14 +185,7 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // Set destination to Ethereum
         bridgeData.destinationChainId = CHAIN_ID_ETHEREUM;
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 3, // USDC on Ethereum
-            nonEVMReceiver: bytes32(0), // Not needed for EVM chains
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 3; // USDC on Ethereum
 
         vm.startPrank(USER_SENDER);
 
@@ -250,30 +223,28 @@ contract ChainflipFacetTest is TestBaseFacet {
             -int256(defaultNativeAmount)
         )
     {
-        // Set destination to Arbitrum where our receiver contract is
+        delete dstSwapData;
+        dstSwapData.push(
+            LibSwap.SwapData({
+                callTo: address(0x123),
+                approveTo: address(0x123),
+                sendingAssetId: address(0),
+                receivingAssetId: address(0),
+                fromAmount: 0,
+                callData: "0x123456",
+                requiresDeposit: false
+            })
+        );
+
         bridgeData.destinationChainId = CHAIN_ID_ARBITRUM;
         bridgeData.hasDestinationCall = true;
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = defaultNativeAmount;
 
-        // Create swap data for the destination chain
-        LibSwap.SwapData[] memory destSwapData = new LibSwap.SwapData[](0);
-
-        // Encode the message for the receiver contract
-        bytes memory message = abi.encode(
-            bridgeData.transactionId,
-            destSwapData,
-            USER_RECEIVER
-        );
-
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 7,
-            nonEVMReceiver: bytes32(0),
-            dstCallReceiver: address(0x123), // Example mock address
-            message: message,
-            gasAmount: 100000,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 7;
+        validChainflipData.dstCallReceiver = address(0x123);
+        validChainflipData.dstCallSwapData = dstSwapData;
+        validChainflipData.gasAmount = 100000;
 
         vm.startPrank(USER_SENDER);
 
@@ -298,14 +269,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = defaultNativeAmount;
 
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 7,
-            nonEVMReceiver: bytes32(0),
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 7;
 
         vm.startPrank(USER_SENDER);
 
@@ -320,7 +284,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     function testRevert_WhenDestinationCallFlagMismatchesMessage() public {
         // Case 1: hasDestinationCall is true but message is empty
         bridgeData.hasDestinationCall = true;
-        validChainflipData.message = "";
+        validChainflipData.dstCallSwapData = dstSwapData;
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -330,7 +294,19 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // Case 2: hasDestinationCall is false but message is not empty
         bridgeData.hasDestinationCall = false;
-        validChainflipData.message = "0x123456";
+        delete dstSwapData;
+        dstSwapData.push(
+            LibSwap.SwapData({
+                callTo: address(0x123),
+                approveTo: address(0x123),
+                sendingAssetId: address(0),
+                receivingAssetId: address(0),
+                fromAmount: 0,
+                callData: "0x123456",
+                requiresDeposit: false
+            })
+        );
+        validChainflipData.dstCallSwapData = dstSwapData;
 
         vm.expectRevert(InformationMismatch.selector);
         initiateBridgeTxWithFacet(false);
@@ -384,14 +360,8 @@ contract ChainflipFacetTest is TestBaseFacet {
     function testRevert_WhenUsingEmptyNonEVMAddress() public {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 6,
-            nonEVMReceiver: bytes32(0), // Empty address should fail
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 6;
+        validChainflipData.nonEVMReceiver = bytes32(0); // Empty address should fail
 
         vm.startPrank(USER_SENDER);
 
@@ -415,28 +385,26 @@ contract ChainflipFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-        // Set destination to Arbitrum where our receiver contract is
         bridgeData.destinationChainId = CHAIN_ID_ARBITRUM;
         bridgeData.hasDestinationCall = true;
 
-        // Create swap data for the destination chain
-        LibSwap.SwapData[] memory destSwapData = new LibSwap.SwapData[](0);
-
-        // Encode the message for the receiver contract
-        bytes memory message = abi.encode(
-            bridgeData.transactionId,
-            destSwapData,
-            USER_RECEIVER // Final receiver of the tokens
+        delete dstSwapData;
+        dstSwapData.push(
+            LibSwap.SwapData({
+                callTo: address(0x123),
+                approveTo: address(0x123),
+                sendingAssetId: address(0),
+                receivingAssetId: address(0),
+                fromAmount: 0,
+                callData: "0x123456",
+                requiresDeposit: false
+            })
         );
 
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 7, // USDC on Arbitrum
-            nonEVMReceiver: bytes32(0), // Not needed for EVM chains
-            dstCallReceiver: address(0x123),
-            message: message, // Use message here
-            gasAmount: 0, // Add gas amount
-            cfParameters: "" // Empty parameters
-        });
+        validChainflipData.dstToken = 7;
+        validChainflipData.dstCallReceiver = address(0x123);
+        validChainflipData.dstCallSwapData = dstSwapData;
+        validChainflipData.gasAmount = 100000;
 
         vm.startPrank(USER_SENDER);
 
@@ -459,22 +427,40 @@ contract ChainflipFacetTest is TestBaseFacet {
         // Try to use nonEVMReceiver with an EVM address
         bridgeData.receiver = USER_RECEIVER; // Use EVM address
         bridgeData.destinationChainId = CHAIN_ID_ETHEREUM;
-        validChainflipData = ChainflipFacet.ChainflipData({
-            dstToken: 6,
-            nonEVMReceiver: bytes32(
-                abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
-            ), // Set nonEVMReceiver even though using EVM address
-            dstCallReceiver: address(0),
-            message: "",
-            gasAmount: 0,
-            cfParameters: ""
-        });
+        validChainflipData.dstToken = 6;
+        validChainflipData.nonEVMReceiver = bytes32(
+            abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+        );
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Should proceed normally since nonEVMReceiver is ignored for EVM addresses
         initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenDestinationCallTrueButSwapDataEmpty() public {
+        // Set up bridge data with destination call flag true
+        bridgeData.destinationChainId = CHAIN_ID_ARBITRUM;
+        bridgeData.hasDestinationCall = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // Set up chainflip data but leave dstCallSwapData empty
+        validChainflipData.dstToken = 7;
+        validChainflipData.dstCallReceiver = address(0x123);
+        validChainflipData.gasAmount = 100000;
+        // Deliberately not setting dstCallSwapData
+
+        vm.startPrank(USER_SENDER);
+
+        // Approve spending
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // Expect revert with InformationMismatch
+        vm.expectRevert(InformationMismatch.selector);
+        initiateBridgeTxWithFacet(false);
+
         vm.stopPrank();
     }
 }

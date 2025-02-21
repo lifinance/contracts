@@ -117,57 +117,6 @@ async function executeWithDestinationCall(
   )
 }
 
-/**
- * Creates a message for cross-chain execution on the destination chain
- * This message will be used to swap received ETH for USDC using Uniswap
- * @param transactionId Unique identifier for the transaction
- * @param finalReceiver Address that will receive the swapped tokens
- * @param totalETHAmount Total amount of ETH being bridged
- * @param gasAmount Amount of ETH reserved for gas on destination chain
- * @returns Encoded message containing swap instructions
- */
-async function createDestinationCallMessage(
-  transactionId: string,
-  finalReceiver: string,
-  totalETHAmount: bigint,
-  gasAmount: bigint
-): Promise<string> {
-  // Calculate exact ETH amount for swap (total - gas)
-  // Reserve some ETH for gas fees on destination chain
-  const swapETHAmount = totalETHAmount - gasAmount
-
-  // Prepare swap parameters for ETH -> USDC on Ethereum mainnet
-  const swapData = await getUniswapDataExactETHToERC20(
-    ADDRESS_UNISWAP_ETH,
-    1, // Mainnet chainId
-    swapETHAmount,
-    ADDRESS_USDC_ETH,
-    finalReceiver,
-    false
-  )
-
-  // Encode the message according to the ReceiverChainflip contract's expected format
-  return encodeAbiParameters(
-    [
-      { type: 'bytes32' }, // transactionId
-      {
-        type: 'tuple[]',
-        components: [
-          { type: 'address', name: 'callTo' },
-          { type: 'address', name: 'approveTo' },
-          { type: 'address', name: 'sendingAssetId' },
-          { type: 'address', name: 'receivingAssetId' },
-          { type: 'uint256', name: 'fromAmount' },
-          { type: 'bytes', name: 'callData' },
-          { type: 'bool', name: 'requiresDeposit' },
-        ],
-      }, // swapData
-      { type: 'address' }, // receiver
-    ],
-    [transactionId, [swapData], finalReceiver]
-  )
-}
-
 async function main() {
   const withSwap = process.argv.includes('--with-swap')
   const withDestinationCall = process.argv.includes('--with-destination-call')
@@ -241,22 +190,26 @@ async function main() {
     hasDestinationCall: withDestinationCall,
   }
 
-  // Prepare destination call data if needed
-  const destinationCallMessage = withDestinationCall
-    ? await createDestinationCallMessage(
-        bridgeData.transactionId,
-        signerAddress,
-        totalAmount,
-        gasAmount
-      )
-    : ''
+  // Prepare destination swap data if needed
+  const dstSwapData = withDestinationCall
+    ? [
+        await getUniswapDataExactETHToERC20(
+          ADDRESS_UNISWAP_ETH,
+          1, // Mainnet chainId
+          totalAmount - gasAmount,
+          ADDRESS_USDC_ETH,
+          signerAddress,
+          false
+        ),
+      ]
+    : []
 
   const chainflipData: ChainflipFacet.ChainflipDataStruct = {
     nonEVMReceiver:
       '0x0000000000000000000000000000000000000000000000000000000000000000',
     dstToken: withDestinationCall ? 1 : 3, // 1 for ETH, 3 for USDC on ETH
     dstCallReceiver: RECEIVER_CHAINFLIP,
-    message: destinationCallMessage,
+    dstCallSwapData: dstSwapData,
     gasAmount: withDestinationCall ? gasAmount : 0n,
     cfParameters: '',
   }

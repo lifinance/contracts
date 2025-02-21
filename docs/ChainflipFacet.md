@@ -26,7 +26,7 @@ struct ChainflipData {
   bytes32 nonEVMReceiver; // Destination address for non-EVM chains (Solana, Bitcoin)
   uint32 dstToken; // Chainflip specific token identifier on the destination chain
   address dstCallReceiver; // Receiver contract address used for destination calls. Ignored if there is no destination call
-  bytes message; // Message that is passed to the destination address for cross-chain messaging
+  LibSwap.SwapData[] dstCallSwapData; // Swap data to be used in destination calls. Ignored if no destination call
   uint256 gasAmount; // Gas budget for the call on the destination chain
   bytes cfParameters; // Additional parameters for future features
 }
