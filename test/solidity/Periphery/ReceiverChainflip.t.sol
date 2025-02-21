@@ -33,7 +33,7 @@ contract ReceiverChainflipTest is TestBase {
 
         chainflipVault = getConfigAddressFromPath(
             "chainflip.json",
-            ".chainflipVault.mainnet"
+            ".mainnet.chainflipVault"
         );
         vm.label(chainflipVault, "Chainflip Vault");
 

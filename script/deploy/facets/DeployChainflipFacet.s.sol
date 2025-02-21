@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
         // Read the Chainflip vault address from config
         address chainflipVault = _getConfigContractAddress(
             path,
-            string.concat(".chainflipVault.", network)
+            string.concat(".", network, ".chainflipVault")
         );
 
         return abi.encode(chainflipVault);
