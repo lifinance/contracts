@@ -234,7 +234,7 @@ async function main() {
     integrator: 'ACME Devs',
     referrer: zeroAddress,
     sendingAssetId: tokenToApprove,
-    receiver: withDestinationCall ? RECEIVER_CHAINFLIP : signerAddress,
+    receiver: signerAddress, // Always use signer address
     destinationChainId,
     minAmount: amount,
     hasSourceSwaps: withSwap,
@@ -255,6 +255,7 @@ async function main() {
     nonEVMReceiver:
       '0x0000000000000000000000000000000000000000000000000000000000000000',
     dstToken: withDestinationCall ? 1 : 3, // 1 for ETH, 3 for USDC on ETH
+    dstCallReceiver: RECEIVER_CHAINFLIP,
     message: destinationCallMessage,
     gasAmount: withDestinationCall ? gasAmount : 0n,
     cfParameters: '',

@@ -50,6 +50,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct ChainflipData {
         bytes32 nonEVMReceiver;
         uint32 dstToken;
+        address dstCallReceiver;
         bytes message;
         uint256 gasAmount;
         bytes cfParameters;
@@ -126,7 +127,6 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Handle address encoding based on destination chain type
         bytes memory encodedDstAddress;
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
-            // For non-EVM chains (Solana, Bitcoin), use the raw bytes32 from chainflipData
             if (_chainflipData.nonEVMReceiver == bytes32(0)) {
                 revert EmptyNonEvmAddress();
             }
@@ -134,15 +134,18 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _chainflipData.nonEVMReceiver
             );
 
-            // Emit special event for non-EVM transfers
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 _chainflipData.nonEVMReceiver
             );
         } else {
-            // For EVM chains, encode the address
-            encodedDstAddress = abi.encodePacked(_bridgeData.receiver);
+            // For EVM chains, use dstCallReceiver if there's a destination call, otherwise use bridge receiver
+            encodedDstAddress = abi.encodePacked(
+                _bridgeData.hasDestinationCall
+                    ? _chainflipData.dstCallReceiver
+                    : _bridgeData.receiver
+            );
         }
 
         // Validate destination call flag matches message presence

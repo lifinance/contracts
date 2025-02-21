@@ -81,8 +81,9 @@ contract ChainflipFacetTest is TestBaseFacet {
         validChainflipData = ChainflipFacet.ChainflipData({
             nonEVMReceiver: bytes32(0), // Default to empty for EVM addresses
             dstToken: 7,
-            message: "", // Add new field
-            gasAmount: 0, // Add new field
+            dstCallReceiver: address(0),
+            message: "",
+            gasAmount: 0,
             cfParameters: ""
         });
     }
@@ -133,6 +134,7 @@ contract ChainflipFacetTest is TestBaseFacet {
                     "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
                 )
             ), // Example Solana address
+            dstCallReceiver: address(0),
             message: "",
             gasAmount: 0,
             cfParameters: ""
@@ -167,6 +169,7 @@ contract ChainflipFacetTest is TestBaseFacet {
             nonEVMReceiver: bytes32(
                 abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
             ), // Example Bitcoin address
+            dstCallReceiver: address(0),
             message: "",
             gasAmount: 0,
             cfParameters: ""
@@ -205,6 +208,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 3, // USDC on Ethereum
             nonEVMReceiver: bytes32(0), // Not needed for EVM chains
+            dstCallReceiver: address(0),
             message: "",
             gasAmount: 0,
             cfParameters: ""
@@ -265,6 +269,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 7,
             nonEVMReceiver: bytes32(0),
+            dstCallReceiver: address(0x123), // Example mock address
             message: message,
             gasAmount: 100000,
             cfParameters: ""
@@ -296,6 +301,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 7,
             nonEVMReceiver: bytes32(0),
+            dstCallReceiver: address(0),
             message: "",
             gasAmount: 0,
             cfParameters: ""
@@ -381,6 +387,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 6,
             nonEVMReceiver: bytes32(0), // Empty address should fail
+            dstCallReceiver: address(0),
             message: "",
             gasAmount: 0,
             cfParameters: ""
@@ -425,6 +432,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         validChainflipData = ChainflipFacet.ChainflipData({
             dstToken: 7, // USDC on Arbitrum
             nonEVMReceiver: bytes32(0), // Not needed for EVM chains
+            dstCallReceiver: address(0x123),
             message: message, // Use message here
             gasAmount: 0, // Add gas amount
             cfParameters: "" // Empty parameters
@@ -456,6 +464,7 @@ contract ChainflipFacetTest is TestBaseFacet {
             nonEVMReceiver: bytes32(
                 abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
             ), // Set nonEVMReceiver even though using EVM address
+            dstCallReceiver: address(0),
             message: "",
             gasAmount: 0,
             cfParameters: ""

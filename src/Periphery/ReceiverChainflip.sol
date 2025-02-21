@@ -103,42 +103,52 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
         address payable receiver,
         uint256 amount
     ) private {
-        // Convert Chainflip's native token address to LibAsset.NATIVE_ASSETID
+        // Group address conversion and store in memory to avoid multiple storage reads
         address actualAssetId = assetId == CHAINFLIP_NATIVE_ADDRESS
             ? LibAsset.NATIVE_ASSETID
             : assetId;
+        bool isNative = actualAssetId == LibAsset.NATIVE_ASSETID;
 
-        // Don't need approval for native token
-        if (actualAssetId != LibAsset.NATIVE_ASSETID) {
+        if (!isNative) {
+            // ERC20 token operations
             actualAssetId.safeApproveWithRetry(address(executor), amount);
-        }
-
-        try
-            executor.swapAndCompleteBridgeTokens{
-                value: actualAssetId == LibAsset.NATIVE_ASSETID ? amount : 0
-            }(_transactionId, _swapData, actualAssetId, receiver)
-        {} catch {
-            // send the bridged (and unswapped) funds to receiver address
-            if (actualAssetId == LibAsset.NATIVE_ASSETID) {
-                // Handle native token using safeTransferETH
-                receiver.safeTransferETH(amount);
-            } else {
-                // Handle ERC20 token
+            try
+                executor.swapAndCompleteBridgeTokens(
+                    _transactionId,
+                    _swapData,
+                    actualAssetId,
+                    receiver
+                )
+            {} catch {
                 actualAssetId.safeTransfer(receiver, amount);
+                emit LiFiTransferRecovered(
+                    _transactionId,
+                    actualAssetId,
+                    receiver,
+                    amount,
+                    block.timestamp
+                );
             }
-
-            emit LiFiTransferRecovered(
-                _transactionId,
-                actualAssetId,
-                receiver,
-                amount,
-                block.timestamp
-            );
-        }
-
-        // Only reset approval for non-native tokens
-        if (actualAssetId != LibAsset.NATIVE_ASSETID) {
             actualAssetId.safeApprove(address(executor), 0);
+        } else {
+            // Native token operations
+            try
+                executor.swapAndCompleteBridgeTokens{ value: amount }(
+                    _transactionId,
+                    _swapData,
+                    actualAssetId,
+                    receiver
+                )
+            {} catch {
+                receiver.safeTransferETH(amount);
+                emit LiFiTransferRecovered(
+                    _transactionId,
+                    actualAssetId,
+                    receiver,
+                    amount,
+                    block.timestamp
+                );
+            }
         }
     }
 
