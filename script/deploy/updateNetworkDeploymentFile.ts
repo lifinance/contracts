@@ -10,16 +10,30 @@ import Table from 'cli-table3'
 import chalk from 'chalk'
 import { Spinner } from '../utils/spinner'
 
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
+// Constants & Enums
+// ---------------------------------------------------------------------
+enum VerificationStatus {
+  ERROR = 'ERROR',
+  WARN = 'WARN',
+  SUCCESS = 'SUCCESS',
+  INFO = 'INFO',
+}
+
+const NA = 'N/A'
+const NONE = 'none'
+const UNKNOWN = 'unknown'
+
+// ---------------------------------------------------------------------
 // Interfaces and Types
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 
 interface FacetReport {
   facet: string
   onChain: string
   deployLog: string
   diamondDeployLog?: string // Only used for diamond verification
-  status: string
+  status: VerificationStatus
   message: string
 }
 
@@ -48,9 +62,14 @@ function hasOwnProp(obj: any, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key)
 }
 
-// ──────────────────────────────────────────────────────────────
+// Helper function to format version strings.
+function formatVersion(version: string | null): string {
+  return version && version.trim() !== '' ? version.trim() : NONE
+}
+
+// ---------------------------------------------------------------------
 // Main Command Definition
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 
 const main = defineCommand({
   meta: {
@@ -169,9 +188,9 @@ const main = defineCommand({
   },
 })
 
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 // Process 1: Verify On-Chain Facets vs. Deploy Log ({network}.json)
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 
 interface OnChainParams {
   network: string
@@ -215,7 +234,7 @@ async function verifyOnChainAgainstDeployLog({
       onChainAddressSet.add(onChainAddr)
       let facetName = ''
       let deployLogAddr = ''
-      let status = ''
+      let status: VerificationStatus
       let message = ''
 
       const facetData = await fetchContractDetails(
@@ -231,11 +250,11 @@ async function verifyOnChainAgainstDeployLog({
         )
         if (!foundName) {
           message += `No contract name on-chain and not found in deploy log.`
-          status = 'ERROR'
+          status = VerificationStatus.ERROR
           onChainReports.push({
-            facet: 'Unknown',
+            facet: UNKNOWN,
             onChain: onChainAddr,
-            deployLog: 'N/A',
+            deployLog: NA,
             status,
             message,
           })
@@ -243,13 +262,12 @@ async function verifyOnChainAgainstDeployLog({
         } else {
           facetName = foundName
           message += `Contract not verified. Assumed contract name "${facetName}" from deploy log. `
-          status = 'INFO'
+          status = VerificationStatus.INFO
         }
       }
       // Record processed facet name to avoid duplicates.
       processedOnChainFacets.add(facetName)
-      deployLogAddr =
-        networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
+      deployLogAddr = networkDeployLogContracts[facetName]?.toLowerCase() || NA
 
       // Check for contract file in src/; if not found, check archive/.
       const srcPath = findContractFile('src', facetName)
@@ -260,7 +278,7 @@ async function verifyOnChainAgainstDeployLog({
         } else {
           message += `Contract file not found in src.`
         }
-        status = 'ERROR'
+        status = VerificationStatus.ERROR
         onChainReports.push({
           facet: facetName,
           onChain: onChainAddr,
@@ -274,7 +292,7 @@ async function verifyOnChainAgainstDeployLog({
       const repoVersion = extractVersion(repoSource)
       if (!repoVersion) {
         message += `Repo version missing in source.`
-        status = 'ERROR'
+        status = VerificationStatus.ERROR
         onChainReports.push({
           facet: facetName,
           onChain: onChainAddr,
@@ -287,13 +305,13 @@ async function verifyOnChainAgainstDeployLog({
 
       message += `Facet "${facetName}": `
       if (deployLogAddr === onChainAddr) {
-        const onChainVersion = extractVersion(facetData.SourceCode) || 'none'
+        const onChainVersion = extractVersion(facetData.SourceCode) || ''
         if (isVersionNewer(repoVersion, onChainVersion)) {
           message += `Repo version (${repoVersion}) is newer than on-chain (${onChainVersion}).`
-          status = 'WARN'
+          status = VerificationStatus.WARN
         } else {
           message += `Addresses match and versions are consistent.`
-          status = 'SUCCESS'
+          status = VerificationStatus.SUCCESS
         }
       } else {
         message += `Address mismatch: on-chain (${onChainAddr}) vs deploy log (${deployLogAddr}). `
@@ -302,18 +320,17 @@ async function verifyOnChainAgainstDeployLog({
           deployLogAddr,
           network
         )
-        const deployLogVersion =
-          extractVersion(deployLogData?.SourceCode) || 'none'
-        const onChainVersion = extractVersion(facetData.SourceCode) || 'none'
+        const deployLogVersion = extractVersion(deployLogData?.SourceCode) || ''
+        const onChainVersion = extractVersion(facetData.SourceCode) || ''
         if (isVersionNewer(onChainVersion, deployLogVersion)) {
           message += `On-chain version (${onChainVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log.`
-          status = 'ERROR'
+          status = VerificationStatus.ERROR
         } else if (isVersionNewer(deployLogVersion, onChainVersion)) {
           message += `Deploy log version (${deployLogVersion}) is newer than on-chain version (${onChainVersion}). Please register facet from deploy log.`
-          status = 'ERROR'
+          status = VerificationStatus.ERROR
         } else {
           message += `Versions identical but addresses differ. Please reconcile.`
-          status = 'ERROR'
+          status = VerificationStatus.ERROR
         }
       }
       onChainReports.push({
@@ -332,6 +349,7 @@ async function verifyOnChainAgainstDeployLog({
   }
 }
 
+// ---------------------------------------------------------------------
 // New function: Verify Missing Facets in Deploy Log Not Fetched On-Chain.
 function verifyMissingOnChain(
   deployLog: DeployLogContracts,
@@ -359,9 +377,9 @@ function verifyMissingOnChain(
         }
         onChainReports.push({
           facet: key,
-          onChain: 'N/A',
+          onChain: NA,
           deployLog: deployAddr,
-          status: 'ERROR',
+          status: VerificationStatus.ERROR,
           message: `Facet "${key}" is present in deploy log but not fetched on-chain. ${message}`,
         })
       }
@@ -369,13 +387,15 @@ function verifyMissingOnChain(
   }
 }
 
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 // Process 2: Verify Diamond File vs. Deploy Log
 // In this process, we display only Diamond Log Address and Deploy Log Address.
 // If the diamond file facet has an unknown name or missing deploy log entry,
 // we attempt to fetch contract details using the diamond log address to update the name,
 // then look up its deploy log address and compare versions.
-// Additionally, we now check whether the contract file exists in src/ (or in archive/) and add a proper comment.
+// Additionally, we now check whether the contract file exists in src/ (or in archive/)
+// and also fetch the on-chain version. The on-chain version is compared with the diamond file version;
+// if both are empty, they are considered matching.
 interface DiamondParams {
   network: string
   networkDeployLogContracts: DeployLogContracts
@@ -400,15 +420,38 @@ async function verifyDiamondAgainstDeployLog({
     const diamondLogFacets = networkDiamondLog.LiFiDiamond.Facets
     for (const addr in diamondLogFacets) {
       const diamondLogAddr = addr.toLowerCase()
-      let facetName = diamondLogFacets[addr].Name || '(unknown)'
+      let facetName = diamondLogFacets[addr].Name || UNKNOWN
+      // Get diamond file version from JSON.
       const diamondFileVersion = diamondLogFacets[addr].Version || ''
+      // Fetch the on-chain version for this facet.
+      const chainDiamondData = await fetchContractDetails(
+        baseUrl,
+        diamondLogAddr,
+        network
+      )
+      const chainDiamondVersion = chainDiamondData
+        ? formatVersion(extractVersion(chainDiamondData.SourceCode))
+        : ''
+      // Only add a version note if at least one version is non-empty and they differ.
+      let versionNote = ''
+      if (
+        (diamondFileVersion.trim() !== '' ||
+          chainDiamondVersion.trim() !== '') &&
+        diamondFileVersion.trim() !== chainDiamondVersion.trim()
+      ) {
+        versionNote = ` Note: Diamond file version (${formatVersion(
+          diamondFileVersion
+        )}) does not match on-chain version (${formatVersion(
+          chainDiamondVersion
+        )}).`
+      }
       let deployLogAddr =
-        networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
-      let status = ''
+        networkDeployLogContracts[facetName]?.toLowerCase() || NA
+      let status: VerificationStatus
       let message = ''
 
       // If facetName is unknown or deployLogAddr is missing, try to fetch contract details using diamond log address.
-      if (facetName === '(unknown)' || deployLogAddr === 'N/A') {
+      if (facetName === UNKNOWN || deployLogAddr === NA) {
         const diamondData = await fetchContractDetails(
           baseUrl,
           diamondLogAddr,
@@ -418,7 +461,7 @@ async function verifyDiamondAgainstDeployLog({
           facetName = diamondData.ContractName
           message += `Diamond log contract verified as "${facetName}". `
           deployLogAddr =
-            networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
+            networkDeployLogContracts[facetName]?.toLowerCase() || NA
         } else {
           message += `Diamond contract at ${diamondLogAddr} is not verified. `
         }
@@ -430,33 +473,33 @@ async function verifyDiamondAgainstDeployLog({
         const archivePath = findContractFile('archive', facetName)
         if (archivePath) {
           message += `Contract file found in archive; please remove contract from diamond and deploy log. `
-          status = 'ERROR'
+          status = VerificationStatus.ERROR
           diamondReports.push({
             facet: facetName,
-            onChain: 'N/A',
+            onChain: NA,
             deployLog: deployLogAddr,
             diamondDeployLog: diamondLogAddr,
             status,
-            message: message.trim(),
+            message: (message + versionNote).trim(),
           })
           processedDiamondFacets.add(facetName)
           continue
         } else {
           message += `Contract file not found in src. `
-          status = 'ERROR'
+          status = VerificationStatus.ERROR
         }
       }
 
-      if (deployLogAddr === 'N/A') {
+      if (deployLogAddr === NA) {
         message += `Facet "${facetName}" is present in diamond file but missing in deploy log.`
-        status = 'ERROR'
+        status = VerificationStatus.ERROR
       } else if (deployLogAddr === diamondLogAddr) {
-        if (diamondFileVersion.trim() === '') {
-          message += `Diamond file version is empty; facet may be unverified.`
-          status = 'WARN'
+        if (chainDiamondVersion.trim() === '' || chainDiamondVersion === NONE) {
+          message += `On-chain diamond version is empty; facet may be unverified.`
+          status = VerificationStatus.WARN
         } else {
           message += `Facet "${facetName}" matches between diamond file and deploy log.`
-          status = 'SUCCESS'
+          status = VerificationStatus.SUCCESS
         }
       } else {
         // Address mismatch.
@@ -467,22 +510,32 @@ async function verifyDiamondAgainstDeployLog({
         )
         const deployLogVersion =
           deployLogData && typeof deployLogData.SourceCode === 'string'
-            ? extractVersion(deployLogData.SourceCode) || 'none'
-            : 'none'
+            ? formatVersion(extractVersion(deployLogData.SourceCode))
+            : ''
         let compareMessage = ''
-        if (isVersionNewer(diamondFileVersion, deployLogVersion)) {
-          compareMessage = `Diamond file version (${diamondFileVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log accordingly.`
-        } else if (isVersionNewer(deployLogVersion, diamondFileVersion)) {
-          compareMessage = `Deploy log version (${deployLogVersion}) is newer than diamond file version (${diamondFileVersion}). Please register facet from deploy log.`
+        if (isVersionNewer(chainDiamondVersion, deployLogVersion)) {
+          compareMessage = `On-chain diamond version (${formatVersion(
+            chainDiamondVersion
+          )}) is newer than deploy log version (${formatVersion(
+            deployLogVersion
+          )}). Please update the deploy log accordingly.`
+        } else if (isVersionNewer(deployLogVersion, chainDiamondVersion)) {
+          compareMessage = `Deploy log version (${formatVersion(
+            deployLogVersion
+          )}) is newer than on-chain diamond version (${formatVersion(
+            chainDiamondVersion
+          )}). Please register facet from deploy log.`
         } else {
           compareMessage = `Versions are identical but addresses differ. Please reconcile.`
         }
         message += `Address mismatch for facet "${facetName}": diamond file shows (${diamondLogAddr}) vs deploy log (${deployLogAddr}). ${compareMessage}`
-        status = 'ERROR'
+        status = VerificationStatus.ERROR
       }
+      // Append note about version mismatch between diamond file and on-chain version.
+      message += versionNote
       diamondReports.push({
         facet: facetName,
-        onChain: 'N/A',
+        onChain: NA,
         deployLog: deployLogAddr,
         diamondDeployLog: diamondLogAddr,
         status,
@@ -496,8 +549,8 @@ async function verifyDiamondAgainstDeployLog({
     for (const key in diamondPeriphery) {
       const diamondPeriphAddr = diamondPeriphery[key].toLowerCase()
       const deployLogPeriphAddr =
-        networkDeployLogContracts[key]?.toLowerCase() || 'N/A'
-      let status = ''
+        networkDeployLogContracts[key]?.toLowerCase() || NA
+      let status: VerificationStatus
       let message = ''
 
       // Fetch contract details for version comparison.
@@ -507,31 +560,31 @@ async function verifyDiamondAgainstDeployLog({
         network
       )
       const deployLogPeriphDetails =
-        deployLogPeriphAddr !== 'N/A'
+        deployLogPeriphAddr !== NA
           ? await fetchContractDetails(baseUrl, deployLogPeriphAddr, network)
           : null
       const diamondVersion = diamondPeriphDetails
-        ? extractVersion(diamondPeriphDetails.SourceCode)
-        : 'none'
+        ? formatVersion(extractVersion(diamondPeriphDetails.SourceCode))
+        : NONE
       const deployLogVersion = deployLogPeriphDetails
-        ? extractVersion(deployLogPeriphDetails.SourceCode)
-        : 'none'
+        ? formatVersion(extractVersion(deployLogPeriphDetails.SourceCode))
+        : NONE
 
       if (deployLogPeriphAddr === diamondPeriphAddr) {
-        status = 'SUCCESS'
+        status = VerificationStatus.SUCCESS
         message = `Periphery contract "${key}" matches.`
-        if (diamondVersion !== 'none' && deployLogVersion !== 'none') {
+        if (diamondVersion !== NONE && deployLogVersion !== NONE) {
           if (diamondVersion !== deployLogVersion) {
             message += ` However, version mismatch: diamond (${diamondVersion}) vs deploy log (${deployLogVersion}).`
-            status = 'WARN'
+            status = VerificationStatus.WARN
           } else {
             message += ` Versions match (${diamondVersion}).`
           }
         }
       } else {
-        status = 'ERROR'
+        status = VerificationStatus.ERROR
         message = `Periphery contract "${key}" mismatch: diamond (${diamondPeriphAddr}) vs deploy log (${deployLogPeriphAddr}).`
-        if (diamondVersion !== 'none' && deployLogVersion !== 'none') {
+        if (diamondVersion !== NONE && deployLogVersion !== NONE) {
           if (diamondVersion !== deployLogVersion) {
             message += ` Versions: diamond (${diamondVersion}) vs deploy log (${deployLogVersion}).`
           } else {
@@ -541,7 +594,7 @@ async function verifyDiamondAgainstDeployLog({
       }
       diamondReports.push({
         facet: key,
-        onChain: 'N/A',
+        onChain: NA,
         deployLog: deployLogPeriphAddr,
         diamondDeployLog: diamondPeriphAddr,
         status,
@@ -556,7 +609,23 @@ async function verifyDiamondAgainstDeployLog({
   }
 }
 
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
+// Process 3: (Optional) Verify Periphery (already handled above)
+// ---------------------------------------------------------------------
+interface VerifyPeripheryParams {
+  network: string
+  networkDeployLogContracts: DeployLogContracts
+  networkDiamondLog: DiamondDeployLog
+}
+async function verifyPeriphery({
+  network,
+  networkDeployLogContracts,
+  networkDiamondLog,
+}: VerifyPeripheryParams) {
+  return
+}
+
+// ---------------------------------------------------------------------
 // Additional: Verify Missing Entries in Diamond File
 // This function checks for contracts present in the deploy log but missing in the diamond file.
 // It will ignore those facets already processed in Process 2.
@@ -578,10 +647,10 @@ function verifyMissingInDiamond(
       if (!found) {
         diamondReports.push({
           facet: key,
-          onChain: 'N/A',
+          onChain: NA,
           deployLog: deployLog[key].toLowerCase(),
-          diamondDeployLog: 'N/A',
-          status: 'WARN',
+          diamondDeployLog: NA,
+          status: VerificationStatus.WARN,
           message: `Facet "${key}" is present in deploy log but missing in diamond file.`,
         })
       }
@@ -589,10 +658,10 @@ function verifyMissingInDiamond(
       if (!hasOwnProp(diamondLog.LiFiDiamond.Periphery, key)) {
         diamondReports.push({
           facet: key,
-          onChain: 'N/A',
+          onChain: NA,
           deployLog: deployLog[key].toLowerCase(),
-          diamondDeployLog: 'N/A',
-          status: 'WARN',
+          diamondDeployLog: NA,
+          status: VerificationStatus.WARN,
           message: `Contract "${key}" is present in deploy log but missing in diamond file.`,
         })
       }
@@ -600,9 +669,9 @@ function verifyMissingInDiamond(
   }
 }
 
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 // Utility Functions
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 
 function findContractFile(
   baseDir: string,
@@ -627,6 +696,7 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(400)
+  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
@@ -696,7 +766,7 @@ const checkIsDeployed = async (
   return code !== '0x'
 }
 
-// ──────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------
 // Reporting: Print a Terminal Table of Verification Results
 // Process 1 (On-Chain vs. Deploy Log): 5 columns: Facet, On-Chain Address, Deploy Log Address, Status, Action/Description.
 // Process 2 (Diamond vs. Deploy Log): 5 columns: Facet, Diamond Log Address, Deploy Log Address, Status, Action/Description.
@@ -733,20 +803,22 @@ function printReportTable(
   reportArray.forEach((report) => {
     if (
       filterOnlyIssues &&
-      report.status !== 'ERROR' &&
-      report.status !== 'WARN'
+      report.status !== VerificationStatus.ERROR &&
+      report.status !== VerificationStatus.WARN
     )
       return
-    let coloredStatus = report.status
-    if (report.status === 'ERROR') coloredStatus = chalk.red(report.status)
-    else if (report.status === 'WARN')
+    // Explicitly declare coloredStatus as a string.
+    let coloredStatus: string = report.status as string
+    if (report.status === VerificationStatus.ERROR)
+      coloredStatus = chalk.red(report.status)
+    else if (report.status === VerificationStatus.WARN)
       coloredStatus = chalk.yellow(report.status)
-    else if (report.status === 'SUCCESS')
+    else if (report.status === VerificationStatus.SUCCESS)
       coloredStatus = chalk.green(report.status)
     if (includeDiamond) {
       table.push([
         report.facet,
-        report.diamondDeployLog || 'N/A',
+        report.diamondDeployLog || NA,
         report.deployLog,
         coloredStatus,
         report.message,
