@@ -119,7 +119,9 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
                     actualAssetId,
                     receiver
                 )
-            {} catch {
+            {
+                return;
+            } catch {
                 actualAssetId.safeTransfer(receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -139,7 +141,9 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
                     actualAssetId,
                     receiver
                 )
-            {} catch {
+            {
+                return;
+            } catch {
                 receiver.safeTransferETH(amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
