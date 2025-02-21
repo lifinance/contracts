@@ -313,7 +313,9 @@ async function verifyOnChainAgainstDeployLog({
 
 // ──────────────────────────────────────────────────────────────
 // Process 2: Verify Diamond File vs. Deploy Log
-// In this process, we only display Diamond Log Address and Deploy Log Address.
+// In this process, we display only Diamond Log Address and Deploy Log Address.
+// We compare the diamond file's facet address (key) with the deploy log's address for the facet name.
+// If they differ, we build a detailed message using the deploy log's info.
 // ──────────────────────────────────────────────────────────────
 
 interface DiamondParams {
@@ -337,7 +339,13 @@ async function verifyDiamondAgainstDeployLog({
       let status = ''
       let message = ''
 
-      if (deployLogAddr === diamondAddr) {
+      // If the deploy log address is missing, report an error.
+      if (deployLogAddr === 'N/A') {
+        message += `Facet "${facetName}" is present in diamond file but missing in deploy log.`
+        status = 'ERROR'
+      }
+      // If addresses match, then it's a success (but warn if the Version field in diamond file is empty).
+      else if (deployLogAddr === diamondAddr) {
         if (facetInfo.Version.trim() === '') {
           message += `Diamond file version is empty; facet may be unverified.`
           status = 'WARN'
@@ -345,8 +353,10 @@ async function verifyDiamondAgainstDeployLog({
           message += `Facet "${facetName}" matches between diamond file and deploy log.`
           status = 'SUCCESS'
         }
-      } else {
-        message += `Address mismatch for facet "${facetName}": diamond file shows (${diamondAddr}) vs deploy log (${deployLogAddr}).`
+      }
+      // Otherwise, if addresses do not match, then report an error with a detailed message.
+      else {
+        message += `Address mismatch for facet "${facetName}": diamond file shows (${diamondAddr}) vs deploy log (${deployLogAddr}). Please update the deploy log accordingly.`
         status = 'ERROR'
       }
       diamondReports.push({
@@ -359,6 +369,7 @@ async function verifyDiamondAgainstDeployLog({
       })
     }
 
+    // For periphery contracts.
     const diamondPeriphery = networkDiamondLog.LiFiDiamond.Periphery
     for (const key in diamondPeriphery) {
       const diamondPeriphAddr = diamondPeriphery[key].toLowerCase()
@@ -433,6 +444,7 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(1000)
+  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
@@ -524,7 +536,7 @@ function printReportTable(
       'Status',
       'Action / Description',
     ]
-    colWidths = [40, 55, 55, 10, 60]
+    colWidths = [35, 50, 50, 10, 60]
   } else {
     head = [
       'Facet',
@@ -533,7 +545,7 @@ function printReportTable(
       'Status',
       'Action / Description',
     ]
-    colWidths = [25, 60, 60, 15, 80]
+    colWidths = [35, 50, 50, 10, 60]
   }
   const table = new Table({ head, colWidths, wordWrap: true })
 
