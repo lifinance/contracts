@@ -683,7 +683,6 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(400)
-  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
