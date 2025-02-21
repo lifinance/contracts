@@ -196,7 +196,7 @@ async function verifyAndUpdateFacets({
       facetName = facetData?.ContractName || ''
 
       if (!facetName) {
-        message += `No contract name found (might be unverified). `
+        message += `No contract name found on chain (might be unverified). `
         const foundName = Object.keys(networkDeployLogContracts).find(
           (name) =>
             networkDeployLogContracts[name].toLowerCase() === facetAddressLC
@@ -213,7 +213,7 @@ async function verifyAndUpdateFacets({
           })
           continue
         } else {
-          message += `Contract name "${foundName}" found in deploy log; contract needs verification. `
+          message += `Contract name "${foundName}" found in deploy log from contracts address match; contract needs verification. `
           facetName = foundName
           status = 'INFO'
         }
@@ -273,7 +273,7 @@ async function verifyAndUpdateFacets({
             status = 'SUCCESS'
           }
         } else {
-          // Mismatched addresses: compare versions using fetchContractDetails for deploy log address
+          // Mismatched addresses: use fetchContractDetails to compare deploy log version and on-chain version
           message += `Address mismatch: on-chain (${facetAddressLC}) vs deploy log (${deployLogAddress}). `
           const deployLogData = await fetchContractDetails(
             baseUrl,
@@ -284,18 +284,14 @@ async function verifyAndUpdateFacets({
             extractVersion(deployLogData?.SourceCode) || 'none'
           const onChainVersion = extractVersion(facetData.SourceCode) || 'none'
           if (isVersionNewer(onChainVersion, deployLogVersion)) {
-            message += `On-chain version (${onChainVersion}) is newer. Updating deploy log. `
+            message += `On-chain version (${onChainVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deployment file accordingly. `
             networkDeployLogContracts[facetName] = facetAddressLC
-            status = 'WARN'
+            status = 'ERROR'
           } else if (isVersionNewer(deployLogVersion, onChainVersion)) {
-            if (repoVersion === deployLogVersion) {
-              message += `Deploy log version (${deployLogVersion}) is up-to-date with repo. Please register facet to diamond. `
-            } else {
-              message += `Deploy log version (${deployLogVersion}) is outdated compared to repo version (${repoVersion}). Please update the deployment file or register facet to diamond. `
-            }
+            message += `Deploy log version (${deployLogVersion}) is newer than on-chain version (${onChainVersion}). Please register facet from deploy log. `
             status = 'ERROR'
           } else {
-            message += `Versions identical but addresses differ. Please update the deployment file or register facet to diamond. `
+            message += `Versions are identical but addresses differ. Please update the deployment file or register facet to diamond. `
             status = 'ERROR'
           }
         }
@@ -355,7 +351,7 @@ async function verifyAndUpdateFacets({
             onChain: 'N/A',
             deployLog: deployAddress,
             status: 'ERROR',
-            message: `Facet "${facetName}" is in deploy log but not registered on-chain. Contract is in src with repo version (${repoVersion}) and deploy log version (${deployLogVersion}). Please register facet to diamond with the latest version or remove from deploy log.`,
+            message: `Facet "${facetName}" is in deploy log but not registered on-chain. Contract is in src with repo version (${repoVersion}) and deploy log version (${deployLogVersion}). Please register the facet from deploy log or update the deployment file accordingly.`,
           })
         } else {
           // If not in src, check archive folder
