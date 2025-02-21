@@ -8,6 +8,7 @@ import { Address, PublicClient, createPublicClient, http } from 'viem'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 import Table from 'cli-table3'
 import chalk from 'chalk'
+import { Spinner } from '../utils/spinner'
 
 // ──────────────────────────────────────────────────────────────
 // Interfaces and Types
@@ -31,9 +32,8 @@ interface DiamondDeployLog {
   }
 }
 
-// Separate report arrays for two processes.
 const onChainReports: FacetReport[] = [] // Process 1: On-Chain vs. Deploy Log
-const diamondReports: FacetReport[] = [] // Process 2: Diamond File vs. Deploy Log
+const diamondReports: FacetReport[] = [] // Process 2: Diamond vs. Deploy Log
 
 // ──────────────────────────────────────────────────────────────
 // Main Command Definition
@@ -59,6 +59,9 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const spinner = new Spinner('Initializing...')
+    spinner.start()
+
     // INITIAL SETUP
     const { default: networksConfig } = await import(
       '../../config/networks.json'
@@ -68,10 +71,7 @@ const main = defineCommand({
     network = network.toLowerCase() as NetworkName
     const { onlyIssues } = args
 
-    consola.info(
-      `\n=== Starting Verification Process for Network: ${network.toUpperCase()} ===\n`
-    )
-
+    spinner.text = `Loading deployment logs for ${network.toUpperCase()}...`
     const networkDeployLogPath = path.resolve(
       __dirname,
       '../../deployments/',
@@ -96,50 +96,51 @@ const main = defineCommand({
       chain,
       transport: http(),
     })
+    spinner.succeed(`Deployment logs loaded for ${network.toUpperCase()}.`)
 
-    // STEP 1: Check LiFiDiamond deployment.
-    consola.box('Step 1: Checking LiFiDiamond Contract Deployment')
+    // STEP 1: Check LiFiDiamond Deployment.
+    spinner.start('Checking LiFiDiamond contract deployment...')
     const diamondDeployed = await checkIsDeployed(
       'LiFiDiamond',
       networkDeployLogContracts,
       publicClient
     )
     if (!diamondDeployed) {
-      consola.error(
-        'ERROR: LiFiDiamond contract is not deployed. Exiting process.'
-      )
+      spinner.fail('LiFiDiamond contract is not deployed. Exiting process.')
       throw new Error('Diamond contract not found on-chain.')
     }
-    consola.success('SUCCESS: LiFiDiamond contract is deployed.')
+    spinner.succeed('LiFiDiamond contract is deployed.')
     const diamondAddress = networkDeployLogContracts['LiFiDiamond']
 
-    // STEP 2: Verify on-chain facets vs. regular deploy log ({network}.json).
-    consola.box('Step 2: Verifying On-Chain Facets vs. Deploy Log')
-    $.quiet = true
+    // STEP 2: Verify On-Chain Facets vs. Deploy Log.
+    spinner.start('Verifying on-chain facets against deploy log...')
     await verifyOnChainAgainstDeployLog({
       network,
       diamondAddress,
       networkDeployLogContracts,
       networksConfig,
     })
+    spinner.succeed('On-chain facets verification complete.')
 
-    // STEP 3: Verify diamond file facets vs. regular deploy log.
-    consola.box('Step 3: Verifying Diamond File vs. Deploy Log')
+    // STEP 3: Verify Diamond File vs. Deploy Log.
+    spinner.start('Verifying diamond file facets against deploy log...')
     await verifyDiamondAgainstDeployLog({
       network,
       networkDeployLogContracts,
       networkDiamondLog,
     })
+    spinner.succeed('Diamond file facets verification complete.')
 
-    // STEP 4: Verify periphery contracts (diamond vs. deploy log).
-    consola.box('Step 4: Verifying Periphery Contracts')
+    // STEP 4: Verify Periphery Contracts.
+    spinner.start('Verifying periphery contracts...')
     await verifyPeriphery({
       network,
       networkDeployLogContracts,
       networkDiamondLog,
     })
+    spinner.succeed('Periphery contracts verification complete.')
 
-    // Print two separate report tables.
+    // Print report tables.
     printReportTable(
       onChainReports,
       'On-Chain vs. Deploy Log Verification',
@@ -153,13 +154,14 @@ const main = defineCommand({
       onlyIssues
     )
 
-    consola.success('\n=== Verification Process Completed ===\n')
+    spinner.succeed('Verification Process Completed.')
   },
 })
 
 // ──────────────────────────────────────────────────────────────
-// Process 1: Verify On-Chain Facets vs. Regular Deploy Log ({network}.json)
-// This report shows two address columns: On-Chain Address and Deploy Log Address.
+// Process 1: Verify On-Chain Facets vs. Deploy Log ({network}.json)
+// ──────────────────────────────────────────────────────────────
+
 interface OnChainParams {
   network: string
   diamondAddress: Address
@@ -185,7 +187,6 @@ async function verifyOnChainAgainstDeployLog({
     const rpcUrl: string = networksConfig[network].rpcUrl
     if (!rpcUrl) throw new Error(`RPC URL not found for network: ${network}`)
 
-    // Get on-chain facets.
     const facetsCmd =
       await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
     const rawData = facetsCmd.stdout
@@ -235,7 +236,6 @@ async function verifyOnChainAgainstDeployLog({
       deployLogAddr =
         networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
 
-      // Get repo version from src.
       const srcPath = findContractFile('src', facetName)
       if (!srcPath) {
         message += `Contract file not found in src/.`
@@ -313,8 +313,7 @@ async function verifyOnChainAgainstDeployLog({
 
 // ──────────────────────────────────────────────────────────────
 // Process 2: Verify Diamond File vs. Deploy Log
-// In this process, we do not need an on-chain address column.
-// Instead, we show the Diamond Log Address (from {network}.diamond.json) and compare it with the deploy log.
+// In this process, we only display Diamond Log Address and Deploy Log Address.
 // ──────────────────────────────────────────────────────────────
 
 interface DiamondParams {
@@ -328,7 +327,6 @@ async function verifyDiamondAgainstDeployLog({
   networkDiamondLog,
 }: DiamondParams) {
   try {
-    // For facets: iterate over diamond file facets.
     const diamondFacets = networkDiamondLog.LiFiDiamond.Facets
     for (const addr in diamondFacets) {
       const diamondAddr = addr.toLowerCase()
@@ -361,7 +359,6 @@ async function verifyDiamondAgainstDeployLog({
       })
     }
 
-    // For periphery: compare addresses.
     const diamondPeriphery = networkDiamondLog.LiFiDiamond.Periphery
     for (const key in diamondPeriphery) {
       const diamondPeriphAddr = diamondPeriphery[key].toLowerCase()
@@ -394,8 +391,7 @@ async function verifyDiamondAgainstDeployLog({
 }
 
 // ──────────────────────────────────────────────────────────────
-// Process 3: (Optional) Verify Periphery (if not merged above)
-// In this solution, periphery checks are already handled in verifyDiamondAgainstDeployLog.
+// Process 3: (Optional) Verify Periphery (already handled above)
 // ──────────────────────────────────────────────────────────────
 interface VerifyPeripheryParams {
   network: string
@@ -508,9 +504,8 @@ const checkIsDeployed = async (
 
 // ──────────────────────────────────────────────────────────────
 // Reporting: Print a Terminal Table of Verification Results
-// For Process 1 (on-chain vs deploy log), we show: Facet, On-Chain Address, Deploy Log Address, Status, Action/Description.
-// For Process 2 (diamond vs deploy log), we show: Facet, Diamond Log Address, Deploy Log Address, Status, Action/Description.
-// Column widths are set accordingly.
+// Process 1 (On-Chain vs. Deploy Log): 5 columns: Facet, On-Chain Address, Deploy Log Address, Status, Action/Description.
+// Process 2 (Diamond vs. Deploy Log): 5 columns: Facet, Diamond Log Address, Deploy Log Address, Status, Action/Description.
 // ──────────────────────────────────────────────────────────────
 
 function printReportTable(
@@ -522,7 +517,6 @@ function printReportTable(
   let head: string[]
   let colWidths: number[]
   if (includeDiamond) {
-    // For diamond verification: no on-chain column; show Diamond Log Address instead.
     head = [
       'Facet',
       'Diamond Log Address',
