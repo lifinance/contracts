@@ -7,6 +7,7 @@ import toml from 'toml'
 import { Address, PublicClient, createPublicClient, http } from 'viem'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 import Table from 'cli-table3'
+import chalk from 'chalk'
 
 // ──────────────────────────────────────────────────────────────
 // Interface for facet report information
@@ -38,6 +39,12 @@ const main = defineCommand({
       description: 'EVM network to check',
       required: true,
     },
+    onlyIssues: {
+      type: 'boolean',
+      description:
+        'If true, only facets with status ERROR or WARN are displayed in the final report',
+      default: false,
+    },
   },
   async run({ args }) {
     // ──────────────────────────────────────────────────────────────
@@ -49,6 +56,7 @@ const main = defineCommand({
     type NetworkName = keyof typeof networksConfig
     let { network } = args
     network = network.toLowerCase() as NetworkName
+    const { onlyIssues } = args
 
     consola.info(
       `\n=== Starting Update Process for Network: ${network.toUpperCase()} ===\n`
@@ -67,10 +75,14 @@ const main = defineCommand({
 
     const { default: networkDeployLogContracts } = (await import(
       networkDeploymentLogPath
-    )) as { default: Record<string, Address> }
+    )) as {
+      default: Record<string, Address>
+    }
     const { default: networkDiamondDeployLogContracts } = (await import(
       networkDiamondDeploymentLogPath
-    )) as { default: Record<string, Address> }
+    )) as {
+      default: Record<string, Address>
+    }
 
     const chain = getViemChainForNetworkName(network)
     const publicClient = createPublicClient({
@@ -111,9 +123,9 @@ const main = defineCommand({
     })
 
     // ──────────────────────────────────────────────────────────────
-    // PRINT SUMMARY REPORT TABLE
+    // PRINT SUMMARY REPORT TABLE (apply filtering if needed)
     // ──────────────────────────────────────────────────────────────
-    printFacetReportTable()
+    printFacetReportTable(onlyIssues)
 
     consola.success('\n=== Deployment File Updated Successfully ===\n')
   },
@@ -250,7 +262,7 @@ async function verifyAndUpdateFacets({
       }
 
       // Begin verification and comparison process
-      message += `Contract "${facetName}": `
+      message += `Verifying facet "${facetName}"... `
       if (deployLogAddress !== 'N/A') {
         if (deployLogAddress === facetAddressLC) {
           // Addresses match; check version differences if any
@@ -436,7 +448,7 @@ const checkIsDeployed = async (
 // Reporting: Print a Terminal Table of Facet Verification Results
 // ──────────────────────────────────────────────────────────────
 
-function printFacetReportTable() {
+function printFacetReportTable(filterOnlyIssues = false) {
   const table = new Table({
     head: [
       'Facet',
@@ -450,11 +462,26 @@ function printFacetReportTable() {
   })
 
   facetReports.forEach((report) => {
+    if (
+      filterOnlyIssues &&
+      report.status !== 'ERROR' &&
+      report.status !== 'WARN'
+    ) {
+      return
+    }
+    let coloredStatus = report.status
+    if (report.status === 'ERROR') {
+      coloredStatus = chalk.red(report.status)
+    } else if (report.status === 'WARN') {
+      coloredStatus = chalk.yellow(report.status)
+    } else if (report.status === 'SUCCESS') {
+      coloredStatus = chalk.green(report.status)
+    }
     table.push([
       report.facet,
       report.onChain,
       report.deployLog,
-      report.status,
+      coloredStatus,
       report.message,
     ])
   })
