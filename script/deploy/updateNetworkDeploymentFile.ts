@@ -75,14 +75,10 @@ const main = defineCommand({
 
     const { default: networkDeployLogContracts } = (await import(
       networkDeploymentLogPath
-    )) as {
-      default: Record<string, Address>
-    }
+    )) as { default: Record<string, Address> }
     const { default: networkDiamondDeployLogContracts } = (await import(
       networkDiamondDeploymentLogPath
-    )) as {
-      default: Record<string, Address>
-    }
+    )) as { default: Record<string, Address> }
 
     const chain = getViemChainForNetworkName(network)
     const publicClient = createPublicClient({
@@ -183,7 +179,7 @@ async function verifyAndUpdateFacets({
       throw new Error('Unexpected format for on-chain facets data.')
     }
 
-    // Process each facet found on-chain
+    // Process each on-chain facet
     for (const [facetAddress] of onChainFacets) {
       const facetAddressLC = facetAddress.toLowerCase()
       let facetName = ''
@@ -325,6 +321,31 @@ async function verifyAndUpdateFacets({
         status,
         message: message.trim(),
       })
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Check deploy log for facets missing on-chain.
+    // Only add an error for facets whose names include "Facet"
+    // and which have not been reported already.
+    // ──────────────────────────────────────────────────────────────
+    const onChainFacetAddresses = new Set(
+      onChainFacets.map(([addr]) => addr.toLowerCase())
+    )
+    for (const facetName in networkDeployLogContracts) {
+      // Skip non-facets and the main diamond contract.
+      if (facetName === 'LiFiDiamond' || !facetName.includes('Facet')) continue
+      // Skip if already reported.
+      if (facetReports.some((report) => report.facet === facetName)) continue
+      const deployAddress = networkDeployLogContracts[facetName].toLowerCase()
+      if (!onChainFacetAddresses.has(deployAddress)) {
+        facetReports.push({
+          facet: facetName,
+          onChain: 'N/A',
+          deployLog: deployAddress,
+          status: 'ERROR',
+          message: `Facet "${facetName}" is in deploy log but not registered on-chain. Please update the deployment file.`,
+        })
+      }
     }
 
     // Write the updated deployment log back to disk
