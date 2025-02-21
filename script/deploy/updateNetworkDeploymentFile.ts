@@ -146,16 +146,7 @@ const main = defineCommand({
     })
     spinner.succeed('Diamond file facets verification complete.')
 
-    // STEP 4: Verify Periphery Contracts.
-    spinner.start('Verifying periphery contracts...')
-    await verifyPeriphery({
-      network,
-      networkDeployLogContracts,
-      networkDiamondLog,
-    })
-    spinner.succeed('Periphery contracts verification complete.')
-
-    // STEP 5: Verify Missing Entries in Diamond File.
+    // STEP 4: Verify Missing Entries in Diamond File.
     spinner.start('Verifying missing entries in diamond file...')
     verifyMissingInDiamond(networkDeployLogContracts, networkDiamondLog)
     spinner.succeed('Missing entries verification complete.')
@@ -566,22 +557,6 @@ async function verifyDiamondAgainstDeployLog({
 }
 
 // ──────────────────────────────────────────────────────────────
-// Process 3: (Optional) Verify Periphery (already handled above)
-// ──────────────────────────────────────────────────────────────
-interface VerifyPeripheryParams {
-  network: string
-  networkDeployLogContracts: DeployLogContracts
-  networkDiamondLog: DiamondDeployLog
-}
-async function verifyPeriphery({
-  network,
-  networkDeployLogContracts,
-  networkDiamondLog,
-}: VerifyPeripheryParams) {
-  return
-}
-
-// ──────────────────────────────────────────────────────────────
 // Additional: Verify Missing Entries in Diamond File
 // This function checks for contracts present in the deploy log but missing in the diamond file.
 // It will ignore those facets already processed in Process 2.
@@ -606,7 +581,7 @@ function verifyMissingInDiamond(
           onChain: 'N/A',
           deployLog: deployLog[key].toLowerCase(),
           diamondDeployLog: 'N/A',
-          status: 'ERROR',
+          status: 'WARN',
           message: `Facet "${key}" is present in deploy log but missing in diamond file.`,
         })
       }
@@ -617,7 +592,7 @@ function verifyMissingInDiamond(
           onChain: 'N/A',
           deployLog: deployLog[key].toLowerCase(),
           diamondDeployLog: 'N/A',
-          status: 'ERROR',
+          status: 'WARN',
           message: `Contract "${key}" is present in deploy log but missing in diamond file.`,
         })
       }
