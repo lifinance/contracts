@@ -222,7 +222,7 @@ async function verifyAndUpdateFacets({
       deployLogAddress =
         networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
 
-      // Locate the contract source file in the project
+      // Locate the contract source file in the project (src/)
       const contractFilePath = findContractFile('src', facetName)
       if (!contractFilePath) {
         message += `Contract file not found in src/; `
@@ -241,7 +241,7 @@ async function verifyAndUpdateFacets({
         continue
       }
 
-      // Read source code to extract the repo version
+      // Read source code from repo (src/) to extract the repo version
       const contractSource = fs.readFileSync(contractFilePath, 'utf8')
       const repoVersion = extractVersion(contractSource)
       if (!repoVersion) {
@@ -257,7 +257,7 @@ async function verifyAndUpdateFacets({
         continue
       }
 
-      // Begin verification and comparison process
+      // Begin verification and comparison process for on-chain facet
       message += `Contract "${facetName}": `
       if (deployLogAddress !== 'N/A') {
         if (deployLogAddress === facetAddressLC) {
@@ -273,28 +273,29 @@ async function verifyAndUpdateFacets({
             status = 'SUCCESS'
           }
         } else {
-          // Mismatched addresses: compare versions and indicate necessary action
+          // Mismatched addresses: compare versions using fetchContractDetails for deploy log address
           message += `Address mismatch: on-chain (${facetAddressLC}) vs deploy log (${deployLogAddress}). `
           const deployLogData = await fetchContractDetails(
             baseUrl,
             deployLogAddress,
             network
           )
-          const deployLogVersion = extractVersion(deployLogData.SourceCode)
-          const onChainVersion = extractVersion(facetData.SourceCode)
+          const deployLogVersion =
+            extractVersion(deployLogData?.SourceCode) || 'none'
+          const onChainVersion = extractVersion(facetData.SourceCode) || 'none'
           if (isVersionNewer(onChainVersion, deployLogVersion)) {
-            message += `On-chain version (${
-              onChainVersion || 'none'
-            }) is newer. Updating deploy log. `
+            message += `On-chain version (${onChainVersion}) is newer. Updating deploy log. `
             networkDeployLogContracts[facetName] = facetAddressLC
             status = 'WARN'
           } else if (isVersionNewer(deployLogVersion, onChainVersion)) {
-            message += `Deploy log version (${deployLogVersion}) is newer than on-chain (${
-              onChainVersion || 'none'
-            }). Please update the diamond. `
+            if (repoVersion === deployLogVersion) {
+              message += `Deploy log version (${deployLogVersion}) is up-to-date with repo. Please register facet to diamond. `
+            } else {
+              message += `Deploy log version (${deployLogVersion}) is outdated compared to repo version (${repoVersion}). Please update the deployment file or register facet to diamond. `
+            }
             status = 'ERROR'
           } else {
-            message += `Versions identical but addresses differ. `
+            message += `Versions identical but addresses differ. Please update the deployment file or register facet to diamond. `
             status = 'ERROR'
           }
         }
@@ -325,8 +326,8 @@ async function verifyAndUpdateFacets({
 
     // ──────────────────────────────────────────────────────────────
     // Check deploy log for facets missing on-chain.
-    // Only add an error for entries with "Facet" in the name and which have not been reported.
-    // Additionally, check if the contract is in src/ or in archive.
+    // Only add an error for entries with "Facet" in the name (excluding LiFiDiamond) that have not been reported.
+    // Additionally, use fetchContractDetails to compare versions and check if the contract is in src/ or archive.
     // ──────────────────────────────────────────────────────────────
     const onChainFacetAddresses = new Set(
       onChainFacets.map(([addr]) => addr.toLowerCase())
@@ -336,19 +337,25 @@ async function verifyAndUpdateFacets({
       if (facetReports.some((report) => report.facet === facetName)) continue
       const deployAddress = networkDeployLogContracts[facetName].toLowerCase()
       if (!onChainFacetAddresses.has(deployAddress)) {
-        // First, check if the contract file exists in src
+        // Use fetchContractDetails to get deploy log details
+        const deployDetails = await fetchContractDetails(
+          baseUrl,
+          deployAddress,
+          network
+        )
+        const deployLogVersion =
+          extractVersion(deployDetails?.SourceCode) || 'unknown'
+        // Check if contract file exists in src
         const srcPath = findContractFile('src', facetName)
         if (srcPath) {
-          const contractSource = fs.readFileSync(srcPath, 'utf8')
-          const repoVersion = extractVersion(contractSource)
+          const repoSource = fs.readFileSync(srcPath, 'utf8')
+          const repoVersion = extractVersion(repoSource) || 'unknown'
           facetReports.push({
             facet: facetName,
             onChain: 'N/A',
             deployLog: deployAddress,
             status: 'ERROR',
-            message: `Facet "${facetName}" is in deploy log but not registered on-chain. Contract is in src with repo version (${
-              repoVersion || 'unknown'
-            }). Please register facet to diamond with the latest version.`,
+            message: `Facet "${facetName}" is in deploy log but not registered on-chain. Contract is in src with repo version (${repoVersion}) and deploy log version (${deployLogVersion}). Please register facet to diamond with the latest version or remove from deploy log.`,
           })
         } else {
           // If not in src, check archive folder
@@ -504,7 +511,7 @@ function printFacetReportTable(filterOnlyIssues = false) {
       'Status',
       'Action / Description',
     ],
-    colWidths: [20, 42, 42, 12, 60],
+    colWidths: [25, 60, 60, 15, 80],
     wordWrap: true,
   })
 
