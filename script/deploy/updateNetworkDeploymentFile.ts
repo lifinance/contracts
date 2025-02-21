@@ -3,9 +3,24 @@ import { $ } from 'zx'
 import { defineCommand, runMain } from 'citty'
 import * as path from 'path'
 import * as fs from 'fs'
-import toml from 'toml' // npm install toml
+import toml from 'toml'
 import { Address, PublicClient, createPublicClient, http } from 'viem'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+import Table from 'cli-table3'
+
+// ──────────────────────────────────────────────────────────────
+// Interface for facet report information
+// ──────────────────────────────────────────────────────────────
+
+interface FacetReport {
+  facet: string
+  onChain: string
+  deployLog: string
+  status: string
+  message: string
+}
+
+const facetReports: FacetReport[] = [] // Global array to store each facet's report
 
 // ──────────────────────────────────────────────────────────────
 // Main Command Definition
@@ -15,7 +30,7 @@ const main = defineCommand({
   meta: {
     name: 'LIFI Diamond Deployment File Update',
     description:
-      'Updates the deployment file to match the latest on-chain state.',
+      'Updates the deployment file to match the latest on-chain state and prints a summary table report.',
   },
   args: {
     network: {
@@ -26,7 +41,7 @@ const main = defineCommand({
   },
   async run({ args }) {
     // ──────────────────────────────────────────────────────────────
-    // INITIAL SETUP: Load network configuration and deployment logs
+    // INITIAL SETUP
     // ──────────────────────────────────────────────────────────────
     const { default: networksConfig } = await import(
       '../../config/networks.json'
@@ -39,7 +54,6 @@ const main = defineCommand({
       `\n=== Starting Update Process for Network: ${network.toUpperCase()} ===\n`
     )
 
-    // Define paths for the deployment logs
     const networkDeploymentLogPath = path.resolve(
       __dirname,
       '../../deployments/',
@@ -51,7 +65,6 @@ const main = defineCommand({
       `${network}.diamond.json`
     )
 
-    // Load deployment log contracts
     const { default: networkDeployLogContracts } = (await import(
       networkDeploymentLogPath
     )) as { default: Record<string, Address> }
@@ -59,7 +72,6 @@ const main = defineCommand({
       networkDiamondDeploymentLogPath
     )) as { default: Record<string, Address> }
 
-    // Create a public client for on-chain queries
     const chain = getViemChainForNetworkName(network)
     const publicClient = createPublicClient({
       batch: { multicall: true },
@@ -68,7 +80,7 @@ const main = defineCommand({
     })
 
     // ──────────────────────────────────────────────────────────────
-    // STEP 1: Check if LiFiDiamond contract is deployed
+    // STEP 1: Check LiFiDiamond Deployment
     // ──────────────────────────────────────────────────────────────
     consola.box('Step 1: Checking LiFiDiamond Contract Deployment')
     const diamondDeployed = await checkIsDeployed(
@@ -86,7 +98,7 @@ const main = defineCommand({
     const diamondAddress = networkDeployLogContracts['LiFiDiamond']
 
     // ──────────────────────────────────────────────────────────────
-    // STEP 2: Verify and Update Facet Registrations in the Diamond
+    // STEP 2: Verify and Update Facet Registrations
     // ──────────────────────────────────────────────────────────────
     consola.box('Step 2: Verifying Facet Registrations in LiFiDiamond')
     $.quiet = true
@@ -97,6 +109,11 @@ const main = defineCommand({
       networksConfig,
       networkDeploymentLogPath,
     })
+
+    // ──────────────────────────────────────────────────────────────
+    // PRINT SUMMARY REPORT TABLE
+    // ──────────────────────────────────────────────────────────────
+    printFacetReportTable()
 
     consola.success('\n=== Deployment File Updated Successfully ===\n')
   },
@@ -122,7 +139,7 @@ async function verifyAndUpdateFacets({
   networkDeploymentLogPath,
 }: VerifyFacetsParams) {
   try {
-    // Read Foundry configuration to get Etherscan settings for the network
+    // Load configuration from foundry.toml for Etherscan details
     const foundryTomlPath = path.resolve(__dirname, '../../foundry.toml')
     const foundryTomlContent = fs.readFileSync(foundryTomlPath, 'utf8')
     const foundryConfig = toml.parse(foundryTomlContent)
@@ -141,14 +158,10 @@ async function verifyAndUpdateFacets({
     const rpcUrl: string = networksConfig[network].rpcUrl
     if (!rpcUrl) throw new Error(`RPC URL not found for network: ${network}`)
 
-    // ──────────────────────────────────────────────────────────────
-    // Retrieve the list of facets registered in the diamond contract
-    // ──────────────────────────────────────────────────────────────
+    // Retrieve facets from the diamond contract
     const facetsCmd =
       await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
     const rawFacetsData = facetsCmd.stdout
-
-    // Convert the raw output to a JSON-compatible string then parse it
     const jsonCompatibleString = rawFacetsData
       .replace(/\(/g, '[')
       .replace(/\)/g, ']')
@@ -158,96 +171,102 @@ async function verifyAndUpdateFacets({
       throw new Error('Unexpected format for on-chain facets data.')
     }
 
-    // Process each on-chain facet contract
+    // Process each facet found on-chain
     for (const [facetAddress] of onChainFacets) {
       const facetAddressLC = facetAddress.toLowerCase()
-      consola.log('\n') // spacing for clarity
+      let facetName = ''
+      let deployLogAddress = ''
+      let status = ''
+      let message = ''
 
-      // Fetch facet contract details from explorer
+      // Fetch facet details via Etherscan API
       const facetData = await fetchContractDetails(
         baseUrl,
         facetAddressLC,
         network
       )
-      let facetName = facetData?.ContractName
+      facetName = facetData?.ContractName || ''
 
-      // Handle unverified contracts (no name found)
       if (!facetName) {
-        consola.error(
-          `No contract name found for facet at address ${facetAddressLC}. Contract might be unverified.`
-        )
-        // Attempt to locate contract name from deploy log
+        message += `No contract name found (might be unverified). `
         const foundName = Object.keys(networkDeployLogContracts).find(
           (name) =>
             networkDeployLogContracts[name].toLowerCase() === facetAddressLC
         )
         if (!foundName) {
-          consola.error(
-            `Facet at address ${facetAddressLC} does not exist in the deploy log. Please verify the contract and run the script again.`
-          )
+          message += `Facet not found in deploy log. Please verify and run again.`
+          status = 'ERROR'
+          facetReports.push({
+            facet: 'Unknown',
+            onChain: facetAddressLC,
+            deployLog: 'N/A',
+            status,
+            message,
+          })
           continue
         } else {
-          consola.info(
-            `Contract name "${foundName}" found in deploy log so the on chain and deploy log addresses matches. The deploy log is up to date but the contract still needs verification.`
-          )
+          message += `Contract name "${foundName}" found in deploy log; contract needs verification. `
           facetName = foundName
+          status = 'INFO'
         }
       }
 
-      // Determine if this facet already exists in the deploy log
-      const deployLogAddress =
-        networkDeployLogContracts[facetName]?.toLowerCase() || null
+      deployLogAddress =
+        networkDeployLogContracts[facetName]?.toLowerCase() || 'N/A'
 
-      // Try to locate the contract source file in the project
+      // Locate the contract source file in the project
       const contractFilePath = findContractFile('src', facetName)
       if (!contractFilePath) {
-        consola.error(
-          `Facet "${facetName}" registered on-chain but contract file not found in src/ folder.`
-        )
+        message += `Contract file not found in src/; `
         const archivePath = findContractFile('archive', facetName)
         if (archivePath) {
-          consola.error(
-            `File for "${facetName}" found in archive/ folder. Please remove facet from diamond.`
-          )
+          message += `file found in archive/ – remove facet from diamond.`
         }
+        status = 'ERROR'
+        facetReports.push({
+          facet: facetName,
+          onChain: facetAddressLC,
+          deployLog: deployLogAddress,
+          status,
+          message,
+        })
         continue
       }
 
-      // Read and extract the version from the contract source code in the repo
+      // Read source code to extract the repo version
       const contractSource = fs.readFileSync(contractFilePath, 'utf8')
       const repoVersion = extractVersion(contractSource)
       if (!repoVersion) {
-        consola.error(
-          `Facet "${facetName}" in ${contractFilePath} does not specify a contract version (@custom:version).`
-        )
+        message += `No contract version (@custom:version) specified in source. `
+        status = 'ERROR'
+        facetReports.push({
+          facet: facetName,
+          onChain: facetAddressLC,
+          deployLog: deployLogAddress,
+          status,
+          message,
+        })
         continue
       }
 
-      consola.info(
-        `Verifying facet "${facetName}" with address ${facetAddressLC}...`
-      )
-
-      // ──────────────────────────────────────────────────────────────
-      // Case 1: Facet already exists in deploy log
-      // ──────────────────────────────────────────────────────────────
-      if (deployLogAddress) {
+      // Begin verification and comparison process
+      message += `Contract "${facetName}": `
+      if (deployLogAddress !== 'N/A') {
         if (deployLogAddress === facetAddressLC) {
-          // Same address exists; compare versions if possible
+          // Addresses match; check version differences if any
           const onChainVersion = extractVersion(facetData.SourceCode)
           if (isVersionNewer(repoVersion, onChainVersion)) {
-            consola.warn(
-              `Facet "${facetName}": Newer version available in repo. On-chain version: ${onChainVersion}, Repo version: ${repoVersion}.`
-            )
+            message += `Repo version (${repoVersion}) is newer than on-chain (${
+              onChainVersion || 'none'
+            }). `
+            status = 'WARN'
           } else {
-            consola.success(
-              `Facet "${facetName}": On-chain and deploy log addresses match and are up to date.`
-            )
+            message += `On-chain and deploy log addresses match and are up to date. `
+            status = 'SUCCESS'
           }
         } else {
-          // Addresses mismatch: compare versions and log discrepancies
-          consola.error(
-            `Facet "${facetName}": Address mismatch between on-chain (${facetAddressLC}) and deploy log (${deployLogAddress}). Checking versions...`
-          )
+          // Mismatched addresses: compare versions and indicate necessary action
+          message += `Address mismatch: on-chain (${facetAddressLC}) vs deploy log (${deployLogAddress}). `
           const deployLogData = await fetchContractDetails(
             baseUrl,
             deployLogAddress,
@@ -255,56 +274,45 @@ async function verifyAndUpdateFacets({
           )
           const deployLogVersion = extractVersion(deployLogData.SourceCode)
           const onChainVersion = extractVersion(facetData.SourceCode)
-
           if (isVersionNewer(onChainVersion, deployLogVersion)) {
-            consola.warn(
-              `Facet "${facetName}": On-chain version ${showVersion(
-                onChainVersion
-              )} is newer than deploy log version ${showVersion(
-                deployLogVersion
-              )}. Updating deploy log (${deployLogAddress} → ${facetAddressLC}).`
-            )
+            message += `On-chain version (${
+              onChainVersion || 'none'
+            }) is newer. Updating deploy log. `
             networkDeployLogContracts[facetName] = facetAddressLC
-            if (isVersionNewer(repoVersion, onChainVersion)) {
-              consola.warn(
-                `Facet "${facetName}": Repo version ${showVersion(
-                  repoVersion
-                )} is newer than on-chain version ${showVersion(
-                  onChainVersion
-                )}.`
-              )
-            }
+            status = 'WARN'
           } else if (isVersionNewer(deployLogVersion, onChainVersion)) {
-            consola.error(
-              `Facet "${facetName}": Deploy log version ${showVersion(
-                deployLogVersion
-              )} is newer than on-chain version ${showVersion(
-                onChainVersion
-              )}. Please update the diamond with the newer version.`
-            )
+            message += `Deploy log version (${deployLogVersion}) is newer than on-chain (${
+              onChainVersion || 'none'
+            }). Please update the diamond. `
+            status = 'ERROR'
           } else {
-            consola.error(
-              `Facet "${facetName}": Both on-chain and deploy log versions are identical but addresses differ.`
-            )
+            message += `Versions identical but addresses differ. `
+            status = 'ERROR'
           }
         }
       } else {
-        // ──────────────────────────────────────────────────────────────
-        // Case 2: Facet missing in deploy log – add it!
-        // ──────────────────────────────────────────────────────────────
-        consola.warn(
-          `Facet "${facetName}" is missing in deploy log. Adding with address ${facetAddressLC}.`
-        )
+        // Facet is missing in deploy log; add it and warn if version difference exists
+        message += `Facet missing in deploy log. Adding facet with address ${facetAddressLC}. `
         networkDeployLogContracts[facetName] = facetAddressLC
         const onChainVersion = extractVersion(facetData.SourceCode)
         if (isVersionNewer(repoVersion, onChainVersion)) {
-          consola.warn(
-            `Facet "${facetName}": Repo version ${showVersion(
-              repoVersion
-            )} is newer than on-chain version ${showVersion(onChainVersion)}.`
-          )
+          message += `Repo version (${repoVersion}) is newer than on-chain (${
+            onChainVersion || 'none'
+          }). `
+          status = 'WARN'
+        } else {
+          status = 'INFO'
         }
       }
+
+      // Add the result for this facet to the report array
+      facetReports.push({
+        facet: facetName,
+        onChain: facetAddressLC,
+        deployLog: deployLogAddress,
+        status,
+        message: message.trim(),
+      })
     }
 
     // Write the updated deployment log back to disk
@@ -349,6 +357,7 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(1000)
+  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey) {
@@ -385,27 +394,15 @@ const fetchContractDetails = async (
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/**
- * Extracts the version string from the contract source code using the @custom:version tag.
- * @param sourceCode Contract source code as a string.
- * @returns Version string (e.g. "1.2.3") or null if not found.
- */
 function extractVersion(sourceCode: string): string | null {
   const versionMatch = sourceCode.match(/@custom:version\s+([\d.]+)/)
   return versionMatch ? versionMatch[1] : null
 }
 
-/**
- * Parses a version string into an array of numbers.
- */
 function parseVersion(version: string): number[] {
   return version.split('.').map((num) => parseInt(num, 10) || 0)
 }
 
-/**
- * Compares two version strings.
- * Returns true if versionA is newer than versionB.
- */
 function isVersionNewer(
   versionA: string | null,
   versionB: string | null
@@ -424,16 +421,6 @@ function isVersionNewer(
   return false
 }
 
-/**
- * Formats a version string for display.
- */
-function showVersion(version: string | null): string {
-  return version === null ? "'No version'" : `'${version}'`
-}
-
-/**
- * Checks if a contract is deployed by verifying that its on-chain code is not empty.
- */
 const checkIsDeployed = async (
   contract: string,
   networkDeployLogContracts: Record<string, Address>,
@@ -443,6 +430,37 @@ const checkIsDeployed = async (
   if (!address) return false
   const code = await publicClient.getCode({ address })
   return code !== '0x'
+}
+
+// ──────────────────────────────────────────────────────────────
+// Reporting: Print a Terminal Table of Facet Verification Results
+// ──────────────────────────────────────────────────────────────
+
+function printFacetReportTable() {
+  const table = new Table({
+    head: [
+      'Facet',
+      'On-Chain Address',
+      'Deploy Log Address',
+      'Status',
+      'Action / Description',
+    ],
+    colWidths: [20, 42, 42, 12, 60],
+    wordWrap: true,
+  })
+
+  facetReports.forEach((report) => {
+    table.push([
+      report.facet,
+      report.onChain,
+      report.deployLog,
+      report.status,
+      report.message,
+    ])
+  })
+
+  console.log('\n=== Facet Verification Report ===\n')
+  console.log(table.toString())
 }
 
 runMain(main)
