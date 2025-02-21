@@ -262,7 +262,7 @@ async function verifyAndUpdateFacets({
       }
 
       // Begin verification and comparison process
-      message += `Verifying facet "${facetName}"... `
+      message += `Contract "${facetName}": `
       if (deployLogAddress !== 'N/A') {
         if (deployLogAddress === facetAddressLC) {
           // Addresses match; check version differences if any
