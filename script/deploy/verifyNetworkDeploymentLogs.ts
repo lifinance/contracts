@@ -351,15 +351,21 @@ async function verifyOnChainAgainstDeployLog({
 
       message += `Facet "${facetName}": `
       if (deployLogAddr === onChainAddr) {
-        const onChainVersion = formatVersion(
-          extractVersion(facetData.SourceCode || '')
-        )
-        if (isVersionNewer(repoVersion, onChainVersion)) {
-          message += `Repo version (${repoVersion}) is newer than on-chain (${onChainVersion}).`
-          status = VerificationStatus.INFO
+        // Only compare versions if the on-chain contract is verified.
+        if (facetData && facetData.ContractName) {
+          const onChainVersion = formatVersion(
+            extractVersion(facetData.SourceCode || '')
+          )
+          if (isVersionNewer(repoVersion, onChainVersion)) {
+            message += `Repo version (${repoVersion}) is newer than on-chain (${onChainVersion}).`
+            status = VerificationStatus.INFO
+          } else {
+            message += `Addresses match and versions are consistent.`
+            status = VerificationStatus.SUCCESS
+          }
         } else {
-          message += `Addresses match and versions are consistent.`
-          status = VerificationStatus.SUCCESS
+          message += `Contract at ${onChainAddr} is not verified.`
+          status = VerificationStatus.INFO
         }
       } else {
         message += `Address mismatch: on-chain (${onChainAddr}) vs deploy log (${deployLogAddr}). `
@@ -369,18 +375,28 @@ async function verifyOnChainAgainstDeployLog({
           deployLogAddr,
           network
         )
-        const deployLogVersion = formatVersion(
-          extractVersion(deployLogData?.SourceCode || '')
-        )
-        const onChainVersion = formatVersion(
-          extractVersion(facetData.SourceCode || '')
-        )
-        if (isVersionNewer(onChainVersion, deployLogVersion)) {
-          message += `On-chain version (${onChainVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log.`
-        } else if (isVersionNewer(deployLogVersion, onChainVersion)) {
-          message += `Deploy log version (${deployLogVersion}) is newer than on-chain version (${onChainVersion}). Please register facet from deploy log.`
-        } else {
-          message += `Versions identical but addresses differ. Please reconcile.`
+        const onChainVerified = facetData && facetData.ContractName
+        const deployLogVerified = deployLogData && deployLogData.ContractName
+        const onChainVersion = onChainVerified
+          ? formatVersion(extractVersion(facetData.SourceCode || ''))
+          : NO_VERSION
+        const deployLogVersion = deployLogVerified
+          ? formatVersion(extractVersion(deployLogData?.SourceCode || ''))
+          : NO_VERSION
+        if (!onChainVerified) {
+          message += `On-chain contract at ${onChainAddr} is not verified. `
+        }
+        if (!deployLogVerified) {
+          message += `Deploy log contract at ${deployLogAddr} is not verified. `
+        }
+        if (onChainVerified && deployLogVerified) {
+          if (isVersionNewer(onChainVersion, deployLogVersion)) {
+            message += `On-chain version (${onChainVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log.`
+          } else if (isVersionNewer(deployLogVersion, onChainVersion)) {
+            message += `Deploy log version (${deployLogVersion}) is newer than on-chain version (${onChainVersion}). Please register facet from deploy log.`
+          } else {
+            message += `Versions identical but addresses differ. Please reconcile.`
+          }
         }
       }
       onChainReports.push({
@@ -478,7 +494,7 @@ async function verifyDiamondAgainstDeployLog({
         ? formatVersion(extractVersion(chainDiamondData.SourceCode || ''))
         : NO_VERSION
       let versionNote = ''
-      // Only compare versions if the contract is verified.
+      // Only compare versions if the diamond contract is verified.
       if (chainDiamondData && chainDiamondData.ContractName) {
         if (
           !(
@@ -490,7 +506,6 @@ async function verifyDiamondAgainstDeployLog({
           versionNote = ` Note: Diamond file version (${diamondFileVersion}) does not match on-chain version (${chainDiamondVersion}).`
         }
       } else {
-        // If not verified, add a message stating that.
         versionNote = ` Contract at ${diamondLogAddr} is not verified.`
       }
       let deployLogAddr =
@@ -534,13 +549,8 @@ async function verifyDiamondAgainstDeployLog({
         status = VerificationStatus.ERROR
       } else if (deployLogAddr === diamondLogAddr) {
         // if both chainDiamondVersion and diamondFileVersion are NO_VERSION, they match.
-        if (chainDiamondVersion === NO_VERSION) {
-          message += `Facet "${facetName}" matches between diamond file and deploy log.`
-          status = VerificationStatus.SUCCESS
-        } else {
-          message += `Facet "${facetName}" matches between diamond file and deploy log.`
-          status = VerificationStatus.SUCCESS
-        }
+        message += `Facet "${facetName}" matches between diamond file and deploy log.`
+        status = VerificationStatus.SUCCESS
         if (versionNote) {
           message += versionNote
           status = VerificationStatus.INFO
@@ -551,17 +561,27 @@ async function verifyDiamondAgainstDeployLog({
           deployLogAddr,
           network
         )
-        const deployLogVersion =
-          deployLogData && typeof deployLogData.SourceCode === 'string'
-            ? formatVersion(extractVersion(deployLogData.SourceCode || ''))
-            : NO_VERSION
+        const onChainVerified =
+          chainDiamondData && chainDiamondData.ContractName
+        const deployLogVerified = deployLogData && deployLogData.ContractName
+        const deployLogVersion = deployLogVerified
+          ? formatVersion(extractVersion(deployLogData.SourceCode || ''))
+          : NO_VERSION
         let compareMessage = ''
-        if (isVersionNewer(chainDiamondVersion, deployLogVersion)) {
-          compareMessage = `On-chain diamond version (${chainDiamondVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log accordingly.`
-        } else if (isVersionNewer(deployLogVersion, chainDiamondVersion)) {
-          compareMessage = `Deploy log version (${deployLogVersion}) is newer than on-chain diamond version (${chainDiamondVersion}). Please register facet from deploy log.`
-        } else {
-          compareMessage = `Versions are identical but addresses differ. Please reconcile.`
+        if (!onChainVerified) {
+          compareMessage += `Diamond contract at ${diamondLogAddr} is not verified. `
+        }
+        if (!deployLogVerified) {
+          compareMessage += `Deploy log contract at ${deployLogAddr} is not verified. `
+        }
+        if (onChainVerified && deployLogVerified) {
+          if (isVersionNewer(chainDiamondVersion, deployLogVersion)) {
+            compareMessage += `On-chain diamond version (${chainDiamondVersion}) is newer than deploy log version (${deployLogVersion}). Please update the deploy log accordingly.`
+          } else if (isVersionNewer(deployLogVersion, chainDiamondVersion)) {
+            compareMessage += `Deploy log version (${deployLogVersion}) is newer than on-chain diamond version (${chainDiamondVersion}). Please register facet from deploy log.`
+          } else {
+            compareMessage += `Versions are identical but addresses differ. Please reconcile.`
+          }
         }
         message += `Address mismatch for facet "${facetName}": diamond file shows (${diamondLogAddr}) vs deploy log (${deployLogAddr}). ${compareMessage}`
         status = VerificationStatus.ERROR
@@ -609,27 +629,51 @@ async function verifyDiamondAgainstDeployLog({
       if (deployLogPeriphAddr === diamondPeriphAddr) {
         status = VerificationStatus.SUCCESS
         message = `Periphery contract "${key}" matches.`
-        if (
-          diamondVersion !== NO_VERSION &&
-          deployLogVersion !== NO_VERSION &&
-          diamondVersion !== deployLogVersion
-        ) {
-          message += ` However, version mismatch: diamond log (${diamondVersion}) vs deploy log (${deployLogVersion}).`
-          status = VerificationStatus.INFO
-        } else {
-          message += ` Versions match (${diamondVersion}).`
+        const periphVerified =
+          diamondPeriphDetails && diamondPeriphDetails.ContractName
+        const deployPeriphVerified =
+          deployLogPeriphDetails && deployLogPeriphDetails.ContractName
+        if (!periphVerified) {
+          message += ` Diamond log contract at ${diamondPeriphAddr} is not verified.`
+        }
+        if (!deployPeriphVerified) {
+          message += ` Deploy log contract at ${deployLogPeriphAddr} is not verified.`
+        }
+        if (periphVerified && deployPeriphVerified) {
+          if (
+            diamondVersion !== NO_VERSION &&
+            deployLogVersion !== NO_VERSION &&
+            diamondVersion !== deployLogVersion
+          ) {
+            message += ` However, version mismatch: diamond log (${diamondVersion}) vs deploy log (${deployLogVersion}).`
+            status = VerificationStatus.INFO
+          } else {
+            message += ` Versions match (${diamondVersion}).`
+          }
         }
       } else {
         status = VerificationStatus.ERROR
         message = `Periphery contract "${key}" mismatch: diamond log (${diamondPeriphAddr}) vs deploy log (${deployLogPeriphAddr}).`
-        if (
-          diamondVersion !== NO_VERSION &&
-          deployLogVersion !== NO_VERSION &&
-          diamondVersion !== deployLogVersion
-        ) {
-          message += ` Versions: diamond log (${diamondVersion}) vs deploy log (${deployLogVersion}).`
-        } else {
-          message += ` Versions identical (${diamondVersion}) but addresses differ.`
+        const periphVerified =
+          diamondPeriphDetails && diamondPeriphDetails.ContractName
+        const deployPeriphVerified =
+          deployLogPeriphDetails && deployLogPeriphDetails.ContractName
+        if (!periphVerified) {
+          message += ` Diamond log contract at ${diamondPeriphAddr} is not verified.`
+        }
+        if (!deployPeriphVerified) {
+          message += ` Deploy log contract at ${deployLogPeriphAddr} is not verified.`
+        }
+        if (periphVerified && deployPeriphVerified) {
+          if (
+            diamondVersion !== NO_VERSION &&
+            deployLogVersion !== NO_VERSION &&
+            diamondVersion !== deployLogVersion
+          ) {
+            message += ` Versions: diamond log (${diamondVersion}) vs deploy log (${deployLogVersion}).`
+          } else {
+            message += ` Versions identical (${diamondVersion}) but addresses differ.`
+          }
         }
       }
       diamondReports.push({
