@@ -4,7 +4,13 @@ import { defineCommand, runMain } from 'citty'
 import * as path from 'path'
 import * as fs from 'fs'
 import toml from 'toml'
-import { Address, PublicClient, createPublicClient, http } from 'viem'
+import {
+  Address,
+  PublicClient,
+  createPublicClient,
+  http,
+  getAddress,
+} from 'viem'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 import Table from 'cli-table3'
 import chalk from 'chalk'
@@ -225,13 +231,13 @@ const main = defineCommand({
     // Print report tables.
     printReportTable(
       onChainReports,
-      'On-Chain vs. Deploy Log Verification',
+      'On-chain vs. deploy log verification table',
       false,
       onlyIssues
     )
     printReportTable(
       diamondReports,
-      'Diamond File vs. Deploy Log Verification',
+      'Diamond file vs. deploy log verification table',
       true,
       onlyIssues
     )
@@ -768,32 +774,35 @@ function printReportTable(
   let colWidths: number[]
   if (includeDiamond) {
     head = [
+      'Issue ID',
       'Facet',
       'Diamond Log Address',
       'Deploy Log Address',
       'Status',
       'Action / Description',
     ]
-    colWidths = [40, 55, 55, 10, 60]
+    colWidths = [10, 35, 50, 50, 10, 60]
   } else {
     head = [
+      'Issue ID',
       'Facet',
       'On-Chain Address',
       'Deploy Log Address',
       'Status',
       'Action / Description',
     ]
-    colWidths = [35, 50, 50, 10, 60]
+    colWidths = [10, 35, 50, 50, 10, 60]
   }
   const table = new Table({ head, colWidths, wordWrap: true })
 
-  reportArray.forEach((report) => {
+  reportArray.forEach((report, index) => {
     if (
       filterOnlyIssues &&
       report.status !== VerificationStatus.ERROR &&
       report.status !== VerificationStatus.WARN
     )
       return
+
     let coloredStatus: string = report.status as string
     if (report.status === VerificationStatus.ERROR)
       coloredStatus = chalk.red(report.status)
@@ -801,19 +810,24 @@ function printReportTable(
       coloredStatus = chalk.yellow(report.status)
     else if (report.status === VerificationStatus.SUCCESS)
       coloredStatus = chalk.green(report.status)
+
     if (includeDiamond) {
       table.push([
+        (index + 1).toString(),
         report.facet,
-        report.diamondDeployLog || NA,
-        report.deployLog,
+        report.diamondDeployLog && report.diamondDeployLog !== NA
+          ? getAddress(report.diamondDeployLog)
+          : NA,
+        report.deployLog !== NA ? getAddress(report.deployLog) : NA,
         coloredStatus,
         report.message,
       ])
     } else {
       table.push([
+        (index + 1).toString(),
         report.facet,
-        report.onChain,
-        report.deployLog,
+        report.onChain !== NA ? getAddress(report.onChain) : NA,
+        report.deployLog !== NA ? getAddress(report.deployLog) : NA,
         coloredStatus,
         report.message,
       ])
