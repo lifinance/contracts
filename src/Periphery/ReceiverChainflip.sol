@@ -25,7 +25,7 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     /// @notice The Chainflip vault contract that is authorized to call this contract
     address public immutable chainflipVault;
     /// @notice Chainflip's native token address representation
-    address constant CHAINFLIP_NATIVE_ADDRESS =
+    address internal constant CHAINFLIP_NATIVE_ADDRESS =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// Modifiers ///
