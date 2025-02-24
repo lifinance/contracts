@@ -478,15 +478,20 @@ async function verifyDiamondAgainstDeployLog({
         ? formatVersion(extractVersion(chainDiamondData.SourceCode || ''))
         : NO_VERSION
       let versionNote = ''
-      // check if Version matches what's currently deployed onchain
-      if (
-        !(
-          diamondFileVersion === NO_VERSION &&
-          chainDiamondVersion === NO_VERSION
-        ) &&
-        diamondFileVersion !== chainDiamondVersion
-      ) {
-        versionNote = ` Note: Diamond file version (${diamondFileVersion}) does not match on-chain version (${chainDiamondVersion}).`
+      // Only compare versions if the contract is verified.
+      if (chainDiamondData && chainDiamondData.ContractName) {
+        if (
+          !(
+            diamondFileVersion === NO_VERSION &&
+            chainDiamondVersion === NO_VERSION
+          ) &&
+          diamondFileVersion !== chainDiamondVersion
+        ) {
+          versionNote = ` Note: Diamond file version (${diamondFileVersion}) does not match on-chain version (${chainDiamondVersion}).`
+        }
+      } else {
+        // If not verified, add a message stating that.
+        versionNote = ` Contract at ${diamondLogAddr} is not verified.`
       }
       let deployLogAddr =
         networkDeployLogContracts[facetName]?.toLowerCase() || NA
