@@ -27,20 +27,6 @@ contract ReceiverChainflipTest is TestBase {
 
     event ExecutorSet(address indexed executor);
 
-    function testRevert_WhenConstructedWithZeroAddresses() public {
-        // Test zero owner address
-        vm.expectRevert(InvalidConfig.selector);
-        new ReceiverChainflip(address(0), address(executor), chainflipVault);
-
-        // Test zero executor address
-        vm.expectRevert(InvalidConfig.selector);
-        new ReceiverChainflip(address(this), address(0), chainflipVault);
-
-        // Test zero chainflip vault address
-        vm.expectRevert(InvalidConfig.selector);
-        new ReceiverChainflip(address(this), address(executor), address(0));
-    }
-
     function setUp() public {
         customBlockNumberForForking = 18277082;
         initTestBase();
@@ -63,7 +49,19 @@ contract ReceiverChainflipTest is TestBase {
         vm.label(address(erc20Proxy), "ERC20Proxy");
     }
 
-    // AI! add a test that makes sure we revert when constructing with zero address. Check each arg. Make sure to import InvalidConfig from GenericErrors
+    function testRevert_WhenConstructedWithZeroAddresses() public {
+        // Test zero owner address
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverChainflip(address(0), address(executor), chainflipVault);
+
+        // Test zero executor address
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverChainflip(address(this), address(0), chainflipVault);
+
+        // Test zero chainflip vault address
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverChainflip(address(this), address(executor), address(0));
+    }
 
     function test_ContractIsSetUpCorrectly() public {
         receiver = new ReceiverChainflip(
