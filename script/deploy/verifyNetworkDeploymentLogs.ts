@@ -109,9 +109,6 @@ function checkContractFileStatus(contractName: string): {
   return { found: false, message: 'Contract file not found in src.' }
 }
 
-// ---------------------------------------------------------------------
-// Main Command Definition
-// ---------------------------------------------------------------------
 const main = defineCommand({
   meta: {
     name: 'LIFI Deployment Verification',
@@ -216,7 +213,7 @@ const main = defineCommand({
     spinner.succeed('Missing on-chain entries verification complete.')
 
     // ---------------------------------------------------------------------
-    // Step 4: Verify diamond file vs. deploy log.
+    // Step 4: Verify diamond file vs deploy log
     // ---------------------------------------------------------------------
     spinner.start('Verifying diamond file facets against deploy log...')
     await verifyDiamondAgainstDeployLog({
@@ -352,7 +349,7 @@ async function verifyOnChainAgainstDeployLog({
 
       message += `Facet "${facetName}": `
       if (deployLogAddr === onChainAddr) {
-        // Only compare versions if the on-chain contract is verified.
+        // only compare versions if the on-chain contract is verified
         if (facetData && facetData.ContractName) {
           const onChainVersion = formatVersion(
             extractVersion(facetData.SourceCode || '')
@@ -488,7 +485,7 @@ async function verifyDiamondAgainstDeployLog({
         ? formatVersion(extractVersion(chainDiamondData.SourceCode || ''))
         : NO_VERSION
       let versionNote = ''
-      // Only compare versions if the diamond contract is verified.
+      // only compare versions if the diamond contract is verified
       if (chainDiamondData && chainDiamondData.ContractName) {
         if (
           !(
