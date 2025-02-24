@@ -135,15 +135,22 @@ const main = defineCommand({
     const spinner = new Spinner('Initializing...')
     spinner.start()
 
+    type NetworkName = keyof typeof networksConfig
+    let { network } = args
+    network = network.toLowerCase() as NetworkName
+    const { onlyIssues } = args
+
     const { default: networksConfig } = await import(
       '../../config/networks.json'
     )
     const foundryTomlPath = path.resolve(__dirname, '../../foundry.toml')
     const foundryConfig = toml.parse(fs.readFileSync(foundryTomlPath, 'utf8'))
-    type NetworkName = keyof typeof networksConfig
-    let { network } = args
-    network = network.toLowerCase() as NetworkName
-    const { onlyIssues } = args
+    const etherscanConfig = foundryConfig.etherscan[network]
+    if (!etherscanConfig)
+      throw new Error(
+        `Etherscan configuration not found for network: ${network}`
+      )
+    const baseUrl = etherscanConfig.url
 
     spinner.text = `Loading deployment logs for ${network.toUpperCase()}...`
     const networkDeployLogPath = path.resolve(
@@ -197,7 +204,7 @@ const main = defineCommand({
       diamondLogAddress,
       networkDeployLogContracts,
       networksConfig,
-      foundryConfig,
+      baseUrl,
     })
     spinner.succeed('On-chain facets verification complete.')
 
@@ -216,7 +223,7 @@ const main = defineCommand({
       network,
       networkDeployLogContracts,
       networkDiamondLog,
-      foundryConfig,
+      baseUrl,
     })
     spinner.succeed('Diamond file facets verification complete.')
 
@@ -253,22 +260,16 @@ interface OnChainParams {
   diamondLogAddress: Address
   networkDeployLogContracts: DeployLogContracts
   networksConfig: any
-  foundryConfig: any
+  baseUrl: string
 }
 async function verifyOnChainAgainstDeployLog({
   network,
   diamondLogAddress,
   networkDeployLogContracts,
   networksConfig,
-  foundryConfig,
+  baseUrl,
 }: OnChainParams) {
   try {
-    const etherscanConfig = foundryConfig.etherscan[network]
-    if (!etherscanConfig)
-      throw new Error(
-        `Etherscan configuration not found for network: ${network}`
-      )
-    const baseUrl = etherscanConfig.url
     const rpcUrl: string = networksConfig[network].rpcUrl
     if (!rpcUrl) throw new Error(`RPC URL not found for network: ${network}`)
 
@@ -453,22 +454,15 @@ interface DiamondParams {
   network: string
   networkDeployLogContracts: DeployLogContracts
   networkDiamondLog: DiamondDeployLog
-  foundryConfig: any
+  baseUrl: string
 }
 async function verifyDiamondAgainstDeployLog({
   network,
   networkDeployLogContracts,
   networkDiamondLog,
-  foundryConfig,
+  baseUrl,
 }: DiamondParams) {
   try {
-    const etherscanConfig = foundryConfig.etherscan[network]
-    if (!etherscanConfig)
-      throw new Error(
-        `Etherscan configuration not found for network: ${network}`
-      )
-    const baseUrl = etherscanConfig.url
-
     const diamondFacets = networkDiamondLog.LiFiDiamond.Facets
     for (const addr in diamondFacets) {
       const diamondLogAddrRaw = diamondFacets[addr] // contains Name and Version
