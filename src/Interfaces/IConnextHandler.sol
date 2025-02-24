@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for ConnextHandler
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IConnextHandler {
     /// @notice These are the call parameters that will remain constant between the
     /// two chains. They are supplied on `xcall` and should be asserted on `execute`
