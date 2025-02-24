@@ -121,13 +121,13 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xF965f52046D7095d5080bD31459601F4Eb24f72D": {
-        "Name": "",
-        "Version": ""
+      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       },
-      "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
+      "0x3c0727E3Ab7BAf3a4205f518f1b7570d68Da19ba": {
         "Name": "ThorSwapFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.1"
       },
       "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
         "Name": "WithdrawFacet",
@@ -161,9 +161,9 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
-      "0x00990C0FfBB7eAB014351652aFB65AaE00db43A4": {
-        "Name": "",
-        "Version": ""
+      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
       },
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
@@ -173,17 +173,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.0"
       },
-      "0x6e00e0a7685Ca22c288d56D9E7924746B5043Ee7": {
-        "Name": "AcrossFacetV3",
+      "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
+        "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
-      },
-      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
       }
     },
     "Periphery": {
