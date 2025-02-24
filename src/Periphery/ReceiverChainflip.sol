@@ -8,6 +8,7 @@ import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { console2 } from "forge-std/console2.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title ReceiverChainflip
 /// @author LI.FI (https://li.fi)
@@ -49,6 +50,13 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
         address _executor,
         address _chainflipVault
     ) WithdrawablePeriphery(_owner) {
+        if (
+            _owner == address(0) ||
+            _executor == address(0) ||
+            _chainflipVault == address(0)
+        ) {
+            revert InvalidConfig();
+        }
         executor = IExecutor(_executor);
         chainflipVault = _chainflipVault;
     }

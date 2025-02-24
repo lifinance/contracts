@@ -9,7 +9,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IChainflipVault } from "../Interfaces/IChainflip.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title Chainflip Facet
 /// @author LI.FI (https://li.fi)
@@ -62,6 +62,9 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Constructor for the contract.
     /// @param _chainflipVault Address of the Chainflip vault contract
     constructor(IChainflipVault _chainflipVault) {
+        if (address(_chainflipVault) == address(0)) {
+            revert InvalidConfig();
+        }
         chainflipVault = _chainflipVault;
     }
 

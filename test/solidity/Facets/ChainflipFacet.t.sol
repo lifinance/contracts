@@ -6,7 +6,7 @@ import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InformationMismatch, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 // Stub ChainflipFacet Contract
 contract TestChainflipFacet is ChainflipFacet {
@@ -80,6 +80,11 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // Most properties are unused for normal bridging
         validChainflipData.dstToken = 7;
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestChainflipFacet(address(0));
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
