@@ -56,19 +56,23 @@ const processedDiamondFacets = new Set<string>() // For Process 2
 // Global set to hold on-chain facet addresses (used for missing-onchain check)
 const onChainAddressSet = new Set<string>()
 
-// Helper function to safely check own property without using Object.hasOwn()
-// function hasOwnProp(obj: any, key: string): boolean {
-//   return Object.prototype.hasOwnProperty.call(obj, key)
-// }
+// ---------------------------------------------------------------------
+// Reusable Helper Functions
+// ---------------------------------------------------------------------
 
-// Helper function to format version strings. If contract has no version it will return 'none'
+// Format version strings (returns NO_VERSION if missing)
 function formatVersion(version: string | null): string {
   return version && version.trim() !== '' ? version.trim() : NO_VERSION
 }
 
-// ---------------------------------------------------------------------
-// Reusable Helper Functions
-// ---------------------------------------------------------------------
+// Parse the raw output from cast call into JSON
+function parseFacetsOutput(raw: string): string[][] {
+  const jsonStr = raw
+    .replace(/\(/g, '[')
+    .replace(/\)/g, ']')
+    .replace(/0x[0-9a-fA-F]+/g, '"$&"')
+  return JSON.parse(jsonStr)
+}
 
 // Fetch contract details and return an object with the contract name and formatted version.
 async function getContractInfo(
@@ -125,10 +129,12 @@ const main = defineCommand({
     const spinner = new Spinner('Initializing...')
     spinner.start()
 
-    // INITIAL SETUP
+    // Load networks config and Foundry configuration once.
     const { default: networksConfig } = await import(
       '../../config/networks.json'
     )
+    const foundryTomlPath = path.resolve(__dirname, '../../foundry.toml')
+    const foundryConfig = toml.parse(fs.readFileSync(foundryTomlPath, 'utf8'))
     type NetworkName = keyof typeof networksConfig
     let { network } = args
     network = network.toLowerCase() as NetworkName
@@ -162,7 +168,7 @@ const main = defineCommand({
     spinner.succeed(`Deployment logs loaded for ${network.toUpperCase()}.`)
 
     // ---------------------------------------------------------------------
-    // Step 2: Check LiFiDiamond Deployment
+    // Step 1: Check LiFiDiamond Deployment
     // ---------------------------------------------------------------------
     spinner.start('Checking LiFiDiamond contract deployment...')
     const diamondDeployed = await checkIsDeployed(
@@ -178,7 +184,7 @@ const main = defineCommand({
     const diamondLogAddress = networkDeployLogContracts['LiFiDiamond']
 
     // ---------------------------------------------------------------------
-    // Step 2: Verify On-Chain Facets vs. Deploy Log ({network}.json)
+    // Step 2: Verify on-chain facets vs. deploy log ({network}.json)
     // ---------------------------------------------------------------------
     spinner.start('Verifying on-chain facets against deploy log...')
     await verifyOnChainAgainstDeployLog({
@@ -186,28 +192,31 @@ const main = defineCommand({
       diamondLogAddress,
       networkDeployLogContracts,
       networksConfig,
+      foundryConfig,
     })
     spinner.succeed('On-chain facets verification complete.')
+
     // ---------------------------------------------------------------------
-    // Step 3: Verify potential missing entries on-chain
+    // Step 3: Verify potential missing on-chain entries
     // ---------------------------------------------------------------------
     spinner.start('Verifying potential missing entries on-chain...')
     verifyMissingOnChain(networkDeployLogContracts, onChainAddressSet)
     spinner.succeed('Missing on-chain entries verification complete.')
 
     // ---------------------------------------------------------------------
-    // Step 4: Verify Diamond File vs. Deploy Log.
+    // Step 4: Verify diamond f0ile vs. deploy log
     // ---------------------------------------------------------------------
     spinner.start('Verifying diamond file facets against deploy log...')
     await verifyDiamondAgainstDeployLog({
       network,
       networkDeployLogContracts,
       networkDiamondLog,
+      foundryConfig,
     })
     spinner.succeed('Diamond file facets verification complete.')
 
     // ---------------------------------------------------------------------
-    // Step 5: Verify potential missing Entries in Diamond File
+    // Step 5: Verify potential missing entries in diamond file
     // ---------------------------------------------------------------------
     spinner.start('Verifying missing entries in diamond file...')
     verifyMissingInDiamond(networkDeployLogContracts, networkDiamondLog)
@@ -231,22 +240,24 @@ const main = defineCommand({
   },
 })
 
+// ---------------------------------------------------------------------
+// Process 1: Verify on-chain facets vs deploy log ({network}.json)
+// ---------------------------------------------------------------------
 interface OnChainParams {
   network: string
   diamondLogAddress: Address
   networkDeployLogContracts: DeployLogContracts
   networksConfig: any
+  foundryConfig: any
 }
 async function verifyOnChainAgainstDeployLog({
   network,
   diamondLogAddress,
   networkDeployLogContracts,
   networksConfig,
+  foundryConfig,
 }: OnChainParams) {
   try {
-    const foundryTomlPath = path.resolve(__dirname, '../../foundry.toml')
-    const foundryTomlContent = fs.readFileSync(foundryTomlPath, 'utf8')
-    const foundryConfig = toml.parse(foundryTomlContent)
     const etherscanConfig = foundryConfig.etherscan[network]
     if (!etherscanConfig)
       throw new Error(
@@ -258,12 +269,7 @@ async function verifyOnChainAgainstDeployLog({
 
     const facetsCmd =
       await $`cast call ${diamondLogAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
-    const rawData = facetsCmd.stdout
-    const jsonStr = rawData
-      .replace(/\(/g, '[')
-      .replace(/\)/g, ']')
-      .replace(/0x[0-9a-fA-F]+/g, '"$&"')
-    const onChainFacets: string[][] = JSON.parse(jsonStr)
+    const onChainFacets = parseFacetsOutput(facetsCmd.stdout)
     if (!Array.isArray(onChainFacets))
       throw new Error('Unexpected on-chain facets format.')
 
@@ -280,10 +286,8 @@ async function verifyOnChainAgainstDeployLog({
         onChainAddr,
         network
       )
-
-      // Getting on chain contract name
-      const { name } = await getContractInfo(baseUrl, onChainAddr, network)
-      facetName = name
+      const contractInfo = await getContractInfo(baseUrl, onChainAddr, network)
+      facetName = contractInfo.name
       if (facetName === UNKNOWN) {
         const foundName = Object.keys(networkDeployLogContracts).find(
           (name) =>
@@ -309,7 +313,7 @@ async function verifyOnChainAgainstDeployLog({
       processedOnChainFacets.add(facetName)
       deployLogAddr = networkDeployLogContracts[facetName]?.toLowerCase() || NA
 
-      // Check for contract file in src (or archive if not found in src).
+      // Check for contract file in src (or archive if not found)
       const fileStatus = checkContractFileStatus(facetName)
       if (!fileStatus.found) {
         message += fileStatus.message
@@ -323,10 +327,8 @@ async function verifyOnChainAgainstDeployLog({
         })
         continue
       }
-      const repoSource = fs.readFileSync(
-        findContractFile('src', facetName)!,
-        'utf8'
-      )
+      const repoPath = findContractFile('src', facetName)
+      const repoSource = fs.readFileSync(repoPath!, 'utf8')
       const repoVersion = extractVersion(repoSource)
       if (!repoVersion) {
         message += `Repo version missing in source.`
@@ -428,16 +430,15 @@ interface DiamondParams {
   network: string
   networkDeployLogContracts: DeployLogContracts
   networkDiamondLog: DiamondDeployLog
+  foundryConfig: any
 }
 async function verifyDiamondAgainstDeployLog({
   network,
   networkDeployLogContracts,
   networkDiamondLog,
+  foundryConfig,
 }: DiamondParams) {
   try {
-    const foundryTomlPath = path.resolve(__dirname, '../../foundry.toml')
-    const foundryTomlContent = fs.readFileSync(foundryTomlPath, 'utf8')
-    const foundryConfig = toml.parse(foundryTomlContent)
     const etherscanConfig = foundryConfig.etherscan[network]
     if (!etherscanConfig)
       throw new Error(
@@ -450,6 +451,7 @@ async function verifyDiamondAgainstDeployLog({
       const diamondLogAddr = addr.toLowerCase()
       let facetName = diamondLogFacets[addr].Name || UNKNOWN
       const diamondFileVersion = diamondLogFacets[addr].Version || ''
+      // Fetch on-chain diamond data for this facet.
       const chainDiamondData = await fetchContractDetails(
         baseUrl,
         diamondLogAddr,
@@ -655,18 +657,6 @@ function verifyMissingInDiamond(
         })
       }
     }
-    // else {
-    //   if (!hasOwnProp(diamondLog.LiFiDiamond.Periphery, key)) {
-    //     diamondReports.push({
-    //       facet: key,
-    //       onChain: NA,
-    //       deployLog: deployLog[key].toLowerCase(),
-    //       diamondDeployLog: NA,
-    //       status: VerificationStatus.WARN,
-    //       message: `Contract "${key}" is present in deploy log but missing in diamond file.`,
-    //     })
-    //   }
-    // }
   }
 }
 
