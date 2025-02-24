@@ -57,11 +57,11 @@ const processedDiamondFacets = new Set<string>() // For Process 2
 const onChainAddressSet = new Set<string>()
 
 // Helper function to safely check own property without using Object.hasOwn()
-function hasOwnProp(obj: any, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(obj, key)
-}
+// function hasOwnProp(obj: any, key: string): boolean {
+//   return Object.prototype.hasOwnProperty.call(obj, key)
+// }
 
-// Helper function to format version strings.
+// Helper function to format version strings. If contract has no version it will return 'none'
 function formatVersion(version: string | null): string {
   return version && version.trim() !== '' ? version.trim() : NO_VERSION
 }
@@ -82,7 +82,7 @@ async function getContractInfo(
   return { name, version }
 }
 
-// Check for a contract file in "src". If not found, check "archive" and return a status message.
+// Check for a contract file in "src/". If not found, check "archive/" and return a status message.
 function checkContractFileStatus(contractName: string): {
   found: boolean
   message: string
@@ -101,10 +101,6 @@ function checkContractFileStatus(contractName: string): {
   }
   return { found: false, message: 'Contract file not found in src.' }
 }
-
-// ---------------------------------------------------------------------
-// Main Command Definition
-// ---------------------------------------------------------------------
 
 const main = defineCommand({
   meta: {
@@ -165,7 +161,9 @@ const main = defineCommand({
     })
     spinner.succeed(`Deployment logs loaded for ${network.toUpperCase()}.`)
 
-    // STEP 1: Check LiFiDiamond Deployment.
+    // ---------------------------------------------------------------------
+    // Step 2: Check LiFiDiamond Deployment
+    // ---------------------------------------------------------------------
     spinner.start('Checking LiFiDiamond contract deployment...')
     const diamondDeployed = await checkIsDeployed(
       'LiFiDiamond',
@@ -179,7 +177,9 @@ const main = defineCommand({
     spinner.succeed('LiFiDiamond contract is deployed.')
     const diamondLogAddress = networkDeployLogContracts['LiFiDiamond']
 
-    // STEP 2: Verify On-Chain Facets vs. Deploy Log.
+    // ---------------------------------------------------------------------
+    // Step 2: Verify On-Chain Facets vs. Deploy Log ({network}.json)
+    // ---------------------------------------------------------------------
     spinner.start('Verifying on-chain facets against deploy log...')
     await verifyOnChainAgainstDeployLog({
       network,
@@ -187,11 +187,17 @@ const main = defineCommand({
       networkDeployLogContracts,
       networksConfig,
     })
-    // Also check for deploy log entries missing on-chain.
-    verifyMissingOnChain(networkDeployLogContracts, onChainAddressSet)
     spinner.succeed('On-chain facets verification complete.')
+    // ---------------------------------------------------------------------
+    // Step 3: Verify potential missing entries on-chain
+    // ---------------------------------------------------------------------
+    spinner.start('Verifying potential missing entries on-chain...')
+    verifyMissingOnChain(networkDeployLogContracts, onChainAddressSet)
+    spinner.succeed('Missing on-chain entries verification complete.')
 
-    // STEP 3: Verify Diamond File vs. Deploy Log.
+    // ---------------------------------------------------------------------
+    // Step 4: Verify Diamond File vs. Deploy Log.
+    // ---------------------------------------------------------------------
     spinner.start('Verifying diamond file facets against deploy log...')
     await verifyDiamondAgainstDeployLog({
       network,
@@ -200,10 +206,12 @@ const main = defineCommand({
     })
     spinner.succeed('Diamond file facets verification complete.')
 
-    // STEP 4: Verify Missing Entries in Diamond File.
+    // ---------------------------------------------------------------------
+    // Step 5: Verify potential missing Entries in Diamond File
+    // ---------------------------------------------------------------------
     spinner.start('Verifying missing entries in diamond file...')
     verifyMissingInDiamond(networkDeployLogContracts, networkDiamondLog)
-    spinner.succeed('Missing entries verification complete.')
+    spinner.succeed('Missing diamond file entries verification complete.')
 
     // Print report tables.
     printReportTable(
@@ -223,9 +231,6 @@ const main = defineCommand({
   },
 })
 
-// ---------------------------------------------------------------------
-// Process 1: Verify On-Chain Facets vs. Deploy Log ({network}.json)
-// ---------------------------------------------------------------------
 interface OnChainParams {
   network: string
   diamondLogAddress: Address
@@ -275,12 +280,9 @@ async function verifyOnChainAgainstDeployLog({
         onChainAddr,
         network
       )
-      // Use getContractInfo to get contract name and version.
-      const { name, version } = await getContractInfo(
-        baseUrl,
-        onChainAddr,
-        network
-      )
+
+      // Getting on chain contract name
+      const { name } = await getContractInfo(baseUrl, onChainAddr, network)
       facetName = name
       if (facetName === UNKNOWN) {
         const foundName = Object.keys(networkDeployLogContracts).find(
@@ -652,18 +654,19 @@ function verifyMissingInDiamond(
           message: `Facet "${key}" is present in deploy log but missing in diamond file.`,
         })
       }
-    } else {
-      if (!hasOwnProp(diamondLog.LiFiDiamond.Periphery, key)) {
-        diamondReports.push({
-          facet: key,
-          onChain: NA,
-          deployLog: deployLog[key].toLowerCase(),
-          diamondDeployLog: NA,
-          status: VerificationStatus.WARN,
-          message: `Contract "${key}" is present in deploy log but missing in diamond file.`,
-        })
-      }
     }
+    // else {
+    //   if (!hasOwnProp(diamondLog.LiFiDiamond.Periphery, key)) {
+    //     diamondReports.push({
+    //       facet: key,
+    //       onChain: NA,
+    //       deployLog: deployLog[key].toLowerCase(),
+    //       diamondDeployLog: NA,
+    //       status: VerificationStatus.WARN,
+    //       message: `Contract "${key}" is present in deploy log but missing in diamond file.`,
+    //     })
+    //   }
+    // }
   }
 }
 
@@ -693,7 +696,6 @@ const fetchContractDetails = async (
   network: string
 ) => {
   await delay(400)
-  consola.info(`Fetching details for contract at address: ${contractAddress}`)
   const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
   const apiKey = process.env[apiKeyEnvVar]
   if (!apiKey)
