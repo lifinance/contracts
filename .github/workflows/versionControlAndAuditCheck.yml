@@ -253,7 +253,7 @@ jobs:
           fi
 
       - name: Save updated contracts for downstream jobs
-        uses: actions/upload-artifact@v4.6.0
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: contracts_for_audit
           path: contracts_for_audit.txt
