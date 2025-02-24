@@ -23331,6 +23331,20 @@
           }
         ]
       }
+    },
+    "unichain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x62F6fE8B47CBC58Ce4c7D21C2ae897EAB0132773",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-24 16:52:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "MayanBridgeFacet": {
