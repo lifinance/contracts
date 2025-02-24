@@ -7,7 +7,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { console2 } from "forge-std/console2.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title ReceiverChainflip
