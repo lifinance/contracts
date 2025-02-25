@@ -14,7 +14,6 @@ function diamondSyncDEXs_FAST {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
-  local EXIT_ON_ERROR="$4"
 
   # List of failed networks
   FAILED_NETWORKS=()
