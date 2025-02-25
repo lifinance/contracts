@@ -110,7 +110,7 @@
     ],
     "*.sol": [
       "prettier --write",
-      "solhint --fix"
+      "bun run solhint-filtered.ts"
     ]
   }
 }
