@@ -29311,6 +29311,20 @@
           }
         ]
       }
+    },
+    "sonic": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd9aeA8f746888739B0A063Fd608851e1195AF8F3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-25 15:48:35",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007f4babd2c7d35221e72ab67ea72cba99573a0089000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
