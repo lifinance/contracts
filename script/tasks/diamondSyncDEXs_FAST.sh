@@ -32,8 +32,6 @@ function diamondSyncDEXs_FAST {
     fi
   fi
 
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
   # Ask for contract name if not provided
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
     echo ""
@@ -62,7 +60,7 @@ function diamondSyncDEXs_FAST {
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
     # Print sync start message
-    echo "[info] Syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK (address: $DIAMOND_ADDRESS)"
+    echo "[$NETWORK] Whitelisting addresses for $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS"
 
     # Check if contract address exists
     if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
@@ -79,10 +77,9 @@ function diamondSyncDEXs_FAST {
     # Function to get approved DEXs from the contract
     function getApprovedDEXs {
       local ATTEMPT=1
-      local MAX_ATTEMPTS=5
       local result=""
 
-      while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+      while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
         result=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
 
         if [[ $? -eq 0 && ! -z "$result" ]]; then
