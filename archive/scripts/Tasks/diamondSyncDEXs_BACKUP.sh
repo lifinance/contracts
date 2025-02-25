@@ -15,11 +15,9 @@ function diamondSyncDEXs {
   local DIAMOND_CONTRACT_NAME="$3"
   local EXIT_ON_ERROR="$4"
 
-  # list of networks that failed to update
-  FAILED_NETWORKS=()
-
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
+    # find out if script should be executed for one network or for all networks
     echo ""
     echo "Should the script be executed on one network or all networks"
     NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
@@ -28,8 +26,10 @@ function diamondSyncDEXs {
     fi
   fi
 
+  # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
+  # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select it
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
     echo ""
     echo "Please select which type of diamond contract to sync:"
@@ -37,13 +37,20 @@ function diamondSyncDEXs {
     echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
+  # create array with network/s for which the script should be executed
   if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
+    # get array with all network names
     NETWORKS=($(getIncludedNetworksArray))
   else
     NETWORKS=($NETWORK)
   fi
 
+
+
+  # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
+
+    # Skip for localanvil or any testnet
     if [[ "$NETWORK" == "localanvil" || \
           "$NETWORK" == "bsc-testnet" || \
           "$NETWORK" == "lineatest" || \
@@ -52,10 +59,13 @@ function diamondSyncDEXs {
         continue
     fi
 
+    # get diamond address from deployments script
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
+    # logging for debug purposes
     echo ""
     echoDebug "in function syncDEXs"
+    echoDebug "NETWORKS=$NETWORKS"
     echoDebug "CURRENT NETWORK=$NETWORK"
     echoDebug "ENVIRONMENT=$ENVIRONMENT"
     echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
@@ -63,62 +73,43 @@ function diamondSyncDEXs {
     echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
     echo ""
 
-    # check if diamond address is available
+    # if no diamond address was found, throw an error and exit the script
     if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
-      error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK - skipping network"
-      FAILED_NETWORKS+=("$NETWORK")
+      error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting syncDEXs script now"
+      local RETURN=1
       continue
     fi
 
+    # get RPC URL for given network
     RPC_URL=$(getRPCUrl "$NETWORK")
 
     echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
-    # get a list of all addresses that need to be whitelisted from dexs.json config file
+    # get list of DEX addresses from config file
     CFG_DEXS=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/dexs.json")
 
-    # function to fetch approved DEXs
-    function getApprovedDEXs {
-      local RETRY_DELAY=3
-      local ATTEMPT=1
-      local result=""
+    # get addresses of DEXs that are already approved in the diamond contract
+    RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL")
 
-      while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
-        result=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
-
-        if [[ $? -eq 0 && ! -z "$result" ]]; then
-          if [[ "$result" == "[]" ]]; then
-            echo ""
-          else
-            echo $(echo ${result:1:${#result}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]')
-          fi
-          return 0
-        fi
-
-        echo "[warn] Failed to fetch approved DEXs from $DIAMOND_ADDRESS on network $NETWORK (attempt $ATTEMPT/$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION). Retrying in $RETRY_DELAY seconds..."
-        sleep $RETRY_DELAY
-        ATTEMPT=$((ATTEMPT + 1))
-      done
-
-      echo "[error] Unable to fetch approved DEXs from $DIAMOND_ADDRESS on network $NETWORK after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts."
-      return 1 # Indicate failure
-    }
-
-    # Fetch approved DEXs
-    DEXS=($(getApprovedDEXs))
-    if [[ $? -ne 0 ]]; then
-      FAILED_NETWORKS+=("$NETWORK")
-      continue
+    # Check if any approved DEXs were found
+    if [[ "$RESULT" == "[]" ]]; then
+      DEXS=()
+    else
+      # reformat
+      DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
     fi
 
+    # Check the length of the array
     if [ ${#DEXS[@]} -eq 0 ]; then
       echoDebug "0 approved DEXs found on diamond $DIAMOND_ADDRESS"
     else
       echoDebug "${#DEXS[@]} approved DEXs found on diamond $DIAMOND_ADDRESS: [${DEXS[*]}]"
     fi
 
+    # Loop through all DEX addresses from config and check if they are already known by the diamond
     NEW_DEXS=()
     for DEX_ADDRESS in $CFG_DEXS; do
+      # if address is in config file but not in DEX addresses returned from diamond...
       if [[ ! " ${DEXS[*]} " == *" $(echo "$DEX_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
         CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
         CODE=$(cast code $CHECKSUMMED --rpc-url "$RPC_URL")
@@ -127,55 +118,67 @@ function diamondSyncDEXs {
           echo "$NETWORK - $CHECKSUMMED" >>.invalid-dexs
           continue
         fi
+        # ... add it to the array
         NEW_DEXS+=("$CHECKSUMMED")
       fi
     done
 
     echoDebug "${#NEW_DEXS[@]} new DEXs to be added: [${NEW_DEXS[*]}]"
 
+    # add new DEXs to diamond
     if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
-      ADDRESS_STRING=$(printf "%s," "${NEW_DEXS[@]}")
+      # Convert the list of addresses to an array
+      ADDRESS_ARRAY=($(echo "${NEW_DEXS[*]}"))
+
+      # Convert the array to a string with comma-separated values
+      ADDRESS_STRING=$(printf "%s," "${ADDRESS_ARRAY[@]}")
       PARAMS="[${ADDRESS_STRING%,}]"
 
+      # call batchAddDex function in diamond to add DEXs
       local ATTEMPTS=1
       while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
         echo "[info] Trying to add missing DEXs now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+
+        # ensure that gas price is below maximum threshold (for mainnet only)
         doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
-
-        sleep 5 # Wait for confirmation
-
-        # Check on-chain state after transaction
-        DEXS_UPDATED=($(getApprovedDEXs))
-        if [[ $? -ne 0 ]]; then
-          FAILED_NETWORKS+=("$NETWORK")
-          break
+        # call diamond
+        if [[ "$DEBUG" == *"true"* ]]; then
+          # print output to console
+          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
+        else
+          # do not print output to console
+          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
         fi
 
-        MISSING_DEXS=()
-        for DEX in "${NEW_DEXS[@]}"; do
-          if [[ ! " ${DEXS_UPDATED[*]} " == *" $(echo "$DEX" | tr '[:upper:]' '[:lower:]')"* ]]; then
-            MISSING_DEXS+=("$DEX")
-          fi
-        done
-
-        if [ ${#MISSING_DEXS[@]} -eq 0 ]; then
-          echo "[info] Successfully added all DEXs."
-          break
+        # check the return code the last call
+        if [ $? -eq 0 ]; then
+          break # exit the loop if the operation was successful
         fi
 
-        ATTEMPTS=$((ATTEMPTS + 1))
+        ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
+        sleep 1                    # wait for 1 second before trying the operation again
       done
+
+      # check if call was executed successfully or used all ATTEMPTS
+      if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+        error "failed to add missing DEXs to $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS on network $NETWORK"
+        RETURN=1
+      fi
+    else
+      echo '[info] no new DEXs to add'
     fi
   done
 
-  if [ ${#FAILED_NETWORKS[@]} -ne 0 ]; then
-    echo ""
-    echo "[error] The following networks failed to update:"
-    for NET in "${FAILED_NETWORKS[@]}"; do
-      echo "- $NET"
-    done
+  # end script according to return status
+  if [ "$RETURN" == 1 ]; then
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  else
+    return 0
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script syncDEXs completed"
