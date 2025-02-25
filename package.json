@@ -110,7 +110,7 @@
     ],
     "*.sol": [
       "prettier --write",
-      "bun run solhint-filtered.ts"
+      "solhint --noPrompt --fix"
     ]
   }
 }

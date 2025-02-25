@@ -17,7 +17,7 @@
     "no-unused-vars": "error",
     "one-contract-per-file": "off",
     "payable-fallback": "error",
-    "reason-string": ["warn", { "maxLength": 64 }],
+    "reason-string": ["error", { "maxLength": 64 }],
     "interface-starts-with-i": "error",
     "const-name-snakecase": "error",
     "constructor-syntax": "error",
