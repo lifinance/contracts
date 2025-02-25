@@ -13,7 +13,7 @@ diamondMakeImmutable() {
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # get user-selected network from list
-  NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+  local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
   checkRequiredVariablesInDotEnv $NETWORK
 
   # define path of JSON file to get diamond address from

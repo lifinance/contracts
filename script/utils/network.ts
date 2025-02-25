@@ -51,28 +51,6 @@ export function accounts(networkName?: string): { mnemonic: string } {
   return { mnemonic: getMnemonic(networkName) }
 }
 
-// get a list of all networks from our ./networks file
-export function getAllNetworks(): string[] {
-  try {
-    // Read file contents
-    const fileContents = fs.readFileSync(
-      path.join(__dirname, '../networks'),
-      'utf-8'
-    )
-
-    // Split the contents by new lines to get an array of network names
-    const networkNames = fileContents
-      .split('\n')
-      .map((name) => name.trim())
-      .filter((name) => name !== '')
-
-    return networkNames
-  } catch (error) {
-    console.error(`Error reading file: ${JSON.stringify(error, null, 2)}`)
-    return []
-  }
-}
-
 // viem chain handling
 const chainNameMappings: Record<string, string> = {
   apechain: 'apeChain',

@@ -17,7 +17,7 @@ removeUnusableFunctionsForImmutable() {
   ENVIRONMENT="$2"
 
   # get user-selected network from list
-  NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+  local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
   if [[ -z "$NETWORK" ]]; then
     error "invalid selection - exiting script"
     exit 1

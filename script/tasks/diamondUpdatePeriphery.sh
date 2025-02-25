@@ -19,7 +19,8 @@ function diamondUpdatePeriphery() {
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    # get user-selected network from list
+	  NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
     checkRequiredVariablesInDotEnv $NETWORK
   fi
 

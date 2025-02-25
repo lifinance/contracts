@@ -20,7 +20,7 @@ function diamondSyncDEXs {
     # find out if script should be executed for one network or for all networks
     echo ""
     echo "Should the script be executed on one network or all networks"
-    NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
       checkRequiredVariablesInDotEnv $NETWORK
     fi
