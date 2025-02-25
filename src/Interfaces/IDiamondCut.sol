@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 2.0.0
 pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
+/// @title Interface for DiamondCutFacet
+/// @author LI.FI (https://li.fi)
+/// @custom:version 2.0.0
 interface IDiamondCut {
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall

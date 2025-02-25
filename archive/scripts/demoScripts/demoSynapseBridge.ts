@@ -13,7 +13,7 @@ import {
 } from '../typechain'
 import { node_url } from '../../utils/network'
 import config from '../../config/synapse.json'
-import deployments from '../../deployments/polygon.staging.json'
+import deployments from '../../../deployments/polygon.staging.json'
 import chalk from 'chalk'
 
 const msg = (msg: string) => {

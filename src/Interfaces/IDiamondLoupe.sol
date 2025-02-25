@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
-// A loupe is a small magnifying glass used to look at diamonds.
-// These functions look at diamonds
+/// @title Interface for DiamondLoupeFacet
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IDiamondLoupe {
     /// These functions are expected to be called frequently
     /// by tools.

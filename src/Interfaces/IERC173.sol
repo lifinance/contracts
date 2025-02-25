@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
-/// @title ERC-173 Contract Ownership Standard
-///  Note: the ERC-165 identifier for this interface is 0x7f5828d0
-/* is ERC165 */
+/// @title Interface for ERC-173 (Contract Ownership Standard)
+/// @author LI.FI (https://li.fi)
+/// Note: the ERC-165 identifier for this interface is 0x7f5828d0
+/// @custom:version 1.0.0
 interface IERC173 {
     /// @dev This emits when ownership of a contract changes.
     event OwnershipTransferred(

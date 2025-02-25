@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for Synapse Router
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ISynapseRouter {
     /// @notice Struct representing a request for SynapseRouter.
     /// @dev tokenIn is supplied separately.

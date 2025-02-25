@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for Symbiosis MetaRouter
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ISymbiosisMetaRouter {
     /// @notice entry point data to Symbiosis contracts
     /// @param firstSwapCalldata calldata for the dex swap to get corresponding asset (USDC) on init chain
