@@ -21,7 +21,7 @@ function deployFacetAndAddToDiamond() {
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
-    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
+    NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
     checkRequiredVariablesInDotEnv $NETWORK
   fi
 
