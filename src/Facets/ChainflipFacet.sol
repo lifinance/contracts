@@ -173,9 +173,18 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             encodedDstAddress = abi.encodePacked(receiverAddress);
         }
 
-        // Handle native token case with or without destination call
-        if (_bridgeData.sendingAssetId == address(0)) {
-            if (_bridgeData.hasDestinationCall) {
+        // Handle ERC20 token approval outside the if/else to avoid code duplication
+        if (_bridgeData.sendingAssetId != address(0)) {
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(chainflipVault),
+                _bridgeData.minAmount
+            );
+        }
+
+        // Handle destination calls
+        if (_bridgeData.hasDestinationCall) {
+            if (_bridgeData.sendingAssetId == address(0)) {
                 IChainflipVault(chainflipVault).xCallNative{
                     value: _bridgeData.minAmount
                 }(
@@ -187,26 +196,6 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     _chainflipData.cfParameters
                 );
             } else {
-                IChainflipVault(chainflipVault).xSwapNative{
-                    value: _bridgeData.minAmount
-                }(
-                    dstChain,
-                    encodedDstAddress,
-                    _chainflipData.dstToken,
-                    _chainflipData.cfParameters
-                );
-            }
-        }
-        // Handle ERC20 token case with or without destination call
-        else {
-            // Approve vault to spend tokens
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                address(chainflipVault),
-                _bridgeData.minAmount
-            );
-
-            if (_bridgeData.hasDestinationCall) {
                 IChainflipVault(chainflipVault).xCallToken(
                     dstChain,
                     encodedDstAddress,
@@ -215,6 +204,17 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     _chainflipData.gasAmount,
                     IERC20(_bridgeData.sendingAssetId),
                     _bridgeData.minAmount,
+                    _chainflipData.cfParameters
+                );
+            }
+        } else {
+            if (_bridgeData.sendingAssetId == address(0)) {
+                IChainflipVault(chainflipVault).xSwapNative{
+                    value: _bridgeData.minAmount
+                }(
+                    dstChain,
+                    encodedDstAddress,
+                    _chainflipData.dstToken,
                     _chainflipData.cfParameters
                 );
             } else {
