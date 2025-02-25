@@ -6,7 +6,7 @@ import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub ChainflipFacet Contract
 contract TestChainflipFacet is ChainflipFacet {
@@ -290,6 +290,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // Case 1: hasDestinationCall is true but message is empty
         bridgeData.hasDestinationCall = true;
         validChainflipData.dstCallSwapData = dstSwapData;
+        validChainflipData.dstCallReceiver = address(0x123); // Set a non-zero address
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -312,9 +313,48 @@ contract ChainflipFacetTest is TestBaseFacet {
             })
         );
         validChainflipData.dstCallSwapData = dstSwapData;
+        validChainflipData.dstCallReceiver = address(0x123); // Ensure this is non-zero for the second case too
 
         vm.expectRevert(InformationMismatch.selector);
         initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenReceiverAddressIsZero() public {
+        // Test with regular EVM destination and zero receiver
+        bridgeData.receiver = address(0);
+        bridgeData.destinationChainId = CHAIN_ID_ARBITRUM;
+        bridgeData.hasDestinationCall = false;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        initiateBridgeTxWithFacet(false);
+
+        // Test with destination call and zero dstCallReceiver
+        bridgeData.receiver = USER_RECEIVER; // Set a valid receiver
+        bridgeData.hasDestinationCall = true;
+
+        // Set up valid swap data
+        delete dstSwapData;
+        dstSwapData.push(
+            LibSwap.SwapData({
+                callTo: address(0x123),
+                approveTo: address(0x123),
+                sendingAssetId: address(0),
+                receivingAssetId: address(0),
+                fromAmount: 0,
+                callData: "0x123456",
+                requiresDeposit: false
+            })
+        );
+        validChainflipData.dstCallSwapData = dstSwapData;
+        validChainflipData.dstCallReceiver = address(0); // Zero address for destination call
+
+        vm.expectRevert(InvalidReceiver.selector);
+        initiateBridgeTxWithFacet(false);
+
         vm.stopPrank();
     }
 

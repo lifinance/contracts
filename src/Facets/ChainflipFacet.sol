@@ -9,7 +9,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IChainflipVault } from "../Interfaces/IChainflip.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { InformationMismatch, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Chainflip Facet
 /// @author LI.FI (https://li.fi)
@@ -128,6 +128,23 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) internal {
         uint32 dstChain = _getChainflipChainId(_bridgeData.destinationChainId);
 
+        // Initialize message variable at function scope level
+        bytes memory message;
+
+        // Validate destination call flag matches message presence first
+        if (_bridgeData.hasDestinationCall) {
+            if (_chainflipData.dstCallSwapData.length == 0) {
+                revert InformationMismatch();
+            }
+            message = abi.encode(
+                _bridgeData.transactionId,
+                _chainflipData.dstCallSwapData,
+                _bridgeData.receiver
+            );
+        } else if (_chainflipData.dstCallSwapData.length > 0) {
+            revert InformationMismatch();
+        }
+
         // Handle address encoding based on destination chain type
         bytes memory encodedDstAddress;
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
@@ -145,28 +162,15 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // For EVM chains, use dstCallReceiver if there's a destination call, otherwise use bridge receiver
-            encodedDstAddress = abi.encodePacked(
-                _bridgeData.hasDestinationCall
-                    ? _chainflipData.dstCallReceiver
-                    : _bridgeData.receiver
-            );
-        }
+            address receiverAddress = _bridgeData.hasDestinationCall
+                ? _chainflipData.dstCallReceiver
+                : _bridgeData.receiver;
 
-        // Initialize message variable at function scope level
-        bytes memory message;
-
-        // Validate destination call flag matches message presence
-        if (_bridgeData.hasDestinationCall) {
-            if (_chainflipData.dstCallSwapData.length == 0) {
-                revert InformationMismatch();
+            if (receiverAddress == address(0)) {
+                revert InvalidReceiver();
             }
-            message = abi.encode(
-                _bridgeData.transactionId,
-                _chainflipData.dstCallSwapData,
-                _bridgeData.receiver
-            );
-        } else if (_chainflipData.dstCallSwapData.length > 0) {
-            revert InformationMismatch();
+
+            encodedDstAddress = abi.encodePacked(receiverAddress);
         }
 
         // Handle native token case with or without destination call
