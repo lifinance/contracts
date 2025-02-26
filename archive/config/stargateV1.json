@@ -68,6 +68,7 @@
       "chainId": 122,
       "endpointId": 30138
     }
+<<<<<<<< HEAD:archive/config/stargateV1.json
   ],
   "chains": [
     {
@@ -227,4 +228,7 @@
     "mumbai": "0x817436a076060D158204d955E5403b6Ed0A5fac0",
     "sepolia": "0x0000000000000000000000000000000000000000"
   }
+========
+  ]
+>>>>>>>> 46e2315d1d4ef35f31d403f018a62a06eeda3ef2:config/stargate.json
 }
