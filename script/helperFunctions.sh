@@ -1966,13 +1966,13 @@ function getAddressOfDeployedContractFromDeploymentsFiles() {
 }
 function getAllNetworksArray() {
   # prepare required variables
-  local FILE="$NETWORKS_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    ARRAY+=("$line")
-  done <"$FILE"
+  while IFS= read -r network; do
+    ARRAY+=("$network")
+  done < <(jq -r 'keys[]' "$FILE")
 
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
@@ -2013,18 +2013,18 @@ function getCoreFacetsArray() {
 
 function getIncludedNetworksArray() {
   # prepare required variables
-  local FILE="$NETWORKS_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
   # extract list of excluded networks from config
   local EXCLUDED_NETWORKS_REGEXP="^($(echo "$EXCLUDE_NETWORKS" | tr ',' '|'))$"
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    if ! [[ "$line" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
-      ARRAY+=("$line")
+  while IFS= read -r network; do
+    if ! [[ "$network" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
+      ARRAY+=("$network")
     fi
-  done <"$FILE"
+  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
@@ -2149,7 +2149,7 @@ function userDialogSelectDiamondType() {
 }
 function getUserSelectedNetwork() {
   # get user-selected network
-  local NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+  local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 
   # if no value was returned (e.g. when pressing ESC, end script)
   if [[ -z "$NETWORK" ]]; then
@@ -2848,17 +2848,16 @@ function getPrivateKey() {
 
 function getChainId() {
   local NETWORK="$1"
-  local NETWORKS_JSON="config/networks.json"
 
-  if [[ ! -f "$NETWORKS_JSON" ]]; then
-    echo "Error: JSON file '$NETWORKS_JSON' not found." >&2
+  if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
     return 1
   fi
 
-  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON")
+  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [[ -z "$CHAIN_ID" ]]; then
-    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON'." >&2
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
     return 1
   fi
 
