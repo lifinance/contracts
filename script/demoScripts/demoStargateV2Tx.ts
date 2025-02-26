@@ -10,7 +10,7 @@ import {
 import { node_url } from '../../utils/network'
 import deploymentsPOL from '../../deployments/polygon.staging.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
-import stargateConfig from '../../config/stargate.json'
+import stargateConfig from '../../config/stargateV2.json'
 import { addressToBytes32, Options } from '@layerzerolabs/lz-v2-utilities'
 
 type FeeParams = {
