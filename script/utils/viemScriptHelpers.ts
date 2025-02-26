@@ -43,8 +43,9 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Chain ${networkName} does not exist. Please check that the network exists in 'config/networks.json'`
     )
 
-  const key = `ETH_NODE_URI_${networkName.toUpperCase()}`
-  const privateRpcUrl = process.env[key]
+  // Construct the environment variable key dynamically
+  const envKey = `ETH_NODE_URI_${networkName.toUpperCase()}`
+  const rpcUrl = process.env[envKey] || network.rpcUrl // Use .env value if available, otherwise fallback
 
   const chain = defineChain({
     id: network.chainId,
@@ -56,7 +57,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
     },
     rpcUrls: {
       default: {
-        http: [privateRpcUrl || network.rpcUrl],
+        http: [rpcUrl],
       },
     },
     contracts: {

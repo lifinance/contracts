@@ -37,7 +37,7 @@ jobs:
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          args=$(echo $ALL_CHANGED_FILES | xargs -n 1 -I {} printf -- "-p %s " "{}")
+          args=$(echo "$ALL_CHANGED_FILES" | xargs -n 1 printf -- "-p %s ")
           echo "ARGS=$args" >> $GITHUB_ENV
 
       - name: Run Olympix Integrated Security
