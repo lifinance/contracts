@@ -123,8 +123,11 @@ const main = defineCommand({
       .limit(1)
       .toArray()
 
+    // it seems that different versions of the SAFE package produce different object structures for "latestTx" so we use this approach to cover both cases
     const nextNonce =
-      latestTx.length > 0 ? latestTx[0].nonce + 1 : await protocolKit.getNonce()
+      latestTx.length > 0
+        ? (latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) + 1
+        : await protocolKit.getNonce()
     const safeTransactionData: SafeTransactionDataPartial = {
       to: args.to,
       value: '0',
