@@ -168,29 +168,6 @@ const main = defineCommand({
 
           const configuredFacetAddresses = Object.keys(configFacetsByAddress)
 
-          const missingInConfig = onChainFacetAddresses.filter(
-            (address) => !configFacetsByAddress[address]
-          )
-
-          const missingOnChain = configuredFacetAddresses.filter(
-            (address) => !onChainFacetAddresses.includes(address)
-          )
-
-          if (missingInConfig.length > 0) {
-            logError(
-              `The following facets exist on-chain but are missing in the config: ${JSON.stringify(
-                missingInConfig
-              )}`
-            )
-          }
-          if (missingOnChain.length > 0) {
-            logError(
-              `The following facets exist in the config but are not deployed on-chain: ${JSON.stringify(
-                missingOnChain
-              )}`
-            )
-          }
-
           registeredFacets = onChainFacets.map(([address]) => {
             return configFacetsByAddress[address.toLowerCase()]
           })
