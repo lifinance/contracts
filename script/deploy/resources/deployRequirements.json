@@ -350,19 +350,10 @@
       }
     }
   },
-  "StargateFacet": {
-    "configData": {
-      "_composer": {
-        "configFileName": "stargate.json",
-        "keyInConfigFile": ".composers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "StargateFacetV2": {
     "configData": {
       "_tokenMessaging": {
-        "configFileName": "stargate.json",
+        "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
@@ -424,37 +415,13 @@
         "allowToDeployWithZeroAddress": "false"
       },
       "_endpointV2": {
-        "configFileName": "stargate.json",
+        "configFileName": "stargateV2.json",
         "keyInConfigFile": ".endpointV2.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       },
       "_tokenMessaging": {
-        "configFileName": "stargate.json",
+        "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    },
-    "contractAddresses": {
-      "Executor": {
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "Receiver": {
-    "configData": {
-      "_sgRouter": {
-        "configFileName": "stargate.json",
-        "keyInConfigFile": ".composers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "true"
-      },
-      "_amarokRouter": {
-        "configFileName": "amarok.json",
-        "keyInConfigFile": ".<NETWORK>.connextHandler",
-        "allowToDeployWithZeroAddress": "true"
-      },
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     },

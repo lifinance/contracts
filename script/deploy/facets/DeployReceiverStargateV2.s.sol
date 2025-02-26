@@ -37,7 +37,7 @@ contract DeployScript is DeployScriptBase {
         );
 
         // obtain address of LayerZero's EndPointV2 contract in current network from config file
-        string memory path = string.concat(root, "/config/stargate.json");
+        string memory path = string.concat(root, "/config/stargateV2.json");
 
         address endpointV2 = _getConfigContractAddress(
             path,
