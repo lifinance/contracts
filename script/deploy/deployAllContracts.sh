@@ -9,6 +9,7 @@ deployAllContracts() {
   source script/deploy/deployPeripheryContracts.sh
   source script/deploy/deployCoreFacets.sh
   source script/tasks/diamondUpdateFacet.sh
+  source script/tasks/updateERC20Proxy.sh
   source script/tasks/diamondSyncDEXs.sh
   source script/tasks/diamondSyncSigs.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
@@ -121,6 +122,10 @@ deployAllContracts() {
   # run sync sigs script
   echo ""
   diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+
+  # register Executor as authorized caller in ERC20Proxy
+  echo ""
+  updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
