@@ -9,6 +9,7 @@ deployAllContracts() {
   source script/deploy/deployPeripheryContracts.sh
   source script/deploy/deployCoreFacets.sh
   source script/tasks/diamondUpdateFacet.sh
+  source script/tasks/updateERC20Proxy.sh
   source script/tasks/diamondSyncDEXs.sh
   source script/tasks/diamondSyncSigs.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
@@ -83,7 +84,10 @@ deployAllContracts() {
   local FACETS_PATH="$CONTRACT_DIRECTORY""Facets/"
 
   # prepare regExp to exclude core facets
-  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS" | tr ',' '|'))$"
+  CORE_FACETS_OUTPUT=$(getCoreFacetsArray)
+  checkFailure $? "retrieve core facets array from global.json"
+
+  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
   # loop through facet contract names
   for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
@@ -118,6 +122,10 @@ deployAllContracts() {
   # run sync sigs script
   echo ""
   diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+
+  # register Executor as authorized caller in ERC20Proxy
+  echo ""
+  updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"

@@ -37,13 +37,21 @@ contract CalledContract {
     }
 }
 
+contract LibUtilImplementer {
+    function revertWith(bytes memory reason) public pure {
+        LibUtil.revertWith(reason);
+    }
+}
+
 contract LibUtilTest is Test {
     MainContract mainContract;
     CalledContract calledContract;
+    LibUtilImplementer implementer;
 
     function setUp() public {
         mainContract = new MainContract();
         calledContract = new CalledContract();
+        implementer = new LibUtilImplementer();
     }
 
     error CustomError();
@@ -52,7 +60,8 @@ contract LibUtilTest is Test {
     function test_revert() public {
         bytes memory revertData = abi.encodeWithSelector(CustomError.selector);
         vm.expectRevert(CustomError.selector);
-        LibUtil.revertWith(revertData);
+
+        implementer.revertWith(revertData);
     }
 
     function test_revertWithMessage() public {
@@ -61,7 +70,7 @@ contract LibUtilTest is Test {
             "Custom error message"
         );
         vm.expectRevert(revertData);
-        LibUtil.revertWith(revertData);
+        implementer.revertWith(revertData);
     }
 
     function test_forwardRevertMsgFromExternalCall() public {

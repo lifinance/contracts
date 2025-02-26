@@ -2,16 +2,15 @@
 import { consola } from 'consola'
 import { $, spinner } from 'zx'
 import { defineCommand, runMain } from 'citty'
-import * as chains from 'viem/chains'
 import * as path from 'path'
 import * as fs from 'fs'
 import {
   Address,
-  Chain,
   Hex,
   PublicClient,
   createPublicClient,
   getAddress,
+  formatEther,
   getContract,
   http,
   parseAbi,
@@ -20,35 +19,18 @@ import {
   Network,
   networks,
   getViemChainForNetworkName,
-  type NetworksObject,
 } from '../utils/viemScriptHelpers'
+import { coreFacets, pauserWallet } from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
 
 const louperCmd = 'louper-cli'
 
-const coreFacets = [
-  'DiamondCutFacet',
-  'DiamondLoupeFacet',
-  'OwnershipFacet',
-  'WithdrawFacet',
-  'DexManagerFacet',
-  'PeripheryRegistryFacet',
-  'AccessManagerFacet',
-  'PeripheryRegistryFacet',
-  'GenericSwapFacet',
-  'GenericSwapFacetV3',
-  'LIFuelFacet',
-  'CalldataVerificationFacet',
-  'StandardizedCallFacet',
-]
-
 const corePeriphery = [
   'ERC20Proxy',
   'Executor',
-  'Receiver',
   'FeeCollector',
-  'LiFuelFeeCollector',
+  'LiFiDEXAggregator',
   'TokenWrapper',
 ]
 
@@ -98,7 +80,7 @@ const main = defineCommand({
         !coreFacets.includes(k) &&
         !corePeriphery.includes(k) &&
         k !== 'LiFiDiamond' &&
-        k.endsWith('Facet')
+        k.includes('Facet')
       )
     })
     const dexs = (await import(`../../config/dexs.json`))[
@@ -108,7 +90,7 @@ const main = defineCommand({
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
 
-    const chain = getViemChainForNetworkName(network)
+    const chain = getViemChainForNetworkName(network.toLowerCase())
 
     const publicClient = createPublicClient({
       batch: { multicall: true },
@@ -279,25 +261,25 @@ const main = defineCommand({
       })
       const approvedDexs = await dexManager.read.approvedDexs()
 
-      // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and TokenWrapper
+      // Loop through DEXs excluding the address for FeeCollector, LiFiDEXAggregator and TokenWrapper
       let numMissing = 0
       for (const dex of dexs.filter(
         (d) => !corePeriphery.includes(getAddress(d))
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
-          logError(`Dex ${dex} not approved in Diamond`)
+          logError(`DEX ${dex} not approved in Diamond`)
           numMissing++
         }
       }
 
-      // Check that FeeCollector, LiFuelFeeCollector and TokenWrapper are included in approvedDexs
-      const feeCollectors = corePeriphery.filter(
+      // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
+      const mustBeWhitelisted = corePeriphery.filter(
         (p) =>
           p === 'FeeCollector' ||
-          p === 'LiFuelFeeCollector' ||
+          p === 'LiFiDEXAggregator' ||
           p === 'TokenWrapper'
       )
-      for (const f of feeCollectors) {
+      for (const f of mustBeWhitelisted) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
           logError(`Periphery contract ${f} not approved as a DEX`)
           numMissing++
@@ -436,10 +418,24 @@ const main = defineCommand({
 
         if (!exists) {
           logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        }
+        } else
+          consola.success(
+            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
+          )
       } catch (error: any) {
         logError(`Error checking workflow file: ${error.message}`)
       }
+      console.log('')
+
+      const pauserBalance = formatEther(
+        await publicClient.getBalance({
+          address: pauserWallet,
+        })
+      )
+
+      if (!pauserBalance || pauserBalance === '0')
+        logError(`PauserWallet does not have any native balance`)
+      else consola.success(`PauserWallet is funded: ${pauserBalance}`)
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check access permissions                 │

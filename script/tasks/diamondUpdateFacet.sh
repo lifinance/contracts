@@ -154,17 +154,24 @@ diamondUpdateFacet() {
 
     # check the return code the last call
     if [ "$RETURN_CODE" -eq 0 ]; then
-      # extract the "logs" property and its contents from return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
+      if [[ "$ENVIRONMENT" != "production" ]]; then
+        # extract the "logs" property and its contents from return data
+        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+        # echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
 
-      # extract the "returns" property and its contents from logs
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
-      #echoDebug "RETURN_DATA: $RETURN_DATA"
+        # extract the "returns" property and its contents from logs
+        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+        # echoDebug "RETURN_DATA: $RETURN_DATA"
 
-      # get the facet addresses that are known to the diamond from the return data
-      FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
-      if [[ $FACETS != "{}" ]]; then
-        break # exit the loop if the operation was successful
+        # get the facet addresses that are known to the diamond from the return data
+        FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
+        if [[ $FACETS != "{}" ]]; then
+          break # exit the loop if the operation was successful
+        fi
+      else
+        # if deploying to PROD and RETURN_CODE is OK then we can assume that the proposal to SAFE worked fine
+        break
       fi
     fi
 

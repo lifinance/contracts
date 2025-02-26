@@ -1,9 +1,11 @@
 {
   "mainnet": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "apechain": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "arbitrum": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "aurora": "",
   "avalanche": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "base": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "berachain": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "blast": "0x000000000022d473030f116ddee9f6b43ac78ba3",
   "boba": "",
   "bsc": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
@@ -14,6 +16,7 @@
   "gnosis": "",
   "gravity": "",
   "immutablezkevm": "",
+  "ink": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "linea": "",
   "mantle": "",
   "metis": "",
@@ -26,6 +29,8 @@
   "rootstock": "",
   "scroll": "",
   "sei": "",
+  "soneium": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "taiko": "",
+  "unichain": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "zksync": "0x0000000000225e31d15943971f47ad3022f714fa"
 }

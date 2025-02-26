@@ -67,14 +67,14 @@ DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
 
+# the path to the file that contains a list of all networks
+GLOBAL_FILE_PATH="$(dirname "$0")/../config/global.json"
+
 # script will use all periphery contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_PERIPHERY_CONTRACTS=""
 
 # scripts will use all facet contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_FACET_CONTRACTS=""
-
-# contains a list of all facets that are considered core facets (and will be deployed to every network)
-CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet,LIFuelFacet,GenericSwapFacet,StandardizedCallFacet,CalldataVerificationFacet"
 
 # enable/disable notification sounds for long-running scripts
 NOTIFICATION_SOUNDS=true
@@ -97,3 +97,12 @@ MNEMONIC="test test test test test test test test test test test junk"
 PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
+
+# all the periphery contracts listed here will automatically be whitelisted as DEX when deploying "all contracts"
+WHITELIST_PERIPHERY="FeeCollector,LiFuelFeeCollector,TokenWrapper,LiFiDEXAggregator"
+
+# if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
+COMPILE_ON_STARTUP=false
+
+# if this flag is set to true, diamondCut and registerPeriphery tx will not be proposed to SAFE but executed directly
+DEPLOY_NEW_NETWORK_MODE=true

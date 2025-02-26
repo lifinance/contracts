@@ -25,7 +25,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         // If you need to read an address from your config file or from a network deploy log that is supposed to be a contract, use the
-        // following helper function which makes sure that the address contains code:
+        // following helper function which makes sure that the address contains code (and has a optional flag for allowing address(0)):
         //
         // address example = _getConfigContractAddress(json,string.concat(".", network, ".example"));
         //

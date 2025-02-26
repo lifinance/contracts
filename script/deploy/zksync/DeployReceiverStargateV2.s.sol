@@ -3,20 +3,22 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { Receiver } from "lifi/Periphery/Receiver.sol";
+import { ReceiverStargateV2 } from "lifi/Periphery/ReceiverStargateV2.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("Receiver") {}
+    constructor() DeployScriptBase("ReceiverStargateV2") {}
 
     function run()
         public
-        returns (Receiver deployed, bytes memory constructorArgs)
+        returns (ReceiverStargateV2 deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = Receiver(deploy(type(Receiver).creationCode));
+        deployed = ReceiverStargateV2(
+            deploy(type(ReceiverStargateV2).creationCode)
+        );
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
@@ -34,22 +36,19 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        // obtain address of Stargate router in current network from config file
+        // obtain address of LayerZero's EndPointV2 contract in current network from config file
         string memory path = string.concat(root, "/config/stargate.json");
 
-        address stargateRouter = _getConfigContractAddress(
+        address endpointV2 = _getConfigContractAddress(
             path,
-            string.concat(".composers.", network)
+            string.concat(".endpointV2.", network)
+        );
+        address tokenMessaging = _getConfigContractAddress(
+            path,
+            string.concat(".tokenMessaging.", network)
         );
 
-        // obtain address of Amarok router in current network from config file
-        path = string.concat(root, "/config/amarok.json");
-
-        address amarokRouter = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".connextHandler")
-        );
-
+        // get Executor address from deploy log
         path = string.concat(
             root,
             "/deployments/",
@@ -63,9 +62,9 @@ contract DeployScript is DeployScriptBase {
         return
             abi.encode(
                 refundWalletAddress,
-                stargateRouter,
-                amarokRouter,
                 executor,
+                tokenMessaging,
+                endpointV2,
                 100000
             );
     }

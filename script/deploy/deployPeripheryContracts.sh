@@ -29,6 +29,7 @@ deployPeripheryContracts() {
   echoDebug "NETWORK=$NETWORK"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
 
   # get names of all periphery contracts (that are not excluded in config)
   PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)

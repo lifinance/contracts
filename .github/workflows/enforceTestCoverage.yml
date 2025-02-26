@@ -19,32 +19,50 @@ jobs:
       contents: read
     env:
       ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
-      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
-      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      # keep the rest in alphabetic order
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+      ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
       - uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Check for Solidity file changes
+        id: check_files
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '^src/.*\.sol|^test/.*\.sol' || true)
+          if [[ -n "$CHANGED_FILES" ]]; then
+            echo "solidity_changed=true" >> "$GITHUB_ENV"
+          else
+            echo "solidity_changed=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4.1.0
         with:
           node-version: '20'
+        if: env.solidity_changed == 'true'
 
       - name: Install dev dependencies
         run: yarn install
+        if: env.solidity_changed == 'true'
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.2.0
-        with:
-          version: nightly
+        uses: foundry-rs/foundry-toolchain@v1.3.1
+        if: env.solidity_changed == 'true'
 
       - name: Install Dependencies
         run: forge install
+        if: env.solidity_changed == 'true'
 
       - name: Generate Coverage Report
+        if: env.solidity_changed == 'true'
         run: |
           forge coverage --report lcov --force --evm-version 'shanghai' --ir-minimum
 
@@ -55,6 +73,7 @@ jobs:
           echo "Coverage report successfully filtered"
 
       - name: Generate Coverage Summary
+        if: env.solidity_changed == 'true'
         run: |
 
 
@@ -133,6 +152,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Comment with Coverage Summary in PR
+        if: env.solidity_changed == 'true'
         uses: mshick/add-pr-comment@v2.8.2
         with:
           repo-token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
@@ -142,3 +162,8 @@ jobs:
             ${{ env.FUNCTION_COVERAGE_REPORT }}
             ${{ env.BRANCH_COVERAGE_REPORT }}
             ${{ env.RESULT_COVERAGE_REPORT }}
+
+
+      - name: Skip Tests (No Solidity Changes)
+        if: env.solidity_changed == 'false'
+        run: echo "No Solidity files changed. Skipping test coverage check."

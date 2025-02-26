@@ -860,8 +860,8 @@ function checkIfFileExists() {
     return 0
   fi
 }
+
 function checkRequiredVariablesInDotEnv() {
-  # read function arguments into variables
   local NETWORK=$1
 
   # skip for local network
@@ -869,31 +869,64 @@ function checkRequiredVariablesInDotEnv() {
     return 0
   fi
 
-  # skip for local network
-  if [[ "$NETWORK" == "localanvil" ]]; then
-    return 0
+  # Find the root directory where foundry.toml is located
+  local FOUNDROOT
+  FOUNDROOT=$(git rev-parse --show-toplevel 2>/dev/null || realpath "$(dirname "$0")/..")
+
+  if [[ ! -f "$FOUNDROOT/foundry.toml" ]]; then
+    error "Error: could not find foundry.toml in $FOUNDROOT"
+    return 1
+  fi
+
+  # Extract the API key variable name from foundry.toml
+  local KEY_VAR
+  KEY_VAR=$(awk -v network="$NETWORK" '
+    {
+      gsub(/^[ \t]+|[ \t]+$/, "", $0);  # Trim leading and trailing spaces
+    }
+
+    # Match lines starting with "network = { key ="
+    tolower($0) ~ "^" network " *= *\\{ *key *= *" {
+      n = split($0, parts, "\"");  # Split by double quotes
+      for (i = 1; i <= n; i++) {
+        if (index(parts[i], "${") == 1) {  # Look for ${...}
+          gsub(/[\${}]/, "", parts[i]);  # Remove ${ and }
+          print parts[i];  # Output the extracted key
+          exit;
+        }
+      }
+    }
+  ' "$FOUNDROOT/foundry.toml")
+
+  # Ensure we found a key variable
+  if [[ -z "$KEY_VAR" ]]; then
+    error "Could not determine API key for network $NETWORK in foundry.toml."
+    return 1
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
   local RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # special handling for BSC testnet
-  # uses same block explorer key as bsc mainnet
-  if [[ "$NETWORK" == "bsc-testnet" ]]; then
-    NETWORK="bsc"
-    RPC_URL="${!ETH_NODE_URI_BSCTEST}"
+  # Check if it's using MAINNET_ETHERSCAN_API_KEY
+  if [[ "$KEY_VAR" == "MAINNET_ETHERSCAN_API_KEY" ]]; then
+    # Mainnet or EtherscanV2-supported network >> API key is MAINNET_ETHERSCAN_API_KEY
+    local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
+
+    # Ensure required variables exist
+    if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
+      error "Your .env file is missing essential entries for this network (required: PRIVATE_KEY, RPC_URL, $KEY_VAR)."
+      return 1
+    fi
+  else
+    # Individual API Key
+    local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
+
+    if [[ -z "$BLOCKEXPLORER_API_KEY" ]]; then
+      error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
+      return 1
+    fi
   fi
 
-  local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")""_ETHERSCAN_API_KEY"
-  local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
-
-  if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
-    # throw error if any of the essential keys is missing
-    error "your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
-    return 1
-  fi
-
-  # all good - continue
   return 0
 }
 function getContractNamesInFolder() {
@@ -1426,16 +1459,16 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain 324 "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         fi
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1443,16 +1476,17 @@ function verifyContract() {
         fi
       fi
     else
+      # case: verify with constructor arguments
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
         fi
       else
-        if [[ $NETWORK == "zksync" ]]; then
+        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1943,6 +1977,40 @@ function getAllNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+# function to retrieve coreFacets from global.json
+function getCoreFacetsArray() {
+  # ensure GLOBAL_FILE_PATH is set and not empty
+  if [[ -z "$GLOBAL_FILE_PATH" ]]; then
+    error "GLOBAL_FILE_PATH is not set or empty." >&2
+    return 1
+  fi
+
+  local ARRAY=()
+
+  # ensure the global file exists
+  if [[ ! -f "$GLOBAL_FILE_PATH" ]]; then
+    error "Global configuration file not found at $GLOBAL_FILE_PATH ." >&2
+    return 1
+  fi
+
+  # read coreFacets array from JSON using jq
+  ARRAY=($(jq -r '.coreFacets[]' "$GLOBAL_FILE_PATH"))
+  if [[ $? -ne 0 ]]; then
+    error "Failed to parse coreFacets array from $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  # check if the array is empty
+  if [[ ${#ARRAY[@]} -eq 0 ]]; then
+    error "The coreFacets array is empty in $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  printf '%s\n' "${ARRAY[@]}"
+}
+
+
 function getIncludedNetworksArray() {
   # prepare required variables
   local FILE="$NETWORKS_FILE_PATH"
@@ -2023,8 +2091,9 @@ function getIncludedAndSortedFacetContractsArray() {
   # get all facet contracts
   FACET_CONTRACTS=($(getIncludedFacetContractsArray "$EXCLUDE_CONFIG"))
 
-  # convert CORE_FACETS into an array
-  CORE_FACETS_ARRAY=($(echo "$CORE_FACETS" | tr ',' ' '))
+  # Get core facets from global.json
+  CORE_FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # initialize empty arrays for core and non-core facet contracts
   CORE_FACET_CONTRACTS=()
@@ -2318,14 +2387,7 @@ function getContractAddressFromSalt() {
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const result = web3.utils.soliditySha3({t: 'string', v: '$SALT'},{t: 'string', v: '$CONTRACT_NAME'})
-    console.log(result);"
-
-  # execute code using web3
-  ACTUAL_SALT=$(node -e "$jsCode")
+  ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
   RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
@@ -2341,15 +2403,8 @@ function getDeployerAddress() {
 
   PRIV_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
 
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIV_KEY')).address
-    const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
-    console.log(checksumAddress);"
-
-  # execute code using web3
-  DEPLOYER_ADDRESS=$(node -e "$jsCode")
+  # get deployer address from private key
+  DEPLOYER_ADDRESS=$(cast wallet address "$PRIV_KEY")
 
   # return deployer address
   echo "$DEPLOYER_ADDRESS"
@@ -2383,8 +2438,10 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # get list of all core facet contracts from config
-  IFS=',' read -ra FACETS_NAMES <<<"$CORE_FACETS"
+  # get list of all core facet contracts from global.json
+  FACETS_NAMES=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
+
 
   # get a list of all facets that the diamond knows
   local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
@@ -2558,28 +2615,19 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
-  NODE_URL=${!NODE_URL_KEY}
+  RPC_URL=$(getRPCUrl "$NETWORK")
 
   # check if NODE_URL is available
-  if [ -z "$NODE_URL" ]; then
+  if [ -z "$RPC_URL" ]; then
     error ": no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
     return 1
   fi
 
   # make sure address is in correct checksum format
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const address = '$ADDRESS';
-    const checksumAddress = web3.utils.toChecksumAddress(address);
-    console.log(checksumAddress);"
-  CHECKSUM_ADDRESS=$(node -e "$jsCode")
+  CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
 
-  # get CONTRACT code from ADDRESS using web3
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3('$NODE_URL');
-    web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
-  contract_code=$(node -e "$jsCode")
+  # get CONTRACT code from ADDRESS using
+  contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
 
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
   if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
@@ -2812,188 +2860,22 @@ function isZkEvmNetwork() {
 }
 
 function getChainId() {
-  # read function arguments into variables
-  NETWORK="$1"
+  local NETWORK="$1"
+  local NETWORKS_JSON="config/networks.json"
 
-  # return chainId
-  case $NETWORK in
-  "mainnet")
-    echo "1"
-    return 0
-    ;;
-  "blast")
-    echo "81457"
-    return 0
-    ;;
-  "bsc")
-    echo "56"
-    return 0
-    ;;
-  "polygon")
-    echo "137"
-    return 0
-    ;;
-  "polygonzkevm")
-    echo "1101"
-    return 0
-    ;;
-  "rootstock")
-    echo "30"
-    return 0
-    ;;
-  "gnosis")
-    echo "100"
-    return 0
-    ;;
-  "fraxtal")
-    echo "252"
-    return 0
-    ;;
-  "fantom")
-    echo "250"
-    return 0
-    ;;
-  "gravity")
-    echo "1625"
-    return 0
-    ;;
-  "okx")
-    echo "66"
-    return 0
-    ;;
-  "avalanche")
-    echo "43114"
-    return 0
-    ;;
-  "arbitrum")
-    echo "42161"
-    return 0
-    ;;
-  "optimism")
-    echo "10"
-    return 0
-    ;;
-  "moonriver")
-    echo "1285"
-    return 0
-    ;;
-  "moonbeam")
-    echo "1284"
-    return 0
-    ;;
-  "celo")
-    echo "42220"
-    return 0
-    ;;
-  "fuse")
-    echo "122"
-    return 0
-    ;;
-  "cronos")
-    echo "25"
-    return 0
-    ;;
-  "velas")
-    echo "106"
-    return 0
-    ;;
-  "harmony")
-    echo "1666600000"
-    return 0
-    ;;
-  "evmos")
-    echo "9001"
-    return 0
-    ;;
-  "aurora")
-    echo "1313161554"
-    return 0
-    ;;
-  "base")
-    echo "8453"
-    return 0
-    ;;
-  "boba")
-    echo "288"
-    return 0
-    ;;
-  "nova")
-    echo "87"
-    return 0
-    ;;
-  "mode")
-    echo "34443"
-    return 0
-    ;;
-  "scroll")
-    echo "534352"
-    return 0
-    ;;
-  "goerli")
-    echo "5"
-    return 0
-    ;;
-  "bsc-testnet")
-    echo "97"
-    return 0
-    ;;
-  "sepolia")
-    echo "11155111"
-    return 0
-    ;;
-  "mumbai")
-    echo "80001"
-    return 0
-    ;;
-  "lineatest")
-    echo "59140"
-    return 0
-    ;;
-  "linea")
-    echo "59144"
-    return 0
-    ;;
-  "opbnb")
-    echo "204"
-    return 0
-    ;;
-  "metis")
-    echo "1088"
-    return 0
-    ;;
-  "localanvil")
-    echo "31337"
-    return 0
-    ;;
-  "zksync")
-    echo "324"
-    return 0
-    ;;
-  "mantle")
-    echo "5000"
-    return 0
-    ;;
-  "sei")
-    echo "1329"
-    return 0
-    ;;
-  "immutablezkevm")
-    echo "13371"
-    return 0
-    ;;
-  "xlayer")
-    echo "196"
-    return 0
-    ;;
-  "taiko")
-    echo "167000"
-    return 0
-    ;;
-  *)
+  if [[ ! -f "$NETWORKS_JSON" ]]; then
+    echo "Error: JSON file '$NETWORKS_JSON' not found." >&2
     return 1
-    ;;
-  esac
+  fi
 
+  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON")
+
+  if [[ -z "$CHAIN_ID" ]]; then
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON'." >&2
+    return 1
+  fi
+
+  echo "$CHAIN_ID"
 }
 
 function getCreate3FactoryAddress() {
