@@ -1,0 +1,55 @@
+name: Olympix Static Analysis
+
+# - runs the olympix static analyzer on newly added or modified solidity contracts inside the src/ folder in a pull request
+# - detects potential security vulnerabilities and uploads the results to github code scanning
+# - only scans diff (added, renamed, modified) solidity files in src/ instead of the whole repository
+# - ensures security issues are identified before merging, allowing the team to review and discuss findings within the PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths:
+      - 'src/**/*.sol'
+
+jobs:
+  static-analysis:
+    name: Static Analysis Security Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get added, renamed, modified Solidity Files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            src/**/*.sol
+
+      - name: Convert Changed Files to Args
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: format-args
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          args=$(echo "$ALL_CHANGED_FILES" | xargs -n 1 printf -- "-p %s ")
+          echo "ARGS=$args" >> $GITHUB_ENV
+
+      - name: Run Olympix Integrated Security
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: olympix/integrated-security@main
+        env:
+          OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
+        with:
+          args: --output-format sarif --output-path ./ ${{ env.ARGS }}
+
+      - name: Upload Result to GitHub Code Scanning
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: olympix.sarif
