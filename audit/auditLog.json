@@ -165,7 +165,7 @@
       "auditCompletedOn": "20.02.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/2025.02.20_CalldataVerificationFacet(v1.3.0).pdf",
+      "auditReportPath": "./audit/reports/2025.02.20_CalldataVerificationFacet(v1.3.0).pdf",
       "auditCommitHash": "48427d21160585f276d206f0e103ce6bd42c4c03"
     }
   },
