@@ -83,7 +83,7 @@ const main = defineCommand({
 
     let nextNonce = await safeService.getNextNonce(safeAddress)
     const currentThreshold = (await safeService.getSafeInfo(safeAddress))
-      .threshold
+      ?.threshold
     if (!currentThreshold)
       throw new Error('Could not get current signature threshold')
 
