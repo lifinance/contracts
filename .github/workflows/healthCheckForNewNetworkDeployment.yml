@@ -3,8 +3,6 @@ name: Health Check for New Network Deployment
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'config/networks.json'
 
 jobs:
   check-new-network-health:
