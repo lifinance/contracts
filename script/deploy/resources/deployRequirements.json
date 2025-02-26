@@ -501,15 +501,6 @@
       }
     }
   },
-  "LiFuelFeeCollector": {
-    "configData": {
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".lifuelRebalanceWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "RelayerCelerIM": {
     "configData": {
       "_cBridgeMessageBusAddress": {
