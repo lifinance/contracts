@@ -167,6 +167,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.02.19_GlacisFacet(v1.0.0).pdf",
       "auditCommitHash": "9e623bc2a218399172e734af0ba6dfa3f76963a5"
+    },
+    "audit20250220": {
+      "auditCompletedOn": "20.02.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.02.20_CalldataVerificationFacet(v1.3.0).pdf",
+      "auditCommitHash": "48427d21160585f276d206f0e103ce6bd42c4c03"
     }
   },
   "auditedContracts": {
@@ -179,7 +186,8 @@
       "1.2.0": ["audit20241206"]
     },
     "CalldataVerificationFacet": {
-      "1.2.0": ["audit20240902"]
+      "1.2.0": ["audit20240902"],
+      "1.3.0": ["audit20250220"]
     },
     "DeBridgeDlnFacet": {
       "1.0.0": ["audit20241205"]
