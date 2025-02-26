@@ -145,9 +145,13 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0x3aF0c2dB91f75f05493E51cFcF92eC5276bc85F8": {
+      "0xF82830B952Bc60b93206FA22f1cD4770cedb2840": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xDd661337B48BEA5194F6d26F2C59fF0855E15289": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -158,7 +162,6 @@
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
       "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
-      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
