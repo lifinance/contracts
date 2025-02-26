@@ -2845,6 +2845,19 @@ function getPrivateKey() {
     fi
   fi
 }
+function isZkEvmNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  case $NETWORK in
+    "zksync"|"abstract")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 function getChainId() {
   local NETWORK="$1"
@@ -3573,7 +3586,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+  local FOUNDRY_ZKSYNC_VERSION="nightly-cf0a88d18218471dcf13d62afa4f8fe5335d9740"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -3623,7 +3636,7 @@ install_foundry_zksync() {
 
   # Construct download URL using the specified version
   local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_nightly_${os}_${arch}.tar.gz"
+  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist
