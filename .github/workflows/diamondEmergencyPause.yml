@@ -66,6 +66,7 @@ jobs:
           ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
           ETH_NODE_URI_GRAVITY: ${{ secrets.ETH_NODE_URI_GRAVITY }}
           ETH_NODE_URI_IMMUTABLEZKEVM: ${{ secrets.ETH_NODE_URI_IMMUTABLEZKEVM }}
+          ETH_NODE_URI_INK: ${{ secrets.ETH_NODE_URI_INK }}
           ETH_NODE_URI_KAIA: ${{ secrets.ETH_NODE_URI_KAIA }}
           ETH_NODE_URI_LINEA: ${{ secrets.ETH_NODE_URI_LINEA }}
           ETH_NODE_URI_LISK: ${{ secrets.ETH_NODE_URI_LISK }}
