@@ -20,8 +20,9 @@ const networks: NetworksObject = data as NetworksObject
 
 const main = defineCommand({
   meta: {
-    name: 'propose-to-safe',
-    description: 'Propose a transaction to a Gnosis Safe',
+    name: 'add-safe-owners-and-threshold',
+    description:
+      'Adds all SAFE owners from global.json to the SAFE address in networks.json and sets threshold to 3',
   },
   args: {
     network: {
@@ -29,17 +30,13 @@ const main = defineCommand({
       description: 'Network name',
       required: true,
     },
-    rpcUrl: {
-      type: 'string',
-      description: 'RPC URL',
-    },
     privateKey: {
       type: 'string',
       description: 'Private key of the signer',
     },
   },
   async run({ args }) {
-    const { network, privateKeyArg } = args
+    const { network, privateKey: privateKeyArg } = args
 
     const chain = getViemChainForNetworkName(network)
 
