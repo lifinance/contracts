@@ -13,8 +13,8 @@ import {
 import data from '../../../config/networks.json'
 import globalConfig from '../../../config/global.json'
 import * as dotenv from 'dotenv'
-dotenv.config()
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types'
+dotenv.config()
 
 const networks: NetworksObject = data as NetworksObject
 
@@ -64,6 +64,7 @@ const main = defineCommand({
     const safeAddress = getAddress(networks[network].safeAddress)
 
     const rpcUrl = chain.rpcUrls.default.http[0] || args.rpcUrl
+
     const provider = new ethers.JsonRpcProvider(rpcUrl)
     const signer = new ethers.Wallet(privateKey, provider)
 
@@ -81,12 +82,14 @@ const main = defineCommand({
     const owners = globalConfig.safeOwners
 
     let nextNonce = await safeService.getNextNonce(safeAddress)
-    const info = safeService.getSafeInfo(safeAddress)
+    const currentThreshold = (await safeService.getSafeInfo(safeAddress))
+      .threshold
+    if (!currentThreshold)
+      throw new Error('Could not get current signature threshold')
+
     console.info('Safe Address', safeAddress)
     const senderAddress = await signer.getAddress()
     console.info('Signer Address', senderAddress)
-
-    const currentThreshold = (await info).threshold
 
     // go through all owner addresses and add each of them individually
     for (const o of owners) {

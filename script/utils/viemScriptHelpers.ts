@@ -47,6 +47,11 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   const envKey = `ETH_NODE_URI_${networkName.toUpperCase()}`
   const rpcUrl = process.env[envKey] || network.rpcUrl // Use .env value if available, otherwise fallback
 
+  if (!rpcUrl)
+    throw new Error(
+      `Could not find RPC URL for network ${networkName}, please add one with the key ${envKey} to your .env file`
+    )
+
   const chain = defineChain({
     id: network.chainId,
     name: network.name,
