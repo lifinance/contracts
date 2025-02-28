@@ -74,7 +74,7 @@
     "healthcheck": "tsx ./script/deploy/healthCheck.ts",
     "propose-safe-tx": "tsx ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "tsx ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners": "tsx ./script/deploy/safe/add-owners-to-safe.ts",
+    "add-safe-owners-and-threshold": "tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "flatten": "forge flatten --output"
   },
   "dependencies": {
