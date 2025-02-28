@@ -8,6 +8,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IGlacisAirlift } from "../Interfaces/IGlacisAirlift.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title Glacis Facet
 /// @author LI.FI (https://li.fi/)
@@ -32,6 +33,9 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initializes the GlacisFacet contract
     /// @param _airlift The address of Glacis Airlift contract.
     constructor(IGlacisAirlift _airlift) {
+        if (address(_airlift) == address(0)) {
+            revert InvalidConfig();
+        }
         airlift = _airlift;
     }
 

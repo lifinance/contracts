@@ -5,7 +5,7 @@ import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -125,6 +125,11 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             refundAddress: REFUND_WALLET,
             nativeFee: addToMessageValue
         });
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestGlacisFacet(IGlacisAirlift(address(0)));
     }
 
     function initiateBridgeTxWithFacet(bool) internal virtual override {
