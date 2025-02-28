@@ -127,6 +127,12 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
     }
 
+    function test_WillStoreConstructorParametersCorrectly() public {
+        glacisFacet = new TestGlacisFacet(airliftContract);
+
+        assertEq(address(glacisFacet.airlift()), address(airliftContract));
+    }
+
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestGlacisFacet(IGlacisAirlift(address(0)));
