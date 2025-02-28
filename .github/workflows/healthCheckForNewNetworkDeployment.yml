@@ -69,7 +69,6 @@ jobs:
             if ! jq -e 'has("'"$network"'")' script/deploy/_targetState.json > /dev/null; then
               echo "❌ Error: Network '$network' not found in script/deploy/_targetState.json"
               exit 1
-            fi
             else
               echo "✅ Confirmed: Network '$network' exists in script/deploy/_targetState.json"
             fi
@@ -78,7 +77,6 @@ jobs:
             if [[ ! -f "deployments/$network.json" ]]; then
               echo "❌ Error: Missing deployment file: deployments/$network.json"
               exit 1
-            fi
             else
               echo "✅ Confirmed: Deployment file: deployments/$network.json exists"
             fi
