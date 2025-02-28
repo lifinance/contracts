@@ -24264,6 +24264,16 @@
             "SALT": "",
             "VERIFIED": "false"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6C96d5C36d9aDBD3F4e0337D2d1E133A59288D1A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 09:07:01",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
