@@ -167,6 +167,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.02.20_CalldataVerificationFacet(v1.3.0).pdf",
       "auditCommitHash": "48427d21160585f276d206f0e103ce6bd42c4c03"
+    },
+    "audit20250228": {
+      "auditCompletedOn": "28.02.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.02.28_MayanFacet(v1.1.0).pdf",
+      "auditCommitHash": "be250763f57596d53d19a1af0988ed3ea351148e"
     }
   },
   "auditedContracts": {
@@ -231,6 +238,9 @@
     },
     "LiFuelFeeCollector": {
       "1.0.2": ["audit20250109_3"]
+    },
+    "MayanFacet": {
+      "1.1.0": ["audit20250228"]
     },
     "Permit2Proxy": {
       "1.0.0": ["audit20241122"],
