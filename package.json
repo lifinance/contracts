@@ -110,7 +110,7 @@
     ],
     "*.sol": [
       "prettier --write",
-      "solhint --fix"
+      "solhint --noPrompt --fix"
     ]
   }
 }
