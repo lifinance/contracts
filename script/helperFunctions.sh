@@ -3389,33 +3389,31 @@ function compareAddresses() {
     return 1
   fi
 }
-function sendMessageToDiscordSmartContractsChannel() {
+function sendMessageToSlackSmartContractsChannel() {
   # read function arguments into variable
   local MESSAGE=$1
 
-  if [ -z "$DISCORD_WEBHOOK_DEV_SMARTCONTRACTS" ]; then
+  if [ -z "$SLACK_WEBHOOK_SC_GENERAL" ]; then
     echo ""
-    warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
+    warning "Slack webhook URL for dev-sc-general is missing. Cannot send log message."
     echo ""
     return 1
   fi
 
   echo ""
-  echoDebug "sending the following message to Discord webhook ('dev-smartcontracts' channel):"
+  echoDebug "sending the following message to Slack webhook ('dev-sc-general' channel):"
   echoDebug "$MESSAGE"
   echo ""
 
   # Send the message
   curl -H "Content-Type: application/json" \
      -X POST \
-     -d "{\"content\": \"$MESSAGE\"}" \
-     $DISCORD_WEBHOOK_DEV_SMARTCONTRACTS
+     -d "{\"text\": \"$MESSAGE\"}" \
+     $SLACK_WEBHOOK_SC_GENERAL
 
-  echoDebug "Log message sent to Discord"
+  echoDebug "Log message sent to Slack"
 
   return 0
-
-
 }
 
 function getUserInfo() {
