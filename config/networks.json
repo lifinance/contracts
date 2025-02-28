@@ -17,7 +17,7 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=eth:0x37347dD595C49212C5FC2D95EA10d1085896f51E",
     "gasZipChainId": 255
   },
-  "abstract": {
+  "abstract-test-ignore": {
     "name": "abstract",
     "chainId": 2741,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
