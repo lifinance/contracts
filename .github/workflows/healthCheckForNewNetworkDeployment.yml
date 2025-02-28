@@ -1,5 +1,11 @@
 name: Health Check for New Network Deployment
 
+# - designed to perform health checks for newly added networks
+# - triggers on pull requests and first checks if the config/networks.json file was modified
+# - validates that each new network has corresponding deployment and state configuration files
+# - runs network-specific health checks
+# - any required file is missing or a health check fails, the action exits with an error
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -34,15 +40,15 @@ jobs:
           if git show origin/main:config/networks.json > /dev/null 2>&1; then
             OLD_NETWORKS=$(git show origin/main:config/networks.json | jq 'keys')
           else
-            echo "No previous networks.json found, assuming all networks are new."
-            OLD_NETWORKS="[]"
+            echo "❌ Error: No previous networks.json found. Expected existing network configuration."
+            exit 1
           fi
 
           NEW_NETWORKS=$(jq 'keys' config/networks.json)
 
-          echo "New Networks: $NEW_NETWORKS"
-
           ADDED_NETWORKS=$(jq -n --argjson old "$OLD_NETWORKS" --argjson new "$NEW_NETWORKS" '$new - $old')
+
+          echo "Added networks: $ADDED_NETWORKS"
 
           if [[ "$ADDED_NETWORKS" == "[]" ]]; then
             echo "No new networks detected."
@@ -64,11 +70,17 @@ jobs:
               echo "❌ Error: Network '$network' not found in script/deploy/_targetState.json"
               exit 1
             fi
+            else
+              echo "✅ Confirmed: Network '$network' exists in script/deploy/_targetState.json"
+            fi
 
             # Check if deployments/{network}.json file exists
             if [[ ! -f "deployments/$network.json" ]]; then
               echo "❌ Error: Missing deployment file: deployments/$network.json"
               exit 1
+            fi
+            else
+              echo "✅ Confirmed: Deployment file: deployments/$network.json exists"
             fi
           done
 
