@@ -5,7 +5,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { LibBytes } from "../Libraries/LibBytes.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -16,8 +15,6 @@ import { IMayan } from "../Interfaces/IMayan.sol";
 /// @notice Provides functionality for bridging through Mayan Bridge
 /// @custom:version 1.1.0
 contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    using LibBytes for bytes;
-
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
