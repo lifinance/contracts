@@ -24238,6 +24238,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:42:48",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -24248,6 +24258,16 @@
             "ADDRESS": "0x4682d79DD4D0e7555415841b5151933AF50594A8",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-02 12:29:25",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:49:54",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
             "VERIFIED": "true"
@@ -24288,6 +24308,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:47:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -24302,6 +24332,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:57:43",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -24312,6 +24352,16 @@
             "ADDRESS": "0x4682d79DD4D0e7555415841b5151933AF50594A8",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-02 11:50:48",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6ADA8e557E1571c56D004D28006cD609e8837C58",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:40:13",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
             "VERIFIED": "true"
@@ -24330,6 +24380,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:51:32",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -24340,6 +24400,16 @@
             "ADDRESS": "0x4682d79DD4D0e7555415841b5151933AF50594A8",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-02 12:32:04",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-28 17:52:38",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
             "VERIFIED": "true"
