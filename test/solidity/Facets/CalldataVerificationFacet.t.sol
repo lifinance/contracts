@@ -447,6 +447,42 @@ contract CalldataVerificationFacetTest is TestBase {
         assertFalse(badCall);
     }
 
+    function testRevert_WhenCallToAddressIsTooShort() public {
+        uint16 ASSET_ID_USDC = 1;
+        address STARGATE_POOL_USDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+
+        StargateFacetV2.StargateData memory stargateData = StargateFacetV2
+            .StargateData({
+                assetId: ASSET_ID_USDC,
+                sendParams: IStargate.SendParam({
+                    dstEid: 30150,
+                    to: USER_RECEIVER.addressToBytes32(),
+                    amountLD: defaultUSDCAmount,
+                    minAmountLD: (defaultUSDCAmount * 9e4) / 1e5,
+                    extraOptions: "",
+                    composeMsg: bytes("foobarbytes"),
+                    oftCmd: OftCmdHelper.bus()
+                }),
+                fee: IStargate.MessagingFee({ nativeFee: 0, lzTokenFee: 0 }),
+                refundAddress: payable(USER_REFUND)
+            });
+        bytes memory callData = abi.encodeWithSelector(
+            StargateFacetV2.startBridgeTokensViaStargate.selector,
+            bridgeData,
+            stargateData
+        );
+
+        bytes memory invalidCallTo = hex"1234"; // too short (length < 20)
+
+        vm.expectRevert("Invalid callTo length; expected at least 20 bytes");
+
+        calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            invalidCallTo,
+            bytes("foobarbytes")
+        );
+    }
+
     function test_CanValidateCelerIMDestinationCalldata() public {
         CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
