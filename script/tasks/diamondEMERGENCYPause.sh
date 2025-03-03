@@ -88,7 +88,7 @@ function diamondEMERGENCYPause {
 
   # get user info and send message to discord server
   local USER_INFO=$(getUserInfo)
-  sendMessageToDiscordSmartContractsChannel ":warning: an emergency diamond action was just triggered (action: $ACTION, user info: $USER_INFO). Please immediately investigate if this action was not planned. :warning:"
+  sendMessageToSlackSmartContractsChannel ":warning: an emergency diamond action was just triggered (action: $ACTION, user info: $USER_INFO). Please immediately investigate if this action was not planned. :warning:"
 
   # Initialize return status
   local RETURN=0
