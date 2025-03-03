@@ -207,25 +207,18 @@ for (const [k, v] of Object.entries(chains)) {
  * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
  * @param rpcUrl - Optional RPC URL override
  */
-const func = async (
+const processTxs = async (
   network: string,
   privateKey: string,
   privKeyType: privateKeyType,
+  pendingTxs: SafeTxDocument[],
+  pendingTransactions: any,
   rpcUrl?: string
 ) => {
   consola.info(' ')
   consola.info('-'.repeat(80))
 
   const chain = getViemChainForNetworkName(network)
-
-  if (!process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is required')
-  }
-
-  const mongoClient = new MongoClient(process.env.MONGODB_URI)
-  const db = mongoClient.db('SAFE')
-  const pendingTransactions = db.collection('pendingTransactions')
-
   const safeAddress = networks[network.toLowerCase()].safeAddress
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
@@ -252,16 +245,6 @@ const func = async (
     )
     return
   }
-
-  // Get pending transactions from MongoDB
-  const allTx = await pendingTransactions
-    .find<SafeTxDocument>({
-      safeAddress,
-      network: network.toLowerCase(),
-      chainId: chain.id,
-      status: 'pending',
-    })
-    .toArray()
 
   /**
    * Initializes a SafeTransaction from MongoDB document data
@@ -367,23 +350,25 @@ const func = async (
 
   // Filter and augment transactions with signature status
   const txs = await Promise.all(
-    allTx.map(async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
-      const threshold = await protocolKit.getThreshold()
-      const safeTransaction = await initializeSafeTransaction(tx)
-      const hasSignedAlready = isSignedByCurrentSigner(
-        safeTransaction,
-        signerAddress
-      )
-      const canExecute = hasEnoughSignatures(safeTransaction, threshold)
+    pendingTxs.map(
+      async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
+        const threshold = await protocolKit.getThreshold()
+        const safeTransaction = await initializeSafeTransaction(tx)
+        const hasSignedAlready = isSignedByCurrentSigner(
+          safeTransaction,
+          signerAddress
+        )
+        const canExecute = hasEnoughSignatures(safeTransaction, threshold)
 
-      return {
-        ...tx,
-        safeTransaction,
-        hasSignedAlready,
-        canExecute,
-        threshold,
+        return {
+          ...tx,
+          safeTransaction,
+          hasSignedAlready,
+          canExecute,
+          threshold,
+        }
       }
-    })
+    )
   ).then((txs: AugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
       const needsMoreSignatures =
@@ -398,7 +383,6 @@ const func = async (
 
   if (!txs.length) {
     consola.success('No pending transactions')
-    await mongoClient.close()
     return
   }
 
@@ -542,9 +526,6 @@ const func = async (
       }
     }
   }
-
-  // Close MongoDB connection after processing all transactions
-  await mongoClient.close()
 }
 
 /**
@@ -596,9 +577,57 @@ const main = defineCommand({
         throw Error(`could not find a key named ${keyChoice} in your .env file`)
     }
 
-    for (const network of networks) {
-      await func(network, privateKey, keyType, args.rpcUrl)
+    // Connect to MongoDB and fetch ALL pending transactions
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is required')
     }
+
+    const mongoClient = new MongoClient(process.env.MONGODB_URI)
+    const db = mongoClient.db('SAFE')
+    const pendingTransactions = db.collection('pendingTransactions')
+
+    // Fetch all pending transactions for the networks we're processing
+    const allPendingTxs = await pendingTransactions
+      .find<SafeTxDocument>({
+        network: { $in: networks.map((n) => n.toLowerCase()) },
+        status: 'pending',
+      })
+      .toArray()
+
+    // Group transactions by network
+    const txsByNetwork: Record<string, SafeTxDocument[]> = {}
+    for (const tx of allPendingTxs) {
+      const network = tx.network.toLowerCase()
+      if (!txsByNetwork[network]) {
+        txsByNetwork[network] = []
+      }
+      txsByNetwork[network].push(tx)
+    }
+
+    // Sort transactions by nonce for each network
+    for (const network in txsByNetwork) {
+      txsByNetwork[network].sort((a, b) => {
+        if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
+        if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
+        return 0
+      })
+    }
+
+    // Process transactions for each network
+    for (const network of networks) {
+      const networkTxs = txsByNetwork[network.toLowerCase()] || []
+      await processTxs(
+        network,
+        privateKey,
+        keyType,
+        networkTxs,
+        pendingTransactions,
+        args.rpcUrl
+      )
+    }
+
+    // Close MongoDB connection
+    await mongoClient.close()
   },
 })
 
