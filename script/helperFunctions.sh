@@ -2866,9 +2866,13 @@ function getChainId() {
 
 function getCreate3FactoryAddress() {
   NETWORK="$1"
-  local CONFIG="config/global.json"
 
-  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.create3Factory[$NETWORK] // .create3Factory["default"]' $CONFIG)
+  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  if [ -z "$CREATE3_FACTORY" ]; then
+    echo "Error: create3Factory address not found for network '$NETWORK'"
+    return 1
+  fi
 
   echo $CREATE3_FACTORY
 }
