@@ -20,7 +20,7 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/stargate.json");
+        string memory path = string.concat(root, "/config/stargateV2.json");
 
         address tokenMessaging = _getConfigContractAddress(
             path,
