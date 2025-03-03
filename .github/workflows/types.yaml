@@ -35,7 +35,7 @@ jobs:
 
       # Step 5: Install Node.js dependencies
       - name: Install Node Dependencies
-        run: yarn install
+        run: bun install
 
       # Step 6: Generate ABI from contracts
       - name: Generate ABI
@@ -43,7 +43,7 @@ jobs:
 
       # Step 7: Generate TypeScript bindings from ABI
       - name: Generate TypeScript Bindings
-        run: yarn typechain
+        run: bun typechain
 
       # Step 8: Checkout the lifi-contract-types repository
       - name: Checkout lifi-contract-types Repository
