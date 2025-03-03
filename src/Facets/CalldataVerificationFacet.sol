@@ -16,6 +16,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @custom:version 1.3.0
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
+    address public test;
 
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
