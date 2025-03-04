@@ -23,7 +23,7 @@ The methods listed above take a variable labeled `_chainflipData`. This data is 
 
 ```solidity
 struct ChainflipData {
-  bytes32 nonEVMReceiver; // Destination address for non-EVM chains (Solana, Bitcoin)
+  bytes nonEVMReceiver; // Destination address for non-EVM chains (Solana, Bitcoin)
   uint32 dstToken; // Chainflip specific token identifier on the destination chain
   address dstCallReceiver; // Receiver contract address used for destination calls. Ignored if there is no destination call
   LibSwap.SwapData[] dstCallSwapData; // Swap data to be used in destination calls. Ignored if no destination call

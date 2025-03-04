@@ -127,8 +127,8 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes32(
-            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        validChainflipData.nonEVMReceiver = bytes(
+            "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
         );
 
         vm.startPrank(USER_SENDER);
@@ -156,8 +156,8 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes32(
-            abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+        validChainflipData.nonEVMReceiver = bytes(
+            "bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a"
         );
 
         vm.startPrank(USER_SENDER);
@@ -380,16 +380,16 @@ contract ChainflipFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
-        validChainflipData.nonEVMReceiver = bytes32(
-            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        validChainflipData.nonEVMReceiver = bytes(
+            "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
         );
         initiateBridgeTxWithFacet(false);
 
         // Test Bitcoin mapping
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
-        validChainflipData.nonEVMReceiver = bytes32(
-            abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+        validChainflipData.nonEVMReceiver = bytes(
+            "bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a"
         );
         initiateBridgeTxWithFacet(false);
 
@@ -406,7 +406,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes32(0); // Empty address should fail
+        validChainflipData.nonEVMReceiver = bytes(""); // Empty address should fail
 
         vm.startPrank(USER_SENDER);
 
@@ -473,8 +473,8 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.receiver = USER_RECEIVER; // Use EVM address
         bridgeData.destinationChainId = CHAIN_ID_ETHEREUM;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes32(
-            abi.encodePacked("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a")
+        validChainflipData.nonEVMReceiver = bytes(
+            "bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a"
         );
 
         vm.startPrank(USER_SENDER);

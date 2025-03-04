@@ -20,7 +20,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
         uint256 indexed destinationChainId,
-        bytes32 receiver
+        bytes receiver
     );
 
     /// Errors ///
@@ -49,7 +49,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param gasAmount Gas budget for the call on the destination chain
     /// @param cfParameters Additional parameters for future features
     struct ChainflipData {
-        bytes32 nonEVMReceiver;
+        bytes nonEVMReceiver;
         uint32 dstToken;
         address dstCallReceiver;
         LibSwap.SwapData[] dstCallSwapData;
@@ -148,12 +148,10 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Handle address encoding based on destination chain type
         bytes memory encodedDstAddress;
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
-            if (_chainflipData.nonEVMReceiver == bytes32(0)) {
+            if (_chainflipData.nonEVMReceiver.length == 0) {
                 revert EmptyNonEvmAddress();
             }
-            encodedDstAddress = abi.encodePacked(
-                _chainflipData.nonEVMReceiver
-            );
+            encodedDstAddress = _chainflipData.nonEVMReceiver;
 
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,

@@ -205,8 +205,7 @@ async function main() {
     : []
 
   const chainflipData: ChainflipFacet.ChainflipDataStruct = {
-    nonEVMReceiver:
-      '0x0000000000000000000000000000000000000000000000000000000000000000',
+    nonEVMReceiver: '',
     dstToken: withDestinationCall ? 1 : 3, // 1 for ETH, 3 for USDC on ETH
     dstCallReceiver: RECEIVER_CHAINFLIP,
     dstCallSwapData: dstSwapData,
