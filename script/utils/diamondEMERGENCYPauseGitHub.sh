@@ -172,10 +172,10 @@ function main {
   # create array with network/s for which the script should be executed
   local NETWORKS=()
 
-  # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    NETWORKS+=("$line")
-  done <"./networks"
+  # loop through networks.json list and add each network to ARRAY that is not excluded
+  while IFS= read -r network; do
+    NETWORKS+=("$network")
+  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
   echo "networks found: ${NETWORKS[@]}"
 

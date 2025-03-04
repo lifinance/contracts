@@ -2,10 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
-import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
-import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
@@ -17,7 +15,6 @@ import { TestBase } from "../utils/TestBase.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import { console } from "forge-std/console.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
@@ -388,108 +385,13 @@ contract CalldataVerificationFacetTest is TestBase {
         assertFalse(invalidCall);
     }
 
-    function test_CanValidateAmarokDestinationCalldata() public {
-        AmarokFacet.AmarokData memory amarokData = AmarokFacet.AmarokData({
-            callData: bytes("foobarbytes"),
-            callTo: USER_RECEIVER,
-            relayerFee: 0,
-            slippageTol: 0,
-            delegate: USER_RECEIVER,
-            destChainDomainId: 1234,
-            payFeeWithSendingAsset: false
-        });
-
-        bytes memory callData = abi.encodeWithSelector(
-            AmarokFacet.startBridgeTokensViaAmarok.selector,
-            bridgeData,
-            amarokData
-        );
-
-        bytes memory callDataWithSwap = abi.encodeWithSelector(
-            AmarokFacet.swapAndStartBridgeTokensViaAmarok.selector,
-            bridgeData,
-            swapData,
-            amarokData
-        );
-
-        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                callDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
-
-        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
-    }
-
-    function test_CanValidateStargateDestinationCalldata() public {
-        StargateFacet.StargateData memory sgData = StargateFacet.StargateData({
-            srcPoolId: 1,
-            dstPoolId: 2,
-            minAmountLD: 3,
-            dstGasForCall: 4,
-            lzFee: 5,
-            refundAddress: payable(address(0x1234)),
-            callTo: abi.encode(USER_RECEIVER),
-            callData: bytes("foobarbytes")
-        });
-
-        bytes memory callData = abi.encodeWithSelector(
-            StargateFacet.startBridgeTokensViaStargate.selector,
-            bridgeData,
-            sgData
-        );
-
-        bytes memory callDataWithSwap = abi.encodeWithSelector(
-            StargateFacet.swapAndStartBridgeTokensViaStargate.selector,
-            bridgeData,
-            swapData,
-            sgData
-        );
-
-        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                callDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
-
-        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
-    }
-
     function test_CanValidateStargateV2DestinationCalldata() public {
-        uint16 ASSET_ID_USDC = 1;
-        address STARGATE_POOL_USDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+        uint16 assetIdUSDC = 1;
+        address stargatePoolUSDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
 
         StargateFacetV2.StargateData memory stargateData = StargateFacetV2
             .StargateData({
-                assetId: ASSET_ID_USDC,
+                assetId: assetIdUSDC,
                 sendParams: IStargate.SendParam({
                     dstEid: 30150,
                     to: USER_RECEIVER.addressToBytes32(),
@@ -504,7 +406,7 @@ contract CalldataVerificationFacetTest is TestBase {
             });
 
         // get quote and update fee information in stargateData
-        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+        IStargate.MessagingFee memory fees = IStargate(stargatePoolUSDC)
             .quoteSend(stargateData.sendParams, false);
         stargateData.fee = fees;
 
@@ -542,6 +444,41 @@ contract CalldataVerificationFacetTest is TestBase {
         assertTrue(validCall);
         assertTrue(validCallWithSwap);
         assertFalse(badCall);
+    }
+
+    function testRevert_WhenCallToAddressIsTooShort() public {
+        uint16 assetIdUSDC = 1;
+
+        StargateFacetV2.StargateData memory stargateData = StargateFacetV2
+            .StargateData({
+                assetId: assetIdUSDC,
+                sendParams: IStargate.SendParam({
+                    dstEid: 30150,
+                    to: USER_RECEIVER.addressToBytes32(),
+                    amountLD: defaultUSDCAmount,
+                    minAmountLD: (defaultUSDCAmount * 9e4) / 1e5,
+                    extraOptions: "",
+                    composeMsg: bytes("foobarbytes"),
+                    oftCmd: OftCmdHelper.bus()
+                }),
+                fee: IStargate.MessagingFee({ nativeFee: 0, lzTokenFee: 0 }),
+                refundAddress: payable(USER_REFUND)
+            });
+        bytes memory callData = abi.encodeWithSelector(
+            StargateFacetV2.startBridgeTokensViaStargate.selector,
+            bridgeData,
+            stargateData
+        );
+
+        bytes memory invalidCallTo = hex"1234"; // too short (length < 20)
+
+        vm.expectRevert("Invalid callTo length; expected at least 20 bytes");
+
+        calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            invalidCallTo,
+            bytes("foobarbytes")
+        );
     }
 
     function test_CanValidateCelerIMDestinationCalldata() public {

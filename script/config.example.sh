@@ -64,8 +64,8 @@ VERIFY_CONTRACTS=true
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
 
-# the path to the file that contains a list of all networks
-NETWORKS_FILE_PATH="./networks"
+# the path to the file that contains a list of all networks and their details
+NETWORKS_JSON_FILE_PATH="$(dirname "$0")/../config/networks.json"
 
 # the path to the file that contains a list of all networks
 GLOBAL_FILE_PATH="$(dirname "$0")/../config/global.json"
@@ -106,3 +106,6 @@ COMPILE_ON_STARTUP=false
 
 # if this flag is set to true, diamondCut and registerPeriphery tx will not be proposed to SAFE but executed directly
 DEPLOY_NEW_NETWORK_MODE=true
+
+# webhook URL for sending messages to Slack 'dev-sc-general' channel
+SLACK_WEBHOOK_SC_GENERAL=

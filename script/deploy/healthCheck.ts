@@ -31,7 +31,6 @@ const corePeriphery = [
   'Executor',
   'FeeCollector',
   'LiFiDEXAggregator',
-  'Receiver',
   'TokenWrapper',
 ]
 

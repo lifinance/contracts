@@ -3,11 +3,8 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { AmarokFacet } from "./AmarokFacet.sol";
 import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { StargateFacetV2 } from "./StargateFacetV2.sol";
-import { StargateFacet } from "./StargateFacet.sol";
-import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
@@ -159,7 +156,6 @@ contract CalldataVerificationFacet {
         }
 
         LibSwap.SwapData[] memory swapData;
-        bytes memory callData = data;
         bytes4 functionSelector = bytes4(data[:4]);
 
         if (
@@ -175,13 +171,13 @@ contract CalldataVerificationFacet {
 
             // extract parameters from calldata
             (, , , receiver, receivingAmount, swapData[0]) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (bytes32, string, string, address, uint256, LibSwap.SwapData)
             );
         } else {
             // multi swap or GenericSwap V1 call
             (, , , receiver, receivingAmount, swapData) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (bytes32, string, string, address, uint256, LibSwap.SwapData[])
             );
         }
@@ -250,60 +246,7 @@ contract CalldataVerificationFacet {
         bytes calldata callTo,
         bytes calldata dstCalldata
     ) external pure returns (bool isValid) {
-        bytes memory callData = data;
-        bytes4 selector = abi.decode(callData, (bytes4));
-
-        // ---------------------------------------
-        // Case: Amarok
-        if (selector == AmarokFacet.startBridgeTokensViaAmarok.selector) {
-            (, AmarokFacet.AmarokData memory amarokData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (ILiFi.BridgeData, AmarokFacet.AmarokData)
-            );
-
-            return
-                keccak256(dstCalldata) == keccak256(amarokData.callData) &&
-                abi.decode(callTo, (address)) == amarokData.callTo;
-        }
-        if (
-            selector == AmarokFacet.swapAndStartBridgeTokensViaAmarok.selector
-        ) {
-            (, , AmarokFacet.AmarokData memory amarokData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (ILiFi.BridgeData, LibSwap.SwapData[], AmarokFacet.AmarokData)
-            );
-            return
-                keccak256(dstCalldata) == keccak256(amarokData.callData) &&
-                abi.decode(callTo, (address)) == amarokData.callTo;
-        }
-
-        // ---------------------------------------
-        // Case: Stargate
-        if (selector == StargateFacet.startBridgeTokensViaStargate.selector) {
-            (, StargateFacet.StargateData memory stargateData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (ILiFi.BridgeData, StargateFacet.StargateData)
-            );
-            return
-                keccak256(dstCalldata) == keccak256(stargateData.callData) &&
-                keccak256(callTo) == keccak256(stargateData.callTo);
-        }
-        if (
-            selector ==
-            StargateFacet.swapAndStartBridgeTokensViaStargate.selector
-        ) {
-            (, , StargateFacet.StargateData memory stargateData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (
-                    ILiFi.BridgeData,
-                    LibSwap.SwapData[],
-                    StargateFacet.StargateData
-                )
-            );
-            return
-                keccak256(dstCalldata) == keccak256(stargateData.callData) &&
-                keccak256(callTo) == keccak256(stargateData.callTo);
-        }
+        bytes4 selector = bytes4(data[:4]);
 
         // ---------------------------------------
         // Case: StargateV2
@@ -313,7 +256,7 @@ contract CalldataVerificationFacet {
         ) {
             (, StargateFacetV2.StargateData memory stargateDataV2) = abi
                 .decode(
-                    callData.slice(4, callData.length - 4),
+                    data[4:],
                     (ILiFi.BridgeData, StargateFacetV2.StargateData)
                 );
 
@@ -331,7 +274,7 @@ contract CalldataVerificationFacet {
         ) {
             (, , StargateFacetV2.StargateData memory stargateDataV2) = abi
                 .decode(
-                    callData.slice(4, callData.length - 4),
+                    data[4:],
                     (
                         ILiFi.BridgeData,
                         LibSwap.SwapData[],
@@ -354,7 +297,7 @@ contract CalldataVerificationFacet {
             selector == CelerIMFacetBase.startBridgeTokensViaCelerIM.selector
         ) {
             (, CelerIM.CelerIMData memory celerIMData) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (ILiFi.BridgeData, CelerIM.CelerIMData)
             );
             return
@@ -366,7 +309,7 @@ contract CalldataVerificationFacet {
             CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector
         ) {
             (, , CelerIM.CelerIMData memory celerIMData) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (ILiFi.BridgeData, LibSwap.SwapData[], CelerIM.CelerIMData)
             );
             return
@@ -376,7 +319,7 @@ contract CalldataVerificationFacet {
         // Case: AcrossV3
         if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
             (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (ILiFi.BridgeData, AcrossFacetV3.AcrossV3Data)
             );
 
@@ -390,7 +333,7 @@ contract CalldataVerificationFacet {
             AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector
         ) {
             (, , AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (
                     ILiFi.BridgeData,
                     LibSwap.SwapData[],
@@ -407,7 +350,7 @@ contract CalldataVerificationFacet {
         // Case: AcrossV3
         if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
             (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (ILiFi.BridgeData, AcrossFacetV3.AcrossV3Data)
             );
 
@@ -421,7 +364,7 @@ contract CalldataVerificationFacet {
             AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector
         ) {
             (, , AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                callData.slice(4, callData.length - 4),
+                data[4:],
                 (
                     ILiFi.BridgeData,
                     LibSwap.SwapData[],
