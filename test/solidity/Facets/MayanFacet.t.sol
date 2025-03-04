@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap, LibAsset } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, LibSwap, LibAsset } from "../utils/TestBaseFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
@@ -36,16 +36,18 @@ contract MayanFacetTest is TestBaseFacet {
     MayanFacet.MayanData internal validMayanDataNative;
     MayanFacet.MayanData internal invalidMayanDataEVM2Solana;
     TestMayanFacet internal mayanBridgeFacet;
-    IMayan internal MAYAN_FORWARDER =
+    IMayan internal constant MAYAN_FORWARDER =
         IMayan(0x0654874eb7F59C6f5b39931FC45dC45337c967c3);
-    address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
-    address DEV_WALLET = 0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
-    address internal NON_EVM_ADDRESS =
+    address internal constant POLYGON_USDT =
+        0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    address internal constant DEV_WALLET =
+        0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
+    address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
-    bytes32 ACTUAL_SOL_ADDR =
+    bytes32 internal constant ACTUAL_SOL_ADDR =
         hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d"; // [pre-commit-checker: not a secret]
-    bytes32 EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
+    bytes32 internal constant EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
 
     error InvalidReceiver(address expected, address actual);
     error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
@@ -407,7 +409,7 @@ contract MayanFacetTest is TestBaseFacet {
         testBase_CanSwapAndBridgeNativeTokens();
     }
 
-    function test_CanBridgeNativeTokens2() public {
+    function test_CanBridgeNativeTokens() public {
         vm.startPrank(USER_SENDER);
         // store initial balances
         uint256 initialBalance = USER_SENDER.balance;
