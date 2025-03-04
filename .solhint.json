@@ -24,7 +24,6 @@
     "not-rely-on-time": "off",
     "contract-name-capwords": "error",
     "event-name-capwords": "error",
-    "func-name-mixedcase": "error",
     "immutable-vars-naming": ["error", { "immutablesAsConstants": true }],
     "use-forbidden-name": "error",
     "var-name-mixedcase": "error",
