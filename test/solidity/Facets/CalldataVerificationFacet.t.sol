@@ -15,7 +15,6 @@ import { TestBase } from "../utils/TestBase.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import { console } from "forge-std/console.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
@@ -387,12 +386,12 @@ contract CalldataVerificationFacetTest is TestBase {
     }
 
     function test_CanValidateStargateV2DestinationCalldata() public {
-        uint16 ASSET_ID_USDC = 1;
-        address STARGATE_POOL_USDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+        uint16 assetIdUSDC = 1;
+        address stargatePoolUSDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
 
         StargateFacetV2.StargateData memory stargateData = StargateFacetV2
             .StargateData({
-                assetId: ASSET_ID_USDC,
+                assetId: assetIdUSDC,
                 sendParams: IStargate.SendParam({
                     dstEid: 30150,
                     to: USER_RECEIVER.addressToBytes32(),
@@ -407,7 +406,7 @@ contract CalldataVerificationFacetTest is TestBase {
             });
 
         // get quote and update fee information in stargateData
-        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+        IStargate.MessagingFee memory fees = IStargate(stargatePoolUSDC)
             .quoteSend(stargateData.sendParams, false);
         stargateData.fee = fees;
 
@@ -448,12 +447,11 @@ contract CalldataVerificationFacetTest is TestBase {
     }
 
     function testRevert_WhenCallToAddressIsTooShort() public {
-        uint16 ASSET_ID_USDC = 1;
-        address STARGATE_POOL_USDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+        uint16 assetIdUSDC = 1;
 
         StargateFacetV2.StargateData memory stargateData = StargateFacetV2
             .StargateData({
-                assetId: ASSET_ID_USDC,
+                assetId: assetIdUSDC,
                 sendParams: IStargate.SendParam({
                     dstEid: 30150,
                     to: USER_RECEIVER.addressToBytes32(),
