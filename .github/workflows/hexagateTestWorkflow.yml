@@ -15,6 +15,13 @@ on:
         required: true
 
 jobs:
+  test_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Warning Input
+-       if: ${{ inputs.Warning != 'UNDERSTOOD' }}
++       if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        run: echo "Warning not confirmed. Aborting further steps."
   hexagate-test-workflow:
     runs-on: ubuntu-latest
     steps:
