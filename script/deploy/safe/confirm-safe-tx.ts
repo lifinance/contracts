@@ -65,45 +65,8 @@ const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?f
 
 const allNetworks = Object.keys(networksConfig)
 
-// In order to skip specific networks simple comment them in
-const skipNetworks: string[] = [
-  // 'mainnet',
-  // 'arbitrum',
-  // 'aurora',
-  // 'avalanche',
-  // 'base',
-  // 'blast',
-  // 'boba',
-  // 'bsc',
-  // 'celo',
-  // 'cronos',
-  // 'fantom',
-  // 'fraxtal',
-  // 'fuse',
-  // 'gnosis',
-  // 'gravity',
-  // 'immutablezkevm',
-  // 'kaia',
-  // 'linea',
-  // 'mantle',
-  // 'metis',
-  // 'mode',
-  // 'moonbeam',
-  // 'moonriver',
-  // 'optimism',
-  // 'opbnb',
-  // 'polygon',
-  // 'polygonzkevm',
-  // 'rootstock',
-  // 'scroll',
-  // 'sei',
-  // 'taiko',
-  // 'xlayer',
-  // 'zksync',
-]
 const defaultNetworks = allNetworks.filter(
   (network) =>
-    !skipNetworks.includes(network) &&
     network !== 'localanvil' &&
     networks[network.toLowerCase()].status === 'active' // <<< deactivate this to operate on non-active networks
 )
