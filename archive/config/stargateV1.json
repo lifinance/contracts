@@ -68,69 +68,6 @@
       "chainId": 122,
       "endpointId": 30138
     }
-<<<<<<<< HEAD:archive/config/stargateV1.json
-  ],
-  "chains": [
-    {
-      "chainId": 1,
-      "lzChainId": 101
-    },
-    {
-      "chainId": 137,
-      "lzChainId": 109
-    },
-    {
-      "chainId": 56,
-      "lzChainId": 102
-    },
-    {
-      "chainId": 43114,
-      "lzChainId": 106
-    },
-    {
-      "chainId": 42161,
-      "lzChainId": 110
-    },
-    {
-      "chainId": 250,
-      "lzChainId": 112
-    },
-    {
-      "chainId": 10,
-      "lzChainId": 111
-    },
-    {
-      "chainId": 1088,
-      "lzChainId": 151
-    },
-    {
-      "chainId": 8453,
-      "lzChainId": 184
-    },
-    {
-      "chainId": 59144,
-      "lzChainId": 183
-    },
-    {
-      "chainId": 324,
-      "lzChainId": 165
-    },
-    {
-      "chainId": 1101,
-      "lzChainId": 158
-    },
-    {
-      "chainId": 534352,
-      "lzChainId": 214
-    },
-    {
-      "chainId": 5000,
-      "lzChainId": 181
-    },
-    {
-      "chainId": 1329,
-      "lzChainId": 30280
-    }
   ],
   "composers": {
     "mainnet": "0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9",
@@ -228,7 +165,4 @@
     "mumbai": "0x817436a076060D158204d955E5403b6Ed0A5fac0",
     "sepolia": "0x0000000000000000000000000000000000000000"
   }
-========
-  ]
->>>>>>>> 46e2315d1d4ef35f31d403f018a62a06eeda3ef2:config/stargate.json
 }
