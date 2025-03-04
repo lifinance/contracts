@@ -106,3 +106,6 @@ COMPILE_ON_STARTUP=false
 
 # if this flag is set to true, diamondCut and registerPeriphery tx will not be proposed to SAFE but executed directly
 DEPLOY_NEW_NETWORK_MODE=true
+
+# webhook URL for sending messages to Slack 'dev-sc-general' channel
+SLACK_WEBHOOK_SC_GENERAL=
