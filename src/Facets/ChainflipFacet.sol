@@ -127,6 +127,9 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ChainflipData calldata _chainflipData
     ) internal {
         uint32 dstChain = _getChainflipChainId(_bridgeData.destinationChainId);
+        bool isNativeAsset = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        );
 
         // Initialize message variable at function scope level
         bytes memory message;
@@ -172,7 +175,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         // Handle ERC20 token approval outside the if/else to avoid code duplication
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        if (!isNativeAsset) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(chainflipVault),
@@ -182,7 +185,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Handle destination calls
         if (_bridgeData.hasDestinationCall) {
-            if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            if (isNativeAsset) {
                 chainflipVault.xCallNative{ value: _bridgeData.minAmount }(
                     dstChain,
                     encodedDstAddress,
@@ -204,7 +207,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 );
             }
         } else {
-            if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            if (isNativeAsset) {
                 chainflipVault.xSwapNative{ value: _bridgeData.minAmount }(
                     dstChain,
                     encodedDstAddress,
