@@ -114,7 +114,7 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
         address actualAssetId = assetId == CHAINFLIP_NATIVE_ADDRESS
             ? LibAsset.NATIVE_ASSETID
             : assetId;
-        bool isNative = actualAssetId == LibAsset.NATIVE_ASSETID;
+        bool isNative = LibAsset.isNativeAsset(actualAssetId);
 
         if (!isNative) {
             // ERC20 token operations
