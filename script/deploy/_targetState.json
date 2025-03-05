@@ -1155,7 +1155,10 @@
         "LiFiDEXAggregator": "1.6.0",
         "GasZipPeriphery": "1.0.1",
         "GasZipFacet": "2.0.2",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "RelayFacet": "1.0.0",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
       }
     }
   },

@@ -27,7 +27,7 @@ diamondUpdateSgConfig() {
   fi
 
   # get user-selected network from list
-	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+	NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 	# get user-selected script from list
 	SCRIPT="UpdateConfigForStargate"
 
