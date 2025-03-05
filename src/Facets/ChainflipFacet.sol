@@ -183,9 +183,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Handle destination calls
         if (_bridgeData.hasDestinationCall) {
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-                IChainflipVault(chainflipVault).xCallNative{
-                    value: _bridgeData.minAmount
-                }(
+                chainflipVault.xCallNative{ value: _bridgeData.minAmount }(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
@@ -194,7 +192,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     _chainflipData.cfParameters
                 );
             } else {
-                IChainflipVault(chainflipVault).xCallToken(
+                chainflipVault.xCallToken(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
@@ -207,16 +205,14 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             }
         } else {
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-                IChainflipVault(chainflipVault).xSwapNative{
-                    value: _bridgeData.minAmount
-                }(
+                chainflipVault.xSwapNative{ value: _bridgeData.minAmount }(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
                     _chainflipData.cfParameters
                 );
             } else {
-                IChainflipVault(chainflipVault).xSwapToken(
+                chainflipVault.xSwapToken(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
