@@ -41,8 +41,14 @@ jobs:
           LATEST_RUN=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/olympixStaticAnalysis.yml/runs?status=completed&per_page=10")
 
+          echo "LATEST_RUN"
+          echo $LATEST_RUN
+
           # Filter to find the first run with head_branch matching our branch name
           WORKFLOW_STATUS=$(echo "$LATEST_RUN" | jq -r --arg branch "$BRANCH_NAME" '.workflow_runs[] | select(.head_branch == $branch) | .conclusion' | head -n1)
+
+          echo "WORKFLOW_STATUS"
+          echo $WORKFLOW_STATUS
 
           if [[ "$WORKFLOW_STATUS" != "success" ]]; then
             echo "The Olympix Static Analysis workflow has not been successfully completed for branch: $BRANCH_NAME."
@@ -207,11 +213,12 @@ jobs:
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
+              DISMISS_COMMENT_SINGLE_LINE=$(echo "$DISMISS_COMMENT" | tr '\n' ' ' | tr '\r' ' ')
 
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
-              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT\n\n"
+              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_SINGLE_LINE\n\n"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
@@ -219,6 +226,9 @@ jobs:
           if [[ "$UNRESOLVED_COUNT" -eq 0 && "$DISMISSED_COUNT" -eq 0 && "$INVALID_REASON_COUNT" -eq 0 ]]; then
             COMMENT_BODY+="✅ **No unresolved security alerts!** 🎉\n\n"
           fi
+
+          echo "COMMENT_BODY"
+          echo $COMMENT_BODY
 
           # Update existing comment if found; otherwise, post a new one.
           if [[ -n "$EXISTING_COMMENT_ID" ]]; then
