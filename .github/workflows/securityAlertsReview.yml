@@ -208,6 +208,9 @@ jobs:
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
 
+              echo "DISMISS_COMMENT"
+              echo $DISMISS_COMMENT
+
               DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json' | sed 's/^"//; s/"$//' | sed 's/\\\//\//g')
 
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
