@@ -23529,22 +23529,6 @@
       }
     }
   },
-  "MayanBridgeFacet": {
-    "bsc": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x5Ba4FeD1DAd2fD057A9f687B399B8e4cF2368214",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-03-13 16:20:44",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
-            "SALT": "",
-            "VERIFIED": "true"
-          }
-        ]
-      }
-    }
-  },
   "TokenWrapper": {
     "polygon": {
       "staging": {
@@ -24340,7 +24324,7 @@
             "TIMESTAMP": "2025-02-28 17:57:43",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
