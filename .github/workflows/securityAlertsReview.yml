@@ -220,6 +220,9 @@ jobs:
             COMMENT_BODY+="✅ **No unresolved security alerts!** 🎉\n\n"
           fi
 
+          echo "COMMENT_BODY"
+          echo $COMMENT_BODY
+
           # Update existing comment if found; otherwise, post a new one.
           if [[ -n "$EXISTING_COMMENT_ID" ]]; then
             echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
