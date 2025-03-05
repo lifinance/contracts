@@ -30,7 +30,7 @@
     "imports-on-top": "error",
     "visibility-modifier-order": "error",
     "gas-custom-errors": "error",
-    "quotes": ["error","double"],
+    "quotes": ["error", "double"],
     "avoid-call-value": "off",
     "avoid-low-level-calls": "off",
     "avoid-sha3": "error",
