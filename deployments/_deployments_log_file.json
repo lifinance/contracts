@@ -29844,5 +29844,21 @@
         ]
       }
     }
+  },
+  "GlacisFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF82830B952Bc60b93206FA22f1cD4770cedb2840",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-26 15:22:09",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d9e7f6f7dc7517678127d84dbf0f0b4477de14e0",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
   }
 }
