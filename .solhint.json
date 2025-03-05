@@ -29,7 +29,7 @@
     "var-name-mixedcase": "error",
     "imports-on-top": "error",
     "visibility-modifier-order": "error",
-    "gas-custom-errors": "warn",
+    "gas-custom-errors": "error",
     "quotes": ["error", "double"],
     "avoid-call-value": "off",
     "avoid-low-level-calls": "off",
