@@ -213,19 +213,12 @@ jobs:
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
-
-              echo "DISMISS_COMMENT"
-              echo $DISMISS_COMMENT
-
-              DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json' | sed 's/^"//; s/"$//' | sed 's/\\\//\//g' | sed 's/\\n/\n/g')
-
-              echo "DISMISS_COMMENT_ESCAPED"
-              echo $DISMISS_COMMENT_ESCAPED
+              DISMISS_COMMENT_SINGLE_LINE=$(echo "$DISMISS_COMMENT" | tr '\n' ' ' | tr '\r' ' ')
 
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
-              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_ESCAPED\n\n"
+              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_SINGLE_LINE\n\n"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
