@@ -208,10 +208,12 @@ jobs:
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
 
+              DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json' | sed 's/^"//; s/"$//')
+
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
-              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT\n\n"
+              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_ESCAPED\n\n"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
@@ -223,21 +225,16 @@ jobs:
           echo "COMMENT_BODY"
           echo $COMMENT_BODY
 
-          PAYLOAD=$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')
-
-          echo "Payload:"
-          echo "$PAYLOAD"
-
           # Update existing comment if found; otherwise, post a new one.
           if [[ -n "$EXISTING_COMMENT_ID" ]]; then
             echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
             curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "$PAYLOAD" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
               "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
           else
             echo "Posting new comment to PR..."
             curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "$PAYLOAD" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
           fi
 
