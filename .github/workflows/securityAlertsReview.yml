@@ -217,7 +217,7 @@ jobs:
               echo "DISMISS_COMMENT"
               echo $DISMISS_COMMENT
 
-              DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json' | sed 's/^"//; s/"$//' | sed 's/\\\//\//g')
+              DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json')
 
               echo "DISMISS_COMMENT_ESCAPED"
               echo $DISMISS_COMMENT_ESCAPED
@@ -225,7 +225,7 @@ jobs:
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
-              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT\n\n"
+              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_ESCAPED\n\n"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
