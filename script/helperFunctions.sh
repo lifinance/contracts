@@ -2849,14 +2849,14 @@ function isZkEvmNetwork() {
   # read function arguments into variables
   local NETWORK="$1"
 
-  case $NETWORK in
-    "zksync"|"abstract")
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+  # Check if the network exists in networks.json and if isZkEVM is true
+  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM // false' "$NETWORKS_JSON_FILE_PATH")
+  
+  if [[ "$IS_ZK_EVM" == "true" ]]; then
+    return 0  # Success (true)
+  else
+    return 1  # Failure (false)
+  fi
 }
 
 function getChainId() {
