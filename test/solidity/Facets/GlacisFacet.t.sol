@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -27,7 +27,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     ERC20 internal srcToken;
     uint256 internal defaultSrcTokenAmount;
     uint256 internal destinationChainId;
-    address internal ADDRESS_SRC_TOKEN;
+    address internal addressSrcToken;
     uint256 internal fuzzingAmountMinValue;
     uint256 internal fuzzingAmountMaxValue;
 
@@ -36,12 +36,12 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function setUp() public virtual {
         initTestBase();
 
-        srcToken = ERC20(ADDRESS_SRC_TOKEN);
+        srcToken = ERC20(addressSrcToken);
 
         defaultSrcTokenAmount = 1_000 * 10 ** srcToken.decimals();
 
         deal(
-            ADDRESS_SRC_TOKEN,
+            addressSrcToken,
             USER_SENDER,
             500_000 * 10 ** srcToken.decimals()
         );
@@ -74,7 +74,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "glacis";
-        bridgeData.sendingAssetId = ADDRESS_SRC_TOKEN;
+        bridgeData.sendingAssetId = addressSrcToken;
         bridgeData.minAmount = defaultSrcTokenAmount;
         bridgeData.destinationChainId = destinationChainId;
 
@@ -84,7 +84,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // liquidity on V2 dexes
         addLiquidity(
             ADDRESS_DAI,
-            ADDRESS_SRC_TOKEN,
+            addressSrcToken,
             100_000 * 10 ** ERC20(ADDRESS_DAI).decimals(),
             100_000 * 10 ** srcToken.decimals()
         );
@@ -160,11 +160,11 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         virtual
         override
         assertBalanceChange(
-            ADDRESS_SRC_TOKEN,
+            addressSrcToken,
             USER_SENDER,
             -int256(defaultSrcTokenAmount)
         )
-        assertBalanceChange(ADDRESS_SRC_TOKEN, USER_RECEIVER, 0)
+        assertBalanceChange(addressSrcToken, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
@@ -226,7 +226,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // Swap DAI -> {SOURCE TOKEN}
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
-        path[1] = ADDRESS_SRC_TOKEN;
+        path[1] = addressSrcToken;
 
         uint256 amountOut = defaultSrcTokenAmount;
 
@@ -238,7 +238,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
                 callTo: address(uniswap),
                 approveTo: address(uniswap),
                 sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: ADDRESS_SRC_TOKEN,
+                receivingAssetId: addressSrcToken,
                 fromAmount: amountIn,
                 callData: abi.encodeWithSelector(
                     uniswap.swapExactTokensForTokens.selector,
@@ -258,8 +258,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         virtual
         override
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_SRC_TOKEN, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_SRC_TOKEN, USER_RECEIVER, 0)
+        assertBalanceChange(addressSrcToken, USER_SENDER, 0)
+        assertBalanceChange(addressSrcToken, USER_RECEIVER, 0)
     {
         uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
 
@@ -282,7 +282,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             bridgeData.transactionId,
             address(uniswap),
             ADDRESS_DAI,
-            ADDRESS_SRC_TOKEN,
+            addressSrcToken,
             swapData[0].fromAmount,
             bridgeData.minAmount,
             block.timestamp
@@ -443,7 +443,7 @@ contract GlacisFacetWormholeTest is GlacisFacetTestBase {
         airliftContract = IGlacisAirlift(
             0xD9E7f6f7Dc7517678127D84dBf0F0b4477De14E0
         );
-        ADDRESS_SRC_TOKEN = 0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91; // address of W token on Arbitrum network
+        addressSrcToken = 0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91; // address of W token on Arbitrum network
         destinationChainId = 10;
         fuzzingAmountMinValue = 1; // Minimum fuzzing amount (actual value includes token decimals)
         fuzzingAmountMaxValue = 100_000; // Maximum fuzzing amount (actual value includes token decimals)
@@ -459,7 +459,7 @@ contract GlacisFacetLINKTest is GlacisFacetTestBase {
         airliftContract = IGlacisAirlift(
             0x30095227Eb6d72FA6c09DfdeFFC766c33f7FA2DD
         );
-        ADDRESS_SRC_TOKEN = 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196; // address of LINK token on Base network
+        addressSrcToken = 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196; // address of LINK token on Base network
         destinationChainId = 34443;
         fuzzingAmountMinValue = 1; // Minimum fuzzing amount (actual value includes token decimals)
         fuzzingAmountMaxValue = 10_000; // Maximum fuzzing amount (actual value includes token decimals)

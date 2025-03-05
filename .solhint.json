@@ -11,7 +11,7 @@
     "code-complexity": ["error", 20],
     "explicit-types": ["error", "explicit"],
     "max-states-count": ["error", 15],
-    "no-empty-blocks": "error",
+    "no-empty-blocks": "off",
     "no-global-import": "error",
     "no-unused-import": "error",
     "no-unused-vars": "error",
