@@ -217,7 +217,7 @@ jobs:
               echo "DISMISS_COMMENT"
               echo $DISMISS_COMMENT
 
-              DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json' | sed 's/^"//; s/"$//' | sed 's/\\\//\//g')
+              DISMISS_COMMENT_ESCAPED=$(jq -Rn --arg c "$DISMISS_COMMENT" '$c | @json' | sed 's/^"//; s/"$//' | sed 's/\\\//\//g' | sed 's/\\n/\n/g')
 
               echo "DISMISS_COMMENT_ESCAPED"
               echo $DISMISS_COMMENT_ESCAPED
