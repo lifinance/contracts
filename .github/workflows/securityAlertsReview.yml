@@ -208,10 +208,15 @@ jobs:
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
 
+              # we convert the dismissal comment to a single line because:
+              # 1. newlines in this context dont render properly (or get escaped) in the final github PR comment
+              # 2) it keeps the format consistent with how github code scanning alerts display these comments.
+              DISMISS_COMMENT_SINGLE_LINE=$(echo "$DISMISS_COMMENT" | tr '\n' ' ' | tr '\r' ' ')
+
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
-              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT\n\n"
+              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_SINGLE_LINE\n\n"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
