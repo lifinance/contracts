@@ -210,7 +210,7 @@ jobs:
 
               # we convert the dismissal comment to a single line because:
               # 1. newlines in this context dont render properly (or get escaped) in the final github PR comment
-              # 2) it keeps the format consistent with how github code scanning alerts display these comments.
+              # 2. it keeps the format consistent with how github code scanning alerts display these comments.
               DISMISS_COMMENT_SINGLE_LINE=$(echo "$DISMISS_COMMENT" | tr '\n' ' ' | tr '\r' ' ')
 
               COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
