@@ -8,7 +8,6 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        vmExt.zkVm(true);
         return update("RelayFacet");
     }
 }
