@@ -286,6 +286,33 @@ contract ChainflipFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
+        public
+        override
+    {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // prepare bridgeData
+        bridgeData.hasDestinationCall = true;
+
+        // In the ChainflipFacet, when hasDestinationCall is true, it uses dstCallReceiver
+        // which is zero by default, so it will revert with InvalidReceiver before checking
+        // for the destination call data
+        //
+        // NOTE: We override this test from TestBaseFacet because the base test expects
+        // InformationMismatch error, but our implementation checks for zero receiver address
+        // first (which throws InvalidReceiver) before checking for empty destination call data.
+        // The order of validation in _startBridge() means we hit the InvalidReceiver check
+        // before we would hit the InformationMismatch check.
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenDestinationCallFlagMismatchesMessage() public {
         // Case 1: hasDestinationCall is true but message is empty
         bridgeData.hasDestinationCall = true;

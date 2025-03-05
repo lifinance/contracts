@@ -131,23 +131,6 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId
         );
 
-        // Initialize message variable at function scope level
-        bytes memory message;
-
-        // Validate destination call flag matches message presence first
-        if (_bridgeData.hasDestinationCall) {
-            if (_chainflipData.dstCallSwapData.length == 0) {
-                revert InformationMismatch();
-            }
-            message = abi.encode(
-                _bridgeData.transactionId,
-                _chainflipData.dstCallSwapData,
-                _bridgeData.receiver
-            );
-        } else if (_chainflipData.dstCallSwapData.length > 0) {
-            revert InformationMismatch();
-        }
-
         // Handle address encoding based on destination chain type
         bytes memory encodedDstAddress;
         if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
@@ -185,6 +168,16 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Handle destination calls
         if (_bridgeData.hasDestinationCall) {
+            if (_chainflipData.dstCallSwapData.length == 0) {
+                revert InformationMismatch();
+            }
+
+            bytes memory message = abi.encode(
+                _bridgeData.transactionId,
+                _chainflipData.dstCallSwapData,
+                _bridgeData.receiver
+            );
+
             if (isNativeAsset) {
                 chainflipVault.xCallNative{ value: _bridgeData.minAmount }(
                     dstChain,
@@ -207,6 +200,10 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 );
             }
         } else {
+            if (_chainflipData.dstCallSwapData.length > 0) {
+                revert InformationMismatch();
+            }
+
             if (isNativeAsset) {
                 chainflipVault.xSwapNative{ value: _bridgeData.minAmount }(
                     dstChain,
