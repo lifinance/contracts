@@ -42,7 +42,7 @@ Follow the folder structure to locate resources and generate or modify code in a
 
 ## Facet contract checklist
 - All facet contracts must reside in `src/Facets/`.
-- Facet contract names must include the word "Facet".
+- Facet contract names must include the word `Facet`.
 - Facets must always include the following three functions:
   1. `_startBridge` – an internal function.
   2. `swapAndStartBridgeTokensVia{FacetName}`.
