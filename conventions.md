@@ -262,4 +262,43 @@ Follow the folder structure to locate resources and generate or modify code in a
   - `README.md`: Contains an overview and setup instructions.  
   - `/docs`: Contains detailed technical documentation, API specifications, and deployment guides.
 
-  
+# Deployment and update scripts
+
+Deployment and update scripts for LI.FI smart contracts are located in: `script/deploy/facets/`. Each contract has a corresponding `Deploy` and `Update` script. These scripts ensure that contract deployments and upgrades follow a structured and consistent approach.
+
+
+- **Naming conventions:**  
+  - Deployment scripts must be prefixed with `Deploy` followed by the contract name (e.g., zDeployMayanFacet.s.solz).
+  - Update scripts must be prefixed with `Update` followed by the contract name (e.g., zUpdateMayanFacet.s.solz).
+- **Structure of Deployment scripts:**  
+  - Each deployment script follow this format:
+    - Inherits `DeployScriptBase` to maintain consistency.
+    - Uses JSON config (`stdJson`) to fetch contract-specific configuration data.
+    - Defines `getConstructorArgs()` to handle constructor arguments dynamically.
+    - Encodes constructor arguments before deployment.
+    - Calls `deploy()` using `type({ContractName}).creationCode`.
+- **Structure of Update scripts:**  
+  - Each deployment script follow this format:
+    - Inherits `UpdateScriptBase` for consistency in update logic.
+    - Calls `update("{ContractName}")` to handle facet upgrades in the Diamond architecture.
+    - Ensures correct function selectors are updated.
+  - Special Case: Some facets may require the exclusion of certain function selectors during updates. This is handled using `getExcludes()`:
+    - Define an instance of the contract (`contractInstance`).
+    - Use `.selector` to exclude specific functions.
+    - Return an array containing function selectors to be excluded.
+- **Configuration and JSON handling:**  
+  - Each deployment script references JSON config files under: `/config/`
+    - The script dynamically selects values based on the network using: 
+      ```
+      string memory path = string.concat(root, "/config/{facetName}.json");
+      address {configValueVariableName} = _getConfigContractAddress(
+        path,
+        string.concat(".{key}.", network, ".{subkey}")
+      );
+      ```
+      This allows fetching various values such as bridges, allowed tokens, and other necessary configurations dynamically based on the network and facet needs.
+
+
+
+
+
