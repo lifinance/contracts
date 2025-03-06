@@ -49,33 +49,32 @@ Follow the folder structure to locate resources and generate or modify code in a
   3. `startBridgeTokensVia{FacetName}`.
 - **General inheritance**
   Facet contracts typically inherit from a set of core contracts/interfaces to ensure standardized functionality. A typical facet contract inherits from:
-  Interfaces:
-  - ILiFi - Defines the standard interface for all bridging operations.
-  Libraries:
-  - LibAsset - Handles asset deposits, approvals, and transfers.
-  - LibSwap - Provides swap-related utilities.
-  - LibAllowList - Ensures only approved contract calls can be executed.
-  Security and utility contracts:
-  - ReentrancyGuard - Protects against reentrancy attacks.
-  - SwapperV2 - Provides swapping functionality.
-  - Validatable - Implements bridge data validation logic.
-  External utility contracts:
-  - ECDSA - Used for signature verification.
+  - **Interfaces**:
+    - `ILiFi` - Defines the standard interface for all bridging operations.
+  - **Libraries**:
+    - `LibAsset` - Handles asset deposits, approvals, and transfers.
+    - `LibSwap` - Provides swap-related utilities.
+    - `LibAllowList` - Ensures only approved contract calls can be executed.
+  - **Security and utility contracts**:
+    - `ReentrancyGuard` - Protects against reentrancy attacks.
+    - `SwapperV2` - Provides swapping functionality.
+    - `Validatable` - Implements bridge data validation logic.
+  - **External utility contracts**:
+    - `ECDSA` - Used for signature verification.
 - **Sender handling:**  
-  Confirm whether the use of msg.sender is justified. Especially if a facet needs to pass an address for refunds (named refundAddress or depositor or similar) to the bridge itself, we discourage the use of msg.sender and instead recommend to use a dedicated parameter so the refundAddress can be specified independently of who sends/executes the transaction.
+  Confirm whether the use of msg.sender is justified. Especially if a facet needs to pass an address for refunds (named `refundAddress` or `depositor` or similar) to the bridge itself, we discourage the use of msg.sender and instead recommend to use a dedicated parameter so the refundAddress can be specified independently of who sends/executes the transaction.
 
   Often, pass the “sender/depositor” as a parameter so refunds return directly to the user.
 - **Parameter adjustments:**  
   After a swap, verify if facet-specific parameters (e.g., expected `outputAmount`) require adjustment based on the actual swap outcome. This is especially relevant for intent-based bridges, where execution paths may vary, leading to deviations in expected amounts.
 - **Parameter ordering:**  
   For facets with a `receiverAddress` parameter, it should be the first parameter in the `{facetName}Data` struct.
-  The receiverAddress must always be explicitly validated against bridgeData.receiver in the function logic:
+  The receiverAddress must always be explicitly validated against `bridgeData.receiver` in the function logic:
   ```
   if (
       (bridgeData.receiver != {facetName}Data.receiverAddress)
   ) revert InformationMismatch();
   ```
-  require(facetData.receiverAddress == bridgeData.receiver, "receiverAddress mismatch");
   This ensures that funds are always sent to the correct recipient and prevents potential misrouting due to incorrectly passed parameters.
 - **Cross-verification:**  
   If `facetData` contains a `targetChainId`, the facet must verify it against `bridgeData.destinationChain` to ensure these values match. This check applies only to EVM-to-EVM transactions.
@@ -89,35 +88,29 @@ Follow the folder structure to locate resources and generate or modify code in a
 
 - **Events:**  
   1. Transaction Start:
-      Event: `LiFiTransferStarted`
-      When to emit: At the start of a successful transaction, before any external calls.
-      Purpose: Enables tracking of bridge transactions.
+      - Event: `LiFiTransferStarted`
+      - When to emit: At the start of a successful transaction, before any external calls.
+      - Purpose: Enables tracking of bridge transactions.
       ```
       emit LiFiTransferStarted(bridgeData);
       ```
 
   2. Transaction Completion:
-      Event: `LiFiTransferCompleted`
-      When to emit: After a transaction is successfully executed and the funds have arrived at the destination.
-      Purpose: Signals that the bridge transaction was finalized.
+      - Event: `LiFiTransferCompleted`
+      - When to emit: After a transaction is successfully executed and the funds have arrived at the destination.
+      - Purpose: Signals that the bridge transaction was finalized.
 
-  3. Transaction Recovery (Fallback Mechanism):
-      Event: `LiFiTransferRecovered`
-      When to emit: If a transaction fails or is refunded and the original sender recovers their funds.
-      Purpose: Ensures visibility for recoveries and refunds.
-
-  4. Swap Event (For Historical Compatibility):
-      Event: `LiFiSwappedGeneric`
-      When to emit: This event is deprecated but should be included for compatibility with older transaction logs.
-      Purpose: Maintains backward compatibility for existing indexers and monitoring tools.
+  3. Transaction Recovery:
+      - Event: `LiFiTransferRecovered`
+      - When to emit: If a transaction fails or is refunded and the original sender recovers their funds.
+      - Purpose: Ensures visibility for recoveries and refunds.
 
 - **Fee handling:**  
   For native fees, the facet must use the `_depositAndSwap` variant that reserves the required fee before execution. This ensures that native assets needed for bridging are deducted correctly.
 - **Non-EVM chain support:**  
-  For native fees, use the `_depositAndSwap` variant that reserves the fee. For non-evm chains (e.g., Bitcoin), ensure the `receiverAddress` is declared as `bytes` (not `bytes32`).
   For transactions targeting non-EVM chains (e.g., Bitcoin, Solana):
-    The `receiverAddress` must be declared as `bytes` (not `bytes32`).
-    The facet must ensure that the non-EVM address is not zero, enforcing this with:
+    - The `receiverAddress` must be declared as `bytes` (not `bytes32`).
+    - The facet must ensure that the non-EVM address is not zero, enforcing this with:
       ```
       if ({facetName}Data.receiverAddress == bytes32(0)) {
           revert InvalidNonEVMReceiver(
@@ -126,7 +119,7 @@ Follow the folder structure to locate resources and generate or modify code in a
           );
       }
       ```
-    When a non-EVM address is used, the `bridgeData.receiver` must contain `LibAsset.NON_EVM_ADDRESS`, ensuring proper handling:
+    - When a non-EVM address is used, the `bridgeData.receiver` must contain `LibAsset.NON_EVM_ADDRESS`, ensuring proper handling:
       ```
       if (
           bridgeData.receiver != LibAsset.NON_EVM_ADDRESS
@@ -139,17 +132,12 @@ Follow the folder structure to locate resources and generate or modify code in a
 ## Solidity test conventions (.t.sol files)
 
 - **File naming and structure**  
-  - Test files must have a `.t.sol` extension (e.g., `AcrossFacetV3.t.sol`, `DeBridgeDlnFacet.t.sol`, `DexManagerFacet.t.sol`, `{facetName}.t.sol`).  
-  - Each file should begin with the SPDX license identifier and the Solidity version:
-
-        // SPDX-License-Identifier: Unlicense
-        pragma solidity ^0.8.17;
-
+  - Test files must have a `.t.sol` extension (e.g., `AcrossFacetV3.t.sol`, `DeBridgeDlnFacet.t.sol`, `DexManagerFacet.t.sol`).
   - Group and order imports with system libraries first and project files next.
 
 - **Test function naming**  
   - All tests that verify a successful execution (i.e., not expecting any reverts) must be prefixed with: `test_`
-  - All tests that verify a failure case and expect a specific revert reason must be prefixed with: `testRevert_`. All negative tests must check for a specific revert reason. Usage of vm.expectRevert() without a reason is discouraged and should only be used in exceptional cases where the revert reason is dynamic.
+  - All tests that verify a failure case and expect a specific revert reason must be prefixed with: `testRevert_`. All negative tests must check for a specific revert reason. Usage of `vm.expectRevert()` without a reason is discouraged and should only be used in exceptional cases where the revert reason is dynamic.
   - Use clear and descriptive names that capture the test’s purpose. For example:  
     1. `test_CanSwapAndBridgeTokensWithOutputAmountPercent`  
     2. `testRevert_FailsIfCalledWithOutdatedQuote`  
@@ -241,7 +229,7 @@ Follow the folder structure to locate resources and generate or modify code in a
 - **Error handling and logging:**  
   - Use dedicated helper functions for logging (e.g., `echoDebug`, `error`, `warning`, `success`) stored in `script/helperFunctions.sh` to provide consistent, color-coded feedback.  
   - Validate external inputs and environment variables early in the script, and exit with a clear error message if required variables are missing.  
-  - **Child function failure checking:** When calling any underlying child function, immediately check its exit status using the `checkFailure` helper function. This ensures that if a function fails, the script halts further execution, preventing cascading errors.  
+  - When calling any underlying child function, immediately check its exit status using the `checkFailure` helper function. This ensures that if a function fails, the script halts further execution, preventing cascading errors.  
   - If installing a new system package, add it to `preinstall.sh` so that developers have a unified initial installation procedure.
 - **User interaction and prompts:**  
   - When user input is needed (e.g., selecting a network or confirming an action), use clear prompts with descriptive instructions. Tools like `gum choose` can enhance usability.  
@@ -256,12 +244,12 @@ Follow the folder structure to locate resources and generate or modify code in a
 - **Audit log file (`auditLog.json`):**  
   Contains two main sections:
   1. **audits:** Each audit entry has a unique ID (e.g., `auditYYYYMMDD_X`) where `YYYYMMDD` = Audit completion date, `_X` = Incrementing counter for multiple audits on the same day. Ensure that contract versioning is consistent between the code and the `auditLog.json`.
-  Essential fields for each audit entry:
-  - `auditCompletedOn`: Date in `DD.MM.YYYY` or `YYYY-MM-DD` format.  
-  - `auditedBy`: Name or firm.  
-  - `auditorGitHandle`: (if applicable).  
-  - `auditReportPath`: PDF location in `audit/reports/`.  
-  - `auditCommitHash`: The commit hash that was audited (or “n/a” if not tracked).
+  - Essential fields for each audit entry:
+    - `auditCompletedOn`: Date in `DD.MM.YYYY` or `YYYY-MM-DD` format.  
+    - `auditedBy`: Name or firm.  
+    - `auditorGitHandle`: (if applicable).  
+    - `auditReportPath`: PDF location in `audit/reports/`.  
+    - `auditCommitHash`: The commit hash that was audited (or “n/a” if not tracked).
   2. **auditedContracts:** Maps contract names and versions to the relevant audit IDs in the audits section.
 - **Storing reports:**  
   Place PDF reports in the `audit/reports/` directory. The naming format must follow: `YYYY.MM.DD_ContractName(version).pdf` (e.g., `2025.01.17_LiFiDexAggregator(v1.3.0).pdf`).
@@ -273,3 +261,5 @@ Follow the folder structure to locate resources and generate or modify code in a
 - **Primary documentation:**  
   - `README.md`: Contains an overview and setup instructions.  
   - `/docs`: Contains detailed technical documentation, API specifications, and deployment guides.
+
+  
