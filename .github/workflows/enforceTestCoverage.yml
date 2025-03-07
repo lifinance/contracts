@@ -32,16 +32,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for Solidity file changes
-        id: check_files
-        run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '^src/.*\.sol|^test/.*\.sol' || true)
-          if [[ -n "$CHANGED_FILES" ]]; then
-            echo "solidity_changed=true" >> "$GITHUB_ENV"
-          else
-            echo "solidity_changed=false" >> "$GITHUB_ENV"
-          fi
+      # - name: Check for Solidity file changes
+      #   id: check_files
+      #   run: |
+      #     git fetch origin ${{ github.base_ref }} --depth=1
+      #     CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '^src/.*\.sol|^test/.*\.sol' || true)
+      #     if [[ -n "$CHANGED_FILES" ]]; then
+      #       echo "solidity_changed=true" >> "$GITHUB_ENV"
+      #     else
+      #       echo "solidity_changed=false" >> "$GITHUB_ENV"
+      #     fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4.1.0
@@ -50,7 +50,7 @@ jobs:
         if: env.solidity_changed == 'true'
 
       - name: Install dev dependencies
-        run: yarn install
+        run: bun install
         if: env.solidity_changed == 'true'
 
       - name: Install Foundry
