@@ -306,8 +306,8 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
 
 
 - **Naming conventions:**  
-  - Deployment scripts must be prefixed with `Deploy` followed by the contract name (e.g., zDeployMayanFacet.s.solz).
-  - Update scripts must be prefixed with `Update` followed by the contract name (e.g., zUpdateMayanFacet.s.solz).
+  - Deployment scripts must be prefixed with `Deploy` followed by the contract name (e.g., `DeployMayanFacet.s.sol`).
+  - Update scripts must be prefixed with `Update` followed by the contract name (e.g., `UpdateMayanFacet.s.sol`).
 - **Structure of Deployment scripts:**  
   - Each deployment script follow this format:
     - Inherits `DeployScriptBase` to maintain consistency.
@@ -353,7 +353,7 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
  
 # Understanding `deployRequirements.json` and its role in deployment scripts
 - **Overview:**
-  - The `deployRequirements.json` file, located at `script/deploy/resources/deployRequirements.json`, serves as a configuration file that dictates how contract deployments should be handled in the deployment scripts. This JSON file contains specific deployment rules, contract dependencies, and necessary configurations to ensure smooth and controlled contract deployment.  
+  - The `deployRequirements.json` file located at `script/deploy/resources/deployRequirements.json` serves as a configuration file that dictates how contract deployments should be handled in the deployment scripts. This JSON file contains specific deployment rules, contract dependencies, and necessary configurations to ensure smooth and controlled contract deployment.  
 - **Structure and purpose:**
   - It specifies whether a contract is allowed to be deployed with a zero address (typically restricted to avoid misconfigurations).
   - Some contracts require external configuration files that store network-specific parameters such as bridge addresses and token addresses.
