@@ -160,19 +160,29 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.01.17_LiFiDexAggregator(v1.4.0).pdf",
       "auditCommitHash": "n/a (one deployed contract instance was audited)"
+    },
+    "audit20250305": {
+      "auditCompletedOn": "05.03.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.03.05_ChainflipFacet(v1.0.0).pdf",
+      "auditCommitHash": "your-commit-hash-here"
     }
   },
   "auditedContracts": {
-    "AcrossFacetV3": {
-      "1.0.0": ["audit20241007"],
-      "1.1.0": ["audit20250106"]
-    },
     "AcrossFacetPackedV3": {
       "1.0.0": ["audit20241007"],
       "1.2.0": ["audit20241206"]
     },
+    "AcrossFacetV3": {
+      "1.0.0": ["audit20241007"],
+      "1.1.0": ["audit20250106"]
+    },
     "CalldataVerificationFacet": {
       "1.2.0": ["audit20240902"]
+    },
+    "ChainflipFacet": {
+      "1.0.0": ["audit20250305"]
     },
     "DeBridgeDlnFacet": {
       "1.0.0": ["audit20241205"]
@@ -201,6 +211,9 @@
     "IAcrossSpokePool": {
       "1.0.0": ["audit20250106"]
     },
+    "IChainflip": {
+      "1.0.0": ["audit20250305"]
+    },
     "IGasZip": {
       "1.0.0": ["audit20241107"]
     },
@@ -215,8 +228,8 @@
       "1.3.0": ["audit20250117_3"],
       "1.4.0": ["audit20250117_4"],
       "1.5.0": ["audit20241203"],
-      "1.6.0": ["audit20250109_2"],
-      "1.5.1": ["audit20250109_3"]
+      "1.5.1": ["audit20250109_3"],
+      "1.6.0": ["audit20250109_2"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2"]
@@ -238,6 +251,9 @@
       "1.0.1": ["audit20241206"],
       "1.0.2": ["audit20250110_1"],
       "1.1.0": ["audit20250109_2"]
+    },
+    "ReceiverChainflip": {
+      "1.0.0": ["audit20250305"]
     },
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
