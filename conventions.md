@@ -30,7 +30,7 @@ Follow the folder structure to locate resources and generate or modify code in a
 ## Solidity standards and patterns
 
 - **Solidity version:**  
-  All Solidity files must start with: pragma solidity {version}. The Solidity version is defined in foundry.toml. This ensures that the version declaration in the source files remains in sync with the configuration. Always refer to foundry.toml for the current version rather than storing duplicate information.
+  All Solidity files must start with: pragma solidity `{version}`. The Solidity version is defined in foundry.toml. This ensures that the version declaration in the source files remains in sync with the configuration. Always refer to `foundry.toml` for the current version rather than storing duplicate information.
 
 - **Design patterns:**  
   - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard for facet-based architectures).  
@@ -100,7 +100,7 @@ Follow the folder structure to locate resources and generate or modify code in a
   - **External utility contracts**:
     - `ECDSA` - Used for signature verification.
 - **Sender handling:**  
-  Confirm whether the use of msg.sender is justified. Especially if a facet needs to pass an address for refunds (named `refundAddress` or `depositor` or similar) to the bridge itself, we discourage the use of msg.sender and instead recommend to use a dedicated parameter so the refundAddress can be specified independently of who sends/executes the transaction.
+  Confirm whether the use of `msg.sender` is justified. Especially if a facet needs to pass an address for refunds (named `refundAddress` or `depositor` or similar) to the bridge itself, we discourage the use of msg.sender and instead recommend to use a dedicated parameter so the `refundAddress` can be specified independently of who sends/executes the transaction.
 
   Often, pass the “sender/depositor” as a parameter so refunds return directly to the user.
 - **Parameter adjustments:**  
