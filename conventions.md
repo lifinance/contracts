@@ -313,16 +313,29 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
 
 
  
-# Understanding deployRequirements.json and its role in deployment scripts
+# Understanding `deployRequirements.json` and its role in deployment scripts
 - **Overview:**
   - The `deployRequirements.json` file, located at `script/deploy/resources/deployRequirements.json`, serves as a configuration file that dictates how contract deployments should be handled in the deployment scripts. This JSON file contains specific deployment rules, contract dependencies, and necessary configurations to ensure smooth and controlled contract deployment.  
 - **Structure and purpose:**
-  - **Contract address constraints**: It specifies whether a contract is allowed to be deployed with a zero address (typically restricted to avoid misconfigurations).
-  - **Configuration data**: Some contracts require external configuration files that store network-specific parameters such as bridge addresses and token addresses.
-  - **Network-specific data**: The placeholders like <NETWORK> are dynamically replaced during script execution to fetch the correct addresses depending on the blockchain network being deployed to.
+  - It specifies whether a contract is allowed to be deployed with a zero address (typically restricted to avoid misconfigurations).
+  - Some contracts require external configuration files that store network-specific parameters such as bridge addresses and token addresses.
+  - The placeholders like `<NETWORK>` are dynamically replaced during script execution to fetch the correct addresses depending on the blockchain network being deployed to.
 - **How it’s used in helperFunctions.sh:**
   - Within the deployment scripts, particularly in `helperFunctions.sh` in `checkDeployRequirements()` function, this JSON file plays a critical role in contract deployment and logging. The script reads and processes `deployRequirements.json` to:
-    - **Enforce deployment constraints**: Ensures contracts adhere to rules regarding zero addresses.
-    - **Load required addresses and parameters**: Reads configuration files specified for each contract.
-    - **Apply network context**: Replaces placeholders like <NETWORK> with the actual deployment network.
+    - Ensures contracts adhere to rules regarding zero addresses.
+    - Reads configuration files specified for each contract.
+    - Replaces placeholders like `<NETWORK>` with the actual deployment network.
 
+# Understanding `targetState.json` and its role in deployment scripts
+- **Overview:**
+  - The `targetState.json` file stored in folder `script/deploy/` defines the expected contract versions for each blockchain network in different environments (e.g., `production`, `staging`). It ensures that all deployed contracts match their intended versions, preventing inconsistencies across deployments.
+
+- **Structure and purpose:**
+  - The file is structured as follows:
+      - Each top-level key represents a blockchain network (e.g., `mainnet`, `arbitrum`, `avalanche`).
+      - Under each network, different environments (e.g., `production`, `staging`) store deployment details.
+      - The file tracks various facet contracts, periphery contracts, and core contracts (e.g., `AccessManagerFacet`, `GenericSwapFacet`, `LiFiDiamond`), ensuring that each contract has a predefined target version.
+- **Key purposes:**
+  - Ensures that contract versions across networks remain uniform.
+  - The deployment scripts compare actual deployed versions with those in `targetState.json` and update contracts if needed.
+  - Supports tracking and rolling out new versions for modular Diamond contracts.
