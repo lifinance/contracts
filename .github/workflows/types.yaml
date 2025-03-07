@@ -67,7 +67,7 @@ jobs:
 
       # Step 10: Build the lifi-contract-types project
       - name: Build Contract Types
-        run: cd lifi-contract-types && bun install && bun build
+        run: cd lifi-contract-types && bun install && bun run build
 
       # Step 11: Retrieve the latest tag from the repository
       - name: Retrieve Latest Tag

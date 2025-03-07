@@ -44,7 +44,7 @@ jobs:
         if: env.solidity_changed == 'true'
 
       - name: Set up Bun
-      - uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@v2
 
       - name: Install dev dependencies
         run: yarn install
