@@ -47,7 +47,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dev dependencies
-        run: yarn install
+        run: bun install
         if: env.solidity_changed == 'true'
 
       - name: Install Foundry
