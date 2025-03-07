@@ -43,14 +43,11 @@ jobs:
             echo "solidity_changed=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4.1.0
-        with:
-          node-version: '20'
-        if: env.solidity_changed == 'true'
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install dev dependencies
-        run: yarn install
+        run: bun install
         if: env.solidity_changed == 'true'
 
       - name: Install Foundry
@@ -68,7 +65,7 @@ jobs:
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
-          npx tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          bun x tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
 
           echo "Coverage report successfully filtered"
 
