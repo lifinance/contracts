@@ -152,6 +152,18 @@
       "0xDd661337B48BEA5194F6d26F2C59fF0855E15289": {
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
+      },
+      "0xF82830B952Bc60b93206FA22f1cD4770cedb2840": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
+      },
+      "0xDd661337B48BEA5194F6d26F2C59fF0855E15289": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6C96d5C36d9aDBD3F4e0337D2d1E133A59288D1A": {
+        "Name": "MayanFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

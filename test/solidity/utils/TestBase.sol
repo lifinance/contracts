@@ -171,6 +171,17 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
     address internal ADDRESS_WRAPPED_NATIVE_POL =
         0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270; // WMATIC
+    // Contract addresses (BASE)
+    address internal ADDRESS_UNISWAP_BASE =
+        0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891;
+    address internal ADDRESS_USDC_BASE =
+        0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address internal ADDRESS_USDT_BASE =
+        0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2;
+    address internal ADDRESS_DAI_BASE =
+        0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
+    address internal ADDRESS_WRAPPED_NATIVE_BASE =
+        0x4200000000000000000000000000000000000006;
     // User accounts (Whales: ETH only)
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC, USDT, WETH & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
@@ -238,6 +249,16 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
                 ADDRESS_DAI = ADDRESS_DAI_POL;
                 ADDRESS_WRAPPED_NATIVE = ADDRESS_WRAPPED_NATIVE_POL;
                 ADDRESS_UNISWAP = ADDRESS_SUSHISWAP_POL;
+            }
+            if (
+                keccak256(abi.encode(customRpcUrlForForking)) ==
+                keccak256(abi.encode("ETH_NODE_URI_BASE"))
+            ) {
+                ADDRESS_USDC = ADDRESS_USDC_BASE;
+                ADDRESS_USDT = ADDRESS_USDT_BASE;
+                ADDRESS_DAI = ADDRESS_DAI_BASE;
+                ADDRESS_WRAPPED_NATIVE = ADDRESS_WRAPPED_NATIVE_BASE;
+                ADDRESS_UNISWAP = ADDRESS_UNISWAP_BASE;
             }
         }
     }
@@ -444,6 +465,32 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
                 requiresDeposit: true
             })
         );
+    }
+
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint amountADesired,
+        uint amountBDesired
+    ) internal returns (uint amountA, uint amountB, uint liquidity) {
+        deal(tokenA, address(this), amountADesired);
+        deal(tokenB, address(this), amountBDesired);
+
+        ERC20(tokenA).approve(address(uniswap), amountADesired);
+        ERC20(tokenB).approve(address(uniswap), amountBDesired);
+
+        (amountA, amountB, liquidity) = uniswap.addLiquidity(
+            tokenA,
+            tokenB,
+            amountADesired,
+            amountBDesired,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+
+        return (amountA, amountB, liquidity);
     }
 
     //#region Utility Functions (may be used in tests)
