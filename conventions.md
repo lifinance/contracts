@@ -11,15 +11,15 @@
 # Codebase structure
 
     /lifi
-     ├── src/               # All Solidity smart contracts - `.sol` files
-     ├── tasks/             # Utility scripts or tasks
-     ├── scripts/           # Deployment, updating, and automation scripts
-     ├── tests/             # Unit and integration tests - `.t.sol` files
-     ├── docs/              # Project documentation, API specs, and guides
      ├── .github/           # Github workflows
+     ├── audit/             # Audit reports and log
      ├── config/            # Configuration files
      ├── deployments/       # Deployment logs and addresses
-     ├── audit/             # Audit reports and log
+     ├── docs/              # Project documentation, API specs, and guides
+     ├── scripts/           # Deployment, updating, and automation scripts
+     ├── src/               # All Solidity smart contracts - `.sol` files
+     ├── tasks/             # Utility scripts or tasks
+     ├── tests/             # Unit and integration tests - `.t.sol` files
      ├── README.md          # High-level project overview and setup instructions
      ├── conventions.md     # Repository conventions and guidelines (this file)
 
@@ -69,7 +69,7 @@ Follow the folder structure to locate resources and generate or modify code in a
     - **Before events and errors**  
       - Do not add a blank line between events and errors.
 
-    - **Within tests (*.t.sol files)**  
+    - **Within tests (*.t.sol)**  
       - Add a blank line:
         - Between `vm.expectRevert()` and the function call it applies to.
         - Before `vm.stopPrank()`, if it's a separate logical block.
