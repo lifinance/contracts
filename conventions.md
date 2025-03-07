@@ -298,7 +298,31 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
       ```
       This allows fetching various values such as bridges, allowed tokens, and other necessary configurations dynamically based on the network and facet needs.
 
+# Template-based code generation
+
+- **Overview:**
+  - To streamline the creation of new facets, we use plopfile.mjs, which automates the generation of contract templates, test files, documentation, and deployment scripts. The generator is triggered by running: `plop facet`
+- **Template files** - All template files are stored in the `templates/` folder. Below is a breakdown of the different templates and their purposes:
+  - **Facet** smart contract (`facet.template.hbs`): Defines the structure of the new contract facet, including storage, events, and core functions. Extension - `.sol`.
+  - **Configuration** file (`facetConfig.template.hbs`): Stores configuration settings such as addresses and allowed tokens. Extension - `.json`.
+  - **Deployment** script (`facetDeployScript.template.hbs`): Automates the contract deployment process. Extension - `.s.sol`.
+  - **Update** script (`facetUpdateScript.template.hbs`): Manages contract upgrades using the Diamond Standard. Extension - `.s.sol`.
+  - **Test** file (`facetTest.template.hbs`): Provides a testing framework for the new facet. Extension - `.t.sol`.
+  - **Demo** script (`facetDemoScript.template.hbs`): Offers a sample script for interacting with the facet. Extension - `.ts`.
+  - **Documentation** (`facetDoc.template.hbs`): Generates a Markdown file explaining the facet's purpose and usage.  Extension - `.md`.
 
 
-
+ 
+# Understanding deployRequirements.json and its role in deployment scripts
+- **Overview:**
+  - The `deployRequirements.json` file, located at `script/deploy/resources/deployRequirements.json`, serves as a configuration file that dictates how contract deployments should be handled in the deployment scripts. This JSON file contains specific deployment rules, contract dependencies, and necessary configurations to ensure smooth and controlled contract deployment.  
+- **Structure and purpose:**
+  - **Contract address constraints**: It specifies whether a contract is allowed to be deployed with a zero address (typically restricted to avoid misconfigurations).
+  - **Configuration data**: Some contracts require external configuration files that store network-specific parameters such as bridge addresses and token addresses.
+  - **Network-specific data**: The placeholders like <NETWORK> are dynamically replaced during script execution to fetch the correct addresses depending on the blockchain network being deployed to.
+- **How it’s used in helperFunctions.sh:**
+  - Within the deployment scripts, particularly in `helperFunctions.sh` in `checkDeployRequirements()` function, this JSON file plays a critical role in contract deployment and logging. The script reads and processes `deployRequirements.json` to:
+    - **Enforce deployment constraints**: Ensures contracts adhere to rules regarding zero addresses.
+    - **Load required addresses and parameters**: Reads configuration files specified for each contract.
+    - **Apply network context**: Replaces placeholders like <NETWORK> with the actual deployment network.
 
