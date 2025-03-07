@@ -50,7 +50,6 @@
     "zksync-web3": "^0.14.3"
   },
   "resolutions": {
-    "hardhat/**/@ethereumjs/tx": "3.5.0",
     "web3": "4.16.0"
   },
   "scripts": {
@@ -79,6 +78,7 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
+    "@ethereumjs/tx": "3.5.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@layerzerolabs/lz-v2-utilities": "^2.3.21",
     "@octokit/rest": "^21.0.1",
