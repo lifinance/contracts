@@ -27,19 +27,17 @@ jobs:
       - name: Install Solidity Libraries
         run: forge install
 
-      # Step 4: Setup Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v4.1.0
-        with:
-          node-version: 20
+      # Step 4: Setup Bun
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
 
-      # Step 5: Install Node.js dependencies
-      - name: Install Node Dependencies
+      # Step 5: Install dependencies
+      - name: Install dependencies
         run: bun install
 
       # Step 6: Generate ABI from contracts
       - name: Generate ABI
-        run: yarn abi:generate
+        run: bun abi:generate
 
       # Step 7: Generate TypeScript bindings from ABI
       - name: Generate TypeScript Bindings
@@ -69,7 +67,7 @@ jobs:
 
       # Step 10: Build the lifi-contract-types project
       - name: Build Contract Types
-        run: cd lifi-contract-types && yarn install && yarn build
+        run: cd lifi-contract-types && bun install && bun build
 
       # Step 11: Retrieve the latest tag from the repository
       - name: Retrieve Latest Tag
