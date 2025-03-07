@@ -40,6 +40,44 @@ Follow the folder structure to locate resources and generate or modify code in a
   - Utilize reentrancy guards (e.g., OpenZeppelin’s `ReentrancyGuard` or the checks-effects-interactions pattern).  
   - Optimize for gas efficiency with proper data structures and minimal state changes.
 
+- **General rules for blank lines**
+    - **Between sections**  
+      - Separate logical sections of the contract with a single blank line (e.g., state variables, events, constructor, functions).
+    - **Between function declarations**  
+      - Add a single blank line between function declarations to improve readability.
+      - No blank lines between function signature and function body.
+
+    - **Inside functions**  
+      - Use a single blank line:
+        - Before a new logical block (e.g., loop, condition, or function call).
+        - After setting up state variables at the beginning of a function.
+        - Before emitting an event for better visibility.
+
+      - No unnecessary blank lines:
+        - Between `if` statements and their respective `revert()` calls.
+        - Before a `return` statement unless it's a separate logical block.
+
+    - **Between structs, enums, and mappings**  
+        - A single blank line between structs and enums.
+        - A single blank line between mappings and other declarations.
+        - If mappings are consecutive and related, adhere them together without a blank line.
+        - If mappings are logically different, separate them with a blank line.
+
+    - **Between modifiers**  
+      - Place a single blank line between modifiers.
+
+    - **Before events and errors**  
+      - Do not add a blank line between events and errors.
+
+    - **Within tests (*.t.sol files)**  
+      - Add a blank line:
+        - Between `vm.expectRevert()` and the function call it applies to.
+        - Before `vm.stopPrank()`, if it's a separate logical block.
+        - Before an assertion to separate it from execution logic.
+
+    - **Between test cases**  
+      - Ensure a single blank line between test cases.
+
 ## Facet contract checklist
 - All facet contracts must reside in `src/Facets/`.
 - Facet contract names must include the word `Facet`.
@@ -154,7 +192,7 @@ Follow the folder structure to locate resources and generate or modify code in a
 - **Assertions and event testing**  
   - Use `assertEq()` for checking equality of values (e.g., balances, contract addresses, return values).  
   - Use custom assertion modifiers such as `assertBalanceChange()` to verify balance changes before and after transactions.  
-  - Before executing a function call that should emit an event, use `vm.expectEmit()` with appropriate flags (to check indexed parameters) and the expected event signature.  
+  - Before executing a function call that should emit an event, always use `vm.expectEmit(true, true, true, true, <contractAddress>)` to ensure the event parameters match and that the event is emitted by the correct contract.
   - Verify that the expected events (e.g., `AssetSwapped` or `LiFiTransferStarted`) are emitted with the intended parameters.
 
 - **Overall test best practices**  
