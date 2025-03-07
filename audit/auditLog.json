@@ -166,7 +166,7 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.03.05_ChainflipFacet(v1.0.0).pdf",
-      "auditCommitHash": "your-commit-hash-here"
+      "auditCommitHash": "233571f68ef94ba5f8c5d19158401d84cd842d43"
     }
   },
   "auditedContracts": {
