@@ -37,12 +37,14 @@ jobs:
         run: |
           echo "solidity_changed=true" >> "$GITHUB_ENV"
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: '20'
         if: env.solidity_changed == 'true'
 
       - name: Install dev dependencies
-        run: bun install
+        run: yarn install
         if: env.solidity_changed == 'true'
 
       - name: Install Foundry
