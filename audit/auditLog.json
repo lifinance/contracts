@@ -188,13 +188,6 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.02.28_MayanFacet(v1.1.0).pdf",
       "auditCommitHash": "4065f76501fdb60dba45772344683d213b48d931"
-    },
-    "fakeAudit2": {
-      "auditCompletedOn": "28.02.2025",
-      "auditedBy": "Sujith Somraaj (individual security researcher)",
-      "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.02.28_MayanFacet(v1.1.0).pdf",
-      "auditCommitHash": "2307bfce18a8ef1c6cc04b1d04fca5162cc39b9e"
     }
   },
   "auditedContracts": {
@@ -268,7 +261,7 @@
     },
     "MayanFacet": {
       "1.1.0": ["audit20250228"],
-      "1.1.1": ["fakeAudit", "fakeAudit2"]
+      "1.1.1": ["fakeAudit"]
     },
     "Permit2Proxy": {
       "1.0.0": ["audit20241122"],
