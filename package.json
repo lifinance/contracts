@@ -44,12 +44,11 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
-    "ts-node": "^10.7.0",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
     "zksync-web3": "^0.14.3"
   },
-  "resolutions": {
+  "overrides": {
     "web3": "4.16.0"
   },
   "scripts": {
@@ -65,20 +64,19 @@
     "test": "forge test --evm-version 'shanghai'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
-    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'shanghai' --ir-minimum && tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
+    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'shanghai' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
-    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && tsx tasks/generateDiamondABI.ts",
+    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && bun tasks/generateDiamondABI.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
-    "healthcheck": "tsx ./script/deploy/healthCheck.ts",
-    "propose-safe-tx": "tsx ./script/deploy/safe/propose-to-safe.ts",
-    "confirm-safe-tx": "tsx ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners": "tsx ./script/deploy/safe/add-owners-to-safe.ts",
+    "healthcheck": "bun ./script/deploy/healthCheck.ts",
+    "propose-safe-tx": "bun ./script/deploy/safe/propose-to-safe.ts",
+    "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
+    "add-safe-owners": "bun ./script/deploy/safe/add-owners-to-safe.ts",
     "flatten": "forge flatten --output"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
-    "@ethereumjs/tx": "3.5.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@layerzerolabs/lz-v2-utilities": "^2.3.21",
     "@octokit/rest": "^21.0.1",
@@ -99,7 +97,6 @@
     "mongodb": "^6.13.0",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "tsx": "^4.19.2",
     "viem": "^2.22.16",
     "zx": "^8.2.2"
   },
