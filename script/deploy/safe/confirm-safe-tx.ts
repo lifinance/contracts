@@ -1,15 +1,16 @@
 import { defineCommand, runMain } from 'citty'
 import {
   Abi,
+  Address,
   Chain,
   Hex,
+  createPublicClient,
   decodeFunctionData,
+  http,
   parseAbi,
   toFunctionSelector,
 } from 'viem'
-const { default: Safe } = await import('@safe-global/protocol-kit')
 import { MongoClient } from 'mongodb'
-import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
 import {
@@ -17,7 +18,7 @@ import {
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types'
+import { OperationType, SafeTransaction, ViemSafe } from './safe-utils'
 import networksConfig from '../../../config/networks.json'
 dotenv.config()
 
@@ -157,12 +158,6 @@ async function decodeDiamondCut(diamondCutData: any, chainId: number) {
   consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
 }
 
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
-
 /**
  * Main function to process Safe transactions for a given network
  * @param network - Network name
@@ -182,48 +177,75 @@ const processTxs = async (
   consola.info('-'.repeat(80))
 
   const chain = getViemChainForNetworkName(network)
-  const safeAddress = networks[network.toLowerCase()].safeAddress
+  const safeAddress = networks[network.toLowerCase()].safeAddress as Address
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
-  const provider = new ethers.JsonRpcProvider(parsedRpcUrl)
-  const signer = new ethers.Wallet(privateKey, provider)
 
-  const signerAddress = await signer.getAddress()
+  // Create public client for chain operations
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(parsedRpcUrl),
+  })
 
-  consola.info('Chain:', chain.name)
-  consola.info('Signer:', signerAddress)
-
-  let protocolKit: Safe
+  // Initialize Safe with Viem
+  let safe: ViemSafe
   try {
-    protocolKit = await Safe.init({
+    safe = await ViemSafe.init({
       provider: parsedRpcUrl,
-      signer: privateKey,
+      privateKey,
       safeAddress,
     })
   } catch (err) {
-    consola.error(`error encountered while setting up protocolKit: ${err}`)
-    consola.error(`skipping network ${network}`)
+    consola.error(`Error encountered while setting up Safe: ${err}`)
+    consola.error(`Skipping network ${network}`)
     consola.error(
       `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
     )
     return
   }
 
+  // Get signer address
+  const signerAddress = await publicClient
+    .getAddresses()
+    .then((addresses) => addresses[0])
+
+  consola.info('Chain:', chain.name)
+  consola.info('Signer:', signerAddress)
+
   /**
    * Initializes a SafeTransaction from MongoDB document data
    * @param txFromMongo - Transaction document from MongoDB
    * @returns Initialized SafeTransaction with signatures
    */
-  const initializeSafeTransaction = async (txFromMongo: any) => {
-    const safeTransaction = await protocolKit.createTransaction({
-      transactions: [txFromMongo.safeTx.data],
+  const initializeSafeTransaction = async (
+    txFromMongo: any
+  ): Promise<SafeTransaction> => {
+    // Create a new transaction using our viem-based Safe implementation
+    const safeTransaction = await safe.createTransaction({
+      transactions: [
+        {
+          to: txFromMongo.safeTx.data.to as Address,
+          value: BigInt(txFromMongo.safeTx.data.value),
+          data: txFromMongo.safeTx.data.data as Hex,
+          operation: txFromMongo.safeTx.data.operation as OperationType,
+          nonce: BigInt(txFromMongo.safeTx.data.nonce),
+        },
+      ],
     })
 
     // Add existing signatures
     if (txFromMongo.safeTx.signatures) {
-      Object.values(txFromMongo.safeTx.signatures).forEach((signature: any) => {
-        safeTransaction.addSignature(signature)
-      })
+      // Convert from document format to Map
+      const signatures = new Map<string, { signer: Address; data: Hex }>()
+      Object.entries(txFromMongo.safeTx.signatures).forEach(
+        ([key, value]: [string, any]) => {
+          signatures.set(key, {
+            signer: value.signer as Address,
+            data: value.data as Hex,
+          })
+        }
+      )
+      safeTransaction.signatures = signatures
     }
 
     return safeTransaction
@@ -236,7 +258,7 @@ const processTxs = async (
    */
   const signTransaction = async (safeTransaction: SafeTransaction) => {
     consola.info('Signing transaction')
-    const signedTx = await protocolKit.signTransaction(safeTransaction)
+    const signedTx = await safe.signTransaction(safeTransaction)
     consola.success('Transaction signed')
     return signedTx
   }
@@ -248,11 +270,11 @@ const processTxs = async (
   async function executeTransaction(safeTransaction: SafeTransaction) {
     consola.info('Executing transaction')
     try {
-      const exec = await protocolKit.executeTransaction(safeTransaction)
+      const exec = await safe.executeTransaction(safeTransaction)
 
       // Update MongoDB transaction status
       await pendingTransactions.updateOne(
-        { safeTxHash: await protocolKit.getTransactionHash(safeTransaction) },
+        { safeTxHash: await safe.getTransactionHash(safeTransaction) },
         { $set: { status: 'executed', executionHash: exec.hash } }
       )
     } catch (err) {
@@ -287,7 +309,7 @@ const processTxs = async (
    */
   const isSignedByCurrentSigner = (
     safeTx: SafeTransaction,
-    signerAddress: string
+    signerAddress: Address
   ): boolean => {
     if (!safeTx?.signatures) return false
     const signers = Array.from(safeTx.signatures.values()).map((sig) =>
@@ -311,11 +333,13 @@ const processTxs = async (
     return afterSigning >= threshold
   }
 
+  // Get current threshold
+  const threshold = Number(await safe.getThreshold())
+
   // Filter and augment transactions with signature status
   const txs = await Promise.all(
     pendingTxs.map(
       async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
-        const threshold = await protocolKit.getThreshold()
         const safeTransaction = await initializeSafeTransaction(tx)
         const hasSignedAlready = isSignedByCurrentSigner(
           safeTransaction,
@@ -496,8 +520,8 @@ const processTxs = async (
  */
 const main = defineCommand({
   meta: {
-    name: 'propose-to-safe',
-    description: 'Propose a transaction to a Gnosis Safe',
+    name: 'confirm-safe-tx',
+    description: 'Confirm and execute transactions in a Gnosis Safe',
   },
   args: {
     network: {

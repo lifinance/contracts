@@ -1,11 +1,5 @@
 import { defineCommand, runMain } from 'citty'
-import { type SafeApiKitConfig } from '@safe-global/api-kit'
-import { getAddress } from 'viem'
-import { EthersAdapter } from '@safe-global/protocol-kit'
-const { default: SafeApiKit } = await import('@safe-global/api-kit')
-const { default: Safe } = await import('@safe-global/protocol-kit')
-import { ethers } from 'ethers6'
-import { getSafeUtilityContracts } from './config'
+import { Address, createPublicClient, http } from 'viem'
 import {
   NetworksObject,
   getViemChainForNetworkName,
@@ -13,7 +7,7 @@ import {
 import data from '../../../config/networks.json'
 import globalConfig from '../../../config/global.json'
 import * as dotenv from 'dotenv'
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types'
+import { ViemSafe, ViemSafeContract, SafeTransaction } from './safe-utils'
 dotenv.config()
 
 const networks: NetworksObject = data as NetworksObject
@@ -40,11 +34,6 @@ const main = defineCommand({
 
     const chain = getViemChainForNetworkName(network)
 
-    const config: SafeApiKitConfig = {
-      chainId: BigInt(chain.id),
-      txServiceUrl: networks[network].safeApiUrl,
-    }
-
     const privateKey = String(
       privateKeyArg || process.env.PRIVATE_KEY_PRODUCTION
     )
@@ -56,52 +45,63 @@ const main = defineCommand({
 
     console.info('Setting up connection to SAFE API')
 
-    const safeService = new SafeApiKit(config)
+    // Initialize the Safe contract client
+    const safeContract = new ViemSafeContract({
+      txServiceUrl: networks[network].safeApiUrl,
+      chainId: BigInt(chain.id),
+    })
 
-    const safeAddress = getAddress(networks[network].safeAddress)
+    const safeAddress = networks[network].safeAddress as Address
 
     const rpcUrl = chain.rpcUrls.default.http[0] || args.rpcUrl
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const signer = new ethers.Wallet(privateKey, provider)
-
-    const ethAdapter = new EthersAdapter({
-      ethers,
-      signerOrProvider: signer,
+    // Initialize public client for basic chain operations
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(rpcUrl),
     })
 
-    const protocolKit = await Safe.create({
-      ethAdapter,
-      safeAddress: safeAddress,
-      contractNetworks: getSafeUtilityContracts(chain.id),
+    // Initialize our viem-based Safe implementation
+    const safe = await ViemSafe.init({
+      provider: rpcUrl,
+      privateKey,
+      safeAddress,
     })
 
     const owners = globalConfig.safeOwners
 
-    let nextNonce = await safeService.getNextNonce(safeAddress)
-    const currentThreshold = (await safeService.getSafeInfo(safeAddress))
-      ?.threshold
+    let nextNonce = await safeContract.getNextNonce(safeAddress)
+    const safeInfo = await safeContract.getSafeInfo(safeAddress)
+    const currentThreshold = safeInfo?.threshold
+
     if (!currentThreshold)
       throw new Error('Could not get current signature threshold')
 
+    // Get signer address
+    const senderAddress = await publicClient
+      .getAddresses()
+      .then((addresses) => addresses[0])
+
     console.info('Safe Address', safeAddress)
-    const senderAddress = await signer.getAddress()
     console.info('Signer Address', senderAddress)
 
-    // go through all owner addresses and add each of them individually
+    // Go through all owner addresses and add each of them individually
     for (const o of owners) {
       console.info('-'.repeat(80))
-      const owner = getAddress(o)
-      const existingOwners = await protocolKit.getOwners()
-      if (existingOwners.includes(owner)) {
+      const owner = o as Address
+      const existingOwners = await safe.getOwners()
+
+      if (
+        existingOwners.map((o) => o.toLowerCase()).includes(owner.toLowerCase())
+      ) {
         console.info('Owner already exists', owner)
         continue
       }
 
-      const safeTransaction = await protocolKit.createAddOwnerTx(
+      const safeTransaction = await safe.createAddOwnerTx(
         {
           ownerAddress: owner,
-          threshold: currentThreshold,
+          threshold: BigInt(currentThreshold),
         },
         {
           nonce: nextNonce,
@@ -111,8 +111,8 @@ const main = defineCommand({
       console.info('Adding owner', owner)
 
       await submitAndExecuteTransaction(
-        protocolKit,
-        safeService,
+        safe,
+        safeContract,
         safeTransaction,
         senderAddress
       )
@@ -122,11 +122,11 @@ const main = defineCommand({
     console.info('-'.repeat(80))
 
     if (currentThreshold != 3) {
-      console.info('Now changing threshold from 1 to 3')
-      const changeThresholdTx = await protocolKit.createChangeThresholdTx(3)
+      console.info('Now changing threshold from', currentThreshold, 'to 3')
+      const changeThresholdTx = await safe.createChangeThresholdTx(3)
       await submitAndExecuteTransaction(
-        protocolKit,
-        safeService,
+        safe,
+        safeContract,
         changeThresholdTx,
         senderAddress
       )
@@ -138,18 +138,24 @@ const main = defineCommand({
 })
 
 async function submitAndExecuteTransaction(
-  protocolKit: any,
-  safeService: any,
+  safe: ViemSafe,
+  safeContract: ViemSafeContract,
   safeTransaction: SafeTransaction,
-  senderAddress: string
+  senderAddress: Address
 ): Promise<string> {
-  const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
-  const signature = await protocolKit.signHash(safeTxHash)
+  // Sign the transaction
+  const signedTx = await safe.signTransaction(safeTransaction)
 
-  // Propose the transaction
-  await safeService.proposeTransaction({
-    safeAddress: await protocolKit.getAddress(),
-    safeTransactionData: safeTransaction.data,
+  // Get the transaction hash
+  const safeTxHash = await safe.getTransactionHash(signedTx)
+
+  // Get the signature
+  const signature = await safe.signHash(safeTxHash)
+
+  // Propose the transaction to the Safe API
+  await safeContract.proposeTransaction({
+    safeAddress: await safe.getAddress(),
+    safeTransactionData: signedTx.data,
     safeTxHash,
     senderAddress,
     senderSignature: signature.data,
@@ -159,12 +165,8 @@ async function submitAndExecuteTransaction(
 
   // Execute the transaction immediately
   try {
-    const execResult = await protocolKit.executeTransaction(safeTransaction)
-    const receipt = await execResult.transactionResponse?.wait()
-    if (receipt?.status === 0) {
-      throw new Error('Transaction failed')
-    }
-    console.info('Transaction executed:', safeTxHash)
+    const execResult = await safe.executeTransaction(signedTx)
+    console.info('Transaction executed:', execResult.hash)
   } catch (error) {
     console.error('Transaction execution failed:', error)
     throw error
