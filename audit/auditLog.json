@@ -194,7 +194,7 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.02.28_MayanFacet(v1.1.0).pdf",
-      "auditCommitHash": "4065f76501fdb60dba45772344683d213b48d931"
+      "auditCommitHash": "2307bfce18a8ef1c6cc04b1d04fca5162cc39b9e"
     }
   },
   "auditedContracts": {
