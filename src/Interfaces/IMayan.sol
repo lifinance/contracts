@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 pragma solidity ^0.8.17;
 
 interface IMayan {
@@ -12,6 +12,11 @@ interface IMayan {
     }
 
     function forwardEth(
+        address mayanProtocol,
+        bytes calldata protocolData
+    ) external payable;
+
+    function forwardEth2(
         address mayanProtocol,
         bytes calldata protocolData
     ) external payable;
