@@ -272,6 +272,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             amount /= 10 ** (decimals - 8);
             amount *= 10 ** (decimals - 8);
         }
+        amount = 0;
         return amount;
     }
 
