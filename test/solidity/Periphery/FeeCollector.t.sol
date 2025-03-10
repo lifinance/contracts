@@ -2,14 +2,13 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeCollectorTest is DSTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal immutable VM = Vm(HEVM_ADDRESS);
     FeeCollector private feeCollector;
     ERC20 private feeToken;
 
@@ -17,8 +16,8 @@ contract FeeCollectorTest is DSTest {
         feeCollector = new FeeCollector(address(this));
         feeToken = new ERC20("TestToken", "TST", 18);
         feeToken.mint(address(this), 100_000 ether);
-        vm.deal(address(0xb33f), 100 ether);
-        vm.deal(address(0xb0b), 100 ether);
+        VM.deal(address(0xb33f), 100 ether);
+        VM.deal(address(0xb0b), 100 ether);
     }
 
     // Needed to receive ETH
@@ -84,9 +83,9 @@ contract FeeCollectorTest is DSTest {
         );
 
         // Act
-        vm.prank(address(0xb0b));
+        VM.prank(address(0xb0b));
         feeCollector.withdrawIntegratorFees(address(feeToken));
-        vm.prank(address(0xb33f));
+        VM.prank(address(0xb33f));
         feeCollector.withdrawIntegratorFees(address(feeToken));
 
         // Assert
@@ -140,7 +139,7 @@ contract FeeCollectorTest is DSTest {
         tokens[0] = address(feeToken);
         tokens[1] = address(0);
         uint256 preBalanceB33f = address(0xb33f).balance;
-        vm.prank(address(0xb33f));
+        VM.prank(address(0xb33f));
         feeCollector.batchWithdrawIntegratorFees(tokens);
 
         // Assert
@@ -201,9 +200,9 @@ contract FeeCollectorTest is DSTest {
         );
 
         // Act
-        vm.prank(address(0xb33f));
+        VM.prank(address(0xb33f));
 
-        vm.expectRevert(UnAuthorized.selector);
+        VM.expectRevert(UnAuthorized.selector);
 
         feeCollector.withdrawLifiFees(address(feeToken));
     }
@@ -234,9 +233,9 @@ contract FeeCollectorTest is DSTest {
         tokens[0] = address(feeToken);
         tokens[1] = address(0);
 
-        vm.prank(address(0xb33f));
+        VM.prank(address(0xb33f));
 
-        vm.expectRevert(UnAuthorized.selector);
+        VM.expectRevert(UnAuthorized.selector);
 
         feeCollector.batchWithdrawLifiFees(tokens);
     }
@@ -245,10 +244,10 @@ contract FeeCollectorTest is DSTest {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         feeCollector.transferOwnership(newOwner);
         assert(feeCollector.owner() != newOwner);
-        vm.startPrank(newOwner);
+        VM.startPrank(newOwner);
         feeCollector.confirmOwnershipTransfer();
         assert(feeCollector.owner() == newOwner);
-        vm.stopPrank();
+        VM.stopPrank();
     }
 
     function testRevert_NonOwnerCannotTransferOwnership() public {
@@ -256,9 +255,9 @@ contract FeeCollectorTest is DSTest {
 
         assert(feeCollector.owner() != newOwner);
 
-        vm.prank(newOwner);
+        VM.prank(newOwner);
 
-        vm.expectRevert(UnAuthorized.selector);
+        VM.expectRevert(UnAuthorized.selector);
 
         feeCollector.transferOwnership(newOwner);
     }

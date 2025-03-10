@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibSwap, LibAllowList, TestBase, console } from "../utils/TestBase.sol";
-import { InvalidAmount, UnAuthorized, ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { MockLiquidityBridge } from "../utils/MockLiquidityBridge.sol";
+import { UnAuthorized, ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
 import { CelerIMFacetMutable, CelerIM, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacetMutable.sol";
-import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
@@ -13,14 +12,6 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 interface Ownable {
     function owner() external returns (address);
-}
-
-contract MockLiquidityBridge is TestBase {
-    function mockWithdraw(uint256 _amount) external {
-        // same call as in cbridge implementation
-        (bool sent, ) = msg.sender.call{ value: _amount, gas: 50000 }("");
-        require(sent, "failed to send native token");
-    }
 }
 
 contract RelayerCelerIMTest is TestBase {
@@ -328,29 +319,29 @@ contract RelayerCelerIMTest is TestBase {
     }
 
     function test_RefundWalletCanTriggerRefund() public {
-        address BRIDGE_ADDRESS = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-        uint256 REFUND_AMOUNT = 0.1 ether;
+        address bridgeAddress = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+        uint256 refundAmount = 0.1 ether;
 
-        vm.allowCheatcodes(BRIDGE_ADDRESS);
+        vm.allowCheatcodes(bridgeAddress);
         MockLiquidityBridge lb = new MockLiquidityBridge();
-        vm.etch(BRIDGE_ADDRESS, address(lb).code);
+        vm.etch(bridgeAddress, address(lb).code);
 
         uint256 preRefundBalance = address(USER_RECEIVER).balance;
         vm.startPrank(REFUND_WALLET);
         relayer.triggerRefund(
-            payable(BRIDGE_ADDRESS), // Celer Liquidity Bridge
+            payable(bridgeAddress), // Celer Liquidity Bridge
             abi.encodeWithSelector(
                 MockLiquidityBridge.mockWithdraw.selector,
-                REFUND_AMOUNT
+                refundAmount
             ), // Calldata
             address(0), // Native asset
             payable(USER_RECEIVER), // Address to refund to
-            REFUND_AMOUNT
+            refundAmount
         );
         uint256 postRefundBalance = address(USER_RECEIVER).balance;
         assertEq(
             postRefundBalance - preRefundBalance,
-            REFUND_AMOUNT,
+            refundAmount,
             "Refund amount should be correct"
         );
         vm.stopPrank();

@@ -2,13 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { LiFuelFeeCollector } from "lifi/Periphery/LiFuelFeeCollector.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 
 contract LiFuelFeeCollectorTest is DSTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal immutable VM = Vm(HEVM_ADDRESS);
     LiFuelFeeCollector private feeCollector;
     ERC20 private feeToken;
 
@@ -21,8 +20,8 @@ contract LiFuelFeeCollectorTest is DSTest {
         feeCollector = new LiFuelFeeCollector(address(this));
         feeToken = new ERC20("TestToken", "TST", 18);
         feeToken.mint(address(this), 100_000 ether);
-        vm.deal(address(0xb33f), 100 ether);
-        vm.deal(address(0xb0b), 100 ether);
+        VM.deal(address(0xb33f), 100 ether);
+        VM.deal(address(0xb0b), 100 ether);
     }
 
     // Needed to receive ETH
@@ -127,8 +126,8 @@ contract LiFuelFeeCollectorTest is DSTest {
         );
 
         // Act
-        vm.prank(address(0xb33f));
-        vm.expectRevert(UnAuthorized.selector);
+        VM.prank(address(0xb33f));
+        VM.expectRevert(UnAuthorized.selector);
         feeCollector.withdrawFees(address(feeToken));
     }
 
@@ -136,23 +135,23 @@ contract LiFuelFeeCollectorTest is DSTest {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         feeCollector.transferOwnership(newOwner);
         assert(feeCollector.owner() != newOwner);
-        vm.startPrank(newOwner);
+        VM.startPrank(newOwner);
         feeCollector.confirmOwnershipTransfer();
         assert(feeCollector.owner() == newOwner);
-        vm.stopPrank();
+        VM.stopPrank();
     }
 
     function testRevertsWhenNonOwnerCanTransferOwnership() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         assert(feeCollector.owner() != newOwner);
-        vm.prank(newOwner);
-        vm.expectRevert(UnAuthorized.selector);
+        VM.prank(newOwner);
+        VM.expectRevert(UnAuthorized.selector);
         feeCollector.transferOwnership(newOwner);
     }
 
     function testRevertsWhenOnwershipTransferToNullAddr() public {
         address newOwner = address(0x0);
-        vm.expectRevert(NoNullOwner.selector);
+        VM.expectRevert(NoNullOwner.selector);
         feeCollector.transferOwnership(newOwner);
     }
 
@@ -161,13 +160,13 @@ contract LiFuelFeeCollectorTest is DSTest {
     {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         feeCollector.transferOwnership(newOwner);
-        vm.expectRevert(NotPendingOwner.selector);
+        VM.expectRevert(NotPendingOwner.selector);
         feeCollector.confirmOwnershipTransfer();
     }
 
     function testRevertsOnOwnershipTransferToSelf() public {
         address newOwner = address(this);
-        vm.expectRevert(NewOwnerMustNotBeSelf.selector);
+        VM.expectRevert(NewOwnerMustNotBeSelf.selector);
         feeCollector.transferOwnership(newOwner);
     }
 }

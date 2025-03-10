@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibAsset, LibSwap } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, LibAsset, LibSwap } from "../utils/TestBaseFacet.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
 contract Reverter {
-    fallback() external {
-        revert("I always revert");
+    error AlwaysReverts();
+
+    fallback() external payable {
+        revert AlwaysReverts();
     }
 }
 
@@ -40,17 +42,17 @@ contract TestRelayFacet is RelayFacet {
 contract RelayFacetTest is TestBaseFacet {
     RelayFacet.RelayData internal validRelayData;
     TestRelayFacet internal relayFacet;
-    address internal RELAY_RECEIVER =
+    address internal constant RELAY_RECEIVER =
         0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
-    uint256 internal PRIVATE_KEY = 0x1234567890;
-    address RELAY_SOLVER = vm.addr(PRIVATE_KEY);
+    uint256 internal privateKey = 0x1234567890;
+    address internal relaySolver = vm.addr(privateKey);
 
     error InvalidQuote();
 
     function setUp() public {
         customBlockNumberForForking = 19767662;
         initTestBase();
-        relayFacet = new TestRelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
+        relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
         functionSelectors[1] = relayFacet
@@ -121,7 +123,7 @@ contract RelayFacetTest is TestBaseFacet {
     }
 
     function test_CanDeployFacet() public virtual {
-        new RelayFacet(RELAY_RECEIVER, RELAY_SOLVER);
+        new RelayFacet(RELAY_RECEIVER, relaySolver);
     }
 
     function testRevert_BridgeWithInvalidSignature() public virtual {
@@ -130,7 +132,7 @@ contract RelayFacetTest is TestBaseFacet {
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        PRIVATE_KEY = 0x0987654321;
+        privateKey = 0x0987654321;
 
         vm.expectRevert(InvalidQuote.selector);
         initiateBridgeTxWithFacet(false);
@@ -670,7 +672,7 @@ contract RelayFacetTest is TestBaseFacet {
             ADDRESS_USDC,
             abi.encodeWithSignature(
                 "transfer(address,uint256)",
-                RELAY_SOLVER,
+                relaySolver,
                 bridgeData.minAmount
             ),
             "I always revert"
@@ -745,7 +747,7 @@ contract RelayFacetTest is TestBaseFacet {
             )
         );
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, message);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, message);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
     }

@@ -4,11 +4,11 @@ pragma solidity ^0.8.17;
 import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
-import { OnlyContractOwner, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract TransferrableOwnershipTest is DSTest {
     TransferrableOwnership internal ownable;
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal immutable VM = Vm(HEVM_ADDRESS);
 
     error NoNullOwner();
     error NewOwnerMustNotBeSelf();
@@ -23,10 +23,10 @@ contract TransferrableOwnershipTest is DSTest {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         ownable.transferOwnership(newOwner);
         assert(ownable.owner() != newOwner);
-        vm.startPrank(newOwner);
+        VM.startPrank(newOwner);
         ownable.confirmOwnershipTransfer();
         assert(ownable.owner() == newOwner);
-        vm.stopPrank();
+        VM.stopPrank();
     }
 
     function testRevert_NonOwnerCannotTransferOwnership() public {
@@ -34,9 +34,9 @@ contract TransferrableOwnershipTest is DSTest {
 
         assert(ownable.owner() != newOwner);
 
-        vm.prank(newOwner);
+        VM.prank(newOwner);
 
-        vm.expectRevert(UnAuthorized.selector);
+        VM.expectRevert(UnAuthorized.selector);
 
         ownable.transferOwnership(newOwner);
     }
@@ -44,7 +44,7 @@ contract TransferrableOwnershipTest is DSTest {
     function testRevert_CannotTransferOnwershipToNullAddr() public {
         address newOwner = address(0);
 
-        vm.expectRevert(NoNullOwner.selector);
+        VM.expectRevert(NoNullOwner.selector);
 
         ownable.transferOwnership(newOwner);
     }
@@ -56,7 +56,7 @@ contract TransferrableOwnershipTest is DSTest {
 
         ownable.transferOwnership(newOwner);
 
-        vm.expectRevert(NotPendingOwner.selector);
+        VM.expectRevert(NotPendingOwner.selector);
 
         ownable.confirmOwnershipTransfer();
     }
@@ -64,7 +64,7 @@ contract TransferrableOwnershipTest is DSTest {
     function testRevert_CannotTransferOwnershipToSelf() public {
         address newOwner = address(this);
 
-        vm.expectRevert(NewOwnerMustNotBeSelf.selector);
+        VM.expectRevert(NewOwnerMustNotBeSelf.selector);
 
         ownable.transferOwnership(newOwner);
     }

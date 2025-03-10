@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
-import { IThorSwap } from "lifi/Interfaces/IThorSwap.sol";
 
 // Stub ThorSwapFacet Contract
 contract TestThorSwapFacet is ThorSwapFacet {
@@ -73,16 +72,16 @@ contract ThorSwapFacetTest is TestBaseFacet {
     }
 
     function testBase_Revert_SendingDeprecatedRune() public {
-        // Set bridgeData to use DEPRECATED_RUNE address
-        address DEPRECATED_RUNE = 0x3155BA85D5F96b2d030a4966AF206230e46849cb;
-        bridgeData.sendingAssetId = DEPRECATED_RUNE;
+        // Set bridgeData to use deprecatedRune address
+        address deprecatedRune = 0x3155BA85D5F96b2d030a4966AF206230e46849cb;
+        bridgeData.sendingAssetId = deprecatedRune;
 
-        // Deal DEPRECATED_RUNE tokens to the user
-        deal(DEPRECATED_RUNE, USER_SENDER, bridgeData.minAmount);
+        // Deal deprecatedRune tokens to the user
+        deal(deprecatedRune, USER_SENDER, bridgeData.minAmount);
 
         vm.startPrank(USER_SENDER);
         // Approve tokens for the contract
-        ERC20(DEPRECATED_RUNE).approve(
+        ERC20(deprecatedRune).approve(
             address(thorSwapFacet),
             bridgeData.minAmount
         );

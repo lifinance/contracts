@@ -7,19 +7,8 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { MockLiquidityBridge } from "../utils/MockLiquidityBridge.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
-
-contract MockLiquidityBridge is TestBase {
-    error NativeTokenTransferFailed();
-
-    function mockWithdraw(uint256 _amount) external {
-        // same call as in cbridge implementation
-        (bool sent, ) = msg.sender.call{ value: _amount, gas: 50000 }("");
-        if (!sent) {
-            revert NativeTokenTransferFailed();
-        }
-    }
-}
 
 contract CBridgeFacetPackedTest is TestBase {
     address internal constant CBRIDGE_ROUTER =

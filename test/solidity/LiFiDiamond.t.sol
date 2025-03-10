@@ -6,12 +6,11 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 contract LiFiDiamondTest is DSTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal immutable VM = Vm(HEVM_ADDRESS);
     LiFiDiamond public diamond;
     DiamondCutFacet public diamondCutFacet;
     OwnershipFacet public ownershipFacet;
@@ -30,6 +29,8 @@ contract LiFiDiamondTest is DSTest {
 
     error FunctionDoesNotExist();
     error ShouldNotReachThisCode();
+    error InvalidDiamondSetup();
+    error ExternalCallFailed();
 
     function setUp() public {
         diamondOwner = address(123456);
@@ -57,7 +58,7 @@ contract LiFiDiamondTest is DSTest {
 
     function test_ForwardsCallsViaDelegateCall() public {
         // only one facet with one selector is registered (diamondCut)
-        vm.startPrank(diamondOwner);
+        VM.startPrank(diamondOwner);
 
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
 
@@ -68,7 +69,7 @@ contract LiFiDiamondTest is DSTest {
         ) {} catch {
             failed = true;
         }
-        if (!failed) revert("InvalidDiamondSetup");
+        if (!failed) revert InvalidDiamondSetup();
 
         // prepare function selectors
         bytes4[] memory functionSelectors = new bytes4[](4);
@@ -92,14 +93,14 @@ contract LiFiDiamondTest is DSTest {
         // call random function selectors
         bytes memory callData = hex"a516f0f3"; // getPeripheryContract(string)
 
-        vm.expectRevert(FunctionDoesNotExist.selector);
+        VM.expectRevert(FunctionDoesNotExist.selector);
         (bool success, ) = address(diamond).call(callData);
-        if (!success) revert("ShouldNotReachThisCode"); // was only added to silence a compiler warning
+        if (!success) revert ShouldNotReachThisCode(); // was only added to silence a compiler warning
     }
 
     function test_CanReceiveETH() public {
         (bool success, ) = address(diamond).call{ value: 1 ether }("");
-        if (!success) revert("ExternalCallFailed");
+        if (!success) revert ExternalCallFailed();
 
         assertEq(address(diamond).balance, 1 ether);
     }

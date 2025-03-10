@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
-import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { LibSwap, LibAllowList, TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipFacet is GasZipFacet {

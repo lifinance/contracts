@@ -2,21 +2,21 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { TestWrappedToken as ERC20 } from "../utils/TestWrappedToken.sol";
-import { IERC20, LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract TokenWrapperTest is DSTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal immutable VM = Vm(HEVM_ADDRESS);
     TokenWrapper private tokenWrapper;
     ERC20 private wrappedToken;
+
+    error ETHTransferFailed();
 
     function setUp() public {
         wrappedToken = new ERC20("TestWrappedToken", "WTST", 18);
         tokenWrapper = new TokenWrapper(address(wrappedToken), address(this));
-        vm.deal(address(this), 100 ether);
+        VM.deal(address(this), 100 ether);
     }
 
     // Needed to receive ETH
@@ -31,7 +31,7 @@ contract TokenWrapperTest is DSTest {
     function testCanWithdrawToken() public {
         // Send some ETH to the contract
         (bool success, ) = address(tokenWrapper).call{ value: 1 ether }("");
-        require(success, "Failed to send ETH");
+        if (!success) revert ETHTransferFailed();
 
         uint256 initialBalance = address(this).balance;
         tokenWrapper.withdrawToken(
@@ -44,7 +44,7 @@ contract TokenWrapperTest is DSTest {
 
     function testCanWithdraw() public {
         uint256 initialBalance = address(this).balance;
-        vm.deal(address(wrappedToken), 100 ether);
+        VM.deal(address(wrappedToken), 100 ether);
         wrappedToken.mint(address(this), 1 ether);
         wrappedToken.approve(address(tokenWrapper), 1 ether);
         tokenWrapper.withdraw();
