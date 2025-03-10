@@ -126,14 +126,36 @@ jobs:
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
               echo "DIFF_OUTPUT: $DIFF_OUTPUT"
 
-              ##### Check if any relevant changes were made (ignore only comments and pragma)
-              if echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
-                | grep -vE '^[\+\-]\s*(//|pragma)' \
-                | grep -vE '^(\+\+\+|---)' \
-                | grep -vE '^([\+\-])\s*$' \
-                | grep -q .; then
+              echo ""
+              echo "Test outputs: "
+              echo '+    pragma ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              # (No output, correctly excluded)
 
-                # Relevant code changes detected
+              echo '+    // comment' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              # (No output, correctly excluded)
+
+              echo '+    /* comment */' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              # (No output, correctly excluded)
+
+              echo "expecting two outputs to show now:"
+              echo '+    uint256 value = 0;' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              echo '+    pragme ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              # (Output shown, correctly included as relevant)
+              echo ""
+
+              ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
+              RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
+                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
+                | grep -vE '^(\+\+\+|---)' \
+                | grep -vE '^([\+\-])[[:space:]]*$' || true)
+
+              ##### Log what is considered relevant (if anything)
+              echo "Relevant code changes detected (if any):"
+              echo "$RELEVANT_CHANGES"
+              echo "--------------------"
+
+              ##### Decide if audit/version update is needed
+              if [[ -n "$RELEVANT_CHANGES" ]]; then
                 echo -e "\033[33mRelevant code changes detected. Checking version update...\033[0m"
 
                 ##### Check if version was updated in this PR
@@ -147,13 +169,12 @@ jobs:
                   echo -e "\033[31mThe file changed (relevant changes) but the file version was not updated\033[0m"
                   MISSING_VERSION_UPDATE+=("$FILE_PATH")
                 fi
-
               else
                 ##### No relevant changes — only comments or pragma touched
                 echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
-            echo "--------------------"
+            echo "===================="
           done <<< "$CONTRACTS"
 
           # while IFS= read -r FILE_PATH; do
