@@ -131,7 +131,6 @@ jobs:
                 | grep -vE '^(\+\+\+|---)' \
                 | grep -vE '^([\+\-])[[:space:]]*$' || true)
 
-
               ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then
                 ##### Log what is considered relevant (if anything)
