@@ -124,33 +124,6 @@ jobs:
 
               ##### Get all changes of the current file/contract
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
-              echo "DIFF_OUTPUT: $DIFF_OUTPUT"
-
-              echo ""
-              echo "Test outputs: "
-              # echo '+    pragma ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
-              echo '+    pragma' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
-              # (No output, correctly excluded)
-
-
-              echo "1"
-              # echo '+    // comment' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
-              echo '+    // comment' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
-              # (No output, correctly excluded)
-
-              echo "2"
-              # echo '+    /* comment */' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
-              echo '+    /* comment */' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
-              # (No output, correctly excluded)
-
-              echo "3"
-              echo "expecting two outputs to show now:"
-              echo '+    uint256 value = 0;' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
-              # echo '+    uint256 value = 0;' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
-              # echo '+    pragme ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
-              echo '+    pragme' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
-              # (Output shown, correctly included as relevant)
-              echo ""
 
               ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
@@ -158,19 +131,21 @@ jobs:
                 | grep -vE '^(\+\+\+|---)' \
                 | grep -vE '^([\+\-])[[:space:]]*$' || true)
 
-              ##### Log what is considered relevant (if anything)
-              echo "Relevant code changes detected (if any):"
-              echo "$RELEVANT_CHANGES"
-              echo "--------------------"
 
               ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then
-                echo -e "\033[33mRelevant code changes detected. Checking version update...\033[0m"
+                ##### Log what is considered relevant (if anything)
+                echo "--------------------"
+                echo -e "\033[33mThe following lines were identified as audit-relevant code changes:\033[0m"
+                echo "$RELEVANT_CHANGES"
+                echo "--------------------"
+                echo -e "\033[33mChecking if version was update...\033[0m"
 
                 ##### Check if version was updated in this PR
                 if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                   echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
                   NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
+                  ###### we only need to add the contract to these arrays if version was updated cause otherwise the action will fail anyway
                   CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
                   CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
                 else
