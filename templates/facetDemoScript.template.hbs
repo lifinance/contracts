@@ -19,16 +19,25 @@ dotenv.config()
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
 const {{constantCase name}}_FACET_ABI = {{camelCase name}}FacetArtifact.abi as Narrow<typeof {{camelCase name}}FacetArtifact.abi>
 
+// If you need to import a custom ABI, follow these steps:
+// 
+// First, ensure you import the relevant artifact file:
+// import exampleArtifact from '../../out/{example artifact json file}'
+//
+// Then, define the ABI using `Narrow<typeof exampleArtifact.abi>` for proper type inference:
+// const EXAMPLE_ABI = exampleArtifact.abi as Narrow<typeof exampleArtifact.abi>
+//
+
 // #endregion
 
 dotenv.config()
 
 async function main() {
   // === Set up environment ===
-  const srcChain: SupportedChain = "mainnet"; // Set source chain
+  const srcChain: SupportedChain = "mainnet" // Set source chain
   const destinationChainId = 1 // Set destination chain id
 
-  const { client, publicClient, walletAccount, lifiDiamondAddress, lifiDiamondContract } = await setupEnvironment(srcChain, {{constantCase name}}_FACET_ABI);
+  const { client, publicClient, walletAccount, lifiDiamondAddress, lifiDiamondContract } = await setupEnvironment(srcChain, {{constantCase name}}_FACET_ABI)
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
@@ -59,20 +68,20 @@ async function main() {
   //   address: EXAMPLE_ADDRESS,
   //   abi: EXAMPLE_ABI,
   //   client
-  // });
+  // })
   //
 
   const srcTokenName = await srcTokenContract.read.name() as string
   const srcTokenSymbol = await srcTokenContract.read.symbol() as string
   const srcTokenDecimals = await srcTokenContract.read.decimals() as bigint
-  const amount = parseUnits('10', srcTokenDecimals) // 10 * 1e{source token decimals}
+  const amount = parseUnits('10', Number(srcTokenDecimals)); // 10 * 1e{source token decimals}
 
-  console.info(`\Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`)
+  console.info(`Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`)
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureBalance(srcTokenContract, signerAddress, amount);
+  await ensureBalance(srcTokenContract, signerAddress, amount)
 
-  await ensureAllowance(srcTokenContract, signerAddress, lifiDiamondAddress, amount, publicClient); 
+  await ensureAllowance(srcTokenContract, signerAddress, lifiDiamondAddress, amount, publicClient)
 
   // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
 
@@ -108,7 +117,7 @@ async function main() {
     'Starting bridge tokens via {{titleCase name}}',
     publicClient,
     true
-  );
+  )
 }
 
 main()
