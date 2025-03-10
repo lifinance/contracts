@@ -130,7 +130,7 @@ jobs:
                 CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
               else
                 ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
-                if echo "$DIFF_OUTPUT" | grep -qE '^\+\/\/\/|^\+pragma|^\+// SPDX-License-Identifier:'; then
+                if echo "$DIFF_OUTPUT" | grep -qE '^\+//|^\+pragma'; then
                   echo -e "\033[32mChange is non-relevant (comments/formatting/pragma/license). No version update required.\033[0m"
                 else
                   ##### add to files with missing version updates
