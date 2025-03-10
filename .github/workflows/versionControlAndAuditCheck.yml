@@ -128,15 +128,21 @@ jobs:
 
               echo ""
               echo "Test outputs: "
-              echo '+    pragma ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              # echo '+    pragma ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              echo '+    pragma' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
               # (No output, correctly excluded)
 
-              echo '+    // comment' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+
+              echo "1"
+              # echo '+    // comment' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
+              echo '+    // comment' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)' || true
               # (No output, correctly excluded)
 
+              echo "2"
               echo '+    /* comment */' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
               # (No output, correctly excluded)
 
+              echo "3"
               echo "expecting two outputs to show now:"
               echo '+    uint256 value = 0;' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
               echo '+    pragme ' | grep -vE '^[\+\-][[:space:]]*(//|/*|pragma)'
