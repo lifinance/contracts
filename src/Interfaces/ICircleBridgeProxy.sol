@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for CircleBrideProxy
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ICircleBridgeProxy {
     /// @notice Deposits and burns tokens from sender to be minted on destination domain.
     /// @dev reverts if:

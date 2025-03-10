@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for ERC20Proxy
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IERC20Proxy {
     function transferFrom(
         address tokenAddress,

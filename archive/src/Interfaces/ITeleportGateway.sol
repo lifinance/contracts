@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for Teleport Gateway
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ITeleportGateway {
     /// @notice Initiate DAI transfer.
     /// @param targetDomain Domain of destination chain.

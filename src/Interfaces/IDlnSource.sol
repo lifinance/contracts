@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for DlnSource
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IDlnSource {
     struct OrderCreation {
         // the address of the ERC-20 token you are giving;

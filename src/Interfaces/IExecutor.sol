@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { LibSwap } from "../Libraries/LibSwap.sol";
 
 /// @title Interface for Executor
 /// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IExecutor {
     /// @notice Performs a swap before completing a cross-chain transaction
     /// @param _transactionId the transaction id associated with the operation

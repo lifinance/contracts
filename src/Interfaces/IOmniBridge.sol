@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for OmniBridge
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IOmniBridge {
     /// @dev Initiate the bridge operation for some amount of tokens from msg.sender.
     /// @param token bridged token contract address.

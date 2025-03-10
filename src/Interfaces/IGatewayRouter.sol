@@ -1,7 +1,9 @@
-// SPDX-License-Identifier: BUSL-1.1
-/// @custom:version 1.0.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+/// @title Interface for GatewayRouter
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IGatewayRouter {
     /// @notice Transfer non-native assets
     /// @param _token L1 address of ERC20
