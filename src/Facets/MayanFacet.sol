@@ -13,7 +13,7 @@ import { IMayan } from "../Interfaces/IMayan.sol";
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.1.0
+/// @custom:version 1.1.1
 contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

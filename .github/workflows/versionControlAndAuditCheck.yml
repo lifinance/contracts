@@ -136,10 +136,10 @@ jobs:
               if [[ -n "$RELEVANT_CHANGES" ]]; then
                 ##### Log what is considered relevant (if anything)
                 echo "--------------------"
-                echo -e "\033[33mThe following lines were identified as audit-relevant code changes:\033[0m"
+                echo "The following lines were identified as audit-relevant code changes:"
                 echo "$RELEVANT_CHANGES"
                 echo "--------------------"
-                echo -e "\033[33mChecking if version was updated...\033[0m"
+                echo "Checking if version was updated..."
 
                 ##### Check if version was updated in this PR
                 if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
@@ -158,7 +158,7 @@ jobs:
 
                 else
                   ##### Relevant changes but no version update — needs fixing
-                  echo -e "\033[31mThe file changed (relevant changes) but the file version was not updated\033[0m"
+                  echo -e "\033[31mThe file has relevant changes but the file version was not updated\033[0m"
                   MISSING_VERSION_UPDATE+=("$FILE_PATH")
                 fi
               else
