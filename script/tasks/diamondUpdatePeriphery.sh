@@ -197,7 +197,7 @@ register() {
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
           echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-          npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)
@@ -222,7 +222,7 @@ register() {
           echoDebug "NETWORK: $NETWORK"
 
           echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-          npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)

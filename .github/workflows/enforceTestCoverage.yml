@@ -54,7 +54,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1.3.1
         if: env.solidity_changed == 'true'
 
-      - name: Install Dependencies
+      - name: Install forge Dependencies
         run: forge install
         if: env.solidity_changed == 'true'
 

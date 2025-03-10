@@ -31,8 +31,8 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      # Step 5: Install dependencies
-      - name: Install dependencies
+      # Step 5: Install dev dependencies
+      - name: Install dev dependencies
         run: bun install
 
       # Step 6: Generate ABI from contracts
