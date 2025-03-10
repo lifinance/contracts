@@ -145,9 +145,17 @@ jobs:
                 if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                   echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
                   NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                  ###### we only need to add the contract to these arrays if version was updated cause otherwise the action will fail anyway
-                  CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
                   CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
+
+                  ###### interfaces do not required to be audited, so check if this is an interface first
+                  if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
+                    ###### we only need to add the contract to these arrays if version was updated cause otherwise the action will fail anyway
+                    CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
+                    echo -e "$FILE_PATH marked for audit.\033[0m"
+                  else
+                    echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
+                  fi
+
                 else
                   ##### Relevant changes but no version update — needs fixing
                   echo -e "\033[31mThe file changed (relevant changes) but the file version was not updated\033[0m"
@@ -158,7 +166,7 @@ jobs:
                 echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
-            echo "===================="
+            echo "========================================"
           done <<< "$CONTRACTS"
 
           # while IFS= read -r FILE_PATH; do
@@ -479,7 +487,7 @@ jobs:
             ##### Check if the contract and version exist in the JSON and get the audit IDs
             AUDIT_IDS=$(jq -e -r --arg filename "$FILENAME" --arg version "$VERSION" \
               'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH") || {
-              echo "::error::Failed to parse audit log JSON for $FILENAME v$VERSION"
+              echo -e "\033[31mCould not find any logged audit for contract $FILENAME in version $VERSION.\033[0m"
               exit 1
             }
 
