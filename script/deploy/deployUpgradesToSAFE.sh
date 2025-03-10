@@ -30,7 +30,7 @@ deployUpgradesToSAFE() {
     # We can assume code in the main branch has been pre-approved and audited
     VERIFIED="OK"
   else
-    VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
+    VERIFIED=$(bun --silent script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
   fi
 
   if [[ $VERIFIED == "OK" ]]; then
@@ -47,7 +47,7 @@ deployUpgradesToSAFE() {
       if [ "$FACET_CUT" != "0x" ]; then
         echo "Proposing facet cut for $script..."
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-        npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       fi
     done
     exit 0

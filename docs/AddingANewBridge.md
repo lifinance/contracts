@@ -5,8 +5,8 @@
 All bridges integrated into the [LI.FI](https://li.finance) Diamond contract follow the same basic pattern. To add a new integration follow these steps.
 
 1. Clone this repository
-2. Run `yarn install`
-3. Run `yarn codegen facet` and follow the prompts
+2. Run `bun install`
+3. Run `bun codegen facet` and follow the prompts
 
 This will create all the required files to add a new bridge integration. The structure will look like this.
 
