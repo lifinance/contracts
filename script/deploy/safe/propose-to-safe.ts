@@ -1,21 +1,17 @@
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import type { Chain } from 'viem'
+import { Address, Hex, createPublicClient, http } from 'viem'
 import { MongoClient } from 'mongodb'
-const { default: Safe } = await import('@safe-global/protocol-kit')
-import { ethers } from 'ethers6'
-import {
-  OperationType,
-  type SafeTransactionDataPartial,
-} from '@safe-global/safe-core-sdk-types'
+import consola from 'consola'
 import * as chains from 'viem/chains'
 import {
   NetworksObject,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import data from '../../../config/networks.json'
+import { OperationType, ViemSafe } from './safe-utils'
+
 const networks: NetworksObject = data as NetworksObject
-import consola from 'consola'
 
 /**
  * Retries a function multiple times if it fails
@@ -37,12 +33,6 @@ const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
     }
     throw e
   }
-}
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
 }
 
 /**
@@ -94,24 +84,36 @@ const main = defineCommand({
     const db = mongoClient.db('SAFE')
     const pendingTransactions = db.collection('pendingTransactions')
 
-    const safeAddress = networks[args.network.toLowerCase()].safeAddress
+    const safeAddress = networks[args.network.toLowerCase()]
+      .safeAddress as Address
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
-    const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const signer = new ethers.Wallet(args.privateKey, provider)
 
-    let protocolKit: Safe
+    // Create a public client for basic chain operations
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(rpcUrl),
+    })
+
+    // Initialize our viem-based Safe implementation
+    let safe: ViemSafe
     try {
-      protocolKit = await Safe.init({
+      safe = await ViemSafe.init({
         provider: rpcUrl,
-        signer: args.privateKey,
+        privateKey: args.privateKey,
         safeAddress,
       })
     } catch (error) {
-      consola.error('Failed to initialize Safe protocol kit:', error)
+      consola.error('Failed to initialize Safe:', error)
       throw error
     }
 
+    // Get the account address from the private key
+    const senderAddress = await publicClient
+      .getAddresses()
+      .then((addresses) => addresses[0])
+
+    // Get the latest pending transaction to determine the next nonce
     const latestTx = await pendingTransactions
       .find({
         safeAddress,
@@ -123,28 +125,28 @@ const main = defineCommand({
       .limit(1)
       .toArray()
 
-    // it seems that different versions of the SAFE package produce different object structures for "latestTx" so we use this approach to cover both cases
+    // Calculate the next nonce
     const nextNonce =
       latestTx.length > 0
-        ? (latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) + 1
-        : await protocolKit.getNonce()
-    const safeTransactionData: SafeTransactionDataPartial = {
-      to: args.to,
-      value: '0',
-      data: args.calldata,
-      operation: OperationType.Call,
-      nonce: nextNonce,
-    }
+        ? BigInt(latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) +
+          1n
+        : await safe.getNonce()
 
-    const senderAddress = await signer.getAddress()
-
-    // Create and prepare the Safe transaction with the provided transaction data
-    // This will be signed and proposed to the Safe for execution
-    let safeTransaction = await protocolKit.createTransaction({
-      transactions: [safeTransactionData],
+    // Create and sign the Safe transaction
+    const safeTransaction = await safe.createTransaction({
+      transactions: [
+        {
+          to: args.to as Address,
+          value: 0n,
+          data: args.calldata as Hex,
+          operation: OperationType.Call,
+          nonce: nextNonce,
+        },
+      ],
     })
-    safeTransaction = await protocolKit.signTransaction(safeTransaction)
-    const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
+
+    const signedTx = await safe.signTransaction(safeTransaction)
+    const safeTxHash = await safe.getTransactionHash(signedTx)
 
     consola.info('Signer Address', senderAddress)
     consola.info('Safe Address', safeAddress)
@@ -154,10 +156,10 @@ const main = defineCommand({
     // Store transaction in MongoDB
     try {
       const txDoc = {
-        safeAddress: await protocolKit.getAddress(),
+        safeAddress: await safe.getAddress(),
         network: args.network.toLowerCase(),
         chainId: chain.id,
-        safeTx: safeTransaction,
+        safeTx: signedTx,
         safeTxHash,
         proposer: senderAddress,
         timestamp: new Date(),
