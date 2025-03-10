@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 interface ICBridge {
@@ -33,14 +33,6 @@ interface ICBridge {
     ///                     Receiver is guaranteed to receive at least (100% - max slippage percentage) * amount
     ///                     or the transfer can be refunded.
     function sendNative(
-        address _receiver,
-        uint256 _amount,
-        uint64 _dstChainId,
-        uint64 _nonce,
-        uint32 _maxSlippage
-    ) external payable;
-
-    function sendNative2(
         address _receiver,
         uint256 _amount,
         uint64 _dstChainId,
