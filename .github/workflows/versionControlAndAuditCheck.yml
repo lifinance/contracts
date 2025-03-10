@@ -139,7 +139,7 @@ jobs:
                 echo -e "\033[33mThe following lines were identified as audit-relevant code changes:\033[0m"
                 echo "$RELEVANT_CHANGES"
                 echo "--------------------"
-                echo -e "\033[33mChecking if version was update...\033[0m"
+                echo -e "\033[33mChecking if version was updated...\033[0m"
 
                 ##### Check if version was updated in this PR
                 if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
@@ -166,7 +166,7 @@ jobs:
                 echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
-            echo "========================================"
+            echo "===================================================================================="
           done <<< "$CONTRACTS"
 
           # while IFS= read -r FILE_PATH; do
@@ -238,16 +238,17 @@ jobs:
             CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
             echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
           else
-            echo -e "\033[32mDid not find any contracts for which version control is activated.\033[0m"
+            echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
 
           ##### Upload this file in any case to prevent error in following job when trying to download this file
+          echo -e ""
+          echo -e ""
           echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
           echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR[*]}"
-          echo "##############file written"
 
       - name: Compose updated PR title
         env:
