@@ -16,6 +16,11 @@ interface IMayan {
         bytes calldata protocolData
     ) external payable;
 
+    function forwardEth2(
+        address mayanProtocol,
+        bytes calldata protocolData
+    ) external payable;
+
     function forwardERC20(
         address tokenIn,
         uint256 amountIn,
