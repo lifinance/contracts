@@ -18,6 +18,7 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the glacis airlift on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IGlacisAirlift public immutable airlift;
 
     /// Types ///
@@ -116,6 +117,9 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
+        // solhint detects this as an Ether `send` call, but this is a function from GlacisAirlift
+        // that does not return a value, so checking the return value is unnecessary.
+        // solhint-disable-next-line check-send-result
         airlift.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,

@@ -21,6 +21,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
+    // solhint-disable-next-line immutable-vars-naming
     IMayan public immutable mayan;
 
     /// @dev Mayan specific bridge data
@@ -282,6 +283,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes memory protocolData,
         uint256 inputAmount
     ) internal pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(protocolData.length >= 68, "protocol data too short");
         bytes memory modifiedData = new bytes(protocolData.length);
         bytes4 functionSelector = bytes4(protocolData[0]) |
@@ -298,6 +300,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             amountIndex = 36;
         }
 
+        /* solhint-disable gas-custom-errors, explicit-types */
         // Copy the function selector and params before amount in
         for (uint i = 0; i < amountIndex; i++) {
             modifiedData[i] = protocolData[i];
