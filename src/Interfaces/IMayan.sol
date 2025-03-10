@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 pragma solidity ^0.8.17;
 
 interface IMayan {
