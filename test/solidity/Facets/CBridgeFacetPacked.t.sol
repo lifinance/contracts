@@ -6,14 +6,18 @@ import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract MockLiquidityBridge is TestBase {
+    error NativeTokenTransferFailed();
+
     function mockWithdraw(uint256 _amount) external {
         // same call as in cbridge implementation
         (bool sent, ) = msg.sender.call{ value: _amount, gas: 50000 }("");
-        require(sent, "failed to send native token");
+        if (!sent) {
+            revert NativeTokenTransferFailed();
+        }
     }
 }
 
@@ -33,19 +37,19 @@ contract CBridgeFacetPackedTest is TestBase {
     CBridgeFacetPacked internal cBridgeFacetPacked;
     CBridgeFacetPacked internal standAlone;
 
-    bytes32 transactionId;
-    uint64 destinationChainId;
-    uint64 nonce;
-    uint32 maxSlippage;
+    bytes32 internal transactionId;
+    uint64 internal destinationChainId;
+    uint64 internal nonce;
+    uint32 internal maxSlippage;
 
-    uint256 amountNative;
-    bytes packedNative;
+    uint256 internal amountNative;
+    bytes internal packedNative;
 
-    uint256 amountUSDT;
-    bytes packedUSDT;
+    uint256 internal amountUSDT;
+    bytes internal packedUSDT;
 
-    uint256 amountUSDC;
-    bytes packedUSDC;
+    uint256 internal amountUSDC;
+    bytes internal packedUSDC;
 
     event CBridgeRefund(
         address indexed _assetAddress,
@@ -161,7 +165,7 @@ contract CBridgeFacetPackedTest is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -172,7 +176,7 @@ contract CBridgeFacetPackedTest is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -196,7 +200,7 @@ contract CBridgeFacetPackedTest is TestBase {
         usdt.approve(address(diamond), amountUSDT);
         (bool success, ) = address(diamond).call(packedUSDT);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -208,7 +212,7 @@ contract CBridgeFacetPackedTest is TestBase {
         usdt.approve(address(standAlone), amountUSDT);
         (bool success, ) = address(standAlone).call(packedUSDT);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -233,7 +237,7 @@ contract CBridgeFacetPackedTest is TestBase {
         usdc.approve(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -245,7 +249,7 @@ contract CBridgeFacetPackedTest is TestBase {
         usdc.approve(address(standAlone), amountUSDC);
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -466,11 +470,11 @@ contract CBridgeFacetPackedTest is TestBase {
     }
 
     function test_CanTriggerRefund() public {
-        uint256 REFUND_AMOUNT = 0.1 ether;
-        address USER_RECEIVER = 0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
-        deal(CBRIDGE_ROUTER, REFUND_AMOUNT); // fund router
+        uint256 refundAmount = 0.1 ether;
+        address userReceiver = 0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
+        deal(CBRIDGE_ROUTER, refundAmount); // fund router
 
-        uint256 preRefundBalance = address(USER_RECEIVER).balance;
+        uint256 preRefundBalance = address(userReceiver).balance;
 
         // replace bridge
         vm.allowCheatcodes(CBRIDGE_ROUTER);
@@ -482,18 +486,18 @@ contract CBridgeFacetPackedTest is TestBase {
             payable(CBRIDGE_ROUTER), // Celer Liquidity Bridge
             abi.encodeWithSelector(
                 MockLiquidityBridge.mockWithdraw.selector,
-                REFUND_AMOUNT
+                refundAmount
             ), // Calldata
             address(0), // Native asset
-            payable(USER_RECEIVER), // Address to refund to
-            REFUND_AMOUNT
+            payable(userReceiver), // Address to refund to
+            refundAmount
         );
 
         // validate
-        uint256 postRefundBalance = address(USER_RECEIVER).balance;
+        uint256 postRefundBalance = address(userReceiver).balance;
         assertEq(
             postRefundBalance - preRefundBalance,
-            REFUND_AMOUNT,
+            refundAmount,
             "Refund amount should be correct"
         );
     }

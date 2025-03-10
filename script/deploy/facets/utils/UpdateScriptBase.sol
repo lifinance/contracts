@@ -11,9 +11,16 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
 
+    error InvalidHexDigit(uint8 d);
+
     struct FunctionSignature {
         string name;
         bytes sig;
+    }
+
+    struct Approval {
+        address aTokenAddress;
+        address bContractAddress;
     }
 
     address internal diamond;
@@ -201,7 +208,7 @@ contract UpdateScriptBase is ScriptBase {
         } else if (10 <= uint8(d) && uint8(d) <= 15) {
             return bytes1(uint8(bytes1("a")) + d - 10);
         }
-        revert();
+        revert InvalidHexDigit(d);
     }
 
     function fromCode(bytes4 code) public pure returns (string memory) {

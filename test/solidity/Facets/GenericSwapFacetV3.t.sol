@@ -3,11 +3,10 @@ pragma solidity ^0.8.17;
 
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { LibAllowList, LibSwap, TestBase, console } from "../utils/TestBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
@@ -1433,8 +1432,8 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     {
         amountIn = 100 * 10 ** dai.decimals();
 
-        uint integratorFee = 5 * 10 ** dai.decimals();
-        uint lifiFee = 0;
+        uint256 integratorFee = 5 * 10 ** dai.decimals();
+        uint256 lifiFee = 0;
         address integratorAddress = address(0xb33f); // some random address
 
         // Swap1: Collect ERC20 fee (DAI)
@@ -1586,8 +1585,8 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     {
         amountIn = 1 ether;
 
-        uint integratorFee = 0.1 ether;
-        uint lifiFee = 0;
+        uint256 integratorFee = 0.1 ether;
+        uint256 lifiFee = 0;
         address integratorAddress = address(0xb33f); // some random address
 
         // Swap1: Collect native fee
@@ -1725,8 +1724,8 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     {
         amountIn = 100 * 10 ** dai.decimals();
 
-        uint integratorFee = 5 * 10 ** dai.decimals();
-        uint lifiFee = 0;
+        uint256 integratorFee = 5 * 10 ** dai.decimals();
+        uint256 lifiFee = 0;
         address integratorAddress = address(0xb33f); // some random address
 
         // Swap1: Collect ERC20 fee (5 DAI)
@@ -2001,7 +2000,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
 
         // prepare swapData
         // Swap1: Collect ERC20 fee (5 USDC)
-        uint integratorFee = 5 * 10 ** usdc.decimals();
+        uint256 integratorFee = 5 * 10 ** usdc.decimals();
         address integratorAddress = address(0xb33f); // some random address
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
         swapData[0] = LibSwap.SwapData(

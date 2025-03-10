@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
+import { LibAllowList, TestBase } from "../utils/TestBase.sol";
+import { OnlyContractOwner, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { IStargate, ITokenMessaging } from "lifi/Interfaces/IStargate.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
 

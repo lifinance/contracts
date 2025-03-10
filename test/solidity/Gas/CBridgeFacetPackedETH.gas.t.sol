@@ -1,11 +1,11 @@
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi, ERC20 } from "../utils/TestBase.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
 
 contract CBridgeGasETHTest is TestBase {
     using SafeERC20 for IERC20;
@@ -22,22 +22,22 @@ contract CBridgeGasETHTest is TestBase {
     CBridgeFacetPacked internal standAlone;
     CBridgeFacet internal cBridgeFacet;
 
-    bytes32 transactionId;
-    uint64 destinationChainId;
-    uint64 nonce;
-    uint32 maxSlippage;
+    bytes32 internal transactionId;
+    uint64 internal destinationChainId;
+    uint64 internal nonce;
+    uint32 internal maxSlippage;
 
-    uint256 amountNative;
-    bytes packedNative;
+    uint256 internal amountNative;
+    bytes internal packedNative;
 
-    uint256 amountUSDC;
-    bytes packedUSDC;
+    uint256 internal amountUSDC;
+    bytes internal packedUSDC;
 
-    ILiFi.BridgeData bridgeDataNative;
-    CBridgeFacet.CBridgeData cbridgeDataNative;
+    ILiFi.BridgeData internal bridgeDataNative;
+    CBridgeFacet.CBridgeData internal cbridgeDataNative;
 
-    ILiFi.BridgeData bridgeDataUSDC;
-    CBridgeFacet.CBridgeData cbridgeDataUSDC;
+    ILiFi.BridgeData internal bridgeDataUSDC;
+    CBridgeFacet.CBridgeData internal cbridgeDataUSDC;
 
     function setUp() public {
         customBlockNumberForForking = 15588208;
@@ -192,7 +192,7 @@ contract CBridgeGasETHTest is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -203,7 +203,7 @@ contract CBridgeGasETHTest is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -227,7 +227,7 @@ contract CBridgeGasETHTest is TestBase {
         IERC20(ADDRESS_USDT).safeApprove(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -237,7 +237,7 @@ contract CBridgeGasETHTest is TestBase {
         IERC20(ADDRESS_USDT).safeApprove(address(standAlone), amountUSDC);
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }

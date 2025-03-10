@@ -6,9 +6,11 @@ import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { TestBase, console, ILiFi } from "../utils/TestBase.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
 
 contract CallForwarder {
+    error DiamondCallFailed();
+
     function callDiamond(
         uint256 nativeAmount,
         address contractAddress,
@@ -18,7 +20,7 @@ contract CallForwarder {
             callData
         );
         if (!success) {
-            revert();
+            revert DiamondCallFailed();
         }
     }
 }
@@ -52,25 +54,25 @@ contract HopFacetPackedL2Test is TestBase {
     HopFacetPacked internal standAlone;
     CallForwarder internal callForwarder;
 
-    bytes8 transactionId;
-    string integrator;
-    uint256 destinationChainId;
-    uint256 deadline;
+    bytes8 internal transactionId;
+    string internal integrator;
+    uint256 internal destinationChainId;
+    uint256 internal deadline;
 
-    uint256 amountUSDC;
-    uint256 amountBonderFeeUSDC;
-    uint256 amountOutMinUSDC;
-    bytes packedUSDC;
+    uint256 internal amountUSDC;
+    uint256 internal amountBonderFeeUSDC;
+    uint256 internal amountOutMinUSDC;
+    bytes internal packedUSDC;
 
-    uint256 amountUSDT;
-    uint256 amountBonderFeeUSDT;
-    uint256 amountOutMinUSDT;
-    bytes packedUSDT;
+    uint256 internal amountUSDT;
+    uint256 internal amountBonderFeeUSDT;
+    uint256 internal amountOutMinUSDT;
+    bytes internal packedUSDT;
 
-    uint256 amountNative;
-    uint256 amountBonderFeeNative;
-    uint256 amountOutMinNative;
-    bytes packedNative;
+    uint256 internal amountNative;
+    uint256 internal amountBonderFeeNative;
+    uint256 internal amountOutMinNative;
+    bytes internal packedNative;
 
     function setUp() public {
         customBlockNumberForForking = 58467500;
@@ -232,7 +234,7 @@ contract HopFacetPackedL2Test is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -253,7 +255,7 @@ contract HopFacetPackedL2Test is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -312,7 +314,7 @@ contract HopFacetPackedL2Test is TestBase {
         usdc.safeApprove(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -322,7 +324,7 @@ contract HopFacetPackedL2Test is TestBase {
         usdc.safeApprove(address(standAlone), amountUSDC);
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -378,7 +380,7 @@ contract HopFacetPackedL2Test is TestBase {
         usdt.safeApprove(address(diamond), amountUSDT);
         (bool success, ) = address(diamond).call(packedUSDT);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -388,7 +390,7 @@ contract HopFacetPackedL2Test is TestBase {
         usdt.safeApprove(address(standAlone), amountUSDT);
         (bool success, ) = address(standAlone).call(packedUSDT);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }

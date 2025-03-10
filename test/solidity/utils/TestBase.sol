@@ -120,6 +120,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     );
     event Transfer(address from, address to, uint256 amount);
 
+    error NativeBridgeFailed();
+    error ERC20BridgeFailed();
+
     // CONSTANTS
     // Forking
     uint256 internal constant DEFAULT_BLOCK_NUMBER_MAINNET = 15588208;

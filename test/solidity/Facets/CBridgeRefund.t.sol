@@ -2,9 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { UnAuthorized, NotAContract } from "lifi/Errors/GenericErrors.sol";
@@ -30,7 +28,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     error WithdrawFailed();
 
-    bytes internal CALLDATA;
+    bytes internal validCalldata;
 
     LiFiDiamond internal diamond;
     WithdrawFacet internal withdrawFacet;
@@ -67,7 +65,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         POWERS[2] = 150010000000000000000000000;
         POWERS[3] = 150010000000000000000000000;
 
-        CALLDATA = abi.encodeWithSignature(
+        validCalldata = abi.encodeWithSignature(
             "withdraw(bytes,bytes[],address[],uint256[])",
             MSG,
             SIGS,
@@ -115,7 +113,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         vm.chainId(137); // Only needed because of bug in forge forking...
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -136,7 +134,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -152,7 +150,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
         withdrawFacet.executeCallAndWithdraw(
             payable(address(0x123)), //invalid callTo address
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -170,7 +168,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         vm.chainId(137); // Only needed because of bug in forge forking...
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -183,7 +181,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT

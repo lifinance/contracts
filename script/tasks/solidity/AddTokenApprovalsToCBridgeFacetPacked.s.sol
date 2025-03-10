@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
 import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
 
@@ -12,6 +11,8 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     address[] internal tokensToApprove;
+
+    error RefundWalletPrivateKeyNotSet();
 
     function run() public returns (address[] memory facets) {
         address facet = _getConfigContractAddress(
@@ -24,10 +25,9 @@ contract DeployScript is UpdateScriptBase {
         uint256 refundPrivateKey = uint256(
             vm.envOr("PRIVATE_KEY_REFUND_WALLET", bytes32(0))
         );
-        require(
-            refundPrivateKey != 0,
-            "Refund wallet private key not set or invalid"
-        );
+        if (refundPrivateKey == 0) {
+            revert RefundWalletPrivateKeyNotSet();
+        }
         console.log(
             "Refund wallet address used in script:",
             vm.addr(refundPrivateKey)

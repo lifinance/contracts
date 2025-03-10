@@ -2,8 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ERC20 } from "../utils/TestBase.sol";
+import { LibAllowList, LibSwap, TestBase, console } from "../utils/TestBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacet is GenericSwapFacet {

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
+import { LibSwap, LibAllowList, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { CelerIMFacetMutable, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "lifi/Facets/CelerIMFacetMutable.sol";
-import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
 

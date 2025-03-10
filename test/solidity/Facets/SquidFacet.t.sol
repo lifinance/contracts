@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { SquidFacet } from "lifi/Facets/SquidFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
@@ -237,7 +237,7 @@ contract SquidFacetTest is TestBaseFacet {
         view
         returns (SquidFacet.SquidData memory)
     {
-        address ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+        address addressUSDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
         ISquidMulticall.Call[] memory calls = new ISquidMulticall.Call[](2);
 
@@ -245,7 +245,7 @@ contract SquidFacetTest is TestBaseFacet {
         // Swap USDC > USDT
         address[] memory swapPath = new address[](2);
         swapPath[0] = ADDRESS_USDC;
-        swapPath[1] = ADDRESS_USDT;
+        swapPath[1] = addressUSDT;
 
         bytes memory callData = abi.encodeWithSelector(
             uniswap.swapExactTokensForTokens.selector,
@@ -292,14 +292,14 @@ contract SquidFacetTest is TestBaseFacet {
 
     function test_CanBridgeTokens_CallBridgeCall_ERC20() public {
         // this test case will use Squid to do a pre-bridge swap from USDC to USDT and then bridge the USDC
-        address ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+        address addressUSDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
         bridgeData.minAmount = 100000000;
-        bridgeData.sendingAssetId = ADDRESS_USDT;
+        bridgeData.sendingAssetId = addressUSDT;
 
         vm.startPrank(USER_SENDER);
 
         // give USDT balance to user
-        deal(ADDRESS_USDT, USER_SENDER, 100000000);
+        deal(addressUSDT, USER_SENDER, 100000000);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
