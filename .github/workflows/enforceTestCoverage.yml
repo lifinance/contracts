@@ -45,6 +45,7 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        if: env.solidity_changed == 'true'
 
       - name: Install dev dependencies
         run: bun install
