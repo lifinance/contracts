@@ -121,6 +121,7 @@ jobs:
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
               ##### get all changes of the current file/contract
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
+              echo "DIFF_OUTPUT: $DIFF_OUTPUT"
 
               ##### Check if the version was updated in this PR
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
