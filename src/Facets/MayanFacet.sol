@@ -285,6 +285,8 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) internal pure returns (bytes memory) {
         // solhint-disable-next-line gas-custom-errors
         require(protocolData.length >= 68, "protocol data too short");
+        uint256 bla = 0;
+        bla = 1;
         bytes memory modifiedData = new bytes(protocolData.length);
         bytes4 functionSelector = bytes4(protocolData[0]) |
             (bytes4(protocolData[1]) >> 8) |
