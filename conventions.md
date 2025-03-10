@@ -290,7 +290,10 @@ Follow the folder structure to locate resources and generate or modify code in a
     - `auditCommitHash`: The commit hash that was audited (or “n/a” if not tracked).
   2. **auditedContracts:** Maps contract names and versions to the relevant audit IDs in the audits section.
 - **Storing reports:**  
-  Place PDF reports in the `audit/reports/` directory. The naming format must follow: `YYYY.MM.DD_ContractName(version).pdf` (e.g., `2025.01.17_LiFiDexAggregator(v1.3.0).pdf`).
+  Place PDF reports in the `audit/reports/` directory. The naming format must follow: 
+  - For individual contract audits use format `YYYY.MM.DD_ContractName(version).pdf` (e.g., `2025.01.17_LiFiDexAggregator(v1.3.0).pdf`).
+  - For audits covering multiple contracts within a single file use the format: `YYYY.MM.DD_CustomFileName.pdf` (e.g., `2025.01.17_Cantina_Competition_Full_Codebase_Review.pdf`).
+    - Entries in the audit log should link individual contracts to this report.
 - **Adding new audits:**  
   For new or updated contracts, add an entry under audits with the correct date, auditReportPath, and auditCommitHash. Then, reference that new ID in auditedContracts for each relevant version.
 
