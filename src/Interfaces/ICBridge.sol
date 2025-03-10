@@ -39,4 +39,12 @@ interface ICBridge {
         uint64 _nonce,
         uint32 _maxSlippage
     ) external payable;
+
+    function sendNative2(
+        address _receiver,
+        uint256 _amount,
+        uint64 _dstChainId,
+        uint64 _nonce,
+        uint32 _maxSlippage
+    ) external payable;
 }
