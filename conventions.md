@@ -315,7 +315,7 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
   - Each deployment script follow this format:
     - Inherits `DeployScriptBase` to maintain consistency.
     - Uses JSON config (`stdJson`) to fetch contract-specific configuration data.
-    - Defines `getConstructorArgs()` to handle constructor arguments dynamically.
+    - Optionally defines `getConstructorArgs()` if the contract has constructor arguments.
     - Encodes constructor arguments before deployment.
     - Calls `deploy()` using `type({ContractName}).creationCode`.
 - **Structure of Update scripts:**  
@@ -328,7 +328,7 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
     - Use `.selector` to exclude specific functions.
     - Return an array containing function selectors to be excluded.
 - **Configuration and JSON handling:**  
-  - Each deployment script references JSON config files under: `/config/`
+  - If the contract has constructor arguments, each deployment script references JSON config files under `/config/`
     - The script dynamically selects values based on the network using: 
       ```
       string memory path = string.concat(root, "/config/{facetName}.json");
