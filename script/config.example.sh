@@ -99,7 +99,7 @@ START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
 
 # all the periphery contracts listed here will automatically be whitelisted as DEX when deploying "all contracts"
-WHITELIST_PERIPHERY="FeeCollector,LiFuelFeeCollector,TokenWrapper,LiFiDEXAggregator"
+WHITELIST_PERIPHERY="FeeCollector,TokenWrapper,LiFiDEXAggregator"
 
 # if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
 COMPILE_ON_STARTUP=false
