@@ -8,7 +8,8 @@ import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract TransferrableOwnershipTest is DSTest {
     TransferrableOwnership internal ownable;
-    Vm internal immutable VM = Vm(HEVM_ADDRESS);
+    // solhint-disable immutable-vars-naming
+    Vm internal immutable vm = Vm(HEVM_ADDRESS);
 
     error NoNullOwner();
     error NewOwnerMustNotBeSelf();
@@ -23,10 +24,10 @@ contract TransferrableOwnershipTest is DSTest {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         ownable.transferOwnership(newOwner);
         assert(ownable.owner() != newOwner);
-        VM.startPrank(newOwner);
+        vm.startPrank(newOwner);
         ownable.confirmOwnershipTransfer();
         assert(ownable.owner() == newOwner);
-        VM.stopPrank();
+        vm.stopPrank();
     }
 
     function testRevert_NonOwnerCannotTransferOwnership() public {
@@ -34,9 +35,9 @@ contract TransferrableOwnershipTest is DSTest {
 
         assert(ownable.owner() != newOwner);
 
-        VM.prank(newOwner);
+        vm.prank(newOwner);
 
-        VM.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(UnAuthorized.selector);
 
         ownable.transferOwnership(newOwner);
     }
@@ -44,7 +45,7 @@ contract TransferrableOwnershipTest is DSTest {
     function testRevert_CannotTransferOnwershipToNullAddr() public {
         address newOwner = address(0);
 
-        VM.expectRevert(NoNullOwner.selector);
+        vm.expectRevert(NoNullOwner.selector);
 
         ownable.transferOwnership(newOwner);
     }
@@ -56,7 +57,7 @@ contract TransferrableOwnershipTest is DSTest {
 
         ownable.transferOwnership(newOwner);
 
-        VM.expectRevert(NotPendingOwner.selector);
+        vm.expectRevert(NotPendingOwner.selector);
 
         ownable.confirmOwnershipTransfer();
     }
@@ -64,7 +65,7 @@ contract TransferrableOwnershipTest is DSTest {
     function testRevert_CannotTransferOwnershipToSelf() public {
         address newOwner = address(this);
 
-        VM.expectRevert(NewOwnerMustNotBeSelf.selector);
+        vm.expectRevert(NewOwnerMustNotBeSelf.selector);
 
         ownable.transferOwnership(newOwner);
     }

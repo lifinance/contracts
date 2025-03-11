@@ -7,7 +7,8 @@ import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { TestWrappedToken as ERC20 } from "../utils/TestWrappedToken.sol";
 
 contract TokenWrapperTest is DSTest {
-    Vm internal immutable VM = Vm(HEVM_ADDRESS);
+    // solhint-disable immutable-vars-naming
+    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     TokenWrapper private tokenWrapper;
     ERC20 private wrappedToken;
 
@@ -16,7 +17,7 @@ contract TokenWrapperTest is DSTest {
     function setUp() public {
         wrappedToken = new ERC20("TestWrappedToken", "WTST", 18);
         tokenWrapper = new TokenWrapper(address(wrappedToken), address(this));
-        VM.deal(address(this), 100 ether);
+        vm.deal(address(this), 100 ether);
     }
 
     // Needed to receive ETH
@@ -44,7 +45,7 @@ contract TokenWrapperTest is DSTest {
 
     function testCanWithdraw() public {
         uint256 initialBalance = address(this).balance;
-        VM.deal(address(wrappedToken), 100 ether);
+        vm.deal(address(wrappedToken), 100 ether);
         wrappedToken.mint(address(this), 1 ether);
         wrappedToken.approve(address(tokenWrapper), 1 ether);
         tokenWrapper.withdraw();

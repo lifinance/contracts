@@ -10,7 +10,8 @@ import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 contract LiFiDiamondTest is DSTest {
-    Vm internal immutable VM = Vm(HEVM_ADDRESS);
+    // solhint-disable immutable-vars-naming
+    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond public diamond;
     DiamondCutFacet public diamondCutFacet;
     OwnershipFacet public ownershipFacet;
@@ -58,7 +59,7 @@ contract LiFiDiamondTest is DSTest {
 
     function test_ForwardsCallsViaDelegateCall() public {
         // only one facet with one selector is registered (diamondCut)
-        VM.startPrank(diamondOwner);
+        vm.startPrank(diamondOwner);
 
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
 
@@ -93,7 +94,7 @@ contract LiFiDiamondTest is DSTest {
         // call random function selectors
         bytes memory callData = hex"a516f0f3"; // getPeripheryContract(string)
 
-        VM.expectRevert(FunctionDoesNotExist.selector);
+        vm.expectRevert(FunctionDoesNotExist.selector);
         (bool success, ) = address(diamond).call(callData);
         if (!success) revert ShouldNotReachThisCode(); // was only added to silence a compiler warning
     }

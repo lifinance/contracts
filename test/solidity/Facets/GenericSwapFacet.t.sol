@@ -176,6 +176,8 @@ contract GenericSwapFacetTest is TestBase {
 
         uint256 expectedAmountOut = amountOutWETH;
 
+        uint256 gasLeftBef = gasleft();
+
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -196,6 +198,9 @@ contract GenericSwapFacetTest is TestBase {
             expectedAmountOut,
             swapData
         );
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        emit log_named_uint("gas used V1: ", gasUsed);
 
         vm.stopPrank();
     }

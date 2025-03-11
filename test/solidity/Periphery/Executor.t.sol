@@ -58,7 +58,8 @@ contract MockGateway {
 }
 
 contract ExecutorTest is DSTest {
-    Vm internal immutable VM = Vm(HEVM_ADDRESS);
+    // solhint-disable immutable-vars-naming
+    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     Executor internal executor;
     TestAMM internal amm;
     Vault internal vault;
@@ -79,7 +80,7 @@ contract ExecutorTest is DSTest {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy), address(this));
-        VM.makePersistent(address(executor));
+        vm.makePersistent(address(executor));
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
@@ -87,9 +88,9 @@ contract ExecutorTest is DSTest {
     }
 
     function fork() internal {
-        string memory rpcUrl = VM.envString("ETH_NODE_URI_MAINNET");
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
         uint256 blockNumber = 14847528;
-        VM.createSelectFork(rpcUrl, blockNumber);
+        vm.createSelectFork(rpcUrl, blockNumber);
     }
 
     function testCanPerformComplexSwap() public {
@@ -224,7 +225,7 @@ contract ExecutorTest is DSTest {
             UNISWAP_V2_ROUTER_ADDRESS
         );
 
-        VM.startPrank(DAI_WHALE);
+        vm.startPrank(DAI_WHALE);
         // Swap DAI -> WETH
         address[] memory path = new address[](2);
         path[0] = DAI_ADDRESS;
@@ -263,7 +264,7 @@ contract ExecutorTest is DSTest {
             DAI_ADDRESS,
             payable(DAI_WHALE)
         );
-        VM.stopPrank();
+        vm.stopPrank();
     }
 
     function testCanPerformComplexSwapWithNativeToken() public {
@@ -369,7 +370,7 @@ contract ExecutorTest is DSTest {
             true
         );
 
-        VM.deal(address(executor), 10 ether);
+        vm.deal(address(executor), 10 ether);
 
         executor.swapAndCompleteBridgeTokens{ value: 4_000 ether }(
             "",
@@ -575,7 +576,7 @@ contract ExecutorTest is DSTest {
         tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(erc20Proxy), 1 ether);
 
-        VM.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(UnAuthorized.selector);
 
         executor.swapAndExecute(
             "",
