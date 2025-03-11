@@ -6,7 +6,7 @@ import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { LibAllowList, LibSwap, TestBase, console } from "../utils/TestBase.sol";
+import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
@@ -211,8 +211,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         // expected exact amountOut based on the liquidity available in the specified block for this test case
         uint256 expAmountOut = 99491781613896927553;
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -233,9 +231,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used: V1", gasUsed);
 
         // bytes memory callData = abi.encodeWithSelector(
         //     genericSwapFacet.swapTokensGeneric.selector,
@@ -270,8 +265,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         // expected exact amountOut based on the liquidity available in the specified block for this test case
         uint256 expAmountOut = 99491781613896927553;
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -292,9 +285,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData[0]
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used: V2", gasUsed);
 
         // bytes memory callData = abi.encodeWithSelector(
         //     genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
@@ -508,8 +498,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
 
         vm.startPrank(USDC_HOLDER);
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -531,9 +519,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             swapData
         );
 
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-
         vm.stopPrank();
     }
 
@@ -550,8 +535,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         vm.stopPrank();
 
         vm.startPrank(USDC_HOLDER);
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -573,9 +556,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData[0]
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
 
         vm.stopPrank();
     }
@@ -755,8 +735,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 minAmountOut
         ) = _produceSwapDataNativeToERC20();
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -777,9 +755,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used: ", gasUsed);
     }
 
     function test_CanSwapSingleNativeToERC20_V2() public {
@@ -788,8 +763,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             LibSwap.SwapData[] memory swapData,
             uint256 minAmountOut
         ) = _produceSwapDataNativeToERC20();
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -813,9 +786,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData[0]
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
     }
 
     function test_WillRevertIfDEXIsNotWhitelistedSingleNative() public {
@@ -996,8 +966,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
                 address(genericSwapFacetV3)
             );
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -1019,9 +987,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             swapData
         );
 
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-
         vm.stopPrank();
     }
 
@@ -1039,8 +1004,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         ) = _produceSwapDataMultiswapFromERC20TOERC20(
                 address(genericSwapFacetV3)
             );
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -1062,9 +1025,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
 
         // bytes memory callData = abi.encodeWithSelector(
         //     genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20.selector,
@@ -1289,8 +1249,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapFromNativeToERC20();
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -1311,9 +1269,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
     }
 
     function test_CanSwapMultipleFromNativeToERC20_V2() public {
@@ -1323,8 +1278,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 amountIn,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapFromNativeToERC20();
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -1348,9 +1301,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
     }
 
     function test_MultiSwapNativeWillRevertIfSwapFails() public {
@@ -1498,8 +1448,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToERC20();
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -1521,9 +1469,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             swapData
         );
 
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-
         vm.stopPrank();
     }
 
@@ -1542,8 +1487,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 amountIn,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToERC20();
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -1565,9 +1508,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
 
         vm.stopPrank();
     }
@@ -1646,8 +1586,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapNativeFeeAndSwapToERC20();
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -1668,9 +1606,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
     }
 
     function test_CanCollectNativeFeesAndSwap_V2() public {
@@ -1680,8 +1615,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 amountIn,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapNativeFeeAndSwapToERC20();
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -1705,9 +1638,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
     }
 
     // MULTISWAP COLLECT ERC20 FEE AND SWAP TO NATIVE
@@ -1792,8 +1722,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
                 address(genericSwapFacetV3)
             );
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -1814,9 +1742,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
     }
 
     function test_CanCollectERC20FeesAndSwapToNative_V2() public {
@@ -1828,8 +1753,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
                 address(genericSwapFacetV3)
             );
-
-        uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
@@ -1851,9 +1774,6 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             minAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
     }
 
     function test_WillRevertIfSlippageIsTooHighMultiToNative() public {
