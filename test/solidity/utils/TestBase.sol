@@ -65,6 +65,10 @@ contract ReentrancyChecker is DSTest {
     }
 
     receive() external payable {
+        _handleReceive();
+    }
+
+    function _handleReceive() internal {
         (bool success, bytes memory data) = _facetAddress.call{
             value: 10 ether
         }(_callData);
@@ -82,6 +86,7 @@ contract ReentrancyChecker is DSTest {
 }
 
 //common utilities for forge tests
+// solhint-disable max-states-count
 abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
