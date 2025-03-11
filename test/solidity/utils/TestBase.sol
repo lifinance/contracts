@@ -196,7 +196,11 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     // MODIFIERS
 
     //@dev token == address(0) => check balance of native token
-    modifier assertBalanceChange(address token, address user, int256 amount) {
+    modifier assertBalanceChange(
+        address token,
+        address user,
+        int256 amount
+    ) {
         // store initial balance
         if (token == address(0)) {
             initialBalances[token][user] = user.balance;
