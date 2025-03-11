@@ -54,25 +54,20 @@ contract HopFacetPackedL2Test is TestBase {
     HopFacetPacked internal standAlone;
     CallForwarder internal callForwarder;
 
-    bytes8 internal transactionId;
-    string internal integrator;
-    uint256 internal destinationChainId;
-    uint256 internal deadline;
+    struct BridgeParams {
+        bytes8 transactionId;
+        string integrator;
+        uint256 destinationChainId;
+        uint256 deadline;
+        uint256 amount;
+        uint256 bonderFee;
+        uint256 amountOutMin;
+        bytes packedData;
+    }
 
-    uint256 internal amountUSDC;
-    uint256 internal amountBonderFeeUSDC;
-    uint256 internal amountOutMinUSDC;
-    bytes internal packedUSDC;
-
-    uint256 internal amountUSDT;
-    uint256 internal amountBonderFeeUSDT;
-    uint256 internal amountOutMinUSDT;
-    bytes internal packedUSDT;
-
-    uint256 internal amountNative;
-    uint256 internal amountBonderFeeNative;
-    uint256 internal amountOutMinNative;
-    bytes internal packedNative;
+    BridgeParams internal nativeBridgeParams;
+    BridgeParams internal usdcBridgeParams;
+    BridgeParams internal usdtBridgeParams;
 
     function setUp() public {
         customBlockNumberForForking = 58467500;
@@ -166,73 +161,106 @@ contract HopFacetPackedL2Test is TestBase {
         standAlone.setApprovalForHopBridges(bridges, tokens);
 
         /// Perpare parameters
-        transactionId = "someID";
-        integrator = "demo-partner";
-        destinationChainId = 137;
-        deadline = block.timestamp + 7 * 24 * 60 * 60;
+        bytes8 transactionId = "someID";
+        string memory integrator = "demo-partner";
+        uint256 destinationChainId = 137;
+        uint256 deadline = block.timestamp + 7 * 24 * 60 * 60;
 
-        // Native params
-        amountNative = 1 * 10 ** 18;
-        amountBonderFeeNative = (amountNative / 100) * 1;
-        amountOutMinNative = (amountNative / 100) * 99;
-
-        packedNative = hopFacetPacked
+        bytes memory nativePackedData = hopFacetPacked
             .encode_startBridgeTokensViaHopL2NativePacked(
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                amountBonderFeeNative,
-                amountOutMinNative
+                1 ether / 100,
+                (1 ether / 100) * 99
             );
 
-        // USDC params
-        amountUSDC = 100 * 10 ** usdc.decimals();
-        amountBonderFeeUSDC = (amountUSDC / 100) * 1;
-        amountOutMinUSDC = (amountUSDC / 100) * 99;
+        nativeBridgeParams = _createBridgeParams(
+            transactionId,
+            integrator,
+            destinationChainId,
+            deadline,
+            1 ether,
+            nativePackedData
+        );
 
-        packedUSDC = hopFacetPacked
+        bytes memory usdcPackedData = hopFacetPacked
             .encode_startBridgeTokensViaHopL2ERC20Packed(
                 transactionId,
                 RECEIVER,
                 destinationChainId,
                 USDC_ADDRESS,
-                amountUSDC,
-                amountBonderFeeUSDC,
-                amountOutMinUSDC,
-                amountOutMinUSDC,
+                100 * 10 ** 6,
+                (100 * 10 ** 6) / 100,
+                ((100 * 10 ** 6) / 100) * 99,
+                ((100 * 10 ** 6) / 100) * 99,
                 deadline,
                 USDC_AMM_WRAPPER
             );
 
-        // USDT params
-        amountUSDT = 100 * 10 ** usdt.decimals();
-        amountBonderFeeUSDT = (amountUSDT / 100) * 1;
-        amountOutMinUSDT = (amountUSDT / 100) * 99;
+        usdcBridgeParams = _createBridgeParams(
+            transactionId,
+            integrator,
+            destinationChainId,
+            deadline,
+            100 * 10 ** 6,
+            usdcPackedData
+        );
 
-        packedUSDT = hopFacetPacked
+        bytes memory usdtPackedData = hopFacetPacked
             .encode_startBridgeTokensViaHopL2ERC20Packed(
                 transactionId,
                 RECEIVER,
                 destinationChainId,
                 USDT_ADDRESS,
-                amountUSDT,
-                amountBonderFeeUSDT,
-                amountOutMinUSDT,
-                amountOutMinUSDT,
+                100 * 10 ** 6,
+                (100 * 10 ** 6) / 100,
+                ((100 * 10 ** 6) / 100) * 99,
+                ((100 * 10 ** 6) / 100) * 99,
                 deadline,
                 USDT_AMM_WRAPPER
             );
+
+        usdtBridgeParams = _createBridgeParams(
+            transactionId,
+            integrator,
+            destinationChainId,
+            deadline,
+            100 * 10 ** 6,
+            usdtPackedData
+        );
 
         // set facet address in TestBase
         setFacetAddressInTestBase(address(hopFacetPacked), "HopFacetPackedL2");
     }
 
+    function _createBridgeParams(
+        bytes8 transactionId,
+        string memory integrator,
+        uint256 destinationChainId,
+        uint256 deadline,
+        uint256 amount,
+        bytes memory packedData
+    ) internal pure returns (BridgeParams memory) {
+        return
+            BridgeParams({
+                transactionId: transactionId,
+                integrator: integrator,
+                destinationChainId: destinationChainId,
+                deadline: deadline,
+                amount: amount,
+                bonderFee: amount / 100,
+                amountOutMin: (amount / 100) * 99,
+                packedData: packedData
+            });
+    }
+
     // L2 Native
     function testStartBridgeTokensViaHopL2NativePacked() public {
         vm.startPrank(WHALE);
-        (bool success, ) = address(diamond).call{ value: amountNative }(
-            packedNative
-        );
+        (bool success, ) = address(diamond).call{
+            value: nativeBridgeParams.amount
+        }(nativeBridgeParams.packedData);
         if (!success) {
             revert NativeBridgeFailed();
         }
@@ -241,19 +269,19 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2NativePackedForwarded() public {
         vm.startPrank(WHALE);
-        callForwarder.callDiamond{ value: 2 * amountNative }(
-            amountNative,
+        callForwarder.callDiamond{ value: 2 * nativeBridgeParams.amount }(
+            nativeBridgeParams.amount,
             address(diamond),
-            packedNative
+            nativeBridgeParams.packedData
         );
         vm.stopPrank();
     }
 
     function testStartBridgeTokensViaHopL2NativePackedStandalone() public {
         vm.startPrank(WHALE);
-        (bool success, ) = address(standAlone).call{ value: amountNative }(
-            packedNative
-        );
+        (bool success, ) = address(standAlone).call{
+            value: nativeBridgeParams.amount
+        }(nativeBridgeParams.packedData);
         if (!success) {
             revert NativeBridgeFailed();
         }
@@ -265,29 +293,35 @@ contract HopFacetPackedL2Test is TestBase {
             ILiFi.BridgeData memory decodedBridgeData,
             HopFacetOptimized.HopData memory decodedHopData
         ) = standAlone.decode_startBridgeTokensViaHopL2NativePacked(
-                packedNative
+                nativeBridgeParams.packedData
             );
 
-        assertEq(decodedBridgeData.transactionId, transactionId);
+        assertEq(
+            decodedBridgeData.transactionId,
+            nativeBridgeParams.transactionId
+        );
         assertEq(decodedBridgeData.receiver, RECEIVER);
-        assertEq(decodedBridgeData.destinationChainId, destinationChainId);
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            nativeBridgeParams.destinationChainId
+        );
 
-        assertEq(decodedHopData.bonderFee, amountBonderFeeNative);
-        assertEq(decodedHopData.amountOutMin, amountOutMinNative);
+        assertEq(decodedHopData.bonderFee, nativeBridgeParams.bonderFee);
+        assertEq(decodedHopData.amountOutMin, nativeBridgeParams.amountOutMin);
     }
 
     function testStartBridgeTokensViaHopL2NativeMin() public {
         vm.startPrank(WHALE);
         hopFacetPacked.startBridgeTokensViaHopL2NativeMin{
-            value: amountNative
+            value: nativeBridgeParams.amount
         }(
-            transactionId,
+            nativeBridgeParams.transactionId,
             RECEIVER,
-            destinationChainId,
-            amountBonderFeeNative,
-            amountOutMinNative,
-            amountOutMinNative,
-            deadline,
+            nativeBridgeParams.destinationChainId,
+            nativeBridgeParams.bonderFee,
+            nativeBridgeParams.amountOutMin,
+            nativeBridgeParams.amountOutMin,
+            nativeBridgeParams.deadline,
             HOP_NATIVE_BRIDGE
         );
         vm.stopPrank();
@@ -295,14 +329,16 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2NativeMinStandalone() public {
         vm.startPrank(WHALE);
-        standAlone.startBridgeTokensViaHopL2NativeMin{ value: amountNative }(
-            transactionId,
+        standAlone.startBridgeTokensViaHopL2NativeMin{
+            value: nativeBridgeParams.amount
+        }(
+            nativeBridgeParams.transactionId,
             RECEIVER,
-            destinationChainId,
-            amountBonderFeeNative,
-            amountOutMinNative,
-            amountOutMinNative,
-            deadline,
+            nativeBridgeParams.destinationChainId,
+            nativeBridgeParams.bonderFee,
+            nativeBridgeParams.amountOutMin,
+            nativeBridgeParams.amountOutMin,
+            nativeBridgeParams.deadline,
             HOP_NATIVE_BRIDGE
         );
         vm.stopPrank();
@@ -311,8 +347,8 @@ contract HopFacetPackedL2Test is TestBase {
     // L2 ERC20
     function testStartBridgeTokensViaHopL2ERC20Packed_USDC() public {
         vm.startPrank(WHALE);
-        usdc.safeApprove(address(diamond), amountUSDC);
-        (bool success, ) = address(diamond).call(packedUSDC);
+        usdc.safeApprove(address(diamond), usdcBridgeParams.amount);
+        (bool success, ) = address(diamond).call(usdcBridgeParams.packedData);
         if (!success) {
             revert ERC20BridgeFailed();
         }
@@ -321,8 +357,10 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2ERC20PackedStandalone_USDC() public {
         vm.startPrank(WHALE);
-        usdc.safeApprove(address(standAlone), amountUSDC);
-        (bool success, ) = address(standAlone).call(packedUSDC);
+        usdc.safeApprove(address(standAlone), usdcBridgeParams.amount);
+        (bool success, ) = address(standAlone).call(
+            usdcBridgeParams.packedData
+        );
         if (!success) {
             revert ERC20BridgeFailed();
         }
@@ -333,25 +371,33 @@ contract HopFacetPackedL2Test is TestBase {
         (
             ILiFi.BridgeData memory decodedBridgeData,
             HopFacetOptimized.HopData memory decodedHopData
-        ) = standAlone.decode_startBridgeTokensViaHopL2ERC20Packed(packedUSDC);
+        ) = standAlone.decode_startBridgeTokensViaHopL2ERC20Packed(
+                usdcBridgeParams.packedData
+            );
 
-        assertEq(decodedBridgeData.transactionId, transactionId);
-        assertEq(decodedHopData.destinationAmountOutMin, amountOutMinUSDC);
+        assertEq(
+            decodedBridgeData.transactionId,
+            usdcBridgeParams.transactionId
+        );
+        assertEq(
+            decodedHopData.destinationAmountOutMin,
+            usdcBridgeParams.amountOutMin
+        );
     }
 
     function testStartBridgeTokensViaHopL2ERC20Min_USDC() public {
         vm.startPrank(WHALE);
-        usdc.safeApprove(address(diamond), amountUSDC);
+        usdc.safeApprove(address(diamond), usdcBridgeParams.amount);
         hopFacetPacked.startBridgeTokensViaHopL2ERC20Min(
-            transactionId,
+            usdcBridgeParams.transactionId,
             RECEIVER,
-            destinationChainId,
+            usdcBridgeParams.destinationChainId,
             USDC_ADDRESS,
-            amountUSDC,
-            amountBonderFeeUSDC,
-            amountOutMinUSDC,
-            amountOutMinUSDC,
-            deadline,
+            usdcBridgeParams.amount,
+            usdcBridgeParams.bonderFee,
+            usdcBridgeParams.amountOutMin,
+            usdcBridgeParams.amountOutMin,
+            usdcBridgeParams.deadline,
             HOP_USDC_BRIDGE
         );
         vm.stopPrank();
@@ -359,17 +405,17 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2ERC20MinStandalone_USDC() public {
         vm.startPrank(WHALE);
-        usdc.safeApprove(address(standAlone), amountUSDC);
+        usdc.safeApprove(address(standAlone), usdcBridgeParams.amount);
         standAlone.startBridgeTokensViaHopL2ERC20Min(
-            transactionId,
+            usdcBridgeParams.transactionId,
             RECEIVER,
-            destinationChainId,
+            usdcBridgeParams.destinationChainId,
             USDC_ADDRESS,
-            amountUSDC,
-            amountBonderFeeUSDC,
-            amountOutMinUSDC,
-            amountOutMinUSDC,
-            deadline,
+            usdcBridgeParams.amount,
+            usdcBridgeParams.bonderFee,
+            usdcBridgeParams.amountOutMin,
+            usdcBridgeParams.amountOutMin,
+            usdcBridgeParams.deadline,
             HOP_USDC_BRIDGE
         );
         vm.stopPrank();
@@ -377,8 +423,8 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2ERC20Packed_USDT() public {
         vm.startPrank(WHALE);
-        usdt.safeApprove(address(diamond), amountUSDT);
-        (bool success, ) = address(diamond).call(packedUSDT);
+        usdt.safeApprove(address(diamond), usdtBridgeParams.amount);
+        (bool success, ) = address(diamond).call(usdtBridgeParams.packedData);
         if (!success) {
             revert ERC20BridgeFailed();
         }
@@ -387,8 +433,10 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2ERC20PackedStandalone_USDT() public {
         vm.startPrank(WHALE);
-        usdt.safeApprove(address(standAlone), amountUSDT);
-        (bool success, ) = address(standAlone).call(packedUSDT);
+        usdt.safeApprove(address(standAlone), usdtBridgeParams.amount);
+        (bool success, ) = address(standAlone).call(
+            usdtBridgeParams.packedData
+        );
         if (!success) {
             revert ERC20BridgeFailed();
         }
@@ -399,25 +447,33 @@ contract HopFacetPackedL2Test is TestBase {
         (
             ILiFi.BridgeData memory decodedBridgeData,
             HopFacetOptimized.HopData memory decodedHopData
-        ) = standAlone.decode_startBridgeTokensViaHopL2ERC20Packed(packedUSDT);
+        ) = standAlone.decode_startBridgeTokensViaHopL2ERC20Packed(
+                usdtBridgeParams.packedData
+            );
 
-        assertEq(decodedBridgeData.transactionId, transactionId);
-        assertEq(decodedHopData.destinationAmountOutMin, amountOutMinUSDT);
+        assertEq(
+            decodedBridgeData.transactionId,
+            usdtBridgeParams.transactionId
+        );
+        assertEq(
+            decodedHopData.destinationAmountOutMin,
+            usdtBridgeParams.amountOutMin
+        );
     }
 
     function testStartBridgeTokensViaHopL2ERC20Min_USDT() public {
         vm.startPrank(WHALE);
-        usdt.safeApprove(address(diamond), amountUSDT);
+        usdt.safeApprove(address(diamond), usdtBridgeParams.amount);
         hopFacetPacked.startBridgeTokensViaHopL2ERC20Min(
-            transactionId,
+            usdtBridgeParams.transactionId,
             RECEIVER,
-            destinationChainId,
+            usdtBridgeParams.destinationChainId,
             USDT_ADDRESS,
-            amountUSDT,
-            amountBonderFeeUSDT,
-            amountOutMinUSDT,
-            amountOutMinUSDT,
-            deadline,
+            usdtBridgeParams.amount,
+            usdtBridgeParams.bonderFee,
+            usdtBridgeParams.amountOutMin,
+            usdtBridgeParams.amountOutMin,
+            usdtBridgeParams.deadline,
             HOP_USDT_BRIDGE
         );
         vm.stopPrank();
@@ -425,17 +481,17 @@ contract HopFacetPackedL2Test is TestBase {
 
     function testStartBridgeTokensViaHopL2ERC20MinStandalone_USDT() public {
         vm.startPrank(WHALE);
-        usdt.safeApprove(address(standAlone), amountUSDT);
+        usdt.safeApprove(address(standAlone), usdtBridgeParams.amount);
         standAlone.startBridgeTokensViaHopL2ERC20Min(
-            transactionId,
+            usdtBridgeParams.transactionId,
             RECEIVER,
-            destinationChainId,
+            usdtBridgeParams.destinationChainId,
             USDT_ADDRESS,
-            amountUSDT,
-            amountBonderFeeUSDT,
-            amountOutMinUSDT,
-            amountOutMinUSDT,
-            deadline,
+            usdtBridgeParams.amount,
+            usdtBridgeParams.bonderFee,
+            usdtBridgeParams.amountOutMin,
+            usdtBridgeParams.amountOutMin,
+            usdtBridgeParams.deadline,
             HOP_USDT_BRIDGE
         );
         vm.stopPrank();

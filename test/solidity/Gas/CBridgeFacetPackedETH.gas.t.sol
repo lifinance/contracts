@@ -22,15 +22,17 @@ contract CBridgeGasETHTest is TestBase {
     CBridgeFacetPacked internal standAlone;
     CBridgeFacet internal cBridgeFacet;
 
-    bytes32 internal transactionId;
-    uint64 internal destinationChainId;
-    uint64 internal nonce;
-    uint32 internal maxSlippage;
+    struct BridgeParams {
+        bytes32 transactionId;
+        uint64 destinationChainId;
+        uint64 nonce;
+        uint32 maxSlippage;
+        uint256 amountNative;
+        uint256 amountUSDC;
+    }
 
-    uint256 internal amountNative;
+    BridgeParams internal bridgeParams;
     bytes internal packedNative;
-
-    uint256 internal amountUSDC;
     bytes internal packedUSDC;
 
     ILiFi.BridgeData internal bridgeDataNative;
@@ -84,44 +86,47 @@ contract CBridgeGasETHTest is TestBase {
         cBridgeFacet = CBridgeFacet(address(diamond));
 
         /// Perpare parameters
-        transactionId = "someID";
-        destinationChainId = 137;
-        maxSlippage = 5000;
+        bridgeParams = BridgeParams({
+            transactionId: "someID",
+            destinationChainId: 137,
+            nonce: 123,
+            maxSlippage: 5000,
+            amountNative: 1 ether,
+            amountUSDC: 100 * 10 ** usdc.decimals()
+        });
 
         // Native params
-        amountNative = 1 * 10 ** 18;
         packedNative = cBridgeFacetPacked
             .encode_startBridgeTokensViaCBridgeNativePacked(
-                transactionId,
+                bridgeParams.transactionId,
                 RECEIVER,
-                destinationChainId,
-                nonce,
-                maxSlippage
+                bridgeParams.destinationChainId,
+                bridgeParams.nonce,
+                bridgeParams.maxSlippage
             );
 
         // USDC params
-        amountUSDC = 100 * 10 ** usdc.decimals();
         packedUSDC = cBridgeFacetPacked
             .encode_startBridgeTokensViaCBridgeERC20Packed(
-                transactionId,
+                bridgeParams.transactionId,
                 RECEIVER,
-                destinationChainId,
+                bridgeParams.destinationChainId,
                 ADDRESS_USDT,
-                amountUSDC,
-                nonce,
-                maxSlippage
+                bridgeParams.amountUSDC,
+                bridgeParams.nonce,
+                bridgeParams.maxSlippage
             );
 
         // same data for HopFacetOptimized
         bridgeDataNative = ILiFi.BridgeData(
-            transactionId,
+            bridgeParams.transactionId,
             "cbridge",
             "",
             address(0),
             address(0),
             RECEIVER,
-            amountNative,
-            destinationChainId,
+            bridgeParams.amountNative,
+            bridgeParams.destinationChainId,
             false,
             false
         );
@@ -132,14 +137,14 @@ contract CBridgeGasETHTest is TestBase {
         });
 
         bridgeDataUSDC = ILiFi.BridgeData(
-            transactionId,
+            bridgeParams.transactionId,
             "cbridge",
             "",
             address(0),
             ADDRESS_USDT,
             RECEIVER,
-            amountUSDC,
-            destinationChainId,
+            bridgeParams.amountUSDC,
+            bridgeParams.destinationChainId,
             false,
             false
         );
@@ -188,9 +193,9 @@ contract CBridgeGasETHTest is TestBase {
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {
         vm.startPrank(WHALE);
-        (bool success, ) = address(diamond).call{ value: amountNative }(
-            packedNative
-        );
+        (bool success, ) = address(diamond).call{
+            value: bridgeParams.amountNative
+        }(packedNative);
         if (!success) {
             revert NativeBridgeFailed();
         }
@@ -199,9 +204,9 @@ contract CBridgeGasETHTest is TestBase {
 
     function testStartBridgeTokensViaCBridgeNativePacked_StandAlone() public {
         vm.startPrank(WHALE);
-        (bool success, ) = address(standAlone).call{ value: amountNative }(
-            packedNative
-        );
+        (bool success, ) = address(standAlone).call{
+            value: bridgeParams.amountNative
+        }(packedNative);
         if (!success) {
             revert NativeBridgeFailed();
         }
@@ -211,20 +216,23 @@ contract CBridgeGasETHTest is TestBase {
     function testStartBridgeTokensViaCBridgeNativeMin() public {
         vm.startPrank(WHALE);
         cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin{
-            value: amountNative
+            value: bridgeParams.amountNative
         }(
-            transactionId,
+            bridgeParams.transactionId,
             RECEIVER,
-            uint64(destinationChainId),
-            nonce,
-            maxSlippage
+            uint64(bridgeParams.destinationChainId),
+            bridgeParams.nonce,
+            bridgeParams.maxSlippage
         );
         vm.stopPrank();
     }
 
     function testStartBridgeTokensViaCBridgeERC20Packed() public {
         vm.startPrank(WHALE);
-        IERC20(ADDRESS_USDT).safeApprove(address(diamond), amountUSDC);
+        IERC20(ADDRESS_USDT).safeApprove(
+            address(diamond),
+            bridgeParams.amountUSDC
+        );
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
             revert ERC20BridgeFailed();
@@ -234,7 +242,10 @@ contract CBridgeGasETHTest is TestBase {
 
     function testStartBridgeTokensViaCBridgeERC20Packed_StandAlone() public {
         vm.startPrank(WHALE);
-        IERC20(ADDRESS_USDT).safeApprove(address(standAlone), amountUSDC);
+        IERC20(ADDRESS_USDT).safeApprove(
+            address(standAlone),
+            bridgeParams.amountUSDC
+        );
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
             revert ERC20BridgeFailed();
@@ -246,32 +257,34 @@ contract CBridgeGasETHTest is TestBase {
         vm.startPrank(WHALE);
         IERC20(ADDRESS_USDT).safeApprove(
             address(cBridgeFacetPacked),
-            amountUSDC
+            bridgeParams.amountUSDC
         );
         cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Min(
-            transactionId,
+            bridgeParams.transactionId,
             RECEIVER,
-            uint64(destinationChainId),
+            uint64(bridgeParams.destinationChainId),
             ADDRESS_USDT,
-            amountUSDC,
-            nonce,
-            maxSlippage
+            bridgeParams.amountUSDC,
+            bridgeParams.nonce,
+            bridgeParams.maxSlippage
         );
         vm.stopPrank();
     }
 
     function testStartBridgeTokensViaCBridgeNative() public {
         vm.startPrank(WHALE);
-        cBridgeFacet.startBridgeTokensViaCBridge{ value: amountNative }(
-            bridgeDataNative,
-            cbridgeDataNative
-        );
+        cBridgeFacet.startBridgeTokensViaCBridge{
+            value: bridgeParams.amountNative
+        }(bridgeDataNative, cbridgeDataNative);
         vm.stopPrank();
     }
 
     function testStartBridgeTokensViaCBridgeERC20() public {
         vm.startPrank(WHALE);
-        IERC20(ADDRESS_USDT).safeApprove(address(cBridgeFacet), amountUSDC);
+        IERC20(ADDRESS_USDT).safeApprove(
+            address(cBridgeFacet),
+            bridgeParams.amountUSDC
+        );
         cBridgeFacet.startBridgeTokensViaCBridge(
             bridgeDataUSDC,
             cbridgeDataUSDC
