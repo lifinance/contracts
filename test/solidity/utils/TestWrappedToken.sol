@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import "solmate/tokens/ERC20.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 
 contract TestWrappedToken is ERC20 {
     error WithdrawError();
+    error InsufficientBalance(uint256 available, uint256 required);
 
     constructor(
         string memory _name,
@@ -25,7 +26,10 @@ contract TestWrappedToken is ERC20 {
     }
 
     function withdraw(uint256 wad) public {
-        require(balanceOf[msg.sender] >= wad);
+        uint256 balance = balanceOf[msg.sender];
+        if (balance < wad) {
+            revert InsufficientBalance(balance, wad);
+        }
         balanceOf[msg.sender] -= wad;
         (bool success, ) = payable(msg.sender).call{ value: wad }("");
         if (!success) {

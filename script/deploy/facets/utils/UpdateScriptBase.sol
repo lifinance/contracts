@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase, console } from "./ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -78,8 +78,8 @@ contract UpdateScriptBase is ScriptBase {
                 callData
             );
 
-            console.log("DiamondCutCalldata: ");
-            console.logBytes(cutData);
+            emit log("DiamondCutCalldata: ");
+            emit log_bytes(cutData);
         }
 
         if (noBroadcast) {

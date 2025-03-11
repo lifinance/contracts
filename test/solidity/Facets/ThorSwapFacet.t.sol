@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, ERC20 } from "../utils/TestBaseFacet.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 
 // Stub ThorSwapFacet Contract
