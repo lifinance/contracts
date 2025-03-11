@@ -1,30 +1,21 @@
+/**
+ * Safe Utilities
+ *
+ * This module provides utilities for interacting with Gnosis Safe contracts
+ * using Viem. It includes classes and functions for creating, signing, and
+ * executing transactions, as well as managing Safe configuration.
+ */
+
 import {
-  Abi,
   Address,
   Chain,
-  Client,
   Hex,
   PublicClient,
-  Transport,
   WalletClient,
   createPublicClient,
   createWalletClient,
-  encodeAbiParameters,
   encodeFunctionData,
-  getContractAddress,
-  hashMessage,
-  hashTypedData,
-  hexToBytes,
   http,
-  parseAbiParameters,
-  toBytes,
-  concat,
-  keccak256,
-  recoverMessageAddress,
-  recoverPublicKey,
-  signMessage,
-  getAddress,
-  encodePacked,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { SAFE_SINGLETON_ABI } from './config'
@@ -33,6 +24,11 @@ import { SAFE_SINGLETON_ABI } from './config'
 export enum OperationType {
   Call = 0,
   DelegateCall = 1,
+}
+
+export enum privateKeyType {
+  SAFE_SIGNER,
+  DEPLOYER,
 }
 
 export interface SafeTransactionData {
@@ -53,31 +49,95 @@ export interface SafeSignature {
   data: Hex
 }
 
-interface SafeEIP712Domain {
-  chainId: bigint
-  verifyingContract: Address
+export interface SafeTxDocument {
+  safeAddress: string
+  network: string
+  chainId: number
+  safeTx: {
+    data: {
+      to: string
+      value: string
+      data: string
+      operation: number
+      nonce: number
+    }
+    signatures?: Record<
+      string,
+      {
+        signer: string
+        data: string
+      }
+    >
+  }
+  safeTxHash: string
+  proposer: string
+  timestamp: Date
+  status: 'pending' | 'executed'
 }
 
-const EIP712_SAFE_TX_TYPE = {
-  SafeTx: [
-    { type: 'address', name: 'to' },
-    { type: 'uint256', name: 'value' },
-    { type: 'bytes', name: 'data' },
-    { type: 'uint8', name: 'operation' },
-    { type: 'uint256', name: 'safeTxGas' },
-    { type: 'uint256', name: 'baseGas' },
-    { type: 'uint256', name: 'gasPrice' },
-    { type: 'address', name: 'gasToken' },
-    { type: 'address', name: 'refundReceiver' },
-    { type: 'uint256', name: 'nonce' },
-  ],
+export interface AugmentedSafeTxDocument extends SafeTxDocument {
+  safeTransaction: SafeTransaction
+  hasSignedAlready: boolean
+  canExecute: boolean
+  threshold: number
 }
 
+/**
+ * Retries a function multiple times if it fails
+ * @param func - The async function to retry
+ * @param retries - Number of retries remaining
+ * @returns The result of the function
+ */
+export const retry = async <T>(
+  func: () => Promise<T>,
+  retries = 3
+): Promise<T> => {
+  try {
+    const result = await func()
+    return result
+  } catch (e) {
+    console.error('Error details:', {
+      error: e,
+      remainingRetries: retries - 1,
+    })
+    if (retries > 0) {
+      return retry(func, retries - 1)
+    }
+    throw e
+  }
+}
+
+/**
+ * ViemSafe class
+ *
+ * A wrapper around Viem clients that provides Safe-specific functionality.
+ * This class handles Safe contract interactions including transaction creation,
+ * signing, and execution.
+ */
 export class ViemSafe {
+  /**
+   * Public client for read operations
+   * @private
+   */
   private publicClient: PublicClient
+
+  /**
+   * Wallet client for write operations and signing
+   * @private
+   */
   private walletClient: WalletClient
+
+  /**
+   * Address of the Safe contract
+   * @private
+   */
   private safeAddress: Address
-  private account: Address
+
+  /**
+   * Address of the account used for signing
+   * @public
+   */
+  public account: Address
 
   constructor(
     publicClient: PublicClient,
@@ -134,29 +194,44 @@ export class ViemSafe {
 
   // Get nonce from Safe contract (replaces getNonce from Safe SDK)
   async getNonce(): Promise<bigint> {
-    return await this.publicClient.readContract({
-      address: this.safeAddress,
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'nonce',
-    })
+    try {
+      return await this.publicClient.readContract({
+        address: this.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'nonce',
+      })
+    } catch (error) {
+      console.error('Error getting nonce:', error)
+      throw error
+    }
   }
 
   // Get owners from Safe contract (replaces getOwners from Safe SDK)
   async getOwners(): Promise<Address[]> {
-    return await this.publicClient.readContract({
-      address: this.safeAddress,
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'getOwners',
-    })
+    try {
+      return await this.publicClient.readContract({
+        address: this.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'getOwners',
+      })
+    } catch (error) {
+      console.error('Error getting owners:', error)
+      throw error
+    }
   }
 
   // Get threshold from Safe contract (replaces getThreshold from Safe SDK)
   async getThreshold(): Promise<bigint> {
-    return await this.publicClient.readContract({
-      address: this.safeAddress,
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'getThreshold',
-    })
+    try {
+      return await this.publicClient.readContract({
+        address: this.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'getThreshold',
+      })
+    } catch (error) {
+      console.error('Error getting threshold:', error)
+      throw error
+    }
   }
 
   // Create a Safe transaction (replaces createTransaction from Safe SDK)
@@ -191,22 +266,27 @@ export class ViemSafe {
     options: { ownerAddress: Address; threshold: bigint },
     txOptions?: { nonce?: bigint }
   ): Promise<SafeTransaction> {
-    const data = encodeFunctionData({
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'addOwnerWithThreshold',
-      args: [options.ownerAddress, options.threshold],
-    })
+    try {
+      const data = encodeFunctionData({
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'addOwnerWithThreshold',
+        args: [options.ownerAddress, options.threshold],
+      })
 
-    return this.createTransaction({
-      transactions: [
-        {
-          to: this.safeAddress,
-          value: 0n,
-          data,
-          nonce: txOptions?.nonce,
-        },
-      ],
-    })
+      return this.createTransaction({
+        transactions: [
+          {
+            to: this.safeAddress,
+            value: 0n,
+            data,
+            nonce: txOptions?.nonce,
+          },
+        ],
+      })
+    } catch (error) {
+      console.error('Error creating add owner transaction:', error)
+      throw error
+    }
   }
 
   // Create a Safe transaction for changing the threshold (replaces createChangeThresholdTx from Safe SDK)
@@ -214,45 +294,53 @@ export class ViemSafe {
     threshold: number,
     txOptions?: { nonce?: bigint }
   ): Promise<SafeTransaction> {
-    const data = encodeFunctionData({
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'changeThreshold',
-      args: [BigInt(threshold)],
-    })
+    try {
+      const data = encodeFunctionData({
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'changeThreshold',
+        args: [BigInt(threshold)],
+      })
 
-    return this.createTransaction({
-      transactions: [
-        {
-          to: this.safeAddress,
-          value: 0n,
-          data,
-          nonce: txOptions?.nonce,
-        },
-      ],
-    })
+      return this.createTransaction({
+        transactions: [
+          {
+            to: this.safeAddress,
+            value: 0n,
+            data,
+            nonce: txOptions?.nonce,
+          },
+        ],
+      })
+    } catch (error) {
+      console.error('Error creating change threshold transaction:', error)
+      throw error
+    }
   }
 
   // Generate transaction hash (replaces getTransactionHash from Safe SDK)
   async getTransactionHash(safeTx: SafeTransaction): Promise<Hex> {
-    const chainId = await this.publicClient.getChainId()
-
-    return await this.publicClient.readContract({
-      address: this.safeAddress,
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'getTransactionHash',
-      args: [
-        safeTx.data.to,
-        safeTx.data.value,
-        safeTx.data.data,
-        safeTx.data.operation,
-        0n, // safeTxGas
-        0n, // baseGas
-        0n, // gasPrice
-        '0x0000000000000000000000000000000000000000', // gasToken
-        '0x0000000000000000000000000000000000000000', // refundReceiver
-        safeTx.data.nonce,
-      ],
-    })
+    try {
+      return await this.publicClient.readContract({
+        address: this.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'getTransactionHash',
+        args: [
+          safeTx.data.to,
+          safeTx.data.value,
+          safeTx.data.data,
+          safeTx.data.operation,
+          0n, // safeTxGas
+          0n, // baseGas
+          0n, // gasPrice
+          '0x0000000000000000000000000000000000000000' as Address, // gasToken
+          '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
+          safeTx.data.nonce,
+        ],
+      })
+    } catch (error) {
+      console.error('Error generating transaction hash:', error)
+      throw error
+    }
   }
 
   // Sign a transaction hash (replaces signHash from Safe SDK)
@@ -294,124 +382,213 @@ export class ViemSafe {
     return signatureBytes
   }
 
-  // Execute a Safe transaction (replaces executeTransaction from Safe SDK)
+  /**
+   * Executes a Safe transaction
+   * @param safeTx - The transaction to execute
+   * @returns Object containing the transaction hash
+   * @throws Error if execution fails
+   */
   async executeTransaction(safeTx: SafeTransaction): Promise<{ hash: Hex }> {
-    const signatures = this.formatSignatures(safeTx.signatures)
+    try {
+      const signatures = this.formatSignatures(safeTx.signatures)
 
-    // Build transaction for execution
-    const txHash = await this.walletClient.writeContract({
-      address: this.safeAddress,
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'execTransaction',
-      args: [
-        safeTx.data.to,
-        safeTx.data.value,
-        safeTx.data.data,
-        safeTx.data.operation,
-        0n, // safeTxGas
-        0n, // baseGas
-        0n, // gasPrice
-        '0x0000000000000000000000000000000000000000', // gasToken
-        '0x0000000000000000000000000000000000000000', // refundReceiver
-        signatures,
-      ],
-    })
+      // Build transaction for execution
+      const txHash = await this.walletClient.writeContract({
+        address: this.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'execTransaction',
+        args: [
+          safeTx.data.to,
+          safeTx.data.value,
+          safeTx.data.data,
+          safeTx.data.operation,
+          0n, // safeTxGas
+          0n, // baseGas
+          0n, // gasPrice
+          '0x0000000000000000000000000000000000000000' as Address, // gasToken
+          '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
+          signatures,
+        ],
+      })
 
-    // Wait for transaction receipt
-    await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      // Wait for transaction receipt with better error handling
+      try {
+        await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      } catch (waitError) {
+        throw new Error(
+          `Transaction submitted (${txHash}) but failed to confirm: ${waitError.message}`
+        )
+      }
 
-    return { hash: txHash }
+      return { hash: txHash }
+    } catch (error) {
+      if (error.message?.includes('execution reverted')) {
+        throw new Error(`Safe execution reverted: ${error.message}`)
+      }
+      throw new Error(`Error executing transaction: ${error.message || error}`)
+    }
   }
 }
 
 /**
- * Rest API client for interacting with the Safe Transaction Service
+ * Initializes a SafeTransaction from MongoDB document data
+ * @param txFromMongo - Transaction document from MongoDB
+ * @param safe - ViemSafe instance
+ * @returns Initialized SafeTransaction with signatures
  */
-export class ViemSafeContract {
-  private txServiceUrl: string
-  private chainId: bigint
-
-  constructor(config: { txServiceUrl: string; chainId: bigint }) {
-    this.txServiceUrl = config.txServiceUrl
-    this.chainId = config.chainId
-  }
-
-  // Get Safe info (owners, threshold, etc.)
-  async getSafeInfo(safeAddress: Address): Promise<{
-    address: Address
-    nonce: number
-    threshold: number
-    owners: Address[]
-  }> {
-    const url = `${this.txServiceUrl}/api/v1/safes/${safeAddress}`
-    const response = await fetch(url)
-
-    if (!response.ok) {
-      throw new Error(`Failed to get Safe info: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    return {
-      address: data.address,
-      nonce: data.nonce,
-      threshold: data.threshold,
-      owners: data.owners,
-    }
-  }
-
-  // Get next nonce for Safe
-  async getNextNonce(safeAddress: Address): Promise<bigint> {
-    const info = await this.getSafeInfo(safeAddress)
-    return BigInt(info.nonce)
-  }
-
-  // Propose a transaction to the Safe Transaction Service
-  async proposeTransaction(options: {
-    safeAddress: Address
-    safeTransactionData: SafeTransactionData
-    safeTxHash: Hex
-    senderAddress: Address
-    senderSignature: Hex
-  }): Promise<void> {
-    const {
-      safeAddress,
-      safeTransactionData,
-      safeTxHash,
-      senderAddress,
-      senderSignature,
-    } = options
-
-    const body = {
-      safe: safeAddress,
-      to: safeTransactionData.to,
-      value: safeTransactionData.value.toString(),
-      data: safeTransactionData.data,
-      operation: safeTransactionData.operation,
-      safeTxGas: 0,
-      baseGas: 0,
-      gasPrice: 0,
-      gasToken: '0x0000000000000000000000000000000000000000',
-      refundReceiver: '0x0000000000000000000000000000000000000000',
-      nonce: safeTransactionData.nonce.toString(),
-      contractTransactionHash: safeTxHash,
-      sender: senderAddress,
-      signature: senderSignature,
-    }
-
-    const url = `${this.txServiceUrl}/api/v1/safes/${safeAddress}/multisig-transactions/`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+export const initializeSafeTransaction = async (
+  txFromMongo: SafeTxDocument,
+  safe: ViemSafe
+): Promise<SafeTransaction> => {
+  // Create a new transaction using our viem-based Safe implementation
+  const safeTransaction = await safe.createTransaction({
+    transactions: [
+      {
+        to: txFromMongo.safeTx.data.to as Address,
+        value: BigInt(txFromMongo.safeTx.data.value),
+        data: txFromMongo.safeTx.data.data as Hex,
+        operation: txFromMongo.safeTx.data.operation as OperationType,
+        nonce: BigInt(txFromMongo.safeTx.data.nonce),
       },
-      body: JSON.stringify(body),
-    })
+    ],
+  })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `Failed to propose transaction: ${response.statusText} - ${errorText}`
-      )
-    }
+  // Add existing signatures
+  if (txFromMongo.safeTx.signatures) {
+    // Convert from document format to Map
+    const signatures = new Map<string, { signer: Address; data: Hex }>()
+    Object.entries(txFromMongo.safeTx.signatures).forEach(
+      ([key, value]: [string, any]) => {
+        signatures.set(key, {
+          signer: value.signer as Address,
+          data: value.data as Hex,
+        })
+      }
+    )
+    safeTransaction.signatures = signatures
   }
+
+  return safeTransaction
+}
+
+/**
+ * Checks if a SafeTransaction has enough signatures to execute
+ * @param safeTx - The transaction to check
+ * @param threshold - Number of signatures required
+ * @returns True if the transaction has enough signatures
+ */
+export const hasEnoughSignatures = (
+  safeTx: SafeTransaction,
+  threshold: number
+): boolean => {
+  const sigCount = safeTx?.signatures?.size || 0
+  return sigCount >= threshold
+}
+
+/**
+ * Checks if the current signer has already signed the transaction
+ * @param safeTx - The transaction to check
+ * @param signerAddress - Address of the current signer
+ * @returns True if the signer has already signed
+ */
+export const isSignedByCurrentSigner = (
+  safeTx: SafeTransaction,
+  signerAddress: Address
+): boolean => {
+  if (!safeTx?.signatures) return false
+  const signers = Array.from(safeTx.signatures.values()).map((sig) =>
+    sig.signer.toLowerCase()
+  )
+  return signers.includes(signerAddress.toLowerCase())
+}
+
+/**
+ * Checks if adding current signer's signature would meet the threshold
+ * @param safeTx - The transaction to check
+ * @param threshold - Number of signatures required
+ * @returns True if adding a signature would meet the threshold
+ */
+export const wouldMeetThreshold = (
+  safeTx: SafeTransaction,
+  threshold: number
+): boolean => {
+  const currentSignatures = safeTx?.signatures?.size || 0
+  const afterSigning = currentSignatures + 1
+  return afterSigning >= threshold
+}
+
+/**
+ * Gets Safe information directly from the contract
+ * @param publicClient - Viem public client
+ * @param safeAddress - Address of the Safe
+ * @returns Safe information including owners and threshold
+ */
+export async function getSafeInfoFromContract(
+  publicClient: PublicClient,
+  safeAddress: Address
+): Promise<{
+  owners: Address[]
+  threshold: bigint
+  nonce: bigint
+}> {
+  const [owners, threshold, nonce] = await Promise.all([
+    publicClient.readContract({
+      address: safeAddress,
+      abi: SAFE_SINGLETON_ABI,
+      functionName: 'getOwners',
+    }),
+    publicClient.readContract({
+      address: safeAddress,
+      abi: SAFE_SINGLETON_ABI,
+      functionName: 'getThreshold',
+    }),
+    publicClient.readContract({
+      address: safeAddress,
+      abi: SAFE_SINGLETON_ABI,
+      functionName: 'nonce',
+    }),
+  ])
+
+  return {
+    owners,
+    threshold,
+    nonce,
+  }
+}
+
+/**
+ * Stores a Safe transaction in MongoDB
+ * @param pendingTransactions - MongoDB collection
+ * @param safeAddress - Address of the Safe
+ * @param network - Network name
+ * @param chainId - Chain ID
+ * @param safeTx - The transaction to store
+ * @param safeTxHash - Hash of the transaction
+ * @param proposer - Address of the proposer
+ * @returns Result of the MongoDB insert operation
+ */
+export async function storeTransactionInMongoDB(
+  pendingTransactions: any,
+  safeAddress: Address,
+  network: string,
+  chainId: number,
+  safeTx: SafeTransaction,
+  safeTxHash: Hex,
+  proposer: Address
+): Promise<any> {
+  const txDoc = {
+    safeAddress,
+    network: network.toLowerCase(),
+    chainId,
+    safeTx,
+    safeTxHash,
+    proposer,
+    timestamp: new Date(),
+    status: 'pending',
+  }
+
+  return await retry(async () => {
+    const insertResult = await pendingTransactions.insertOne(txDoc)
+    return insertResult
+  })
 }

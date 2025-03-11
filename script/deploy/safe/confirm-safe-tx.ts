@@ -1,64 +1,45 @@
+/**
+ * Confirm Safe Transactions
+ *
+ * This script allows users to confirm and execute pending Safe transactions.
+ * It fetches pending transactions from MongoDB, displays their details,
+ * and provides options to sign and/or execute them.
+ */
+
 import { defineCommand, runMain } from 'citty'
 import {
-  Abi,
   Address,
-  Chain,
   Hex,
   createPublicClient,
-  decodeFunctionData,
   http,
   parseAbi,
-  toFunctionSelector,
+  Abi,
+  decodeFunctionData,
 } from 'viem'
 import { MongoClient } from 'mongodb'
 import consola from 'consola'
-import * as chains from 'viem/chains'
 import {
   NetworksObject,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
-import { OperationType, SafeTransaction, ViemSafe } from './safe-utils'
+import {
+  OperationType,
+  SafeTransaction,
+  ViemSafe,
+  SafeTxDocument,
+  AugmentedSafeTxDocument,
+  privateKeyType,
+  retry,
+  initializeSafeTransaction,
+  hasEnoughSignatures,
+  isSignedByCurrentSigner,
+  wouldMeetThreshold,
+  getSafeInfoFromContract,
+} from './safe-utils'
+import { decodeDiamondCut, decodeTransactionData } from './safe-decode-utils'
 import networksConfig from '../../../config/networks.json'
 dotenv.config()
-
-interface SafeTxDocument {
-  safeAddress: string
-  network: string
-  chainId: number
-  safeTx: {
-    data: {
-      to: string
-      value: string
-      data: string
-      operation: number
-      nonce: number
-    }
-    signatures?: Record<
-      string,
-      {
-        signer: string
-        data: string
-      }
-    >
-  }
-  safeTxHash: string
-  proposer: string
-  timestamp: Date
-  status: 'pending' | 'executed'
-}
-
-interface AugmentedSafeTxDocument extends SafeTxDocument {
-  safeTransaction: SafeTransaction
-  hasSignedAlready: boolean
-  canExecute: boolean
-  threshold: number
-}
-
-enum privateKeyType {
-  SAFE_SIGNER,
-  DEPLOYER,
-}
 
 const networks: NetworksObject = networksConfig
 
@@ -80,89 +61,12 @@ const storedResponses: Record<string, string> = {}
 }
 
 /**
- * Retries a function multiple times if it fails
- * @param func - The async function to retry
- * @param retries - Number of retries remaining
- * @returns The result of the function
- */
-const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
-  try {
-    const result = await func()
-    return result
-  } catch (e) {
-    if (retries > 0) {
-      consola.error('Retry after error:', e)
-      return retry(func, retries - 1)
-    }
-
-    throw e
-  }
-}
-
-async function decodeDiamondCut(diamondCutData: any, chainId: number) {
-  const actionMap: Record<number, string> = {
-    0: 'Add',
-    1: 'Replace',
-    2: 'Remove',
-  }
-  consola.info('Diamond Cut Details:')
-  consola.info('-'.repeat(80))
-  // diamondCutData.args[0] contains an array of modifications.
-  const modifications = diamondCutData.args[0]
-  for (const mod of modifications) {
-    // Each mod is [facetAddress, action, selectors]
-    const [facetAddress, actionValue, selectors] = mod
-    try {
-      consola.info(
-        `Fetching ABI for Facet Address: \u001b[34m${facetAddress}\u001b[0m`
-      )
-      const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-      const response = await fetch(url)
-      const resData = await response.json()
-      consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
-      if (resData && resData.abi) {
-        consola.info(
-          `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
-        )
-
-        for (const selector of selectors) {
-          try {
-            // Find matching function in ABI
-            const matchingFunction = resData.abi.find((abiItem: any) => {
-              if (abiItem.type !== 'function') return false
-              const calculatedSelector = toFunctionSelector(abiItem)
-              return calculatedSelector === selector
-            })
-
-            if (matchingFunction) {
-              consola.info(
-                `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-              )
-            } else {
-              consola.warn(`Unknown function [${selector}]`)
-            }
-          } catch (error) {
-            consola.warn(`Failed to decode selector: ${selector}`)
-          }
-        }
-      } else {
-        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
-      }
-    } catch (error) {
-      consola.error(`Error fetching ABI for ${facetAddress}:`, error)
-    }
-    consola.info('-'.repeat(80))
-  }
-  // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
-  consola.info(`Init Address: ${diamondCutData.args[1]}`)
-  consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
-}
-
-/**
  * Main function to process Safe transactions for a given network
  * @param network - Network name
  * @param privateKey - Private key of the signer
  * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
+ * @param pendingTxs - Pending transactions to process
+ * @param pendingTransactions - MongoDB collection
  * @param rpcUrl - Optional RPC URL override
  */
 const processTxs = async (
@@ -178,6 +82,11 @@ const processTxs = async (
 
   const chain = getViemChainForNetworkName(network)
   const safeAddress = networks[network.toLowerCase()].safeAddress as Address
+
+  if (!safeAddress) {
+    consola.error(`No Safe address configured for network ${network}`)
+    return
+  }
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
 
@@ -205,51 +114,10 @@ const processTxs = async (
   }
 
   // Get signer address
-  const signerAddress = await publicClient
-    .getAddresses()
-    .then((addresses) => addresses[0])
+  const signerAddress = safe.account
 
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
-
-  /**
-   * Initializes a SafeTransaction from MongoDB document data
-   * @param txFromMongo - Transaction document from MongoDB
-   * @returns Initialized SafeTransaction with signatures
-   */
-  const initializeSafeTransaction = async (
-    txFromMongo: any
-  ): Promise<SafeTransaction> => {
-    // Create a new transaction using our viem-based Safe implementation
-    const safeTransaction = await safe.createTransaction({
-      transactions: [
-        {
-          to: txFromMongo.safeTx.data.to as Address,
-          value: BigInt(txFromMongo.safeTx.data.value),
-          data: txFromMongo.safeTx.data.data as Hex,
-          operation: txFromMongo.safeTx.data.operation as OperationType,
-          nonce: BigInt(txFromMongo.safeTx.data.nonce),
-        },
-      ],
-    })
-
-    // Add existing signatures
-    if (txFromMongo.safeTx.signatures) {
-      // Convert from document format to Map
-      const signatures = new Map<string, { signer: Address; data: Hex }>()
-      Object.entries(txFromMongo.safeTx.signatures).forEach(
-        ([key, value]: [string, any]) => {
-          signatures.set(key, {
-            signer: value.signer as Address,
-            data: value.data as Hex,
-          })
-        }
-      )
-      safeTransaction.signatures = signatures
-    }
-
-    return safeTransaction
-  }
 
   /**
    * Signs a SafeTransaction
@@ -258,9 +126,14 @@ const processTxs = async (
    */
   const signTransaction = async (safeTransaction: SafeTransaction) => {
     consola.info('Signing transaction')
-    const signedTx = await safe.signTransaction(safeTransaction)
-    consola.success('Transaction signed')
-    return signedTx
+    try {
+      const signedTx = await safe.signTransaction(safeTransaction)
+      consola.success('Transaction signed')
+      return signedTx
+    } catch (error) {
+      consola.error('Error signing transaction:', error)
+      throw new Error(`Failed to sign transaction: ${error.message}`)
+    }
   }
 
   /**
@@ -277,70 +150,32 @@ const processTxs = async (
         { safeTxHash: await safe.getTransactionHash(safeTransaction) },
         { $set: { status: 'executed', executionHash: exec.hash } }
       )
+
+      consola.success('Transaction executed')
+      consola.info(' ')
+      consola.info(' ')
     } catch (err) {
-      consola.error('Error while trying to execute the transaction')
-      throw Error(`Transaction could not be executed`)
+      consola.error('Error while trying to execute the transaction:', err)
+      throw new Error(`Transaction could not be executed: ${err.message}`)
     }
-
-    consola.success('Transaction executed')
-    consola.info(' ')
-    consola.info(' ')
-  }
-
-  /**
-   * Checks if a SafeTransaction has enough signatures to execute
-   * @param safeTx - The transaction to check
-   * @param threshold - Number of signatures required
-   * @returns True if the transaction has enough signatures
-   */
-  const hasEnoughSignatures = (
-    safeTx: SafeTransaction,
-    threshold: number
-  ): boolean => {
-    const sigCount = safeTx?.signatures?.size || 0
-    return sigCount >= threshold
-  }
-
-  /**
-   * Checks if the current signer has already signed the transaction
-   * @param safeTx - The transaction to check
-   * @param signerAddress - Address of the current signer
-   * @returns True if the signer has already signed
-   */
-  const isSignedByCurrentSigner = (
-    safeTx: SafeTransaction,
-    signerAddress: Address
-  ): boolean => {
-    if (!safeTx?.signatures) return false
-    const signers = Array.from(safeTx.signatures.values()).map((sig) =>
-      sig.signer.toLowerCase()
-    )
-    return signers.includes(signerAddress.toLowerCase())
-  }
-
-  /**
-   * Checks if adding current signer's signature would meet the threshold
-   * @param safeTx - The transaction to check
-   * @param threshold - Number of signatures required
-   * @returns True if adding a signature would meet the threshold
-   */
-  const wouldMeetThreshold = (
-    safeTx: SafeTransaction,
-    threshold: number
-  ): boolean => {
-    const currentSignatures = safeTx?.signatures?.size || 0
-    const afterSigning = currentSignatures + 1
-    return afterSigning >= threshold
   }
 
   // Get current threshold
-  const threshold = Number(await safe.getThreshold())
+  let threshold
+  try {
+    threshold = Number(await safe.getThreshold())
+  } catch (error) {
+    consola.error(`Failed to get threshold: ${error.message}`)
+    throw new Error(
+      `Could not get threshold for Safe ${safeAddress} on ${network}`
+    )
+  }
 
   // Filter and augment transactions with signature status
   const txs = await Promise.all(
     pendingTxs.map(
       async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
-        const safeTransaction = await initializeSafeTransaction(tx)
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
         const hasSignedAlready = isSignedByCurrentSigner(
           safeTransaction,
           signerAddress
@@ -383,25 +218,24 @@ const processTxs = async (
     let abi
     let abiInterface: Abi
     let decoded
-    if (tx.safeTx.data) {
-      const selector = tx.safeTx.data.data.substring(0, 10)
-      const url = ABI_LOOKUP_URL.replace('%SELECTOR%', selector)
-      const response = await fetch(url)
-      const data = await response.json()
-      if (
-        data.ok &&
-        data.result &&
-        data.result.function &&
-        data.result.function[selector]
-      ) {
-        abi = data.result.function[selector][0].name
-        const fullAbiString = `function ${abi}`
-        abiInterface = parseAbi([fullAbiString])
-        decoded = decodeFunctionData({
-          abi: abiInterface,
-          data: tx.safeTx.data.data as Hex,
-        })
+
+    try {
+      if (tx.safeTx.data) {
+        const { functionName, decodedData } = await decodeTransactionData(
+          tx.safeTx.data.data as Hex
+        )
+        if (functionName) {
+          abi = functionName
+          const fullAbiString = `function ${abi}`
+          abiInterface = parseAbi([fullAbiString])
+          decoded = decodeFunctionData({
+            abi: abiInterface,
+            data: tx.safeTx.data.data as Hex,
+          })
+        }
       }
+    } catch (error) {
+      consola.warn(`Failed to decode transaction data: ${error.message}`)
     }
 
     consola.info('-'.repeat(80))
@@ -469,7 +303,7 @@ const processTxs = async (
 
     if (action === 'Sign') {
       try {
-        const safeTransaction = await initializeSafeTransaction(tx)
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
         // Update MongoDB with new signature
         await pendingTransactions.updateOne(
@@ -480,6 +314,7 @@ const processTxs = async (
             },
           }
         )
+        consola.success('Transaction signed and stored in MongoDB')
       } catch (error) {
         consola.error('Error signing transaction:', error)
       }
@@ -487,7 +322,7 @@ const processTxs = async (
 
     if (action === 'Sign & Execute') {
       try {
-        const safeTransaction = await initializeSafeTransaction(tx)
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
         // Update MongoDB with new signature
         await pendingTransactions.updateOne(
@@ -498,6 +333,7 @@ const processTxs = async (
             },
           }
         )
+        consola.success('Transaction signed and stored in MongoDB')
         await executeTransaction(signedTx)
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
@@ -506,7 +342,7 @@ const processTxs = async (
 
     if (action === 'Execute') {
       try {
-        const safeTransaction = await initializeSafeTransaction(tx)
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
         await executeTransaction(safeTransaction)
       } catch (error) {
         consola.error('Error executing transaction:', error)

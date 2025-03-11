@@ -1,39 +1,35 @@
+/**
+ * Propose to Safe
+ *
+ * This script proposes a transaction to a Gnosis Safe and stores it in MongoDB.
+ * The transaction can later be confirmed and executed using the confirm-safe-tx script.
+ */
+
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import { Address, Hex, createPublicClient, http } from 'viem'
+import {
+  Address,
+  Hex,
+  createPublicClient,
+  http,
+  createWalletClient,
+} from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { MongoClient } from 'mongodb'
 import consola from 'consola'
-import * as chains from 'viem/chains'
 import {
   NetworksObject,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import data from '../../../config/networks.json'
-import { OperationType, ViemSafe } from './safe-utils'
+import {
+  OperationType,
+  ViemSafe,
+  storeTransactionInMongoDB,
+  getSafeInfoFromContract,
+} from './safe-utils'
 
 const networks: NetworksObject = data as NetworksObject
-
-/**
- * Retries a function multiple times if it fails
- * @param func - The async function to retry
- * @param retries - Number of retries remaining
- * @returns The result of the function
- */
-const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
-  try {
-    const result = await func()
-    return result
-  } catch (e) {
-    consola.error('Error details:', {
-      error: e,
-      remainingRetries: retries - 1,
-    })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
-    throw e
-  }
-}
 
 /**
  * Main command definition for proposing transactions to a Safe
@@ -89,7 +85,15 @@ const main = defineCommand({
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
 
-    // Create a public client for basic chain operations
+    // Create a wallet client with the private key
+    const account = privateKeyToAccount(`0x${args.privateKey}` as Hex)
+    const walletClient = createWalletClient({
+      account,
+      chain,
+      transport: http(rpcUrl),
+    })
+
+    // Create a public client for read operations
     const publicClient = createPublicClient({
       chain,
       transport: http(rpcUrl),
@@ -108,10 +112,8 @@ const main = defineCommand({
       throw error
     }
 
-    // Get the account address from the private key
-    const senderAddress = await publicClient
-      .getAddresses()
-      .then((addresses) => addresses[0])
+    // Get the account address directly from the account object
+    const senderAddress = account.address
 
     // Get the latest pending transaction to determine the next nonce
     const latestTx = await pendingTransactions
@@ -153,29 +155,23 @@ const main = defineCommand({
     consola.info('Network', chain.name)
     consola.info('Proposing transaction to', args.to)
 
-    // Store transaction in MongoDB
+    // Store transaction in MongoDB using the utility function
     try {
-      const txDoc = {
-        safeAddress: await safe.getAddress(),
-        network: args.network.toLowerCase(),
-        chainId: chain.id,
-        safeTx: signedTx,
+      const result = await storeTransactionInMongoDB(
+        pendingTransactions,
+        safeAddress,
+        args.network,
+        chain.id,
+        signedTx,
         safeTxHash,
-        proposer: senderAddress,
-        timestamp: new Date(),
-        status: 'pending',
-      }
-
-      const result = await retry(async () => {
-        const insertResult = await pendingTransactions.insertOne(txDoc)
-        return insertResult
-      })
+        senderAddress
+      )
 
       if (!result.acknowledged) {
         throw new Error('MongoDB insert was not acknowledged')
       }
 
-      consola.info('Transaction successfully stored in MongoDB')
+      consola.success('Transaction successfully stored in MongoDB')
     } catch (error) {
       consola.error('Failed to store transaction in MongoDB:', error)
       throw error

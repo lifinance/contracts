@@ -1,5 +1,14 @@
+/**
+ * Add Safe Owners and Threshold
+ *
+ * This script proposes transactions to add owners to a Safe and set the threshold.
+ * It reads owner addresses from global.json and proposes transactions to add each
+ * owner individually, then sets the threshold to 3.
+ */
+
 import { defineCommand, runMain } from 'citty'
 import { Address, createPublicClient, http } from 'viem'
+import { MongoClient } from 'mongodb'
 import {
   NetworksObject,
   getViemChainForNetworkName,
@@ -7,7 +16,13 @@ import {
 import data from '../../../config/networks.json'
 import globalConfig from '../../../config/global.json'
 import * as dotenv from 'dotenv'
-import { ViemSafe, ViemSafeContract, SafeTransaction } from './safe-utils'
+import {
+  ViemSafe,
+  SafeTransaction,
+  getSafeInfoFromContract,
+  storeTransactionInMongoDB,
+} from './safe-utils'
+import consola from 'consola'
 dotenv.config()
 
 const networks: NetworksObject = data as NetworksObject
@@ -16,7 +31,7 @@ const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
     description:
-      'Adds all SAFE owners from global.json to the SAFE address in networks.json and sets threshold to 3',
+      'Proposes transactions to add all SAFE owners from global.json to the SAFE address in networks.json and sets threshold to 3',
   },
   args: {
     network: {
@@ -27,6 +42,10 @@ const main = defineCommand({
     privateKey: {
       type: 'string',
       description: 'Private key of the signer',
+    },
+    owners: {
+      type: 'string',
+      description: 'Comma-separated list of owner addresses to add',
     },
   },
   async run({ args }) {
@@ -43,15 +62,22 @@ const main = defineCommand({
         'Private key is missing, either provide it as argument or add PRIVATE_KEY_PRODUCTION to your .env'
       )
 
-    console.info('Setting up connection to SAFE API')
+    // Check for MongoDB URI
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is required')
+    }
 
-    // Initialize the Safe contract client
-    const safeContract = new ViemSafeContract({
-      txServiceUrl: networks[network].safeApiUrl,
-      chainId: BigInt(chain.id),
-    })
+    // Connect to MongoDB
+    const mongoClient = new MongoClient(process.env.MONGODB_URI)
+    const db = mongoClient.db('SAFE')
+    const pendingTransactions = db.collection('pendingTransactions')
+
+    consola.info('Setting up connection to Safe contract')
 
     const safeAddress = networks[network].safeAddress as Address
+    if (!safeAddress) {
+      throw new Error(`No Safe address configured for network ${network}`)
+    }
 
     const rpcUrl = chain.rpcUrls.default.http[0] || args.rpcUrl
 
@@ -62,39 +88,79 @@ const main = defineCommand({
     })
 
     // Initialize our viem-based Safe implementation
-    const safe = await ViemSafe.init({
-      provider: rpcUrl,
-      privateKey,
-      safeAddress,
-    })
+    let safe: ViemSafe
+    try {
+      safe = await ViemSafe.init({
+        provider: rpcUrl,
+        privateKey,
+        safeAddress,
+      })
+    } catch (error) {
+      consola.error(`Failed to initialize Safe: ${error.message}`)
+      throw error
+    }
 
-    const owners = globalConfig.safeOwners
+    // Get Safe information directly from the contract
+    consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
+    let safeInfo
+    try {
+      safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
+    } catch (error) {
+      consola.error(`Failed to get Safe info: ${error.message}`)
+      throw new Error(
+        `Could not get Safe info for ${safeAddress} on ${network}`
+      )
+    }
 
-    let nextNonce = await safeContract.getNextNonce(safeAddress)
-    const safeInfo = await safeContract.getSafeInfo(safeAddress)
-    const currentThreshold = safeInfo?.threshold
+    // Get owners from global config and command line arguments
+    let ownersToAdd = [...globalConfig.safeOwners]
 
-    if (!currentThreshold)
-      throw new Error('Could not get current signature threshold')
+    // Add owners from command line if provided
+    if (args.owners) {
+      const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
+      consola.info('Adding owners from command line:', cmdLineOwners)
+      ownersToAdd = [...ownersToAdd, ...cmdLineOwners]
+    }
+
+    const currentThreshold = Number(safeInfo.threshold)
 
     // Get signer address
-    const senderAddress = await publicClient
-      .getAddresses()
-      .then((addresses) => addresses[0])
+    const senderAddress = safe.account
 
-    console.info('Safe Address', safeAddress)
-    console.info('Signer Address', senderAddress)
+    consola.info('Safe Address', safeAddress)
+    consola.info('Signer Address', senderAddress)
+    consola.info('Current threshold:', currentThreshold)
+    consola.info('Current owners:', safeInfo.owners)
+
+    // Get the latest pending transaction to determine the next nonce
+    const latestTx = await pendingTransactions
+      .find({
+        safeAddress,
+        network: network.toLowerCase(),
+        chainId: chain.id,
+        status: 'pending',
+      })
+      .sort({ nonce: -1 })
+      .limit(1)
+      .toArray()
+
+    // Calculate the next nonce
+    let nextNonce =
+      latestTx.length > 0
+        ? BigInt(latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) +
+          1n
+        : await safe.getNonce()
 
     // Go through all owner addresses and add each of them individually
-    for (const o of owners) {
-      console.info('-'.repeat(80))
+    for (const o of ownersToAdd) {
+      consola.info('-'.repeat(80))
       const owner = o as Address
       const existingOwners = await safe.getOwners()
 
       if (
         existingOwners.map((o) => o.toLowerCase()).includes(owner.toLowerCase())
       ) {
-        console.info('Owner already exists', owner)
+        consola.info('Owner already exists', owner)
         continue
       }
 
@@ -108,67 +174,91 @@ const main = defineCommand({
         }
       )
 
-      console.info('Adding owner', owner)
+      consola.info('Proposing to add owner', owner)
 
-      await submitAndExecuteTransaction(
+      await proposeTransactionToMongoDB(
         safe,
-        safeContract,
         safeTransaction,
-        senderAddress
+        senderAddress,
+        network,
+        chain.id,
+        pendingTransactions
       )
       nextNonce++
     }
 
-    console.info('-'.repeat(80))
+    consola.info('-'.repeat(80))
 
     if (currentThreshold != 3) {
-      console.info('Now changing threshold from', currentThreshold, 'to 3')
-      const changeThresholdTx = await safe.createChangeThresholdTx(3)
-      await submitAndExecuteTransaction(
-        safe,
-        safeContract,
-        changeThresholdTx,
-        senderAddress
+      consola.info(
+        'Now proposing to change threshold from',
+        currentThreshold,
+        'to 3'
       )
-    } else console.log('Threshold is already set to 3 - no action required')
+      const changeThresholdTx = await safe.createChangeThresholdTx(3, {
+        nonce: nextNonce,
+      })
+      await proposeTransactionToMongoDB(
+        safe,
+        changeThresholdTx,
+        senderAddress,
+        network,
+        chain.id,
+        pendingTransactions
+      )
+    } else consola.success('Threshold is already set to 3 - no action required')
 
-    console.info('-'.repeat(80))
-    console.info('Script completed without errors')
+    // Close MongoDB connection
+    await mongoClient.close()
+
+    consola.info('-'.repeat(80))
+    consola.success('Script completed without errors')
   },
 })
 
-async function submitAndExecuteTransaction(
+/**
+ * Proposes a transaction to MongoDB
+ * @param safe - ViemSafe instance
+ * @param safeTransaction - The transaction to propose
+ * @param senderAddress - Address of the sender
+ * @param network - Network name
+ * @param chainId - Chain ID
+ * @param pendingTransactions - MongoDB collection
+ * @returns The transaction hash
+ */
+async function proposeTransactionToMongoDB(
   safe: ViemSafe,
-  safeContract: ViemSafeContract,
   safeTransaction: SafeTransaction,
-  senderAddress: Address
+  senderAddress: Address,
+  network: string,
+  chainId: number,
+  pendingTransactions: any
 ): Promise<string> {
   // Sign the transaction
   const signedTx = await safe.signTransaction(safeTransaction)
-
-  // Get the transaction hash
   const safeTxHash = await safe.getTransactionHash(signedTx)
 
-  // Get the signature
-  const signature = await safe.signHash(safeTxHash)
+  consola.info('Transaction signed:', safeTxHash)
 
-  // Propose the transaction to the Safe API
-  await safeContract.proposeTransaction({
-    safeAddress: await safe.getAddress(),
-    safeTransactionData: signedTx.data,
-    safeTxHash,
-    senderAddress,
-    senderSignature: signature.data,
-  })
-
-  console.info('Transaction proposed:', safeTxHash)
-
-  // Execute the transaction immediately
+  // Store transaction in MongoDB using the utility function
   try {
-    const execResult = await safe.executeTransaction(signedTx)
-    console.info('Transaction executed:', execResult.hash)
+    const result = await storeTransactionInMongoDB(
+      pendingTransactions,
+      await safe.getAddress(),
+      network,
+      chainId,
+      signedTx,
+      safeTxHash,
+      senderAddress
+    )
+
+    if (!result.acknowledged) {
+      throw new Error('MongoDB insert was not acknowledged')
+    }
+
+    consola.success('Transaction successfully stored in MongoDB')
   } catch (error) {
-    console.error('Transaction execution failed:', error)
+    consola.error('Failed to store transaction in MongoDB:', error)
     throw error
   }
 
