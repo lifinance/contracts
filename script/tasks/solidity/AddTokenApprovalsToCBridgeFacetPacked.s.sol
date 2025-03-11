@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { console } from "forge-std/console.sol";
 import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
@@ -28,10 +27,6 @@ contract DeployScript is UpdateScriptBase {
         if (refundPrivateKey == 0) {
             revert RefundWalletPrivateKeyNotSet();
         }
-        console.log(
-            "Refund wallet address used in script:",
-            vm.addr(refundPrivateKey)
-        );
 
         // load config
         path = string.concat(root, "/config/cbridge.json");

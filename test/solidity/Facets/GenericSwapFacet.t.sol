@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
-import { LibAllowList, LibSwap, TestBase, console } from "../utils/TestBase.sol";
+import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacet is GenericSwapFacet {
@@ -176,8 +176,6 @@ contract GenericSwapFacetTest is TestBase {
 
         uint256 expectedAmountOut = amountOutWETH;
 
-        uint256 gasLeftBef = gasleft();
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -198,9 +196,6 @@ contract GenericSwapFacetTest is TestBase {
             expectedAmountOut,
             swapData
         );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
 
         vm.stopPrank();
     }

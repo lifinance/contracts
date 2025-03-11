@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { ILiFi, LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { ILiFi, LibAllowList, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 
@@ -168,7 +168,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         view
         override
     {
-        console.log("Not applicable for HopFacetOptimized");
+        // Not applicable for HopFacetOptimized
     }
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
@@ -176,7 +176,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         view
         override
     {
-        console.log("Not applicable for HopFacetOptimized");
+        // Not applicable for HopFacetOptimized
     }
 
     function testBase_Revert_BridgeWithInvalidAmount()
