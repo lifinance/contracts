@@ -1,61 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBase, LiFiDiamond, DSTest, LibSwap, ILiFi, LibAllowList, LibAsset, console, InvalidAmount, ERC20, UniswapV2Router02 } from "./TestBase.sol";
-import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "src/Errors/GenericErrors.sol";
-
-contract ReentrancyChecker is DSTest {
-    address private _facetAddress;
-    bytes private _callData;
-
-    constructor(address facetAddress) {
-        _facetAddress = facetAddress;
-        ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).approve(
-            _facetAddress,
-            type(uint256).max
-        ); // approve USDC max to facet
-        ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F).approve(
-            _facetAddress,
-            type(uint256).max
-        ); // approve DAI max to facet
-    }
-
-    // must be called with abi.encodePacked(selector, someParam)
-    // selector = function selector of the to-be-checked function
-    // someParam = valid arguments for the function call
-    function callFacet(bytes calldata callData) public {
-        _callData = callData;
-        (bool success, bytes memory data) = _facetAddress.call{
-            value: 10 ether
-        }(callData);
-        if (!success) {
-            if (
-                keccak256(data) ==
-                keccak256(abi.encodePacked(NativeAssetTransferFailed.selector))
-            ) {
-                revert ReentrancyError();
-            } else {
-                revert("Reentrancy Attack Test: initial call failed");
-            }
-        }
-    }
-
-    receive() external payable {
-        (bool success, bytes memory data) = _facetAddress.call{
-            value: 10 ether
-        }(_callData);
-        if (!success) {
-            if (
-                keccak256(data) ==
-                keccak256(abi.encodePacked(ReentrancyError.selector))
-            ) {
-                revert ReentrancyError();
-            } else {
-                revert("Reentrancy Attack Test: reentrant call failed");
-            }
-        }
-    }
-}
+import { TestBase, LibSwap, ReentrancyChecker } from "./TestBase.sol";
+import { NoSwapDataProvided, InformationMismatch, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
 
 // contains default test cases that can and should be used by
 abstract contract TestBaseFacet is TestBase {

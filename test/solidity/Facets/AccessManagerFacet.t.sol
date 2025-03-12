@@ -3,7 +3,9 @@ pragma solidity ^0.8.17;
 
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { UnAuthorized, CannotAuthoriseSelf, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
-import { TestBase, LibAccess, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { UnAuthorized, CannotAuthoriseSelf, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
+import { LibAccess } from "lifi/Libraries/LibAccess.sol";
+import { TestBase } from "../utils/TestBase.sol";
 
 contract RestrictedContract {
     function restrictedMethod() external view returns (bool) {
