@@ -3,7 +3,7 @@
  *
  * This module provides utilities for interacting with Gnosis Safe contracts
  * using Viem. It includes classes and functions for creating, signing, and
- * executing transactions, as well as managing Safe configuration.
+ * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
 import {
@@ -16,9 +16,17 @@ import {
   createWalletClient,
   encodeFunctionData,
   http,
+  parseAbi,
+  toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { SAFE_SINGLETON_ABI } from './config'
+import { MongoClient, Collection } from 'mongodb'
+import consola from 'consola'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import data from '../../../config/networks.json'
+
+const networks = data as any
 
 // Types for Safe transactions
 export enum OperationType {
@@ -591,4 +599,292 @@ export async function storeTransactionInMongoDB(
     const insertResult = await pendingTransactions.insertOne(txDoc)
     return insertResult
   })
+}
+
+/**
+ * Gets a MongoDB client and collection for Safe transactions
+ * @returns MongoDB client and pendingTransactions collection
+ * @throws Error if MONGODB_URI is not set
+ */
+export async function getSafeMongoCollection(): Promise<{
+  client: MongoClient
+  pendingTransactions: Collection<SafeTxDocument>
+}> {
+  if (!process.env.MONGODB_URI) {
+    throw new Error('MONGODB_URI environment variable is required')
+  }
+
+  const client = new MongoClient(process.env.MONGODB_URI)
+  const db = client.db('SAFE')
+  const pendingTransactions = db.collection<SafeTxDocument>(
+    'pendingTransactions'
+  )
+
+  return { client, pendingTransactions }
+}
+
+/**
+ * Gets the next nonce for a Safe transaction
+ * @param pendingTransactions - MongoDB collection
+ * @param safeAddress - Address of the Safe
+ * @param network - Network name
+ * @param chainId - Chain ID
+ * @param currentNonce - Current nonce from the Safe contract
+ * @returns The next nonce to use
+ */
+export async function getNextNonce(
+  pendingTransactions: Collection<SafeTxDocument>,
+  safeAddress: string,
+  network: string,
+  chainId: number,
+  currentNonce: bigint
+): Promise<bigint> {
+  const latestTx = await pendingTransactions
+    .find({
+      safeAddress,
+      network: network.toLowerCase(),
+      chainId,
+      status: 'pending',
+    })
+    .sort({ 'safeTx.data.nonce': -1 })
+    .limit(1)
+    .toArray()
+
+  return latestTx.length > 0
+    ? BigInt(latestTx[0].safeTx?.data?.nonce || 0) + 1n
+    : currentNonce
+}
+
+/**
+ * Gets all pending transactions for specified networks
+ * @param pendingTransactions - MongoDB collection
+ * @param networks - List of network names
+ * @returns Transactions grouped by network
+ */
+export async function getPendingTransactionsByNetwork(
+  pendingTransactions: Collection<SafeTxDocument>,
+  networks: string[]
+): Promise<Record<string, SafeTxDocument[]>> {
+  const allPendingTxs = await pendingTransactions
+    .find<SafeTxDocument>({
+      network: { $in: networks.map((n) => n.toLowerCase()) },
+      status: 'pending',
+    })
+    .toArray()
+
+  // Group transactions by network
+  const txsByNetwork: Record<string, SafeTxDocument[]> = {}
+  for (const tx of allPendingTxs) {
+    const network = tx.network.toLowerCase()
+    if (!txsByNetwork[network]) {
+      txsByNetwork[network] = []
+    }
+    txsByNetwork[network].push(tx)
+  }
+
+  // Sort transactions by nonce for each network
+  for (const network in txsByNetwork) {
+    txsByNetwork[network].sort((a, b) => {
+      if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
+      if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
+      return 0
+    })
+  }
+
+  return txsByNetwork
+}
+
+/**
+ * Initializes a Safe client for a specific network
+ * @param network - Network name
+ * @param privateKey - Private key for signing
+ * @param rpcUrl - Optional RPC URL override
+ * @returns Initialized ViemSafe instance and chain information
+ */
+export async function initializeSafeClient(
+  network: string,
+  privateKey: string,
+  rpcUrl?: string
+): Promise<{
+  safe: ViemSafe
+  chain: Chain
+  safeAddress: Address
+}> {
+  const chain = getViemChainForNetworkName(network)
+  const safeAddress = networks[network.toLowerCase()].safeAddress as Address
+
+  if (!safeAddress) {
+    throw new Error(`No Safe address configured for network ${network}`)
+  }
+
+  const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
+
+  // Initialize Safe with Viem
+  try {
+    const safe = await ViemSafe.init({
+      provider: parsedRpcUrl,
+      privateKey,
+      safeAddress,
+    })
+
+    return { safe, chain, safeAddress }
+  } catch (error) {
+    consola.error(`Error encountered while setting up Safe: ${error}`)
+    throw new Error(
+      `Failed to initialize Safe for ${network}: ${error.message}`
+    )
+  }
+}
+
+/**
+ * Gets the private key from environment or argument
+ * @param privateKeyArg - Private key argument from command line
+ * @param keyType - Type of key to use from environment
+ * @returns The private key
+ */
+export function getPrivateKey(
+  privateKeyArg?: string,
+  keyType:
+    | 'PRIVATE_KEY_PRODUCTION'
+    | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION'
+): string {
+  const privateKey = privateKeyArg || process.env[keyType]
+
+  if (!privateKey) {
+    throw new Error(
+      `Private key is missing, either provide it as argument or add ${keyType} to your .env`
+    )
+  }
+
+  return privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey
+}
+
+/**
+ * Gets the list of networks to process
+ * @param networkArg - Network argument from command line
+ * @returns List of networks to process
+ */
+export function getNetworksToProcess(networkArg?: string): string[] {
+  if (networkArg) return [networkArg]
+
+  // Default to all active networks
+  return Object.keys(networks).filter(
+    (network) =>
+      network !== 'localanvil' &&
+      networks[network.toLowerCase()].status === 'active'
+  )
+}
+
+/**
+ * Decodes a diamond cut transaction and displays its details
+ * @param diamondCutData - Decoded diamond cut data
+ * @param chainId - Chain ID
+ */
+export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
+  const actionMap: Record<number, string> = {
+    0: 'Add',
+    1: 'Replace',
+    2: 'Remove',
+  }
+  consola.info('Diamond Cut Details:')
+  consola.info('-'.repeat(80))
+  // diamondCutData.args[0] contains an array of modifications.
+  const modifications = diamondCutData.args[0]
+  for (const mod of modifications) {
+    // Each mod is [facetAddress, action, selectors]
+    const [facetAddress, actionValue, selectors] = mod
+    try {
+      consola.info(
+        `Fetching ABI for Facet Address: \u001b[34m${facetAddress}\u001b[0m`
+      )
+      const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
+      const response = await fetch(url)
+      const resData = await response.json()
+      consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
+      if (resData && resData.abi) {
+        consola.info(
+          `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
+        )
+
+        for (const selector of selectors) {
+          try {
+            // Find matching function in ABI
+            const matchingFunction = resData.abi.find((abiItem: any) => {
+              if (abiItem.type !== 'function') return false
+              const calculatedSelector = toFunctionSelector(abiItem)
+              return calculatedSelector === selector
+            })
+
+            if (matchingFunction) {
+              consola.info(
+                `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
+              )
+            } else {
+              consola.warn(`Unknown function [${selector}]`)
+            }
+          } catch (error) {
+            consola.warn(`Failed to decode selector: ${selector}`)
+          }
+        }
+      } else {
+        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+      }
+    } catch (error) {
+      consola.error(`Error fetching ABI for ${facetAddress}:`, error)
+    }
+    consola.info('-'.repeat(80))
+  }
+  // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
+  consola.info(`Init Address: ${diamondCutData.args[1]}`)
+  consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
+}
+
+/**
+ * Decodes a transaction's function call
+ * @param data - Transaction data
+ * @returns Decoded function name and data if available
+ */
+export async function decodeTransactionData(data: Hex): Promise<{
+  functionName?: string
+  decodedData?: any
+}> {
+  if (!data || data === '0x') return {}
+
+  try {
+    const selector = data.substring(0, 10)
+    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
+    const response = await fetch(url)
+    const responseData = await response.json()
+
+    if (
+      responseData.ok &&
+      responseData.result &&
+      responseData.result.function &&
+      responseData.result.function[selector]
+    ) {
+      const functionName = responseData.result.function[selector][0].name
+      const fullAbiString = `function ${functionName}`
+      const abiInterface = parseAbi([fullAbiString])
+
+      try {
+        const decodedData = {
+          functionName,
+          args: responseData.result.function[selector][0].args,
+        }
+
+        return {
+          functionName,
+          decodedData,
+        }
+      } catch (error) {
+        consola.warn(`Could not decode function data: ${error}`)
+        return { functionName }
+      }
+    }
+
+    return {}
+  } catch (error) {
+    consola.warn(`Error decoding transaction data: ${error}`)
+    return {}
+  }
 }

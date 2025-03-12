@@ -7,29 +7,16 @@
 
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import {
-  Address,
-  Hex,
-  createPublicClient,
-  http,
-  createWalletClient,
-} from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
-import { MongoClient } from 'mongodb'
+import { Address, Hex } from 'viem'
 import consola from 'consola'
 import {
-  NetworksObject,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
-import data from '../../../config/networks.json'
-import {
-  OperationType,
-  ViemSafe,
+  getSafeMongoCollection,
+  getNextNonce,
+  initializeSafeClient,
+  getPrivateKey,
   storeTransactionInMongoDB,
-  getSafeInfoFromContract,
+  OperationType,
 } from './safe-utils'
-
-const networks: NetworksObject = data as NetworksObject
 
 /**
  * Main command definition for proposing transactions to a Safe
@@ -70,69 +57,28 @@ const main = defineCommand({
    * @param args - Command arguments including network, rpcUrl, privateKey, to address, and calldata
    */
   async run({ args }) {
-    const chain = getViemChainForNetworkName(args.network)
+    // Get MongoDB collection
+    const { client: mongoClient, pendingTransactions } =
+      await getSafeMongoCollection()
 
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable is required')
-    }
+    // Initialize Safe client
+    const { safe, chain, safeAddress } = await initializeSafeClient(
+      args.network,
+      getPrivateKey(args.privateKey),
+      args.rpcUrl
+    )
 
-    const mongoClient = new MongoClient(process.env.MONGODB_URI)
-    const db = mongoClient.db('SAFE')
-    const pendingTransactions = db.collection('pendingTransactions')
+    // Get the account address
+    const senderAddress = safe.account
 
-    const safeAddress = networks[args.network.toLowerCase()]
-      .safeAddress as Address
-
-    const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
-
-    // Create a wallet client with the private key
-    const account = privateKeyToAccount(`0x${args.privateKey}` as Hex)
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
-    })
-
-    // Create a public client for read operations
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(rpcUrl),
-    })
-
-    // Initialize our viem-based Safe implementation
-    let safe: ViemSafe
-    try {
-      safe = await ViemSafe.init({
-        provider: rpcUrl,
-        privateKey: args.privateKey,
-        safeAddress,
-      })
-    } catch (error) {
-      consola.error('Failed to initialize Safe:', error)
-      throw error
-    }
-
-    // Get the account address directly from the account object
-    const senderAddress = account.address
-
-    // Get the latest pending transaction to determine the next nonce
-    const latestTx = await pendingTransactions
-      .find({
-        safeAddress,
-        network: args.network.toLowerCase(),
-        chainId: chain.id,
-        status: 'pending',
-      })
-      .sort({ nonce: -1 })
-      .limit(1)
-      .toArray()
-
-    // Calculate the next nonce
-    const nextNonce =
-      latestTx.length > 0
-        ? BigInt(latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) +
-          1n
-        : await safe.getNonce()
+    // Get the next nonce
+    const nextNonce = await getNextNonce(
+      pendingTransactions,
+      safeAddress,
+      args.network,
+      chain.id,
+      await safe.getNonce()
+    )
 
     // Create and sign the Safe transaction
     const safeTransaction = await safe.createTransaction({

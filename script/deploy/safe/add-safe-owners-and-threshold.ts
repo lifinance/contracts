@@ -8,24 +8,20 @@
 
 import { defineCommand, runMain } from 'citty'
 import { Address, createPublicClient, http } from 'viem'
-import { MongoClient } from 'mongodb'
 import {
-  NetworksObject,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
-import data from '../../../config/networks.json'
-import globalConfig from '../../../config/global.json'
-import * as dotenv from 'dotenv'
-import {
+  getSafeMongoCollection,
+  getNextNonce,
+  initializeSafeClient,
+  getPrivateKey,
   ViemSafe,
   SafeTransaction,
-  getSafeInfoFromContract,
   storeTransactionInMongoDB,
+  getSafeInfoFromContract,
 } from './safe-utils'
+import globalConfig from '../../../config/global.json'
+import * as dotenv from 'dotenv'
 import consola from 'consola'
 dotenv.config()
-
-const networks: NetworksObject = data as NetworksObject
 
 const main = defineCommand({
   meta: {
@@ -51,59 +47,31 @@ const main = defineCommand({
   async run({ args }) {
     const { network, privateKey: privateKeyArg } = args
 
-    const chain = getViemChainForNetworkName(network)
-
-    const privateKey = String(
-      privateKeyArg || process.env.PRIVATE_KEY_PRODUCTION
-    )
-
-    if (!privateKey)
-      throw new Error(
-        'Private key is missing, either provide it as argument or add PRIVATE_KEY_PRODUCTION to your .env'
-      )
-
-    // Check for MongoDB URI
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable is required')
-    }
+    // Get private key
+    const privateKey = getPrivateKey(privateKeyArg)
 
     // Connect to MongoDB
-    const mongoClient = new MongoClient(process.env.MONGODB_URI)
-    const db = mongoClient.db('SAFE')
-    const pendingTransactions = db.collection('pendingTransactions')
+    const { client: mongoClient, pendingTransactions } =
+      await getSafeMongoCollection()
 
     consola.info('Setting up connection to Safe contract')
 
-    const safeAddress = networks[network].safeAddress as Address
-    if (!safeAddress) {
-      throw new Error(`No Safe address configured for network ${network}`)
-    }
-
-    const rpcUrl = chain.rpcUrls.default.http[0] || args.rpcUrl
-
-    // Initialize public client for basic chain operations
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(rpcUrl),
-    })
-
-    // Initialize our viem-based Safe implementation
-    let safe: ViemSafe
-    try {
-      safe = await ViemSafe.init({
-        provider: rpcUrl,
-        privateKey,
-        safeAddress,
-      })
-    } catch (error) {
-      consola.error(`Failed to initialize Safe: ${error.message}`)
-      throw error
-    }
+    // Initialize Safe client
+    const { safe, chain, safeAddress } = await initializeSafeClient(
+      network,
+      privateKey
+    )
 
     // Get Safe information directly from the contract
     consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
     let safeInfo
     try {
+      // Create a public client for read operations
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(chain.rpcUrls.default.http[0]),
+      })
+
       safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
     } catch (error) {
       consola.error(`Failed to get Safe info: ${error.message}`)
@@ -132,24 +100,14 @@ const main = defineCommand({
     consola.info('Current threshold:', currentThreshold)
     consola.info('Current owners:', safeInfo.owners)
 
-    // Get the latest pending transaction to determine the next nonce
-    const latestTx = await pendingTransactions
-      .find({
-        safeAddress,
-        network: network.toLowerCase(),
-        chainId: chain.id,
-        status: 'pending',
-      })
-      .sort({ nonce: -1 })
-      .limit(1)
-      .toArray()
-
-    // Calculate the next nonce
-    let nextNonce =
-      latestTx.length > 0
-        ? BigInt(latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) +
-          1n
-        : await safe.getNonce()
+    // Get the next nonce
+    let nextNonce = await getNextNonce(
+      pendingTransactions,
+      safeAddress,
+      network,
+      chain.id,
+      safeInfo.nonce
+    )
 
     // Go through all owner addresses and add each of them individually
     for (const o of ownersToAdd) {

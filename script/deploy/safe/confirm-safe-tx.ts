@@ -16,12 +16,7 @@ import {
   Abi,
   decodeFunctionData,
 } from 'viem'
-import { MongoClient } from 'mongodb'
 import consola from 'consola'
-import {
-  NetworksObject,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
 import {
   OperationType,
@@ -30,28 +25,22 @@ import {
   SafeTxDocument,
   AugmentedSafeTxDocument,
   privateKeyType,
-  retry,
   initializeSafeTransaction,
   hasEnoughSignatures,
   isSignedByCurrentSigner,
   wouldMeetThreshold,
   getSafeInfoFromContract,
+  getSafeMongoCollection,
+  getPendingTransactionsByNetwork,
+  getNetworksToProcess,
+  getPrivateKey,
+  initializeSafeClient,
+  decodeDiamondCut,
+  decodeTransactionData,
 } from './safe-utils'
-import { decodeDiamondCut, decodeTransactionData } from './safe-decode-utils'
-import networksConfig from '../../../config/networks.json'
 dotenv.config()
 
-const networks: NetworksObject = networksConfig
-
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
-
-const allNetworks = Object.keys(networksConfig)
-
-const defaultNetworks = allNetworks.filter(
-  (network) =>
-    network !== 'localanvil' &&
-    networks[network.toLowerCase()].status === 'active' // <<< deactivate this to operate on non-active networks
-)
 
 const storedResponses: Record<string, string> = {}
 
@@ -80,38 +69,12 @@ const processTxs = async (
   consola.info(' ')
   consola.info('-'.repeat(80))
 
-  const chain = getViemChainForNetworkName(network)
-  const safeAddress = networks[network.toLowerCase()].safeAddress as Address
-
-  if (!safeAddress) {
-    consola.error(`No Safe address configured for network ${network}`)
-    return
-  }
-
-  const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
-
-  // Create public client for chain operations
-  const publicClient = createPublicClient({
-    chain,
-    transport: http(parsedRpcUrl),
-  })
-
-  // Initialize Safe with Viem
-  let safe: ViemSafe
-  try {
-    safe = await ViemSafe.init({
-      provider: parsedRpcUrl,
-      privateKey,
-      safeAddress,
-    })
-  } catch (err) {
-    consola.error(`Error encountered while setting up Safe: ${err}`)
-    consola.error(`Skipping network ${network}`)
-    consola.error(
-      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
-    )
-    return
-  }
+  // Initialize Safe client
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    network,
+    privateKey,
+    rpcUrl
+  )
 
   // Get signer address
   const signerAddress = safe.account
@@ -375,13 +338,13 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const networks = args.network ? [args.network] : defaultNetworks
+    const networks = getNetworksToProcess(args.network)
 
     // if no privateKey was supplied, read directly from env
-    let privateKey = args.privateKey
+    let privateKey: string
     let keyType = privateKeyType.DEPLOYER // default value
 
-    if (!privateKey) {
+    if (!args.privateKey) {
       const keyChoice = await consola.prompt(
         'Which private key do you want to use from your .env file?',
         {
@@ -390,51 +353,27 @@ const main = defineCommand({
         }
       )
 
-      privateKey = process.env[keyChoice] ?? ''
+      privateKey = getPrivateKey(
+        undefined,
+        keyChoice as 'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'
+      )
       keyType =
         keyChoice === 'SAFE_SIGNER_PRIVATE_KEY'
           ? privateKeyType.SAFE_SIGNER
           : privateKeyType.DEPLOYER
-
-      if (privateKey == '')
-        throw Error(`could not find a key named ${keyChoice} in your .env file`)
+    } else {
+      privateKey = getPrivateKey(args.privateKey)
     }
 
     // Connect to MongoDB and fetch ALL pending transactions
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable is required')
-    }
-
-    const mongoClient = new MongoClient(process.env.MONGODB_URI)
-    const db = mongoClient.db('SAFE')
-    const pendingTransactions = db.collection('pendingTransactions')
+    const { client: mongoClient, pendingTransactions } =
+      await getSafeMongoCollection()
 
     // Fetch all pending transactions for the networks we're processing
-    const allPendingTxs = await pendingTransactions
-      .find<SafeTxDocument>({
-        network: { $in: networks.map((n) => n.toLowerCase()) },
-        status: 'pending',
-      })
-      .toArray()
-
-    // Group transactions by network
-    const txsByNetwork: Record<string, SafeTxDocument[]> = {}
-    for (const tx of allPendingTxs) {
-      const network = tx.network.toLowerCase()
-      if (!txsByNetwork[network]) {
-        txsByNetwork[network] = []
-      }
-      txsByNetwork[network].push(tx)
-    }
-
-    // Sort transactions by nonce for each network
-    for (const network in txsByNetwork) {
-      txsByNetwork[network].sort((a, b) => {
-        if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
-        if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
-        return 0
-      })
-    }
+    const txsByNetwork = await getPendingTransactionsByNetwork(
+      pendingTransactions,
+      networks
+    )
 
     // Process transactions for each network
     for (const network of networks) {
