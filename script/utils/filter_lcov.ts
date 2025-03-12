@@ -39,7 +39,7 @@ async function filterLcov(
 const args = process.argv.slice(2)
 if (args.length < 3) {
   console.error(
-    'Usage: npx tsx filter_lcov.ts input_file output_file pattern1 [pattern2 ...]'
+    'Usage: bun filter_lcov.ts input_file output_file pattern1 [pattern2 ...]'
   )
   process.exit(1)
 }

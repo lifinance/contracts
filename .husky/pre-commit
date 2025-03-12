@@ -12,8 +12,8 @@ fi
 
 echo ""
 echo ""
-echo "Running 'yarn lint-staged' now:"
-yarn lint-staged
+echo "Running 'bun lint-staged' now:"
+bun lint-staged
 
 echo ""
 echo ""
@@ -169,13 +169,13 @@ processGitDiff() {
       continue
     fi
 
-    #skip yarn.lock
-    if [[ $FILE == "yarn.lock" ]]; then
+    #skip bun.lock
+    if [[ $FILE == "bun.lock" ]]; then
       continue
     fi
 
-    #skip .yarn files (releases etc.)
-    if [[ $FILE == ".yarn/"* ]]; then
+    #skip .bun files (bins, cache, versions etc.)
+    if [[ $FILE == ".bun/"* ]]; then
       continue
     fi
 
