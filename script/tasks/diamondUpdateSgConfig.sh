@@ -26,6 +26,7 @@ diamondUpdateSgConfig() {
       USE_DEF_DIAMOND=false
   fi
 
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network from list
 	NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 	# get user-selected script from list
