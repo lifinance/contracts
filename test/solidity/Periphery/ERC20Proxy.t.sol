@@ -2,22 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
-import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
-import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
 
 contract ERC20ProxyTest is DSTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     ERC20Proxy public erc20Proxy;
-    DiamondCutFacet public diamondCutFacet;
-    OwnershipFacet public ownershipFacet;
     address public proxyOwner;
-
-    error FunctionDoesNotExist();
-    error OnlyContractOwner();
 
     function setUp() public {
         proxyOwner = address(123456);

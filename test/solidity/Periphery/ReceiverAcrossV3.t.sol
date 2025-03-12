@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { Test, TestBase, Vm, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized } from "src/Errors/GenericErrors.sol";
+import { TestBase, LibSwap } from "../utils/TestBase.sol";
+import { UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverAcrossV3 } from "lifi/Periphery/ReceiverAcrossV3.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -16,12 +16,12 @@ contract ReceiverAcrossV3Test is TestBase {
     using stdJson for string;
 
     ReceiverAcrossV3 internal receiver;
-    bytes32 guid = bytes32("12345");
-    address receiverAddress = USER_RECEIVER;
+    bytes32 internal guid = bytes32("12345");
+    address internal receiverAddress = USER_RECEIVER;
 
-    address stargateRouter;
-    Executor executor;
-    ERC20Proxy erc20Proxy;
+    address internal stargateRouter;
+    Executor internal executor;
+    ERC20Proxy internal erc20Proxy;
 
     event ExecutorSet(address indexed executor);
 

@@ -4,10 +4,11 @@ pragma solidity ^0.8.17;
 import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
-import { OnlyContractOwner, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract TransferrableOwnershipTest is DSTest {
     TransferrableOwnership internal ownable;
+    // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
 
     error NoNullOwner();
