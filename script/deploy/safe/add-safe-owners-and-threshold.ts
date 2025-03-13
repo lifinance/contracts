@@ -87,7 +87,20 @@ const main = defineCommand({
     if (args.owners) {
       const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
       consola.info('Adding owners from command line:', cmdLineOwners)
-      ownersToAdd = [...ownersToAdd, ...cmdLineOwners]
+
+      // Deduplicate owners by converting to lowercase and using a Set
+      const uniqueOwners = new Set([
+        ...ownersToAdd.map((addr) => addr.toLowerCase()),
+        ...cmdLineOwners.map((addr) => addr.toLowerCase()),
+      ])
+
+      // Convert back to original format (preserving the case from either source)
+      const allOwners = [...ownersToAdd, ...cmdLineOwners]
+      ownersToAdd = Array.from(uniqueOwners).map(
+        (lowercaseAddr) =>
+          allOwners.find((addr) => addr.toLowerCase() === lowercaseAddr) ||
+          lowercaseAddr
+      )
     }
 
     const currentThreshold = Number(safeInfo.threshold)
