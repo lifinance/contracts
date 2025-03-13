@@ -71,12 +71,18 @@ const processTxs = async (
   consola.info('Signer:', signerAddress)
 
   // Check if the current signer is an owner
-  const existingOwners = await safe.getOwners()
-  if (!isAddressASafeOwner(existingOwners, signerAddress)) {
-    consola.error('The current signer is not an owner of this Safe')
-    consola.error('Signer address:', signerAddress)
-    consola.error('Current owners:', existingOwners)
-    consola.error('Cannot sign or execute transactions - exiting')
+  try {
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, signerAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', signerAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot sign or execute transactions - exiting')
+      return
+    }
+  } catch (error) {
+    consola.error(`Failed to check if signer is an owner: ${error.message}`)
+    consola.error('Skipping this network and moving to the next one')
     return
   }
 
