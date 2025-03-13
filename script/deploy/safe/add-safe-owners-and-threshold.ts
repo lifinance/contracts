@@ -122,15 +122,25 @@ const main = defineCommand({
       safeInfo.nonce
     )
 
+    // Fetch the list of existing owners once before the loop
+    const existingOwners = await safe.getOwners()
+
+    // Check if the current signer is an owner
+    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', senderAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot propose transactions - exiting')
+      await mongoClient.close()
+      process.exit(1)
+    }
+
     // Go through all owner addresses and add each of them individually
     for (const o of ownersToAdd) {
       consola.info('-'.repeat(80))
       const owner = o as Address
-      const existingOwners = await safe.getOwners()
 
-      if (
-        existingOwners.map((o) => o.toLowerCase()).includes(owner.toLowerCase())
-      ) {
+      if (isAddressASafeOwner(existingOwners, owner)) {
         consola.info('Owner already exists', owner)
         continue
       }
