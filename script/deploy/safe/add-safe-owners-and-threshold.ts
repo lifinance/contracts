@@ -17,6 +17,7 @@ import {
   SafeTransaction,
   storeTransactionInMongoDB,
   getSafeInfoFromContract,
+  isAddressASafeOwner,
 } from './safe-utils'
 import globalConfig from '../../../config/global.json'
 import * as dotenv from 'dotenv'

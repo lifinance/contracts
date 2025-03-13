@@ -16,6 +16,7 @@ import {
   getPrivateKey,
   storeTransactionInMongoDB,
   OperationType,
+  isAddressASafeOwner,
 } from './safe-utils'
 
 /**

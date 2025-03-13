@@ -7,21 +7,11 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import {
-  Address,
-  Hex,
-  createPublicClient,
-  http,
-  parseAbi,
-  Abi,
-  decodeFunctionData,
-} from 'viem'
+import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
 import {
-  OperationType,
   SafeTransaction,
-  ViemSafe,
   SafeTxDocument,
   AugmentedSafeTxDocument,
   privateKeyType,
@@ -29,7 +19,6 @@ import {
   hasEnoughSignatures,
   isSignedByCurrentSigner,
   wouldMeetThreshold,
-  getSafeInfoFromContract,
   getSafeMongoCollection,
   getPendingTransactionsByNetwork,
   getNetworksToProcess,
@@ -37,10 +26,9 @@ import {
   initializeSafeClient,
   decodeDiamondCut,
   decodeTransactionData,
+  isAddressASafeOwner,
 } from './safe-utils'
 dotenv.config()
-
-const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
 const storedResponses: Record<string, string> = {}
 
@@ -127,9 +115,9 @@ const processTxs = async (
       consola.success('Transaction executed')
       consola.info(' ')
       consola.info(' ')
-    } catch (err) {
-      consola.error('Error while trying to execute the transaction:', err)
-      throw new Error(`Transaction could not be executed: ${err.message}`)
+    } catch (error) {
+      consola.error('Error while trying to execute the transaction:', error)
+      throw new Error(`Transaction could not be executed: ${error.message}`)
     }
   }
 
@@ -194,7 +182,7 @@ const processTxs = async (
 
     try {
       if (tx.safeTx.data) {
-        const { functionName, decodedData } = await decodeTransactionData(
+        const { functionName } = await decodeTransactionData(
           tx.safeTx.data.data as Hex
         )
         if (functionName) {
