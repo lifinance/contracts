@@ -21,7 +21,7 @@ contract TestMayanFacet is MayanFacet {
     }
 }
 
-/// @notice This contract exposes _parseReceiver for testing purposes.
+/// @notice This contract exposes _parseReceiver and _replaceInputAmount for testing purposes.
 contract TestMayanFacetExposed is MayanFacet {
     constructor(IMayan _mayan) MayanFacet(_mayan) {}
 
@@ -30,6 +30,14 @@ contract TestMayanFacetExposed is MayanFacet {
         bytes memory protocolData
     ) public pure returns (bytes32) {
         return _parseReceiver(protocolData);
+    }
+
+    /// @dev Exposes the internal _replaceInputAmount function.
+    function testReplaceInputAmount(
+        bytes memory protocolData,
+        uint256 inputAmount
+    ) public pure returns (bytes memory) {
+        return _replaceInputAmount(protocolData, inputAmount);
     }
 }
 
@@ -494,6 +502,17 @@ contract MayanFacetTest is TestBaseFacet {
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
+    }
+
+    function testRevert_WhenProtocolDataTooShort() public {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(address(0))
+        );
+        bytes memory shortData = new bytes(50); // shorter than 68 bytes (50 bytes)
+        uint256 newAmount = 1000;
+
+        vm.expectRevert("protocol data too short");
+        testFacet.testReplaceInputAmount(shortData, newAmount);
     }
 
     function test_ParseReceiver() public {
