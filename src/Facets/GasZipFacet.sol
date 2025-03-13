@@ -14,7 +14,7 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the gas.zip protocol (https://www.gas.zip/)
-/// @custom:version 2.0.2
+/// @custom:version 2.0.3
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
@@ -24,12 +24,12 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// State ///
     address public constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
-    IGasZip public immutable gasZipRouter;
+    IGasZip public immutable GAS_ZIP_ROUTER;
     uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
 
     /// Constructor ///
     constructor(address _gasZipRouter) {
-        gasZipRouter = IGasZip(_gasZipRouter);
+        GAS_ZIP_ROUTER = IGasZip(_gasZipRouter);
     }
 
     /// @notice Bridges tokens using the gas.zip protocol
@@ -107,7 +107,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _gasZipData.receiverAddress !=
-            bytes32(uint256(uint160(_bridgeData.receiver)))
+            bytes32(bytes20(uint160(_bridgeData.receiver)))
         ) revert InvalidCallData();
 
         // validate bridgeData
@@ -116,7 +116,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert CannotBridgeToSameNetwork();
 
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
-        gasZipRouter.deposit{ value: _bridgeData.minAmount }(
+        GAS_ZIP_ROUTER.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );

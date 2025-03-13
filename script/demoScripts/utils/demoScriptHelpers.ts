@@ -14,6 +14,7 @@ import {
   http,
   Narrow,
   parseAbi,
+  zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
@@ -662,13 +663,21 @@ export const executeTransaction = async <T>(
  * Ensures that the address wallet has the required token balance.
  */
 export const ensureBalance = async (
-  tokenContract: any,
+  asset: any,
   walletAddress: string,
-  requiredAmount: bigint
+  requiredAmount: bigint,
+  publicClient: any = null
 ): Promise<void> => {
-  const balance: bigint = (await tokenContract.read.balanceOf([
-    walletAddress,
-  ])) as bigint
+  let balance: bigint
+
+  if (asset === zeroAddress) {
+    // Special case: asset represents the native token (e.g. ETH).
+    // Retrieve the native balance using the public client.
+    balance = await publicClient.getBalance({ address: walletAddress })
+  } else {
+    // Standard ERC20 balance check using the asset's balanceOf method.
+    balance = (await asset.read.balanceOf([walletAddress])) as bigint
+  }
 
   if (balance < requiredAmount) {
     console.error(

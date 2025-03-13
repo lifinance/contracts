@@ -38,7 +38,7 @@ contract GasZipFacetTest is TestBaseFacet {
     address public defaultRecipientAddress = address(12345);
     address public defaultRefundAddress = address(56789);
     bytes32 internal defaultReceiverBytes32 =
-        bytes32(uint256(uint160(USER_RECEIVER)));
+        bytes32(bytes20(uint160(USER_RECEIVER)));
 
     event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
 
@@ -93,7 +93,7 @@ contract GasZipFacetTest is TestBaseFacet {
         uint8[] memory chainIds = new uint8[](1);
         chainIds[0] = 17; // polygon
         gasZipData = IGasZip.GasZipData({
-            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
+            receiverAddress: bytes32(bytes20(uint160(USER_RECEIVER))),
             destinationChains: defaultDestinationChains
         });
 
@@ -134,7 +134,10 @@ contract GasZipFacetTest is TestBaseFacet {
     function test_WillStoreConstructorParametersCorrectly() public {
         gasZipFacet = new TestGasZipFacet(GAS_ZIP_ROUTER_MAINNET);
 
-        assertEq(address(gasZipFacet.gasZipRouter()), GAS_ZIP_ROUTER_MAINNET);
+        assertEq(
+            address(gasZipFacet.GAS_ZIP_ROUTER()),
+            GAS_ZIP_ROUTER_MAINNET
+        );
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
