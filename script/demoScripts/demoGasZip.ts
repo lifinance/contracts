@@ -25,8 +25,7 @@ const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
-  // const destinationChainId = 143 // berachain -  custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
-  const destinationChainId = 245 // solana (non evm)
+  const destinationChainId = 245 // solana (non evm) -  custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
 
   const { publicClient, walletAccount, lifiDiamondContract } =
     await setupEnvironment(srcChain, GAS_ZIP__FACET_ABI)

@@ -1,4 +1,4 @@
-import { arbitrum, mainnet, Chain, linea } from 'viem/chains'
+import { arbitrum, mainnet, Chain } from 'viem/chains'
 import networks from '../../../config/networks.json'
 
 export type SupportedChain = keyof typeof networks
@@ -10,5 +10,4 @@ export type SupportedChain = keyof typeof networks
 export const viemChainMap: Partial<Record<SupportedChain, Chain>> = {
   mainnet: mainnet,
   arbitrum: arbitrum,
-  linea: linea,
 }
