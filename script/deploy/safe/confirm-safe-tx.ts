@@ -160,13 +160,19 @@ const processTxs = async (
     )
   ).then((txs: AugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
-      const needsMoreSignatures =
-        tx.safeTransaction.signatures.size < tx.threshold
-      const canExecute = tx.safeTransaction.signatures.size >= tx.threshold
-      // Show transaction if:
-      // - it needs more signatures OR
-      // - it can be executed (has enough signatures)
-      return needsMoreSignatures || canExecute
+      // If the transaction has enough signatures to execute AND the current signer has signed,
+      // still show it so they can execute it
+      if (tx.canExecute) {
+        return true
+      }
+
+      // Otherwise, don't show transactions that have already been signed by the current signer
+      if (tx.hasSignedAlready) {
+        return false
+      }
+
+      // Show transactions that need more signatures
+      return tx.safeTransaction.signatures.size < tx.threshold
     })
   )
 
