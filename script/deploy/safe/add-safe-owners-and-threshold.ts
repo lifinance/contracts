@@ -7,7 +7,7 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import { Address, createPublicClient, http } from 'viem'
+import { Address, createPublicClient, http, isAddress } from 'viem'
 import {
   getSafeMongoCollection,
   getNextNonce,
@@ -87,6 +87,19 @@ const main = defineCommand({
     // Add owners from command line if provided
     if (args.owners) {
       const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
+
+      // Validate each address using viem's isAddress function
+      for (const addr of cmdLineOwners) {
+        if (!isAddress(addr)) {
+          consola.error(`Invalid Ethereum address: ${addr}`)
+          consola.error(
+            'Please provide valid Ethereum addresses in the format 0x...'
+          )
+          await mongoClient.close()
+          process.exit(1)
+        }
+      }
+
       consola.info('Adding owners from command line:', cmdLineOwners)
 
       // Deduplicate owners by converting to lowercase and using a Set
@@ -172,6 +185,19 @@ const main = defineCommand({
     consola.info('-'.repeat(80))
 
     if (currentThreshold != 3) {
+      // Get the updated count of owners after all additions
+      const updatedOwnerCount = (await safe.getOwners()).length
+
+      if (updatedOwnerCount < 3) {
+        consola.error(
+          `Cannot set threshold to 3 when only ${updatedOwnerCount} owners exist`
+        )
+        consola.error('This would lock the Safe and make it unusable')
+        consola.error('Add more owners before changing the threshold')
+        await mongoClient.close()
+        process.exit(1)
+      }
+
       consola.info(
         'Now proposing to change threshold from',
         currentThreshold,
