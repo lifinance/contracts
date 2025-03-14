@@ -4,7 +4,7 @@ import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipFacet is GasZipFacet {
@@ -138,6 +138,11 @@ contract GasZipFacetTest is TestBaseFacet {
             address(gasZipFacet.GAS_ZIP_ROUTER()),
             GAS_ZIP_ROUTER_MAINNET
         );
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestGasZipFacet(address(0));
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {

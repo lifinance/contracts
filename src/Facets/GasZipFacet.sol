@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
@@ -29,6 +29,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Constructor ///
     constructor(address _gasZipRouter) {
+        if (address(_gasZipRouter) == address(0)) {
+            revert InvalidConfig();
+        }
         GAS_ZIP_ROUTER = IGasZip(_gasZipRouter);
     }
 
