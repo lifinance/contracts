@@ -2849,9 +2849,21 @@ function isZkEvmNetwork() {
   # read function arguments into variables
   local NETWORK="$1"
 
-  # Check if the network exists in networks.json and if isZkEVM is true
-  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM // false' "$NETWORKS_JSON_FILE_PATH")
-  
+  # Check if the network exists in networks.json
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  # Check if isZkEVM property exists for this network
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "isZkEVM property not defined for network '$NETWORK' in networks.json"
+    return 1
+  fi
+
+  # Get the isZkEVM value
+  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
+
   if [[ "$IS_ZK_EVM" == "true" ]]; then
     return 0  # Success (true)
   else
