@@ -23,18 +23,18 @@ dotenv.config()
 
 async function main() {
   // === Set up environment ===
-  const srcChain: SupportedChain = 'linea'
-  const destinationChainId = 10 // Optimism
+  const srcChain: SupportedChain = 'arbitrum'
+  const destinationChainId = 143 // berachain -  custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
 
   const { publicClient, walletAccount, lifiDiamondContract } =
-    await setupEnvironment(srcChain, GAS_ZIP__FACET_ABI, 'production')
+    await setupEnvironment(srcChain, GAS_ZIP__FACET_ABI)
   const signerAddress = walletAccount.address
   const userReceiver = addressToBytes32(signerAddress)
 
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = zeroAddress as `0x${string}` // native token
 
-  const amount = parseUnits('0.0001', 18) // 0.0001 * 1e18
+  const amount = parseUnits('0.001', 18) // 0.001 * 1e18
 
   console.info(`Bridge ${amount} native from ${srcChain} --> Optimism`)
   console.info(`Connected wallet address: ${signerAddress}`)
@@ -59,6 +59,9 @@ async function main() {
     receiverAddress: userReceiver,
     destinationChains: destinationChainId,
   }
+
+  console.log('userReceiver')
+  console.log(userReceiver)
 
   // === Start bridging ===
   await executeTransaction(
