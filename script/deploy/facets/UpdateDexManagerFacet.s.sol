@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
-import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     function run()

@@ -61,11 +61,23 @@ interface UniswapV2Router02 {
     function addLiquidity(
         address tokenA,
         address tokenB,
+        // solhint-disable explicit-types
         uint amountADesired,
+        // solhint-disable explicit-types
         uint amountBDesired,
+        // solhint-disable explicit-types
         uint amountAMin,
+        // solhint-disable explicit-types
         uint amountBMin,
         address to,
+        // solhint-disable explicit-types
         uint deadline
-    ) external returns (uint amountA, uint amountB, uint liquidity);
+    )
+        external
+        returns (
+            // solhint-disable explicit-types
+            uint amountA,
+            uint amountB,
+            uint liquidity
+        );
 }

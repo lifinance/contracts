@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { AcrossFacetPackedV3 } from "lifi/Facets/AcrossFacetPackedV3.sol";
 
 contract DeployScript is UpdateScriptBase {
