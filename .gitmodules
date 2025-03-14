@@ -25,3 +25,6 @@
 [submodule "lib/Permit2"]
 	path = lib/Permit2
 	url = https://github.com/Uniswap/Permit2
+[submodule "lib/safe-smart-account"]
+	path = lib/safe-smart-account
+	url = https://github.com/safe-global/safe-smart-account
