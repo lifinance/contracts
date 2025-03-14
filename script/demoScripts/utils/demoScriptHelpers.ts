@@ -479,6 +479,22 @@ export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
 }
 
 /**
+ * Converts an Ethereum address to a 32-byte hexadecimal string,
+ * mimicking Solidity's `bytes32(bytes20(uint160(address)))` conversion.
+ * The address is right-padded with zeros to fit into a 32-byte value.
+ *
+ * @param address - A valid Ethereum address (20 bytes).
+ * @returns A 32-byte hexadecimal string representation of the address.
+ */
+export function addressToBytes32RightPadded(address: string): `0x${string}` {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error('Invalid Ethereum address format')
+  }
+  const hex = address.replace(/^0x/, '').toLowerCase()
+  return `0x${hex.padEnd(64, '0')}`
+}
+
+/**
  * Retrieve the value of an environment variable.
  * Throws an error if the environment variable is not defined.
  */

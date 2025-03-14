@@ -156,6 +156,10 @@
       "0x6C96d5C36d9aDBD3F4e0337D2d1E133A59288D1A": {
         "Name": "MayanFacet",
         "Version": "1.1.0"
+      },
+      "0x18Cd6D3A48f526b3BD140a26B0225C42969f0F63": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.3"
       }
     },
     "Periphery": {
