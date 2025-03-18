@@ -68,10 +68,10 @@ contract LibUtilImplementer {
 }
 
 contract LibUtilTest is Test {
-    MainContract public mainContract;
-    CalledContract public calledContract;
-    LibUtilImplementer public implementer;
-    address public testAddress;
+    MainContract internal mainContract;
+    CalledContract internal calledContract;
+    LibUtilImplementer internal implementer;
+    address internal testAddress;
 
     function setUp() public {
         mainContract = new MainContract();

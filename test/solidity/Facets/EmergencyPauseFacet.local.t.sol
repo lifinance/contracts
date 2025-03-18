@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
-import { OnlyContractOwner, InvalidConfig, InvalidCallData, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
+import { TestBase } from "../utils/TestBase.sol";
+import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { IStargate, ITokenMessaging } from "lifi/Interfaces/IStargate.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 
@@ -412,7 +407,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         // deploy dummy contracts and store their addresses
         address[] memory contractAddresses = new address[](contractsCount);
 
-        for (uint i; i < contractsCount; i++) {
+        for (uint256 i; i < contractsCount; i++) {
             contractAddresses[i] = address(new DummyContract());
         }
 
@@ -421,7 +416,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](
             contractsCount
         );
-        for (uint i; i < contractsCount; i++) {
+        for (uint256 i; i < contractsCount; i++) {
             cut[i] = LibDiamond.FacetCut({
                 facetAddress: contractAddresses[i],
                 action: LibDiamond.FacetCutAction.Add,
@@ -458,7 +453,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     {
         randomValues = new bytes4[](3);
 
-        for (uint i = 0; i < 3; i++) {
+        for (uint256 i = 0; i < 3; i++) {
             counter++; // Increment the counter for additional randomness
             randomValues[i] = bytes4(
                 keccak256(

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 
 contract OwnershipFacetTest is TestBase {

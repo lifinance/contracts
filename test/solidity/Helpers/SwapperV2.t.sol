@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { LibAllowList, LibSwap, LibAsset, TestBase, console, LiFiDiamond, ILiFi } from "../utils/TestBase.sol";
+import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
 
 // Stub SwapperV2 Contract

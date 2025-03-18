@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import "lifi/LiFiDiamond.sol";
-import "lifi/Facets/DiamondCutFacet.sol";
-import "lifi/Facets/DiamondLoupeFacet.sol";
-import "lifi/Facets/OwnershipFacet.sol";
-import "lifi/Facets/EmergencyPauseFacet.sol";
-import "lifi/Libraries/LibDiamond.sol";
-import "lifi/Facets/PeripheryRegistryFacet.sol";
-import { Test, console } from "forge-std/Test.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
+import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { Test } from "forge-std/Test.sol";
 
 contract DiamondTest is Test {
     LibDiamond.FacetCut[] internal cut;
