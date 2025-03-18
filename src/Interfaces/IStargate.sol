@@ -4,20 +4,19 @@ pragma solidity ^0.8.17;
 /// @title Interface for StargateV2
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
-
-/// @notice Stargate implementation type.
-enum StargateType {
-    Pool,
-    OFT
-}
-
-/// @notice Ticket data for bus ride.
-struct Ticket {
-    uint72 ticketId;
-    bytes passengerBytes;
-}
-
 interface IStargate {
+    /// @notice Stargate implementation type.
+    enum StargateType {
+        Pool,
+        OFT
+    }
+
+    /// @notice Ticket data for bus ride.
+    struct Ticket {
+        uint72 ticketId;
+        bytes passengerBytes;
+    }
+
     /**
      * @dev Struct representing token parameters for the OFT send() operation.
      */

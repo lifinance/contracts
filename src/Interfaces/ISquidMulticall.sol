@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 /// @title Interface for Squid Multicall
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
-
 interface ISquidMulticall {
     enum CallType {
         Default,
