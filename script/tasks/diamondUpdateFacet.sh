@@ -85,11 +85,11 @@ diamondUpdateFacet() {
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
   fi
 
-  # Handle ZkSync specific paths and extensions
+  # Handle script paths and extensions based on network type
   if isZkEvmNetwork "$NETWORK"; then
-    ZK_SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
+    SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
     # Extract contract name once, will be used multiple times later
-    CONTRACT_NAME=$(basename "$ZK_SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//')
+    CONTRACT_NAME=$(basename "$SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//')
     # Check if the foundry-zksync binaries exist, if not fetch them
     install_foundry_zksync
   else
@@ -117,20 +117,15 @@ diamondUpdateFacet() {
     # check if we are deploying to PROD
     if [[ "$ENVIRONMENT" == "production" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
-      if isZkEvmNetwork "$NETWORK"; then
-        UPDATE_SCRIPT=$ZK_SCRIPT_PATH
-        echoDebug $UPDATE_SCRIPT
-      else
-        UPDATE_SCRIPT="$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT".s.sol
-      fi
+      echoDebug $SCRIPT_PATH
 
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
       echoDebug "Calculating facet cuts for $SCRIPT..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
       else
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --legacy)
       fi
 
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
@@ -144,7 +139,7 @@ diamondUpdateFacet() {
     else
       # STAGING: just deploy normally without further checks
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$UPDATE_SCRIPT" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
       else
         RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --skip-simulation --legacy)
       fi
