@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
@@ -10,12 +9,11 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
-import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -243,6 +241,18 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             case 0x8e8d142b {
                 // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
+            }
+            case 0x1c59b7fc {
+                // 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))
+                receiver := mload(add(protocolData, 0x84))
+            }
+            case 0x9be95bb4 {
+                // 0x9be95bb4 MayanCircle::bridgeWithLockedFee(address,uint256,uint64,uint256,uint32,bytes32)
+                receiver := mload(add(protocolData, 0xc4))
+            }
+            case 0x2072197f {
+                // 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)
+                receiver := mload(add(protocolData, 0xa4))
             }
             default {
                 receiver := 0x0

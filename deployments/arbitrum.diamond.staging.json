@@ -138,11 +138,23 @@
         "Version": "1.0.0"
       },
       "0xE15C7585636e62b88bA47A40621287086E0c2E33": {
-        "Name": "",
-        "Version": ""
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
       },
       "0x08BfAc22A3B41637edB8A7920754fDb30B18f740": {
         "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
+      },
+      "0xF82830B952Bc60b93206FA22f1cD4770cedb2840": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
+      },
+      "0xDd661337B48BEA5194F6d26F2C59fF0855E15289": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6C96d5C36d9aDBD3F4e0337D2d1E133A59288D1A": {
+        "Name": "MayanFacet",
         "Version": "1.1.0"
       }
     },
@@ -153,9 +165,8 @@
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
-      "Permit2Proxy": "0x6FC01BC9Ff6Cdab694Ec8Ca41B21a2F04C8c37E5",
+      "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
-      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"

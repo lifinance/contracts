@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap, LibAsset } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
@@ -19,19 +21,44 @@ contract TestMayanFacet is MayanFacet {
     }
 }
 
+/// @notice This contract exposes _parseReceiver for testing purposes.
+contract TestMayanFacetExposed is MayanFacet {
+    constructor(IMayan _mayan) MayanFacet(_mayan) {}
+
+    /// @dev Exposes the internal _parseReceiver function.
+    function testParseReceiver(
+        bytes memory protocolData
+    ) public pure returns (bytes32) {
+        return _parseReceiver(protocolData);
+    }
+}
+
 contract MayanFacetTest is TestBaseFacet {
     MayanFacet.MayanData internal validMayanData;
     MayanFacet.MayanData internal validMayanDataNative;
     MayanFacet.MayanData internal invalidMayanDataEVM2Solana;
     TestMayanFacet internal mayanBridgeFacet;
-    IMayan internal MAYAN_FORWARDER =
+    IMayan internal constant MAYAN_FORWARDER =
         IMayan(0x0654874eb7F59C6f5b39931FC45dC45337c967c3);
-    address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
-    address DEV_WALLET = 0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
+    address internal constant POLYGON_USDT =
+        0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    address internal constant DEV_WALLET =
+        0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
 
-    bytes32 ACTUAL_SOL_ADDR =
+    bytes32 internal constant ACTUAL_SOL_ADDR =
         hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d"; // [pre-commit-checker: not a secret]
-    bytes32 EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
+    bytes32 internal constant EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
+
+    error InvalidReceiver(address expected, address actual);
+    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
+
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes32 receiver
+    );
 
     function setUp() public {
         customBlockNumberForForking = 19968172;
@@ -286,8 +313,8 @@ contract MayanFacetTest is TestBaseFacet {
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 
-    function test_RevertsIfNonEVMReceiverIsIncorrect() public {
-        bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
+    function testRevert_FailsIfNonEVMReceiverIsIncorrect() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
         validMayanData = invalidMayanDataEVM2Solana;
         vm.startPrank(USER_SENDER);
 
@@ -382,5 +409,142 @@ contract MayanFacetTest is TestBaseFacet {
     function test_CanSwapAndBridgeNativeTokensWithMoreThan8Decimals() public {
         defaultNativeAmount += 0.123456789 ether;
         testBase_CanSwapAndBridgeNativeTokens();
+    }
+
+    function test_CanBridgeNativeTokens() public {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialBalance = USER_SENDER.balance;
+
+        // prepare bridgeData
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        validMayanDataNative = MayanFacet.MayanData(
+            bytes32(
+                0x0000000000000000000000000000000000000000000000000000000abc654321
+            ),
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
+            // Calldata generated from Mayan SDK 1 ETH -> USDT on Polygon
+            hex"1eb1cff00000000000000000000000000000000000000000000000000000000000013e0b0000000000000000000000000000000000000000000000000000000000004df200000000000000000000000000000000000000000000000000000000000a42dfcb617b639c537bd08846f61be4481c34f9391f1b8f53d082de024e232508113e00000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c390000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000006655d880000000000000000000000000000000000000000000000000000000006655d88000000000000000000000000000000000000000000000000000000000e16ffab40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            validMayanDataNative.nonEVMReceiver
+        );
+
+        // execute call in child contract
+        initiateBridgeTxWithFacet(true);
+
+        // check balances after call
+        assertEq(USER_SENDER.balance, initialBalance - 1 ether);
+    }
+
+    function testRevert_FailsWhenNonEVMChainIntentionAndNonEVMReceiverIsEmpty()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        bridgeData.receiver = NON_EVM_ADDRESS; // nonEVMAddress
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidNonEVMReceiver.selector,
+                bytes32(0),
+                bytes32(0)
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsWhenBridgeDataReceiverDoesNotMatchMayanProtocolReceiver()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        bridgeData.receiver = DEV_WALLET;
+
+        validMayanData = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
+            // Calldata generated from Mayan SDK 4.12312312 USDC on Mainnet -> Arbitrum
+            hex"6222ad25000000000000000000000000000000000000000000000000000000000f52ae0e000000000000000000000000000000000000000000000000000000000000f2d000000000000000000000000000000000000000000000000000000000018eb30afc7fcf68097cd0584877939477347b5b8fa10efee2e29805370a35fd2a22ee9500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c3900000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000000171e8c4fab8994494c8f1e5c1287445b2917d60c43c79aa959162f5d6000598d3200000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000000001700000000000000000000000000000000000000000000000000000000000001e00000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000000000000000000000000000393846a1e4cce00000000000000000000000000000000000000000000000000000000000667d7a7a00000000000000000000000000000000000000000000000000000000667d7a7a0000000000000000000000000000000000000000000000000000000000177f850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+        );
+        // invalid protocolData that produces wrong receiver for payload
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidReceiver.selector,
+                DEV_WALLET,
+                address(0)
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function test_ParseReceiver() public {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(address(0))
+        );
+
+        address expectedReceiver = 0x1eB6638dE8c571c787D7bC24F98bFA735425731C;
+
+        // test for 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,[*bytes32*],(uint32,bytes32,bytes32))
+        // test for 0x32ad465f bridgeWithLockedFee(address,uint256,uint64,uint256,(uint32,[*bytes32*],bytes32))
+        // test for 0xafd9b706 createOrder((address,uint256,uint64,[*bytes32*],uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
+        // test for 0x6111ad25 swap((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes),address,uint256)
+        // test for 0x1eb1cff0 wrapAndSwapETH((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes))
+        // test for 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+        // test for 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+
+        // test for 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))
+        // example tenderly: https://dashboard.tenderly.co/tx/arbitrum/0x3bffa9aa20062cd21e0f4d40333214ce23e382d308180fc20ddd6c405bff2649/debugger?trace=0.3.0
+        bytes memory protocolData = vm.parseBytes(
+            "0x1c59b7fc000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c000000000000000000000000000000000000000000000000000000000000001e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000023e290000000000000000000000000000000000000000000000000000000067c1b1f500000000000000000000000000000000000000000000000000000000001c497b000000000000000000000000a5aa6e2171b416e1d27ec53ca8c13db3f91a89cd0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        bytes32 receiver = testFacet.testParseReceiver(protocolData);
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse receiver test failure for 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))"
+        );
+
+        // test for 0x9be95bb4 MayanCircle::bridgeWithLockedFee(address,uint256,uint64,uint256,uint32,bytes32)
+        // example tenderly: https://dashboard.tenderly.co/tx/arbitrum/0x8ad553f8059efcb7fd84130e5625e4b2fdc3ea34461227e1e4a983053e12790c/debugger?trace=0.3
+        protocolData = vm.parseBytes(
+            "0x9be95bb4000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000df8e600000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c"
+        );
+        receiver = testFacet.testParseReceiver(protocolData);
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse receiver test failure for 0x9be95bb4 MayanCircle::bridgeWithLockedFee(address,uint256,uint64,uint256,uint32,bytes32)"
+        );
+
+        // test for 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)
+        // example tenderly: https://dashboard.tenderly.co/tx/arbitrum/0xa12ac33dcc79c4185a484095764772f8169fee8228c614892843e2f8df685a98/debugger?trace=0
+        protocolData = vm.parseBytes(
+            "0x2072197f000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b400000000000000000000000000000000000000000000000000000000000000b4400000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c0000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000"
+        );
+        receiver = testFacet.testParseReceiver(protocolData);
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse receiver test failure for 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)"
+        );
     }
 }

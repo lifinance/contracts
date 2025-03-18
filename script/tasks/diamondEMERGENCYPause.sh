@@ -21,9 +21,10 @@ function diamondEMERGENCYPause {
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
     # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     echo ""
     echo "Should the script be executed on one network or all networks?"
-    NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
     echo "[info] selected network: $NETWORK"
 
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
@@ -88,7 +89,7 @@ function diamondEMERGENCYPause {
 
   # get user info and send message to discord server
   local USER_INFO=$(getUserInfo)
-  sendMessageToDiscordSmartContractsChannel ":warning: an emergency diamond action was just triggered (action: $ACTION, user info: $USER_INFO). Please immediately investigate if this action was not planned. :warning:"
+  sendMessageToSlackSmartContractsChannel ":warning: an emergency diamond action was just triggered (action: $ACTION, user info: $USER_INFO). Please immediately investigate if this action was not planned. :warning:"
 
   # Initialize return status
   local RETURN=0

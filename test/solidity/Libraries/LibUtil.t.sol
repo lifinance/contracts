@@ -44,9 +44,9 @@ contract LibUtilImplementer {
 }
 
 contract LibUtilTest is Test {
-    MainContract mainContract;
-    CalledContract calledContract;
-    LibUtilImplementer implementer;
+    MainContract internal mainContract;
+    CalledContract internal calledContract;
+    LibUtilImplementer internal implementer;
 
     function setUp() public {
         mainContract = new MainContract();

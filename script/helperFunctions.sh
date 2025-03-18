@@ -1965,14 +1965,15 @@ function getAddressOfDeployedContractFromDeploymentsFiles() {
 
 }
 function getAllNetworksArray() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # prepare required variables
-  local FILE="$NETWORKS_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    ARRAY+=("$line")
-  done <"$FILE"
+  while IFS= read -r network; do
+    ARRAY+=("$network")
+  done < <(jq -r 'keys[]' "$FILE")
 
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
@@ -2010,21 +2011,36 @@ function getCoreFacetsArray() {
   printf '%s\n' "${ARRAY[@]}"
 }
 
+# Function to check if NETWORKS_JSON_FILE_PATH is set and valid
+checkNetworksJsonFilePath() {
+  if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
+    return 1
+  elif [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH does not point to a valid file: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  elif [[ ! -s "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH file is empty: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  fi
+}
+
 
 function getIncludedNetworksArray() {
   # prepare required variables
-  local FILE="$NETWORKS_FILE_PATH"
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
   # extract list of excluded networks from config
   local EXCLUDED_NETWORKS_REGEXP="^($(echo "$EXCLUDE_NETWORKS" | tr ',' '|'))$"
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    if ! [[ "$line" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
-      ARRAY+=("$line")
+  while IFS= read -r network; do
+    if ! [[ "$network" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
+      ARRAY+=("$network")
     fi
-  done <"$FILE"
+  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
@@ -2148,8 +2164,9 @@ function userDialogSelectDiamondType() {
   echo "$DIAMOND_CONTRACT_NAME"
 }
 function getUserSelectedNetwork() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network
-  local NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+  local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 
   # if no value was returned (e.g. when pressing ESC, end script)
   if [[ -z "$NETWORK" ]]; then
@@ -2848,17 +2865,17 @@ function getPrivateKey() {
 
 function getChainId() {
   local NETWORK="$1"
-  local NETWORKS_JSON="config/networks.json"
 
-  if [[ ! -f "$NETWORKS_JSON" ]]; then
-    echo "Error: JSON file '$NETWORKS_JSON' not found." >&2
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
     return 1
   fi
 
-  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON")
+  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [[ -z "$CHAIN_ID" ]]; then
-    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON'." >&2
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
     return 1
   fi
 
@@ -2867,9 +2884,13 @@ function getChainId() {
 
 function getCreate3FactoryAddress() {
   NETWORK="$1"
-  local CONFIG="config/global.json"
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
-  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.create3Factory[$NETWORK] // .create3Factory["default"]' $CONFIG)
+  if [ -z "$CREATE3_FACTORY" ]; then
+    echo "Error: create3Factory address not found for network '$NETWORK'"
+    return 1
+  fi
 
   echo $CREATE3_FACTORY
 }
@@ -3390,33 +3411,31 @@ function compareAddresses() {
     return 1
   fi
 }
-function sendMessageToDiscordSmartContractsChannel() {
+function sendMessageToSlackSmartContractsChannel() {
   # read function arguments into variable
   local MESSAGE=$1
 
-  if [ -z "$DISCORD_WEBHOOK_DEV_SMARTCONTRACTS" ]; then
+  if [ -z "$SLACK_WEBHOOK_SC_GENERAL" ]; then
     echo ""
-    warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
+    warning "Slack webhook URL for dev-sc-general is missing. Cannot send log message."
     echo ""
     return 1
   fi
 
   echo ""
-  echoDebug "sending the following message to Discord webhook ('dev-smartcontracts' channel):"
+  echoDebug "sending the following message to Slack webhook ('dev-sc-general' channel):"
   echoDebug "$MESSAGE"
   echo ""
 
   # Send the message
   curl -H "Content-Type: application/json" \
      -X POST \
-     -d "{\"content\": \"$MESSAGE\"}" \
-     $DISCORD_WEBHOOK_DEV_SMARTCONTRACTS
+     -d "{\"text\": \"$MESSAGE\"}" \
+     $SLACK_WEBHOOK_SC_GENERAL
 
-  echoDebug "Log message sent to Discord"
+  echoDebug "Log message sent to Slack"
 
   return 0
-
-
 }
 
 function getUserInfo() {

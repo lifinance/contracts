@@ -40,7 +40,7 @@
     "postinstall-postinstall": "^2.1.0",
     "prettier": "^2.6.0",
     "prettier-plugin-solidity": "^1.0.0-beta.19",
-    "solhint": "^3.3.7",
+    "solhint": "^5.0.5",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
@@ -74,7 +74,7 @@
     "healthcheck": "tsx ./script/deploy/healthCheck.ts",
     "propose-safe-tx": "tsx ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "tsx ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners": "tsx ./script/deploy/safe/add-owners-to-safe.ts",
+    "add-safe-owners-and-threshold": "tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "flatten": "forge flatten --output"
   },
   "dependencies": {
@@ -110,7 +110,7 @@
     ],
     "*.sol": [
       "prettier --write",
-      "solhint --fix"
+      "solhint --noPrompt --fix"
     ]
   }
 }

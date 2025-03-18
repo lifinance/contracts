@@ -16,8 +16,9 @@ updateFacetConfig() {
       # get user-selected network from list
       echo "Select Networks"
       if command -v gum >/dev/null 2>&1; then
+          checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
           # Read the networks into an array, works on both Mac and Linux
-          IFS=$'\n' read -r -d '' -a NETWORKS < <(cat ./networks | gum choose --no-limit)
+          IFS=$'\n' read -r -d '' -a NETWORKS < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum choose --no-limit)
 
           if [[ ${#NETWORKS[@]} -eq 0 ]]; then
               error "No networks selected - exiting script"
