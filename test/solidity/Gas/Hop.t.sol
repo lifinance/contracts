@@ -2,7 +2,7 @@ pragma solidity ^0.8.17;
 
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi, ERC20 } from "../utils/TestBase.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
 
 contract HopGasTest is TestBase {
     address internal constant HOP_USDC_BRIDGE =

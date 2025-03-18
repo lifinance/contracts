@@ -2,12 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { LiFuelFeeCollector } from "lifi/Periphery/LiFuelFeeCollector.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 
 contract LiFuelFeeCollectorTest is DSTest {
+    // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFuelFeeCollector private feeCollector;
     ERC20 private feeToken;
