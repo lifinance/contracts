@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
@@ -26,7 +27,7 @@ contract TestChainflipFacet is ChainflipFacet {
 contract ChainflipFacetTest is TestBaseFacet {
     ChainflipFacet.ChainflipData internal validChainflipData;
     TestChainflipFacet internal chainflipFacet;
-    address internal CHAINFLIP_VAULT;
+    address internal chainflipVault;
     LibSwap.SwapData[] internal dstSwapData;
 
     uint256 internal constant CHAIN_ID_ETHEREUM = 1;
@@ -39,14 +40,13 @@ contract ChainflipFacetTest is TestBaseFacet {
         initTestBase();
 
         // Read chainflip vault address from config using the new helper
-        CHAINFLIP_VAULT = getConfigAddressFromPath(
+        chainflipVault = getConfigAddressFromPath(
             "chainflip.json",
             ".mainnet.chainflipVault"
         );
-        vm.label(CHAINFLIP_VAULT, "Chainflip Vault");
-        console.log("Chainflip Vault Address:", CHAINFLIP_VAULT);
+        vm.label(chainflipVault, "Chainflip Vault");
 
-        chainflipFacet = new TestChainflipFacet(CHAINFLIP_VAULT);
+        chainflipFacet = new TestChainflipFacet(chainflipVault);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = chainflipFacet
             .startBridgeTokensViaChainflip
@@ -76,7 +76,7 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "chainflip";
-        bridgeData.destinationChainId = 42161; // Arbitrum chain ID
+        bridgeData.destinationChainId = CHAIN_ID_ARBITRUM; // Arbitrum chain ID
 
         // Most properties are unused for normal bridging
         validChainflipData.dstToken = 7;

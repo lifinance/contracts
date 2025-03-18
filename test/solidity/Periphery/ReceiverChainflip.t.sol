@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBase, ILiFi, LibSwap, console, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { ExternalCallFailed, UnAuthorized, InvalidConfig } from "src/Errors/GenericErrors.sol";
+import { TestBase, LibSwap } from "../utils/TestBase.sol";
+import { UnAuthorized, InvalidConfig } from "src/Errors/GenericErrors.sol";
 import { ReceiverChainflip } from "lifi/Periphery/ReceiverChainflip.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -16,14 +16,14 @@ contract ReceiverChainflipTest is TestBase {
     error ETHTransferFailed();
 
     ReceiverChainflip internal receiver;
-    bytes32 guid = bytes32("12345");
-    address receiverAddress = USER_RECEIVER;
-    address constant CHAINFLIP_NATIVE_ADDRESS =
+    bytes32 internal guid = bytes32("12345");
+    address internal receiverAddress = USER_RECEIVER;
+    address internal constant CHAINFLIP_NATIVE_ADDRESS =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    Executor executor;
-    ERC20Proxy erc20Proxy;
-    address chainflipVault;
+    Executor internal executor;
+    ERC20Proxy internal erc20Proxy;
+    address internal chainflipVault;
 
     event ExecutorSet(address indexed executor);
 
