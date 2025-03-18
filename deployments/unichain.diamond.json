@@ -64,6 +64,10 @@
       "0x62F6fE8B47CBC58Ce4c7D21C2ae897EAB0132773": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x57C53492f4294FA5a9F840117728E7a2d637095A": {
+        "Name": "MayanFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -74,7 +78,6 @@
       "LiFiDEXAggregator": "0x9679d1f7D955C81827c6842b3119B911943958eE",
       "LiFuelFeeCollector": "",
       "Permit2Proxy": "0x4BDB8cb372AeF4047626869dD5580536DBA9b053",
-      "Receiver": "0x614Fe86aF0b9740946A94a5Cb8f07C1Dc9d77eBC",
       "ReceiverAcrossV3": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
