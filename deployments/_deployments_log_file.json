@@ -24412,6 +24412,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0xdD35f430d70FE8Ec70a5CeE7FD674Fb0Ba7EC98c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-18 17:16:02",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     }

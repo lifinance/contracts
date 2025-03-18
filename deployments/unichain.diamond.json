@@ -65,9 +65,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x57C53492f4294FA5a9F840117728E7a2d637095A": {
+      "0xdD35f430d70FE8Ec70a5CeE7FD674Fb0Ba7EC98c": {
         "Name": "MayanFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
