@@ -131,6 +131,7 @@ contract LibUtilTest is Test {
     }
 
     function test_Bytes32ToAddressConversionRoundtrip() public view {
+        // [pre-commit-checker: not a secret]
         bytes32 testAddrBytes32 = hex"0000000000000000000000000000000000000000000000000000000000001234";
 
         // convert initial address to address
