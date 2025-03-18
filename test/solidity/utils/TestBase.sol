@@ -2,6 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
+// solhint-disable-next-line no-unused-import
+import { console } from "../utils/Console.sol";
 import { DSTest } from "ds-test/test.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
