@@ -41,17 +41,43 @@ contract LibUtilImplementer {
     function revertWith(bytes memory reason) public pure {
         LibUtil.revertWith(reason);
     }
+
+    function convertAddressToBytes32(
+        address addr
+    ) public pure returns (bytes32) {
+        return LibUtil.convertAddressToBytes32(addr);
+    }
+
+    function convertBytes32ToAddress(
+        bytes32 addr
+    ) public pure returns (address) {
+        return LibUtil.convertBytes32ToAddress(addr);
+    }
+
+    function convertAddressToBytes(
+        address addr
+    ) public pure returns (bytes memory) {
+        return LibUtil.convertAddressToBytes(addr);
+    }
+
+    function convertBytesToAddress(
+        bytes memory addr
+    ) public pure returns (address) {
+        return LibUtil.convertBytesToAddress(addr);
+    }
 }
 
 contract LibUtilTest is Test {
-    MainContract mainContract;
-    CalledContract calledContract;
-    LibUtilImplementer implementer;
+    MainContract public mainContract;
+    CalledContract public calledContract;
+    LibUtilImplementer public implementer;
+    address public testAddress;
 
     function setUp() public {
         mainContract = new MainContract();
         calledContract = new CalledContract();
         implementer = new LibUtilImplementer();
+        testAddress = address(0x1234);
     }
 
     error CustomError();
@@ -89,5 +115,74 @@ contract LibUtilTest is Test {
         );
         vm.expectRevert(revertData);
         mainContract.topLevelFunction2(address(calledContract));
+    }
+
+    function test_AddressToBytes32ConversionRoundtrip() public view {
+        // convert initial address to bytes32
+        bytes32 converted = implementer.convertAddressToBytes32(testAddress);
+
+        // convert bytes32 result back to address
+        address addressConverted = implementer.convertBytes32ToAddress(
+            converted
+        );
+
+        // compare results
+        assert(testAddress == addressConverted);
+    }
+
+    function test_Bytes32ToAddressConversionRoundtrip() public view {
+        bytes32 testAddrBytes32 = hex"0000000000000000000000000000000000000000000000000000000000001234";
+
+        // convert initial address to address
+        address converted = implementer.convertBytes32ToAddress(
+            testAddrBytes32
+        );
+
+        // make sure converted address matches with initial test address
+        assert(converted == testAddress);
+
+        // convert address result back to bytes32
+        bytes32 addressBytes32Converted = implementer.convertAddressToBytes32(
+            converted
+        );
+
+        // compare results
+        assert(testAddrBytes32 == addressBytes32Converted);
+    }
+
+    function test_AddressToBytesMemoryConversionRoundtrip() public view {
+        // convert initial address to bytes memory
+        bytes memory converted = implementer.convertAddressToBytes(
+            testAddress
+        );
+
+        // convert bytes memory result back to address
+        address addressConverted = implementer.convertBytesToAddress(
+            converted
+        );
+
+        // compare results
+        assert(testAddress == addressConverted);
+    }
+
+    function test_BytesMemoryToAddressConversionRoundtrip() public view {
+        bytes memory testAddrBytes = abi.encodePacked(testAddress);
+
+        // convert initial bytes memory address to address
+        address converted = implementer.convertBytesToAddress(testAddrBytes);
+
+        // make sure converted address matches with initial test address
+        assert(converted == testAddress);
+
+        // convert address result back to bytes32
+        bytes memory addressBytesConverted = implementer.convertAddressToBytes(
+            converted
+        );
+
+        // compare results
+        assert(
+            keccak256(abi.encode(testAddrBytes)) ==
+                keccak256(abi.encode(addressBytesConverted))
+        );
     }
 }
