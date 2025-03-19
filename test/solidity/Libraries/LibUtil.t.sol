@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 contract MainContract {
     function topLevelFunction1(address callTo) public {
@@ -205,5 +206,13 @@ contract LibUtilTest is Test {
             keccak256(abi.encode(testAddrBytes)) ==
                 keccak256(abi.encode(addressBytesConverted))
         );
+    }
+
+    function testRevert_WhenAddressIsShorterThan20Bytes() public {
+        bytes memory shortAddress = hex"1234567890";
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        implementer.convertBytesToAddress(shortAddress);
     }
 }
