@@ -42,6 +42,10 @@ contract LibUtilImplementer {
         LibUtil.revertWith(reason);
     }
 
+    function isZeroAddress(address addr) public pure returns (bool) {
+        return LibUtil.isZeroAddress(addr);
+    }
+
     function convertAddressToBytes32(
         address addr
     ) public pure returns (bytes32) {
@@ -115,6 +119,22 @@ contract LibUtilTest is Test {
         );
         vm.expectRevert(revertData);
         mainContract.topLevelFunction2(address(calledContract));
+    }
+
+    function test_ReturnsTrueIfCalledWithZeroAddress() public view {
+        bool result = implementer.isZeroAddress(address(0));
+
+        assert(result == true);
+    }
+
+    function test_ReturnsFalseIfCalledWithNonZeroAddress() public view {
+        bool result = implementer.isZeroAddress(address(1234));
+
+        assert(result == false);
+
+        result = implementer.isZeroAddress(address(implementer));
+
+        assert(result == false);
     }
 
     function test_AddressToBytes32ConversionRoundtrip() public view {
