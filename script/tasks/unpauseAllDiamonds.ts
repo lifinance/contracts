@@ -3,6 +3,7 @@ import { Address, encodeFunctionData, parseAbi } from 'viem'
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,
+  networks,
 } from '../utils/viemScriptHelpers'
 import consola from 'consola'
 import 'dotenv/config'
@@ -29,7 +30,14 @@ const main = defineCommand({
     description:
       'Proposes a transaction to unpause the diamond (without changes) on all active networks',
   },
-  async run() {
+  args: {
+    blacklist: {
+      type: 'string',
+      description: 'Names of the facet(s) to be blacklisted',
+    },
+  },
+  async run({ args }) {
+    const blacklist = args.blacklist
     const activeNetworks = getAllActiveNetworks()
 
     const privateKey = getPrivateKey('SAFE_SIGNER_PRIVATE_KEY')
@@ -39,24 +47,30 @@ const main = defineCommand({
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
-    // create calldata for unpausing the diamond with an empty blacklist
-    const calldata = encodeFunctionData({
-      abi: unpauseDiamondABI,
-      functionName: 'unpauseDiamond',
-      args: [[]], // Empty array for `_blacklist`
-    })
-
     // Execute transactions for all active networks in parallel
     await Promise.all(
       activeNetworks.map(async (network) => {
         try {
-          consola.info(`Processing network: ${network.name}`) // <-- Using key instead of network.name
+          consola.info(`Processing network: ${network.name}`)
 
           // get the diamond address for this network
           const diamondAddress = await getContractAddressForNetwork(
             'LiFiDiamond',
             network.name as SupportedChain
           )
+
+          // get blacklisted addresses for this network
+          const blacklistedAddresses = await getBlacklistedFacetAddresses(
+            network.name,
+            blacklist
+          )
+
+          // create calldata for unpausing the diamond with blacklisted addresses
+          const calldata = encodeFunctionData({
+            abi: unpauseDiamondABI,
+            functionName: 'unpauseDiamond',
+            args: [blacklistedAddresses],
+          })
 
           // initialize the SAFE client that we use for signing and preparing transaction data
           const { safe, chain, safeAddress } = await initializeSafeClient(
@@ -132,4 +146,51 @@ const main = defineCommand({
   },
 })
 
+async function getBlacklistedFacetAddresses(
+  networkName: string,
+  blacklistFacets: string
+): Promise<Address[]> {
+  if (!blacklistFacets) {
+    console.log('here')
+    return []
+  }
+
+  // make sure that networkName is a valid supported chain
+  if (!isValidSupportedChain(networkName)) throw Error('Network ')
+
+  // Split the string into an array of facet names and trim whitespace
+  const facetNames = blacklistFacets.split(',').map((name) => name.trim())
+
+  // Retrieve the corresponding addresses for each facet name from the deploy log
+  const facetAddresses: Address[] = []
+  for (const facetName of facetNames) {
+    try {
+      const facetAddress = await getContractAddressForNetwork(
+        facetName,
+        networkName
+      )
+
+      if (!facetAddress)
+        throw new Error(`No ${facetName} address found in deploy log.`)
+
+      facetAddresses.push(facetAddress as Address)
+    } catch (error) {
+      consola.error(
+        `Error retrieving address for facet "${facetName}" on ${networkName}:`,
+        error
+      )
+    }
+  }
+
+  return facetAddresses
+}
+
+/**
+ * Ensures the network name is a valid SupportedChain
+ */
+function isValidSupportedChain(network: string): network is SupportedChain {
+  return Object.values(networks)
+    .map(({ name }) => name)
+    .includes(network)
+}
 runMain(main)
