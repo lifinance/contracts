@@ -13,12 +13,12 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 /// @title Relay Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Relay Protocol
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // Receiver for native transfers
-    address public immutable relayReceiver;
+    address public immutable RELAY_RECEIVER;
     // Relayer wallet for ERC20 transfers
-    address public immutable relaySolver;
+    address public immutable RELAY_SOLVER;
 
     /// Storage ///
 
@@ -79,18 +79,22 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 abi.encodePacked(
                     _relayData.requestId,
                     block.chainid,
-                    bytes32(uint256(uint160(address(this)))),
-                    bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                    LibUtil.convertAddressToBytes32(address(this)),
+                    LibUtil.convertAddressToBytes32(
+                        _bridgeData.sendingAssetId
+                    ),
                     _getMappedChainId(_bridgeData.destinationChainId),
                     _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
                         ? _relayData.nonEVMReceiver
-                        : bytes32(uint256(uint160(_bridgeData.receiver))),
+                        : LibUtil.convertAddressToBytes32(
+                            _bridgeData.receiver
+                        ),
                     _relayData.receivingAssetId
                 )
             )
         );
         address signer = ECDSA.recover(message, _relayData.signature);
-        if (signer != relaySolver) {
+        if (signer != RELAY_SOLVER) {
             revert InvalidQuote();
         }
         _;
@@ -101,8 +105,8 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _relayReceiver The receiver for native transfers
     /// @param _relaySolver The relayer wallet for ERC20 transfers
     constructor(address _relayReceiver, address _relaySolver) {
-        relayReceiver = _relayReceiver;
-        relaySolver = _relaySolver;
+        RELAY_RECEIVER = _relayReceiver;
+        RELAY_SOLVER = _relaySolver;
     }
 
     /// External Methods ///
@@ -171,7 +175,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // Native
 
             // Send Native to relayReceiver along with requestId as extra data
-            (bool success, bytes memory reason) = relayReceiver.call{
+            (bool success, bytes memory reason) = RELAY_RECEIVER.call{
                 value: _bridgeData.minAmount
             }(abi.encode(_relayData.requestId));
             if (!success) {
@@ -185,7 +189,7 @@ contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             bytes memory transferCallData = bytes.concat(
                 abi.encodeWithSignature(
                     "transfer(address,uint256)",
-                    relaySolver,
+                    RELAY_SOLVER,
                     _bridgeData.minAmount
                 ),
                 abi.encode(_relayData.requestId)

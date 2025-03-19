@@ -8,14 +8,15 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title Allbridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through AllBridge
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the AllBridge router on the source chain.
-    IAllBridge private immutable allBridge;
+    IAllBridge private immutable ALL_BRIDGE;
 
     /// @notice The struct for the AllBridge data.
     /// @param fees The amount of token to pay the messenger and the bridge
@@ -38,7 +39,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initializes the AllBridge contract
     /// @param _allBridge The address of the AllBridge contract
     constructor(IAllBridge _allBridge) {
-        allBridge = _allBridge;
+        ALL_BRIDGE = _allBridge;
     }
 
     /// @notice Bridge tokens to another chain via AllBridge
@@ -97,13 +98,13 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) internal {
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
-            address(allBridge),
+            address(ALL_BRIDGE),
             _bridgeData.minAmount
         );
 
         if (_allBridgeData.payFeeWithSendingAsset) {
-            allBridge.swapAndBridge(
-                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+            ALL_BRIDGE.swapAndBridge(
+                LibUtil.convertAddressToBytes32(_bridgeData.sendingAssetId),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
                 _allBridgeData.destinationChainId,
@@ -113,8 +114,8 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _allBridgeData.fees
             );
         } else {
-            allBridge.swapAndBridge{ value: _allBridgeData.fees }(
-                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+            ALL_BRIDGE.swapAndBridge{ value: _allBridgeData.fees }(
+                LibUtil.convertAddressToBytes32(_bridgeData.sendingAssetId),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
                 _allBridgeData.destinationChainId,

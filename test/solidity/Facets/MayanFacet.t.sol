@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
@@ -518,7 +519,7 @@ contract MayanFacetTest is TestBaseFacet {
         );
         bytes32 receiver = testFacet.testParseReceiver(protocolData);
         assertEq(
-            address(uint160(uint256(receiver))),
+            LibUtil.convertBytes32ToAddress(receiver),
             expectedReceiver,
             "parse receiver test failure for 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))"
         );
@@ -530,7 +531,7 @@ contract MayanFacetTest is TestBaseFacet {
         );
         receiver = testFacet.testParseReceiver(protocolData);
         assertEq(
-            address(uint160(uint256(receiver))),
+            LibUtil.convertBytes32ToAddress(receiver),
             expectedReceiver,
             "parse receiver test failure for 0x9be95bb4 MayanCircle::bridgeWithLockedFee(address,uint256,uint64,uint256,uint32,bytes32)"
         );
@@ -542,7 +543,7 @@ contract MayanFacetTest is TestBaseFacet {
         );
         receiver = testFacet.testParseReceiver(protocolData);
         assertEq(
-            address(uint160(uint256(receiver))),
+            LibUtil.convertBytes32ToAddress(receiver),
             expectedReceiver,
             "parse receiver test failure for 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)"
         );

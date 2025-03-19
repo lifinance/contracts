@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IStargate, ITokenMessaging } from "../Interfaces/IStargate.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
@@ -14,12 +15,12 @@ import { ERC20 } from "solady/tokens/ERC20.sol";
 /// @title StargateFacetV2
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate (V2)
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
     /// STORAGE ///
-    ITokenMessaging public immutable tokenMessaging;
+    ITokenMessaging public immutable TOKEN_MESSAGING;
 
     /// @param assetId The Stargate-specific assetId for the token that should be bridged
     /// @param sendParams Various parameters that describe what needs to be bridged, how to bridge it and what to do with it on dst
@@ -38,7 +39,7 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// CONSTRUCTOR ///
     /// @param _tokenMessaging The address of the tokenMessaging contract (used to obtain pool addresses)
     constructor(address _tokenMessaging) {
-        tokenMessaging = ITokenMessaging(_tokenMessaging);
+        TOKEN_MESSAGING = ITokenMessaging(_tokenMessaging);
     }
 
     /// EXTERNAL METHODS ///
@@ -112,11 +113,11 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (
             !_bridgeData.hasDestinationCall &&
             (_bridgeData.receiver !=
-                address(uint160(uint256(_stargateData.sendParams.to))))
+                LibUtil.convertBytes32ToAddress(_stargateData.sendParams.to))
         ) revert InformationMismatch();
 
         // get the router-/pool address through the TokenMessaging contract
-        address routerAddress = tokenMessaging.stargateImpls(
+        address routerAddress = TOKEN_MESSAGING.stargateImpls(
             _stargateData.assetId
         );
         if (routerAddress == address(0))
