@@ -757,10 +757,10 @@ export async function initializeSafeClient(
  * @returns The private key
  */
 export function getPrivateKey(
-  privateKeyArg?: string,
   keyType:
     | 'PRIVATE_KEY_PRODUCTION'
-    | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION'
+    | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION',
+  privateKeyArg?: string
 ): string {
   const privateKey = privateKeyArg || process.env[keyType]
 
@@ -901,4 +901,31 @@ export async function decodeTransactionData(data: Hex): Promise<{
     consola.warn(`Error decoding transaction data: ${error}`)
     return {}
   }
+}
+
+/**
+ * Obtains a safe
+ * @param data - Transaction data
+ * @returns Decoded function name and data if available
+ */
+export const getSafeInfo = async (safeAddress: string, network: string) => {
+  const chain = getViemChainForNetworkName(network)
+
+  // Get Safe information directly from the contract
+  consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
+  let safeInfo
+  try {
+    // Create a public client for read operations
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0]),
+    })
+
+    safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
+  } catch (error) {
+    consola.error(`Failed to get Safe info: ${error.message}`)
+    throw new Error(`Could not get Safe info for ${safeAddress} on ${network}`)
+  }
+
+  return safeInfo
 }
