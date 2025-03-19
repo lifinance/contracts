@@ -12,32 +12,11 @@ import * as chains from 'viem/chains'
 import {
   NetworksObject,
   getViemChainForNetworkName,
+  retry,
 } from '../../utils/viemScriptHelpers'
 import data from '../../../config/networks.json'
 const networks: NetworksObject = data as NetworksObject
 import consola from 'consola'
-
-/**
- * Retries a function multiple times if it fails
- * @param func - The async function to retry
- * @param retries - Number of retries remaining
- * @returns The result of the function
- */
-const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
-  try {
-    const result = await func()
-    return result
-  } catch (e) {
-    consola.error('Error details:', {
-      error: e,
-      remainingRetries: retries - 1,
-    })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
-    throw e
-  }
-}
 
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {

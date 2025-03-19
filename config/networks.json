@@ -38,7 +38,7 @@
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "apechain": {
-    "name": "Ape Chain",
+    "name": "apechain",
     "chainId": 33139,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "APE",
@@ -418,7 +418,7 @@
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "lisk": {
-    "name": "Lisk",
+    "name": "lisk",
     "chainId": 1135,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -722,7 +722,7 @@
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "unichain": {
-    "name": "Unichain",
+    "name": "unichain",
     "chainId": 130,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -741,7 +741,7 @@
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "worldchain": {
-    "name": "World Chain",
+    "name": "worldchain",
     "chainId": 480,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",

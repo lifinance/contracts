@@ -75,6 +75,7 @@
     "propose-safe-tx": "tsx ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "tsx ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners-and-threshold": "tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
+    "unpause-all-diamonds": "tsx ./script/tasks/unpauseAllDiamonds.ts",
     "flatten": "forge flatten --output"
   },
   "dependencies": {
