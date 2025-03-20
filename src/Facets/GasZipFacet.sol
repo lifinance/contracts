@@ -110,7 +110,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _gasZipData.receiverAddress !=
-            bytes32(bytes20(uint160(_bridgeData.receiver)))
+            bytes32(bytes20(uint160(_bridgeData.receiver))) // GasZip expects the receiver address as a right-padded bytes32 value. That's why we use bytes20 instead of uint256 to ensure proper formatting
         ) revert InvalidCallData();
 
         // validate bridgeData
