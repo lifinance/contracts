@@ -57,7 +57,7 @@ const main = defineCommand({
       description: 'Safe threshold (number of signatures required)',
       required: true,
     },
-    gnosisSafeSingleton: {
+    safeSingleton: {
       type: 'string',
       description: 'Address of the Gnosis Safe singleton contract',
       required: true,
@@ -103,7 +103,7 @@ const main = defineCommand({
       if (threshold < 1) {
         throw new Error('Threshold must be at least 1')
       }
-      const gnosisSafeSingleton = args.gnosisSafeSingleton
+      const safeSingleton = args.safeSingleton
       const proxyFactory = args.proxyFactory
 
       const { walletAccount, publicClient, walletClient } =
@@ -146,7 +146,7 @@ const main = defineCommand({
           : `0x${'0'.repeat(40)}`
 
       consola.info('Network:', networkName)
-      consola.info('Master Copy:', gnosisSafeSingleton)
+      consola.info('Master Copy:', safeSingleton)
       consola.info('Proxy Factory:', proxyFactory)
       consola.info('Owners:', owners)
       consola.info('Threshold:', threshold)
@@ -177,7 +177,7 @@ const main = defineCommand({
         address: proxyFactory,
         abi: GNOSIS_SAFE_PROXY_FACTORY_ABI,
         functionName: 'createProxy',
-        args: [gnosisSafeSingleton, initData],
+        args: [safeSingleton, initData],
       })
       consola.info('Transaction sent. Hash:', hash)
 
