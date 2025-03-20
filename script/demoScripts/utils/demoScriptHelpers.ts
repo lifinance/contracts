@@ -1,5 +1,4 @@
 import { privateKeyToAccount } from 'viem/accounts'
-import { formatEther, formatUnits, zeroAddress } from 'viem'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
@@ -9,12 +8,14 @@ import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 import {
   Chain,
+  Narrow,
   createPublicClient,
   createWalletClient,
   getContract,
   http,
-  Narrow,
   parseAbi,
+  formatEther,
+  formatUnits,
   zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
