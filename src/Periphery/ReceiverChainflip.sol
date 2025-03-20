@@ -20,8 +20,10 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     /// Storage ///
 
     /// @notice The executor contract used for performing swaps
+    // solhint-disable-next-line immutable-vars-naming
     IExecutor public immutable executor;
     /// @notice The Chainflip vault contract that is authorized to call this contract
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable chainflipVault;
     /// @notice Chainflip's native token address representation
     address internal constant CHAINFLIP_NATIVE_ADDRESS =

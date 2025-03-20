@@ -29,6 +29,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Storage ///
 
+    // solhint-disable-next-line immutable-vars-naming
     IChainflipVault public immutable chainflipVault;
     uint256 private constant CHAIN_ID_ETHEREUM = 1;
     uint256 private constant CHAIN_ID_ARBITRUM = 42161;
