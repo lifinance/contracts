@@ -1965,6 +1965,7 @@ function getAddressOfDeployedContractFromDeploymentsFiles() {
 
 }
 function getAllNetworksArray() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # prepare required variables
   local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
@@ -2010,9 +2011,24 @@ function getCoreFacetsArray() {
   printf '%s\n' "${ARRAY[@]}"
 }
 
+# Function to check if NETWORKS_JSON_FILE_PATH is set and valid
+checkNetworksJsonFilePath() {
+  if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
+    return 1
+  elif [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH does not point to a valid file: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  elif [[ ! -s "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH file is empty: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  fi
+}
+
 
 function getIncludedNetworksArray() {
   # prepare required variables
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
@@ -2148,6 +2164,7 @@ function userDialogSelectDiamondType() {
   echo "$DIAMOND_CONTRACT_NAME"
 }
 function getUserSelectedNetwork() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network
   local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 
@@ -2849,6 +2866,7 @@ function getPrivateKey() {
 function getChainId() {
   local NETWORK="$1"
 
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
     echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
     return 1
@@ -2866,7 +2884,7 @@ function getChainId() {
 
 function getCreate3FactoryAddress() {
   NETWORK="$1"
-
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [ -z "$CREATE3_FACTORY" ]; then

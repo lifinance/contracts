@@ -1,4 +1,5 @@
 import { privateKeyToAccount } from 'viem/accounts'
+import { formatEther, formatUnits, zeroAddress } from 'viem'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
@@ -19,7 +20,7 @@ import {
 import networks from '../../../config/networks.json'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
 
-export const DEV_WALLET_ADDRESS = '0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7'
+export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
@@ -181,19 +182,19 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   // get minAmountOut from Uniswap router
   console.log(`finalFromAmount  : ${fromAmount}`)
 
-  const finalMinAmountOut =
-    minAmountOut.toString() !== '0'
-      ? minAmountOut
-      : BigNumber.from(
-          await getAmountsOutUniswap(
-            uniswapAddress,
-            chainId,
-            [sendingAssetId, receivingAssetId],
-            fromAmount
-          )
-        )
-          .mul(99)
-          .div(100) // Apply 1% slippage tolerance by default
+  let finalMinAmountOut: BigNumber
+  if (minAmountOut.toString() !== '0') {
+    finalMinAmountOut = minAmountOut
+  } else {
+    const amountsOut = await getAmountsOutUniswap(
+      uniswapAddress,
+      chainId,
+      [sendingAssetId, receivingAssetId],
+      fromAmount
+    )
+    // Use the second element (index 1) as the estimated output
+    finalMinAmountOut = BigNumber.from(amountsOut[1]).mul(99).div(100)
+  }
   console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
 
   const uniswapCalldata = (
@@ -637,6 +638,64 @@ export const getConfigElement = (
 /**
  * Executes a blockchain transaction, validates its receipt (optional), and handles errors.
  */
+export const getUniswapDataExactETHToERC20 = async (
+  uniswapAddress: string,
+  chainId: number,
+  exactETHAmount: bigint,
+  receivingAssetId: string,
+  receiverAddress: string,
+  requiresDeposit = false,
+  deadline = Math.floor(Date.now() / 1000) + 60 * 60
+) => {
+  const provider = getProviderForChainId(chainId)
+
+  const uniswap = new Contract(
+    uniswapAddress,
+    [
+      'function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)',
+      'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
+    ],
+    provider
+  )
+
+  const path = [ADDRESS_WETH_ETH, receivingAssetId]
+
+  try {
+    // Get the expected output amount for the exact ETH input
+    const amounts = await uniswap.getAmountsOut(exactETHAmount, path)
+    const expectedOutput = amounts[1]
+    const minAmountOut = BigNumber.from(expectedOutput).mul(95).div(100) // 5% slippage tolerance
+
+    console.log('Exact ETH input:', formatEther(exactETHAmount))
+    console.log('Expected USDC output:', formatUnits(expectedOutput, 6))
+    console.log('Min USDC output with slippage:', formatUnits(minAmountOut, 6))
+
+    const uniswapCalldata = (
+      await uniswap.populateTransaction.swapExactETHForTokens(
+        minAmountOut,
+        path,
+        receiverAddress,
+        deadline
+      )
+    ).data
+
+    if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
+
+    return {
+      callTo: uniswapAddress,
+      approveTo: uniswapAddress,
+      sendingAssetId: zeroAddress, // ETH
+      receivingAssetId,
+      fromAmount: exactETHAmount,
+      callData: uniswapCalldata,
+      requiresDeposit,
+    }
+  } catch (error) {
+    console.error('Error in Uniswap contract interaction:', error)
+    throw error
+  }
+}
+
 export const executeTransaction = async <T>(
   transaction: () => Promise<T>,
   transactionDescription: string,
