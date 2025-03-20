@@ -9,6 +9,7 @@ import {
   parseAbi,
   getAddress,
   Address,
+  zeroAddress,
 } from 'viem'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
@@ -135,18 +136,18 @@ const main = defineCommand({
       const fallbackHandler =
         args.fallbackHandler && isAddress(args.fallbackHandler)
           ? getAddress(args.fallbackHandler)
-          : `0x${'0'.repeat(40)}`
+          : zeroAddress
 
       const paymentToken =
         args.paymentToken && isAddress(args.paymentToken)
           ? getAddress(args.paymentToken)
-          : `0x${'0'.repeat(40)}`
+          : zeroAddress
 
       const payment = args.payment ? BigInt(args.payment) : 0n
       const paymentReceiver =
         args.paymentReceiver && isAddress(args.paymentReceiver)
           ? getAddress(args.paymentReceiver)
-          : `0x${'0'.repeat(40)}`
+          : zeroAddress
 
       consola.info('Network:', networkName)
       consola.info('Master Copy:', safeSingleton)
@@ -165,7 +166,7 @@ const main = defineCommand({
         args: [
           owners, // address[] _owners
           BigInt(threshold), // uint256 _threshold
-          `0x${'0'.repeat(40)}`, // address to (set to 0 if no call)
+          zeroAddress, // address to (set to 0 if no call)
           '0x', // bytes data (empty)
           fallbackHandler, // address fallbackHandler
           paymentToken, // address paymentToken
@@ -195,7 +196,7 @@ const main = defineCommand({
             '0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
           if (log.address.toLowerCase() === proxyFactory.toLowerCase()) {
             // - topic[0] = keccak256(ProxyCreation) - topic
-            // data contains proxy contract address
+            // data contains proxy contract address as a first address param
             if (log && log.topics[0] == proxyCreationTopic) {
               const rawProxyAddress = `0x${log.data.slice(
                 26,
