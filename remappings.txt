@@ -3,7 +3,6 @@
 eth-gas-reporter/=node_modules/eth-gas-reporter/
 
 @openzeppelin/=lib/openzeppelin-contracts/
-@safe-smart-account/=lib/safe-smart-account/
 celer-network/=lib/sgn-v2-contracts/
 create3-factory/=lib/create3-factory/src/
 solmate/=lib/solmate/src/
