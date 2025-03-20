@@ -38,18 +38,13 @@ const GNOSIS_SAFE_ABI = parseAbi([
 
 const main = defineCommand({
   meta: {
-    name: 'create-and-setup-safe',
+    name: 'deploy-and-setup-safe',
     description: 'Deploys a new Gnosis Safe proxy and calls setup(...)',
   },
   args: {
     network: {
       type: 'string',
       description: 'Network name (e.g., arbitrum)',
-      required: true,
-    },
-    privateKey: {
-      type: 'string',
-      description: 'Private key of the deployer',
       required: true,
     },
     owners: {
@@ -64,12 +59,12 @@ const main = defineCommand({
     },
     gnosisSafeSingleton: {
       type: 'string',
-      description: '',
+      description: 'Address of the Gnosis Safe singleton contract',
       required: true,
     },
     proxyFactory: {
       type: 'string',
-      description: '',
+      description: 'Address of the Gnosis Safe Proxy Factory contract',
       required: true,
     },
     fallbackHandler: {
@@ -176,7 +171,7 @@ const main = defineCommand({
         ],
       })
 
-      // call createProxy(...) on the GnosisSafeProxyFactory
+      // call createProxy(...) on the proxyFactory
       consola.info('Creating Gnosis Safe Proxy via Factory...')
       const hash = await walletClient.writeContract({
         address: proxyFactory,
@@ -184,7 +179,6 @@ const main = defineCommand({
         functionName: 'createProxy',
         args: [gnosisSafeSingleton, initData],
       })
-      // const hash = "0xcd05e0b90ee27c96be0fe26dfcfa6baaa87ab3d1521c7a3de7bcc217790d3512";
       consola.info('Transaction sent. Hash:', hash)
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
