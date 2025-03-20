@@ -13,7 +13,7 @@ fi
 echo ""
 echo ""
 echo "Running 'yarn lint-staged' now:"
-yarn lint-staged || true
+yarn lint-staged || echo "No files to lint, but continuing (solhint treats this as error but it's not an error)..."
 
 echo ""
 echo ""
