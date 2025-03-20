@@ -17,7 +17,7 @@ import {
   parseAbi,
 } from 'viem'
 import networks from '../../../config/networks.json'
-import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { SupportedChain, viemChainMap } from './demoScriptChńainConfig'
 
 export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
