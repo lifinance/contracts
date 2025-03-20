@@ -171,14 +171,33 @@ const main = defineCommand({
 
       consola.info('Proposing to add owner', owner)
 
-      await proposeTransactionToMongoDB(
-        safe,
-        safeTransaction,
-        senderAddress,
-        network,
-        chain.id,
-        pendingTransactions
-      )
+      // Sign the transaction
+      const signedTx = await safe.signTransaction(safeTransaction)
+      const safeTxHash = await safe.getTransactionHash(signedTx)
+
+      consola.info('Transaction signed:', safeTxHash)
+
+      // Store transaction in MongoDB
+      try {
+        const result = await storeTransactionInMongoDB(
+          pendingTransactions,
+          await safe.getAddress(),
+          network,
+          chain.id,
+          signedTx,
+          safeTxHash,
+          senderAddress
+        )
+
+        if (!result.acknowledged) {
+          throw new Error('MongoDB insert was not acknowledged')
+        }
+
+        consola.success('Transaction successfully stored in MongoDB')
+      } catch (error) {
+        consola.error('Failed to store transaction in MongoDB:', error)
+        throw error
+      }
       nextNonce++
     }
 
@@ -206,14 +225,34 @@ const main = defineCommand({
       const changeThresholdTx = await safe.createChangeThresholdTx(3, {
         nonce: nextNonce,
       })
-      await proposeTransactionToMongoDB(
-        safe,
-        changeThresholdTx,
-        senderAddress,
-        network,
-        chain.id,
-        pendingTransactions
-      )
+
+      // Sign the transaction
+      const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
+      const thresholdTxHash = await safe.getTransactionHash(signedThresholdTx)
+
+      consola.info('Transaction signed:', thresholdTxHash)
+
+      // Store transaction in MongoDB
+      try {
+        const result = await storeTransactionInMongoDB(
+          pendingTransactions,
+          await safe.getAddress(),
+          network,
+          chain.id,
+          signedThresholdTx,
+          thresholdTxHash,
+          senderAddress
+        )
+
+        if (!result.acknowledged) {
+          throw new Error('MongoDB insert was not acknowledged')
+        }
+
+        consola.success('Transaction successfully stored in MongoDB')
+      } catch (error) {
+        consola.error('Failed to store transaction in MongoDB:', error)
+        throw error
+      }
     } else consola.success('Threshold is already set to 3 - no action required')
 
     // Close MongoDB connection
@@ -223,54 +262,5 @@ const main = defineCommand({
     consola.success('Script completed without errors')
   },
 })
-
-/**
- * Proposes a transaction to MongoDB
- * @param safe - ViemSafe instance
- * @param safeTransaction - The transaction to propose
- * @param senderAddress - Address of the sender
- * @param network - Network name
- * @param chainId - Chain ID
- * @param pendingTransactions - MongoDB collection
- * @returns The transaction hash
- */
-async function proposeTransactionToMongoDB(
-  safe: ViemSafe,
-  safeTransaction: SafeTransaction,
-  senderAddress: Address,
-  network: string,
-  chainId: number,
-  pendingTransactions: any
-): Promise<string> {
-  // Sign the transaction
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
-  consola.info('Transaction signed:', safeTxHash)
-
-  // Store transaction in MongoDB using the utility function
-  try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      await safe.getAddress(),
-      network,
-      chainId,
-      signedTx,
-      safeTxHash,
-      senderAddress
-    )
-
-    if (!result.acknowledged) {
-      throw new Error('MongoDB insert was not acknowledged')
-    }
-
-    consola.success('Transaction successfully stored in MongoDB')
-  } catch (error) {
-    consola.error('Failed to store transaction in MongoDB:', error)
-    throw error
-  }
-
-  return safeTxHash
-}
 
 runMain(main)
