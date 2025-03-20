@@ -18,7 +18,6 @@ import globalConfig from '../../../config/global.json'
 dotenv.config()
 
 const GNOSIS_SAFE_PROXY_FACTORY_ABI = parseAbi([
-  // createProxy(address _singleton, bytes memory initializer) returns (address proxy)
   'function createProxy(address _singleton, bytes initializer) returns (address proxy)',
 ])
 
@@ -127,6 +126,10 @@ const main = defineCommand({
       })
 
       const owners = [...ownersFromGlobalConfig, ...ownersFromArgs]
+
+      if (threshold > owners.length) {
+        throw new Error('Threshold cannot be greater than the number of owners')
+      }
 
       // optional parameters
       const fallbackHandler =
