@@ -1,7 +1,9 @@
-// SPDX-License-Identifier: BUSL-1.1
-/// @custom:version 1.0.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+/// @title Interface for RootChainManager
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IRootChainManager {
     /// @notice Move ether from root to child chain, accepts ether transfer
     /// @dev Keep in mind this ether cannot be used to pay gas on child chain

@@ -1,10 +1,9 @@
-// Interface for Stargate V1
-/// @custom:version 1.0.0
-
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-// solhint-disable contract-name-camelcase
+/// @title Interface for StargateV1
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IStargateRouter {
     struct lzTxObj {
         uint256 dstGasForCall;
