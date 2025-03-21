@@ -4,6 +4,7 @@ solc_version = '0.8.17'
 evm_version = 'shanghai'
 optimizer = true
 optimizer_runs = 1000000
+# use a known address with a balance so ZkEVM scripts work
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 out = 'out'
@@ -21,6 +22,8 @@ cache = true
 solc_version = '0.8.26'
 test = "notest"
 script = "script/deploy/zksync"
+cache_path = "./zkcache"
+out = "out/zksync"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
@@ -119,3 +122,4 @@ taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/
 unichain = { key = "${UNICHAIN_ETHERSCAN_API_KEY}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
 xlayer = { key = "${XLAYER_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/xlayer/api", chain = "196" }
+zksync = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=324", chain = "324" }
