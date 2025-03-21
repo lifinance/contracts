@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi } from "../utils/TestBase.sol";
+import { LibAllowList, LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
 import { InvalidAmount, InvalidReceiver, InsufficientBalance, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 // Stub OptimismBridgeFacet Contract

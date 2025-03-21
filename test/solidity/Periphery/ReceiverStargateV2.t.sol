@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { Test, TestBase, Vm, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized } from "src/Errors/GenericErrors.sol";
+import { TestBase, LibSwap } from "../utils/TestBase.sol";
+import { UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverStargateV2 } from "lifi/Periphery/ReceiverStargateV2.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { OFTComposeMsgCodec } from "lifi/Libraries/OFTComposeMsgCodec.sol";
-import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 
 address constant ENDPOINT_V2_MAINNET = 0x1a44076050125825900e736c501f859c50fE728c;
 address constant STARGATE_NATIVE_POOL_MAINNET = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
@@ -22,18 +21,18 @@ contract ReceiverStargateV2Test is TestBase {
     using stdJson for string;
 
     ReceiverStargateV2 internal receiver;
-    bytes32 guid = bytes32(0);
-    address receiverAddress = USER_RECEIVER;
+    bytes32 internal guid = bytes32(0);
+    address internal receiverAddress = USER_RECEIVER;
 
     address public constant STARGATE_USDC_POOL_MAINNET =
         0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
     address public constant STARGATE_TOKEN_MESSAGING_MAINNET =
         0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980;
     uint256 public constant RECOVER_GAS_VALUE = 100000;
-    address stargateRouter;
+    address internal stargateRouter;
     bytes32 internal transferId;
-    Executor executor;
-    ERC20Proxy erc20Proxy;
+    Executor internal executor;
+    ERC20Proxy internal erc20Proxy;
 
     event StargateRouterSet(address indexed router);
     event ExecutorSet(address indexed executor);
@@ -306,13 +305,13 @@ contract ReceiverStargateV2Test is TestBase {
         bytes memory b
     ) public pure returns (bytes memory c) {
         // Store the length of the first array
-        uint alen = a.length;
+        uint256 alen = a.length;
         // Store the length of BOTH arrays
-        uint totallen = alen + b.length;
+        uint256 totallen = alen + b.length;
         // Count the loops required for array a (sets of 32 bytes)
-        uint loopsa = (a.length + 31) / 32;
+        uint256 loopsa = (a.length + 31) / 32;
         // Count the loops required for array b (sets of 32 bytes)
-        uint loopsb = (b.length + 31) / 32;
+        uint256 loopsb = (b.length + 31) / 32;
         assembly {
             let m := mload(0x40)
             // Load the length of both arrays to the head of the new bytes array
@@ -372,6 +371,9 @@ contract ReentrantReceiver {
 
     address internal receiver;
 
+    error BytesLengthMismatch();
+    error BytesNotEqual();
+
     constructor(address _receiver) {
         receiver = _receiver;
     }
@@ -381,10 +383,11 @@ contract ReentrantReceiver {
     }
 
     function assertEqual(bytes memory a, bytes memory b) public pure {
-        require(a.length == b.length, "Bytes arrays must be of equal length");
+        if (a.length != b.length) revert BytesLengthMismatch();
 
-        for (uint i = 0; i < a.length; i++) {
-            require(a[i] == b[i], "Bytes arrays not equal");
+        uint256 len = a.length; // Explicit type declaration
+        for (uint256 i = 0; i < len; i++) {
+            if (a[i] != b[i]) revert BytesNotEqual();
         }
     }
 

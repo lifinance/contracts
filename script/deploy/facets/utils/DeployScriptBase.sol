@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase, console } from "./ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 
 contract DeployScriptBase is ScriptBase {
@@ -39,7 +39,7 @@ contract DeployScriptBase is ScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            console.log("Contract is already deployed");
+            emit log("Contract is already deployed");
             return payable(predicted);
         }
 
@@ -49,9 +49,8 @@ contract DeployScriptBase is ScriptBase {
             salt,
             bytes.concat(creationCode, constructorArgs)
         );
-        console.log("Create3Calldata: ");
-        console.logBytes(create3Calldata);
-        console.log(" ");
+        emit log("Contract is already deployed");
+        emit log_bytes(create3Calldata);
 
         deployed = payable(
             factory.deploy(salt, bytes.concat(creationCode, constructorArgs))

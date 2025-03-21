@@ -1,17 +1,13 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "ds-test/test.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
-import { AcrossFacetPacked, TransferrableOwnership } from "lifi/Facets/AcrossFacetPacked.sol";
+import { AcrossFacetPacked } from "lifi/Facets/AcrossFacetPacked.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { MockFailingContract } from "../utils/MockFailingContract.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { LiFiDiamond } from "../utils/DiamondTest.sol";
-import { console2 } from "forge-std/console2.sol";
 
 import { UnAuthorized } from "src/Errors/GenericErrors.sol";
 
@@ -34,12 +30,12 @@ contract AcrossFacetPackedTest is TestBase {
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant ACROSS_SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
-    address internal ACROSS_MERKLE_DISTRIBUTOR =
+    address internal constant ACROSS_MERKLE_DISTRIBUTOR =
         0xE50b2cEAC4f60E840Ae513924033E753e2366487;
-    address internal ADDRESS_ACX_TOKEN =
+    address internal constant ADDRESS_ACX_TOKEN =
         0x44108f0223A3C3028F5Fe7AEC7f9bb2E66beF82F;
 
-    bytes internal WITHDRAW_REWARDS_CALLDATA =
+    bytes internal constant WITHDRAW_REWARDS_CALLDATA =
         abi.encodeWithSignature("claimRewards()");
 
     // hex"6be65179000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000025caeae03fa5e8a977e00000000000000000000000000000000000000000000000000000000000000010000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000001055b9ce9b3807a4c1c9fc153177c53f06a40ba12d85ce795dde69d6eef999a7282c5ebbef91605a598965d1b963839cd0e36ac96ddcf53c200b1dd078301fb60991645e735d8523c0ddcee94e99db3d6cfc776becceb9babb4eee7d809b0a713436657df91f4ec9632556d4568a8604f76803fcf31a7f2297154dbf15fe4dedd4119740befa50ec31eecdc2407e7e294d5347166c79a062cf1b5e23908d76a10be7444d231b26cbed964c0d15c4aaa6fe4993becd1258cc2fa21a0d6ac29d89b57c9229e5ae3e0bd5587e19598f18679e9cb7e83196b39cbbf526076002219b9f74ff541139196c51f181c06194141c0b7d7af034a186a7bf862c7513e5398ccfa151bc3c6ff4689f723450d099644a46b6dbe639ff9ead83bf219648344cabfab2aa64aaa9f3eda6a4c824313a3e5005591c2e954f87e3b9f2228e87cf346f13c19136eca2ce03070ad5a063196e28955317b796ac7122bea188a8a615982531e84b5577546abc99c21005b2c0bd40700159702d4bf99334d3a3bb4cb8482085aefceb8f2e73ecff885d542e44e69206a0c27e6d2cc0401db980cc5c1e67c984b3f0ec51e1e15d3311d4feed306df497d582f55e1bd8e67a4336d1e8614fdf5fbfbcbe4ddc694d5b97547584ec24c28f8bce7a6a724213dc6a92282e7409d1453a960df1a25d1db6799308467dc975a70d97405e48138f20e914f3d44e5b06dd";
@@ -50,17 +46,17 @@ contract AcrossFacetPackedTest is TestBase {
     AcrossFacet.AcrossData internal validAcrossData;
     TestClaimContract internal claimContract;
 
-    bytes32 transactionId;
-    uint64 destinationChainId;
+    bytes32 internal transactionId;
+    uint64 internal destinationChainId;
 
-    uint256 amountNative;
-    bytes packedNativeCalldata;
+    uint256 internal amountNative;
+    bytes internal packedNativeCalldata;
 
-    uint256 amountUSDT;
-    bytes packedUSDTCalldata;
+    uint256 internal amountUSDT;
+    bytes internal packedUSDTCalldata;
 
-    uint256 amountUSDC;
-    bytes packedUSDCCalldata;
+    uint256 internal amountUSDC;
+    bytes internal packedUSDCCalldata;
 
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
@@ -223,7 +219,7 @@ contract AcrossFacetPackedTest is TestBase {
             packedNativeCalldata
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -239,7 +235,7 @@ contract AcrossFacetPackedTest is TestBase {
             value: amountNative
         }(packedNativeCalldata);
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -301,7 +297,7 @@ contract AcrossFacetPackedTest is TestBase {
         // call facet through diamond
         (bool success, ) = address(diamond).call(packedUSDCCalldata);
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -319,7 +315,7 @@ contract AcrossFacetPackedTest is TestBase {
         // call facet through diamond
         (bool success, ) = address(diamond).call(packedUSDTCalldata);
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -342,7 +338,7 @@ contract AcrossFacetPackedTest is TestBase {
         // call facet through diamond
         (bool success, ) = address(acrossStandAlone).call(packedUSDCCalldata);
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -366,7 +362,7 @@ contract AcrossFacetPackedTest is TestBase {
         // call facet through diamond
         (bool success, ) = address(acrossStandAlone).call(packedUSDTCalldata);
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }

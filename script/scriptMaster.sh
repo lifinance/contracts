@@ -117,6 +117,7 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy one specific contract to one network"
 
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
     local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
 
@@ -245,6 +246,7 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy all contracts to one selected network (=new network)"
 
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
     local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
     # get deployer wallet balance
@@ -500,6 +502,7 @@ scriptMaster() {
       # call update diamond log function
       updateDiamondLogs
     else
+      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
       # get user-selected network from list
       local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
 

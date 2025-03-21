@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
@@ -25,9 +26,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     DeBridgeDlnFacet.DeBridgeDlnData internal validDeBridgeDlnData;
     TestDeBridgeDlnFacet internal deBridgeDlnFacet;
-    IDlnSource internal DLN_SOURCE =
+    IDlnSource internal constant DLN_SOURCE =
         IDlnSource(0xeF4fB24aD0916217251F553c0596F8Edc630EB66);
-    uint256 internal FIXED_FEE;
+    uint256 internal fixedFee;
 
     // Errors
     error EmptyNonEVMAddress();
@@ -103,17 +104,17 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         });
 
         vm.label(address(DLN_SOURCE), "DLN_SOURCE");
-        FIXED_FEE = DLN_SOURCE.globalFixedNativeFee();
+        fixedFee = DLN_SOURCE.globalFixedNativeFee();
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
-                value: bridgeData.minAmount + FIXED_FEE
+                value: bridgeData.minAmount + fixedFee
             }(bridgeData, validDeBridgeDlnData);
         } else {
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
-                value: FIXED_FEE
+                value: fixedFee
             }(bridgeData, validDeBridgeDlnData);
         }
     }
@@ -123,11 +124,11 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
-                value: defaultNativeAmount + FIXED_FEE
+                value: defaultNativeAmount + fixedFee
             }(bridgeData, swapData, validDeBridgeDlnData);
         } else {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
-                value: FIXED_FEE
+                value: fixedFee
             }(bridgeData, swapData, validDeBridgeDlnData);
         }
     }
@@ -202,7 +203,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // check balances after call
         assertEq(
             USER_SENDER.balance,
-            initialETHBalance - swapData[0].fromAmount - FIXED_FEE
+            initialETHBalance - swapData[0].fromAmount - fixedFee
         );
     }
 
@@ -289,7 +290,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // check balances after call
         assertEq(
             USER_SENDER.balance,
-            initialETHBalance - swapData[0].fromAmount - FIXED_FEE
+            initialETHBalance - swapData[0].fromAmount - fixedFee
         );
     }
 
@@ -429,7 +430,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         vm.expectRevert(EmptyNonEVMAddress.selector);
 
-        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: FIXED_FEE }(
+        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
             bridgeData,
             validDeBridgeDlnData
         );

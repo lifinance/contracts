@@ -2,16 +2,17 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { TestWrappedToken as ERC20 } from "../utils/TestWrappedToken.sol";
-import { IERC20, LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract TokenWrapperTest is DSTest {
+    // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     TokenWrapper private tokenWrapper;
     ERC20 private wrappedToken;
+
+    error ETHTransferFailed();
 
     function setUp() public {
         wrappedToken = new ERC20("TestWrappedToken", "WTST", 18);
@@ -31,7 +32,7 @@ contract TokenWrapperTest is DSTest {
     function testCanWithdrawToken() public {
         // Send some ETH to the contract
         (bool success, ) = address(tokenWrapper).call{ value: 1 ether }("");
-        require(success, "Failed to send ETH");
+        if (!success) revert ETHTransferFailed();
 
         uint256 initialBalance = address(this).balance;
         tokenWrapper.withdrawToken(
