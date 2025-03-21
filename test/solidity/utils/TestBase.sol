@@ -198,7 +198,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal constant USER_REFUND = address(0xabcdef281);
     address internal constant USER_PAUSER = address(0xdeadbeef);
     address internal constant USER_DIAMOND_OWNER =
-        0x8b60A21A0e2852cCC944971486868beBB9f32287;
+        0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE =
         0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
     address internal constant USER_DAI_WHALE =
