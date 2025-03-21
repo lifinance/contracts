@@ -536,5 +536,33 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "ChainflipFacet": {
+    "configData": {
+      "_chainflipVault": {
+        "configFileName": "chainflip.json",
+        "keyInConfigFile": ".chainflipVault.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ReceiverChainflip": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_chainflipVault": {
+        "configFileName": "chainflip.json",
+        "keyInConfigFile": ".chainflipVault.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
