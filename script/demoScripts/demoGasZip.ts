@@ -5,12 +5,12 @@ import gasZipFacetArtifact from '../../out/GasZipFacet.sol/GasZipFacet.json'
 import { ILiFi } from '../../typechain'
 import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
+  addressToBytes32RightPadded,
   ensureBalance,
   executeTransaction,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 import { IGasZip } from '../../typechain/GasZipFacet'
-import { PublicKey } from '@solana/web3.js'
 
 dotenv.config()
 
@@ -25,22 +25,23 @@ const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
-  const destinationChainId = 245 // solana (non evm) -  custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
+  const nativeDestinationChainId = 80094 // berachain
+  const gasZipDestinationChainId = 143 // berachain - custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
 
   const { publicClient, walletAccount, lifiDiamondContract } =
     await setupEnvironment(srcChain, GAS_ZIP__FACET_ABI)
   const signerAddress = walletAccount.address
-  // const userReceiver = addressToBytes32RightPadded({evm_address}) // <== in case of evm address
-  const userReceiver = `0x${new PublicKey(
-    'DDMe5C8EhVhaVZRu3ukqhXF5CqnjuxhxbXBXj7pZnTw6'
-  )
-    .toBuffer()
-    .toString('hex')}`
+  const userReceiver = addressToBytes32RightPadded(signerAddress) // <== in case of evm address
+  // const userReceiver = `0x${new PublicKey(
+  //   'DDMe5C8EhVhaVZRu3ukqhXF5CqnjuxhxbXBXj7pZnTw6'
+  // )
+  // .toBuffer()
+  // .toString('hex')}` // <== in case of svm address
 
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = zeroAddress as `0x${string}` // native token
 
-  const amount = parseUnits('0.001', 18) // 0.001 * 1e18
+  const amount = parseUnits('0.0005', 18) // 0.0005 * 1e18
 
   console.info(`Bridge ${amount} native from ${srcChain} --> Solana`)
   console.info(`Connected wallet address: ${signerAddress}`)
@@ -55,7 +56,7 @@ async function main() {
     referrer: zeroAddress,
     sendingAssetId: zeroAddress, // <-- native token
     receiver: NON_EVM_ADDRESS,
-    destinationChainId,
+    destinationChainId: nativeDestinationChainId,
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
@@ -63,7 +64,7 @@ async function main() {
 
   const gasZipData: IGasZip.GasZipDataStruct = {
     receiverAddress: userReceiver,
-    destinationChains: destinationChainId,
+    destinationChains: gasZipDestinationChainId,
   }
 
   // === Start bridging ===
