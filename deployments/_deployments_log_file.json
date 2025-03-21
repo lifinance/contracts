@@ -24400,6 +24400,30 @@
           }
         ]
       }
+    },
+    "unichain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x57C53492f4294FA5a9F840117728E7a2d637095A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-05 11:07:39",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0xdD35f430d70FE8Ec70a5CeE7FD674Fb0Ba7EC98c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-18 17:16:02",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GenericSwapFacetV3": {
@@ -29824,6 +29848,38 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": true
+          }
+        ]
+      }
+    }
+  },
+  "ChainflipFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xDd661337B48BEA5194F6d26F2C59fF0855E15289",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-17 17:00:59",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000079001a5e762f3befc8e5871b42f6734e00498920",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "ReceiverChainflip": {
+    "mainnet": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf0CfD9A8Fb7954C9F9948b94AD6f1Cc27Faff54c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-02-18 12:28:25",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000be27f03c8e6a61e2a4b1ee7940dbcb9204744d1c000000000000000000000000f5e10380213880111522dd0efd3dbb45b9f62bcc",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }

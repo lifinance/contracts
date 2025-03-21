@@ -16,6 +16,7 @@ import {
   getPrivateKey,
   storeTransactionInMongoDB,
   OperationType,
+  isAddressASafeOwner,
 } from './safe-utils'
 
 /**
@@ -70,6 +71,17 @@ const main = defineCommand({
 
     // Get the account address
     const senderAddress = safe.account
+
+    // Check if the current signer is an owner
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', senderAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot propose transactions - exiting')
+      await mongoClient.close()
+      process.exit(1)
+    }
 
     // Get the next nonce
     const nextNonce = await getNextNonce(

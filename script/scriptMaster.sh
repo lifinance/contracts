@@ -134,8 +134,8 @@ scriptMaster() {
     # Handle ZkSync
     # We need to make sure that the zksync fork of foundry is available before
     # we can deploy contracts to zksync.
-    if [[ $NETWORK == "zksync" ]]; then
-      # update the deploy script directory to point to zksync-specific scripts
+    if isZkEvmNetwork "$NETWORK"; then
+      # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
@@ -146,7 +146,8 @@ scriptMaster() {
       SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     fi
 
-    # extract contract name
+    # get user-selected deploy script and contract from list
+    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for

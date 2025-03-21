@@ -511,6 +511,20 @@ export const isSignedByCurrentSigner = (
 }
 
 /**
+ * Checks if an address is an owner of a Safe
+ * @param existingOwners - Array of existing Safe owner addresses
+ * @param addressToCheck - Address to check for ownership
+ * @returns True if the address is an owner, false otherwise
+ */
+export function isAddressASafeOwner(
+  existingOwners: Address[],
+  addressToCheck: Address
+): boolean {
+  const existingOwnersLowercase = existingOwners.map((o) => o.toLowerCase())
+  return existingOwnersLowercase.includes(addressToCheck.toLowerCase())
+}
+
+/**
  * Checks if adding current signer's signature would meet the threshold
  * @param safeTx - The transaction to check
  * @param threshold - Number of signatures required

@@ -7,7 +7,7 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import { Address, createPublicClient, http } from 'viem'
+import { Address, createPublicClient, http, isAddress } from 'viem'
 import {
   getSafeMongoCollection,
   getNextNonce,
@@ -17,6 +17,7 @@ import {
   SafeTransaction,
   storeTransactionInMongoDB,
   getSafeInfoFromContract,
+  isAddressASafeOwner,
 } from './safe-utils'
 import globalConfig from '../../../config/global.json'
 import * as dotenv from 'dotenv'
@@ -86,8 +87,34 @@ const main = defineCommand({
     // Add owners from command line if provided
     if (args.owners) {
       const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
+
+      // Validate each address using viem's isAddress function
+      for (const addr of cmdLineOwners) {
+        if (!isAddress(addr)) {
+          consola.error(`Invalid Ethereum address: ${addr}`)
+          consola.error(
+            'Please provide valid Ethereum addresses in the format 0x...'
+          )
+          await mongoClient.close()
+          process.exit(1)
+        }
+      }
+
       consola.info('Adding owners from command line:', cmdLineOwners)
-      ownersToAdd = [...ownersToAdd, ...cmdLineOwners]
+
+      // Deduplicate owners by converting to lowercase and using a Set
+      const uniqueOwners = new Set([
+        ...ownersToAdd.map((addr) => addr.toLowerCase()),
+        ...cmdLineOwners.map((addr) => addr.toLowerCase()),
+      ])
+
+      // Convert back to original format (preserving the case from either source)
+      const allOwners = [...ownersToAdd, ...cmdLineOwners]
+      ownersToAdd = Array.from(uniqueOwners).map(
+        (lowercaseAddr) =>
+          allOwners.find((addr) => addr.toLowerCase() === lowercaseAddr) ||
+          lowercaseAddr
+      )
     }
 
     const currentThreshold = Number(safeInfo.threshold)
@@ -109,15 +136,25 @@ const main = defineCommand({
       safeInfo.nonce
     )
 
+    // Fetch the list of existing owners once before the loop
+    const existingOwners = await safe.getOwners()
+
+    // Check if the current signer is an owner
+    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', senderAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot propose transactions - exiting')
+      await mongoClient.close()
+      process.exit(1)
+    }
+
     // Go through all owner addresses and add each of them individually
     for (const o of ownersToAdd) {
       consola.info('-'.repeat(80))
       const owner = o as Address
-      const existingOwners = await safe.getOwners()
 
-      if (
-        existingOwners.map((o) => o.toLowerCase()).includes(owner.toLowerCase())
-      ) {
+      if (isAddressASafeOwner(existingOwners, owner)) {
         consola.info('Owner already exists', owner)
         continue
       }
@@ -134,20 +171,52 @@ const main = defineCommand({
 
       consola.info('Proposing to add owner', owner)
 
-      await proposeTransactionToMongoDB(
-        safe,
-        safeTransaction,
-        senderAddress,
-        network,
-        chain.id,
-        pendingTransactions
-      )
+      // Sign the transaction
+      const signedTx = await safe.signTransaction(safeTransaction)
+      const safeTxHash = await safe.getTransactionHash(signedTx)
+
+      consola.info('Transaction signed:', safeTxHash)
+
+      // Store transaction in MongoDB
+      try {
+        const result = await storeTransactionInMongoDB(
+          pendingTransactions,
+          await safe.getAddress(),
+          network,
+          chain.id,
+          signedTx,
+          safeTxHash,
+          senderAddress
+        )
+
+        if (!result.acknowledged) {
+          throw new Error('MongoDB insert was not acknowledged')
+        }
+
+        consola.success('Transaction successfully stored in MongoDB')
+      } catch (error) {
+        consola.error('Failed to store transaction in MongoDB:', error)
+        throw error
+      }
       nextNonce++
     }
 
     consola.info('-'.repeat(80))
 
     if (currentThreshold != 3) {
+      // Get the updated count of owners after all additions
+      const updatedOwnerCount = (await safe.getOwners()).length
+
+      if (updatedOwnerCount < 3) {
+        consola.error(
+          `Cannot set threshold to 3 when only ${updatedOwnerCount} owners exist`
+        )
+        consola.error('This would lock the Safe and make it unusable')
+        consola.error('Add more owners before changing the threshold')
+        await mongoClient.close()
+        process.exit(1)
+      }
+
       consola.info(
         'Now proposing to change threshold from',
         currentThreshold,
@@ -156,14 +225,34 @@ const main = defineCommand({
       const changeThresholdTx = await safe.createChangeThresholdTx(3, {
         nonce: nextNonce,
       })
-      await proposeTransactionToMongoDB(
-        safe,
-        changeThresholdTx,
-        senderAddress,
-        network,
-        chain.id,
-        pendingTransactions
-      )
+
+      // Sign the transaction
+      const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
+      const thresholdTxHash = await safe.getTransactionHash(signedThresholdTx)
+
+      consola.info('Transaction signed:', thresholdTxHash)
+
+      // Store transaction in MongoDB
+      try {
+        const result = await storeTransactionInMongoDB(
+          pendingTransactions,
+          await safe.getAddress(),
+          network,
+          chain.id,
+          signedThresholdTx,
+          thresholdTxHash,
+          senderAddress
+        )
+
+        if (!result.acknowledged) {
+          throw new Error('MongoDB insert was not acknowledged')
+        }
+
+        consola.success('Transaction successfully stored in MongoDB')
+      } catch (error) {
+        consola.error('Failed to store transaction in MongoDB:', error)
+        throw error
+      }
     } else consola.success('Threshold is already set to 3 - no action required')
 
     // Close MongoDB connection
@@ -173,54 +262,5 @@ const main = defineCommand({
     consola.success('Script completed without errors')
   },
 })
-
-/**
- * Proposes a transaction to MongoDB
- * @param safe - ViemSafe instance
- * @param safeTransaction - The transaction to propose
- * @param senderAddress - Address of the sender
- * @param network - Network name
- * @param chainId - Chain ID
- * @param pendingTransactions - MongoDB collection
- * @returns The transaction hash
- */
-async function proposeTransactionToMongoDB(
-  safe: ViemSafe,
-  safeTransaction: SafeTransaction,
-  senderAddress: Address,
-  network: string,
-  chainId: number,
-  pendingTransactions: any
-): Promise<string> {
-  // Sign the transaction
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
-  consola.info('Transaction signed:', safeTxHash)
-
-  // Store transaction in MongoDB using the utility function
-  try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      await safe.getAddress(),
-      network,
-      chainId,
-      signedTx,
-      safeTxHash,
-      senderAddress
-    )
-
-    if (!result.acknowledged) {
-      throw new Error('MongoDB insert was not acknowledged')
-    }
-
-    consola.success('Transaction successfully stored in MongoDB')
-  } catch (error) {
-    consola.error('Failed to store transaction in MongoDB:', error)
-    throw error
-  }
-
-  return safeTxHash
-}
 
 runMain(main)

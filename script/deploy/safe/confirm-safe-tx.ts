@@ -7,21 +7,11 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import {
-  Address,
-  Hex,
-  createPublicClient,
-  http,
-  parseAbi,
-  Abi,
-  decodeFunctionData,
-} from 'viem'
+import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
 import {
-  OperationType,
   SafeTransaction,
-  ViemSafe,
   SafeTxDocument,
   AugmentedSafeTxDocument,
   privateKeyType,
@@ -29,7 +19,6 @@ import {
   hasEnoughSignatures,
   isSignedByCurrentSigner,
   wouldMeetThreshold,
-  getSafeInfoFromContract,
   getSafeMongoCollection,
   getPendingTransactionsByNetwork,
   getNetworksToProcess,
@@ -37,10 +26,9 @@ import {
   initializeSafeClient,
   decodeDiamondCut,
   decodeTransactionData,
+  isAddressASafeOwner,
 } from './safe-utils'
 dotenv.config()
-
-const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
 const storedResponses: Record<string, string> = {}
 
@@ -82,6 +70,22 @@ const processTxs = async (
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
 
+  // Check if the current signer is an owner
+  try {
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, signerAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', signerAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot sign or execute transactions - exiting')
+      return
+    }
+  } catch (error) {
+    consola.error(`Failed to check if signer is an owner: ${error.message}`)
+    consola.error('Skipping this network and moving to the next one')
+    return
+  }
+
   /**
    * Signs a SafeTransaction
    * @param safeTransaction - The transaction to sign
@@ -117,9 +121,9 @@ const processTxs = async (
       consola.success('Transaction executed')
       consola.info(' ')
       consola.info(' ')
-    } catch (err) {
-      consola.error('Error while trying to execute the transaction:', err)
-      throw new Error(`Transaction could not be executed: ${err.message}`)
+    } catch (error) {
+      consola.error('Error while trying to execute the transaction:', error)
+      throw new Error(`Transaction could not be executed: ${error.message}`)
     }
   }
 
@@ -156,13 +160,19 @@ const processTxs = async (
     )
   ).then((txs: AugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
-      const needsMoreSignatures =
-        tx.safeTransaction.signatures.size < tx.threshold
-      const canExecute = tx.safeTransaction.signatures.size >= tx.threshold
-      // Show transaction if:
-      // - it needs more signatures OR
-      // - it can be executed (has enough signatures)
-      return needsMoreSignatures || canExecute
+      // If the transaction has enough signatures to execute AND the current signer has signed,
+      // still show it so they can execute it
+      if (tx.canExecute) {
+        return true
+      }
+
+      // Otherwise, don't show transactions that have already been signed by the current signer
+      if (tx.hasSignedAlready) {
+        return false
+      }
+
+      // Show transactions that need more signatures
+      return tx.safeTransaction.signatures.size < tx.threshold
     })
   )
 
@@ -184,7 +194,7 @@ const processTxs = async (
 
     try {
       if (tx.safeTx.data) {
-        const { functionName, decodedData } = await decodeTransactionData(
+        const { functionName } = await decodeTransactionData(
           tx.safeTx.data.data as Hex
         )
         if (functionName) {
