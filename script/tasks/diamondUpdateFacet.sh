@@ -85,8 +85,17 @@ diamondUpdateFacet() {
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
   fi
 
-  # determine full (relative) path of deploy script
-  SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
+  # Handle script paths and extensions based on network type
+  if isZkEvmNetwork "$NETWORK"; then
+    SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
+    # Extract contract name once, will be used multiple times later
+    CONTRACT_NAME=$(basename "$SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//')
+    # Check if the foundry-zksync binaries exist, if not fetch them
+    install_foundry_zksync
+  else
+    SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
+    CONTRACT_NAME=""  # Not needed for non-zkEVM networks
+  fi
 
   # set flag for mutable/immutable diamond
   USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
@@ -105,70 +114,36 @@ diamondUpdateFacet() {
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
-    # check if command output should be printed to console
-    if [[ "$DEBUG" == *"true"* ]]; then
-      # check if we are deploying to PROD
-      if [[ "$ENVIRONMENT" == "production" ]]; then
-          # PROD: suggest diamondCut transaction to SAFE
-          UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT".s.sol)
-          PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
-          echoDebug "Calculating facet cuts for $SCRIPT..."
-          if [[ $NETWORK == "zksync" ]]; then
-            RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NO_BROADCAST=true -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND -e PRIVATE_KEY=$PRIVATE_KEY foundry-zksync forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy --slow --zksync)
-          else
-            RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy)
-          fi
-          CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs.*}') # new version that removes non-JSON log output both before and after the JSON (old version removed only before)
-          FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
-          echo ""
-          echo "DiamondCut calldata: $FACET_CUT"
-          echo ""
+    # check if we are deploying to PROD
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      # PROD: suggest diamondCut transaction to SAFE
+      echoDebug $SCRIPT_PATH
 
-          if [ "$FACET_CUT" == "0x" ] || [ -z "$FACET_CUT" ]; then
-            error "Unable to extract facet cut data from RPC response at logs.returns.cutData.value"
-          else
-            # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
-            if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-              echo "DEPLOY_NEW_NETWORK_MODE is activated - executing facet cut for $SCRIPT on network $NETWORK..."
-              RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
-            else
-              echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
-              DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-              npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl $NETWORK)" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
-            fi
-          fi
-        else
-          # STAGING: just deploy normally without further checks
-          RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+      PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
+      echoDebug "Calculating facet cuts for $SCRIPT..."
+
+      if isZkEvmNetwork "$NETWORK"; then
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
+      else
+        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --legacy)
+      fi
+
+      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+
+      if [ "$FACET_CUT" != "0x" ]; then
+        echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+        npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl $NETWORK)" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       fi
     else
-      # check if we are deploying to PROD
-      if [[ "$ENVIRONMENT" == "production" ]]; then
-        # PROD: suggest diamondCut transaction to SAFE
-        UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$SCRIPT".s.sol)
-        PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
-        echoDebug "Calculating facet cuts for $SCRIPT..."
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy)
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-        FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
-        if [ "$FACET_CUT" == "0x" ] || [ -z "$FACET_CUT" ]; then
-          error "Unable to extract facet cut data from RPC response at logs.returns.cutData.value"
-        else
-          # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
-          if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-            echo "DEPLOY_NEW_NETWORK_MODE is activated - executing facet cut for $script on network $NETWORK..."
-            RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
-          else
-            echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
-            DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-            npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl "$NETWORK")" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
-          fi
-        fi
+      # STAGING: just deploy normally without further checks
+      if isZkEvmNetwork "$NETWORK"; then
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
       else
-        # STAGING: just deploy normally without further checks
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --skip-simulation --legacy)
       fi
-     fi
+    fi
     RETURN_CODE=$?
     echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
