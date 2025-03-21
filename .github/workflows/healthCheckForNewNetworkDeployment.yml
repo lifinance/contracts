@@ -84,7 +84,7 @@ jobs:
 
       - name: Install Bun
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
