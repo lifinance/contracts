@@ -140,6 +140,10 @@
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
+      },
+      "0x4BE836589E666fEA7D3E75a786b39E10E59a83ac": {
+        "Name": "ThorSwapFacet",
+        "Version": "1.2.1"
       }
     },
     "Periphery": {
@@ -148,9 +152,9 @@
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
