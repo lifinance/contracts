@@ -431,11 +431,12 @@
     "verificationType": "blockscout",
     "explorerUrl": "https://tbd.lenscan.xyz",
     "explorerApiUrl": "https://api-explorer-verify.lens.matterhosted.dev/contract_verification",
-    "multicallAddress": "",
+    "multicallAddress": "0x5900c97b683e69CD752aF7DC7003d69315E2a288",
     "safeApiUrl": "",
     "safeAddress": "",
     "safeWebUrl": "",
     "gasZipChainId": 11111,
+    "isZkEVM": true,
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "linea": {
