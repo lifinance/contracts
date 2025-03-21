@@ -31,17 +31,16 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4.1.0
-        with:
-          node-version: 20
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install dev dependencies
-        run: yarn install
+        run: bun install
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.3.1
 
-      - name: Install Dependencies
+      - name: Install forge Dependencies
         run: forge install
 
       - name: Run forge tests (with auto-repeat in case of error)
