@@ -132,7 +132,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function test_WillStoreConstructorParametersCorrectly() public {
         glacisFacet = new TestGlacisFacet(airliftContract);
 
-        assertEq(address(glacisFacet.airlift()), address(airliftContract));
+        assertEq(address(glacisFacet.AIRLIFT()), address(airliftContract));
     }
 
     function testRevert_WhenConstructedWithZeroAddress() public {

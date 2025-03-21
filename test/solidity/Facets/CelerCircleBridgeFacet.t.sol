@@ -5,6 +5,7 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
 import { ICircleBridgeProxy } from "lifi/Interfaces/ICircleBridgeProxy.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub CelerCircleBridgeFacet Contract
 contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
@@ -111,16 +112,17 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         // facet does not support native bridging
     }
 
-    function test_Revert_DestinationChainIdTooLarge() public virtual {
+    function testRevert_DestinationChainIdTooLarge() public virtual {
         vm.startPrank(USER_SENDER);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         bridgeData.destinationChainId = uint256(type(uint64).max) + 1;
-        vm.expectRevert(
-            "_bridgeData.destinationChainId passed is too big to fit in uint64"
-        );
+
+        vm.expectRevert(InvalidCallData.selector);
+
         initiateBridgeTxWithFacet(false);
+
         vm.stopPrank();
     }
 }

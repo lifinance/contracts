@@ -73,7 +73,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         functionSelectors[3] = stargateFacetV2
             .setFunctionApprovalBySignature
             .selector;
-        functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
+        functionSelectors[4] = stargateFacetV2.TOKEN_MESSAGING.selector;
 
         addFacet(diamond, address(stargateFacetV2), functionSelectors);
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
@@ -561,14 +561,14 @@ contract StargateFacetV2Test is TestBaseFacet {
         stargateFacetV2 = new TestStargateFacetV2(address(0));
 
         assertEq(
-            address(stargateFacetV2.tokenMessaging()) == address(0),
+            address(stargateFacetV2.TOKEN_MESSAGING()) == address(0),
             true
         );
 
         stargateFacetV2 = new TestStargateFacetV2(TOKEN_MESSAGING);
 
         assertEq(
-            address(stargateFacetV2.tokenMessaging()) == TOKEN_MESSAGING,
+            address(stargateFacetV2.TOKEN_MESSAGING()) == TOKEN_MESSAGING,
             true
         );
     }
