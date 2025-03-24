@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for Hyphen Router
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 // https://github.com/bcnmy/hyphen-contract/blob/master/contracts/hyphen/LiquidityPool.sol
 interface IHyphenRouter {
     function depositErc20(
