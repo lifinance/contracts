@@ -24,9 +24,7 @@ export async function getLedgerAccount(options?: {
   accountIndex?: number
 }): Promise<Account> {
   // Dynamically import Ledger packages to avoid issues if they're not installed
-  const { default: TransportNodeHid } = await import(
-    '@ledgerhq/hw-transport-node-hid'
-  )
+  const TransportNodeHid = await import('@ledgerhq/hw-transport-node-hid')
   const { default: Eth } = await import('@ledgerhq/hw-app-eth')
 
   // Determine the derivation path
@@ -43,6 +41,10 @@ export async function getLedgerAccount(options?: {
   try {
     consola.info(`Connecting to Ledger device...`)
     consola.info(`Using derivation path: ${derivationPath}`)
+
+    consola.info(
+      `TransportNodeHid: ${JSON.stringify(TransportNodeHid, null, 2)}`
+    )
 
     // Open connection to Ledger device
     const transport = await TransportNodeHid.default.create()
