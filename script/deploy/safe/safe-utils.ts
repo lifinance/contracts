@@ -328,7 +328,10 @@ export class ViemSafe {
   // Generate transaction hash (replaces getTransactionHash from Safe SDK)
   async getTransactionHash(safeTx: SafeTransaction): Promise<Hex> {
     try {
-      return await this.publicClient.readContract({
+      // The Safe contract's getTransactionHash matches this implementation
+      // GS026 error indicates invalid signature which would happen if we're not using
+      // the correct hash that the Safe contract expects
+      const hash = await this.publicClient.readContract({
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'getTransactionHash',
@@ -345,64 +348,62 @@ export class ViemSafe {
           safeTx.data.nonce,
         ],
       })
+
+      console.log('Generated transaction hash:', hash)
+      return hash
     } catch (error) {
       console.error('Error generating transaction hash:', error)
       throw error
     }
   }
 
-  // Sign a transaction hash using EIP-712 (preferred method for Safe contracts)
+  // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
+  // Error GS026 indicates an invalid signature issue
   async signHash(hash: Hex): Promise<SafeSignature> {
     try {
-      // Use signTypedData for EIP-712 signing (type 0 signatures for Safe)
-      // This matches the Safe SDK's approach for structured data signing
+      console.log('Signing hash:', hash)
 
-      // For Safe transactions, we create a proper EIP-712 domain with the Safe contract
-      // This ensures the signature is bound to both the chain and the specific Safe instance
-      const chainId = await this.publicClient.getChainId()
-
-      // Get proper domain and types for Safe transactions
-      const signature = await this.walletClient.signTypedData({
-        domain: {
-          verifyingContract: this.safeAddress,
-          chainId: chainId,
-        },
-        types: {
-          // Safe transactions use EIP-712 with a specific message format
-          // This follows the Safe SDK implementation for safe transaction signing
-          SafeMessage: [{ name: 'message', type: 'bytes32' }],
-        },
-        primaryType: 'SafeMessage',
-        message: {
-          message: hash,
-        },
+      // Use eth_sign (via personal_sign) which adds the Ethereum message prefix
+      // This is the most compatible method with all Safe contract versions
+      const ethSignSignature = await this.walletClient.signMessage({
+        message: { raw: hash },
       })
 
-      if (!signature.startsWith('0x') || signature.length !== 132) {
+      console.log('Raw signature:', ethSignSignature)
+
+      if (
+        !ethSignSignature.startsWith('0x') ||
+        ethSignSignature.length !== 132
+      ) {
         throw new Error(
-          `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${signature}`
+          `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${ethSignSignature}`
         )
       }
 
       // Extract r, s, v components from the signature
-      const r = signature.slice(0, 66)
-      const s = signature.slice(66, 130)
+      const r = ethSignSignature.slice(0, 66)
+      const s = ethSignSignature.slice(66, 130)
 
-      // Get v value (EIP-712 signatures use standard v values: 0/1 + 27 = 27/28)
-      const vByte = signature.slice(130, 132)
-      const v = vByte // No modification needed for EIP-712 signatures in Safe
+      // Get v value from the signature and adjust for eth_sign
+      const vByte = ethSignSignature.slice(130, 132)
+      const vValue = parseInt(vByte, 16)
+
+      // For eth_sign signatures in Safe contracts, we need to add +4 to v
+      // This identifies it as an eth_sign signature (type 1)
+      const safeV = (vValue + 4).toString(16).padStart(2, '0')
 
       // Format for Safe contract: r + s + v
       // Safe expects signatures in format: r (32 bytes) + s (32 bytes) + v (1 byte)
-      // For EIP-712 signatures, v is NOT modified (type 0 signature)
-      const safeSignature = `0x${r.slice(2)}${s}${v}` as Hex
+      const safeSignature = `0x${r.slice(2)}${s}${safeV}` as Hex
+
+      console.log('Safe signature:', safeSignature)
 
       return {
         signer: this.account,
         data: safeSignature,
       }
     } catch (error) {
-      console.error('Error signing hash with EIP-712:', error)
+      console.error('Error signing hash with eth_sign:', error)
       throw new Error(`Failed to sign hash: ${error.message || error}`)
     }
   }
@@ -438,16 +439,12 @@ export class ViemSafe {
       return false
     }
 
-    // Additional validation for EIP-712 signatures:
-    // For EIP-712, v should typically be 27 or 28 (0x1b or 0x1c in hex)
+    // We're now using eth_sign signatures with the Safe, which means v values of 31 or 32
+    // (normal v value of 27/28 + 4 = 31/32)
     const vValue = parseInt(sigWithoutPrefix.slice(128, 130), 16)
 
-    // Valid v values for Safe:
-    // - 0-26: EIP-712 signatures with nonstandard recovery IDs
-    // - 27-28: Standard EIP-712 signatures (most common)
-    // - 29-30: EIP-712 signatures with high recovery IDs (rare)
-    // - 31-32: eth_sign signatures
-    return vValue >= 0 && vValue <= 32
+    // We expect eth_sign (type 1) signatures with v values 31 or 32
+    return vValue === 31 || vValue === 32
   }
 
   // Format signatures as bytes for contract submission
