@@ -6,6 +6,7 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+// solhint-disable-next-line no-unused-import
 import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -154,6 +155,8 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
+        // Only _hopData.nativeFee is handled by the contract; relayerFee and bonderFee are displayed in the UI but not used on-chain.
+        // If there's no native fee (e.g. for ERC20 transfers), our API sets _hopData.nativeFee to 0.
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
             ? _hopData.nativeFee + _bridgeData.minAmount
             : _hopData.nativeFee;
