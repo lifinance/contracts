@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for ERC165
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IERC165 {
     /// @notice Query if a contract implements an interface
     /// @param interfaceId The interface identifier, as specified in ERC-165

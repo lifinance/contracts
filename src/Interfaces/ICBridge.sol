@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for CBridge
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ICBridge {
     /// @notice Send a cross-chain transfer via the liquidity pool-based bridge.
     /// @dev This function DOES NOT SUPPORT fee-on-transfer / rebasing tokens.
