@@ -43,7 +43,7 @@ contract RelayerCelerIMTest is TestBase {
             CFUSDC
         );
 
-        relayer = celerIMFacet.relayer();
+        relayer = celerIMFacet.RELAYER();
 
         celerIMData = CelerIM.CelerIMData({
             maxSlippage: 5000,

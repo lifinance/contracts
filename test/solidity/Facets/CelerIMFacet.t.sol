@@ -110,7 +110,7 @@ contract CelerIMFacetTest is TestBaseFacet {
             CFUSDC
         );
 
-        relayer = celerIMFacet.relayer();
+        relayer = celerIMFacet.RELAYER();
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = celerIMFacet
