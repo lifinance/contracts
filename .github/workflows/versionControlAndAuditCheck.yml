@@ -341,7 +341,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download list of audit-relevant contracts from previous version control step
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@v4.2.1
         with:
           name: contracts_for_audit
 
