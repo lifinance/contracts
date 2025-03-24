@@ -147,7 +147,6 @@ scriptMaster() {
     fi
 
     # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for
