@@ -43,7 +43,7 @@ async function main() {
 
   const amount = parseUnits('0.0005', 18) // 0.0005 * 1e18
 
-  console.info(`Bridge ${amount} native from ${srcChain} --> Solana`)
+  console.info(`Bridge ${amount} native from ${srcChain} --> Berachain`)
   console.info(`Connected wallet address: ${signerAddress}`)
 
   await ensureBalance(SRC_TOKEN_ADDRESS, signerAddress, amount, publicClient)
