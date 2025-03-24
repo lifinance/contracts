@@ -351,43 +351,149 @@ export class ViemSafe {
     }
   }
 
-  // Sign a transaction hash (replaces signHash from Safe SDK)
+  // Sign a transaction hash using EIP-712 (preferred method for Safe contracts)
   async signHash(hash: Hex): Promise<SafeSignature> {
-    const signature = await this.walletClient.signMessage({
-      message: { raw: hash },
-    })
+    try {
+      // Use signTypedData for EIP-712 signing (type 0 signatures for Safe)
+      // This matches the Safe SDK's approach for structured data signing
 
-    return {
-      signer: this.account,
-      data: signature,
+      // For Safe transactions, we create a proper EIP-712 domain with the Safe contract
+      // This ensures the signature is bound to both the chain and the specific Safe instance
+      const chainId = await this.publicClient.getChainId()
+
+      // Get proper domain and types for Safe transactions
+      const signature = await this.walletClient.signTypedData({
+        domain: {
+          verifyingContract: this.safeAddress,
+          chainId: chainId,
+        },
+        types: {
+          // Safe transactions use EIP-712 with a specific message format
+          // This follows the Safe SDK implementation for safe transaction signing
+          SafeMessage: [{ name: 'message', type: 'bytes32' }],
+        },
+        primaryType: 'SafeMessage',
+        message: {
+          message: hash,
+        },
+      })
+
+      if (!signature.startsWith('0x') || signature.length !== 132) {
+        throw new Error(
+          `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${signature}`
+        )
+      }
+
+      // Extract r, s, v components from the signature
+      const r = signature.slice(0, 66)
+      const s = signature.slice(66, 130)
+
+      // Get v value (EIP-712 signatures use standard v values: 0/1 + 27 = 27/28)
+      const vByte = signature.slice(130, 132)
+      const v = vByte // No modification needed for EIP-712 signatures in Safe
+
+      // Format for Safe contract: r + s + v
+      // Safe expects signatures in format: r (32 bytes) + s (32 bytes) + v (1 byte)
+      // For EIP-712 signatures, v is NOT modified (type 0 signature)
+      const safeSignature = `0x${r.slice(2)}${s}${v}` as Hex
+
+      return {
+        signer: this.account,
+        data: safeSignature,
+      }
+    } catch (error) {
+      console.error('Error signing hash with EIP-712:', error)
+      throw new Error(`Failed to sign hash: ${error.message || error}`)
     }
   }
 
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
   async signTransaction(safeTx: SafeTransaction): Promise<SafeTransaction> {
-    const hash = await this.getTransactionHash(safeTx)
-    const signature = await this.signHash(hash)
+    try {
+      const hash = await this.getTransactionHash(safeTx)
+      const signature = await this.signHash(hash)
 
-    // Add signature to transaction
-    safeTx.signatures.set(signature.signer.toLowerCase(), signature)
+      // Add signature to transaction
+      safeTx.signatures.set(signature.signer.toLowerCase(), signature)
 
-    return safeTx
+      return safeTx
+    } catch (error) {
+      console.error('Error signing transaction:', error)
+      throw new Error(`Failed to sign transaction: ${error.message || error}`)
+    }
+  }
+
+  // Validate a signature to ensure it's in the correct format for Safe contracts
+  private validateSignature(signature: Hex): boolean {
+    if (!signature.startsWith('0x')) {
+      return false
+    }
+
+    // Remove 0x prefix for length check
+    const sigWithoutPrefix = signature.slice(2)
+
+    // For Safe signatures in format r+s+v, signature should be 130 chars (65 bytes)
+    // r = 32 bytes (64 chars), s = 32 bytes (64 chars), v = 1 byte (2 chars)
+    if (sigWithoutPrefix.length !== 130) {
+      return false
+    }
+
+    // Additional validation for EIP-712 signatures:
+    // For EIP-712, v should typically be 27 or 28 (0x1b or 0x1c in hex)
+    const vValue = parseInt(sigWithoutPrefix.slice(128, 130), 16)
+
+    // Valid v values for Safe:
+    // - 0-26: EIP-712 signatures with nonstandard recovery IDs
+    // - 27-28: Standard EIP-712 signatures (most common)
+    // - 29-30: EIP-712 signatures with high recovery IDs (rare)
+    // - 31-32: eth_sign signatures
+    return vValue >= 0 && vValue <= 32
   }
 
   // Format signatures as bytes for contract submission
   private formatSignatures(signatures: Map<string, SafeSignature>): Hex {
-    // Convert Map to array and sort by signer address
-    const sortedSigs = Array.from(signatures.values()).sort((a, b) =>
-      a.signer.toLowerCase() > b.signer.toLowerCase() ? 1 : -1
-    )
-
-    // Concatenate all signatures as bytes
-    let signatureBytes = '0x' as Hex
-    for (const sig of sortedSigs) {
-      signatureBytes = (signatureBytes + sig.data.slice(2)) as Hex
+    if (!signatures.size) {
+      return '0x' as Hex
     }
 
-    return signatureBytes
+    try {
+      // Convert Map to array and sort by signer address
+      // Safe contract requires signatures to be sorted by signer address
+      const sortedSigs = Array.from(signatures.values()).sort((a, b) => {
+        const addressA = a.signer.toLowerCase()
+        const addressB = b.signer.toLowerCase()
+        return addressA < addressB ? -1 : addressA > addressB ? 1 : 0
+      })
+
+      // Concatenate all signatures as bytes
+      // Each signature is 65 bytes: r (32) + s (32) + v (1)
+      let signatureBytes = '0x' as Hex
+      for (const sig of sortedSigs) {
+        // Ensure signature data is in correct format
+        if (!sig.data.startsWith('0x')) {
+          throw new Error(
+            `Invalid signature format. Expected 0x prefix but got: ${sig.data}`
+          )
+        }
+
+        // Validate signature format
+        if (!this.validateSignature(sig.data)) {
+          throw new Error(
+            `Invalid signature length. Safe signatures must be 65 bytes (130 hex chars excluding 0x prefix). Got: ${
+              sig.data.slice(2).length
+            } chars`
+          )
+        }
+
+        // Remove 0x prefix before concatenating
+        signatureBytes = (signatureBytes + sig.data.slice(2)) as Hex
+      }
+
+      return signatureBytes
+    } catch (error) {
+      console.error('Error formatting signatures:', error)
+      throw new Error(`Failed to format signatures: ${error.message || error}`)
+    }
   }
 
   /**
