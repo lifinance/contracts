@@ -255,6 +255,14 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 // 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)
                 receiver := mload(add(protocolData, 0xa4))
             }
+            case 0xf58b6de8 {
+                // 0xf58b6de8 bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
+                receiver := mload(add(protocolData, 0xA0)) // destAddr is the receiver
+            }
+            case 0x2337e236 {
+                // 0x2337e236 createOrder(address,uint256,uint256,uint32,uint32,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0x180)) // receiver is in the OrderPayload struct at position 7
+            }
             default {
                 receiver := 0x0
             }

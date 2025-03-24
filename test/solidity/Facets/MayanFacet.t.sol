@@ -644,6 +644,26 @@ contract MayanFacetTest is TestBaseFacet {
             "parse receiver test failure for 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)"
         );
 
+        // test for 0xf58b6de8 bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
+        expectedReceiver = 0x1eB6638dE8c571c787D7bC24F98bFA735425731C;
+        protocolData = vm.parseBytes("0x12345");
+        receiver = testFacet.testParseReceiver(protocolData);
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse receiver test failure for 0xf58b6de8 bridge"
+        );
+
+        // test for 0x2337e236 createOrder(address,uint256,uint256,uint32,uint32,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+        expectedReceiver = 0x1eB6638dE8c571c787D7bC24F98bFA735425731C;
+        protocolData = vm.parseBytes("0x12345");
+        receiver = testFacet.testParseReceiver(protocolData);
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse receiver test failure for 0x2337e236 createOrder"
+        );
+
         // not matching any selector (default case) - return zero address
         protocolData = vm.parseBytes("0x99999999");
         receiver = testFacet.testParseReceiver(protocolData);
