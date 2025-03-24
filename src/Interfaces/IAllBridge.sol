@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
-/// @title AllBridge Interface
+/// @title Interface for AllBridge
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IAllBridge {
     /// @dev AllBridge Messenger Protocol Enum
     enum MessengerProtocol {

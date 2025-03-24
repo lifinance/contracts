@@ -1,7 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
-/// @custom:version 1.0.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+/// @title Interface for TransactionManager
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ITransactionManager {
     // Structs
 
