@@ -134,7 +134,7 @@ diamondUpdateFacet() {
       if [ "$FACET_CUT" != "0x" ]; then
         echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-        npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl $NETWORK)" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl $NETWORK)" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       fi
     else
       # STAGING: just deploy normally without further checks

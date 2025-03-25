@@ -387,14 +387,6 @@ const main = defineCommand({
         publicClient
       )
 
-      // LiFuelFeeCollector
-      await checkOwnership(
-        'LiFuelFeeCollector',
-        rebalanceWallet,
-        deployedContracts,
-        publicClient
-      )
-
       // Receiver
       await checkOwnership(
         'Receiver',
