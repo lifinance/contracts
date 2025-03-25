@@ -1622,6 +1622,20 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB81b36D7909C4bfC332219454b3f0331a5633533",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:37:54",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -2424,6 +2438,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6a8417a9f7B5eF19e1f0007BA3aFaF42B0Fc39d6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:40:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3534,6 +3562,20 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x56b8A6E7a8f058f74C42d26936F335fC65fe3962",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:43:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -4340,6 +4382,20 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa9347E8f6Fa500D27b0E3482525dA6b95bED1684",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 20:17:35",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -5129,6 +5185,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7a50b40dbc33BE22FBF941e4eDbC26C9838a5896",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:47:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -5934,6 +6004,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1895985Ff263B502B40f984b6976DB845658B767",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:54:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -8565,6 +8649,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD69298878d2615DF57B4FADDd402f63a96A9bFd1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 17:02:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -21697,6 +21795,20 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.3.0": [
+          {
+            "ADDRESS": "0x25A13FeE9b16114C9F281792Eed3Dfee29938365",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 19:10:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -25078,6 +25190,20 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xA16895a5be2375152c02Db599a6bB1Dd881E3342",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 17:04:44",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -27199,6 +27325,20 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x89a8f3d7F2c776022aC77E6818DefA109f9e5f25",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 19:13:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }

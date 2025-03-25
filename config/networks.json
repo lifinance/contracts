@@ -428,7 +428,7 @@
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://api.lens.matterhosted.dev/",
-    "verificationType": "blockscout",
+    "verificationType": "etherscan",
     "explorerUrl": "https://tbd.lenscan.xyz",
     "explorerApiUrl": "https://api-explorer-verify.lens.matterhosted.dev/contract_verification",
     "multicallAddress": "0x5900c97b683e69CD752aF7DC7003d69315E2a288",
