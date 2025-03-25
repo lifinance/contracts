@@ -9,7 +9,7 @@ import { CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("CelerIMFacet") {}
+    constructor() DeployScriptBase("CelerIMFacetMutable") {}
 
     error CelerImFacetImmutableIsArchived();
 
