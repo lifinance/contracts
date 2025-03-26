@@ -256,12 +256,12 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 receiver := mload(add(protocolData, 0xa4))
             }
             case 0xf58b6de8 {
-                // 0xf58b6de8 bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
-                receiver := mload(add(protocolData, 0xA0)) // destAddr is the receiver
+                // 0xf58b6de8 FastMCTP::bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
+                receiver := mload(add(protocolData, 0xc4))
             }
             case 0x2337e236 {
-                // 0x2337e236 createOrder(address,uint256,uint256,uint32,uint32,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
-                receiver := mload(add(protocolData, 0x180)) // receiver is in the OrderPayload struct at position 7
+                // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0xe4))
             }
             default {
                 receiver := 0x0
