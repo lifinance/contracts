@@ -15,34 +15,9 @@ deploySingleContract() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
-  local DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
 
   # load env variables
   source .env
-
-  # ------- SPECIAL HANDLING FOR CELERIMFACET ------
-  # check if contract is CelerIMFacet and if no diamond type was passed into this function
-  if [[ "$CONTRACT" == "CelerIMFacet" && -z "$DIAMOND_TYPE" ]]; then
-    echo ""
-    echo "The CelerIMFacet will deploy a RelayerCelerIM contract which needs a diamond address (that cannot be changed)."
-    echo "Which diamond type/address would you like to use for this?"
-    DIAMOND_TYPE=$(
-      gum choose \
-        "LiFiDiamond" \
-        "LiFiDiamondImmutable"
-    )
-
-    # make sure a meaningful value was selected
-    if [[ "$DIAMOND_TYPE" != "LiFiDiamond" && "$DIAMOND_TYPE" != "LiFiDiamondImmutable" ]]; then
-      # end script
-      if [[ -z "$EXIT_ON_ERROR" ]]; then
-        return 1
-      else
-        exit 1
-      fi
-    fi
-  fi
-  # ------------------------------------------------
 
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
@@ -149,7 +124,6 @@ deploySingleContract() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "VERSION=$VERSION"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-  echoDebug "DIAMOND_TYPE=$DIAMOND_TYPE"
   echo ""
 
   # prepare bytecode
@@ -230,6 +204,8 @@ deploySingleContract() {
       # Deploy zksync scripts using the zksync specific fork of forge
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
+      echo "FULL_SCRIPT_PATH"
+      echo $FULL_SCRIPT_PATH
       # try to execute call
       RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
     fi
@@ -344,7 +320,7 @@ deploySingleContract() {
 
   # ------- SPECIAL HANDLING FOR CELERIMFACET ------
   # get current contract version of RelayerCelerIM
-  if [[ "$CONTRACT" == "CelerIMFacet" ]]; then
+  if [[ "$CONTRACT" == "CelerIMFacetMutable" ]]; then
     # get current version of relayer
     RELAYER_VERSION=$(getCurrentContractVersion "RelayerCelerIM")
 

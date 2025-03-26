@@ -9,7 +9,7 @@ import { CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("CelerIMFacet") {}
+    constructor() DeployScriptBase("CelerIMFacetMutable") {}
 
     error CelerImFacetImmutableIsArchived();
 
@@ -19,20 +19,9 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        // check which diamond to use (from env variable)
-        string memory diamondType = vm.envString("DIAMOND_TYPE");
-        // check which kind of diamond is being deployed
-        bool deployMutable = keccak256(abi.encodePacked(diamondType)) ==
-            keccak256(abi.encodePacked("LiFiDiamond"));
-
-        // select the correct version of the CelerIM contract for deployment
-        if (deployMutable) {
-            deployed = CelerIMFacetMutable(
-                deploy(type(CelerIMFacetMutable).creationCode)
-            );
-        } else {
-            revert CelerImFacetImmutableIsArchived();
-        }
+        deployed = CelerIMFacetMutable(
+            deploy(type(CelerIMFacetMutable).creationCode)
+        );
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
@@ -66,16 +55,11 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
 
-        // check which diamond to use (from env variable)
-        string memory diamondType = vm.envString("DIAMOND_TYPE");
-        // check which kind of diamond is being deployed
-        bool deployMutable = keccak256(abi.encodePacked(diamondType)) ==
-            keccak256(abi.encodePacked("LiFiDiamond"));
-
         // get address of the correct diamond contract from network log file
-        address diamondAddress = deployMutable
-            ? _getConfigContractAddress(path, ".LiFiDiamond")
-            : _getConfigContractAddress(path, ".LiFiDiamondImmutable");
+        address diamondAddress = _getConfigContractAddress(
+            path,
+            ".LiFiDiamond"
+        );
 
         // get path of global config file
         string memory globalConfigPath = string.concat(

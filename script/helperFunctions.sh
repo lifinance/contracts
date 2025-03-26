@@ -326,11 +326,6 @@ function getContractVersionFromMasterLog() {
   local CONTRACT=$3
   local TARGET_ADDRESS=$4
 
-  # special handling for CelerIMFacet
-  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-    CONTRACT="CelerIMFacet"
-  fi
-
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
@@ -958,11 +953,6 @@ function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
 
-  #  # special handling for CelerIMFacet
-  #  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-  #    CONTRACT="CelerIMFacetBase"
-  #  fi
-
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
   local FILENAME="$CONTRACT.sol"
@@ -982,7 +972,14 @@ function getContractFilePath() {
 function getCurrentContractVersion() {
   # read function arguments into variables
   local CONTRACT="$1"
-
+  echo "CONTRACT"
+  echo $CONTRACT
+  echo "CONTRACT"
+  echo $CONTRACT
+  echo "CONTRACT"
+  echo $CONTRACT
+  echo "CONTRACT"
+  echo $CONTRACT
   # get src FILE path for contract
   local FILEPATH=$(getContractFilePath "$CONTRACT")
   wait
@@ -1874,6 +1871,8 @@ function updateAllContractsToTargetState() {
           if [[ "$CONTRACT_TYPE" == "Facet" ]]; then
             # case: facet contract
             # check if current contract is known by diamond
+            echo "here"
+            echo $CONTRACT
             CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" $CONTRACT)
 
             # check result
@@ -3183,6 +3182,9 @@ function printDeploymentsStatusV2() {
       if [ "$RETURN_CODE2" -eq 0 ]; then
         TARGET_ENTRY_2=$TARGET_VERSION_DIAMOND_IMMUTABLE
       fi
+
+      echo "here"
+      echo $CONTRACT
 
       # check if contract has entry in diamond deployment log
       LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" "$CONTRACT")
