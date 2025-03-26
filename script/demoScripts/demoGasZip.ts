@@ -25,8 +25,8 @@ const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
-  const nativeDestinationChainId = 80094 // berachain
-  const gasZipDestinationChainId = 143 // berachain - custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
+  const nativeDestinationChainId = [80094, 8453, 324] // berachain, base, zksync
+  const gasZipDestinationChainId = [143, 54, 51] // berachain, base, zksync - custom destination chain id for gas.zip - check here (https://dev.gas.zip/gas/chain-support/outbound)
 
   const { publicClient, walletAccount, lifiDiamondContract } =
     await setupEnvironment(srcChain, GAS_ZIP__FACET_ABI)
@@ -41,7 +41,7 @@ async function main() {
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = zeroAddress as `0x${string}` // native token
 
-  const amount = parseUnits('0.0005', 18) // 0.0005 * 1e18
+  const amount = parseUnits('0.001', 18) // 0.001 * 1e18
 
   console.info(`Bridge ${amount} native from ${srcChain} --> Berachain`)
   console.info(`Connected wallet address: ${signerAddress}`)
@@ -56,15 +56,20 @@ async function main() {
     referrer: zeroAddress,
     sendingAssetId: zeroAddress, // <-- native token
     receiver: NON_EVM_ADDRESS,
-    destinationChainId: nativeDestinationChainId,
+    destinationChainId: nativeDestinationChainId[0],
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
+  const dstChains = gasZipDestinationChainId.reduce(
+    (p, c) => (p << BigInt(16)) + BigInt(c),
+    BigInt(0)
+  )
+
   const gasZipData: IGasZip.GasZipDataStruct = {
     receiverAddress: userReceiver,
-    destinationChains: gasZipDestinationChainId,
+    destinationChains: dstChains,
   }
 
   // === Start bridging ===

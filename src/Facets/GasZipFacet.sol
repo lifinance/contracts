@@ -137,9 +137,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
-            // Shift destinationChains left by 8 bits and add the next chainID
+            // Shift destinationChains left by 16 bits and add the next chainID
             destinationChains =
-                (destinationChains << 8) |
+                (destinationChains << 16) |
                 uint256(_chainIds[i]);
         }
     }
