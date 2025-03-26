@@ -62,7 +62,6 @@ jobs:
           script: |
             const fs = require('fs');
 
-            // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
               reset: "\033[0m",
               red: "\033[31m",
@@ -70,7 +69,6 @@ jobs:
             };
 
             const coreDevsFile = 'sc_core_dev_members.txt';
-            // Read handles from file
             const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
             const pullNumber = process.env.PR_NUMBER;
@@ -80,48 +78,65 @@ jobs:
               return;
             }
 
-            // Fetch only the latest 100 reviews
-            const { data: reviews } = await github.rest.pulls.listReviews({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pullNumber,
-              per_page: 100, // makes sure that only the LATEST 100 items are fetched (without this flag it gets all, starting with the first items)
+            async function getAllReviews(github, owner, repo, pull_number) {
+              let page = 1;
+              let allReviews = [];
+
+              while (true) {
+                const { data: reviews } = await github.rest.pulls.listReviews({
+                  owner,
+                  repo,
+                  pull_number,
+                  per_page: 100,
+                  page,
+                  headers: {
+                    'Cache-Control': 'no-cache'
+                  }
+                });
+
+                if (reviews.length === 0) break;
+
+                allReviews = [...allReviews, ...reviews];
+                page++;
+              }
+
+              return allReviews;
+            }
+
+            const allReviews = await getAllReviews(github, context.repo.owner, context.repo.repo, pullNumber);
+
+            if (!allReviews.length) {
+              console.log(`${colors.red}No reviews found.${colors.reset}`);
+              core.setFailed("Required approval is missing.");
+              return;
+            }
+
+            // Keep only the latest review per user
+            const latestReviews = {};
+            allReviews.forEach(review => {
+              latestReviews[review.user.login] = review;
             });
 
-            // make sure that reviews are available
-            if(!reviews || reviews.length === 0) {
-              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-              return
+            // Get final list of approvals
+            const approvedReviews = Object.values(latestReviews).filter(review =>
+              review.state === "APPROVED" && !review.dismissed_at
+            );
+
+            if (!approvedReviews.length) {
+              console.log(`${colors.red}No valid approvals found.${colors.reset}`);
+              core.setFailed("Required approval is missing.");
+              return;
             }
 
-            // Filter to only include reviews that have "APPROVED" status
-            console.log(JSON.stringify(reviews,null,2));
-            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
-
-            if(!approvedReviews.length) {
-              console.log(`${colors.red}Could not find any reviews with approval.${colors.reset}`);
-              console.log(`${colors.red}Cannot continue. Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-              return
-            }
-
-            // extract the git login handles of all reviewers that approved this PR
+            // Get approving users
             const reviewerHandles = approvedReviews.map(review => review.user.login);
 
-            if(approvedReviews.length === 0)
-              console.log(`${colors.red}This PR has no approvals${colors.reset}`);
-            else
-              console.log(`This PR has been approved by the following git members: ${reviewerHandles}`);
+            console.log(`This PR has been approved by: ${reviewerHandles}`);
 
-            // check if at least one of these reviewers is member in smart-contract-core group
-            if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
-              console.log(`${colors.green}The current PR is approved by a member of the smart-contract-core group.${colors.reset}`);
-              console.log(`${colors.green}Check passed.${colors.reset}`);
+            if (reviewerHandles.some(handle => coreDevs.includes(handle))) {
+              console.log(`${colors.green}PR approved by a Smart Contract Core Dev.${colors.reset}`);
               core.setOutput('approved', 'true');
-              } else {
-              console.log(`${colors.red}The PR requires a missing approval by a member of the smart-contract-core group (https://github.com/orgs/lifinance/teams/smart-contract-core).${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
+            } else {
+              console.log(`${colors.red}Approval from a core dev is missing.${colors.reset}`);
+              core.setFailed("Required approval is missing.");
             }

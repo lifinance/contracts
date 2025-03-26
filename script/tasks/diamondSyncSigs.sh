@@ -86,7 +86,7 @@ function diamondSyncSigs {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       # try to run the typescript script (will fail if the network is not yet supported by viem)
-      npx tsx ./script/tasks/diamondSyncSigs.ts --project ../../tsconfig.json --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --environment "$ENVIRONMENT"
+      bun ./script/tasks/diamondSyncSigs.ts --project ../../tsconfig.json --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --environment "$ENVIRONMENT"
       RETURN_CODE=$?
 
       # check the typescript script failed

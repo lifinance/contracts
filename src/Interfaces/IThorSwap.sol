@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
-/// @title ThorSwap Interface
+/// @title Interface for Thorswap
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IThorSwap {
     // Thorchain router
     function depositWithExpiry(
