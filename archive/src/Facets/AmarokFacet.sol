@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// solhint-disable immutable-vars-naming
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
