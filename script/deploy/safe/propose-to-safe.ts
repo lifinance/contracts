@@ -65,7 +65,7 @@ const main = defineCommand({
     // Initialize Safe client
     const { safe, chain, safeAddress } = await initializeSafeClient(
       args.network,
-      getPrivateKey(args.privateKey),
+      getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey),
       args.rpcUrl
     )
 
