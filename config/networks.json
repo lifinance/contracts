@@ -432,9 +432,9 @@
     "explorerUrl": "https://tbd.lenscan.xyz",
     "explorerApiUrl": "https://api-explorer-verify.lens.matterhosted.dev/contract_verification",
     "multicallAddress": "0x5900c97b683e69CD752aF7DC7003d69315E2a288",
-    "safeApiUrl": "",
-    "safeAddress": "",
-    "safeWebUrl": "",
+    "safeApiUrl": "http://api.none.com",
+    "safeAddress": "0x0000000000000000000000000000000000000000",
+    "safeWebUrl": "https://safe.none.com",
     "gasZipChainId": 11111,
     "isZkEVM": true,
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
