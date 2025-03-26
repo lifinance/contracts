@@ -50,7 +50,7 @@ async function main() {
   } = await setupEnvironment(srcChain, CELER_IM_FACET_ABI)
   const signerAddress = walletAccount.address
 
-  const amount = parseUnits('0.0005', 18) // 0.0005 * 1e{source token decimals}
+  const amount = parseUnits('0.0001', 18) // 0.0005 * 1e{source token decimals}
 
   console.info(`Bridge ${amount} native token from ${srcChain} --> Polygon`)
   console.info(`Connected wallet address: ${signerAddress}`)
@@ -72,14 +72,14 @@ async function main() {
     hasDestinationCall: false,
   }
 
-  const messageBusFee = 1e17
+  const messageBusFee = parseUnits('0.0001', 18) // 0.0005 * 1e{source token decimals}
 
   const celerIMData: CelerIM.CelerIMDataStruct = {
     maxSlippage: 5000,
     nonce: 1,
     callTo: zeroAddress,
     callData: '0x',
-    bridgeType: 0, // MsgDataTypes.BridgeSendType.Liquidity
+    bridgeType: 1, // MsgDataTypes.BridgeSendType.Liquidity
     messageBusFee: messageBusFee,
   }
 
@@ -88,7 +88,7 @@ async function main() {
     () =>
       lifiDiamondContract.write.startBridgeTokensViaCelerIM(
         [bridgeData, celerIMData],
-        { value: messageBusFee }
+        { value: amount + BigInt(messageBusFee) }
       ),
     'Starting bridge tokens via CelerIM',
     publicClient,

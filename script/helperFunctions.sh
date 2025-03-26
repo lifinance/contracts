@@ -972,14 +972,7 @@ function getContractFilePath() {
 function getCurrentContractVersion() {
   # read function arguments into variables
   local CONTRACT="$1"
-  echo "CONTRACT"
-  echo $CONTRACT
-  echo "CONTRACT"
-  echo $CONTRACT
-  echo "CONTRACT"
-  echo $CONTRACT
-  echo "CONTRACT"
-  echo $CONTRACT
+
   # get src FILE path for contract
   local FILEPATH=$(getContractFilePath "$CONTRACT")
   wait

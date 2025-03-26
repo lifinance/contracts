@@ -186,7 +186,7 @@ abstract contract CelerIMFacetBase is
         CelerIM.CelerIMData calldata _celerIMData
     ) private {
         // Assuming messageBusFee is pre-calculated off-chain and available in _celerIMData
-        // Determine correct native asset amount to be forwarded (if so) and send funds to RELAYER
+        // Determine correct native asset amount to be forwarded (if so) and send funds to relayer
         uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
             ? _bridgeData.minAmount
             : 0;
@@ -199,22 +199,17 @@ abstract contract CelerIMFacetBase is
                 _celerIMData
             );
         } else {
-            // Case 'yes': Bridge + Destination call - Send to RELAYER
+            // Case 'yes': Bridge + Destination call - Send to relayer
 
             // save address of original recipient
             address receiver = _bridgeData.receiver;
 
-            if (
-                relayerByZkLikeChainId[_bridgeData.destinationChainId] !=
-                address(0)
-            ) {
-                receiver = relayerByZkLikeChainId[
-                    _bridgeData.destinationChainId
-                ];
-            }
-
             // Set relayer as a receiver
-            _bridgeData.receiver = address(RELAYER);
+            _bridgeData.receiver = relayerByZkLikeChainId[
+                _bridgeData.destinationChainId
+            ] != address(0)
+                ? relayerByZkLikeChainId[_bridgeData.destinationChainId]
+                : address(RELAYER);
 
             // send token transfer
             (bytes32 transferId, address bridgeAddress) = RELAYER

@@ -404,13 +404,6 @@ deploySingleContract() {
 
     # save contract in network-specific deployment files
     saveContract "$NETWORK" "$RELAYER_NAME" "$RELAYER_ADDRESS" "$FILE_SUFFIX"
-
-    # update CONTRACT variable so that verification and logging is done with correct contract names
-    if [[ "$DIAMOND_TYPE" == "LiFiDiamond" ]]; then
-      CONTRACT="CelerIMFacetMutable"
-    else
-      CONTRACT="CelerIMFacetImmutable"
-    fi
   fi
   # ------------------------------------------------
 
