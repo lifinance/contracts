@@ -403,7 +403,7 @@ contract GasZipFacetTest is TestBaseFacet {
         chainIds[0] = 51;
         chainIds[1] = 52;
 
-        assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 13108);
+        assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 3342388);
 
         // case 3
         chainIds = new uint8[](5);
@@ -413,9 +413,12 @@ contract GasZipFacetTest is TestBaseFacet {
         chainIds[3] = 14; // BSC
         chainIds[4] = 59; // Linea
 
-        assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 65336774203);
+        assertEq(
+            gasZipFacet.getDestinationChainsValue(chainIds),
+            276716361166703427643
+        );
 
-        chainIds = new uint8[](28);
+        chainIds = new uint8[](16);
         chainIds[0] = 255; // Chain ID 255
         chainIds[1] = 57; // Chain ID 57
         chainIds[2] = 62; // Chain ID 62
@@ -432,22 +435,10 @@ contract GasZipFacetTest is TestBaseFacet {
         chainIds[13] = 59; // Chain ID 59
         chainIds[14] = 13; // Chain ID 13
         chainIds[15] = 30; // Chain ID 30
-        chainIds[16] = 73; // Chain ID 73
-        chainIds[17] = 28; // Chain ID 28
-        chainIds[18] = 29; // Chain ID 29
-        chainIds[19] = 55; // Chain ID 55
-        chainIds[20] = 17; // Chain ID 17
-        chainIds[21] = 52; // Chain ID 52
-        chainIds[22] = 254; // Chain ID 254
-        chainIds[23] = 41; // Chain ID 41
-        chainIds[24] = 246; // Chain ID 246
-        chainIds[25] = 249; // Chain ID 249
-        chainIds[26] = 146; // Chain ID 146
-        chainIds[27] = 51; // Chain ID 51
 
         assertEq(
             gasZipFacet.getDestinationChainsValue(chainIds),
-            26878182541072503599461683703464409408182428609391216984945776497203
+            450547538260953446430386195920619374874770272090431965477324569820816801822
         );
     }
 
