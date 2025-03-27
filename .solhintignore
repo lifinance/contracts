@@ -1,10 +1,9 @@
 archive/
-export/
-deployments/
 artifacts/
 cache/
 coverage/
+deployments/
+export/
+lib/
 node_modules/
 typechain/
-lib/
-archive/
