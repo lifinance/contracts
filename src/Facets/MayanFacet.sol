@@ -13,7 +13,7 @@ import { IMayan } from "../Interfaces/IMayan.sol";
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -254,6 +254,14 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             case 0x2072197f {
                 // 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)
                 receiver := mload(add(protocolData, 0xa4))
+            }
+            case 0xf58b6de8 {
+                // 0xf58b6de8 FastMCTP::bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
+                receiver := mload(add(protocolData, 0xc4))
+            }
+            case 0x2337e236 {
+                // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0xe4))
             }
             default {
                 receiver := 0x0
