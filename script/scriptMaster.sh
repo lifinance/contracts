@@ -204,8 +204,6 @@ scriptMaster() {
       )
     fi
 
-    echo "here2"
-    echo $CONTRACT
     # get current contract version
     local VERSION=$(getCurrentContractVersion "$CONTRACT")
 
@@ -365,9 +363,6 @@ scriptMaster() {
       echo ""
       echo "[info] selected contract: $SELECTED_CONTRACT"
 
-                      echo "here2"
-            echo $CONTRACT
-
       # get current contract version
       CURRENT_VERSION=$(getCurrentContractVersion "$SELECTED_CONTRACT")
 
@@ -415,9 +410,6 @@ scriptMaster() {
       echo ""
       echo "[info] selected contract: $SELECTED_CONTRACT"
 
-
-                echo "here3"
-            echo $CONTRACT
       # get current contract version
       CURRENT_VERSION=$(getCurrentContractVersion "$SELECTED_CONTRACT")
 

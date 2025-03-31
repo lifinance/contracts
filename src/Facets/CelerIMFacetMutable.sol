@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { CelerIMFacetBase, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "../Helpers/CelerIMFacetBase.sol";
+import { CelerIMFacetBase, IMessageBus } from "../Helpers/CelerIMFacetBase.sol";
 
 /// @title CelerIMFacetMutable
 /// @author LI.FI (https://li.fi)
@@ -22,4 +22,9 @@ contract CelerIMFacetMutable is CelerIMFacetBase {
         address _diamondAddress,
         address _cfUSDC
     ) CelerIMFacetBase(_messageBus, _relayerOwner, _diamondAddress, _cfUSDC) {}
+
+    /// @dev Overrides the storage namespace for isolated storage
+    function _namespace() internal pure override returns (bytes32) {
+        return keccak256("com.lifi.facets.celerim.mutable");
+    }
 }

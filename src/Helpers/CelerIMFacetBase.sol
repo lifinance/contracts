@@ -4,17 +4,15 @@ pragma solidity ^0.8.17;
 
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { ICelerToken } from "../Interfaces/ICelerToken.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InformationMismatch, AlreadyInitialized, NotInitialized, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
-
-interface CelerToken {
-    function canonical() external returns (address);
-}
 
 interface CelerIM {
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
@@ -48,7 +46,6 @@ abstract contract CelerIMFacetBase is
     SwapperV2,
     Validatable
 {
-    /// Storage ///
     /// @dev The contract address of the cBridge Message Bus
     IMessageBus private immutable CBRIDGE_MESSAGE_BUS;
 
@@ -58,8 +55,27 @@ abstract contract CelerIMFacetBase is
     /// @dev The contract address of the Celer Flow USDC
     address private immutable CF_USDC;
 
-    /// @dev {TODO add desciption}
-    mapping(uint256 => address) private relayerByZkLikeChainId;
+    /// Types ///
+
+    struct Storage {
+        /// @dev Mapping of zk-like chain IDs to their designated relayer addresses. This mapping is used exclusively for zk-like chains
+        mapping(uint256 => address) relayerByZkLikeChainId;
+        bool initialized;
+    }
+
+    struct ZkLikeChainIdRelayerConfig {
+        uint256 chainId;
+        address relayer;
+    }
+
+    /// Events ///
+
+    event CelerIMInitialized(
+        ZkLikeChainIdRelayerConfig[] zkLikeChainIdRelayerConfigs
+    );
+    event CelerIMRelayerConfig(
+        ZkLikeChainIdRelayerConfig[] zkLikeChainIdRelayerConfigs
+    );
 
     /// Constructor ///
 
@@ -74,7 +90,7 @@ abstract contract CelerIMFacetBase is
         address _diamondAddress,
         address _cfUSDC
     ) {
-        // deploy RELAYERCelerIM
+        // deploy RelayerCelerIM
         RELAYER = new RelayerCelerIM(
             address(_messageBus),
             _relayerOwner,
@@ -84,6 +100,34 @@ abstract contract CelerIMFacetBase is
         // store arguments in variables
         CBRIDGE_MESSAGE_BUS = _messageBus;
         CF_USDC = _cfUSDC;
+    }
+
+    /// Init ///
+
+    /// @notice Initialize local variables for the CelerIM Facet
+    /// @param configs Bridge configuration data
+    function initCelerIM(
+        ZkLikeChainIdRelayerConfig[] calldata configs
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+        if (configs.length == 0) revert InvalidConfig();
+
+        Storage storage sm = getStorage();
+
+        if (sm.initialized) {
+            revert AlreadyInitialized();
+        }
+
+        for (uint256 i = 0; i < configs.length; i++) {
+            if (configs[i].chainId == 0 || configs[i].relayer == address(0)) {
+                revert InvalidConfig();
+            }
+            sm.relayerByZkLikeChainId[configs[i].chainId] = configs[i].relayer;
+        }
+
+        sm.initialized = true;
+
+        emit CelerIMInitialized(configs);
     }
 
     /// External Methods ///
@@ -176,6 +220,37 @@ abstract contract CelerIMFacetBase is
         _startBridge(_bridgeData, _celerIMData);
     }
 
+    /// Public Methods ///
+
+    /**
+     * @notice Updates the relayer addresses for specified chain IDs.
+     * @dev Updates the relayerByZkLikeChainId mapping using provided configuration objects. If no specific relayer is set for a chain, the default RELAYER is used during bridging.
+     * @param configs An array of configuration objects containing a chainId and a new relayer address.
+     */
+    function updateRelayerConfigForZkLikeChains(
+        ZkLikeChainIdRelayerConfig[] calldata configs
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage sm = getStorage();
+
+        if (!sm.initialized) {
+            revert NotInitialized();
+        }
+
+        if (configs.length == 0) revert InvalidConfig();
+
+        for (uint256 i = 0; i < configs.length; i++) {
+            if (configs[i].chainId == 0) {
+                // allow newRelayer to be address(0) in case of reset
+                revert InvalidConfig();
+            }
+            sm.relayerByZkLikeChainId[configs[i].chainId] = configs[i].relayer;
+        }
+
+        emit CelerIMRelayerConfig(configs);
+    }
+
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CBridge
@@ -204,11 +279,13 @@ abstract contract CelerIMFacetBase is
             // save address of original recipient
             address receiver = _bridgeData.receiver;
 
+            Storage storage sm = getStorage();
+
             // Set relayer as a receiver
-            _bridgeData.receiver = relayerByZkLikeChainId[
+            _bridgeData.receiver = sm.relayerByZkLikeChainId[
                 _bridgeData.destinationChainId
             ] != address(0)
-                ? relayerByZkLikeChainId[_bridgeData.destinationChainId]
+                ? sm.relayerByZkLikeChainId[_bridgeData.destinationChainId]
                 : address(RELAYER);
 
             // send token transfer
@@ -237,15 +314,15 @@ abstract contract CelerIMFacetBase is
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @dev Get right asset to transfer to RELAYER.
+    /// @dev Get right asset to transfer to relayer.
     /// @param _sendingAssetId The address of asset to bridge.
-    /// @return _asset The address of asset to transfer to RELAYER.
+    /// @return _asset The address of asset to transfer to relayer.
     function _getRightAsset(
         address _sendingAssetId
     ) private returns (IERC20 _asset) {
         if (_sendingAssetId == CF_USDC) {
             // special case for cfUSDC token
-            _asset = IERC20(CelerToken(_sendingAssetId).canonical());
+            _asset = IERC20(ICelerToken(_sendingAssetId).canonical());
         } else {
             // any other ERC20 token
             _asset = IERC20(_sendingAssetId);
@@ -261,6 +338,19 @@ abstract contract CelerIMFacetBase is
             _bridgeData.hasDestinationCall
         ) {
             revert InformationMismatch();
+        }
+    }
+
+    /// @dev Returns a unique namespace identifier as a bytes32 value for isolating this facet's storage.
+    /// Derived contracts must override this function to provide their own unique storage namespace.
+    function _namespace() internal pure virtual returns (bytes32);
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = _namespace();
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
         }
     }
 }

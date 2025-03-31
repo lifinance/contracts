@@ -1864,8 +1864,6 @@ function updateAllContractsToTargetState() {
           if [[ "$CONTRACT_TYPE" == "Facet" ]]; then
             # case: facet contract
             # check if current contract is known by diamond
-            echo "here"
-            echo $CONTRACT
             CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" $CONTRACT)
 
             # check result
@@ -3175,9 +3173,6 @@ function printDeploymentsStatusV2() {
       if [ "$RETURN_CODE2" -eq 0 ]; then
         TARGET_ENTRY_2=$TARGET_VERSION_DIAMOND_IMMUTABLE
       fi
-
-      echo "here"
-      echo $CONTRACT
 
       # check if contract has entry in diamond deployment log
       LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" "$CONTRACT")

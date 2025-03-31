@@ -125,6 +125,25 @@ contract DiamondTest is Test {
         _addFacet(_diamond, _facet, _selectors, _init, _initCallData);
     }
 
+    function removeFacet(
+        LiFiDiamond _diamond,
+        bytes4[] memory _selectors
+    ) internal {
+        vm.startPrank(OwnershipFacet(address(_diamond)).owner());
+        cut.push(
+            LibDiamond.FacetCut({
+                facetAddress: address(0),
+                action: LibDiamond.FacetCutAction.Remove,
+                functionSelectors: _selectors
+            })
+        );
+
+        DiamondCutFacet(address(_diamond)).diamondCut(cut, address(0), "");
+
+        delete cut;
+        vm.stopPrank();
+    }
+
     function _addFacet(
         LiFiDiamond _diamond,
         address _facet,
