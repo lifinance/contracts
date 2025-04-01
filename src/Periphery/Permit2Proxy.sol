@@ -100,6 +100,15 @@ contract Permit2Proxy is WithdrawablePeriphery {
             ) {
                 revert(reason);
             }
+        } catch (bytes memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                assembly {
+                    revert(add(reason, 32), mload(reason))
+                }
+            }
         }
 
         // deposit assets

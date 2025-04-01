@@ -1,12 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { TestBase, ERC20 } from "../utils/TestBase.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+
+contract MockPermitToken is ERC20, ERC20Permit {
+    constructor(
+        string memory name,
+        string memory symbol
+    ) ERC20(name, symbol) ERC20Permit(name) {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    // Intentionally revert with custom error (not catchable by `Error(string)`)
+    function permit(
+        address,
+        address,
+        uint256,
+        uint256,
+        uint8,
+        bytes32,
+        bytes32
+    ) public pure override {
+        revert CustomPermitError();
+    }
+
+    error CustomPermitError();
+}
 
 contract Permit2ProxyTest is TestBase {
     using PermitHash for ISignatureTransfer.PermitTransferFrom;
@@ -540,6 +567,30 @@ contract Permit2ProxyTest is TestBase {
         );
 
         return testdata;
+    }
+
+    function test_RevertOnCustomErrorAndAllowance() public {
+        // deploy a mock ERC20Permit token that reverts with custom error on permit
+        MockPermitToken token = new MockPermitToken("Mock", "MCK");
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+
+        bytes memory callData = _getCalldataForBridging();
+
+        // we don't care about the signature since permit will revert anyway
+        vm.expectRevert(MockPermitToken.CustomPermitError.selector);
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
     }
 
     /// Helper Functions ///
