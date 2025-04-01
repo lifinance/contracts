@@ -47,7 +47,12 @@ contract DexManagerFacet {
             if (dex == address(this)) {
                 revert CannotAuthoriseSelf();
             }
-            if (LibAllowList.contractIsAllowed(dex)) continue;
+            if (LibAllowList.contractIsAllowed(dex)) {
+                unchecked {
+                    ++i;
+                }
+                continue;
+            }
             LibAllowList.addAllowedContract(dex);
             emit DexAdded(dex);
             unchecked {
