@@ -35,7 +35,16 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     error UnknownDeBridgeChain();
 
     // Events
+    event DeBridgeInitialized(DeBridgeDlnFacet.ChainIdConfig[] chainIdConfigs);
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
+    event DlnOrderCreated(bytes32 indexed orderId);
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes receiver
+    );
+
+    bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
     function setUp() public {
         customBlockNumberForForking = 19279222;
@@ -133,6 +142,34 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         }
     }
 
+    function test_Initialize() public {
+        vm.store(
+            address(deBridgeDlnFacet),
+            bytes32(uint256(namespace) + 1),
+            bytes32(uint256(0))
+        ); // setting initialize var in storage
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Initialize
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/dln.json"
+        );
+        string memory json = vm.readFile(path);
+        bytes memory rawChains = json.parseRaw(".mappings");
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = abi.decode(
+            rawChains,
+            (DeBridgeDlnFacet.ChainIdConfig[])
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit DeBridgeInitialized(cidCfg);
+        deBridgeDlnFacet.initDeBridgeDln(cidCfg);
+
+        vm.stopPrank();
+    }
+
     function test_CanSwapAndBridgeTokensFromNative()
         public
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
@@ -194,6 +231,10 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
         //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false); // we don't care about orderId
+        emit DlnOrderCreated(
+            0x0000000000000000000000000000000000000000000000000000000000000123
+        );
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -281,6 +322,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
         //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false); // we don't care about orderId
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            validDeBridgeDlnData.receiver
+        );
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -439,8 +486,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     }
 
     function test_CanGetStorage() public {
-        bytes32 namespace = keccak256("com.lifi.facets.debridgedln");
-
         uint256 chainIdKey = 1;
         uint256 expectedValue = 42;
 
