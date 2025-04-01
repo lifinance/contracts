@@ -19,7 +19,7 @@ contract MockPermitToken is ERC20, ERC20Permit {
         _mint(to, amount);
     }
 
-    // Intentionally revert with custom error (not catchable by `Error(string)`)
+    // intentionally revert with custom error (not catchable by `Error(string)` only catchable by Error(bytes))
     function permit(
         address,
         address,
