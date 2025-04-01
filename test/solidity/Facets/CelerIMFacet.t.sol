@@ -834,10 +834,7 @@ contract CelerIMFacetTest is TestBaseFacet {
 
         // expect revert because the token charges a fee, so the received amount will be less than minAmount
         vm.expectRevert(abi.encodeWithSelector(InvalidAmount.selector));
-        celerIMFacet.startBridgeTokensViaCelerIM{ value: addToMessageValue }(
-            bridgeData,
-            celerIMData
-        );
+        initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
     }
@@ -845,8 +842,6 @@ contract CelerIMFacetTest is TestBaseFacet {
     function testRevert_RevertIfAmountDoesntEqualMinimumAmount_Swap() public {
         // deploy the fee-charging mock token
         MockFeeToken feeToken = new MockFeeToken();
-        // mint tokens to USER_SENDER
-        feeToken.mint(USER_SENDER, 1000e18);
 
         // set bridgeData to use the fee token and define a minAmount
         bridgeData.sendingAssetId = address(feeToken);
@@ -866,7 +861,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         path[0] = ADDRESS_DAI;
         path[1] = address(feeToken);
 
-        uint256 amountOut = 10e18;
+        uint256 amountOut = 100e18;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
@@ -875,8 +870,8 @@ contract CelerIMFacetTest is TestBaseFacet {
             LibSwap.SwapData({
                 callTo: address(uniswap),
                 approveTo: address(uniswap),
-                sendingAssetId: address(feeToken),
-                receivingAssetId: ADDRESS_DAI,
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(feeToken),
                 fromAmount: amountIn,
                 callData: abi.encodeWithSelector(
                     uniswap.swapExactTokensForTokens.selector,
@@ -894,11 +889,9 @@ contract CelerIMFacetTest is TestBaseFacet {
         // approve the facet contract to spend the dai token
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        // Expect revert because the fee token charges a fee, so the actual amount will be less than minAmount
+        // expect revert because the fee token charges a fee, so the actual amount will be less than minAmount
         vm.expectRevert(abi.encodeWithSelector(InvalidAmount.selector));
-        celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
-            value: addToMessageValue
-        }(bridgeData, swapData, celerIMData);
+        initiateSwapAndBridgeTxWithFacet(false);
 
         vm.stopPrank();
     }
