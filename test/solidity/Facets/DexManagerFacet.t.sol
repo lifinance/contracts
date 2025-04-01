@@ -21,6 +21,13 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
     Foo internal c2;
     Foo internal c3;
 
+    event DexAdded(address indexed dexAddress);
+    event DexRemoved(address indexed dexAddress);
+    event FunctionSignatureApprovalChanged(
+        bytes4 indexed functionSignature,
+        bool indexed approved
+    );
+
     function setUp() public {
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         dexMgr = new DexManagerFacet();
@@ -69,7 +76,14 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
     function test_SucceedsIfOwnerRemovesDex() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
+        vm.expectEmit(true, true, true, true);
+        emit DexAdded(address(c1));
+
         dexMgr.addDex(address(c1));
+
+        vm.expectEmit(true, true, true, true);
+        emit DexRemoved(address(c1));
+
         dexMgr.removeDex(address(c1));
 
         vm.stopPrank();
@@ -120,6 +134,9 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 signature = hex"faceface";
+
+        vm.expectEmit(true, true, true, true);
+        emit FunctionSignatureApprovalChanged(signature, true);
         dexMgr.setFunctionApprovalBySignature(signature, true);
         assertTrue(dexMgr.isFunctionApproved(signature));
 
