@@ -6,6 +6,7 @@ import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/E
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "../Interfaces/IVelodromeV2Pool.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -202,6 +203,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
+        console2.log("balanceOutFinal:", balanceOutFinal);
+        console2.log("balanceOutInitial:", balanceOutInitial);
+        console2.log("amountOutMin:", amountOutMin);
         if (balanceOutFinal < balanceOutInitial + amountOutMin)
             revert MinimalOutputBalanceViolation(
                 balanceOutFinal - balanceOutInitial
@@ -766,6 +770,22 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint24 fee = stream.readUint24(); // pool fee in 1/1_000_000
         bool stable = stream.readUint8() > 0;
 
+        console2.log("pool");
+        console2.log(pool);
+        console2.log("direction");
+        console2.log(direction);
+        console2.log("to");
+        console2.log(to);
+        console2.log("fee");
+        console2.log(fee);
+        console2.log("stable");
+        console2.log(stable);
+        // Transfer the input tokens to the pool
+        if (from == address(this)) {
+            IERC20(tokenIn).safeTransfer(pool, amountIn);
+        } else if (from == msg.sender) {
+            IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+        }
         // Apply fee: effective amount used for swap
         uint256 amountInAfterFee = (amountIn * (1_000_000 - fee)) / 1_000_000;
 
@@ -864,8 +884,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                 amount1Out = 0;
             }
         }
-
+        console2.log("amount0Out");
+        console2.log(amount0Out);
+        console2.log("amount1Out");
+        console2.log(amount1Out);
+        console2.log("to");
+        console2.log(to);
         IVelodromeV2Pool(pool).swap(amount0Out, amount1Out, to, new bytes(0));
+        console2.log("111");
     }
 }
 
