@@ -5,7 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { TestBase } from "../utils/TestBase.sol";
-import { console } from "forge-std/console.sol";
+import { console2 } from "forge-std/console2.sol";
 
 contract LiFiDexAggregator is TestBase {
     IVelodromeV2Router internal velodromeV2Router =
@@ -35,63 +35,28 @@ contract LiFiDexAggregator is TestBase {
 
     function test_CanSwapViaVelodromeV2() public {
         // check pool
-        // address pool = velodromeV2Router.swapExactTokensForTokens(address(USDC_TOKEN), address(STG_TOKEN), false, velodromeV2FactoryRegistry);
+        IVelodromeV2Router.Route[]
+            memory routes = new IVelodromeV2Router.Route[](1);
+
+        routes[0] = IVelodromeV2Router.Route({
+            from: address(USDC_TOKEN),
+            to: address(STG_TOKEN),
+            stable: false,
+            factory: address(velodromeV2FactoryRegistry)
+        });
+
+        uint256[] memory amounts = velodromeV2Router.getAmountsOut(
+            1_000_000, // amountIn
+            routes
+        );
+
+        console2.log("amounts[0]");
+        console2.log(amounts[0]);
+        console2.log("amounts[1]");
+        console2.log(amounts[1]);
+
         // address pool = velodromeV2Router.poolFor(address(USDC_TOKEN), address(STG_TOKEN), false, velodromeV2FactoryRegistry);
         // console.log("pool");
         // console.log(pool);
-        // (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool).getReserves();
-        // console.log("reserve0");
-        // console.log(reserve0);
-        // console.log("reserve1");
-        // console.log(reserve1);
-        // IVelodromeV2Pool(pool).swap(amount0Out, amount1Out, to, new bytes(0));
-        // --- Construct a route that triggers a VelodromeV2 swap via processUserERC20 ---
-        // The expected route layout:
-        //   [ command code (uint8) ]
-        //   [ token address (20 bytes) ] -- token to pull from user (tokenIn)
-        //   [ number of pools (uint8) ]
-        //   For each pool:
-        //       [ share (uint16) ]
-        //       [ poolType (uint8) ]  -> we set to 6 for VelodromeV2
-        //       [ pool address (20 bytes) ]
-        //       [ direction (uint8) ] -> 0 means token0 in, token1 out
-        //       [ recipient address (20 bytes) ]
-        //       [ fee (uint24) ]
-        //       [ stable flag (uint8) ] -> 0 for volatile, 1 for stable; here we choose 0.
-        //
-        // we use command code 2 to invoke processUserERC20.
-        // bytes memory route = abi.encodePacked(
-        //     uint8(2),                // command code: processUserERC20
-        //     address(tokenIn),        // token address (tokenIn)
-        //     uint8(1),                // number of pools = 1
-        //     uint16(type(uint16).max),// share = 65535 (100%)
-        //     uint8(6),                // poolType = 6 (VelodromeV2)
-        //     address(mockPool),       // pool address
-        //     uint8(0),                // direction: 0 = token0 in, token1 out
-        //     recipient,               // recipient address for output token
-        //     uint24(3000),            // fee: 3000 (0.3% fee)
-        //     uint8(0)                 // stable flag: 0 = volatile swap
-        // );
-        // // User-supplied amount: 1e18 tokenIn.
-        // uint256 amountIn = 1e18;
-        // // We set amountOutMin = 0 for the test.
-        // uint256 amountOutMin = 0;
-        // // Have the user approve the aggregator to spend tokenIn.
-        // vm.prank(USER_SENDER);
-        // tokenIn.approve(address(liFiDEXAggregator), type(uint256).max);
-        // // The aggregator will pull tokens from msg.sender. So we impersonate the user.
-        // vm.prank(USER_SENDER);
-        // uint256 amountOut = liFiDEXAggregator.processRoute(
-        //     address(tokenIn),
-        //     amountIn,
-        //     address(tokenOut),
-        //     amountOutMin,
-        //     recipient,
-        //     route
-        // );
-        // // Check that some output was received by the recipient.
-        // uint256 recipientBalance = tokenOut.balanceOf(recipient);
-        // assertGt(amountOut, 0);
-        // assertEq(recipientBalance, amountOut);
     }
 }
