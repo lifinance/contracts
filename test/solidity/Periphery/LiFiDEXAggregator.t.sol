@@ -3,32 +3,19 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
-import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { TestBase } from "../utils/TestBase.sol";
-import { console2 } from "forge-std/console2.sol";
-
-interface IUniswapV2Pair {
-    function getReserves()
-        external
-        view
-        returns (
-            uint112 reserve0,
-            uint112 reserve1,
-            uint32 blockTimestampLast
-        );
-}
 
 contract LiFiDexAggregator is TestBase {
-    IVelodromeV2Router internal velodromeV2Router =
+    IVelodromeV2Router internal constant VELODROME_V2_ROUTER =
         IVelodromeV2Router(0xa062aE8A9c5e11aaA026fc2670B0D65cCc8B2858); // optimism router
-    address internal velodromeV2FactoryRegistry =
+    address internal constant VELODROME_V2_FACTORY_REGISTRY =
         0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a;
-    IERC20 internal USDC_TOKEN =
+    IERC20 internal constant USDC_TOKEN =
         IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85);
-    IERC20 internal STG_TOKEN =
+    IERC20 internal constant STG_TOKEN =
         IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97);
-    IERC20 internal USDC_E_TOKEN =
+    IERC20 internal constant USDC_E_TOKEN =
         IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607);
 
     LiFiDEXAggregator internal liFiDEXAggregator;
@@ -49,7 +36,7 @@ contract LiFiDexAggregator is TestBase {
 
     function test_CanSwapViaVelodromeV2_NoStable() public {
         vm.startPrank(USER_SENDER);
-        uint256 amountIn = 1_000_000;
+        uint256 amountIn = 1_000 * 10 ** 6; // USDC has 6 decimals
 
         // get expected amounts out from the router.
         IVelodromeV2Router.Route[]
@@ -58,27 +45,23 @@ contract LiFiDexAggregator is TestBase {
             from: address(USDC_TOKEN),
             to: address(STG_TOKEN),
             stable: false,
-            factory: address(velodromeV2FactoryRegistry)
+            factory: address(VELODROME_V2_FACTORY_REGISTRY)
         });
-        uint256[] memory amounts = velodromeV2Router.getAmountsOut(
+        uint256[] memory amounts = VELODROME_V2_ROUTER.getAmountsOut(
             amountIn,
             routes
         );
-        console2.log("amounts[0]", amounts[0]);
-        console2.log("amounts[1]", amounts[1]);
+        emit log_named_uint("amounts[0]", amounts[0]);
+        emit log_named_uint("amounts[1]", amounts[1]);
 
         // get the pool address using the router's poolFor function.
-        address pool = velodromeV2Router.poolFor(
+        address pool = VELODROME_V2_ROUTER.poolFor(
             address(USDC_TOKEN),
             address(STG_TOKEN),
             false,
-            velodromeV2FactoryRegistry
+            VELODROME_V2_FACTORY_REGISTRY
         );
-        console2.log("Pool address:", uint256(uint160(pool)));
-
-        // Retrieve reserves from the pool
-        // (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast) = IVelodromeV2Pool(pool).getReserves();
-        // console2.log("Reserves:", reserve0, reserve1, blockTimestampLast);
+        emit log_named_uint("Pool address:", uint256(uint160(pool)));
 
         // build the route for swapVelodromeV2 (poolType == 6):
         bytes memory route = abi.encodePacked(
@@ -100,7 +83,7 @@ contract LiFiDexAggregator is TestBase {
         // capture initial token balances
         uint256 initialUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
         uint256 initialSTG = STG_TOKEN.balanceOf(address(USER_SENDER));
-        console2.log("initialUSDC:", initialUSDC);
+        emit log_named_uint("initialUSDC:", initialUSDC);
 
         // call processRoute on the aggregator
         liFiDEXAggregator.processRoute(
@@ -116,8 +99,8 @@ contract LiFiDexAggregator is TestBase {
         uint256 finalUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
         uint256 finalSTG = STG_TOKEN.balanceOf(address(USER_SENDER));
 
-        console2.log("USDC spent:", initialUSDC - finalUSDC);
-        console2.log("STG received:", finalSTG - initialSTG);
+        emit log_named_uint("USDC spent:", initialUSDC - finalUSDC);
+        emit log_named_uint("STG received:", finalSTG - initialSTG);
 
         // assert the swap outcome:
         //    - The USDC balance should decrease by amountIn
@@ -128,9 +111,88 @@ contract LiFiDexAggregator is TestBase {
         vm.stopPrank();
     }
 
+    function test_CanSwapViaVelodromeV2_NoStable_Reverse() public {
+        // reverse means we switch tokens and now we want to swap part of out tokens back
+        this.test_CanSwapViaVelodromeV2_NoStable();
+        vm.startPrank(USER_SENDER);
+        uint256 amountIn = 500 * 10 ** 18; // STG has 18 decimals
+
+        // get expected amounts out from the router.
+        IVelodromeV2Router.Route[]
+            memory routes = new IVelodromeV2Router.Route[](1);
+        routes[0] = IVelodromeV2Router.Route({
+            from: address(STG_TOKEN),
+            to: address(USDC_TOKEN),
+            stable: false,
+            factory: address(VELODROME_V2_FACTORY_REGISTRY)
+        });
+        uint256[] memory amounts = VELODROME_V2_ROUTER.getAmountsOut(
+            amountIn,
+            routes
+        );
+        emit log_named_uint("amounts[0]", amounts[0]);
+        emit log_named_uint("amounts[1]", amounts[1]);
+
+        // get the pool address using the router's poolFor function.
+        address pool = VELODROME_V2_ROUTER.poolFor(
+            address(STG_TOKEN),
+            address(USDC_TOKEN),
+            false,
+            VELODROME_V2_FACTORY_REGISTRY
+        );
+        emit log_named_uint("Pool address:", uint256(uint160(pool)));
+
+        // build the route for swapVelodromeV2 (poolType == 6):
+        bytes memory route = abi.encodePacked(
+            uint8(2), // command code: processUserERC20
+            address(STG_TOKEN), // token to swap from
+            uint8(1), // number of pools in this swap
+            uint16(65535), // share (100%)
+            uint8(6), // pool type 6: VelodromeV2
+            pool, // pool address
+            uint8(1), // direction: 1 (assume token1 -> token0)
+            address(USER_SENDER), // recipient of output tokens
+            uint24(3000), // fee (3000 in parts per million, ~0.3%)
+            uint8(0) // stable flag: 0 (false)
+        );
+
+        // approve the aggregator to spend USDC from msg.sender
+        STG_TOKEN.approve(address(liFiDEXAggregator), amountIn);
+
+        // capture initial token balances
+        uint256 initialSTG = STG_TOKEN.balanceOf(address(USER_SENDER));
+        uint256 initialUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
+        emit log_named_uint("initialSTG:", initialSTG);
+
+        // call processRoute on the aggregator
+        liFiDEXAggregator.processRoute(
+            address(STG_TOKEN), // tokenIn
+            amountIn, // amountIn
+            address(USDC_TOKEN), // tokenOut
+            amounts[1], // amountOutMin
+            address(USER_SENDER), // to (recipient)
+            route // route encoding
+        );
+
+        // capture final token balances.
+        uint256 finalSTG = STG_TOKEN.balanceOf(address(USER_SENDER));
+        uint256 finalUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
+
+        emit log_named_uint("STG spent:", initialSTG - finalSTG);
+        emit log_named_uint("USDC received:", finalUSDC - initialUSDC);
+
+        // assert the swap outcome:
+        //    - The STG balance should decrease by amountIn
+        //    - The USDC balance should increase exactly by amounts[1]
+        assertEq(initialSTG - finalSTG, amountIn, "STG amount mismatch");
+        assertEq(finalUSDC - initialUSDC, amounts[1], "USDC amount mismatch");
+
+        vm.stopPrank();
+    }
+
     function test_CanSwapViaVelodromeV2_Stable() public {
         vm.startPrank(USER_SENDER);
-        uint256 amountIn = 1_000_000;
+        uint256 amountIn = 1_000 * 10 ** 6; // USDC has 6 decimals
 
         // get expected amounts out from the router.
         IVelodromeV2Router.Route[]
@@ -138,32 +200,24 @@ contract LiFiDexAggregator is TestBase {
         routes[0] = IVelodromeV2Router.Route({
             from: address(USDC_TOKEN),
             to: address(USDC_E_TOKEN),
-            stable: false,
-            factory: address(velodromeV2FactoryRegistry)
+            stable: true,
+            factory: address(VELODROME_V2_FACTORY_REGISTRY)
         });
-        uint256[] memory amounts = velodromeV2Router.getAmountsOut(
+        uint256[] memory amounts = VELODROME_V2_ROUTER.getAmountsOut(
             amountIn,
             routes
         );
-        console2.log("amounts[0]", amounts[0]);
-        console2.log("amounts[1]", amounts[1]);
+        emit log_named_uint("amounts[0]", amounts[0]);
+        emit log_named_uint("amounts[1]", amounts[1]);
 
         // get the pool address using the router's poolFor function.
-        address pool = velodromeV2Router.poolFor(
+        address pool = VELODROME_V2_ROUTER.poolFor(
             address(USDC_TOKEN),
             address(USDC_E_TOKEN),
             true,
-            velodromeV2FactoryRegistry
+            VELODROME_V2_FACTORY_REGISTRY
         );
-        console2.log("Pool address:", uint256(uint160(pool)));
-
-        // Retrieve reserves from the pool
-        (
-            uint256 reserve0,
-            uint256 reserve1,
-            uint256 blockTimestampLast
-        ) = IVelodromeV2Pool(pool).getReserves();
-        console2.log("Reserves:", reserve0, reserve1, blockTimestampLast);
+        emit log_named_uint("Pool address:", uint256(uint160(pool)));
 
         // build the route for swapVelodromeV2 (poolType == 6):
         bytes memory route = abi.encodePacked(
@@ -184,8 +238,8 @@ contract LiFiDexAggregator is TestBase {
 
         // capture initial token balances
         uint256 initialUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
-        uint256 initialUSDC_E = USDC_E_TOKEN.balanceOf(address(USER_SENDER));
-        console2.log("initialUSDC:", initialUSDC);
+        uint256 initialUSDCE = USDC_E_TOKEN.balanceOf(address(USER_SENDER));
+        emit log_named_uint("initialUSDC:", initialUSDC);
 
         // call processRoute on the aggregator
         liFiDEXAggregator.processRoute(
@@ -199,20 +253,103 @@ contract LiFiDexAggregator is TestBase {
 
         // capture final token balances.
         uint256 finalUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
-        uint256 finalUSDC_E = USDC_E_TOKEN.balanceOf(address(USER_SENDER));
+        uint256 finalUSDCE = USDC_E_TOKEN.balanceOf(address(USER_SENDER));
 
-        console2.log("USDC spent:", initialUSDC - finalUSDC);
-        console2.log("USDC_E received:", finalUSDC_E - initialUSDC_E);
+        emit log_named_uint("USDC spent:", initialUSDC - finalUSDC);
+        emit log_named_uint("USDC_E received:", finalUSDCE - initialUSDCE);
 
         // assert the swap outcome:
         //    - The USDC balance should decrease by amountIn
         //    - The USDC_E balance should increase exactly by amounts[1]
         assertEq(initialUSDC - finalUSDC, amountIn, "USDC amount mismatch");
         assertEq(
-            finalUSDC_E - initialUSDC_E,
+            finalUSDCE - initialUSDCE,
             amounts[1],
             "USDC_E amount mismatch"
         );
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwapViaVelodromeV2_Stable_Reverse() public {
+        // reverse means we switch tokens and now we want to swap part of out tokens back
+        this.test_CanSwapViaVelodromeV2_Stable(); // swap first
+        vm.startPrank(USER_SENDER);
+        uint256 amountIn = 500 * 10 ** 6; // USDC_E has 6 decimals
+
+        // get expected amounts out from the router.
+        IVelodromeV2Router.Route[]
+            memory routes = new IVelodromeV2Router.Route[](1);
+        routes[0] = IVelodromeV2Router.Route({
+            from: address(USDC_E_TOKEN),
+            to: address(USDC_TOKEN),
+            stable: true,
+            factory: address(VELODROME_V2_FACTORY_REGISTRY)
+        });
+        uint256[] memory amounts = VELODROME_V2_ROUTER.getAmountsOut(
+            amountIn,
+            routes
+        );
+        emit log_named_uint("amounts[0]", amounts[0]);
+        emit log_named_uint("amounts[1]", amounts[1]);
+
+        // get the pool address using the router's poolFor function.
+        address pool = VELODROME_V2_ROUTER.poolFor(
+            address(USDC_E_TOKEN),
+            address(USDC_TOKEN),
+            true,
+            VELODROME_V2_FACTORY_REGISTRY
+        );
+        emit log_named_uint("Pool address:", uint256(uint160(pool)));
+
+        // build the route for swapVelodromeV2 (poolType == 6):
+        bytes memory route = abi.encodePacked(
+            uint8(2), // command code: processUserERC20
+            address(USDC_E_TOKEN), // token to swap from
+            uint8(1), // number of pools in this swap
+            uint16(65535), // share (100%)
+            uint8(6), // pool type 6: VelodromeV2
+            pool, // pool address
+            uint8(1), // direction: 1 (assume token1 -> token0)
+            address(USER_SENDER), // recipient of output tokens
+            uint24(500), // fee (500 in parts per million, ~0.05%)
+            uint8(1) // stable flag: 1 (true)
+        );
+
+        // approve the aggregator to spend USDC from msg.sender
+        USDC_E_TOKEN.approve(address(liFiDEXAggregator), amountIn);
+
+        // capture initial token balances
+        uint256 initialUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
+        uint256 initialUSDCE = USDC_E_TOKEN.balanceOf(address(USER_SENDER));
+        emit log_named_uint("initialUSDC:", initialUSDC);
+
+        // call processRoute on the aggregator
+        liFiDEXAggregator.processRoute(
+            address(USDC_E_TOKEN), // tokenIn
+            amountIn, // amountIn
+            address(USDC_TOKEN), // tokenOut
+            amounts[1], // amountOutMin
+            address(USER_SENDER), // to (recipient)
+            route // route encoding
+        );
+
+        // capture final token balances.
+        uint256 finalUSDCE = USDC_E_TOKEN.balanceOf(address(USER_SENDER));
+        uint256 finalUSDC = USDC_TOKEN.balanceOf(address(USER_SENDER));
+
+        emit log_named_uint("USDC_E spent:", initialUSDCE - finalUSDCE);
+        emit log_named_uint("USDC received:", finalUSDC - initialUSDC);
+
+        // assert the swap outcome:
+        //    - The USDC_E balance should decrease by amountIn
+        //    - The USDC balance should increase exactly by amounts[1]
+        assertEq(
+            initialUSDCE - finalUSDCE,
+            amountIn,
+            "USDC_E amount mismatch"
+        );
+        assertEq(finalUSDC - initialUSDC, amounts[1], "USDC amount mismatch");
 
         vm.stopPrank();
     }

@@ -6,7 +6,6 @@ import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/E
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "../Interfaces/IVelodromeV2Pool.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -25,7 +24,7 @@ uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.6.0
+/// @custom:version 1.7.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
@@ -44,7 +43,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     error MinimalOutputBalanceViolation(uint256 amountOut);
 
-    IBentoBoxMinimal public immutable bentoBox;
+    IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
     address private lastCalledPool;
 
@@ -71,7 +70,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address[] memory priviledgedUserList,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        bentoBox = IBentoBoxMinimal(_bentoBox);
+        BENTO_BOX = IBentoBoxMinimal(_bentoBox);
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
         for (uint256 i = 0; i < priviledgedUserList.length; i++) {
@@ -203,9 +202,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
-        console2.log("balanceOutFinal:", balanceOutFinal);
-        console2.log("balanceOutInitial:", balanceOutInitial);
-        console2.log("amountOutMin:", amountOutMin);
         if (balanceOutFinal < balanceOutInitial + amountOutMin)
             revert MinimalOutputBalanceViolation(
                 balanceOutFinal - balanceOutInitial
@@ -290,7 +286,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @param stream Streamed program
     function processInsideBento(uint256 stream) private {
         address token = stream.readAddress();
-        uint256 amountTotal = bentoBox.balanceOf(token, address(this));
+        uint256 amountTotal = BENTO_BOX.balanceOf(token, address(this));
         unchecked {
             if (amountTotal > 0) amountTotal -= 1; // slot undrain protection
         }
@@ -395,29 +391,29 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         if (direction > 0) {
             // outside to Bento
-            // deposit to arbitrary recipient is possible only from address(bentoBox)
+            // deposit to arbitrary recipient is possible only from address(BENTO_BOX)
             if (from == address(this))
-                IERC20(tokenIn).safeTransfer(address(bentoBox), amountIn);
+                IERC20(tokenIn).safeTransfer(address(BENTO_BOX), amountIn);
             else if (from == msg.sender)
                 IERC20(tokenIn).safeTransferFrom(
                     msg.sender,
-                    address(bentoBox),
+                    address(BENTO_BOX),
                     amountIn
                 );
             else {
-                // tokens already are at address(bentoBox)
+                // tokens already are at address(BENTO_BOX)
                 amountIn =
-                    IERC20(tokenIn).balanceOf(address(bentoBox)) +
-                    bentoBox.strategyData(tokenIn).balance -
-                    bentoBox.totals(tokenIn).elastic;
+                    IERC20(tokenIn).balanceOf(address(BENTO_BOX)) +
+                    BENTO_BOX.strategyData(tokenIn).balance -
+                    BENTO_BOX.totals(tokenIn).elastic;
             }
-            bentoBox.deposit(tokenIn, address(bentoBox), to, amountIn, 0);
+            BENTO_BOX.deposit(tokenIn, address(BENTO_BOX), to, amountIn, 0);
         } else {
             // Bento to outside
             if (from != INTERNAL_INPUT_SOURCE) {
-                bentoBox.transfer(tokenIn, from, address(this), amountIn);
-            } else amountIn = bentoBox.balanceOf(tokenIn, address(this));
-            bentoBox.withdraw(tokenIn, address(this), to, 0, amountIn);
+                BENTO_BOX.transfer(tokenIn, from, address(this), amountIn);
+            } else amountIn = BENTO_BOX.balanceOf(tokenIn, address(this));
+            BENTO_BOX.withdraw(tokenIn, address(this), to, 0, amountIn);
         }
     }
 
@@ -473,7 +469,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes memory swapData = stream.readBytes();
 
         if (from != INTERNAL_INPUT_SOURCE) {
-            bentoBox.transfer(tokenIn, from, pool, amountIn);
+            BENTO_BOX.transfer(tokenIn, from, pool, amountIn);
         }
 
         IPool(pool).swap(swapData);
@@ -770,16 +766,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint24 fee = stream.readUint24(); // pool fee in 1/1_000_000
         bool stable = stream.readUint8() > 0;
 
-        console2.log("pool");
-        console2.log(pool);
-        console2.log("direction");
-        console2.log(direction);
-        console2.log("to");
-        console2.log(to);
-        console2.log("fee");
-        console2.log(fee);
-        console2.log("stable");
-        console2.log(stable);
         // Transfer the input tokens to the pool
         if (from == address(this)) {
             IERC20(tokenIn).safeTransfer(pool, amountIn);
@@ -884,14 +870,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                 amount1Out = 0;
             }
         }
-        console2.log("amount0Out");
-        console2.log(amount0Out);
-        console2.log("amount1Out");
-        console2.log(amount1Out);
-        console2.log("to");
-        console2.log(to);
+
         IVelodromeV2Pool(pool).swap(amount0Out, amount1Out, to, new bytes(0));
-        console2.log("111");
     }
 }
 
@@ -997,6 +977,7 @@ interface ICurve {
         int128 i,
         int128 j,
         uint256 dx,
+        // solhint-disable-next-line var-name-mixedcase
         uint256 min_dy
     ) external payable returns (uint256);
 }
@@ -1006,6 +987,7 @@ interface ICurveLegacy {
         int128 i,
         int128 j,
         uint256 dx,
+        // solhint-disable-next-line var-name-mixedcase
         uint256 min_dy
     ) external payable;
 }
@@ -1103,8 +1085,12 @@ interface ITridentCLPool {
 }
 
 interface IUniswapV2Pair {
-    event Approval(address indexed owner, address indexed spender, uint value);
-    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
     function name() external pure returns (string memory);
 
@@ -1112,59 +1098,59 @@ interface IUniswapV2Pair {
 
     function decimals() external pure returns (uint8);
 
-    function totalSupply() external view returns (uint);
+    function totalSupply() external view returns (uint256);
 
-    function balanceOf(address owner) external view returns (uint);
+    function balanceOf(address owner) external view returns (uint256);
 
     function allowance(
         address owner,
         address spender
-    ) external view returns (uint);
+    ) external view returns (uint256);
 
-    function approve(address spender, uint value) external returns (bool);
+    function approve(address spender, uint256 value) external returns (bool);
 
-    function transfer(address to, uint value) external returns (bool);
+    function transfer(address to, uint256 value) external returns (bool);
 
     function transferFrom(
         address from,
         address to,
-        uint value
+        uint256 value
     ) external returns (bool);
 
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     function PERMIT_TYPEHASH() external pure returns (bytes32);
 
-    function nonces(address owner) external view returns (uint);
+    function nonces(address owner) external view returns (uint256);
 
     function permit(
         address owner,
         address spender,
-        uint value,
-        uint deadline,
+        uint256 value,
+        uint256 deadline,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) external;
 
-    event Mint(address indexed sender, uint amount0, uint amount1);
+    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(
         address indexed sender,
-        uint amount0,
-        uint amount1,
+        uint256 amount0,
+        uint256 amount1,
         address indexed to
     );
     event Swap(
         address indexed sender,
-        uint amount0In,
-        uint amount1In,
-        uint amount0Out,
-        uint amount1Out,
+        uint256 amount0In,
+        uint256 amount1In,
+        uint256 amount0Out,
+        uint256 amount1Out,
         address indexed to
     );
     event Sync(uint112 reserve0, uint112 reserve1);
 
-    function MINIMUM_LIQUIDITY() external pure returns (uint);
+    function MINIMUM_LIQUIDITY() external pure returns (uint256);
 
     function factory() external view returns (address);
 
@@ -1181,19 +1167,21 @@ interface IUniswapV2Pair {
             uint32 blockTimestampLast
         );
 
-    function price0CumulativeLast() external view returns (uint);
+    function price0CumulativeLast() external view returns (uint256);
 
-    function price1CumulativeLast() external view returns (uint);
+    function price1CumulativeLast() external view returns (uint256);
 
-    function kLast() external view returns (uint);
+    function kLast() external view returns (uint256);
 
-    function mint(address to) external returns (uint liquidity);
+    function mint(address to) external returns (uint256 liquidity);
 
-    function burn(address to) external returns (uint amount0, uint amount1);
+    function burn(
+        address to
+    ) external returns (uint256 amount0, uint256 amount1);
 
     function swap(
-        uint amount0Out,
-        uint amount1Out,
+        uint256 amount0Out,
+        uint256 amount1Out,
         address to,
         bytes calldata data
     ) external;
