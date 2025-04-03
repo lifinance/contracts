@@ -765,112 +765,25 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
-        uint24 fee = stream.readUint24(); // pool fee in 1/1_000_000
-        bool stable = stream.readUint8() > 0;
+        stream.readUint24(); // pool fee in 1/1_000_000
+        stream.readUint8() > 0;
+        // we don't need 'fee' and 'stable' flags since the pool handles that internally
 
-        // Transfer the input tokens to the pool
+        // calculate the expected output amount using the pool's getAmountOut function
+        uint256 amountOut = IVelodromeV2Pool(pool).getAmountOut(
+            amountIn,
+            tokenIn
+        );
+
+        // set the appropriate output amount based on which token is being swapped
+        // determine output amounts based on direction
+        uint256 amount0Out = direction == 0 ? 0 : amountOut;
+        uint256 amount1Out = direction == 0 ? amountOut : 0;
+        // transfer the input tokens to the pool
         if (from == address(this)) {
             IERC20(tokenIn).safeTransfer(pool, amountIn);
         } else if (from == msg.sender) {
             IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
-        }
-        // Apply fee: effective amount used for swap
-        uint256 amountInAfterFee = (amountIn * (1_000_000 - fee)) / 1_000_000;
-
-        uint256 amount0Out;
-        uint256 amount1Out;
-
-        // Get reserves from pool
-        (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
-            .getReserves();
-
-        if (!stable) {
-            // ---- Volatile Pool (Uniswap V2 formula) ----
-            // direction: 0 means token0 -> token1, 1 means token1 -> token0
-            if (direction == 0) {
-                // token0 is input, token1 is output
-                uint256 reserveIn = uint256(reserve0);
-                uint256 reserveOut = uint256(reserve1);
-                // swap formula
-                uint256 amountOut = (amountInAfterFee * reserveOut) /
-                    (reserveIn + amountInAfterFee);
-                amount0Out = 0;
-                amount1Out = amountOut;
-            } else {
-                // token1 is input, token0 is output
-                uint256 reserveIn = uint256(reserve1);
-                uint256 reserveOut = uint256(reserve0);
-                uint256 amountOut = (amountInAfterFee * reserveOut) /
-                    (reserveIn + amountInAfterFee);
-                amount0Out = amountOut;
-                amount1Out = 0;
-            }
-        } else {
-            // ---- Stable Pool (Velodrome V2-style invariant) ----
-            // For stable pools we assume the invariant:
-            //    reserveIn * reserveOut * (reserveIn^2 + reserveOut^2) = k
-            // and we want to compute the new output reserve y'
-            // after adding amountInAfterFee to reserveIn.
-            uint256 reserveIn;
-            uint256 reserveOut;
-            if (direction == 0) {
-                // token0 in, token1 out
-                reserveIn = uint256(reserve0);
-                reserveOut = uint256(reserve1);
-            } else {
-                // token1 in, token0 out
-                reserveIn = uint256(reserve1);
-                reserveOut = uint256(reserve0);
-            }
-
-            // k invariant
-            uint256 k = reserveIn *
-                reserveOut *
-                (reserveIn * reserveIn + reserveOut * reserveOut);
-
-            // New reserve for input token after adding fee-adjusted input
-            uint256 x = reserveIn + amountInAfterFee;
-            // The invariant becomes: x * y' * (x*x + y'*y') = k.
-            // Rearranging, we solve for new y' (target output reserve).
-            // Compute target = k / x.
-            uint256 target = k / x;
-
-            // Iteratively solve for y' using Newton's method.
-            uint256 y = reserveOut; // initial guess
-            for (uint256 i = 0; i < 255; i++) {
-                // f(y) = y*(x*x + y*y)
-                uint256 ySquared = y * y;
-                uint256 f = y * (x * x + ySquared);
-                // if close enough, break (here we require an update of less than 1)
-                if (f == target) break;
-
-                // Derivative: df/dy = (x*x + y*y) + 2*y*y = x*x + 3*y*y
-                uint256 df = x * x + 3 * ySquared;
-                if (df == 0) break; // should not happen
-
-                // Newton update: y_new = y - (f - target) / df.
-                // Depending on whether f is above or below target, adjust y.
-                uint256 diff;
-                if (f > target) {
-                    diff = (f - target) / df;
-                    if (diff < 1) break;
-                    y = y - diff;
-                } else {
-                    diff = (target - f) / df;
-                    if (diff < 1) break;
-                    y = y + diff;
-                }
-            }
-
-            // The output amount is the decrease in reserveOut.
-            uint256 amountOutStable = reserveOut > y ? reserveOut - y : 0;
-            if (direction == 0) {
-                amount0Out = 0;
-                amount1Out = amountOutStable;
-            } else {
-                amount0Out = amountOutStable;
-                amount1Out = 0;
-            }
         }
 
         IVelodromeV2Pool(pool).swap(amount0Out, amount1Out, to, new bytes(0));
