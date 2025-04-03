@@ -326,11 +326,6 @@ function getContractVersionFromMasterLog() {
   local CONTRACT=$3
   local TARGET_ADDRESS=$4
 
-  # special handling for CelerIMFacet
-  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-    CONTRACT="CelerIMFacet"
-  fi
-
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
@@ -957,11 +952,6 @@ function getContractNamesInFolder() {
 function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
-
-  #  # special handling for CelerIMFacet
-  #  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-  #    CONTRACT="CelerIMFacetBase"
-  #  fi
 
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
