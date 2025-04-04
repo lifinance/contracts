@@ -192,6 +192,17 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
     address internal constant ADDRESS_WRAPPED_NATIVE_BASE =
         0x4200000000000000000000000000000000000006;
+    // Contract addresses (OPTIMISM)
+    address internal constant ADDRESS_UNISWAP_OPTIMISM =
+        0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2;
+    address internal constant ADDRESS_USDC_OPTIMISM =
+        0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
+    address internal constant ADDRESS_USDT_OPTIMISM =
+        0x94b008aA00579c1307B0EF2c499aD98a8ce58e58;
+    address internal constant ADDRESS_DAI_OPTIMISM =
+        0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
+    address internal constant ADDRESS_WRAPPED_NATIVE_OPTIMISM =
+        0x4200000000000000000000000000000000000006;
     // User accounts (Whales: ETH only)
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC, USDT, WETH & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
@@ -265,6 +276,16 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
                 ADDRESS_DAI = ADDRESS_DAI_BASE;
                 ADDRESS_WRAPPED_NATIVE = ADDRESS_WRAPPED_NATIVE_BASE;
                 ADDRESS_UNISWAP = ADDRESS_UNISWAP_BASE;
+            }
+            if (
+                keccak256(abi.encode(customRpcUrlForForking)) ==
+                keccak256(abi.encode("ETH_NODE_URI_OPTIMISM"))
+            ) {
+                ADDRESS_USDC = ADDRESS_USDC_OPTIMISM;
+                ADDRESS_USDT = ADDRESS_USDT_OPTIMISM;
+                ADDRESS_DAI = ADDRESS_DAI_OPTIMISM;
+                ADDRESS_WRAPPED_NATIVE = ADDRESS_WRAPPED_NATIVE_OPTIMISM;
+                ADDRESS_UNISWAP = ADDRESS_UNISWAP_OPTIMISM;
             }
         }
     }
