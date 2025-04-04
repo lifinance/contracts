@@ -20,6 +20,16 @@ contract LiFiDexAggregator is TestBase {
 
     LiFiDEXAggregator internal liFiDEXAggregator;
 
+    event Route(
+        address indexed from,
+        address to,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 amountOut
+    );
+
     function setUp() public {
         customRpcUrlForForking = "ETH_NODE_URI_OPTIMISM";
         customBlockNumberForForking = 133999121;
@@ -92,6 +102,7 @@ contract LiFiDexAggregator is TestBase {
         test_CanSwapViaVelodromeV2_Stable();
 
         vm.startPrank(USER_SENDER);
+
         _testSwap(
             SwapTestParams({
                 from: USER_SENDER,
@@ -195,6 +206,17 @@ contract LiFiDexAggregator is TestBase {
             USER_SENDER
         );
         emit log_named_uint("Initial tokenIn balance", initialTokenIn);
+
+        vm.expectEmit(true, true, true, true);
+        emit Route(
+            USER_SENDER,
+            USER_SENDER,
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn,
+            amounts[1],
+            amounts[1]
+        );
 
         // execute the swap
         liFiDEXAggregator.processRoute(
