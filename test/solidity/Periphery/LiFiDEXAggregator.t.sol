@@ -3,8 +3,27 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
+import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { TestBase } from "../utils/TestBase.sol";
+
+contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
+    event HookCalled(
+        address sender,
+        uint256 amount0,
+        uint256 amount1,
+        bytes data
+    );
+
+    function hook(
+        address sender,
+        uint256 amount0,
+        uint256 amount1,
+        bytes calldata data
+    ) external {
+        emit HookCalled(sender, amount0, amount1, data);
+    }
+}
 
 contract LiFiDexAggregator is TestBase {
     IVelodromeV2Router internal constant VELODROME_V2_ROUTER =
@@ -19,6 +38,8 @@ contract LiFiDexAggregator is TestBase {
         IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607);
 
     LiFiDEXAggregator internal liFiDEXAggregator;
+    MockVelodromeV2FlashLoanCallbackReceiver
+        internal mockFlashloanCallbackReceiver;
 
     event Route(
         address indexed from,
@@ -28,6 +49,12 @@ contract LiFiDexAggregator is TestBase {
         uint256 amountIn,
         uint256 amountOutMin,
         uint256 amountOut
+    );
+    event HookCalled(
+        address sender,
+        uint256 amount0,
+        uint256 amount1,
+        bytes data
     );
 
     function setUp() public {
@@ -50,12 +77,14 @@ contract LiFiDexAggregator is TestBase {
         _testSwap(
             SwapTestParams({
                 from: address(USER_SENDER),
+                to: address(USER_SENDER),
                 tokenIn: address(USDC_TOKEN),
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(STG_TOKEN),
                 stable: false, // - NOT USED!
                 fee: 3000, // - NOT USED!
-                direction: 0
+                direction: 0,
+                callback: false
             })
         );
 
@@ -70,12 +99,14 @@ contract LiFiDexAggregator is TestBase {
         _testSwap(
             SwapTestParams({
                 from: USER_SENDER,
+                to: USER_SENDER,
                 tokenIn: address(STG_TOKEN),
                 amountIn: 500 * 1e18,
                 tokenOut: address(USDC_TOKEN),
                 stable: false, // - NOT USED!
                 fee: 3000, // - NOT USED!
-                direction: 1
+                direction: 1,
+                callback: false
             })
         );
         vm.stopPrank();
@@ -86,12 +117,14 @@ contract LiFiDexAggregator is TestBase {
         _testSwap(
             SwapTestParams({
                 from: USER_SENDER,
+                to: USER_SENDER,
                 tokenIn: address(USDC_TOKEN),
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 0
+                direction: 0,
+                callback: false
             })
         );
         vm.stopPrank();
@@ -106,12 +139,14 @@ contract LiFiDexAggregator is TestBase {
         _testSwap(
             SwapTestParams({
                 from: USER_SENDER,
+                to: USER_SENDER,
                 tokenIn: address(USDC_E_TOKEN),
                 amountIn: 500 * 1e6,
                 tokenOut: address(USDC_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 1
+                direction: 1,
+                callback: false
             })
         );
         vm.stopPrank();
@@ -125,12 +160,34 @@ contract LiFiDexAggregator is TestBase {
         _testSwap(
             SwapTestParams({
                 from: address(liFiDEXAggregator),
+                to: address(USER_SENDER),
                 tokenIn: address(USDC_TOKEN),
                 amountIn: USDC_TOKEN.balanceOf(address(liFiDEXAggregator)) - 1, // has to be current dex aggregator balance - 1
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 0
+                direction: 0,
+                callback: false
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function test_CanSwapViaVelodromeV2_FlashloanCallback() public {
+        mockFlashloanCallbackReceiver = new MockVelodromeV2FlashLoanCallbackReceiver();
+
+        vm.startPrank(USER_SENDER);
+        _testSwap(
+            SwapTestParams({
+                from: address(USER_SENDER),
+                to: address(mockFlashloanCallbackReceiver),
+                tokenIn: address(USDC_TOKEN),
+                amountIn: 1_000 * 1e6,
+                tokenOut: address(USDC_E_TOKEN),
+                stable: true, // - NOT USED!
+                fee: 500, // - NOT USED!
+                direction: 0,
+                callback: true
             })
         );
         vm.stopPrank();
@@ -138,12 +195,14 @@ contract LiFiDexAggregator is TestBase {
 
     struct SwapTestParams {
         address from;
+        address to;
         address tokenIn;
         uint256 amountIn;
         address tokenOut;
         bool stable;
         uint24 fee;
         uint8 direction;
+        bool callback;
     }
 
     /**
@@ -189,9 +248,10 @@ contract LiFiDexAggregator is TestBase {
             uint8(6), // pool type: VelodromeV2
             pool, // pool address
             params.direction, // direction: 0 for normal, 1 for reverse
-            USER_SENDER, // recipient
+            params.to, // recipient
             uint24(params.fee), // fee (e.g., 3000 or 500) - NOT USED!
-            params.stable ? uint8(1) : uint8(0) // stable flag: 1 for true, 0 for false // currently not used - NOT USED!
+            params.stable ? uint8(1) : uint8(0), // stable flag: 1 for true, 0 for false // currently not used - NOT USED!
+            params.callback ? uint8(1) : uint8(0) // callback flag: 1 for true, 0 for false
         );
 
         // approve the aggregator to spend tokenIn.
@@ -202,15 +262,25 @@ contract LiFiDexAggregator is TestBase {
 
         // capture initial token balances.
         uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-        uint256 initialTokenOut = IERC20(params.tokenOut).balanceOf(
-            USER_SENDER
-        );
+        uint256 initialTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
         emit log_named_uint("Initial tokenIn balance", initialTokenIn);
 
+        address from = params.from == address(liFiDEXAggregator)
+            ? USER_SENDER
+            : params.from;
+        if (params.callback == true) {
+            vm.expectEmit(true, false, false, false);
+            emit HookCalled(
+                address(liFiDEXAggregator),
+                0,
+                0,
+                abi.encode(params.tokenIn)
+            );
+        }
         vm.expectEmit(true, true, true, true);
         emit Route(
-            USER_SENDER,
-            USER_SENDER,
+            from,
+            params.to,
             params.tokenIn,
             params.tokenOut,
             params.amountIn,
@@ -224,12 +294,12 @@ contract LiFiDexAggregator is TestBase {
             params.amountIn,
             params.tokenOut,
             amounts[1],
-            USER_SENDER,
+            params.to,
             route
         );
 
         uint256 finalTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-        uint256 finalTokenOut = IERC20(params.tokenOut).balanceOf(USER_SENDER);
+        uint256 finalTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
         emit log_named_uint("TokenIn spent", initialTokenIn - finalTokenIn);
         emit log_named_uint(
             "TokenOut received",

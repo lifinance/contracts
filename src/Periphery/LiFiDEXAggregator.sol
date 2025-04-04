@@ -767,6 +767,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address to = stream.readAddress();
         stream.readUint24(); // pool fee in 1/1_000_000
         stream.readUint8() > 0;
+        bool callback = stream.readUint8() > 0; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not impelent IVelodromeV2PoolCallee
         // we don't need 'fee' and 'stable' flags since the pool handles that internally
 
         // calculate the expected output amount using the pool's getAmountOut function
@@ -786,7 +787,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
         }
 
-        IVelodromeV2Pool(pool).swap(amount0Out, amount1Out, to, new bytes(0));
+        IVelodromeV2Pool(pool).swap(
+            amount0Out,
+            amount1Out,
+            to,
+            callback ? abi.encode(tokenIn) : new bytes(0)
+        );
     }
 }
 
