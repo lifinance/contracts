@@ -43,7 +43,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     error MinimalOutputBalanceViolation(uint256 amountOut);
 
-    IBentoBoxMinimal public immutable BENTO_BOX;
+    // solhint-disable-next-line immutable-vars-naming
+    IBentoBoxMinimal public immutable bentoBox;
     mapping(address => bool) public priviledgedUsers;
     address private lastCalledPool;
 
@@ -73,7 +74,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address[] memory priviledgedUserList,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        BENTO_BOX = IBentoBoxMinimal(_bentoBox);
+        bentoBox = IBentoBoxMinimal(_bentoBox);
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
         for (uint256 i = 0; i < priviledgedUserList.length; i++) {
@@ -292,7 +293,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @param stream Streamed program
     function processInsideBento(uint256 stream) private {
         address token = stream.readAddress();
-        uint256 amountTotal = BENTO_BOX.balanceOf(token, address(this));
+        uint256 amountTotal = bentoBox.balanceOf(token, address(this));
         unchecked {
             if (amountTotal > 0) amountTotal -= 1; // slot undrain protection
         }
@@ -398,29 +399,29 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         if (direction > 0) {
             // outside to Bento
-            // deposit to arbitrary recipient is possible only from address(BENTO_BOX)
+            // deposit to arbitrary recipient is possible only from address(bentoBox)
             if (from == address(this))
-                IERC20(tokenIn).safeTransfer(address(BENTO_BOX), amountIn);
+                IERC20(tokenIn).safeTransfer(address(bentoBox), amountIn);
             else if (from == msg.sender)
                 IERC20(tokenIn).safeTransferFrom(
                     msg.sender,
-                    address(BENTO_BOX),
+                    address(bentoBox),
                     amountIn
                 );
             else {
-                // tokens already are at address(BENTO_BOX)
+                // tokens already are at address(bentoBox)
                 amountIn =
-                    IERC20(tokenIn).balanceOf(address(BENTO_BOX)) +
-                    BENTO_BOX.strategyData(tokenIn).balance -
-                    BENTO_BOX.totals(tokenIn).elastic;
+                    IERC20(tokenIn).balanceOf(address(bentoBox)) +
+                    bentoBox.strategyData(tokenIn).balance -
+                    bentoBox.totals(tokenIn).elastic;
             }
-            BENTO_BOX.deposit(tokenIn, address(BENTO_BOX), to, amountIn, 0);
+            bentoBox.deposit(tokenIn, address(bentoBox), to, amountIn, 0);
         } else {
             // Bento to outside
             if (from != INTERNAL_INPUT_SOURCE) {
-                BENTO_BOX.transfer(tokenIn, from, address(this), amountIn);
-            } else amountIn = BENTO_BOX.balanceOf(tokenIn, address(this));
-            BENTO_BOX.withdraw(tokenIn, address(this), to, 0, amountIn);
+                bentoBox.transfer(tokenIn, from, address(this), amountIn);
+            } else amountIn = bentoBox.balanceOf(tokenIn, address(this));
+            bentoBox.withdraw(tokenIn, address(this), to, 0, amountIn);
         }
     }
 
@@ -477,7 +478,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes memory swapData = stream.readBytes();
 
         if (from != INTERNAL_INPUT_SOURCE) {
-            BENTO_BOX.transfer(tokenIn, from, pool, amountIn);
+            bentoBox.transfer(tokenIn, from, pool, amountIn);
         }
 
         IPool(pool).swap(swapData);
