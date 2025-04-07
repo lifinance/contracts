@@ -42,6 +42,16 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     );
 
     error MinimalOutputBalanceViolation(uint256 amountOut);
+    error RouteProcessorLocked();
+    error RouteProcessorPaused();
+    error CallerNotOwnerOrPriviledged();
+    error UnknownCommandCode();
+    error UnknownPoolType();
+    error MinimalInputBalanceViolation(uint256 available, uint256 required);
+    error UniswapV3SwapUnexpected();
+    error UniswapV3SwapCallbackUnknownSource();
+    error UniswapV3SwapCallbackNotPositiveAmount();
+    error WrongPoolReserves();
 
     IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
@@ -50,21 +60,16 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     uint8 private unlocked = NOT_LOCKED;
     uint8 private paused = NOT_PAUSED;
     modifier lock() {
-        // solhint-disable-next-line gas-custom-errors
-        require(unlocked == NOT_LOCKED, "RouteProcessor is locked");
-        // solhint-disable-next-line gas-custom-errors
-        require(paused == NOT_PAUSED, "RouteProcessor is paused");
+        if (unlocked != NOT_LOCKED) revert RouteProcessorLocked();
+        if (paused != NOT_PAUSED) revert RouteProcessorPaused();
         unlocked = LOCKED;
         _;
         unlocked = NOT_LOCKED;
     }
 
     modifier onlyOwnerOrPriviledgedUser() {
-        // solhint-disable-next-line gas-custom-errors
-        require(
-            msg.sender == owner || priviledgedUsers[msg.sender],
-            "RP: caller is not the owner or a privileged user"
-        );
+        if (!(msg.sender == owner || priviledgedUsers[msg.sender]))
+            revert CallerNotOwnerOrPriviledged();
         _;
     }
 
@@ -188,10 +193,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                     if (step == 0) realAmountIn = usedAmount;
                 } else if (commandCode == 4) processOnePool(stream);
                 else if (commandCode == 5) processInsideBento(stream);
-                else if (commandCode == 6)
-                    applyPermit(tokenIn, stream);
-                    // solhint-disable-next-line gas-custom-errors
-                else revert("RouteProcessor: Unknown command code");
+                else if (commandCode == 6) applyPermit(tokenIn, stream);
+                else revert UnknownCommandCode();
                 ++step;
             }
         }
@@ -199,11 +202,11 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 balanceInFinal = tokenIn == NATIVE_ADDRESS
             ? 0
             : IERC20(tokenIn).balanceOf(msg.sender);
-        // solhint-disable-next-line gas-custom-errors
-        require(
-            balanceInFinal + amountIn >= balanceInInitial,
-            "RouteProcessor: Minimal input balance violation"
-        );
+        if (balanceInFinal + amountIn < balanceInInitial)
+            revert MinimalInputBalanceViolation(
+                balanceInFinal + amountIn,
+                balanceInInitial
+            );
 
         uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
             ? address(to).balance
@@ -342,8 +345,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         else if (poolType == 5) swapCurve(stream, from, tokenIn, amountIn);
         else if (poolType == 6)
             swapVelodromeV2(stream, from, tokenIn, amountIn);
-            // solhint-disable-next-line gas-custom-errors
-        else revert("RouteProcessor: Unknown pool type");
+        else revert UnknownPoolType();
     }
 
     /// @notice Wraps/unwraps native token
@@ -446,8 +448,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
 
         (uint256 r0, uint256 r1, ) = IUniswapV2Pair(pool).getReserves();
-        // solhint-disable-next-line gas-custom-errors
-        require(r0 > 0 && r1 > 0, "Wrong pool reserves");
+        if (r0 == 0 || r1 == 0) revert WrongPoolReserves();
         (uint256 reserveIn, uint256 reserveOut) = direction == 1
             ? (r0, r1)
             : (r1, r0);
@@ -513,11 +514,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
             abi.encode(tokenIn)
         );
-        // solhint-disable-next-line gas-custom-errors
-        require(
-            lastCalledPool == IMPOSSIBLE_POOL_ADDRESS,
-            "RouteProcessor.swapUniV3: unexpected"
-        ); // Just to be sure
+        if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS)
+            revert UniswapV3SwapUnexpected(); // Just to be sure
     }
 
     /// @notice Called to `msg.sender` after executing a swap via IUniswapV3Pool#swap.
@@ -534,17 +532,10 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         int256 amount1Delta,
         bytes calldata data
     ) public {
-        // solhint-disable-next-line gas-custom-errors
-        require(
-            msg.sender == lastCalledPool,
-            "RouteProcessor.uniswapV3SwapCallback: call from unknown source"
-        );
+        if (msg.sender != lastCalledPool)
+            revert UniswapV3SwapCallbackUnknownSource();
         int256 amount = amount0Delta > 0 ? amount0Delta : amount1Delta;
-        // solhint-disable-next-line gas-custom-errors
-        require(
-            amount > 0,
-            "RouteProcessor.uniswapV3SwapCallback: not positive amount"
-        );
+        if (amount <= 0) revert UniswapV3SwapCallbackNotPositiveAmount();
 
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
         address tokenIn = abi.decode(data, (address));
