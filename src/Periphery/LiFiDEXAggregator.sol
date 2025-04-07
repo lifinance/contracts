@@ -3,9 +3,10 @@
 pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { IVelodromeV2Pool } from "../Interfaces/IVelodromeV2Pool.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -78,6 +79,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address[] memory priviledgedUserList,
         address _owner
     ) WithdrawablePeriphery(_owner) {
+        if (_bentoBox == address(0) || _owner == address(0)) {
+            revert InvalidConfig();
+        }
         BENTO_BOX = IBentoBoxMinimal(_bentoBox);
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 

@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
 
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
@@ -38,6 +39,7 @@ contract LiFiDexAggregatorTest is TestBase {
     LiFiDEXAggregator internal liFiDEXAggregator;
     MockVelodromeV2FlashLoanCallbackReceiver
         internal mockFlashloanCallbackReceiver;
+    address[] internal privileged;
 
     event Route(
         address indexed from,
@@ -72,13 +74,42 @@ contract LiFiDexAggregatorTest is TestBase {
         customBlockNumberForForking = 133999121;
         initTestBase();
 
-        address[] memory privileged = new address[](0);
+        address[] memory privileged = new address[](2);
+        privileged[0] = address(0xABC);
+        privileged[1] = address(0xEBC);
         liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0),
+            address(0xCAFE),
             privileged,
             USER_DIAMOND_OWNER
         ); // dont care about bento and privilaged users
         vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+    }
+
+    function test_ContractIsSetUpCorrectly() public {
+        assertEq(address(liFiDEXAggregator.BENTO_BOX()), address(0xCAFE));
+        assertEq(liFiDEXAggregator.priviledgedUsers(address(0xABC)), true);
+        assertEq(liFiDEXAggregator.priviledgedUsers(address(0xEBC)), true);
+        assertEq(liFiDEXAggregator.owner(), USER_DIAMOND_OWNER);
+    }
+
+    function testRevert_FailsIfBentoBoxIsZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0),
+            privileged,
+            USER_DIAMOND_OWNER
+        );
+    }
+
+    function testRevert_FailsIfOwnerIsZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0xCAFE),
+            privileged,
+            address(0)
+        );
     }
 
     function test_CanSwapViaVelodromeV2_NoStable() public {
