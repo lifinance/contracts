@@ -791,6 +791,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
         }
 
+        // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
+        // Safety Checks Covered:
+        // - Reentrancy: LDA has a custom lock() modifier
+        // - Token transfer safety: SafeERC20 is used to ensure token transfers revert on failure
+        // - Expected output verification: The contract calls getAmountOut (including fees) before executing the swap
+        // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
+        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut and that the sender's final balance is not less than the initial balance
+        // - Immutable interaction: Velodrome V2 pools and the router are not upgradable, so we can rely on the behavior of getAmountOut and swap
         IVelodromeV2Pool(pool).swap(
             amount0Out,
             amount1Out,
