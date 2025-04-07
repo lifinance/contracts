@@ -194,7 +194,8 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 // NOTE: The allowedCancelBeneficiarySrc is intentionally set to msg.sender,
                 // which, when called via Permit2Proxy, becomes the proxy contract address.
                 // This ensures that if a DLN order is cancelled, funds are refunded to Permit2Proxy.
-                // The user can later withdraw them via Permit2Proxy's WithdrawablePeriphery interface.
+                // The Permit2Proxy contract owner can later withdraw them via Permit2Proxy's
+                // WithdrawablePeriphery interface.
             });
 
         bytes32 orderId;

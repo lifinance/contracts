@@ -322,7 +322,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
         //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
-        vm.expectEmit(false, false, false, false); // we don't care about orderId
+        vm.expectEmit(false, false, false, false);
         emit BridgeToNonEVMChain(
             bridgeData.transactionId,
             bridgeData.destinationChainId,
