@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
@@ -105,9 +106,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
                 IERC20(tokenAddress).allowance(msg.sender, address(this)) <
                 amount
             ) {
-                assembly {
-                    revert(add(reason, 32), mload(reason))
-                }
+                LibUtil.revertWith(reason);
             }
         }
 

@@ -569,7 +569,7 @@ contract Permit2ProxyTest is TestBase {
         return testdata;
     }
 
-    function test_RevertOnCustomErrorAndAllowance() public {
+    function testRevert_FailsOnCustomErrorAndAllowance() public {
         // deploy a mock ERC20Permit token that reverts with custom error on permit
         MockPermitToken token = new MockPermitToken("Mock", "MCK");
         address tokenAddress = address(token);
