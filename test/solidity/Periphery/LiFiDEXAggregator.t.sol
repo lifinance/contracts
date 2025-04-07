@@ -74,7 +74,7 @@ contract LiFiDexAggregatorTest is TestBase {
         customBlockNumberForForking = 133999121;
         initTestBase();
 
-        address[] memory privileged = new address[](2);
+        privileged = new address[](2);
         privileged[0] = address(0xABC);
         privileged[1] = address(0xEBC);
         liFiDEXAggregator = new LiFiDEXAggregator(
@@ -90,16 +90,6 @@ contract LiFiDexAggregatorTest is TestBase {
         assertEq(liFiDEXAggregator.priviledgedUsers(address(0xABC)), true);
         assertEq(liFiDEXAggregator.priviledgedUsers(address(0xEBC)), true);
         assertEq(liFiDEXAggregator.owner(), USER_DIAMOND_OWNER);
-    }
-
-    function testRevert_FailsIfBentoBoxIsZeroAddress() public {
-        vm.expectRevert(InvalidConfig.selector);
-
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
     }
 
     function testRevert_FailsIfOwnerIsZeroAddress() public {

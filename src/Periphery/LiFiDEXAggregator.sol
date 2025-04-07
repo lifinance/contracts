@@ -79,7 +79,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address[] memory priviledgedUserList,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        if (_bentoBox == address(0) || _owner == address(0)) {
+        if (_owner == address(0)) {
             revert InvalidConfig();
         }
         BENTO_BOX = IBentoBoxMinimal(_bentoBox);
