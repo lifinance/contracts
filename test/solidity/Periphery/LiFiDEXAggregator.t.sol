@@ -25,13 +25,11 @@ contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
     }
 }
 
-contract LiFiDexAggregator is TestBase {
+contract LiFiDexAggregatorTest is TestBase {
     IVelodromeV2Router internal constant VELODROME_V2_ROUTER =
         IVelodromeV2Router(0xa062aE8A9c5e11aaA026fc2670B0D65cCc8B2858); // optimism router
     address internal constant VELODROME_V2_FACTORY_REGISTRY =
         0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a;
-    IERC20 internal constant USDC_TOKEN =
-        IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85);
     IERC20 internal constant STG_TOKEN =
         IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97);
     IERC20 internal constant USDC_E_TOKEN =
@@ -78,7 +76,7 @@ contract LiFiDexAggregator is TestBase {
             SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(USER_SENDER),
-                tokenIn: address(USDC_TOKEN),
+                tokenIn: ADDRESS_USDC_OPTIMISM,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(STG_TOKEN),
                 stable: false, // - NOT USED!
@@ -102,7 +100,7 @@ contract LiFiDexAggregator is TestBase {
                 to: USER_SENDER,
                 tokenIn: address(STG_TOKEN),
                 amountIn: 500 * 1e18,
-                tokenOut: address(USDC_TOKEN),
+                tokenOut: ADDRESS_USDC_OPTIMISM,
                 stable: false, // - NOT USED!
                 fee: 3000, // - NOT USED!
                 direction: 1,
@@ -118,7 +116,7 @@ contract LiFiDexAggregator is TestBase {
             SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
-                tokenIn: address(USDC_TOKEN),
+                tokenIn: ADDRESS_USDC_OPTIMISM,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
@@ -142,7 +140,7 @@ contract LiFiDexAggregator is TestBase {
                 to: USER_SENDER,
                 tokenIn: address(USDC_E_TOKEN),
                 amountIn: 500 * 1e6,
-                tokenOut: address(USDC_TOKEN),
+                tokenOut: ADDRESS_USDC_OPTIMISM,
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
                 direction: 1,
@@ -154,15 +152,17 @@ contract LiFiDexAggregator is TestBase {
 
     function test_CanSwapViaVelodromeV2_FromDexAggregator() public {
         // fund dex aggregator contract so that the contract holds USDC
-        deal(address(USDC_TOKEN), address(liFiDEXAggregator), 100_000 * 1e6);
+        deal(ADDRESS_USDC_OPTIMISM, address(liFiDEXAggregator), 100_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
         _testSwap(
             SwapTestParams({
                 from: address(liFiDEXAggregator),
                 to: address(USER_SENDER),
-                tokenIn: address(USDC_TOKEN),
-                amountIn: USDC_TOKEN.balanceOf(address(liFiDEXAggregator)) - 1, // has to be current dex aggregator balance - 1
+                tokenIn: ADDRESS_USDC_OPTIMISM,
+                amountIn: IERC20(ADDRESS_USDC_OPTIMISM).balanceOf(
+                    address(liFiDEXAggregator)
+                ) - 1, // has to be current dex aggregator balance - 1
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
@@ -181,7 +181,7 @@ contract LiFiDexAggregator is TestBase {
             SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(mockFlashloanCallbackReceiver),
-                tokenIn: address(USDC_TOKEN),
+                tokenIn: ADDRESS_USDC_OPTIMISM,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!

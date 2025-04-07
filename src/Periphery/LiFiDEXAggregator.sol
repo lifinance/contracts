@@ -43,8 +43,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     error MinimalOutputBalanceViolation(uint256 amountOut);
 
-    // solhint-disable-next-line immutable-vars-naming
-    IBentoBoxMinimal public immutable bentoBox;
+    IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
     address private lastCalledPool;
 
@@ -74,7 +73,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address[] memory priviledgedUserList,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        bentoBox = IBentoBoxMinimal(_bentoBox);
+        BENTO_BOX = IBentoBoxMinimal(_bentoBox);
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
         for (uint256 i = 0; i < priviledgedUserList.length; i++) {
@@ -293,7 +292,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @param stream Streamed program
     function processInsideBento(uint256 stream) private {
         address token = stream.readAddress();
-        uint256 amountTotal = bentoBox.balanceOf(token, address(this));
+        uint256 amountTotal = BENTO_BOX.balanceOf(token, address(this));
         unchecked {
             if (amountTotal > 0) amountTotal -= 1; // slot undrain protection
         }
@@ -399,29 +398,29 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         if (direction > 0) {
             // outside to Bento
-            // deposit to arbitrary recipient is possible only from address(bentoBox)
+            // deposit to arbitrary recipient is possible only from address(BENTO_BOX)
             if (from == address(this))
-                IERC20(tokenIn).safeTransfer(address(bentoBox), amountIn);
+                IERC20(tokenIn).safeTransfer(address(BENTO_BOX), amountIn);
             else if (from == msg.sender)
                 IERC20(tokenIn).safeTransferFrom(
                     msg.sender,
-                    address(bentoBox),
+                    address(BENTO_BOX),
                     amountIn
                 );
             else {
-                // tokens already are at address(bentoBox)
+                // tokens already are at address(BENTO_BOX)
                 amountIn =
-                    IERC20(tokenIn).balanceOf(address(bentoBox)) +
-                    bentoBox.strategyData(tokenIn).balance -
-                    bentoBox.totals(tokenIn).elastic;
+                    IERC20(tokenIn).balanceOf(address(BENTO_BOX)) +
+                    BENTO_BOX.strategyData(tokenIn).balance -
+                    BENTO_BOX.totals(tokenIn).elastic;
             }
-            bentoBox.deposit(tokenIn, address(bentoBox), to, amountIn, 0);
+            BENTO_BOX.deposit(tokenIn, address(BENTO_BOX), to, amountIn, 0);
         } else {
             // Bento to outside
             if (from != INTERNAL_INPUT_SOURCE) {
-                bentoBox.transfer(tokenIn, from, address(this), amountIn);
-            } else amountIn = bentoBox.balanceOf(tokenIn, address(this));
-            bentoBox.withdraw(tokenIn, address(this), to, 0, amountIn);
+                BENTO_BOX.transfer(tokenIn, from, address(this), amountIn);
+            } else amountIn = BENTO_BOX.balanceOf(tokenIn, address(this));
+            BENTO_BOX.withdraw(tokenIn, address(this), to, 0, amountIn);
         }
     }
 
@@ -478,7 +477,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes memory swapData = stream.readBytes();
 
         if (from != INTERNAL_INPUT_SOURCE) {
-            bentoBox.transfer(tokenIn, from, pool, amountIn);
+            BENTO_BOX.transfer(tokenIn, from, pool, amountIn);
         }
 
         IPool(pool).swap(swapData);
@@ -776,8 +775,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         stream.readUint24(); // pool fee in 1/1_000_000
-        stream.readUint8() > 0;
-        bool callback = stream.readUint8() > 0; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not impelent IVelodromeV2PoolCallee
+        stream.readUint8();
+        bool callback = stream.readUint8() > 0; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
         // we don't need 'fee' and 'stable' flags since the pool handles that internally
 
         // calculate the expected output amount using the pool's getAmountOut function
