@@ -816,6 +816,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2ADd6d51A768D36815360548C3580120e14A8BB3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:33:14",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1622,6 +1636,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9243a046C01ae883E31c5e68a5C8e90D62814a11",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:33:31",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -2421,6 +2449,20 @@
             "ADDRESS": "0x42e4Ef53e8d905A5D02CC12b8C60D27800F76121",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 08:40:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB2d46B6fF7c7EeB47fCaf69aDF7d85531642e6f2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:35:32",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -3534,6 +3576,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x0101B21C9BD0c4A6c1931858FB9360AB45D400A5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:32:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -4340,6 +4396,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa79AfB8A1bFF1fA86D6488225FE8efa13c1A29F4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:31:27",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -5126,6 +5196,20 @@
             "ADDRESS": "0xC20773bbD1c8Fb749E7DaE5236800A5Dd5F39ed8",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 08:49:42",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x22109a0F5F864BC2c0B95Ca444e01033cbe5AC2A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:36:43",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -5937,6 +6021,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb5CA5571BABd74Ba2fAb0bcdD468EF72C80B9b19",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:36:07",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -6712,6 +6810,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 08:50:32",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000002407c1598650f8cd4aaa0c1a4bccd12d4999a6e9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x76F6937a41910F075024138066708B36139AC104",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:37:21",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000002add6d51a768d36815360548c3580120e14a8bb3",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -8562,6 +8674,20 @@
             "ADDRESS": "0x85a52070bf96f96B6bD4e06Ec536991879058BDF",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 08:38:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6548168eC873cDebb3Ce784e8444a799a0B60FE1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:34:35",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -12100,6 +12226,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xe670b3E309b8C867Df2559237884b4548cF69a41",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:47:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -13080,6 +13220,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x3E72E2D59E1b87644291e026b04B0A7D6bEd7E20",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:47:22",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e670b3e309b8c867df2559237884b4548cf69a41000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -13855,6 +14009,20 @@
             "ADDRESS": "0x8295805320853d6B28778fC8f5199327e62e3d87",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 09:21:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x5d9C68B76809B33317d869FF6034929F4458913c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:47:58",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
@@ -21697,6 +21865,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.3.0": [
+          {
+            "ADDRESS": "0xAe1dFe82d46eA64a14FDcFd049c2ce4f12377ce2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:32:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -24180,6 +24362,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xBB99EbdfA348239ac16a1949E0e69d29e2957C98",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:56:06",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -25162,6 +25358,20 @@
             "ADDRESS": "0x09d0AD68C55F44ea64A8B758c457ED63a3177b11",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 08:39:35",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xe94b1ae152eBdE91A7be0da47423F0939348A1De",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:35:08",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"
@@ -26654,6 +26864,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.6.0": [
+          {
+            "ADDRESS": "0x08638c651d2B9d54eBe5656b9FDAccBa13DEc864",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:48:40",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -27286,6 +27510,20 @@
             "ADDRESS": "0xE48CA2A762503bc317C62f56B46D4270bA41835E",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 08:38:21",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x56082b55c73F2d9dFe5C8c06a921d07911042385",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:34:03",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "true"
@@ -28638,6 +28876,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 14:20:44",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000864b314d4c5a0399368609581d3e8933a63b9232000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000af6051d0268c1bfcb69b3121ea21fd54b25c6cbc",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xc53366aD74aaFB58F12Cc83D38B77A11A097b118",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-07 19:49:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000076f6937a41910f075024138066708b36139ac104000000000000000000000000592b5c472af554b4e33a1a0e9e02b04664dd788b000000000000000000000000ebc5021332bf54f9700f481a232731dc2249917b",
             "SALT": "",
             "VERIFIED": "true"
           }

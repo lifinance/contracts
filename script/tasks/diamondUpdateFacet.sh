@@ -115,7 +115,7 @@ diamondUpdateFacet() {
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
     # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    if [[ "$ENVIRONMENT" == "production" && "$DEPLOY_NEW_NETWORK_MODE" == "false" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
       echoDebug $SCRIPT_PATH
 

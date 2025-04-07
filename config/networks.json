@@ -744,7 +744,7 @@
     "chainId": 1923,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006    ",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://rpc.ankr.com/swell",
