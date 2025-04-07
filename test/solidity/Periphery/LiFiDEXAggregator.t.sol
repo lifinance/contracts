@@ -55,6 +55,18 @@ contract LiFiDexAggregatorTest is TestBase {
         bytes data
     );
 
+    struct SwapTestParams {
+        address from;
+        address to;
+        address tokenIn;
+        uint256 amountIn;
+        address tokenOut;
+        bool stable;
+        uint24 fee;
+        uint8 direction;
+        bool callback;
+    }
+
     function setUp() public {
         customRpcUrlForForking = "ETH_NODE_URI_OPTIMISM";
         customBlockNumberForForking = 133999121;
@@ -162,7 +174,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenIn: ADDRESS_USDC_OPTIMISM,
                 amountIn: IERC20(ADDRESS_USDC_OPTIMISM).balanceOf(
                     address(liFiDEXAggregator)
-                ) - 1, // has to be current dex aggregator balance - 1
+                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
@@ -191,18 +203,6 @@ contract LiFiDexAggregatorTest is TestBase {
             })
         );
         vm.stopPrank();
-    }
-
-    struct SwapTestParams {
-        address from;
-        address to;
-        address tokenIn;
-        uint256 amountIn;
-        address tokenOut;
-        bool stable;
-        uint24 fee;
-        uint8 direction;
-        bool callback;
     }
 
     /**
