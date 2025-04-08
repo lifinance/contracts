@@ -246,7 +246,10 @@ const main = defineCommand({
     )
 
     for (const periphery of corePeriphery) {
-      if (!addresses.includes(getAddress(deployedContracts[periphery]))) {
+      const peripheryAddress = deployedContracts[periphery]
+      if (!peripheryAddress)
+        logError(`Periphery contract ${periphery} not deployed `)
+      else if (!addresses.includes(getAddress(peripheryAddress))) {
         logError(`Periphery contract ${periphery} not registered in Diamond`)
       } else {
         consola.success(`Periphery contract ${periphery} registered in Diamond`)
@@ -258,6 +261,7 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     if (dexs) {
       consola.box('Checking DEXs approved in diamond...')
+
       const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
@@ -266,32 +270,64 @@ const main = defineCommand({
         ]),
         client: publicClient,
       })
+
       const approvedDexs = await dexManager.read.approvedDexs()
 
-      // Loop through DEXs excluding the address for FeeCollector, LiFiDEXAggregator and TokenWrapper
       let numMissing = 0
-      for (const dex of dexs.filter(
-        (d) => !corePeriphery.includes(getAddress(d))
-      )) {
-        if (!approvedDexs.includes(getAddress(dex))) {
-          logError(`DEX ${dex} not approved in Diamond`)
-          numMissing++
+
+      // Loop through DEXs excluding known core periphery contract addresses
+      for (const dex of dexs.filter((d) => {
+        if (!d) {
+          logError(`Encountered undefined DEX address.`)
+          return false
+        }
+
+        try {
+          const normalizedDex = getAddress(d)
+
+          const isCorePeriphery = corePeriphery.some((name) => {
+            const deployed = deployedContracts[name]
+            return deployed && getAddress(deployed) === normalizedDex
+          })
+
+          return !isCorePeriphery
+        } catch (err) {
+          logError(`Invalid DEX address encountered: ${d}`)
+          return false
+        }
+      })) {
+        try {
+          const normalized = getAddress(dex)
+          if (!approvedDexs.includes(normalized)) {
+            logError(`DEX ${normalized} not approved in Diamond`)
+            numMissing++
+          }
+        } catch (err) {
+          logError(`Invalid DEX address in main check: ${dex}`)
         }
       }
 
       // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
-      const mustBeWhitelisted = corePeriphery.filter(
-        (p) =>
-          p === 'FeeCollector' ||
-          p === 'LiFiDEXAggregator' ||
-          p === 'TokenWrapper'
-      )
-      for (const f of mustBeWhitelisted) {
-        if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
-          logError(`Periphery contract ${f} not approved as a DEX`)
+      const mustBeWhitelisted = [
+        'FeeCollector',
+        'LiFiDEXAggregator',
+        'TokenWrapper',
+      ]
+
+      for (const name of mustBeWhitelisted) {
+        const addr = deployedContracts[name]
+        if (!addr) {
+          logError(`Periphery contract ${name} not deployed`)
+          numMissing++
+          continue
+        }
+
+        const normalized = getAddress(addr)
+        if (!approvedDexs.includes(normalized)) {
+          logError(`Periphery contract ${name} not approved as a DEX`)
           numMissing++
         } else {
-          consola.success(`Periphery contract ${f} approved as a DEX`)
+          consola.success(`Periphery contract ${name} approved as a DEX`)
         }
       }
 
