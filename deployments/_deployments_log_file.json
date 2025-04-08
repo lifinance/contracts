@@ -30147,6 +30147,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb169B095022D1208d7a8CfF534F7589Dc02BDE36",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-08 08:22:17",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f042fcc6bd5cb48b2862d9f22d3de5b342e94f4c000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {

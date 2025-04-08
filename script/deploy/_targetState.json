@@ -1384,7 +1384,8 @@
         "FeeCollector": "1.0.1",
         "TokenWrapper": "1.1.0",
         "LiFiDEXAggregator": "1.6.0",
-        "Permit2Proxy": "1.0.2"
+        "Permit2Proxy": "1.0.2",
+        "RelayFacet": "1.0.0"
       }
     }
   }
