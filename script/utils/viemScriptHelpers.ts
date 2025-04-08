@@ -23,6 +23,8 @@ export type Network = {
   safeApiUrl: string
   safeAddress: string
   safeWebUrl: string
+  deployedWithEvmVersion: string
+  deployedWithSolcVersion: string
   gasZipChainId: number
   id: string
 }

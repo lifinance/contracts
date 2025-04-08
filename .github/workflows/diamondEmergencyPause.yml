@@ -60,6 +60,7 @@ jobs:
           ETH_NODE_URI_BOBA: ${{ secrets.ETH_NODE_URI_BOBA }}
           ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
           ETH_NODE_URI_CELO: ${{ secrets.ETH_NODE_URI_CELO }}
+          ETH_NODE_URI_ETHERLINK: ${{ secrets.ETH_NODE_URI_ETHERLINK }}
           ETH_NODE_URI_FANTOM: ${{ secrets.ETH_NODE_URI_FANTOM }}
           ETH_NODE_URI_FRAXTAL: ${{ secrets.ETH_NODE_URI_FRAXTAL }}
           ETH_NODE_URI_FUSE: ${{ secrets.ETH_NODE_URI_FUSE }}
