@@ -2,7 +2,9 @@
 
 ## How it works
 
-The Pioneer Facet works by ...
+The Pioneer Facet takes in LIFI bridge data with a LIFI transactionID which is linked to an off-chain quote. This lets Pioneer get additonal context for the executed transaction.
+
+Payments made to Pioneer are sent directly to its EOA.
 
 ```mermaid
 graph LR;
@@ -33,7 +35,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 Some methods accept a `BridgeData _bridgeData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is integral to the Pioneer bridge as the transactionID is used to lookup off-chain quotes. Additionally it's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 
