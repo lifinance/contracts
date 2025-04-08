@@ -13,12 +13,12 @@ jobs:
     steps:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-      
-      - name: Install dev dependencies
-        run: bun install
 
       - name: Checkout repository
         uses: actions/checkout@v4.1.7
+      
+      - name: Install dev dependencies
+        run: bun install
 
       - name: Check input
         if: ${{ inputs.Warning != 'UNDERSTOOD' }}
