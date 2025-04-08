@@ -63,7 +63,7 @@ jobs:
             fi
           done < .env
         env:
-          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Pause Diamond
         run: |
