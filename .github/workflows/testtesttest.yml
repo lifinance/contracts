@@ -1,0 +1,78 @@
+name: EMERGENCY >> Pause all PROD diamonds
+
+on:
+  workflow_dispatch:
+    inputs:
+      Warning:
+        description: "By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
+        required: true
+
+jobs:
+  diamond-emergency-pause:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.7
+
+      - name: Check input
+        if: ${{ inputs.Warning != 'UNDERSTOOD' }}
+        run: |
+          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
+          exit 1
+
+      - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
+        id: authenticate-user
+        uses: tspascoal/get-user-teams-membership@v3
+        with:
+          username: ${{ github.actor }}
+          organization: lifinance
+          team: diamondpauser
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+
+      - name: Check team membership
+        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
+        run: |
+          if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
+            echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
+            exit 1
+          else
+            echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
+          fi
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Update RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          bun fetch-rpcs
+          # Inject the variables from .env into the GitHub Actions environment
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" != "" ]]; then
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done < .env
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+
+      - name: Pause Diamond
+        run: |
+          ./script/utils/testtesttest.sh
+        env:
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
+
+      - name: Send Reminder to Slack SC-general Channel
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
