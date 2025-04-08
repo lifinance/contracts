@@ -28867,6 +28867,20 @@
           }
         ]
       }
+    },
+    "etherlink": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xd8BC720ed544eB679ddDaDE1164F71069912e343",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-08 14:36:21",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000977474593c982cfa8b197cae302e6d01f789435b000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba30000000000000000000000008859899c3b09ec45f333c59ab8f7be66b9fc3fa5",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {

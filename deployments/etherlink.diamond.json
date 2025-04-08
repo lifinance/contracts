@@ -52,7 +52,7 @@
       "FeeCollector": "0x4827499a632e43074A93Fd2ADa3637A76B2d2347",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
-      "Permit2Proxy": "",
+      "Permit2Proxy": "0xd8BC720ed544eB679ddDaDE1164F71069912e343",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
