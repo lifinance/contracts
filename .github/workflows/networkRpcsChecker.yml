@@ -1,0 +1,81 @@
+# name: Check Active Networks for Missing RPC Endpoints
+name: Check Active Networks for Missing RPC Endpoints
+# - will read all "active" networks from config/networks.json
+# - will check if for all these networks a RPC endpoint variable (e.g. ETH_NODE_URI_{NETWORK}) exists
+# - If an RPC is missing, please run in the main folder of the repo:
+#   bun add-network-rpc --network {networkName} --rpcUrl {rpcUrl}
+
+on:
+  push:
+  schedule:
+    # Run every day at midnight
+    - cron: '0 0 * * *'
+
+jobs:
+  check-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4.2.0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Update RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          bun fetch-rpcs
+          # Inject the variables from .env into the GitHub Actions environment
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" != "" ]]; then
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done < .env
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Read Networks Configuration
+        id: read-networks
+        run: |
+          # Extract active networks from networks.json and save to temp file
+          jq -r 'to_entries[] | select(.value.status == "active") | .key' config/networks.json > active_networks.txt
+          echo "Extracted active networks:"
+          cat active_networks.txt
+
+      - name: Check for Missing RPC Endpoints
+        id: check-secrets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          MISSING_RPCS=""
+          # Read networks from temp file
+          while read -r NETWORK; do
+            RPC_ENV_VAR="ETH_NODE_URI_${NETWORK^^}"
+            echo "Checking for RPC: $RPC_ENV_VAR"
+            if [ -z "${!RPC_ENV_VAR}" ]; then
+              echo -e "\033[31mRPC for network $NETWORK ($RPC_ENV_VAR) is missing!\033[0m"
+              echo -e "Please run: bun add-network-rpc --network $NETWORK --rpcUrl {rpcUrl}"
+              MISSING_RPCS="$MISSING_RPCS\n$NETWORK"
+            else
+              echo -e "\033[32mRPC for network $NETWORK exists.\033[0m"
+            fi
+          done < active_networks.txt
+
+          if [ -n "$MISSING_RPCS" ]; then
+            echo -e "\033[31mMissing RPC endpoints found: $MISSING_RPCS\033[0m"
+            echo "MISSING_RPCS=$MISSING_RPCS" >> $GITHUB_ENV
+          else
+            echo -e "\033[32mFound an RPC endpoint for each active network. Check passed.\033[0m"
+          fi
+
+      - name: Send Reminder to Slack SC-general Channel
+        if: env.MISSING_RPCS != ''
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "Missing RPC endpoints for Network(s): ${{ env.MISSING_RPCS }}"
