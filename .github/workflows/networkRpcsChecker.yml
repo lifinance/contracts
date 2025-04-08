@@ -24,7 +24,7 @@ jobs:
       - name: Install dev dependencies
         run: bun install
 
-      - name: Update RPC endpoints from MongoDB
+      - name: Fetch RPC endpoints from MongoDB
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           bun fetch-rpcs
