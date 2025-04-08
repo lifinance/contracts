@@ -85,7 +85,7 @@ async function main() {
   const amount = parseUnits('10', Number(srcTokenDecimals)) // 10 * 1e{source token decimals}
 
   console.info(
-    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`
+    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> ${destinationChainId}`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 

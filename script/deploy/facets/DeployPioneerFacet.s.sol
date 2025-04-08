@@ -8,6 +8,8 @@ import { PioneerFacet } from "lifi/Facets/PioneerFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
+    error PioneerAddress0();
+
     constructor() DeployScriptBase("PioneerFacet") {}
 
     function run()
@@ -38,8 +40,10 @@ contract DeployScript is DeployScriptBase {
         //
         // in the address is not a supposed to be an EOA, you can use the following standard approach:
         address pioneer = json.readAddress(
-            string.concat(".", network, ".PIONER_ADDRESS")
+            string.concat(".", network, ".PIONEER_ADDRESS")
         );
+
+        if (pioneer == address(0)) revert PioneerAddress0();
 
         return abi.encode(pioneer);
     }
