@@ -764,7 +764,7 @@ function saveDiamondPeriphery() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # get RPC URL
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -905,7 +905,7 @@ function checkRequiredVariablesInDotEnv() {
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # Check if it's using MAINNET_ETHERSCAN_API_KEY
   if [[ "$KEY_VAR" == "MAINNET_ETHERSCAN_API_KEY" ]]; then
@@ -1704,7 +1704,7 @@ function confirmOwnershipTransfer() {
   attempts=1 # initialize attempts to 0
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
@@ -2432,7 +2432,7 @@ function getDeployerBalance() {
   local ENVIRONMENT=$2
 
   # get RPC URL
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get deployer address
   ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -2453,7 +2453,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get list of all core facet contracts from global.json
   FACETS_NAMES=($(getCoreFacetsArray))
@@ -2500,7 +2500,7 @@ function getPeripheryAddressFromDiamond() {
   local PERIPHERY_CONTRACT_NAME="$3"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # call diamond to check for periphery address
   PERIPHERY_CONTRACT_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME" --rpc-url "${RPC_URL}")
@@ -2603,7 +2603,7 @@ function doesFacetExistInDiamond() {
   local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # loop through facet selectors and see if this selector is known by the diamond
   for SELECTOR in $SELECTORS; do
@@ -2632,7 +2632,7 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # check if NODE_URL is available
   if [ -z "$RPC_URL" ]; then
@@ -2660,7 +2660,7 @@ function getFacetAddressFromDiamond() {
   local SELECTOR="$3"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
 
@@ -2671,7 +2671,7 @@ function getCurrentGasPrice() {
   local NETWORK=$1
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL")
 
@@ -2684,7 +2684,7 @@ function getContractOwner() {
   local contract=$3
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
   local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
@@ -2713,7 +2713,7 @@ function getPendingContractOwner() {
   local contract=$3
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
   local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
@@ -2767,15 +2767,44 @@ function doNotContinueUnlessGasIsBelowThreshold() {
     sleep 5
   done
 }
+# Retrieve the RPC URL from MongoDB for a given network
 function getRPCUrl() {
-  # read function arguments into variables
-  local NETWORK=$1
+  local network="$1"
 
-  # get RPC KEY
-  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # Ensure that the MONGODB_URI environment variable is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not defined in the environment">&2
+    return 1
+  fi
 
-  # return RPC URL
-  echo "${!RPC_KEY}"
+  # Use mongosh to query MongoDB and output the document as JSON.
+  # The print(JSON.stringify(...)) ensures a proper JSON output.
+  local json_doc
+  json_doc=$(mongosh "$MONGODB_URI" --quiet --eval "print(JSON.stringify(db.getSiblingDB('blockchain_configs').rpc_endpoints.findOne({chainName:'$network'})))" 2>&1)
+  local status=$?
+  if [[ $status -ne 0 ]]; then
+    error "Error executing mongosh query: $json_doc">&2
+    return 1
+  fi
+
+  # Check if the document is missing or null
+  if [[ -z "$json_doc" || "$json_doc" == "null" ]]; then
+    error "Error: RPC endpoints for chain $network not found in MongoDB">&2
+    return 1
+  fi
+
+  # Process the JSON using jq:
+  # - Filter endpoints that have a non-empty url
+  # - Sort them by priority
+  # - Extract the url from the first element in the sorted array
+  local rpc_url
+  rpc_url=$(echo "$json_doc" | jq -r '.rpcs | map(select(.url != null and .url != "")) | sort_by(.priority) | .[0].url')
+  if [[ -z "$rpc_url" || "$rpc_url" == "null" ]]; then
+    error "Error: No RPC endpoints available for chain $network">&2
+    return 1
+  fi
+
+  echo "$rpc_url"
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
@@ -2940,7 +2969,7 @@ transferContractOwnership() {
     local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
     local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
 
-    local RPC_URL=$(getRPCUrl "$NETWORK")
+    local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     # Get address of old and new owner
     local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
