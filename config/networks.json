@@ -247,7 +247,7 @@
     "wrappedNativeAddress": "0xda5dDd7270381A7C2717aD10D1c0ecB19e3CDFb2",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://rpc.ankr.com/corn_maizene",
+    "rpcUrl": "https://rpc.ankr.com/corn_maizenet",
     "verificationType": "etherscan",
     "explorerUrl": "https://cornscan.io",
     "explorerApiUrl": "https://cornscan.io/api",
