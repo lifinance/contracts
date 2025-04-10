@@ -74,7 +74,7 @@ function diamondSyncSigs {
     fi
 
     # get RPC URL for given network
-    RPC_URL=$(getRPCUrl "$NETWORK")
+    RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     # call batchSetFunctionApprovalBySignature function in diamond to add function selectors
     local ATTEMPTS=1

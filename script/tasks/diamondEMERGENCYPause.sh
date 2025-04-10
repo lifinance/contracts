@@ -132,7 +132,7 @@ function handleNetwork() {
   local BLACKLIST=$5 # a list of facet addresses that should not be reactivated when unpausing the diamond
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "$DIAMOND_CONTRACT_NAME")
 

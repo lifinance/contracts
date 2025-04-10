@@ -71,7 +71,7 @@ function diamondSyncDEXs {
       continue
     fi
 
-    RPC_URL=$(getRPCUrl "$NETWORK")
+    RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
