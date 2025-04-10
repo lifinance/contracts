@@ -255,7 +255,7 @@
     "safeApiUrl": "https://safe-transaction-corn-maizenet.safe.onchainden.com/api",
     "safeAddress": "0xE6c9461644Dd0945354d7A9528dDD114D235c266",
     "safeWebUrl": "https://safe.usecorn.com/transactions/queue?safe=corn:0xE6c9461644Dd0945354d7A9528dDD114D235c266",
-    "gasZipChainId": 0,
+    "gasZipChainId": 391,
     "isZkEVM": false,
     "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
   },
