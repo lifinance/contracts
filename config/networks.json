@@ -755,7 +755,7 @@
     "safeApiUrl": "https://trx-swell.safe.protofire.io/api",
     "safeAddress": "0xEBc5021332BF54f9700F481A232731Dc2249917b",
     "safeWebUrl": "https://safe.optimism.io/transactions/queue?safe=swell-l2:0xEBc5021332BF54f9700F481A232731Dc2249917b",
-    "gasZipChainId": 0,
+    "gasZipChainId": 385,
     "isZkEVM": false,
     "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593"
   },

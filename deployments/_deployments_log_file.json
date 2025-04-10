@@ -29717,6 +29717,20 @@
           }
         ]
       }
+    },
+    "swellchain": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x51E9797e1B99ec665dA01Fc1191ea4023614b9C8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-10 07:38:44",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc276200000000000000000000000008638c651d2b9d54ebe5656b9fdaccba13dec864000000000000000000000000ebc5021332bf54f9700f481a232731dc2249917b",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RelayFacet": {
