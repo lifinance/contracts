@@ -328,7 +328,10 @@ export class ViemSafe {
   // Generate transaction hash (replaces getTransactionHash from Safe SDK)
   async getTransactionHash(safeTx: SafeTransaction): Promise<Hex> {
     try {
-      return await this.publicClient.readContract({
+      // The Safe contract's getTransactionHash matches this implementation
+      // GS026 error indicates invalid signature which would happen if we're not using
+      // the correct hash that the Safe contract expects
+      const hash = await this.publicClient.readContract({
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'getTransactionHash',
@@ -345,49 +348,149 @@ export class ViemSafe {
           safeTx.data.nonce,
         ],
       })
+
+      console.log('Generated transaction hash:', hash)
+      return hash
     } catch (error) {
       console.error('Error generating transaction hash:', error)
       throw error
     }
   }
 
-  // Sign a transaction hash (replaces signHash from Safe SDK)
+  // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
+  // Error GS026 indicates an invalid signature issue
   async signHash(hash: Hex): Promise<SafeSignature> {
-    const signature = await this.walletClient.signMessage({
-      message: { raw: hash },
-    })
+    try {
+      console.log('Signing hash:', hash)
 
-    return {
-      signer: this.account,
-      data: signature,
+      // Use eth_sign (via personal_sign) which adds the Ethereum message prefix
+      // This is the most compatible method with all Safe contract versions
+      const ethSignSignature = await this.walletClient.signMessage({
+        message: { raw: hash },
+      })
+
+      console.log('Raw signature:', ethSignSignature)
+
+      if (
+        !ethSignSignature.startsWith('0x') ||
+        ethSignSignature.length !== 132
+      ) {
+        throw new Error(
+          `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${ethSignSignature}`
+        )
+      }
+
+      // Extract r, s, v components from the signature
+      const r = ethSignSignature.slice(0, 66)
+      const s = ethSignSignature.slice(66, 130)
+
+      // Get v value from the signature and adjust for eth_sign
+      const vByte = ethSignSignature.slice(130, 132)
+      const vValue = parseInt(vByte, 16)
+
+      // For eth_sign signatures in Safe contracts, we need to add +4 to v
+      // This identifies it as an eth_sign signature (type 1)
+      const safeV = (vValue + 4).toString(16).padStart(2, '0')
+
+      // Format for Safe contract: r + s + v
+      // Safe expects signatures in format: r (32 bytes) + s (32 bytes) + v (1 byte)
+      const safeSignature = `0x${r.slice(2)}${s}${safeV}` as Hex
+
+      console.log('Safe signature:', safeSignature)
+
+      return {
+        signer: this.account,
+        data: safeSignature,
+      }
+    } catch (error) {
+      console.error('Error signing hash with eth_sign:', error)
+      throw new Error(`Failed to sign hash: ${error.message || error}`)
     }
   }
 
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
   async signTransaction(safeTx: SafeTransaction): Promise<SafeTransaction> {
-    const hash = await this.getTransactionHash(safeTx)
-    const signature = await this.signHash(hash)
+    try {
+      const hash = await this.getTransactionHash(safeTx)
+      const signature = await this.signHash(hash)
 
-    // Add signature to transaction
-    safeTx.signatures.set(signature.signer.toLowerCase(), signature)
+      // Add signature to transaction
+      safeTx.signatures.set(signature.signer.toLowerCase(), signature)
 
-    return safeTx
+      return safeTx
+    } catch (error) {
+      console.error('Error signing transaction:', error)
+      throw new Error(`Failed to sign transaction: ${error.message || error}`)
+    }
+  }
+
+  // Validate a signature to ensure it's in the correct format for Safe contracts
+  private validateSignature(signature: Hex): boolean {
+    if (!signature.startsWith('0x')) {
+      return false
+    }
+
+    // Remove 0x prefix for length check
+    const sigWithoutPrefix = signature.slice(2)
+
+    // For Safe signatures in format r+s+v, signature should be 130 chars (65 bytes)
+    // r = 32 bytes (64 chars), s = 32 bytes (64 chars), v = 1 byte (2 chars)
+    if (sigWithoutPrefix.length !== 130) {
+      return false
+    }
+
+    // We're now using eth_sign signatures with the Safe, which means v values of 31 or 32
+    // (normal v value of 27/28 + 4 = 31/32)
+    const vValue = parseInt(sigWithoutPrefix.slice(128, 130), 16)
+
+    // We expect eth_sign (type 1) signatures with v values 31 or 32
+    return vValue === 31 || vValue === 32
   }
 
   // Format signatures as bytes for contract submission
   private formatSignatures(signatures: Map<string, SafeSignature>): Hex {
-    // Convert Map to array and sort by signer address
-    const sortedSigs = Array.from(signatures.values()).sort((a, b) =>
-      a.signer.toLowerCase() > b.signer.toLowerCase() ? 1 : -1
-    )
-
-    // Concatenate all signatures as bytes
-    let signatureBytes = '0x' as Hex
-    for (const sig of sortedSigs) {
-      signatureBytes = (signatureBytes + sig.data.slice(2)) as Hex
+    if (!signatures.size) {
+      return '0x' as Hex
     }
 
-    return signatureBytes
+    try {
+      // Convert Map to array and sort by signer address
+      // Safe contract requires signatures to be sorted by signer address
+      const sortedSigs = Array.from(signatures.values()).sort((a, b) => {
+        const addressA = a.signer.toLowerCase()
+        const addressB = b.signer.toLowerCase()
+        return addressA < addressB ? -1 : addressA > addressB ? 1 : 0
+      })
+
+      // Concatenate all signatures as bytes
+      // Each signature is 65 bytes: r (32) + s (32) + v (1)
+      let signatureBytes = '0x' as Hex
+      for (const sig of sortedSigs) {
+        // Ensure signature data is in correct format
+        if (!sig.data.startsWith('0x')) {
+          throw new Error(
+            `Invalid signature format. Expected 0x prefix but got: ${sig.data}`
+          )
+        }
+
+        // Validate signature format
+        if (!this.validateSignature(sig.data)) {
+          throw new Error(
+            `Invalid signature length. Safe signatures must be 65 bytes (130 hex chars excluding 0x prefix). Got: ${
+              sig.data.slice(2).length
+            } chars`
+          )
+        }
+
+        // Remove 0x prefix before concatenating
+        signatureBytes = (signatureBytes + sig.data.slice(2)) as Hex
+      }
+
+      return signatureBytes
+    } catch (error) {
+      console.error('Error formatting signatures:', error)
+      throw new Error(`Failed to format signatures: ${error.message || error}`)
+    }
   }
 
   /**

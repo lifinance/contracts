@@ -71,20 +71,20 @@ const processTxs = async (
   consola.info('Signer:', signerAddress)
 
   // Check if the current signer is an owner
-  // try {
-  //   const existingOwners = await safe.getOwners()
-  //   if (!isAddressASafeOwner(existingOwners, signerAddress)) {
-  //     consola.error('The current signer is not an owner of this Safe')
-  //     consola.error('Signer address:', signerAddress)
-  //     consola.error('Current owners:', existingOwners)
-  //     consola.error('Cannot sign or execute transactions - exiting')
-  //     return
-  //   }
-  // } catch (error) {
-  //   consola.error(`Failed to check if signer is an owner: ${error.message}`)
-  //   consola.error('Skipping this network and moving to the next one')
-  //   return
-  // }
+  try {
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, signerAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', signerAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot sign or execute transactions - exiting')
+      return
+    }
+  } catch (error) {
+    consola.error(`Failed to check if signer is an owner: ${error.message}`)
+    consola.error('Skipping this network and moving to the next one')
+    return
+  }
 
   /**
    * Signs a SafeTransaction
@@ -108,22 +108,46 @@ const processTxs = async (
    * @param safeTransaction - The transaction to execute
    */
   async function executeTransaction(safeTransaction: SafeTransaction) {
-    consola.info('Executing transaction')
+    consola.info('Preparing to execute Safe transaction...')
     try {
+      // Get the Safe transaction hash for reference
+      const safeTxHash = await safe.getTransactionHash(safeTransaction)
+      consola.info(`Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`)
+
+      // Execute the transaction on-chain
+      consola.info('Submitting execution transaction to blockchain...')
       const exec = await safe.executeTransaction(safeTransaction)
+
+      // Log execution details with color coding
+      consola.success(`Execution transaction submitted successfully!`)
+      consola.info(
+        `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
+      )
 
       // Update MongoDB transaction status
       await pendingTransactions.updateOne(
-        { safeTxHash: await safe.getTransactionHash(safeTransaction) },
+        { safeTxHash: safeTxHash },
         { $set: { status: 'executed', executionHash: exec.hash } }
       )
 
-      consola.success('Transaction executed')
-      consola.info(' ')
+      consola.success(
+        `✅ Safe transaction successfully executed and recorded in database`
+      )
+      consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
+      consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
       consola.info(' ')
     } catch (error) {
-      consola.error('Error while trying to execute the transaction:', error)
-      throw new Error(`Transaction could not be executed: ${error.message}`)
+      consola.error('❌ Error executing Safe transaction:')
+      consola.error(`   ${error.message}`)
+      if (error.message.includes('GS026')) {
+        consola.error(
+          '   This appears to be a signature validation error (GS026).'
+        )
+        consola.error(
+          '   Possible causes: invalid signature format or incorrect signer.'
+        )
+      }
+      throw new Error(`Transaction execution failed: ${error.message}`)
     }
   }
 
@@ -226,13 +250,24 @@ const processTxs = async (
       }
     }
 
-    consola.info(`Transaction:
-    Nonce:     \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
-    To:        \u001b[32m${tx.safeTx.data.to}\u001b[0m
-    Value:     \u001b[32m${tx.safeTx.data.value}\u001b[0m
-    Data:      \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:  \u001b[32m${tx.proposer}\u001b[0m
-    Hash:      \u001b[32m${tx.safeTxHash}\u001b[0m`)
+    consola.info(`Safe Transaction Details:
+    Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
+    To:              \u001b[32m${tx.safeTx.data.to}\u001b[0m
+    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
+    Operation:       \u001b[32m${
+      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
+    }\u001b[0m
+    Data:            \u001b[32m${
+      tx.safeTx.data.data?.length > 66
+        ? tx.safeTx.data.data.substring(0, 66) + '...'
+        : tx.safeTx.data.data
+    }\u001b[0m
+    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
+    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
+    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
+      tx.threshold
+    }\u001b[0m required
+    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]

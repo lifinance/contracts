@@ -1,12 +1,32 @@
 {
-  "important": "these values are test deployments only. We need to update this file when Glacis has deployed their final versions",
-  "arbitrum": {
-    "airlift": "0xD9E7f6f7Dc7517678127D84dBf0F0b4477De14E0"
+  "mainnet": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
-  "optimism": {
-    "airlift": "0xdEedFc11fCd2bC3E63915e8060ec48875E890BCB"
+  "arbitrum": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "avalanche": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "base": {
-    "airlift": "0x30095227Eb6d72FA6c09DfdeFFC766c33f7FA2DD"
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "bsc": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "linea": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "mode": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "optimism": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "polygon": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "scroll": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   }
 }

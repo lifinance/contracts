@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { ISquidMulticall } from "./ISquidMulticall.sol";
 
+/// @title Interface for Squid Router
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface ISquidRouter {
     function bridgeCall(
         string calldata bridgedTokenSymbol,

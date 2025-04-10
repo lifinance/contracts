@@ -408,6 +408,7 @@ contract CalldataVerificationFacet {
         bytes memory callTo,
         bytes32 callToBytes32
     ) private pure returns (bool) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             callTo.length >= 20,
             "Invalid callTo length; expected at least 20 bytes"
