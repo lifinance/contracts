@@ -65,7 +65,7 @@ jobs:
 
       - name: Pause Diamond
         run: |
-          ./script/utils/testtesttest.sh
+          ./script/utils/diamondEMERGENCYPauseGitHub.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 

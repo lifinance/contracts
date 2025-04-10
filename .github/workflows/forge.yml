@@ -46,12 +46,6 @@ jobs:
           done < .env
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-
-      - name: Debug - Print All ENV Variables
-        run: |
-          echo "==================== ENV VARIABLES ===================="
-          env | sort
-          echo "======================================================"
           
       - name: Run forge tests (with auto-repeat in case of error)
         uses: Wandalen/wretry.action@v3.8.0
