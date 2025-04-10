@@ -48,7 +48,7 @@ async function mergeEndpointsIntoEnv() {
     // Generate new endpoint lines, sorted alphabetically by key
     const newLines = Object.entries(newEndpoints)
       .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-      .map(([key, value]) => `${key}=${value}`)
+      .map(([key, value]) => `${key}="${value}"`)
 
     // Read the existing .env file, or start with an empty string if it doesn't exist
     let envContent = ''

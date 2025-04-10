@@ -34,20 +34,25 @@ jobs:
       - name: Install forge Dependencies
         run: forge install
 
-      - name: Fetch RPC endpoints from MongoDB
+      - name: Update RPC endpoints from MongoDB
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           bun fetch-rpcs
           # Inject the variables from .env into the GitHub Actions environment
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" != "" ]]; then
-              echo $line
               echo "$line" >> $GITHUB_ENV
             fi
           done < .env
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
+      - name: Debug - Print All ENV Variables
+        run: |
+          echo "==================== ENV VARIABLES ===================="
+          env | sort
+          echo "======================================================"
+          
       - name: Run forge tests (with auto-repeat in case of error)
         uses: Wandalen/wretry.action@v3.8.0
         with:
