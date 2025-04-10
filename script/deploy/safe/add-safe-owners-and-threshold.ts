@@ -49,7 +49,7 @@ const main = defineCommand({
     const { network, privateKey: privateKeyArg } = args
 
     // Get private key
-    const privateKey = getPrivateKey(privateKeyArg)
+    const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', privateKeyArg)
 
     // Connect to MongoDB
     const { client: mongoClient, pendingTransactions } =
