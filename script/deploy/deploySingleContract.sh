@@ -155,6 +155,12 @@ deploySingleContract() {
   # prepare bytecode
   BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
 
+  echo ""
+  echo ""
+  echo "BYTECODE: $BYTECODE"
+  echo ""
+  echo ""
+
   # get CREATE3_FACTORY_ADDRESS
   CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
   checkFailure $? "retrieve create3Factory address from networks.json"
@@ -231,7 +237,75 @@ deploySingleContract() {
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+
+      if [[ $NETWORK == "etherlink" && "$CONTRACT" == "LiFiDEXAggregator" ]]; then
+        # Encode constructor arguments
+        CONSTRUCTOR_ARGS=$(cast abi-encode \
+          "constructor(address,address[],address)" \
+          0x0000000000000000000000000000000000000000 \
+          "[0xd38743b48d26743C0Ec6898d699394FBc94657Ee]" \
+          0x156CeBba59DEB2cB23742F70dCb0a11cC775591F)
+
+        echo "CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS"
+
+        # Combine bytecode and constructor args
+        BYTECODE_UNCHANGED=$(getBytecodeFromArtifact "$CONTRACT")
+        DEPLOY_CODE="0x${BYTECODE_UNCHANGED:2}${CONSTRUCTOR_ARGS:2}"
+
+        # Set up RPC
+        RPC_URL=$(getRPCUrl "$NETWORK")
+        echo "RPC_URL: $RPC_URL"
+
+        # Estimate base fee
+        BASE_FEE=$(cast base-fee --rpc-url "$RPC_URL")
+        GAS_PRICE=$(echo "$BASE_FEE * 4" | bc | awk '{printf "%.0f", $1}') # conservative multiplier
+        echo "Base fee per gas: $BASE_FEE"
+        echo "gasPrice to use: $GAS_PRICE"
+
+        # Inclusion fee estimation (informational only)
+        DEPLOY_SIZE_BYTES=$((${#DEPLOY_CODE} / 2))
+        ACCESS_LIST_SIZE=0 # likely zero unless you set it explicitly
+        INCLUSION_FEE_XTZ=$(echo "0.000004 * (150 + $DEPLOY_SIZE_BYTES + $ACCESS_LIST_SIZE)" | bc)
+        INCLUSION_FEE_WEI=$(echo "$INCLUSION_FEE_XTZ * 1000000000000000000" | bc | awk '{printf "%.0f", $1}')
+
+        echo "Contract size: $DEPLOY_SIZE_BYTES bytes"
+        echo "Estimated inclusion fee: $INCLUSION_FEE_XTZ XTZ (~$INCLUSION_FEE_WEI wei)"
+
+        # Estimate gas
+        echo "Estimating gas..."
+        GAS_ESTIMATE=$(cast estimate \
+          --rpc-url "$RPC_URL" \
+          --from "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" \
+          --create "$DEPLOY_CODE")
+
+        # Add buffer to gas limit
+        GAS_LIMIT=$((GAS_ESTIMATE + 10000))
+        echo "GAS_ESTIMATE: $GAS_ESTIMATE"
+        echo "GAS_LIMIT to use: $GAS_LIMIT"
+
+        # Send transaction
+        echo "Sending transaction..."
+
+        ######## THIS WORKED AND DEPLOYED THE CONTRACT ############
+        # TX_OUTPUT=$(cast send \
+        #   --rpc-url "$RPC_URL" \
+        #   --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
+        #   --gas-limit "$GAS_LIMIT" \
+        #   --gas-price "$GAS_PRICE" \
+        #   --priority-gas-price 0 \
+        #   --create "$DEPLOY_CODE" \
+        #   --json)
+        # echo "TX_OUTPUT: $TX_OUTPUT"
+        ###########################################################
+
+        # DRY_RUN=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json -- --max-fee-per-gas "$MAX_FEE" --dry-run)
+        # echo "DRY_RUN: $DRY_RUN"
+        # echo "DRY_RUN done: $DRY_RUN"
+        ###### THIS DID NOT WORK:
+        RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation -- --max-fee-per-gas "$MAX_FEE" --max-priority-fee-per-gas 0 --gas-limit "$GAS_LIMIT")
+      else
+        RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+      fi
     fi
 
     RETURN_CODE=$?
