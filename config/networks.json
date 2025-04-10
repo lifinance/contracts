@@ -301,7 +301,7 @@
     "safeApiUrl": "https://transaction.safe.etherlink.com/api",
     "safeAddress": "0x8859899C3b09eC45F333c59AB8F7be66b9fc3fA5",
     "safeWebUrl": "https://safe.etherlink.com/transactions/queue?safe=etlk:0x8859899C3b09eC45F333c59AB8F7be66b9fc3fA5",
-    "gasZipChainId": 0,
+    "gasZipChainId": 346,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.28",
