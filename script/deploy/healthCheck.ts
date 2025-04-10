@@ -511,6 +511,7 @@ const main = defineCommand({
           res = await fetch(configUrl)
         } catch (error) {
           logError(`Could not fetch SAFE config from configURL: ${configUrl}`)
+          process.exit(1)
         }
         const safeConfig = await res.json()
 
