@@ -20117,6 +20117,20 @@
           }
         ]
       }
+    },
+    "base": {
+      "production": {
+        "1.2.1": [
+          {
+            "ADDRESS": "0x4BE836589E666fEA7D3E75a786b39E10E59a83ac",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-21 17:48:51",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000068208d99746b805a1ae41421950a47b711e35681",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RoninBridgeFacet": {

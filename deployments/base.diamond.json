@@ -142,8 +142,8 @@
         "Version": "1.0.0"
       },
       "0x4BE836589E666fEA7D3E75a786b39E10E59a83ac": {
-        "Name": "",
-        "Version": ""
+        "Name": "ThorSwapFacet",
+        "Version": "1.2.1"
       },
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
