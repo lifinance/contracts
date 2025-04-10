@@ -51,7 +51,7 @@ const main = defineCommand({
     await Promise.all(
       activeNetworks.map(async (network) => {
         try {
-          consola.info(`Processing network: ${network.name}`)
+          consola.info(`[${network.name}] Processing network now`)
 
           // get the diamond address for this network
           const diamondAddress = await getContractAddressForNetwork(
@@ -120,7 +120,9 @@ const main = defineCommand({
             )
 
             if (!result.acknowledged) {
-              throw new Error('MongoDB insert was not acknowledged')
+              throw new Error(
+                `[${network.name}] MongoDB insert was not acknowledged`
+              )
             }
 
             consola.info('Transaction successfully stored in MongoDB')
@@ -129,10 +131,10 @@ const main = defineCommand({
             throw error
           }
 
-          consola.success(`Transaction proposed for ${network.name}`)
+          consola.success(`[${network.name}] Transaction proposed`)
         } catch (error) {
           consola.error(
-            `Error proposing unpause transaction for network ${network.name}:`,
+            `[${network.name}] Error proposing unpause transaction:`,
             error
           )
         }
@@ -150,8 +152,8 @@ async function getBlacklistedFacetAddresses(
   networkName: string,
   blacklistFacets: string
 ): Promise<Address[]> {
+  // if blacklist is empty we dont need to look for addresses
   if (!blacklistFacets) {
-    console.log('here')
     return []
   }
 
