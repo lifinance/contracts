@@ -117,7 +117,6 @@ diamondUpdateFacet() {
     # check if we are deploying to PROD
     if [[ "$ENVIRONMENT" == "production" && "$DEPLOY_NEW_NETWORK_MODE" == "false" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
-      echoDebug $SCRIPT_PATH
 
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
       echoDebug "Calculating facet cuts for $SCRIPT..."
@@ -137,7 +136,9 @@ diamondUpdateFacet() {
         bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$(getRPCUrl $NETWORK)" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       fi
     else
-      # STAGING: just deploy normally without further checks
+      # STAGING (or new network deployment): just deploy normally without further checks
+      echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
+
       if isZkEvmNetwork "$NETWORK"; then
         RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
       else

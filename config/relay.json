@@ -1,4 +1,5 @@
 {
+  "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/resources/contract-addresses",
   "mainnet": {
     "chainId": 1,
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
@@ -51,6 +52,11 @@
   "bsc": {
     "chainId": 56,
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "corn": {
+    "chainId": 21000000,
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
   "gnosis": {
