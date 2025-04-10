@@ -1,9 +1,8 @@
-# name: Check Active Networks for Missing RPC Endpoints
 name: Check Active Networks for Missing RPC Endpoints
 # - will read all "active" networks from config/networks.json
 # - will check if for all these networks a RPC endpoint variable (e.g. ETH_NODE_URI_{NETWORK}) exists
 # - If an RPC is missing, please run in the main folder of the repo:
-#   bun add-network-rpc --network {networkName} --rpcUrl {rpcUrl}
+#   bun add-network-rpc --network {networkName} --rpcUrl {rpcUrl} - this will add rpc with highest priority
 
 on:
   push:

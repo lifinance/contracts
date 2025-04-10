@@ -2795,12 +2795,13 @@ function getRPCUrl() {
 
   # Process the JSON using jq:
   # - Filter endpoints that have a non-empty url
-  # - Sort them by priority
-  # - Extract the url from the first element in the sorted array
+  # - Sort them by priority (in ascending order)
+  # - Reverse the sorted array so that the endpoint with the highest number (priority) is first
+  # - Extract the url from the first element in the reversed array
   local rpc_url
-  rpc_url=$(echo "$json_doc" | jq -r '.rpcs | map(select(.url != null and .url != "")) | sort_by(.priority) | .[0].url')
+  rpc_url=$(echo "$json_doc" | jq -r '.rpcs | map(select(.url != null and .url != "")) | sort_by(.priority) | reverse | .[0].url')
   if [[ -z "$rpc_url" || "$rpc_url" == "null" ]]; then
-    error "Error: No RPC endpoints available for chain $network">&2
+    error "Error: No RPC endpoints available for chain $network" >&2
     return 1
   fi
 
