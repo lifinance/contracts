@@ -453,7 +453,7 @@
     "explorerApiUrl": "https://explorer-api.lens.xyz/api",
     "multicallAddress": "0xeee5a340Cdc9c179Db25dea45AcfD5FE8d4d3eB8",
     "safeApiUrl": "http://api.none.com",
-    "safeAddress": "0x0000000000000000000000000000000000000000",
+    "safeAddress": "0x21E9D62A31EC8F89966ff548C69aDfC94E82B57B",
     "safeWebUrl": "https://safe.none.com",
     "gasZipChainId": 11111,
     "isZkEVM": true,
