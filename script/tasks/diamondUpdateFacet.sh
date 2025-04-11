@@ -115,16 +115,14 @@ diamondUpdateFacet() {
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
     # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" ]]; then
-      # Check DEPLOY_NEW_NETWORK_MODE flag - if true, execute directly rather than proposing to SAFE
-      if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-        echo "DEPLOY_NEW_NETWORK_MODE is activated - executing $SCRIPT directly on $DIAMOND_CONTRACT_NAME in network $NETWORK..."
-        # Execute the transaction directly
-        if isZkEvmNetwork "$NETWORK"; then
-          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
-        else
-          RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --skip-simulation --legacy)
-        fi
+    if [[ "$ENVIRONMENT" == "production" && "$DEPLOY_NEW_NETWORK_MODE" == "false" ]]; then
+      # PROD: suggest diamondCut transaction to SAFE
+
+      PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
+      echoDebug "Calculating facet cuts for $SCRIPT..."
+
+      if isZkEvmNetwork "$NETWORK"; then
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         echoDebug $SCRIPT_PATH
@@ -148,7 +146,9 @@ diamondUpdateFacet() {
         fi
       fi
     else
-      # STAGING: just deploy normally without further checks
+      # STAGING (or new network deployment): just deploy normally without further checks
+      echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
+
       if isZkEvmNetwork "$NETWORK"; then
         RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
       else
