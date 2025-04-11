@@ -506,7 +506,15 @@ const main = defineCommand({
         const safeAddress = networkConfig.safeAddress
         const safeApiUrl = networkConfig.safeApiUrl
         const configUrl = `${safeApiUrl}/v1/safes/${safeAddress}`
-        const res = await fetch(configUrl)
+        let res
+        try {
+          res = await fetch(configUrl)
+        } catch (error) {
+          logError(
+            `Could not fetch SAFE config from configURL ${configUrl}: ${error}`
+          )
+          process.exit(1)
+        }
         const safeConfig = await res.json()
 
         // Check that each safeOwner is in safeConfig.owners
