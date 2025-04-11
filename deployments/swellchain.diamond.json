@@ -50,7 +50,7 @@
       "ERC20Proxy": "0xe670b3E309b8C867Df2559237884b4548cF69a41",
       "Executor": "0x3E72E2D59E1b87644291e026b04B0A7D6bEd7E20",
       "FeeCollector": "0x5d9C68B76809B33317d869FF6034929F4458913c",
-      "GasZipPeriphery": "",
+      "GasZipPeriphery": "0x51E9797e1B99ec665dA01Fc1191ea4023614b9C8",
       "LiFiDEXAggregator": "0x08638c651d2B9d54eBe5656b9FDAccBa13DEc864",
       "Permit2Proxy": "0xc53366aD74aaFB58F12Cc83D38B77A11A097b118",
       "ReceiverAcrossV3": "",
