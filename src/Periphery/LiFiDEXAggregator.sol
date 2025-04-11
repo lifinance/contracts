@@ -6,7 +6,7 @@ import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/E
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -769,6 +769,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
+        if (pool == address(0) || to == address(0)) revert InvalidCallData();
         stream.readUint24(); // pool fee in 1/1_000_000
         stream.readUint8();
         bool callback = stream.readUint8() == 1; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
