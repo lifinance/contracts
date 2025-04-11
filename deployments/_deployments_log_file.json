@@ -1637,6 +1637,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB81b36D7909C4bfC332219454b3f0331a5633533",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:37:54",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.0.0": [
@@ -2452,6 +2466,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6a8417a9f7B5eF19e1f0007BA3aFaF42B0Fc39d6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:40:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3577,6 +3605,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x56b8A6E7a8f058f74C42d26936F335fC65fe3962",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:43:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.0.1": [
@@ -4397,6 +4439,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa9347E8f6Fa500D27b0E3482525dA6b95bED1684",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 20:17:35",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.0.0": [
@@ -5199,6 +5255,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7a50b40dbc33BE22FBF941e4eDbC26C9838a5896",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:47:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -6018,6 +6088,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1895985Ff263B502B40f984b6976DB845658B767",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 16:54:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -8677,6 +8761,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD69298878d2615DF57B4FADDd402f63a96A9bFd1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 17:02:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -12227,6 +12325,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6C251afA2ca69b53BF4588B63f2820a91672A6D3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-27 13:24:53",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.1.0": [
@@ -13221,6 +13333,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0xAb30c390671F509D89527F2FfEa6F9a072E3B636",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-27 13:34:31",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006c251afa2ca69b53bf4588b63f2820a91672a6d300000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "2.1.0": [
@@ -14012,6 +14138,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6B6A13e1a04D0a899e0c9b49AaB966a0C5A7f9f3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-27 13:36:44",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -21866,6 +22006,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.3.0": [
+          {
+            "ADDRESS": "0x25A13FeE9b16114C9F281792Eed3Dfee29938365",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 19:10:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.3.0": [
@@ -24363,6 +24517,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x13A0486DCeEB9908D09bAD8136c0512D529383AC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-27 13:40:51",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006bdc36e20d267ff0dd6097799f82e78907105e2f000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.1.0": [
@@ -25361,6 +25529,20 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xA16895a5be2375152c02Db599a6bB1Dd881E3342",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 17:04:44",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -26865,6 +27047,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.6.0": [
+          {
+            "ADDRESS": "0x642eeb39B287bB7809043aaE89bcfac2F409737D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-27 13:43:30",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.6.0": [
@@ -27517,6 +27713,20 @@
         ]
       }
     },
+    "lens": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x89a8f3d7F2c776022aC77E6818DefA109f9e5f25",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-25 19:13:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
     "corn": {
       "production": {
         "1.0.1": [
@@ -27918,6 +28128,20 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x42B178f9768234463DeCa66AFe4b9e0be67279b2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-02 13:20:30",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e7cb3e167e7475de1331cf6e0ceb187654619e120000000000000000000000006bdc36e20d267ff0dd6097799f82e78907105e2f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "ReceiverAcrossV3": {
@@ -28284,6 +28508,20 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ca847a739ba26238488cb85a2a28a4ad677716e1000000000000000000000000ef684c38f94f48775959ecf2012d7e864ffb9dd400000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xe2868D398a48FA3a03d8Df94442Dc602332Fe4D4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-02 22:00:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ab30c390671f509d89527f2ffea6f9a072e3b636000000000000000000000000e7cb3e167e7475de1331cf6e0ceb187654619e1200000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
