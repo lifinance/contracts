@@ -804,7 +804,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             amount0Out,
             amount1Out,
             to,
-            callback ? abi.encode(tokenIn) : new bytes(0)
+            callback ? abi.encode(tokenIn) : new bytes(0) // calls in recipient contracts should validate that msg.sender is the Velodrome pool contract
         );
     }
 }
