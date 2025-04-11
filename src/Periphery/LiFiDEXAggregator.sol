@@ -800,11 +800,17 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
         // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut and that the sender's final balance is not less than the initial balance
         // - Immutable interaction: Velodrome V2 pools and the router are not upgradable, so we can rely on the behavior of getAmountOut and swap
+
+        // ATTENTION FOR CALLBACKS / HOOKS:
+        // - recipient contracts should validate that msg.sender is the Velodrome pool contract who is calling the hook
+        // - recipient contracts must not manipulate their own tokenOut balance (as this may bypass/invalidate the built-in slippage protection)
+        // - @developers: never trust balance-based slippage protection for callback recipients
+        // - @integrators: do not use slippage guarantees when recipient is a contract with side-effects
         IVelodromeV2Pool(pool).swap(
             amount0Out,
             amount1Out,
             to,
-            callback ? abi.encode(tokenIn) : new bytes(0) // calls in recipient contracts should validate that msg.sender is the Velodrome pool contract
+            callback ? abi.encode(tokenIn) : new bytes(0) //
         );
     }
 }
