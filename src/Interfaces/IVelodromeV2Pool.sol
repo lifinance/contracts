@@ -8,7 +8,7 @@ interface IVelodromeV2Pool {
     /// @notice This low-level function should be called from a contract which performs important safety checks
     /// @param amount0Out   Amount of token0 to send to `to`
     /// @param amount1Out   Amount of token1 to send to `to`
-    /// @param to           Address to recieve the swapped output
+    /// @param to           Address to receive the swapped output
     /// @param data         Additional calldata for flashloans
     function swap(
         uint256 amount0Out,
