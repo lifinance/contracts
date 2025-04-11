@@ -174,13 +174,13 @@ Make sure to copy `.env.example` to `.env` and fill out the missing values. Test
 ### INSTALL<a name="install"></a>
 
 ```bash
-yarn
+bun i
 ```
 
 ### TEST<a name="test"></a>
 
 ```bash
-yarn test
+bun run test
 ```
 
 ### TEST With Foundry/Forge<a name="foundry-forge"></a>
@@ -206,7 +206,7 @@ forge install
 Run tests
 
 ```
-yarn test
+bun run test
 ```
 
 ### Adding a New Bridge<a name="new-bridge"></a>

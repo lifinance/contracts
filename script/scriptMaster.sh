@@ -117,8 +117,9 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy one specific contract to one network"
 
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
-    local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
 
     echo "[info] selected network: $NETWORK"
     echo "[info] loading deployer wallet balance..."
@@ -133,8 +134,8 @@ scriptMaster() {
     # Handle ZkSync
     # We need to make sure that the zksync fork of foundry is available before
     # we can deploy contracts to zksync.
-    if [[ $NETWORK == "zksync" ]]; then
-      # update the deploy script directory to point to zksync-specific scripts
+    if isZkEvmNetwork "$NETWORK"; then
+      # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
@@ -145,7 +146,7 @@ scriptMaster() {
       SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     fi
 
-    # extract contract name
+    # get user-selected deploy script and contract from list
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for
@@ -244,8 +245,9 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy all contracts to one selected network (=new network)"
 
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
-    local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
     # get deployer wallet balance
     BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
 
@@ -499,8 +501,9 @@ scriptMaster() {
       # call update diamond log function
       updateDiamondLogs
     else
+      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
       # get user-selected network from list
-      local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+      local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
 
       echo "[info] selected network: $NETWORK"
       echo "[info] loading deployer wallet balance..."

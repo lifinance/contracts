@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 
@@ -108,19 +109,22 @@ contract AcrossFacetTest is TestBaseFacet {
         }
     }
 
-    function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
-        console.logBytes4(IAcrossSpokePool.deposit.selector);
-        vm.startPrank(WETH_HOLDER);
-        ERC20 weth = ERC20(ADDRESS_WRAPPED_NATIVE);
-        weth.approve(address(acrossFacet), 10_000 * 10 ** weth.decimals());
+    function testRevert_FailsIfCalledWithOutdatedQuote() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(acrossFacet), bridgeData.minAmount);
 
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             0, // Relayer fee
-            uint32(block.timestamp + 20 minutes),
+            uint32(block.timestamp - 100 days),
             "",
             type(uint256).max
         );
+
+        vm.expectRevert("invalid quote time");
+
         acrossFacet.startBridgeTokensViaAcross(bridgeData, data);
+
         vm.stopPrank();
     }
 }

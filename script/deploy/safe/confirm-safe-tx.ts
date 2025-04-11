@@ -1,76 +1,34 @@
+/**
+ * Confirm Safe Transactions
+ *
+ * This script allows users to confirm and execute pending Safe transactions.
+ * It fetches pending transactions from MongoDB, displays their details,
+ * and provides options to sign and/or execute them.
+ */
+
 import { defineCommand, runMain } from 'citty'
-import { type SafeApiKitConfig } from '@safe-global/api-kit'
-import { Abi, Chain, Hex, decodeFunctionData, parseAbi } from 'viem'
-import { EthersAdapter } from '@safe-global/protocol-kit'
-const { default: SafeApiKit } = await import('@safe-global/api-kit')
-const { default: Safe } = await import('@safe-global/protocol-kit')
-import { ethers } from 'ethers6'
+import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
 import consola from 'consola'
-import * as chains from 'viem/chains'
-import { getSafeUtilityContracts } from './config'
-import {
-  NetworksObject,
-  getAllActiveNetworks,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
-import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
-import networksConfig from '../../../config/networks.json'
+import {
+  SafeTransaction,
+  SafeTxDocument,
+  AugmentedSafeTxDocument,
+  privateKeyType,
+  initializeSafeTransaction,
+  hasEnoughSignatures,
+  isSignedByCurrentSigner,
+  wouldMeetThreshold,
+  getSafeMongoCollection,
+  getPendingTransactionsByNetwork,
+  getNetworksToProcess,
+  getPrivateKey,
+  initializeSafeClient,
+  decodeDiamondCut,
+  decodeTransactionData,
+  isAddressASafeOwner,
+} from './safe-utils'
 dotenv.config()
-
-enum privateKeyType {
-  SAFE_SIGNER,
-  DEPLOYER,
-}
-
-const networks: NetworksObject = networksConfig
-
-const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
-
-const allNetworks = Object.keys(networksConfig)
-
-// In order to skip specific networks simple comment them in
-const skipNetworks: string[] = [
-  // 'mainnet',
-  // 'arbitrum',
-  // 'aurora',
-  // 'avalanche',
-  // 'base',
-  // 'blast',
-  // 'boba',
-  // 'bsc',
-  // 'celo',
-  // 'cronos',
-  // 'fantom',
-  // 'fraxtal',
-  // 'fuse',
-  // 'gnosis',
-  // 'gravity',
-  // 'immutablezkevm',
-  // 'kaia',
-  // 'linea',
-  // 'mantle',
-  // 'metis',
-  // 'mode',
-  // 'moonbeam',
-  // 'moonriver',
-  // 'optimism',
-  // 'opbnb',
-  // 'polygon',
-  // 'polygonzkevm',
-  // 'rootstock',
-  // 'scroll',
-  // 'sei',
-  // 'taiko',
-  // 'xlayer',
-  // 'zksync',
-]
-const defaultNetworks = allNetworks.filter(
-  (network) =>
-    !skipNetworks.includes(network) &&
-    network !== 'localanvil' &&
-    networks[network.toLowerCase()].status === 'active' // <<< deactivate this to operate on non-active networks
-)
 
 const storedResponses: Record<string, string> = {}
 
@@ -79,155 +37,167 @@ const storedResponses: Record<string, string> = {}
   return this.toString()
 }
 
-const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
-  try {
-    const result = await func()
-    return result
-  } catch (e) {
-    if (retries > 0) {
-      consola.error('Retry after error:', e)
-      return retry(func, retries - 1)
-    }
-
-    throw e
-  }
-}
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
-
-const func = async (
+/**
+ * Main function to process Safe transactions for a given network
+ * @param network - Network name
+ * @param privateKey - Private key of the signer
+ * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
+ * @param pendingTxs - Pending transactions to process
+ * @param pendingTransactions - MongoDB collection
+ * @param rpcUrl - Optional RPC URL override
+ */
+const processTxs = async (
   network: string,
   privateKey: string,
   privKeyType: privateKeyType,
+  pendingTxs: SafeTxDocument[],
+  pendingTransactions: any,
   rpcUrl?: string
 ) => {
-  console.info(' ')
+  consola.info(' ')
   consola.info('-'.repeat(80))
 
-  const safeWebUrl = networks[network.toLowerCase()].safeWebUrl
+  // Initialize Safe client
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    network,
+    privateKey,
+    rpcUrl
+  )
 
-  const chain = getViemChainForNetworkName(network)
-
-  const config: SafeApiKitConfig = {
-    chainId: BigInt(chain.id),
-    txServiceUrl: networks[network.toLowerCase()].safeApiUrl,
-  }
-
-  let safeService
-  try {
-    safeService = new SafeApiKit(config)
-  } catch (err) {
-    consola.error(`error encountered while setting up SAFE service: ${err}`)
-    consola.error(`skipping network ${network}`)
-    consola.error(
-      `Please check this SAFE NOW to make sure no pending transactions are missed:`
-    )
-    console.log(`${safeWebUrl}`)
-    return
-  }
-
-  const safeAddress = networks[network.toLowerCase()].safeAddress
-
-  const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
-  const provider = new ethers.JsonRpcProvider(parsedRpcUrl)
-  const signer = new ethers.Wallet(privateKey, provider)
-
-  const signerAddress = await signer.getAddress()
+  // Get signer address
+  const signerAddress = safe.account
 
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
 
-  const ethAdapter = new EthersAdapter({
-    ethers,
-    signerOrProvider: signer,
-  })
-
-  let protocolKit: Safe
+  // Check if the current signer is an owner
   try {
-    protocolKit = await Safe.create({
-      ethAdapter,
-      safeAddress: safeAddress,
-      contractNetworks: getSafeUtilityContracts(chain.id),
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, signerAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', signerAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot sign or execute transactions - exiting')
+      return
+    }
+  } catch (error) {
+    consola.error(`Failed to check if signer is an owner: ${error.message}`)
+    consola.error('Skipping this network and moving to the next one')
+    return
+  }
+
+  /**
+   * Signs a SafeTransaction
+   * @param safeTransaction - The transaction to sign
+   * @returns The signed transaction
+   */
+  const signTransaction = async (safeTransaction: SafeTransaction) => {
+    consola.info('Signing transaction')
+    try {
+      const signedTx = await safe.signTransaction(safeTransaction)
+      consola.success('Transaction signed')
+      return signedTx
+    } catch (error) {
+      consola.error('Error signing transaction:', error)
+      throw new Error(`Failed to sign transaction: ${error.message}`)
+    }
+  }
+
+  /**
+   * Executes a SafeTransaction and updates its status in MongoDB
+   * @param safeTransaction - The transaction to execute
+   */
+  async function executeTransaction(safeTransaction: SafeTransaction) {
+    consola.info('Preparing to execute Safe transaction...')
+    try {
+      // Get the Safe transaction hash for reference
+      const safeTxHash = await safe.getTransactionHash(safeTransaction)
+      consola.info(`Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`)
+
+      // Execute the transaction on-chain
+      consola.info('Submitting execution transaction to blockchain...')
+      const exec = await safe.executeTransaction(safeTransaction)
+
+      // Log execution details with color coding
+      consola.success(`Execution transaction submitted successfully!`)
+      consola.info(
+        `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
+      )
+
+      // Update MongoDB transaction status
+      await pendingTransactions.updateOne(
+        { safeTxHash: safeTxHash },
+        { $set: { status: 'executed', executionHash: exec.hash } }
+      )
+
+      consola.success(
+        `✅ Safe transaction successfully executed and recorded in database`
+      )
+      consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
+      consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
+      consola.info(' ')
+    } catch (error) {
+      consola.error('❌ Error executing Safe transaction:')
+      consola.error(`   ${error.message}`)
+      if (error.message.includes('GS026')) {
+        consola.error(
+          '   This appears to be a signature validation error (GS026).'
+        )
+        consola.error(
+          '   Possible causes: invalid signature format or incorrect signer.'
+        )
+      }
+      throw new Error(`Transaction execution failed: ${error.message}`)
+    }
+  }
+
+  // Get current threshold
+  let threshold
+  try {
+    threshold = Number(await safe.getThreshold())
+  } catch (error) {
+    consola.error(`Failed to get threshold: ${error.message}`)
+    throw new Error(
+      `Could not get threshold for Safe ${safeAddress} on ${network}`
+    )
+  }
+
+  // Filter and augment transactions with signature status
+  const txs = await Promise.all(
+    pendingTxs.map(
+      async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const hasSignedAlready = isSignedByCurrentSigner(
+          safeTransaction,
+          signerAddress
+        )
+        const canExecute = hasEnoughSignatures(safeTransaction, threshold)
+
+        return {
+          ...tx,
+          safeTransaction,
+          hasSignedAlready,
+          canExecute,
+          threshold,
+        }
+      }
+    )
+  ).then((txs: AugmentedSafeTxDocument[]) =>
+    txs.filter((tx) => {
+      // If the transaction has enough signatures to execute AND the current signer has signed,
+      // still show it so they can execute it
+      if (tx.canExecute) {
+        return true
+      }
+
+      // Otherwise, don't show transactions that have already been signed by the current signer
+      if (tx.hasSignedAlready) {
+        return false
+      }
+
+      // Show transactions that need more signatures
+      return tx.safeTransaction.signatures.size < tx.threshold
     })
-  } catch (err) {
-    consola.error(`error encountered while setting up protocolKit: ${err}`)
-    consola.error(`skipping network ${network}`)
-    consola.error(
-      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
-    )
-    return
-  }
-
-  let allTx
-  try {
-    allTx = await retry(() => safeService.getPendingTransactions(safeAddress))
-  } catch (err) {
-    consola.error(
-      `error encountered while getting pending transactions for network ${network}`
-    )
-    consola.error(`skipping network ${network}`)
-    consola.error(
-      `Please check this network's SAFE manually NOW to make sure no pending transactions are missed`
-    )
-    return
-  }
-
-  // Function to sign a transaction
-  const signTransaction = async (
-    txToConfirm: SafeMultisigTransactionResponse,
-    safeWebUrl: string
-  ) => {
-    consola.info('Signing transaction', txToConfirm.safeTxHash)
-    const signedTx = await protocolKit.signTransaction(txToConfirm)
-    const dataToBeSigned = signedTx.getSignature(signerAddress)?.data
-    if (!dataToBeSigned) throw Error(`error while preparing data to be signed`)
-
-    try {
-      await retry(() =>
-        safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
-      )
-    } catch (err) {
-      consola.error('Error while trying to sign the transaction')
-      consola.error(
-        `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
-      )
-      throw Error(`Transaction could not be signed`)
-    }
-    consola.success('Transaction signed', txToConfirm.safeTxHash)
-  }
-
-  // Function to execute a transaction
-  async function executeTransaction(
-    txToConfirm: SafeMultisigTransactionResponse,
-    safeWebUrl: string
-  ) {
-    consola.info('Executing transaction', txToConfirm.safeTxHash)
-    try {
-      const exec = await protocolKit.executeTransaction(txToConfirm)
-      await exec.transactionResponse?.wait()
-    } catch (err) {
-      consola.error('Error while trying to execute the transaction')
-      consola.error(
-        `Try to re-run this script again or check the SAFE web URL: ${safeWebUrl}`
-      )
-      throw Error(`Transaction could not be executed`)
-    }
-
-    consola.success('Transaction executed', txToConfirm.safeTxHash)
-    console.info(' ')
-    console.info(' ')
-  }
-
-  // only show transaction Signer has not confirmed yet
-  const txs = allTx.results.filter(
-    (tx) =>
-      !tx.confirmations?.some(
-        (confirmation) => confirmation.owner === signerAddress
-      )
   )
 
   if (!txs.length) {
@@ -235,109 +205,167 @@ const func = async (
     return
   }
 
+  // Sort transactions by nonce in ascending order to process them in sequence
+  // This ensures we handle transactions in the correct order as required by the Safe
   for (const tx of txs.sort((a, b) => {
-    if (a.nonce < b.nonce) return -1
-    if (a.nonce > b.nonce) return 1
+    if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
+    if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
   })) {
     let abi
     let abiInterface: Abi
     let decoded
-    if (tx.data) {
-      const selector = tx.data.substring(0, 10)
-      const url = ABI_LOOKUP_URL.replace('%SELECTOR%', selector)
-      const response = await fetch(url)
-      const data = await response.json()
-      if (
-        data.ok &&
-        data.result &&
-        data.result.function &&
-        data.result.function[selector]
-      ) {
-        abi = data.result.function[selector][0].name
-        const fullAbiString = `function ${abi}`
-        abiInterface = parseAbi([fullAbiString])
-        decoded = decodeFunctionData({
-          abi: abiInterface,
-          data: tx.data as Hex,
-        })
+
+    try {
+      if (tx.safeTx.data) {
+        const { functionName } = await decodeTransactionData(
+          tx.safeTx.data.data as Hex
+        )
+        if (functionName) {
+          abi = functionName
+          const fullAbiString = `function ${abi}`
+          abiInterface = parseAbi([fullAbiString])
+          decoded = decodeFunctionData({
+            abi: abiInterface,
+            data: tx.safeTx.data.data as Hex,
+          })
+        }
+      }
+    } catch (error) {
+      consola.warn(`Failed to decode transaction data: ${error.message}`)
+    }
+
+    consola.info('-'.repeat(80))
+    consola.info('Transaction Details:')
+    consola.info('-'.repeat(80))
+
+    if (abi) {
+      if (decoded && decoded.functionName === 'diamondCut') {
+        await decodeDiamondCut(decoded, chain.id)
+      } else {
+        consola.info('Method:', abi)
+        if (decoded) {
+          consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
+        }
       }
     }
 
-    consola.info('Method:', abi)
-    consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
-    consola.info('Nonce:', tx.nonce)
-    consola.info('To:', tx.to)
-    consola.info('Value:', tx.value)
-    consola.info('Data:', tx.data)
-    consola.info('Proposer:', tx.proposer)
-    consola.info('Safe Tx Hash:', tx.safeTxHash)
+    consola.info(`Safe Transaction Details:
+    Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
+    To:              \u001b[32m${tx.safeTx.data.to}\u001b[0m
+    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
+    Operation:       \u001b[32m${
+      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
+    }\u001b[0m
+    Data:            \u001b[32m${
+      tx.safeTx.data.data?.length > 66
+        ? tx.safeTx.data.data.substring(0, 66) + '...'
+        : tx.safeTx.data.data
+    }\u001b[0m
+    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
+    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
+    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
+      tx.threshold
+    }\u001b[0m required
+    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
 
-    const storedResponse = tx.data ? storedResponses[tx.data] : undefined
+    const storedResponse = tx.safeTx.data.data
+      ? storedResponses[tx.safeTx.data.data]
+      : undefined
 
-    const ok = storedResponse
-      ? true
-      : await consola.prompt('Confirm Transaction?', {
-          type: 'confirm',
-        })
+    // Determine available actions based on signature status
+    let action: string
+    if (privKeyType === privateKeyType.SAFE_SIGNER) {
+      const options = ['Do Nothing', 'Sign']
+      action =
+        storedResponse ||
+        (await consola.prompt('Select action:', {
+          type: 'select',
+          options,
+        }))
+    } else {
+      const options = ['Do Nothing']
+      if (!tx.hasSignedAlready) {
+        options.push('Sign')
+        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold)) {
+          options.push('Sign & Execute')
+        }
+      }
 
-    if (!ok) {
+      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
+        options.push('Execute')
+      }
+
+      action =
+        storedResponse ||
+        (await consola.prompt('Select action:', {
+          type: 'select',
+          options,
+        }))
+    }
+
+    if (action === 'Do Nothing') {
       continue
     }
-
-    // if this script is run with the SAFE_SIGNER_PRIVATE_KEY then execution is never an option so we can blindly select the SIGN action here
-    const action =
-      privKeyType == privateKeyType.SAFE_SIGNER
-        ? 'Sign'
-        : storedResponse ??
-          (await consola.prompt('Action', {
-            type: 'select',
-            options: ['Sign & Execute Now', 'Sign', 'Execute Now'],
-          }))
-    storedResponses[tx.data!] = action
-
-    const txToConfirm = await retry(() =>
-      safeService.getTransaction(tx.safeTxHash)
-    )
-
-    if (action === 'Sign & Execute Later') {
-      consola.info('Signing transaction', tx.safeTxHash)
-      const signedTx = await protocolKit.signTransaction(txToConfirm)
-      await retry(() =>
-        safeService.confirmTransaction(
-          tx.safeTxHash,
-          // @ts-ignore
-          signedTx.getSignature(signerAddress).data
-        )
-      )
-      consola.success('Transaction signed', tx.safeTxHash)
-    }
+    storedResponses[tx.safeTx.data.data!] = action
 
     if (action === 'Sign') {
       try {
-        await signTransaction(txToConfirm, safeWebUrl)
-      } catch {}
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const signedTx = await signTransaction(safeTransaction)
+        // Update MongoDB with new signature
+        await pendingTransactions.updateOne(
+          { safeTxHash: tx.safeTxHash },
+          {
+            $set: {
+              [`safeTx`]: signedTx,
+            },
+          }
+        )
+        consola.success('Transaction signed and stored in MongoDB')
+      } catch (error) {
+        consola.error('Error signing transaction:', error)
+      }
     }
 
-    if (action === 'Sign & Execute Now') {
+    if (action === 'Sign & Execute') {
       try {
-        await signTransaction(txToConfirm, safeWebUrl)
-        await executeTransaction(txToConfirm, safeWebUrl)
-      } catch {}
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const signedTx = await signTransaction(safeTransaction)
+        // Update MongoDB with new signature
+        await pendingTransactions.updateOne(
+          { safeTxHash: tx.safeTxHash },
+          {
+            $set: {
+              [`safeTx`]: signedTx,
+            },
+          }
+        )
+        consola.success('Transaction signed and stored in MongoDB')
+        await executeTransaction(signedTx)
+      } catch (error) {
+        consola.error('Error signing and executing transaction:', error)
+      }
     }
 
-    if (action === 'Execute Now') {
+    if (action === 'Execute') {
       try {
-        await executeTransaction(txToConfirm, safeWebUrl)
-      } catch {}
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        await executeTransaction(safeTransaction)
+      } catch (error) {
+        consola.error('Error executing transaction:', error)
+      }
     }
   }
 }
 
+/**
+ * Main command definition for the script
+ */
 const main = defineCommand({
   meta: {
-    name: 'propose-to-safe',
-    description: 'Propose a transaction to a Gnosis Safe',
+    name: 'confirm-safe-tx',
+    description: 'Confirm and execute transactions in a Gnosis Safe',
   },
   args: {
     network: {
@@ -355,12 +383,14 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const networks = args.network ? [args.network] : defaultNetworks
+    const networks = getNetworksToProcess(args.network)
 
     // if no privateKey was supplied, read directly from env
-    let privateKey = args.privateKey
-    if (!privateKey) {
-      const key = await consola.prompt(
+    let privateKey: string
+    let keyType = privateKeyType.DEPLOYER // default value
+
+    if (!args.privateKey) {
+      const keyChoice = await consola.prompt(
         'Which private key do you want to use from your .env file?',
         {
           type: 'select',
@@ -368,22 +398,43 @@ const main = defineCommand({
         }
       )
 
-      privateKey = process.env[key] ?? ''
-
-      if (privateKey == '')
-        throw Error(`could not find a key named ${key} in your .env file`)
+      privateKey = getPrivateKey(
+        undefined,
+        keyChoice as 'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'
+      )
+      keyType =
+        keyChoice === 'SAFE_SIGNER_PRIVATE_KEY'
+          ? privateKeyType.SAFE_SIGNER
+          : privateKeyType.DEPLOYER
+    } else {
+      privateKey = getPrivateKey(args.privateKey)
     }
 
+    // Connect to MongoDB and fetch ALL pending transactions
+    const { client: mongoClient, pendingTransactions } =
+      await getSafeMongoCollection()
+
+    // Fetch all pending transactions for the networks we're processing
+    const txsByNetwork = await getPendingTransactionsByNetwork(
+      pendingTransactions,
+      networks
+    )
+
+    // Process transactions for each network
     for (const network of networks) {
-      await func(
+      const networkTxs = txsByNetwork[network.toLowerCase()] || []
+      await processTxs(
         network,
         privateKey,
-        privateKey == 'PRIVATE_KEY_PRODUCTION'
-          ? privateKeyType.DEPLOYER
-          : privateKeyType.SAFE_SIGNER,
+        keyType,
+        networkTxs,
+        pendingTransactions,
         args.rpcUrl
       )
     }
+
+    // Close MongoDB connection
+    await mongoClient.close()
   },
 })
 

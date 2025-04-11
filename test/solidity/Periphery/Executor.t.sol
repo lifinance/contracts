@@ -2,15 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 // Stub Vault Contract
 contract Vault {
@@ -59,6 +58,7 @@ contract MockGateway {
 }
 
 contract ExecutorTest is DSTest {
+    // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     Executor internal executor;
     TestAMM internal amm;
@@ -66,6 +66,15 @@ contract ExecutorTest is DSTest {
     Setter internal setter;
     MockGateway internal gw;
     ERC20Proxy internal erc20Proxy;
+
+    address internal constant DAI_ADDRESS =
+        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant DAI_WHALE =
+        0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+    address internal constant WETH_ADDRESS =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant UNISWAP_V2_ROUTER_ADDRESS =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     function setUp() public {
         gw = new MockGateway();
@@ -210,12 +219,6 @@ contract ExecutorTest is DSTest {
 
     function testCanReceiveNativeTokensFromDestinationSwap() public {
         fork();
-        address DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        address payable DAI_WHALE = payable(
-            address(0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD)
-        );
-        address WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-        address UNISWAP_V2_ROUTER_ADDRESS = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
         ERC20 dai = ERC20(DAI_ADDRESS);
         ERC20 weth = ERC20(WETH_ADDRESS);
         UniswapV2Router02 uniswap = UniswapV2Router02(
@@ -259,7 +262,7 @@ contract ExecutorTest is DSTest {
             "txId",
             swapData,
             DAI_ADDRESS,
-            DAI_WHALE
+            payable(DAI_WHALE)
         );
         vm.stopPrank();
     }
@@ -548,7 +551,7 @@ contract ExecutorTest is DSTest {
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
     }
 
-    function testFailWhenCallingERC20ProxyDirectly() public {
+    function testRevert_DoesNotAllowToCallERC20ProxyDirectly() public {
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
 
@@ -556,8 +559,8 @@ contract ExecutorTest is DSTest {
 
         // Get some Token B
         swapData[0] = LibSwap.SwapData(
-            address(amm),
-            address(amm),
+            address(erc20Proxy),
+            address(erc20Proxy),
             address(tokenA),
             address(tokenB),
             0.2 ether,
@@ -572,6 +575,8 @@ contract ExecutorTest is DSTest {
         );
         tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(erc20Proxy), 1 ether);
+
+        vm.expectRevert(UnAuthorized.selector);
 
         executor.swapAndExecute(
             "",

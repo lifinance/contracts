@@ -18,9 +18,10 @@ function diamondSyncSigs {
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
     # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     echo ""
     echo "Should the script be executed on one network or all networks?"
-    NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
     echo "[info] selected network: $NETWORK"
 
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
@@ -85,7 +86,7 @@ function diamondSyncSigs {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       # try to run the typescript script (will fail if the network is not yet supported by viem)
-      npx tsx ./script/tasks/diamondSyncSigs.ts --project ../../tsconfig.json --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --environment "$ENVIRONMENT"
+      bun ./script/tasks/diamondSyncSigs.ts --project ../../tsconfig.json --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --environment "$ENVIRONMENT"
       RETURN_CODE=$?
 
       # check the typescript script failed

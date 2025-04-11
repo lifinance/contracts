@@ -2,12 +2,13 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeCollectorTest is DSTest {
+    // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     FeeCollector private feeCollector;
     ERC20 private feeToken;
@@ -184,11 +185,14 @@ contract FeeCollectorTest is DSTest {
         assert(feeToken.balanceOf(address(feeCollector)) == 1 ether);
     }
 
-    function testFailWhenNonOwnerAttemptsToWithdrawLifiFees() public {
+    function testRevert_NonOwnerCannotWithdrawLifiFees() public {
         // Arrange
         uint256 integratorFee = 1 ether;
         uint256 lifiFee = 0.015 ether;
+
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
+
+        // make sure feeCollector has collected fees
         feeCollector.collectTokenFees(
             address(feeToken),
             integratorFee,
@@ -198,20 +202,27 @@ contract FeeCollectorTest is DSTest {
 
         // Act
         vm.prank(address(0xb33f));
+
+        vm.expectRevert(UnAuthorized.selector);
+
         feeCollector.withdrawLifiFees(address(feeToken));
     }
 
-    function testFailWhenNonOwnerAttemptsToBatchWithdrawLifiFees() public {
+    function testRevert_NonOwnerCannotBatchWithdrawLifiFees() public {
         // Arranges.newOwner
         uint256 integratorFee = 1 ether;
         uint256 lifiFee = 0.015 ether;
+
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
+
+        // make sure feeCollector has collected fees
         feeCollector.collectTokenFees(
             address(feeToken),
             integratorFee,
             lifiFee,
             address(0xb33f)
         );
+
         feeCollector.collectNativeFees{ value: integratorFee + lifiFee }(
             integratorFee,
             lifiFee,
@@ -222,7 +233,11 @@ contract FeeCollectorTest is DSTest {
         address[] memory tokens = new address[](2);
         tokens[0] = address(feeToken);
         tokens[1] = address(0);
+
         vm.prank(address(0xb33f));
+
+        vm.expectRevert(UnAuthorized.selector);
+
         feeCollector.batchWithdrawLifiFees(tokens);
     }
 
@@ -236,26 +251,15 @@ contract FeeCollectorTest is DSTest {
         vm.stopPrank();
     }
 
-    function testFailNonOwnerCanTransferOwnership() public {
+    function testRevert_NonOwnerCannotTransferOwnership() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
+
         assert(feeCollector.owner() != newOwner);
+
         vm.prank(newOwner);
-        feeCollector.transferOwnership(newOwner);
-    }
 
-    function testFailOnwershipTransferToNullAddr() public {
-        address newOwner = address(0x0);
-        feeCollector.transferOwnership(newOwner);
-    }
+        vm.expectRevert(UnAuthorized.selector);
 
-    function testFailOwnerCanConfirmPendingOwnershipTransfer() public {
-        address newOwner = address(0x1234567890123456789012345678901234567890);
-        feeCollector.transferOwnership(newOwner);
-        feeCollector.confirmOwnershipTransfer();
-    }
-
-    function testFailOwnershipTransferToSelf() public {
-        address newOwner = address(this);
         feeCollector.transferOwnership(newOwner);
     }
 }

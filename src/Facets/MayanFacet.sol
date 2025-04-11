@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
@@ -10,12 +9,11 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
-import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.0.0
+/// @custom:version 1.2.0
 contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -23,6 +21,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
+    // solhint-disable-next-line immutable-vars-naming
     IMayan public immutable mayan;
 
     /// @dev Mayan specific bridge data
@@ -244,6 +243,26 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
             }
+            case 0x1c59b7fc {
+                // 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))
+                receiver := mload(add(protocolData, 0x84))
+            }
+            case 0x9be95bb4 {
+                // 0x9be95bb4 MayanCircle::bridgeWithLockedFee(address,uint256,uint64,uint256,uint32,bytes32)
+                receiver := mload(add(protocolData, 0xc4))
+            }
+            case 0x2072197f {
+                // 0x2072197f MayanCircle::bridgeWithFee(address,uint256,uint64,uint64,bytes32,uint32,uint8,bytes)
+                receiver := mload(add(protocolData, 0xa4))
+            }
+            case 0xf58b6de8 {
+                // 0xf58b6de8 FastMCTP::bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
+                receiver := mload(add(protocolData, 0xc4))
+            }
+            case 0x2337e236 {
+                // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0xe4))
+            }
             default {
                 receiver := 0x0
             }
@@ -272,6 +291,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes memory protocolData,
         uint256 inputAmount
     ) internal pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(protocolData.length >= 68, "protocol data too short");
         bytes memory modifiedData = new bytes(protocolData.length);
         bytes4 functionSelector = bytes4(protocolData[0]) |
@@ -288,6 +308,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             amountIndex = 36;
         }
 
+        /* solhint-disable gas-custom-errors, explicit-types */
         // Copy the function selector and params before amount in
         for (uint i = 0; i < amountIndex; i++) {
             modifiedData[i] = protocolData[i];

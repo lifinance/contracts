@@ -1,44 +1,27 @@
+/**
+ * Propose to Safe
+ *
+ * This script proposes a transaction to a Gnosis Safe and stores it in MongoDB.
+ * The transaction can later be confirmed and executed using the confirm-safe-tx script.
+ */
+
+import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import { type SafeApiKitConfig } from '@safe-global/api-kit'
-import type { Chain } from 'viem'
-import { EthersAdapter } from '@safe-global/protocol-kit'
-const { default: Safe } = await import('@safe-global/protocol-kit')
-const { default: SafeApiKit } = await import('@safe-global/api-kit')
-import { ethers } from 'ethers6'
-import {
-  OperationType,
-  type SafeTransactionDataPartial,
-} from '@safe-global/safe-core-sdk-types'
-import * as chains from 'viem/chains'
-import { getSafeUtilityContracts } from './config'
-import {
-  NetworksObject,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
-import data from '../../../config/networks.json'
-const networks: NetworksObject = data as NetworksObject
+import { Address, Hex } from 'viem'
 import consola from 'consola'
+import {
+  getSafeMongoCollection,
+  getNextNonce,
+  initializeSafeClient,
+  getPrivateKey,
+  storeTransactionInMongoDB,
+  OperationType,
+  isAddressASafeOwner,
+} from './safe-utils'
 
-const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
-  try {
-    const result = await func()
-    return result
-  } catch (e) {
-    if (retries > 0) {
-      consola.error('Retry after error:', e)
-      return retry(func, retries - 1)
-    }
-
-    throw e
-  }
-}
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
-
+/**
+ * Main command definition for proposing transactions to a Safe
+ */
 const main = defineCommand({
   meta: {
     name: 'propose-to-safe',
@@ -70,67 +53,91 @@ const main = defineCommand({
       required: true,
     },
   },
+  /**
+   * Executes the propose-to-safe command
+   * @param args - Command arguments including network, rpcUrl, privateKey, to address, and calldata
+   */
   async run({ args }) {
-    const chain = getViemChainForNetworkName(args.network)
+    // Get MongoDB collection
+    const { client: mongoClient, pendingTransactions } =
+      await getSafeMongoCollection()
 
-    const config: SafeApiKitConfig = {
-      chainId: BigInt(chain.id),
-      txServiceUrl: networks[args.network.toLowerCase()].safeApiUrl,
+    // Initialize Safe client
+    const { safe, chain, safeAddress } = await initializeSafeClient(
+      args.network,
+      getPrivateKey(args.privateKey),
+      args.rpcUrl
+    )
+
+    // Get the account address
+    const senderAddress = safe.account
+
+    // Check if the current signer is an owner
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', senderAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot propose transactions - exiting')
+      await mongoClient.close()
+      process.exit(1)
     }
 
-    const safeService = new SafeApiKit(config)
+    // Get the next nonce
+    const nextNonce = await getNextNonce(
+      pendingTransactions,
+      safeAddress,
+      args.network,
+      chain.id,
+      await safe.getNonce()
+    )
 
-    const safeAddress = networks[args.network.toLowerCase()].safeAddress
-
-    const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
-    const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const signer = new ethers.Wallet(args.privateKey, provider)
-
-    const ethAdapter = new EthersAdapter({
-      ethers,
-      signerOrProvider: signer,
+    // Create and sign the Safe transaction
+    const safeTransaction = await safe.createTransaction({
+      transactions: [
+        {
+          to: args.to as Address,
+          value: 0n,
+          data: args.calldata as Hex,
+          operation: OperationType.Call,
+          nonce: nextNonce,
+        },
+      ],
     })
 
-    const protocolKit = await Safe.create({
-      ethAdapter,
-      safeAddress: safeAddress,
-      contractNetworks: getSafeUtilityContracts(chain.id),
-    })
+    const signedTx = await safe.signTransaction(safeTransaction)
+    const safeTxHash = await safe.getTransactionHash(signedTx)
 
-    const nextNonce = await safeService.getNextNonce(safeAddress)
-    const safeTransactionData: SafeTransactionDataPartial = {
-      to: args.to,
-      value: '0',
-      data: args.calldata,
-      operation: OperationType.Call,
-      nonce: nextNonce,
-    }
+    consola.info('Signer Address', senderAddress)
+    consola.info('Safe Address', safeAddress)
+    consola.info('Network', chain.name)
+    consola.info('Proposing transaction to', args.to)
 
-    const safeTransaction = await protocolKit.createTransaction({
-      transactions: [safeTransactionData],
-    })
-
-    const senderAddress = await signer.getAddress()
-    const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
-    const signature = await protocolKit.signHash(safeTxHash)
-
-    console.info('Signer Address', senderAddress)
-    console.info('Safe Address', safeAddress)
-    console.info('Network', chain.name)
-    console.info('Proposing transaction to', args.to)
-
-    // Propose transaction to the service
-    await retry(async () => {
-      safeService.proposeTransaction({
-        safeAddress: await protocolKit.getAddress(),
-        safeTransactionData: safeTransaction.data,
+    // Store transaction in MongoDB using the utility function
+    try {
+      const result = await storeTransactionInMongoDB(
+        pendingTransactions,
+        safeAddress,
+        args.network,
+        chain.id,
+        signedTx,
         safeTxHash,
-        senderAddress,
-        senderSignature: signature.data,
-      })
-    })
+        senderAddress
+      )
 
-    console.info('Transaction proposed')
+      if (!result.acknowledged) {
+        throw new Error('MongoDB insert was not acknowledged')
+      }
+
+      consola.success('Transaction successfully stored in MongoDB')
+    } catch (error) {
+      consola.error('Failed to store transaction in MongoDB:', error)
+      throw error
+    } finally {
+      await mongoClient.close()
+    }
+
+    consola.info('Transaction proposed')
   },
 })
 

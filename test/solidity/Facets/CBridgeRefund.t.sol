@@ -2,11 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
+import { UnAuthorized, NotAContract } from "lifi/Errors/GenericErrors.sol";
 
 // Test CBridge refund by forking polygon at 25085298
 // Actual refund was processed at 25085299(Feb-18-2022 03:24:09 PM +UTC)
@@ -27,7 +26,9 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         0x3db00D1334B5faDd2A897D8A702cDCbb6F159D87;
     uint256 internal constant REFUND_AMOUNT = 92734538876076486098;
 
-    bytes internal CALLDATA;
+    error WithdrawFailed();
+
+    bytes internal validCalldata;
 
     LiFiDiamond internal diamond;
     WithdrawFacet internal withdrawFacet;
@@ -36,40 +37,40 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
     ///@dev Reference to https://polygonscan.com/tx/0x4693cf438f3e54d8cb0dbc27fed20ec664b36ce34761dd008d2d958dec8477aa
     function initCallData() public {
         bytes
-            memory MSG = hex"08890110fbf3be90061a145a9fd7c39a6c488e715437d7b1f3c823d5596ed1221460bb3d364b765c497c8ce50ae0ae3f0882c5bd052a090506f343c77630edd2322042b99ab301f0bf5e0bd9b58d16266899ae2402a1e7cb0913903c7f876b4bce5f";
+            memory message = hex"08890110fbf3be90061a145a9fd7c39a6c488e715437d7b1f3c823d5596ed1221460bb3d364b765c497c8ce50ae0ae3f0882c5bd052a090506f343c77630edd2322042b99ab301f0bf5e0bd9b58d16266899ae2402a1e7cb0913903c7f876b4bce5f";
 
-        bytes[] memory SIGS = new bytes[](4);
-        SIGS[
+        bytes[] memory sigs = new bytes[](4);
+        sigs[
             0
         ] = hex"12f92050a88caaa23ad57ee86ff12534205c157e5ce7ca5cd0b4db91c4d041103ce5063cb692651482738a0663be37b4ed776ab5879ca717a349cdb24d68d11c1c";
-        SIGS[
+        sigs[
             1
         ] = hex"e0ac807bf17703129299922d99ace508e5a1313b7932cbe8e44c1ad0c9a914fc0696a324543af4ad0a3efec2d5fdb276d38b2e633a4ba30aba1fdff8b7013ff01c";
-        SIGS[
+        sigs[
             2
         ] = hex"dffdb895ffbef44c36d68c6e0bb7ce9b2f30e93860ede78a7cef2109afa87f96764b475a60da121dfdd7b68e692d1c6dbfa0719b01caa5faa2fbdd0c8d4591e61c";
-        SIGS[
+        sigs[
             3
         ] = hex"8ecfc94c4687adc679807982e501651261e74c981bd4287118220eb57a0175a87e248db2e5c0f1aae531381e2c2080306df24bf0cbf45e55d6c939555b7e6afd1c";
 
-        address[] memory SIGNERS = new address[](4);
-        SIGNERS[0] = 0x98E9D288743839e96A8005a6B51C770Bbf7788C0;
-        SIGNERS[1] = 0x9a66644084108a1bC23A9cCd50d6d63E53098dB6;
-        SIGNERS[2] = 0xbfa2F68bf9Ad60Dc3cFB1cEF04730Eb7FA251424;
-        SIGNERS[3] = 0xd10c833f4305E1053a64Bc738c550381f48104Ca;
+        address[] memory signers = new address[](4);
+        signers[0] = 0x98E9D288743839e96A8005a6B51C770Bbf7788C0;
+        signers[1] = 0x9a66644084108a1bC23A9cCd50d6d63E53098dB6;
+        signers[2] = 0xbfa2F68bf9Ad60Dc3cFB1cEF04730Eb7FA251424;
+        signers[3] = 0xd10c833f4305E1053a64Bc738c550381f48104Ca;
 
-        uint256[] memory POWERS = new uint256[](4);
-        POWERS[0] = 150010000000000000000000000;
-        POWERS[1] = 150010000000000000000000000;
-        POWERS[2] = 150010000000000000000000000;
-        POWERS[3] = 150010000000000000000000000;
+        uint256[] memory powers = new uint256[](4);
+        powers[0] = 150010000000000000000000000;
+        powers[1] = 150010000000000000000000000;
+        powers[2] = 150010000000000000000000000;
+        powers[3] = 150010000000000000000000000;
 
-        CALLDATA = abi.encodeWithSignature(
+        validCalldata = abi.encodeWithSignature(
             "withdraw(bytes,bytes[],address[],uint256[])",
-            MSG,
-            SIGS,
-            SIGNERS,
-            POWERS
+            message,
+            sigs,
+            signers,
+            powers
         );
     }
 
@@ -112,7 +113,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         vm.chainId(137); // Only needed because of bug in forge forking...
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -126,10 +127,14 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     /// @notice Fails to execute extra call and withdraw from non-owner.
     /// @dev It calls executeCallAndWithdraw from address that is not OWNER_ADDRESS.
-    function testFailExecuteCallAndWithdrawFromNonOwner() public {
+    function testRevert_NonOwnerCannotWithdrawFunds() public {
+        vm.startPrank(LIFI_ADDRESS);
+
+        vm.expectRevert(UnAuthorized.selector);
+
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -138,10 +143,14 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     /// @notice Fails to execute extra call and withdraw when callTo is invalid.
     /// @dev It tries to execute extra call at REFUND_ADDRESS instead of CBRIDGE_ADDRESS.
-    function testFailExecuteCallAndWithdraw() public {
+    function testRevert_FailsWhenCalledWithInvalidCallToAddress() public {
+        vm.startPrank(OWNER_ADDRESS);
+
+        vm.expectRevert(NotAContract.selector);
+
         withdrawFacet.executeCallAndWithdraw(
-            payable(REFUND_ADDRESS),
-            CALLDATA,
+            payable(address(0x123)), //invalid callTo address
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -151,7 +160,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
     /// @notice Fails to execute extra call and withdraw when refund is already processed.
     /// @dev It tries to withdraw multiple times.
     ///     First withdraw should be success but second withdraw should be failed.
-    function testFailExecuteCallAndWithdrawMultiple() public {
+    function testRevert_RevertsIfRefundWasAlreadyProcessed() public {
         ERC20 asset = ERC20(REFUND_ASSET);
         uint256 assetBalance = asset.balanceOf(REFUND_ADDRESS);
 
@@ -159,7 +168,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         vm.chainId(137); // Only needed because of bug in forge forking...
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT
@@ -168,9 +177,11 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
             asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT
         );
 
+        vm.expectRevert(WithdrawFailed.selector);
+
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
-            CALLDATA,
+            validCalldata,
             REFUND_ASSET,
             REFUND_ADDRESS,
             REFUND_AMOUNT

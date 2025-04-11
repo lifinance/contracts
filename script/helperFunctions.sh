@@ -918,11 +918,11 @@ function checkRequiredVariablesInDotEnv() {
       return 1
     fi
   else
-    # Etherscan V2: Ensure a valid API key is present in the .env file
+    # Individual API Key
     local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
 
     if [[ -z "$BLOCKEXPLORER_API_KEY" ]]; then
-      error "Network $NETWORK uses EtherscanV2 but the required API key ($KEY_VAR) is missing in the .env file."
+      error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
       return 1
     fi
   fi
@@ -1965,32 +1965,82 @@ function getAddressOfDeployedContractFromDeploymentsFiles() {
 
 }
 function getAllNetworksArray() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # prepare required variables
-  local FILE="$NETWORKS_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    ARRAY+=("$line")
-  done <"$FILE"
+  while IFS= read -r network; do
+    ARRAY+=("$network")
+  done < <(jq -r 'keys[]' "$FILE")
 
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+# function to retrieve coreFacets from global.json
+function getCoreFacetsArray() {
+  # ensure GLOBAL_FILE_PATH is set and not empty
+  if [[ -z "$GLOBAL_FILE_PATH" ]]; then
+    error "GLOBAL_FILE_PATH is not set or empty." >&2
+    return 1
+  fi
+
+  local ARRAY=()
+
+  # ensure the global file exists
+  if [[ ! -f "$GLOBAL_FILE_PATH" ]]; then
+    error "Global configuration file not found at $GLOBAL_FILE_PATH ." >&2
+    return 1
+  fi
+
+  # read coreFacets array from JSON using jq
+  ARRAY=($(jq -r '.coreFacets[]' "$GLOBAL_FILE_PATH"))
+  if [[ $? -ne 0 ]]; then
+    error "Failed to parse coreFacets array from $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  # check if the array is empty
+  if [[ ${#ARRAY[@]} -eq 0 ]]; then
+    error "The coreFacets array is empty in $GLOBAL_FILE_PATH." >&2
+    return 1
+  fi
+
+  printf '%s\n' "${ARRAY[@]}"
+}
+
+# Function to check if NETWORKS_JSON_FILE_PATH is set and valid
+checkNetworksJsonFilePath() {
+  if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
+    return 1
+  elif [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH does not point to a valid file: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  elif [[ ! -s "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH file is empty: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  fi
+}
+
+
 function getIncludedNetworksArray() {
   # prepare required variables
-  local FILE="$NETWORKS_FILE_PATH"
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
   # extract list of excluded networks from config
   local EXCLUDED_NETWORKS_REGEXP="^($(echo "$EXCLUDE_NETWORKS" | tr ',' '|'))$"
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  while IFS= read -r line; do
-    if ! [[ "$line" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
-      ARRAY+=("$line")
+  while IFS= read -r network; do
+    if ! [[ "$network" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
+      ARRAY+=("$network")
     fi
-  done <"$FILE"
+  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
@@ -2057,8 +2107,9 @@ function getIncludedAndSortedFacetContractsArray() {
   # get all facet contracts
   FACET_CONTRACTS=($(getIncludedFacetContractsArray "$EXCLUDE_CONFIG"))
 
-  # convert CORE_FACETS into an array
-  CORE_FACETS_ARRAY=($(echo "$CORE_FACETS" | tr ',' ' '))
+  # Get core facets from global.json
+  CORE_FACETS_ARRAY=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
 
   # initialize empty arrays for core and non-core facet contracts
   CORE_FACET_CONTRACTS=()
@@ -2113,8 +2164,9 @@ function userDialogSelectDiamondType() {
   echo "$DIAMOND_CONTRACT_NAME"
 }
 function getUserSelectedNetwork() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network
-  local NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+  local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 
   # if no value was returned (e.g. when pressing ESC, end script)
   if [[ -z "$NETWORK" ]]; then
@@ -2352,14 +2404,7 @@ function getContractAddressFromSalt() {
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const result = web3.utils.soliditySha3({t: 'string', v: '$SALT'},{t: 'string', v: '$CONTRACT_NAME'})
-    console.log(result);"
-
-  # execute code using web3
-  ACTUAL_SALT=$(node -e "$jsCode")
+  ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
   RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
@@ -2375,15 +2420,8 @@ function getDeployerAddress() {
 
   PRIV_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
 
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIV_KEY')).address
-    const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
-    console.log(checksumAddress);"
-
-  # execute code using web3
-  DEPLOYER_ADDRESS=$(node -e "$jsCode")
+  # get deployer address from private key
+  DEPLOYER_ADDRESS=$(cast wallet address "$PRIV_KEY")
 
   # return deployer address
   echo "$DEPLOYER_ADDRESS"
@@ -2417,8 +2455,10 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  # get list of all core facet contracts from config
-  IFS=',' read -ra FACETS_NAMES <<<"$CORE_FACETS"
+  # get list of all core facet contracts from global.json
+  FACETS_NAMES=($(getCoreFacetsArray))
+  checkFailure $? "retrieve core facets array from global.json"
+
 
   # get a list of all facets that the diamond knows
   local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
@@ -2592,28 +2632,19 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
-  NODE_URL=${!NODE_URL_KEY}
+  RPC_URL=$(getRPCUrl "$NETWORK")
 
   # check if NODE_URL is available
-  if [ -z "$NODE_URL" ]; then
+  if [ -z "$RPC_URL" ]; then
     error ": no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
     return 1
   fi
 
   # make sure address is in correct checksum format
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const address = '$ADDRESS';
-    const checksumAddress = web3.utils.toChecksumAddress(address);
-    console.log(checksumAddress);"
-  CHECKSUM_ADDRESS=$(node -e "$jsCode")
+  CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
 
-  # get CONTRACT code from ADDRESS using web3
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3('$NODE_URL');
-    web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
-  contract_code=$(node -e "$jsCode")
+  # get CONTRACT code from ADDRESS using
+  contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
 
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
   if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
@@ -2831,20 +2862,45 @@ function getPrivateKey() {
     fi
   fi
 }
-
-function getChainId() {
+function isZkEvmNetwork() {
+  # read function arguments into variables
   local NETWORK="$1"
-  local NETWORKS_JSON="config/networks.json"
 
-  if [[ ! -f "$NETWORKS_JSON" ]]; then
-    echo "Error: JSON file '$NETWORKS_JSON' not found." >&2
+  # Check if the network exists in networks.json
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
     return 1
   fi
 
-  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON")
+  # Check if isZkEVM property exists for this network
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "isZkEVM property not defined for network '$NETWORK' in networks.json"
+    return 1
+  fi
+
+  # Get the isZkEVM value
+  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
+
+  if [[ "$IS_ZK_EVM" == "true" ]]; then
+    return 0  # Success (true)
+  else
+    return 1  # Failure (false)
+  fi
+}
+
+function getChainId() {
+  local NETWORK="$1"
+
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
+    return 1
+  fi
+
+  local CHAIN_ID=$(jq -r --arg network "$NETWORK" '.[$network].chainId // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [[ -z "$CHAIN_ID" ]]; then
-    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON'." >&2
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
     return 1
   fi
 
@@ -2853,9 +2909,13 @@ function getChainId() {
 
 function getCreate3FactoryAddress() {
   NETWORK="$1"
-  local CONFIG="config/global.json"
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
-  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.create3Factory[$NETWORK] // .create3Factory["default"]' $CONFIG)
+  if [ -z "$CREATE3_FACTORY" ]; then
+    echo "Error: create3Factory address not found for network '$NETWORK'"
+    return 1
+  fi
 
   echo $CREATE3_FACTORY
 }
@@ -3376,33 +3436,31 @@ function compareAddresses() {
     return 1
   fi
 }
-function sendMessageToDiscordSmartContractsChannel() {
+function sendMessageToSlackSmartContractsChannel() {
   # read function arguments into variable
   local MESSAGE=$1
 
-  if [ -z "$DISCORD_WEBHOOK_DEV_SMARTCONTRACTS" ]; then
+  if [ -z "$SLACK_WEBHOOK_SC_GENERAL" ]; then
     echo ""
-    warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
+    warning "Slack webhook URL for dev-sc-general is missing. Cannot send log message."
     echo ""
     return 1
   fi
 
   echo ""
-  echoDebug "sending the following message to Discord webhook ('dev-smartcontracts' channel):"
+  echoDebug "sending the following message to Slack webhook ('dev-sc-general' channel):"
   echoDebug "$MESSAGE"
   echo ""
 
   # Send the message
   curl -H "Content-Type: application/json" \
      -X POST \
-     -d "{\"content\": \"$MESSAGE\"}" \
-     $DISCORD_WEBHOOK_DEV_SMARTCONTRACTS
+     -d "{\"text\": \"$MESSAGE\"}" \
+     $SLACK_WEBHOOK_SC_GENERAL
 
-  echoDebug "Log message sent to Discord"
+  echoDebug "Log message sent to Slack"
 
   return 0
-
-
 }
 
 function getUserInfo() {
@@ -3559,7 +3617,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+  local FOUNDRY_ZKSYNC_VERSION="nightly-ae9cfd10d906b5ab350258533219da1f4775c118"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -3609,7 +3667,7 @@ install_foundry_zksync() {
 
   # Construct download URL using the specified version
   local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_nightly_${os}_${arch}.tar.gz"
+  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist

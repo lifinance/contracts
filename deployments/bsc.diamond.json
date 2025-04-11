@@ -85,9 +85,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x9558CacEAC173Bdf32fb4cd7067e9e3c3b4c155e": {
-        "Name": "",
-        "Version": ""
+      "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
       },
       "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",
@@ -105,9 +105,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x4682d79DD4D0e7555415841b5151933AF50594A8": {
+      "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324": {
         "Name": "MayanFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -122,23 +122,30 @@
         "Version": "1.0.0"
       },
       "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.0"
+      },
+      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
+      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
-      "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }

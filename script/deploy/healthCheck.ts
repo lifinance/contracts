@@ -1,17 +1,16 @@
 // @ts-nocheck
 import { consola } from 'consola'
-import { $, spinner } from 'zx'
+import { $ } from 'zx'
 import { defineCommand, runMain } from 'citty'
-import * as chains from 'viem/chains'
 import * as path from 'path'
 import * as fs from 'fs'
 import {
   Address,
-  Chain,
   Hex,
   PublicClient,
   createPublicClient,
   getAddress,
+  formatEther,
   getContract,
   http,
   parseAbi,
@@ -20,33 +19,16 @@ import {
   Network,
   networks,
   getViemChainForNetworkName,
-  type NetworksObject,
 } from '../utils/viemScriptHelpers'
+import { coreFacets, pauserWallet } from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
-
-const louperCmd = 'louper-cli'
-
-const coreFacets = [
-  'DiamondCutFacet',
-  'DiamondLoupeFacet',
-  'OwnershipFacet',
-  'WithdrawFacet',
-  'DexManagerFacet',
-  'PeripheryRegistryFacet',
-  'AccessManagerFacet',
-  'PeripheryRegistryFacet',
-  'GenericSwapFacet',
-  'GenericSwapFacetV3',
-  'CalldataVerificationFacet',
-  'StandardizedCallFacet',
-]
 
 const corePeriphery = [
   'ERC20Proxy',
   'Executor',
-  'Receiver',
   'FeeCollector',
+  'LiFiDEXAggregator',
   'TokenWrapper',
 ]
 
@@ -64,26 +46,8 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    if ((await $`${louperCmd}`.exitCode) !== 0) {
-      const answer = await consola.prompt(
-        'Louper CLI is required but not installed. Would you like to install it now?',
-        {
-          type: 'confirm',
-        }
-      )
-      if (answer) {
-        await spinner(
-          'Installing...',
-          () => $`npm install -g @mark3labs/louper-cli`
-        )
-      } else {
-        consola.error('Louper CLI is required to run this script')
-        process.exit(1)
-      }
-    }
-
     const { network } = args
-    const deployedContracts = await import(
+    const { default: deployedContracts } = await import(
       `../../deployments/${network.toLowerCase()}.json`
     )
     const targetStateJson = await import(
@@ -96,7 +60,7 @@ const main = defineCommand({
         !coreFacets.includes(k) &&
         !corePeriphery.includes(k) &&
         k !== 'LiFiDiamond' &&
-        k.endsWith('Facet')
+        k.includes('Facet')
       )
     })
     const dexs = (await import(`../../config/dexs.json`))[
@@ -177,16 +141,43 @@ const main = defineCommand({
 
     let registeredFacets: string[] = []
     try {
-      const facetsResult =
-        await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
-      registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
-        (f: { name: string }) => f.name
-      )
+      if (networksConfig[network.toLowerCase()].rpcUrl) {
+        const rpcUrl: string = networksConfig[network.toLowerCase()].rpcUrl
+        const facetsResult =
+          await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
+        const rawString = facetsResult.stdout
+
+        const jsonCompatibleString = rawString
+          .replace(/\(/g, '[')
+          .replace(/\)/g, ']')
+          .replace(/0x[0-9a-fA-F]+/g, '"$&"')
+
+        const onChainFacets = JSON.parse(jsonCompatibleString)
+
+        if (Array.isArray(onChainFacets)) {
+          // mapping on-chain facet addresses to names in config
+          const configFacetsByAddress = Object.fromEntries(
+            Object.entries(deployedContracts).map(([name, address]) => {
+              return [address.toLowerCase(), name]
+            })
+          )
+
+          const onChainFacetAddresses = onChainFacets.map(([address]) =>
+            address.toLowerCase()
+          )
+
+          const configuredFacetAddresses = Object.keys(configFacetsByAddress)
+
+          registeredFacets = onChainFacets.map(([address]) => {
+            return configFacetsByAddress[address.toLowerCase()]
+          })
+        }
+      } else {
+        throw new Error('Failed to get rpc from network config file')
+      }
     } catch (error) {
-      consola.warn(
-        'Unable to parse louper output - skipping facet registration check'
-      )
-      consola.debug('Error:', error)
+      consola.warn('Unable to parse output - skipping facet registration check')
+      consola.warn('Error:', error)
     }
 
     for (const facet of [...coreFacets, ...nonCoreFacets]) {
@@ -277,25 +268,25 @@ const main = defineCommand({
       })
       const approvedDexs = await dexManager.read.approvedDexs()
 
-      // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and TokenWrapper
+      // Loop through DEXs excluding the address for FeeCollector, LiFiDEXAggregator and TokenWrapper
       let numMissing = 0
       for (const dex of dexs.filter(
         (d) => !corePeriphery.includes(getAddress(d))
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
-          logError(`Dex ${dex} not approved in Diamond`)
+          logError(`DEX ${dex} not approved in Diamond`)
           numMissing++
         }
       }
 
-      // Check that FeeCollector, LiFuelFeeCollector and TokenWrapper are included in approvedDexs
-      const feeCollectors = corePeriphery.filter(
+      // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
+      const mustBeWhitelisted = corePeriphery.filter(
         (p) =>
           p === 'FeeCollector' ||
-          p === 'LiFuelFeeCollector' ||
+          p === 'LiFiDEXAggregator' ||
           p === 'TokenWrapper'
       )
-      for (const f of feeCollectors) {
+      for (const f of mustBeWhitelisted) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
           logError(`Periphery contract ${f} not approved as a DEX`)
           numMissing++
@@ -396,14 +387,6 @@ const main = defineCommand({
         publicClient
       )
 
-      // LiFuelFeeCollector
-      await checkOwnership(
-        'LiFuelFeeCollector',
-        rebalanceWallet,
-        deployedContracts,
-        publicClient
-      )
-
       // Receiver
       await checkOwnership(
         'Receiver',
@@ -434,10 +417,24 @@ const main = defineCommand({
 
         if (!exists) {
           logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        }
+        } else
+          consola.success(
+            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
+          )
       } catch (error: any) {
         logError(`Error checking workflow file: ${error.message}`)
       }
+      console.log('')
+
+      const pauserBalance = formatEther(
+        await publicClient.getBalance({
+          address: pauserWallet,
+        })
+      )
+
+      if (!pauserBalance || pauserBalance === '0')
+        logError(`PauserWallet does not have any native balance`)
+      else consola.success(`PauserWallet is funded: ${pauserBalance}`)
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check access permissions                 │
@@ -533,6 +530,7 @@ const main = defineCommand({
       finish()
     } else {
       logError('No dexs configured')
+      finish()
     }
   },
 })
@@ -594,8 +592,10 @@ const checkIsDeployed = async (
 const finish = () => {
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
+    process.exit(1)
   } else {
     consola.success('Deployment checks passed')
+    process.exit(0)
   }
 }
 

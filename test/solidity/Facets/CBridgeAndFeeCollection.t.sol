@@ -6,10 +6,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { LibAllowList, TestBase } from "../utils/TestBase.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {

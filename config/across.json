@@ -101,6 +101,12 @@
       "0xd693Ec944A85eeca4247eC1c3b130DCa9B0C3b22"
     ]
   },
+  "ink": {
+    "chainId": 57073,
+    "acrossSpokePool": "0xeF684C38F94F48775959ECf2012D7E864ffb9dd4",
+    "weth": "0x4200000000000000000000000000000000000006",
+    "tokensToApprove": []
+  },
   "linea": {
     "chainId": 59144,
     "acrossSpokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",
@@ -139,6 +145,18 @@
       "0x5300000000000000000000000000000000000004",
       "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df"
     ]
+  },
+  "soneium": {
+    "chainId": 1868,
+    "acrossSpokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
+    "weth": "0x4200000000000000000000000000000000000006",
+    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
+  },
+  "unichain": {
+    "chainId": 130,
+    "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+    "weth": "0x4200000000000000000000000000000000000006",
+    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
   },
   "worldchain": {
     "chainId": 480,
