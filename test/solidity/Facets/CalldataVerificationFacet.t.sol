@@ -24,6 +24,8 @@ contract CalldataVerificationFacetTest is TestBase {
 
     CalldataVerificationFacet internal calldataVerificationFacet;
 
+    error SliceOutOfBounds();
+
     function setUp() public {
         customBlockNumberForForking = 19979843;
         initTestBase();
@@ -203,8 +205,40 @@ contract CalldataVerificationFacetTest is TestBase {
         assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
     }
 
+    // / @dev Returns a slice of `data` starting at `start` with length `len`.
+    // / Uses memory-safe inline assembly to avoid the stack-too-deep issues.
+
+    function safeSlice(
+        bytes memory data,
+        uint256 start,
+        uint256 len
+    ) internal pure returns (bytes memory result) {
+        if (data.length < start + len) {
+            revert SliceOutOfBounds();
+        }
+        assembly ("memory-safe") {
+            // Load free memory pointer
+            result := mload(0x40)
+            // Store length in the first 32 bytes
+            mstore(result, len)
+            // Calculate the start pointers for source and destination copying
+            let src := add(add(data, 32), start)
+            let dest := add(result, 32)
+            // Copy loop: copy 32 bytes per iteration
+            for {
+                let i := 0
+            } lt(i, len) {
+                i := add(i, 32)
+            } {
+                mstore(add(dest, i), mload(add(src, i)))
+            }
+            // Update free memory pointer with proper alignment
+            mstore(0x40, add(dest, and(add(len, 31), not(31))))
+        }
+    }
+
     function test_RevertsOnInvalidGenericSwapCallData() public {
-        // prepare minimum callData
+        // Prepare minimum callData for GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20
         swapData[0] = LibSwap.SwapData({
             callTo: address(uniswap),
             approveTo: address(uniswap),
@@ -214,6 +248,7 @@ contract CalldataVerificationFacetTest is TestBase {
             callData: "",
             requiresDeposit: false
         });
+
         bytes memory callData = abi.encodeWithSelector(
             GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
             keccak256(""),
@@ -224,11 +259,12 @@ contract CalldataVerificationFacetTest is TestBase {
             swapData[0]
         );
 
-        // reduce calldata to 483 bytes to not meet min calldata length threshold
-        callData = callData.slice(0, 483);
+        // Instead of using LibBytes.slice (which may use non-memory-safe assembly),
+        // use our custom safeSlice to reduce calldata to 483 bytes.
+        callData = safeSlice(callData, 0, 483);
 
+        // Expect revert because the callData length is below the minimum threshold.
         vm.expectRevert(InvalidCallData.selector);
-
         calldataVerificationFacet.extractGenericSwapParameters(callData);
     }
 
