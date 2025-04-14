@@ -32,13 +32,13 @@ const main = defineCommand({
     const chainName = network
 
     // Connect to MongoDB using the MONGODB_URI from environment variables
-    const MONGO_URI = process.env.MONGODB_URI as string
-    if (!MONGO_URI) {
+    const MONGODB_URI = process.env.MONGODB_URI as string
+    if (!MONGODB_URI) {
       consola.error('MONGODB_URI is not defined in the environment')
       process.exit(1)
     }
 
-    const client = new MongoClient(MONGO_URI)
+    const client = new MongoClient(MONGODB_URI)
     await client.connect()
     const db = client.db('blockchain_configs')
     const collection = db.collection('rpc_endpoints')

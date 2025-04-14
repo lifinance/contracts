@@ -10,11 +10,11 @@ interface RpcEndpoint {
 }
 
 async function fetchRpcEndpoints(): Promise<{ [network: string]: string }> {
-  const MONGO_URI = process.env.MONGODB_URI
-  if (!MONGO_URI)
+  const MONGODB_URI = process.env.MONGODB_URI
+  if (!MONGODB_URI)
     throw new Error('MONGODB_URI is not defined in the environment')
 
-  const client = new MongoClient(MONGO_URI)
+  const client = new MongoClient(MONGODB_URI)
   await client.connect()
   const db = client.db('blockchain_configs')
   const collection = db.collection('rpc_endpoints')
