@@ -68,7 +68,7 @@
     "execute": "node ./_scripts.js run",
     "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && bun tasks/generateDiamondABI.ts",
     "abi:clean": "bun script/cleanABI.ts",
-    "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:clean && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
+    "typechain": "forge clean && rm -rf typechain/* && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
     "healthcheck": "bun ./script/deploy/healthCheck.ts",
     "propose-safe-tx": "bun ./script/deploy/safe/propose-to-safe.ts",
