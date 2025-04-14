@@ -8,31 +8,83 @@ import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
+import { stdError } from "forge-std/Test.sol";
 
-contract MockPermitToken is ERC20, ERC20Permit {
-    constructor(
-        string memory name,
-        string memory symbol
-    ) ERC20(name, symbol) ERC20Permit(name) {}
+abstract contract BaseMockPermitToken is ERC20, ERC20Permit {
+    constructor() ERC20("Mock", "MCK") ERC20Permit("Mock") {}
 
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
+    function permit(
+        // solhint-disable-next-line no-unused-vars
+        address owner,
+        // solhint-disable-next-line no-unused-vars
+        address spender,
+        // solhint-disable-next-line no-unused-vars
+        uint256 value,
+        // solhint-disable-next-line no-unused-vars
+        uint256 deadline,
+        // solhint-disable-next-line no-unused-vars
+        uint8 v,
+        // solhint-disable-next-line no-unused-vars
+        bytes32 r,
+        // solhint-disable-next-line no-unused-vars
+        bytes32 s
+    ) public pure override {
+        _permit();
     }
 
-    // intentionally revert with custom error (not catchable by `Error(string)` only catchable by Error(bytes))
-    function permit(
-        address,
-        address,
-        uint256,
-        uint256,
-        uint8,
-        bytes32,
-        bytes32
-    ) public pure override {
+    function _permit() internal pure virtual;
+}
+
+contract MockPermitToken is BaseMockPermitToken {
+    function _permit() internal pure override {
         revert CustomPermitError();
     }
 
     error CustomPermitError();
+}
+
+contract MockPermitTokenPanic is BaseMockPermitToken {
+    // solhint-disable-next-line reason-string
+    function _permit() internal pure override {
+        assert(true == false);
+    }
+}
+
+contract MockPermitTokenEmptyRevert is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line gas-custom-errors,reason-string
+        revert();
+    }
+}
+
+contract MockPermitTokenStringRevert is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line gas-custom-errors
+        revert("Custom error message");
+    }
+}
+
+contract MockPermitTokenRequireRevert is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line gas-custom-errors
+        require(true == false, "Test revert message");
+    }
+}
+
+contract MockPermitTokenAdditionOverflow is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line no-unused-vars
+        uint256 test = type(uint256).max + 1;
+    }
+}
+
+contract MockPermitTokenDivisionByZero is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line no-unused-vars
+        uint256 x = 0;
+        // solhint-disable-next-line no-unused-vars
+        uint256 y = 1 / x; // This will cause a division by zero at runtime
+    }
 }
 
 contract Permit2ProxyTest is TestBase {
@@ -571,7 +623,7 @@ contract Permit2ProxyTest is TestBase {
 
     function testRevert_FailsOnCustomErrorAndAllowance() public {
         // deploy a mock ERC20Permit token that reverts with custom error on permit
-        MockPermitToken token = new MockPermitToken("Mock", "MCK");
+        MockPermitToken token = new MockPermitToken();
         address tokenAddress = address(token);
 
         vm.startPrank(permit2User);
@@ -580,6 +632,145 @@ contract Permit2ProxyTest is TestBase {
 
         // we don't care about the signature since permit will revert anyway
         vm.expectRevert(MockPermitToken.CustomPermitError.selector);
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnPanicDuringAllowance() public {
+        MockPermitTokenPanic token = new MockPermitTokenPanic();
+
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+
+        bytes memory callData = _getCalldataForBridging();
+
+        // expect panic error (0x01 for assertion failure)
+        vm.expectRevert(stdError.assertionError);
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnEmptyRevert() public {
+        MockPermitTokenEmptyRevert token = new MockPermitTokenEmptyRevert();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect empty revert
+        vm.expectRevert();
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnStringRevert() public {
+        MockPermitTokenStringRevert token = new MockPermitTokenStringRevert();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect string revert
+        vm.expectRevert("Custom error message");
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnRequireRevert() public {
+        MockPermitTokenRequireRevert token = new MockPermitTokenRequireRevert();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect require revert
+        vm.expectRevert("Test revert message");
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            500, // Amount less than 1000 to trigger require
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnAdditionOverflow() public {
+        MockPermitTokenAdditionOverflow token = new MockPermitTokenAdditionOverflow();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect arithmetic overflow panic
+        vm.expectRevert(stdError.arithmeticError);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnDivisionByZero() public {
+        MockPermitTokenDivisionByZero token = new MockPermitTokenDivisionByZero();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect arithmetic error (division by zero)
+        vm.expectRevert(stdError.divisionError);
+
         permit2Proxy.callDiamondWithEIP2612Signature(
             tokenAddress,
             defaultUSDCAmount,
