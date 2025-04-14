@@ -205,14 +205,13 @@ contract CalldataVerificationFacetTest is TestBase {
         assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
     }
 
-    // / @dev Returns a slice of `data` starting at `start` with length `len`.
-    // / Uses memory-safe inline assembly to avoid the stack-too-deep issues.
-
-    function safeSlice(
+    // @dev Returns a slice of `data` starting at `start` with length `len`.
+    // Uses memory-safe inline assembly to avoid the stack-too-deep issues.
+    function _safeSlice(
         bytes memory data,
         uint256 start,
         uint256 len
-    ) internal pure returns (bytes memory result) {
+    ) private pure returns (bytes memory result) {
         if (data.length < start + len) {
             revert SliceOutOfBounds();
         }
@@ -259,9 +258,9 @@ contract CalldataVerificationFacetTest is TestBase {
             swapData[0]
         );
 
-        // Instead of using LibBytes.slice (which may use non-memory-safe assembly),
+        // Instead of using LibBytes.slice (which couses stack-too-deep issues),
         // use our custom safeSlice to reduce calldata to 483 bytes.
-        callData = safeSlice(callData, 0, 483);
+        callData = _safeSlice(callData, 0, 483);
 
         // Expect revert because the callData length is below the minimum threshold.
         vm.expectRevert(InvalidCallData.selector);
