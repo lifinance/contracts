@@ -202,6 +202,7 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.04.13_DexManagerFacet(v1.0.2).pdf",
       "auditCommitHash": "299df50b5d44d4d59a7ccc34bbfe94584acb0c81"
+    }
   },
   "auditedContracts": {
     "AcrossFacetPackedV3": {
