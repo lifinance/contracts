@@ -189,13 +189,19 @@
       "auditReportPath": "./audit/reports/2025.03.05_ChainflipFacet(v1.0.0).pdf",
       "auditCommitHash": "233571f68ef94ba5f8c5d19158401d84cd842d43"
     },
+    "audit20250327": {
+      "auditCompletedOn": "27.03.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.03.27_MayanFacet(v1.2.0).pdf",
+      "auditCommitHash": "acc5becc02b9060a60b1135c9b25f3ccea8cbd31"
+    },
     "audit20250413": {
       "auditCompletedOn": "13.04.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.04.13_DexManagerFacet(v1.0.2).pdf",
       "auditCommitHash": "299df50b5d44d4d59a7ccc34bbfe94584acb0c81"
-    }
   },
   "auditedContracts": {
     "AcrossFacetPackedV3": {
@@ -276,7 +282,8 @@
       "1.0.2": ["audit20250109_3"]
     },
     "MayanFacet": {
-      "1.1.0": ["audit20250228"]
+      "1.1.0": ["audit20250228"],
+      "1.2.0": ["audit20250327"]
     },
     "Permit2Proxy": {
       "1.0.0": ["audit20241122"],
