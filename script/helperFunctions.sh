@@ -2767,45 +2767,15 @@ function doNotContinueUnlessGasIsBelowThreshold() {
     sleep 5
   done
 }
-# Retrieve the RPC URL from MongoDB for a given network
 function getRPCUrl() {
-  local network="$1"
+  # read function arguments into variables
+  local NETWORK=$1
 
-  # Ensure that the MONGODB_URI environment variable is set
-  if [[ -z "$MONGODB_URI" ]]; then
-    error "MONGODB_URI is not defined in the environment">&2
-    return 1
-  fi
+  # get RPC KEY
+  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
-  # Use mongosh to query MongoDB and output the document as JSON.
-  # The print(JSON.stringify(...)) ensures a proper JSON output.
-  local json_doc
-  json_doc=$(mongosh "$MONGODB_URI" --quiet --eval "print(JSON.stringify(db.getSiblingDB('blockchain_configs').rpc_endpoints.findOne({chainName:'$network'})))" 2>&1)
-  local status=$?
-  if [[ $status -ne 0 ]]; then
-    error "Error executing mongosh query: $json_doc">&2
-    return 1
-  fi
-
-  # Check if the document is missing or null
-  if [[ -z "$json_doc" || "$json_doc" == "null" ]]; then
-    error "Error: RPC endpoints for chain $network not found in MongoDB">&2
-    return 1
-  fi
-
-  # Process the JSON using jq:
-  # - Filter endpoints that have a non-empty url
-  # - Sort them by priority (in ascending order)
-  # - Reverse the sorted array so that the endpoint with the highest number (priority) is first
-  # - Extract the url from the first element in the reversed array
-  local rpc_url
-  rpc_url=$(echo "$json_doc" | jq -r '.rpcs | map(select(.url != null and .url != "")) | sort_by(.priority) | reverse | .[0].url')
-  if [[ -z "$rpc_url" || "$rpc_url" == "null" ]]; then
-    error "Error: No RPC endpoints available for chain $network" >&2
-    return 1
-  fi
-
-  echo "$rpc_url"
+  # return RPC URL
+  echo "${!RPC_KEY}"
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then

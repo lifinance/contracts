@@ -29,6 +29,11 @@
 scriptMaster() {
   trap 'cleanupBackgroundJobs' SIGINT # this ensures that function "cleanup" is called when pressing CTRL+C to kill a process in console
   echo "[info] loading required resources and compiling contracts"
+  
+  # fetch latest RPCs
+  echo "[info] fetching latest RPCs..."
+  bun fetch-rpcs
+
   # load env variables
   source .env
 

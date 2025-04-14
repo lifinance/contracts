@@ -512,34 +512,12 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
 }
 
 /**
- * Return the RPC URL for a given chain by querying MongoDB for an endpoint.
- * The function sorts the available RPC endpoints by priority (descending) and returns the URL of the first valid endpoint.
+ * Return the correct RPC environment variable
+ * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
  */
-const getRpcUrl = async (chain: SupportedChain): Promise<string> => {
-  const mongoUri = getEnvVar('MONGODB_URI')
-  const client = new MongoClient(mongoUri)
-  try {
-    await client.connect()
-    const db = client.db('blockchain_configs')
-    const collection = db.collection('rpc_endpoints')
-    const doc = await collection.findOne({ chainName: chain })
-    if (!doc) {
-      throw new Error(`RPC endpoints for chain ${chain} not found in MongoDB`)
-    }
-    const rpcs = doc.rpcs
-    if (!rpcs || rpcs.length === 0) {
-      throw new Error(`No RPC endpoints available for chain ${chain}`)
-    }
-    // Sort the RPC endpoints by priority in descending order
-    const sortedRpcs = rpcs.sort((a: any, b: any) => b.priority - a.priority)
-    const rpcEndpoint = sortedRpcs.find((rpc: any) => rpc.url)
-    if (!rpcEndpoint || !rpcEndpoint.url) {
-      throw new Error(`No valid RPC endpoint found for chain ${chain}`)
-    }
-    return rpcEndpoint.url
-  } finally {
-    await client.close()
-  }
+const getRpcUrl = (chain: SupportedChain) => {
+  const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
+  return getEnvVar(envKey) as string
 }
 
 /**
