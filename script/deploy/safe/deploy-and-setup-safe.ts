@@ -242,6 +242,12 @@ const main = defineCommand({
 
       const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
 
+      if (owners.length === 0) {
+        throw new Error('At least one owner address must be provided')
+      }
+
+      if (threshold > owners.length) {
+
       if (threshold > owners.length) {
         throw new Error('Threshold cannot be greater than the number of owners')
       }
