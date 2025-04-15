@@ -9,9 +9,11 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { NativeAssetTransferFailed, ReentrancyError } from "src/Errors/GenericErrors.sol";
+import { stdJson } from "forge-std/StdJson.sol";
+
+using stdJson for string;
 
 contract TestFacet {
     constructor() {}
@@ -207,11 +209,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     // MODIFIERS
 
     //@dev token == address(0) => check balance of native token
-    modifier assertBalanceChange(
-        address token,
-        address user,
-        int256 amount
-    ) {
+    modifier assertBalanceChange(address token, address user, int256 amount) {
         // store initial balance
         if (token == address(0)) {
             initialBalances[token][user] = user.balance;
@@ -585,6 +583,19 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     function mineBlocks(uint256 numBlocks) external {
         uint256 targetBlock = block.number + numBlocks;
         vm.roll(targetBlock);
+    }
+
+    function getConfigAddressFromPath(
+        string memory configFileName,
+        string memory jsonPath
+    ) internal returns (address) {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/",
+            configFileName
+        );
+        string memory json = vm.readFile(path);
+        return json.readAddress(jsonPath);
     }
     //#endregion
 }

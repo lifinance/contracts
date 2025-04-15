@@ -1965,6 +1965,7 @@ function getAddressOfDeployedContractFromDeploymentsFiles() {
 
 }
 function getAllNetworksArray() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # prepare required variables
   local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
@@ -2010,9 +2011,24 @@ function getCoreFacetsArray() {
   printf '%s\n' "${ARRAY[@]}"
 }
 
+# Function to check if NETWORKS_JSON_FILE_PATH is set and valid
+checkNetworksJsonFilePath() {
+  if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
+    return 1
+  elif [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH does not point to a valid file: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  elif [[ ! -s "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH file is empty: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  fi
+}
+
 
 function getIncludedNetworksArray() {
   # prepare required variables
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
@@ -2148,6 +2164,7 @@ function userDialogSelectDiamondType() {
   echo "$DIAMOND_CONTRACT_NAME"
 }
 function getUserSelectedNetwork() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network
   local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 
@@ -2845,10 +2862,36 @@ function getPrivateKey() {
     fi
   fi
 }
+function isZkEvmNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in networks.json
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  # Check if isZkEVM property exists for this network
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "isZkEVM property not defined for network '$NETWORK' in networks.json"
+    return 1
+  fi
+
+  # Get the isZkEVM value
+  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
+
+  if [[ "$IS_ZK_EVM" == "true" ]]; then
+    return 0  # Success (true)
+  else
+    return 1  # Failure (false)
+  fi
+}
 
 function getChainId() {
   local NETWORK="$1"
 
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
     echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
     return 1
@@ -2866,7 +2909,7 @@ function getChainId() {
 
 function getCreate3FactoryAddress() {
   NETWORK="$1"
-
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [ -z "$CREATE3_FACTORY" ]; then
@@ -3574,7 +3617,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+  local FOUNDRY_ZKSYNC_VERSION="nightly-ae9cfd10d906b5ab350258533219da1f4775c118"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -3624,7 +3667,7 @@ install_foundry_zksync() {
 
   # Construct download URL using the specified version
   local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_nightly_${os}_${arch}.tar.gz"
+  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist

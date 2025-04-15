@@ -44,19 +44,17 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
-    "ts-node": "^10.7.0",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
     "zksync-web3": "^0.14.3"
   },
-  "resolutions": {
-    "hardhat/**/@ethereumjs/tx": "3.5.0",
+  "overrides": {
     "web3": "4.16.0"
   },
   "scripts": {
     "preinstall": "bash preinstall.sh",
     "postinstall": "patch-package",
-    "prepare": "yarn prepare:husky",
+    "prepare": "bun prepare:husky",
     "prepare:husky": "husky install",
     "lint": "eslint \"**/*.{js,ts}\" && solhint src/**/*.sol",
     "lint:fix": "eslint --fix \"**/*.{js,ts}\" && solhint --fix src/**/*.sol",
@@ -66,16 +64,16 @@
     "test": "forge test --evm-version 'shanghai'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
-    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'shanghai' --ir-minimum && tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
+    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'shanghai' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
-    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && tsx tasks/generateDiamondABI.ts",
+    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && bun tasks/generateDiamondABI.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
-    "healthcheck": "tsx ./script/deploy/healthCheck.ts",
-    "propose-safe-tx": "tsx ./script/deploy/safe/propose-to-safe.ts",
-    "confirm-safe-tx": "tsx ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners-and-threshold": "tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
-    "deploy-and-setup-safe": "tsx ./script/deploy/safe/deploy-and-setup-safe.ts",
+    "healthcheck": "bun ./script/deploy/healthCheck.ts",
+    "propose-safe-tx": "bun ./script/deploy/safe/propose-to-safe.ts",
+    "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
+    "add-safe-owners-and-threshold": "bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
+    "deploy-and-setup-safe": "bun ./script/deploy/safe/deploy-and-setup-safe.ts",
     "flatten": "forge flatten --output"
   },
   "dependencies": {
@@ -83,11 +81,6 @@
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@layerzerolabs/lz-v2-utilities": "^2.3.21",
     "@octokit/rest": "^21.0.1",
-    "@safe-global/api-kit": "^2.3.1",
-    "@safe-global/protocol-kit": "^5.2.1",
-    "@safe-global/safe-apps-sdk": "^9.0.0",
-    "@safe-global/safe-core-sdk-types": "^4.1.0",
-    "@safe-global/safe-deployments": "^1.37.32",
     "@uma/sdk": "^0.22.1",
     "@uniswap/permit2-sdk": "^1.3.0",
     "@uniswap/sdk": "^3.0.3",
@@ -101,7 +94,6 @@
     "mongodb": "^6.13.0",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "tsx": "^4.19.2",
     "viem": "^2.22.16",
     "zx": "^8.2.2"
   },
@@ -112,7 +104,7 @@
     ],
     "*.sol": [
       "prettier --write",
-      "solhint --noPrompt --fix"
+      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt --fix \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ]
   }
 }
