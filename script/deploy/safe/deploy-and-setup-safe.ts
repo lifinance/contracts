@@ -1,5 +1,34 @@
 /**
  * Deploy and Setup a new multisig Safe
+ * The script combines owners from two sources:
+ * 1. The global configuration (config/global.json)
+ * 2. Additional owners provided via command line arguments
+ *
+ * Required Parameters:
+ * - network: The target network name (e.g., arbitrum)
+ * - threshold: Number of signatures required for transactions
+ *
+ * Optional Parameters:
+ * - owners: Comma-separated list of additional owner addresses
+ * - safeSingleton: Address of the Gnosis Safe singleton contract (optional - will be fetched from safe-deployments)
+ * - proxyFactory: Address of the Gnosis Safe Proxy Factory contract (optional - will be fetched from safe-deployments)
+ * - fallbackHandler: Address of the fallback handler contract
+ * - paymentToken: Address of the payment token (default: 0x0 for ETH)
+ * - payment: Payment amount in wei (default: 0)
+ * - paymentReceiver: Address to receive payments (default: 0x0)
+ *
+ * Environment Variables:
+ * - PRIVATE_KEY: Deployer's private key
+ * - ETH_NODE_URI_{NETWORK}: RPC URL for the target network (must be configured in .env)
+ *
+ * Example Usage:
+ * bun deploy-and-setup-safe.ts --network arbitrum --threshold 3 --owners 0x123,0x456
+ *
+ * The script will:
+ * 1. Verify the provided or fetched Safe contract addresses
+ * 2. Deploy a new Safe proxy
+ * 3. Initialize it with the specified owners and threshold
+ * 4. Verify the final configuration
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -137,8 +166,8 @@ const main = defineCommand({
           proxyFactoryDeployment.networkAddresses[chainId.toString()]
 
         if (safeSingletonFromDeployment && proxyFactoryFromDeployment) {
-          safeSingleton = safeSingletonFromDeployment
-          proxyFactory = proxyFactoryFromDeployment
+          safeSingleton = getAddress(safeSingletonFromDeployment)
+          proxyFactory = getAddress(proxyFactoryFromDeployment)
           consola.info('Using Safe addresses from safe-deployments:')
         } else {
           consola.warn(
