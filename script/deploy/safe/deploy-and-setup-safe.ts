@@ -10,18 +10,18 @@ import {
   getAddress,
   Address,
   zeroAddress,
-  keccak256,
 } from 'viem'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
-import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
-import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
-import globalConfig from '../../../config/global.json'
 import {
   getSafeSingletonDeployment,
   getProxyFactoryDeployment,
 } from '@safe-global/safe-deployments'
+import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
+import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
+
 dotenv.config()
 
 const GNOSIS_SAFE_PROXY_FACTORY_ABI = parseAbi([
@@ -203,7 +203,7 @@ const main = defineCommand({
         .filter((o) => o.length > 0)
 
       // validate owners
-      const ownersFromGlobalConfig = globalConfig.safeOwners
+      const ownersFromGlobalConfig = globalConfig.safeOwners as Address[]
       const ownersFromArgs = ownersRaw.map((o) => {
         if (!isAddress(o)) {
           throw new Error(`Invalid address in --owners: ${o}`)
@@ -211,7 +211,7 @@ const main = defineCommand({
         return getAddress(o)
       })
 
-      const owners = [...ownersFromGlobalConfig, ...ownersFromArgs]
+      const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
 
       if (threshold > owners.length) {
         throw new Error('Threshold cannot be greater than the number of owners')
@@ -297,7 +297,7 @@ const main = defineCommand({
         }
         consola.info('Transaction confirmed in block', receipt.blockNumber)
 
-        // retrieve the new proxy address from logs (the GnosisSafeProxyFactory emits `ProxyCreation(proxy, singleton)`)
+        // retrieve the new proxy address from logs
         let newSafeAddress: Address | undefined
         if (receipt.logs) {
           for (const log of receipt.logs) {
