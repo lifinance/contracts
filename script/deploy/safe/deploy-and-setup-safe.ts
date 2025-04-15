@@ -247,8 +247,6 @@ const main = defineCommand({
       }
 
       if (threshold > owners.length) {
-
-      if (threshold > owners.length) {
         throw new Error('Threshold cannot be greater than the number of owners')
       }
 
