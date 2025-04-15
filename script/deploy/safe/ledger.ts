@@ -109,33 +109,108 @@ function createLedgerAccount({
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
     async signTransaction(transactionRequest: any) {
-      const { default: Eth } = await import('@ledgerhq/hw-app-eth')
-      const { serializeTransaction } = await import('viem')
-      const { getChainId } = await import('viem/actions')
+      try {
+        // Load all needed imports first
+        const { default: Eth } = await import('@ledgerhq/hw-app-eth')
+        const { serializeTransaction } = await import('viem')
+        const { getChainId } = await import('viem/actions')
 
-      const eth = new Eth(transport)
+        console.log(
+          'Ledger transaction signing request:',
+          JSON.stringify(transactionRequest, null, 2)
+        )
 
-      // Get the chain ID from the client
-      const chainId =
-        transactionRequest.chainId ??
-        (transactionRequest.client
-          ? await getChainId(transactionRequest.client)
-          : 1) // Default to Ethereum mainnet
+        // Create Eth instance
+        const eth = new Eth(transport)
 
-      // Serialize the transaction for signing
-      const serializedTx = serializeTransaction({
-        ...transactionRequest,
-        chainId,
-      })
+        // Get the chain ID from the request or client
+        const chainId =
+          transactionRequest.chainId ??
+          (transactionRequest.client
+            ? await getChainId(transactionRequest.client)
+            : 1)
 
-      // Sign the transaction with Ledger device
-      const signature = await eth.signTransaction(
-        derivationPath,
-        serializedTx.slice(2) // Remove '0x' prefix
-      )
+        // Create a transaction object with chainId explicitly included
+        const txWithChainId = {
+          ...transactionRequest,
+          chainId,
+        }
 
-      // Return signed transaction hex
-      return `0x${signature.r}${signature.s}${signature.v.toString(16)}`
+        // Serialize the transaction to hex format as required by Ledger
+        const serializedTx = serializeTransaction(txWithChainId)
+        console.log('Serialized transaction:', serializedTx)
+
+        // Use the raw hex without '0x' prefix as required by Ledger
+        const rawTxHex = serializedTx.slice(2)
+
+        // Import Ledger transaction resolution service
+        const {
+          default: { ledgerService },
+        } = await import('@ledgerhq/hw-app-eth')
+
+        // First, resolve the transaction to provide metadata to the Ledger
+        console.log('Resolving transaction with Ledger service...')
+        let resolution = null
+        try {
+          // This provides context for the transaction to be displayed on the Ledger device
+          resolution = await ledgerService.resolveTransaction(rawTxHex, null, {
+            externalPlugins: true, // Enable external plugins for better transaction information
+            erc20: true, // Enable ERC20 token resolution
+          })
+          console.log('Transaction resolved successfully with Ledger service')
+        } catch (resolveError) {
+          console.warn(
+            'Failed to resolve transaction with Ledger service:',
+            resolveError
+          )
+          console.log('Continuing with null resolution (blind signing)')
+          // Proceed with null resolution which will lead to "blind signing" on the device
+        }
+
+        // Sign the transaction with the Ledger device
+        // According to Ledger docs:
+        // - path: BIP32 path
+        // - rawTxHex: Raw transaction hex (without 0x prefix)
+        // - resolution: Optional transaction metadata
+        console.log('Requesting signature from Ledger device...')
+        console.log(`Using derivation path: ${derivationPath}`)
+
+        const signature = await eth.signTransaction(
+          derivationPath,
+          rawTxHex,
+          resolution
+        )
+
+        console.log('Signature received from Ledger:', signature)
+
+        // We can use viem's serializeTransaction to create the final signed transaction
+        const {
+          parseTransaction,
+          serializeTransaction: serializeSignedTransaction,
+        } = await import('viem')
+        const parsedTx = parseTransaction(serializedTx)
+
+        // Create a signed transaction object with the signature from Ledger
+        const signedTx = {
+          ...txWithChainId, // Original transaction data
+
+          // Add signature components from Ledger
+          r: `0x${signature.r}`,
+          s: `0x${signature.s}`,
+          v: BigInt(`0x${signature.v}`),
+        }
+
+        console.log('Creating signed transaction with:', signedTx)
+
+        // Serialize the signed transaction
+        const serializedSignedTx = serializeSignedTransaction(signedTx)
+        console.log('Serialized signed transaction:', serializedSignedTx)
+
+        return serializedSignedTx
+      } catch (error) {
+        console.error('Error in Ledger signTransaction:', error)
+        throw new Error(`Ledger transaction signing failed: ${error.message}`)
+      }
     },
     // Implement signTypedData method for EIP-712 support
     async signTypedData(params: any) {
