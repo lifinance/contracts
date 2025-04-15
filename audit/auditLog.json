@@ -195,6 +195,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.03.27_MayanFacet(v1.2.0).pdf",
       "auditCommitHash": "acc5becc02b9060a60b1135c9b25f3ccea8cbd31"
+    },
+    "audit20250413": {
+      "auditCompletedOn": "13.04.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.04.13_DexManagerFacet(v1.0.2).pdf",
+      "auditCommitHash": "299df50b5d44d4d59a7ccc34bbfe94584acb0c81"
     }
   },
   "auditedContracts": {
@@ -215,6 +222,9 @@
     },
     "DeBridgeDlnFacet": {
       "1.0.0": ["audit20241205"]
+    },
+    "DexManagerFacet": {
+      "1.0.2": ["audit20250413"]
     },
     "EmergencyPauseFacet": {
       "1.0.0": ["audit20240913"],
