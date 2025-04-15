@@ -39,8 +39,8 @@ const main = defineCommand({
     },
     privateKey: {
       type: 'string',
-      description: 'Private key of the signer',
-      required: true,
+      description: 'Private key of the signer (not needed if using --ledger)',
+      required: false,
     },
     to: {
       type: 'string',
@@ -52,6 +52,26 @@ const main = defineCommand({
       description: 'Calldata',
       required: true,
     },
+    ledger: {
+      type: 'boolean',
+      description: 'Use Ledger hardware wallet for signing',
+      required: false,
+    },
+    ledgerLive: {
+      type: 'boolean',
+      description: 'Use Ledger Live derivation path',
+      required: false,
+    },
+    accountIndex: {
+      type: 'number',
+      description: 'Ledger account index (default: 0)',
+      required: false,
+    },
+    derivationPath: {
+      type: 'string',
+      description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
   },
   /**
    * Executes the propose-to-safe command
@@ -62,11 +82,46 @@ const main = defineCommand({
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
+    // Validate that we have either a private key or ledger
+    if (!args.privateKey && !args.ledger) {
+      throw new Error('Either --privateKey or --ledger must be provided')
+    }
+
+    // Set up signing options
+    const useLedger = args.ledger || false
+    let privateKey: string | undefined
+
+    if (useLedger) {
+      consola.info('Using Ledger hardware wallet for signing')
+      if (args.ledgerLive) {
+        consola.info(
+          `Using Ledger Live derivation path with account index ${
+            args.accountIndex || 0
+          }`
+        )
+      } else if (args.derivationPath) {
+        consola.info(`Using custom derivation path: ${args.derivationPath}`)
+      } else {
+        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+      }
+      privateKey = undefined
+    } else {
+      privateKey = getPrivateKey(args.privateKey)
+    }
+
+    const ledgerOptions = {
+      ledgerLive: args.ledgerLive || false,
+      accountIndex: args.accountIndex || 0,
+      derivationPath: args.derivationPath,
+    }
+
     // Initialize Safe client
     const { safe, chain, safeAddress } = await initializeSafeClient(
       args.network,
-      getPrivateKey(args.privateKey),
-      args.rpcUrl
+      privateKey,
+      args.rpcUrl,
+      useLedger,
+      ledgerOptions
     )
 
     // Get the account address

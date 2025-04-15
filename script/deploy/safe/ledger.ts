@@ -86,7 +86,7 @@ function createLedgerAccount({
 }): Account {
   return {
     address,
-    type: 'ledger',
+    type: 'local',
     async signMessage({ message }) {
       const Eth = (await import('@ledgerhq/hw-app-eth')).default
       const eth = new Eth(transport)
@@ -109,11 +109,11 @@ function createLedgerAccount({
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
     async signTransaction(transactionRequest: any) {
-      const { Ethereum } = await import('@ledgerhq/hw-app-eth')
+      const { default: Eth } = await import('@ledgerhq/hw-app-eth')
       const { serializeTransaction } = await import('viem')
       const { getChainId } = await import('viem/actions')
 
-      const eth = new Ethereum(transport)
+      const eth = new Eth(transport)
 
       // Get the chain ID from the client
       const chainId =
@@ -139,8 +139,8 @@ function createLedgerAccount({
     },
     // Implement signTypedData method for EIP-712 support
     async signTypedData(params: any) {
-      const { Ethereum } = await import('@ledgerhq/hw-app-eth')
-      const eth = new Ethereum(transport)
+      const { default: Eth } = await import('@ledgerhq/hw-app-eth')
+      const eth = new Eth(transport)
 
       // Encode the typed data according to EIP-712
       const domainSeparator = params.domain
