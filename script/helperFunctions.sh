@@ -1341,7 +1341,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1410,21 +1410,140 @@ function addPeripheryToDexsJson() {
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
+# function verifyContract() {
+#   # read function arguments into variables
+#   local NETWORK=$1
+#   local CONTRACT=$2
+#   local ADDRESS=$3
+#   local ARGS=$4
+
+#   # get API key for blockchain explorer
+#   if [[ "$NETWORK" == "bsc-testnet" ]]; then
+#     API_KEY="BSC_ETHERSCAN_API_KEY"
+#   else
+#     API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
+#   fi
+
+#   # logging for debug purposes
+#   echo ""
+#   echoDebug "in function verifyContract"
+#   echoDebug "NETWORK=$NETWORK"
+#   echoDebug "CONTRACT=$CONTRACT"
+#   echoDebug "ADDRESS=$ADDRESS"
+#   echoDebug "ARGS=$ARGS"
+#   echoDebug "blockexplorer API_KEY=${API_KEY}"
+#   echoDebug "blockexplorer API_KEY value=${!API_KEY}"
+
+#   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
+#     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
+#     *,"$NETWORK",*)
+#       echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+#       return 1
+#       ;;
+#     esac
+#   fi
+
+#   # verify contract using forge
+#   MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
+#   RETRY_COUNT=0
+#   COMMAND_STATUS=1
+#   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
+#   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
+#   CHAIN_ID=$(getChainId "$NETWORK")
+
+#   if [ $? -ne 0 ]; then
+#     warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
+#   fi
+
+#   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+#     if [ "$ARGS" = "0x" ]; then
+#       # only show output if DEBUG flag is activated
+#       if [[ "$DEBUG" == *"true"* ]]; then
+#         if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+#           # Verify using foundry-zksync
+#           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+#         else
+#           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+#         fi
+
+#         # TODO: add code that automatically identifies blockscout verification
+#       else
+#         if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+#           # Verify using foundry-zksync
+#           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+#         else
+#           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+#         fi
+#       fi
+#     else
+#       # case: verify with constructor arguments
+#       # only show output if DEBUG flag is activated
+#       if [[ "$DEBUG" == *"true"* ]]; then
+#         if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+#           # Verify using foundry-zksync
+#          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+#         else
+#           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
+#         fi
+#       else
+#         if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+#           # Verify using foundry-zksync
+#          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+#         else
+#           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+#         fi
+#       fi
+#     fi
+#     COMMAND_STATUS=$?
+#     RETRY_COUNT=$((RETRY_COUNT + 1))
+#   done
+
+#   # check the return status of the contract verification call
+#   if [ $COMMAND_STATUS -ne 0 ]; then
+#     warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
+#   else
+#     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+#     return 0
+#   fi
+
+#   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
+#   forge verify-contract \
+#     "$ADDRESS" \
+#     "$CONTRACT" \
+#     --chain-id "$CHAIN_ID" \
+#     --verifier  sourcify
+
+#   echo "[info] checking Sourcify verification now"
+#   forge verify-check $ADDRESS \
+#     --chain-id "$CHAIN_ID" \
+#     --verifier sourcify
+
+#   if [ $? -ne 0 ]; then
+#     # verification apparently failed
+#     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
+#     return 1
+#   else
+#     # verification successful
+#     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
+#     return 0
+#   fi
+# }
+# >>>>> writing to blockchain & verification
 function verifyContract() {
-  # read function arguments into variables
+  # Read function arguments
   local NETWORK=$1
   local CONTRACT=$2
   local ADDRESS=$3
   local ARGS=$4
 
-  # get API key for blockchain explorer
+  # Derive API key environment variable name based on network
   if [[ "$NETWORK" == "bsc-testnet" ]]; then
     API_KEY="BSC_ETHERSCAN_API_KEY"
   else
-    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
+    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")_ETHERSCAN_API_KEY"
   fi
 
-  # logging for debug purposes
+  # Logging debug information
   echo ""
   echoDebug "in function verifyContract"
   echoDebug "NETWORK=$NETWORK"
@@ -1434,71 +1553,87 @@ function verifyContract() {
   echoDebug "blockexplorer API_KEY=${API_KEY}"
   echoDebug "blockexplorer API_KEY value=${!API_KEY}"
 
+  # Skip verification for excluded networks
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
-    *,"$NETWORK",*)
-      echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
-      return 1
-      ;;
+      *,"$NETWORK",*)
+        echoDebug "network $NETWORK is excluded for contract verification, skipping $CONTRACT"
+        return 1
+        ;;
     esac
   fi
 
-  # verify contract using forge
-  MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
-  RETRY_COUNT=0
-  COMMAND_STATUS=1
+  # Setup retry variables and get contract + chain info
+  local MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
+  local RETRY_COUNT=0
+  local COMMAND_STATUS=1
+  local CONTRACT_FILE_PATH
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
-  FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
+  local FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
+  local CHAIN_ID
   CHAIN_ID=$(getChainId "$NETWORK")
 
   if [ $? -ne 0 ]; then
-    warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
+    warning "could not find chainId for $NETWORK — update 'getChainId'"
   fi
 
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if [ "$ARGS" = "0x" ]; then
-      # only show output if DEBUG flag is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
-        fi
+  # ---------------------------
+  # Internal helper function
+  # Executes the verification command and checks output
+  # ---------------------------
+  function runVerificationCommand() {
+    local CMD_OUTPUT
+    local TOOL_CMD
+    local VERIFIER_CMD
 
-        # TODO: add code that automatically identifies blockscout verification
-      else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        fi
-      fi
+    # Select correct toolchain for verification based on network
+    if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+      TOOL_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync"
     else
-      # case: verify with constructor arguments
-      # only show output if DEBUG flag is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
-        fi
-      else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        fi
-      fi
+      TOOL_CMD="forge verify-contract"
     fi
+
+    # Base command with shared arguments
+    VERIFIER_CMD="$TOOL_CMD --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+
+    # Include constructor arguments if provided
+    if [[ "$ARGS" != "0x" ]]; then
+      VERIFIER_CMD="$VERIFIER_CMD --constructor-args $ARGS"
+    fi
+
+    VERIFIER_CMD="$VERIFIER_CMD -e ${!API_KEY}"
+
+    # Run command with or without output depending on DEBUG
+    if [[ "$DEBUG" == *"true"* ]]; then
+      echoDebug "Running verification command: $VERIFIER_CMD"
+      CMD_OUTPUT=$(eval "$VERIFIER_CMD" 2>&1)
+      echoDebug "Verification output:"
+      echoDebug "$CMD_OUTPUT"
+    else
+      CMD_OUTPUT=$(eval "$VERIFIER_CMD" >/dev/null 2>&1)
+    fi
+
+    # Parse the command output to detect real failure, even if exit code is 0
+    echo "$CMD_OUTPUT" | grep -q "Fail - Unable to verify"
+    if [ $? -eq 0 ]; then
+      return 1  # verification failed
+    fi
+
+    return 0  # verification passed
+  }
+
+  # ---------------------------
+  # Retry logic for primary verification
+  # ---------------------------
+  while [ $COMMAND_STATUS -ne 0 ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    runVerificationCommand
     COMMAND_STATUS=$?
     RETRY_COUNT=$((RETRY_COUNT + 1))
   done
 
-  # check the return status of the contract verification call
+  # ---------------------------
+  # Final result handling
+  # ---------------------------
   if [ $COMMAND_STATUS -ne 0 ]; then
     warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
   else
@@ -1506,24 +1641,19 @@ function verifyContract() {
     return 0
   fi
 
+  # ---------------------------
+  # Fallback to Sourcify verification
+  # ---------------------------
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract \
-    "$ADDRESS" \
-    "$CONTRACT" \
-    --chain-id "$CHAIN_ID" \
-    --verifier  sourcify
+  forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id "$CHAIN_ID" --verifier sourcify
 
   echo "[info] checking Sourcify verification now"
-  forge verify-check $ADDRESS \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
+  forge verify-check "$ADDRESS" --chain-id "$CHAIN_ID" --verifier sourcify
 
   if [ $? -ne 0 ]; then
-    # verification apparently failed
     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
     return 1
   else
-    # verification successful
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
   fi

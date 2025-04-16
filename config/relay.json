@@ -129,6 +129,11 @@
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
+  "superposition": {
+    "chainId": 55244,
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "taiko": {
     "chainId": 167000,
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
