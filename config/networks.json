@@ -439,6 +439,26 @@
     "isZkEVM": false,
     "create3Factory": "0xC3C73FEE9Cef413880696e6C39365BDf8cD564f9"
   },
+  "lens": {
+    "name": "Lens",
+    "chainId": 232,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "GHO",
+    "wrappedNativeAddress": "0x6bDc36E20D267Ff0dd6097799f82e78907105e2F",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.lens.xyz",
+    "verificationType": "zksync",
+    "explorerUrl": "https://explorer.lens.xyz",
+    "explorerApiUrl": "https://api-explorer-verify.lens.matterhosted.dev/contract_verification",
+    "multicallAddress": "0xeee5a340Cdc9c179Db25dea45AcfD5FE8d4d3eB8",
+    "safeApiUrl": "http://api.none.com",
+    "safeAddress": "0x21E9D62A31EC8F89966ff548C69aDfC94E82B57B",
+    "safeWebUrl": "https://safe.none.com",
+    "gasZipChainId": 442,
+    "isZkEVM": true,
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+  },
   "linea": {
     "name": "linea",
     "chainId": 59144,
