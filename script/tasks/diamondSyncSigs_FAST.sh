@@ -25,8 +25,27 @@ function diamondSyncSigs_FAST {
   # no need to distinguish between mutable and immutable anymore
   DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
-  # Get a list of all networks
-  NETWORKS=($(getIncludedNetworksArray))
+  # if no NETWORK was passed to this function, ask user to select it
+  if [[ -z "$NETWORK" ]]; then
+    # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+    echo ""
+    echo "Should the script be executed on one network or all networks?"
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
+    echo "[info] selected network: $NETWORK"
+
+    if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
+      checkRequiredVariablesInDotEnv $NETWORK
+    fi
+  fi
+
+  # create array with network/s for which the script should be executed
+  if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
+    # get array with all network names
+    NETWORKS=($(getIncludedNetworksArray))
+  else
+    NETWORKS=($NETWORK)
+  fi
 
   # Determine file suffix based on environment
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -140,15 +159,19 @@ function diamondSyncSigs_FAST {
   # Print summary of failures
   if [ -s "$FAILED_LOG_FILE" ]; then
     echo ""
-    echo "[error] The following networks failed to sync:"
+    printf '\033[0;31m%s\033[0m\n' "The following networks failed to sync:"
+
     awk '/^\[.*\] Error: /' "$FAILED_LOG_FILE" | while read -r line; do
       echo -e "❌ ${line}"
     done
 
     echo ""
-    echo "[debug] Full error logs:"
+    echo "Full error logs for all failed networks:"
+
+    # print error log file
     cat "$FAILED_LOG_FILE"
 
+    # remove error log file
     rm "$FAILED_LOG_FILE"
 
     if [[ -n "$EXIT_ON_ERROR" ]]; then
@@ -159,7 +182,7 @@ function diamondSyncSigs_FAST {
   else
     rm "$FAILED_LOG_FILE"
     echo ""
-    echo "[info] ✅ All networks synced successfully"
+    echo "✅ All networks synced successfully"
     return 0
   fi
 }
