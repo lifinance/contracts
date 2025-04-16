@@ -57,8 +57,6 @@ export async function getLedgerAccount(options?: {
     consola.info(`Using derivation path: ${derivationPath}`)
 
     consola.info(
-      `TransportNodeHid: ${JSON.stringify(TransportNodeHid, null, 2)}`
-    )
 
     // Open connection to Ledger device
     const transport = await TransportNodeHid.default.create()
