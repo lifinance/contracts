@@ -22,7 +22,10 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/arbitrum.json");
+        string memory path = string.concat(
+            root,
+            "/config/arbitrumBridge.json"
+        );
 
         address gatewayRouter = _getConfigContractAddress(
             path,
