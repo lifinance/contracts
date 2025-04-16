@@ -23,6 +23,13 @@ export async function getLedgerAccount(options?: {
   ledgerLive?: boolean
   accountIndex?: number
 }): Promise<Account> {
+  // Validate that incompatible options aren't provided together
+  if (options?.derivationPath && options?.ledgerLive) {
+    throw new Error(
+      "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+    )
+  }
+
   // Dynamically import Ledger packages to avoid issues if they're not installed
   const TransportNodeHid = await import('@ledgerhq/hw-transport-node-hid')
   const { default: Eth } = await import('@ledgerhq/hw-app-eth')

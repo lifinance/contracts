@@ -91,6 +91,13 @@ const main = defineCommand({
     const useLedger = args.ledger || false
     let privateKey: string | undefined
 
+    // Validate that incompatible Ledger options aren't provided together
+    if (args.derivationPath && args.ledgerLive) {
+      throw new Error(
+        "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+      )
+    }
+
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
       if (args.ledgerLive) {

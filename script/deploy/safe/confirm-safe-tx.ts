@@ -425,6 +425,13 @@ const main = defineCommand({
       derivationPath: args.derivationPath,
     }
 
+    // Validate that incompatible Ledger options aren't provided together
+    if (args.derivationPath && args.ledgerLive) {
+      throw new Error(
+        "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+      )
+    }
+
     // If using ledger, we don't need a private key
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
