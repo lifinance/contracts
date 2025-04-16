@@ -2,13 +2,13 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
-import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
-import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-import { TestBase } from "../utils/TestBase.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
+import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
 import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory.sol";
+import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
+import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
+import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TestBase } from "../utils/TestBase.sol";
 
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
     event HookCalled(
@@ -58,6 +58,8 @@ contract LiFiDexAggregatorTest is TestBase {
         uint256 amount1,
         bytes data
     );
+
+    error WrongPoolReserves();
 
     struct SwapTestParams {
         address from;
@@ -770,5 +772,127 @@ contract LiFiDexAggregatorTest is TestBase {
         _verifyReserves(params, initialReserves);
 
         vm.stopPrank();
+    }
+
+    function testRevert_VelodromeV2InvalidPoolOrRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        // Get a valid pool address first for comparison
+        address validPool = VELODROME_V2_ROUTER.poolFor(
+            ADDRESS_USDC,
+            address(STG_TOKEN),
+            false,
+            VELODROME_V2_FACTORY_REGISTRY
+        );
+
+        // Test case 1: Zero pool address
+        bytes memory routeWithZeroPool = abi.encodePacked(
+            uint8(2), // command code: 2 for processUserERC20
+            ADDRESS_USDC, // token to swap from
+            uint8(1), // number of pools
+            uint16(65535), // share (100%)
+            uint8(6), // pool type: VelodromeV2
+            address(0), // pool address <= INVALID!
+            uint8(0), // direction
+            USER_SENDER, // recipient
+            uint24(3000), // fee - NOT USED!
+            uint8(0), // stable flag - NOT USED!
+            uint8(0) // callback flag
+        );
+
+        IERC20(ADDRESS_USDC).approve(address(liFiDEXAggregator), 1000 * 1e6);
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            ADDRESS_USDC,
+            1000 * 1e6,
+            address(STG_TOKEN),
+            0,
+            USER_SENDER,
+            routeWithZeroPool
+        );
+
+        // Test case 2: Zero recipient address
+        bytes memory routeWithZeroRecipient = abi.encodePacked(
+            uint8(2), // command code: 2 for processUserERC20
+            ADDRESS_USDC, // token to swap from
+            uint8(1), // number of pools
+            uint16(65535), // share (100%)
+            uint8(6), // pool type: VelodromeV2
+            validPool, // valid pool address
+            uint8(0), // direction
+            address(0), // recipient <= INVALID!
+            uint24(3000), // fee - NOT USED!
+            uint8(0), // stable flag - NOT USED!
+            uint8(0) // callback flag
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            ADDRESS_USDC,
+            1000 * 1e6,
+            address(STG_TOKEN),
+            0,
+            USER_SENDER,
+            routeWithZeroRecipient
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_VelodromeV2WrongPoolReserves() public {
+        vm.startPrank(USER_SENDER);
+
+        // Setup multi-hop route: USDC -> STG -> USDC.e
+        MultiHopTestParams memory params = _setupRoutes(
+            ADDRESS_USDC,
+            address(STG_TOKEN),
+            address(USDC_E_TOKEN),
+            false,
+            false
+        );
+
+        // Build multi-hop route
+        bytes memory firstHop = _buildFirstHop(
+            params.tokenIn,
+            params.pool1,
+            params.pool2,
+            params.isStableFirst
+        );
+
+        bytes memory secondHop = _buildSecondHop(
+            params.tokenMid,
+            params.pool2,
+            USER_SENDER,
+            0, // direction
+            params.isStableSecond
+        );
+
+        bytes memory route = bytes.concat(firstHop, secondHop);
+
+        deal(ADDRESS_USDC, USER_SENDER, 1000 * 1e6);
+
+        IERC20(ADDRESS_USDC).approve(address(liFiDEXAggregator), 1000 * 1e6);
+
+        // Mock getReserves for the second pool (which uses processOnePool) to return zero reserves
+        vm.mockCall(
+            params.pool2,
+            abi.encodeWithSelector(IVelodromeV2Pool.getReserves.selector),
+            abi.encode(0, 0, block.timestamp)
+        );
+
+        vm.expectRevert(WrongPoolReserves.selector);
+
+        liFiDEXAggregator.processRoute(
+            ADDRESS_USDC,
+            1000 * 1e6,
+            address(USDC_E_TOKEN),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+        vm.clearMockedCalls();
     }
 }
