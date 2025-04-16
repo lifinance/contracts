@@ -195,6 +195,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.03.27_MayanFacet(v1.2.0).pdf",
       "auditCommitHash": "acc5becc02b9060a60b1135c9b25f3ccea8cbd31"
+    },
+    "audit20250413": {
+      "auditCompletedOn": "13.04.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.04.13_DexManagerFacet(v1.0.2).pdf",
+      "auditCommitHash": "299df50b5d44d4d59a7ccc34bbfe94584acb0c81"
+    },
+    "audit20250415": {
+      "auditCompletedOn": "15.04.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.04.15_Permit2Proxy(v1.0.3).pdf",
+      "auditCommitHash": "5b212bd302a7ec0c027c51753d6d5a9937f6769e"
     }
   },
   "auditedContracts": {
@@ -215,6 +229,9 @@
     },
     "DeBridgeDlnFacet": {
       "1.0.0": ["audit20241205"]
+    },
+    "DexManagerFacet": {
+      "1.0.2": ["audit20250413"]
     },
     "EmergencyPauseFacet": {
       "1.0.0": ["audit20240913"],
@@ -279,7 +296,8 @@
     "Permit2Proxy": {
       "1.0.0": ["audit20241122"],
       "1.0.1": ["audit20250110_1"],
-      "1.0.2": ["audit20250109_3"]
+      "1.0.2": ["audit20250109_3"],
+      "1.0.3": ["audit20250415"]
     },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],
