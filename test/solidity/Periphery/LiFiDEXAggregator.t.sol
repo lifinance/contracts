@@ -356,10 +356,15 @@ contract LiFiDexAggregatorTest is TestBase {
         bool isStableSecond;
         uint256[] amounts1;
         uint256[] amounts2;
-        address poolFees1;
-        address poolFees2;
         uint256 pool1Fee;
         uint256 pool2Fee;
+    }
+
+    struct ReserveState {
+        uint256 reserve0Pool1;
+        uint256 reserve1Pool1;
+        uint256 reserve0Pool2;
+        uint256 reserve1Pool2;
     }
 
     // Helper function to set up routes and get amounts
@@ -418,8 +423,6 @@ contract LiFiDexAggregatorTest is TestBase {
         );
 
         // Get pool fees info
-        params.poolFees1 = IVelodromeV2Pool(params.pool1).poolFees();
-        params.poolFees2 = IVelodromeV2Pool(params.pool2).poolFees();
         params.pool1Fee = IVelodromeV2PoolFactory(
             VELODROME_V2_FACTORY_REGISTRY
         ).getFee(params.pool1, isStableFirst);
@@ -430,7 +433,7 @@ contract LiFiDexAggregatorTest is TestBase {
         return params;
     }
 
-    // Helper function to build first hop of the route
+    // function to build first hop of the route
     function _buildFirstHop(
         address tokenIn,
         address pool1,
@@ -453,7 +456,7 @@ contract LiFiDexAggregatorTest is TestBase {
             );
     }
 
-    // Helper function to build second hop of the route
+    // function to build second hop of the route
     function _buildSecondHop(
         address tokenMid,
         address pool2,
@@ -475,7 +478,7 @@ contract LiFiDexAggregatorTest is TestBase {
             );
     }
 
-    // Main route building function
+    // route building function
     function _buildMultiHopRoute(
         MultiHopTestParams memory params,
         address recipient,
@@ -499,13 +502,11 @@ contract LiFiDexAggregatorTest is TestBase {
         return bytes.concat(firstHop, secondHop);
     }
 
-    // Helper function to verify balances and fees
-    function _verifyBalancesAndFees(
+    // Helper function to verify user balances
+    function _verifyUserBalances(
         MultiHopTestParams memory params,
         uint256 initialBalance1,
-        uint256 initialBalance2,
-        uint256 initialFees1,
-        uint256 initialFees2
+        uint256 initialBalance2
     ) private {
         // Verify token balances
         uint256 finalBalance1 = IERC20(params.tokenIn).balanceOf(USER_SENDER);
@@ -521,22 +522,107 @@ contract LiFiDexAggregatorTest is TestBase {
             params.amounts2[1],
             "Token2 received amount mismatch"
         );
-
-        // Verify fees
-        uint256 actualFees1 = IERC20(params.tokenIn).balanceOf(
-            params.poolFees1
-        ) - initialFees1;
-        uint256 actualFees2 = IERC20(params.tokenMid).balanceOf(
-            params.poolFees2
-        ) - initialFees2;
-
-        uint256 expectedFees1 = (1000 * 1e6 * params.pool1Fee) / 10000;
-        uint256 expectedFees2 = (params.amounts1[1] * params.pool2Fee) / 10000;
-
-        assertEq(actualFees1, expectedFees1, "Pool1 fee mismatch");
-        assertEq(actualFees2, expectedFees2, "Pool2 fee mismatch");
     }
 
+    function _verifyReserves(
+        MultiHopTestParams memory params,
+        ReserveState memory initialReserves
+    ) private {
+        // Get reserves after swap
+        (
+            uint256 finalReserve0Pool1,
+            uint256 finalReserve1Pool1,
+
+        ) = IVelodromeV2Pool(params.pool1).getReserves();
+        (
+            uint256 finalReserve0Pool2,
+            uint256 finalReserve1Pool2,
+
+        ) = IVelodromeV2Pool(params.pool2).getReserves();
+
+        address token0Pool1 = IVelodromeV2Pool(params.pool1).token0();
+        address token0Pool2 = IVelodromeV2Pool(params.pool2).token0();
+
+        // Calculate exact expected changes
+        uint256 amountInAfterFees = 1000 *
+            1e6 -
+            ((1000 * 1e6 * params.pool1Fee) / 10000);
+
+        // Assert exact reserve changes for Pool1
+        if (token0Pool1 == params.tokenIn) {
+            // tokenIn is token0, so reserve0 should increase and reserve1 should decrease
+            assertEq(
+                finalReserve0Pool1 - initialReserves.reserve0Pool1,
+                amountInAfterFees,
+                "Pool1 reserve0 (tokenIn) change incorrect"
+            );
+            assertEq(
+                initialReserves.reserve1Pool1 - finalReserve1Pool1,
+                params.amounts1[1],
+                "Pool1 reserve1 (tokenMid) change incorrect"
+            );
+        } else {
+            // tokenIn is token1, so reserve1 should increase and reserve0 should decrease
+            assertEq(
+                finalReserve1Pool1 - initialReserves.reserve1Pool1,
+                amountInAfterFees,
+                "Pool1 reserve1 (tokenIn) change incorrect"
+            );
+            assertEq(
+                initialReserves.reserve0Pool1 - finalReserve0Pool1,
+                params.amounts1[1],
+                "Pool1 reserve0 (tokenMid) change incorrect"
+            );
+        }
+
+        // Assert exact reserve changes for Pool2
+        if (token0Pool2 == params.tokenMid) {
+            // tokenMid is token0, so reserve0 should increase and reserve1 should decrease
+            assertEq(
+                finalReserve0Pool2 - initialReserves.reserve0Pool2,
+                params.amounts1[1] -
+                    ((params.amounts1[1] * params.pool2Fee) / 10000),
+                "Pool2 reserve0 (tokenMid) change incorrect"
+            );
+            assertEq(
+                initialReserves.reserve1Pool2 - finalReserve1Pool2,
+                params.amounts2[1],
+                "Pool2 reserve1 (tokenOut) change incorrect"
+            );
+        } else {
+            // tokenMid is token1, so reserve1 should increase and reserve0 should decrease
+            assertEq(
+                finalReserve1Pool2 - initialReserves.reserve1Pool2,
+                params.amounts1[1] -
+                    ((params.amounts1[1] * params.pool2Fee) / 10000),
+                "Pool2 reserve1 (tokenMid) change incorrect"
+            );
+            assertEq(
+                initialReserves.reserve0Pool2 - finalReserve0Pool2,
+                params.amounts2[1],
+                "Pool2 reserve0 (tokenOut) change incorrect"
+            );
+        }
+    }
+
+    /**
+     * @notice Tests a multi-hop swap via VelodromeV2 with volatile pools
+     * Test steps:
+     * 1. Setup test as USER_SENDER
+     * 2. Setup swap route: USDC -> STG -> USDC.e (both pools are volatile)
+     * 3. Record initial state:
+     *    - Get initial reserves for both pools
+     *    - Record user's initial token balances
+     * 4. Build multi-hop route with direction 0
+     * 5. Approve DEX aggregator to spend 1000 USDC
+     * 6. Expect Route event with correct parameters
+     * 7. Execute swap via processRoute:
+     *    - Input: 1000 USDC
+     *    - Path: USDC -> STG -> USDC.e
+     * 8. Verify:
+     *    - User's final balances are correct
+     *    - Pool reserves changed correctly
+     */
     function test_CanSwapViaVelodromeV2_MultiHop() public {
         vm.startPrank(USER_SENDER);
 
@@ -549,18 +635,24 @@ contract LiFiDexAggregatorTest is TestBase {
             false
         );
 
-        // Record initial balances
+        // Get initial reserves BEFORE the swap
+        ReserveState memory initialReserves;
+        (
+            initialReserves.reserve0Pool1,
+            initialReserves.reserve1Pool1,
+
+        ) = IVelodromeV2Pool(params.pool1).getReserves();
+        (
+            initialReserves.reserve0Pool2,
+            initialReserves.reserve1Pool2,
+
+        ) = IVelodromeV2Pool(params.pool2).getReserves();
+
         uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
             USER_SENDER
         );
         uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
             USER_SENDER
-        );
-        uint256 initialFees1 = IERC20(params.tokenIn).balanceOf(
-            params.poolFees1
-        );
-        uint256 initialFees2 = IERC20(params.tokenMid).balanceOf(
-            params.poolFees2
         );
 
         // Build route and execute swap
@@ -589,18 +681,32 @@ contract LiFiDexAggregatorTest is TestBase {
             route
         );
 
-        // Verify results
-        _verifyBalancesAndFees(
-            params,
-            initialBalance1,
-            initialBalance2,
-            initialFees1,
-            initialFees2
-        );
+        _verifyUserBalances(params, initialBalance1, initialBalance2);
+        _verifyReserves(params, initialReserves);
 
         vm.stopPrank();
     }
 
+    /**
+     * @notice Tests a multi-hop swap via VelodromeV2 with mixed pool types
+     * Test steps:
+     * 1. Setup test as USER_SENDER
+     * 2. Setup swap route: USDC -> USDC.e -> STG
+     *    - First hop: stable pool (USDC/USDC.e)
+     *    - Second hop: volatile pool (USDC.e/STG)
+     * 3. Record initial state:
+     *    - Get initial reserves for both pools
+     *    - Record user's initial token balances
+     * 4. Build multi-hop route with direction 1 for second hop
+     * 5. Approve DEX aggregator to spend 1000 USDC
+     * 6. Expect Route event with correct parameters
+     * 7. Execute swap via processRoute:
+     *    - Input: 1000 USDC
+     *    - Path: USDC -> USDC.e -> STG
+     * 8. Verify:
+     *    - User's final balances are correct
+     *    - Pool reserves changed correctly
+     */
     function test_CanSwapViaVelodromeV2_MultiHop_WithStable() public {
         vm.startPrank(USER_SENDER);
 
@@ -613,18 +719,25 @@ contract LiFiDexAggregatorTest is TestBase {
             false // volatile pool for second hop
         );
 
+        // Get initial reserves BEFORE the swap
+        ReserveState memory initialReserves;
+        (
+            initialReserves.reserve0Pool1,
+            initialReserves.reserve1Pool1,
+
+        ) = IVelodromeV2Pool(params.pool1).getReserves();
+        (
+            initialReserves.reserve0Pool2,
+            initialReserves.reserve1Pool2,
+
+        ) = IVelodromeV2Pool(params.pool2).getReserves();
+
         // Record initial balances
         uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
             USER_SENDER
         );
         uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
             USER_SENDER
-        );
-        uint256 initialFees1 = IERC20(params.tokenIn).balanceOf(
-            params.poolFees1
-        );
-        uint256 initialFees2 = IERC20(params.tokenMid).balanceOf(
-            params.poolFees2
         );
 
         // Build route and execute swap
@@ -653,14 +766,8 @@ contract LiFiDexAggregatorTest is TestBase {
             route
         );
 
-        // Verify results
-        _verifyBalancesAndFees(
-            params,
-            initialBalance1,
-            initialBalance2,
-            initialFees1,
-            initialFees2
-        );
+        _verifyUserBalances(params, initialBalance1, initialBalance2);
+        _verifyReserves(params, initialReserves);
 
         vm.stopPrank();
     }

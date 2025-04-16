@@ -5,6 +5,12 @@ pragma solidity ^0.8.17;
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 interface IVelodromeV2Pool {
+    /// @notice Address of token in the pool with the lower address value
+    function token0() external view returns (address);
+
+    /// @notice Address of token in the poool with the higher address value
+    function token1() external view returns (address);
+
     /// @notice Address of linked PoolFees.sol
     function poolFees() external view returns (address);
 
