@@ -6,7 +6,14 @@
  * Requires @ledgerhq/hw-app-eth and @ledgerhq/hw-transport-node-hid packages.
  */
 
-import type { Account, Address, Hex, Transport } from 'viem'
+import type {
+  Account,
+  Address,
+  Hex,
+  Transport,
+  TransactionRequest,
+  SignTypedDataParameters,
+} from 'viem'
 import consola from 'consola'
 
 /**
@@ -115,7 +122,7 @@ function createLedgerAccount({
       // Format the signature for Ethereum
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
-    async signTransaction(transactionRequest: any) {
+    async signTransaction(transactionRequest: TransactionRequest) {
       try {
         // Load all needed imports first
         const { default: Eth } = await import('@ledgerhq/hw-app-eth')
@@ -209,7 +216,7 @@ function createLedgerAccount({
       }
     },
     // Implement signTypedData method for EIP-712 support
-    async signTypedData(params: any) {
+    async signTypedData(params: SignTypedDataParameters) {
       const { default: Eth } = await import('@ledgerhq/hw-app-eth')
       const eth = new Eth(transport)
 
