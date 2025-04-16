@@ -56,7 +56,7 @@ const main = defineCommand({
 
     const chain = getViemChainForNetworkName(network)
 
-    console.log(`Checking signature for ${chain.name}`)
+    console.log(`[${chain.name}] Checking current signature whitelist`)
 
     // Fetch list of deployed contracts
     const deployedContracts = await import(
@@ -147,7 +147,7 @@ const main = defineCommand({
       console.log('Transaction:', tx)
       process.exit(0)
     } else {
-      console.log('All Signatures are already approved.')
+      console.log(`[${network}] All Signatures are already approved.`)
       process.exit(0)
     }
   },
