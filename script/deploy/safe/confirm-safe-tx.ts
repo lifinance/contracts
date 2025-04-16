@@ -145,7 +145,7 @@ const processTxs = async (
       )
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
-      consola.info(' ')
+      consola.log(' ')
     } catch (error) {
       consola.error('❌ Error executing Safe transaction:')
       consola.error(`   ${error.message}`)

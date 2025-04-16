@@ -525,7 +525,8 @@ export class ViemSafe {
       const signatures = this.formatSignatures(safeTx.signatures)
 
       // First, prepare the transaction data
-      const contractData = encodeFunctionData({
+      const txHash = await this.walletClient.writeContract({
+        address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'execTransaction',
         args: [
@@ -540,57 +541,6 @@ export class ViemSafe {
           '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
           signatures,
         ],
-      })
-
-      // Get gas estimate from public client
-      let gasEstimate: bigint
-      try {
-        gasEstimate = await this.publicClient.estimateGas({
-          account: this.account,
-          to: this.safeAddress,
-          data: contractData,
-        })
-        // Add 50% buffer to the gas estimate to be safe
-        gasEstimate = (gasEstimate * 150n) / 100n
-      } catch (error) {
-        console.warn('Failed to estimate gas, using default:', error)
-        gasEstimate = 500000n // default gas limit
-      }
-
-      // Get fee data from the network
-      let maxFeePerGas: bigint, maxPriorityFeePerGas: bigint
-      try {
-        const feeData = await this.publicClient.estimateFeesPerGas()
-        maxFeePerGas = feeData.maxFeePerGas || 100000000n // 0.1 gwei default for Arbitrum
-
-        // For L2s like Arbitrum, ensure priority fee is small and always lower than max fee
-        // Use 10% of the max fee as the priority fee
-        maxPriorityFeePerGas = maxFeePerGas / 10n
-
-        console.log(
-          `Estimated max fee: ${maxFeePerGas} wei (${
-            Number(maxFeePerGas) / 1e9
-          } gwei)`
-        )
-        console.log(
-          `Estimated priority fee: ${maxPriorityFeePerGas} wei (${
-            Number(maxPriorityFeePerGas) / 1e9
-          } gwei)`
-        )
-      } catch (error) {
-        console.warn('Failed to get fee data, using defaults:', error)
-        // Use very conservative values for Arbitrum
-        maxFeePerGas = 100000000n // 0.1 gwei default
-        maxPriorityFeePerGas = 10000000n // 0.01 gwei default
-      }
-
-      // Build transaction with proper fields
-      const txHash = await this.walletClient.sendTransaction({
-        to: this.safeAddress,
-        data: contractData,
-        gas: gasEstimate,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
       })
 
       // Wait for transaction receipt with better error handling
