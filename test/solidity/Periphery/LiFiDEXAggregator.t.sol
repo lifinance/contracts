@@ -7,6 +7,8 @@ import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.s
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
+import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory.sol";
 
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
     event HookCalled(
@@ -109,7 +111,7 @@ contract LiFiDexAggregatorTest is TestBase {
             SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(USER_SENDER),
-                tokenIn: ADDRESS_USDC_OPTIMISM,
+                tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(STG_TOKEN),
                 stable: false, // - NOT USED!
@@ -133,7 +135,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 to: USER_SENDER,
                 tokenIn: address(STG_TOKEN),
                 amountIn: 500 * 1e18,
-                tokenOut: ADDRESS_USDC_OPTIMISM,
+                tokenOut: ADDRESS_USDC,
                 stable: false, // - NOT USED!
                 fee: 3000, // - NOT USED!
                 direction: 1,
@@ -149,7 +151,7 @@ contract LiFiDexAggregatorTest is TestBase {
             SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
-                tokenIn: ADDRESS_USDC_OPTIMISM,
+                tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
@@ -173,7 +175,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 to: USER_SENDER,
                 tokenIn: address(USDC_E_TOKEN),
                 amountIn: 500 * 1e6,
-                tokenOut: ADDRESS_USDC_OPTIMISM,
+                tokenOut: ADDRESS_USDC,
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
                 direction: 1,
@@ -185,15 +187,15 @@ contract LiFiDexAggregatorTest is TestBase {
 
     function test_CanSwapViaVelodromeV2_FromDexAggregator() public {
         // fund dex aggregator contract so that the contract holds USDC
-        deal(ADDRESS_USDC_OPTIMISM, address(liFiDEXAggregator), 100_000 * 1e6);
+        deal(ADDRESS_USDC, address(liFiDEXAggregator), 100_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
         _testSwap(
             SwapTestParams({
                 from: address(liFiDEXAggregator),
                 to: address(USER_SENDER),
-                tokenIn: ADDRESS_USDC_OPTIMISM,
-                amountIn: IERC20(ADDRESS_USDC_OPTIMISM).balanceOf(
+                tokenIn: ADDRESS_USDC,
+                amountIn: IERC20(ADDRESS_USDC).balanceOf(
                     address(liFiDEXAggregator)
                 ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
@@ -214,7 +216,7 @@ contract LiFiDexAggregatorTest is TestBase {
             SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(mockFlashloanCallbackReceiver),
-                tokenIn: ADDRESS_USDC_OPTIMISM,
+                tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
@@ -337,5 +339,329 @@ contract LiFiDexAggregatorTest is TestBase {
             amounts[1],
             "TokenOut amount mismatch"
         );
+    }
+
+    // ===============================
+    // Multi-hop tests
+    // ===============================
+
+    // Add this struct at contract level
+    struct MultiHopTestParams {
+        address tokenIn;
+        address tokenMid;
+        address tokenOut;
+        address pool1;
+        address pool2;
+        bool isStableFirst;
+        bool isStableSecond;
+        uint256[] amounts1;
+        uint256[] amounts2;
+        address poolFees1;
+        address poolFees2;
+        uint256 pool1Fee;
+        uint256 pool2Fee;
+    }
+
+    // Helper function to set up routes and get amounts
+    function _setupRoutes(
+        address tokenIn,
+        address tokenMid,
+        address tokenOut,
+        bool isStableFirst,
+        bool isStableSecond
+    ) private view returns (MultiHopTestParams memory params) {
+        params.tokenIn = tokenIn;
+        params.tokenMid = tokenMid;
+        params.tokenOut = tokenOut;
+
+        // Setup first hop route
+        IVelodromeV2Router.Route[]
+            memory routes1 = new IVelodromeV2Router.Route[](1);
+        routes1[0] = IVelodromeV2Router.Route({
+            from: tokenIn,
+            to: tokenMid,
+            stable: isStableFirst,
+            factory: address(VELODROME_V2_FACTORY_REGISTRY)
+        });
+        params.amounts1 = VELODROME_V2_ROUTER.getAmountsOut(
+            1000 * 1e6,
+            routes1
+        );
+
+        // Setup second hop route
+        IVelodromeV2Router.Route[]
+            memory routes2 = new IVelodromeV2Router.Route[](1);
+        routes2[0] = IVelodromeV2Router.Route({
+            from: tokenMid,
+            to: tokenOut,
+            stable: isStableSecond,
+            factory: address(VELODROME_V2_FACTORY_REGISTRY)
+        });
+        params.amounts2 = VELODROME_V2_ROUTER.getAmountsOut(
+            params.amounts1[1],
+            routes2
+        );
+
+        // Get pool addresses
+        params.pool1 = VELODROME_V2_ROUTER.poolFor(
+            tokenIn,
+            tokenMid,
+            isStableFirst,
+            VELODROME_V2_FACTORY_REGISTRY
+        );
+
+        params.pool2 = VELODROME_V2_ROUTER.poolFor(
+            tokenMid,
+            tokenOut,
+            isStableSecond,
+            VELODROME_V2_FACTORY_REGISTRY
+        );
+
+        // Get pool fees info
+        params.poolFees1 = IVelodromeV2Pool(params.pool1).poolFees();
+        params.poolFees2 = IVelodromeV2Pool(params.pool2).poolFees();
+        params.pool1Fee = IVelodromeV2PoolFactory(
+            VELODROME_V2_FACTORY_REGISTRY
+        ).getFee(params.pool1, isStableFirst);
+        params.pool2Fee = IVelodromeV2PoolFactory(
+            VELODROME_V2_FACTORY_REGISTRY
+        ).getFee(params.pool2, isStableSecond);
+
+        return params;
+    }
+
+    // Helper function to build first hop of the route
+    function _buildFirstHop(
+        address tokenIn,
+        address pool1,
+        address pool2,
+        bool isStable
+    ) private pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uint8(2), // command: processUserERC20
+                tokenIn, // tokenIn
+                uint8(1), // number of pools
+                uint16(65535), // share (100%)
+                uint8(6), // pool type: VelodromeV2
+                pool1, // first pool
+                uint8(0), // direction
+                pool2, // send to second pool
+                uint24(3000), // fee - NOT USED!
+                isStable ? uint8(1) : uint8(0), // stable flag
+                uint8(0) // no callback
+            );
+    }
+
+    // Helper function to build second hop of the route
+    function _buildSecondHop(
+        address tokenMid,
+        address pool2,
+        address recipient,
+        uint8 direction,
+        bool isStable
+    ) private pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uint8(4), // command: processOnePool
+                tokenMid, // tokenIn
+                uint8(6), // pool type: VelodromeV2
+                pool2, // second pool
+                direction, // direction
+                recipient, // final recipient
+                uint24(3000), // fee - NOT USED!
+                isStable ? uint8(1) : uint8(0), // stable flag
+                uint8(0) // no callback
+            );
+    }
+
+    // Main route building function
+    function _buildMultiHopRoute(
+        MultiHopTestParams memory params,
+        address recipient,
+        uint8 secondHopDirection
+    ) private pure returns (bytes memory) {
+        bytes memory firstHop = _buildFirstHop(
+            params.tokenIn,
+            params.pool1,
+            params.pool2,
+            params.isStableFirst
+        );
+
+        bytes memory secondHop = _buildSecondHop(
+            params.tokenMid,
+            params.pool2,
+            recipient,
+            secondHopDirection,
+            params.isStableSecond
+        );
+
+        return bytes.concat(firstHop, secondHop);
+    }
+
+    // Helper function to verify balances and fees
+    function _verifyBalancesAndFees(
+        MultiHopTestParams memory params,
+        uint256 initialBalance1,
+        uint256 initialBalance2,
+        uint256 initialFees1,
+        uint256 initialFees2
+    ) private {
+        // Verify token balances
+        uint256 finalBalance1 = IERC20(params.tokenIn).balanceOf(USER_SENDER);
+        uint256 finalBalance2 = IERC20(params.tokenOut).balanceOf(USER_SENDER);
+
+        assertEq(
+            initialBalance1 - finalBalance1,
+            1000 * 1e6,
+            "Token1 spent amount mismatch"
+        );
+        assertEq(
+            finalBalance2 - initialBalance2,
+            params.amounts2[1],
+            "Token2 received amount mismatch"
+        );
+
+        // Verify fees
+        uint256 actualFees1 = IERC20(params.tokenIn).balanceOf(
+            params.poolFees1
+        ) - initialFees1;
+        uint256 actualFees2 = IERC20(params.tokenMid).balanceOf(
+            params.poolFees2
+        ) - initialFees2;
+
+        uint256 expectedFees1 = (1000 * 1e6 * params.pool1Fee) / 10000;
+        uint256 expectedFees2 = (params.amounts1[1] * params.pool2Fee) / 10000;
+
+        assertEq(actualFees1, expectedFees1, "Pool1 fee mismatch");
+        assertEq(actualFees2, expectedFees2, "Pool2 fee mismatch");
+    }
+
+    function test_CanSwapViaVelodromeV2_MultiHop() public {
+        vm.startPrank(USER_SENDER);
+
+        // Setup routes and get amounts
+        MultiHopTestParams memory params = _setupRoutes(
+            ADDRESS_USDC,
+            address(STG_TOKEN),
+            address(USDC_E_TOKEN),
+            false,
+            false
+        );
+
+        // Record initial balances
+        uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
+            USER_SENDER
+        );
+        uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
+            USER_SENDER
+        );
+        uint256 initialFees1 = IERC20(params.tokenIn).balanceOf(
+            params.poolFees1
+        );
+        uint256 initialFees2 = IERC20(params.tokenMid).balanceOf(
+            params.poolFees2
+        );
+
+        // Build route and execute swap
+        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 0);
+
+        // Approve and execute
+        IERC20(params.tokenIn).approve(address(liFiDEXAggregator), 1000 * 1e6);
+
+        vm.expectEmit(true, true, true, true);
+        emit Route(
+            USER_SENDER,
+            USER_SENDER,
+            params.tokenIn,
+            params.tokenOut,
+            1000 * 1e6,
+            params.amounts2[1],
+            params.amounts2[1]
+        );
+
+        liFiDEXAggregator.processRoute(
+            params.tokenIn,
+            1000 * 1e6,
+            params.tokenOut,
+            params.amounts2[1],
+            USER_SENDER,
+            route
+        );
+
+        // Verify results
+        _verifyBalancesAndFees(
+            params,
+            initialBalance1,
+            initialBalance2,
+            initialFees1,
+            initialFees2
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwapViaVelodromeV2_MultiHop_WithStable() public {
+        vm.startPrank(USER_SENDER);
+
+        // Setup routes and get amounts for stable->volatile path
+        MultiHopTestParams memory params = _setupRoutes(
+            ADDRESS_USDC,
+            address(USDC_E_TOKEN),
+            address(STG_TOKEN),
+            true, // stable pool for first hop
+            false // volatile pool for second hop
+        );
+
+        // Record initial balances
+        uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
+            USER_SENDER
+        );
+        uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
+            USER_SENDER
+        );
+        uint256 initialFees1 = IERC20(params.tokenIn).balanceOf(
+            params.poolFees1
+        );
+        uint256 initialFees2 = IERC20(params.tokenMid).balanceOf(
+            params.poolFees2
+        );
+
+        // Build route and execute swap
+        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1); // direction 1 for second hop
+
+        // Approve and execute
+        IERC20(params.tokenIn).approve(address(liFiDEXAggregator), 1000 * 1e6);
+
+        vm.expectEmit(true, true, true, true);
+        emit Route(
+            USER_SENDER,
+            USER_SENDER,
+            params.tokenIn,
+            params.tokenOut,
+            1000 * 1e6,
+            params.amounts2[1],
+            params.amounts2[1]
+        );
+
+        liFiDEXAggregator.processRoute(
+            params.tokenIn,
+            1000 * 1e6,
+            params.tokenOut,
+            params.amounts2[1],
+            USER_SENDER,
+            route
+        );
+
+        // Verify results
+        _verifyBalancesAndFees(
+            params,
+            initialBalance1,
+            initialBalance2,
+            initialFees1,
+            initialFees2
+        );
+
+        vm.stopPrank();
     }
 }

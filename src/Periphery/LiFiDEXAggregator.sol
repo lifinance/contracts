@@ -760,6 +760,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         }
     }
 
+    /// @notice Performs a swap through VelodromeV2 pools
+    /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
+    /// @param stream [pool, direction, to, fee (not used), stable (not used), callback]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
     function swapVelodromeV2(
         uint256 stream,
         address from,
@@ -775,6 +781,23 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         stream.readUint8(); // read 'stable' flag
         bool callback = stream.readUint8() == 1; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
+        if (from == INTERNAL_INPUT_SOURCE) {
+            // processOnePool case
+            (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
+                .getReserves();
+            if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
+            uint256 reserveIn = direction == 0 ? reserve0 : reserve1;
+
+            amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
+        } else {
+            // processMyERC20 and processUserERC20 cases
+            // transfer the input tokens to the pool
+            if (from == address(this))
+                IERC20(tokenIn).safeTransfer(pool, amountIn);
+            else if (from == msg.sender)
+                IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+        }
+
         // calculate the expected output amount using the pool's getAmountOut function
         uint256 amountOut = IVelodromeV2Pool(pool).getAmountOut(
             amountIn,
@@ -785,12 +808,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // determine output amounts based on direction
         uint256 amount0Out = direction == 0 ? 0 : amountOut;
         uint256 amount1Out = direction == 0 ? amountOut : 0;
-        // transfer the input tokens to the pool
-        if (from == address(this)) {
-            IERC20(tokenIn).safeTransfer(pool, amountIn);
-        } else if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
-        }
 
         // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
         // Safety Checks Covered:
@@ -810,7 +827,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             amount0Out,
             amount1Out,
             to,
-            callback ? abi.encode(tokenIn) : new bytes(0) //
+            callback ? abi.encode(tokenIn) : new bytes(0)
         );
     }
 }
