@@ -73,7 +73,6 @@
     "propose-safe-tx": "bun ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners-and-threshold": "bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
-    "create-safe": "bun ./script/deploy/safe/create-safe.ts",
     "flatten": "forge flatten --output"
   },
   "dependencies": {
