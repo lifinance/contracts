@@ -24724,6 +24724,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0xa1E1A3b1d19f2e957d6a462fA419F85354ebE717",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-16 09:37:54",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GenericSwapFacetV3": {
