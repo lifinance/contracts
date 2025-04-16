@@ -125,9 +125,13 @@ const main = defineCommand({
               )
             }
 
-            consola.info('Transaction successfully stored in MongoDB')
+            consola.info(
+              `[${network.name}] Transaction successfully stored in MongoDB`
+            )
           } catch (error) {
-            consola.error('Failed to store transaction in MongoDB:', error)
+            consola.error(
+              `[${network.name}] Failed to store transaction in MongoDB: ${error}`
+            )
             throw error
           }
 
@@ -158,7 +162,8 @@ async function getBlacklistedFacetAddresses(
   }
 
   // make sure that networkName is a valid supported chain
-  if (!isValidSupportedChain(networkName)) throw Error('Network ')
+  if (!isValidSupportedChain(networkName))
+    throw Error(`'${networkName}' is not a supported network`)
 
   // Split the string into an array of facet names and trim whitespace
   const facetNames = blacklistFacets.split(',').map((name) => name.trim())
@@ -171,9 +176,6 @@ async function getBlacklistedFacetAddresses(
         facetName,
         networkName
       )
-
-      if (!facetAddress)
-        throw new Error(`No ${facetName} address found in deploy log.`)
 
       facetAddresses.push(facetAddress as Address)
     } catch (error) {
