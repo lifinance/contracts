@@ -38,11 +38,11 @@ contract DeployScript is DeployScriptBase {
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
-        address withdrawWallet = globalConfigJson.readAddress(
+        // extract withdrawWallet address
+        address withdrawWalletAddress = globalConfigJson.readAddress(
             ".withdrawWallet"
         );
 
-        return abi.encode(wrappedNativeAddress, withdrawWallet);
+        return abi.encode(wrappedNativeAddress, withdrawWalletAddress);
     }
 }

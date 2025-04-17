@@ -31,8 +31,8 @@ contract DeployScript is DeployScriptBase {
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
-        address withdrawWallet = globalConfigJson.readAddress(
+        // extract withdrawWallet address
+        address withdrawWalletAddress = globalConfigJson.readAddress(
             ".withdrawWallet"
         );
 
@@ -58,6 +58,11 @@ contract DeployScript is DeployScriptBase {
         uint256 recoverGas = 100000;
 
         return
-            abi.encode(withdrawWallet, executor, acrossSpokePool, recoverGas);
+            abi.encode(
+                withdrawWalletAddress,
+                executor,
+                acrossSpokePool,
+                recoverGas
+            );
     }
 }
