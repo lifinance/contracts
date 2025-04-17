@@ -118,7 +118,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenOut: address(STG_TOKEN),
                 stable: false, // - NOT USED!
                 fee: 3000, // - NOT USED!
-                direction: 0,
+                direction: 1,
                 callback: false
             })
         );
@@ -140,7 +140,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenOut: ADDRESS_USDC,
                 stable: false, // - NOT USED!
                 fee: 3000, // - NOT USED!
-                direction: 1,
+                direction: 0,
                 callback: false
             })
         );
@@ -158,7 +158,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 0,
+                direction: 1,
                 callback: false
             })
         );
@@ -180,7 +180,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenOut: ADDRESS_USDC,
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 1,
+                direction: 0,
                 callback: false
             })
         );
@@ -203,7 +203,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 0,
+                direction: 1,
                 callback: false
             })
         );
@@ -223,7 +223,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true, // - NOT USED!
                 fee: 500, // - NOT USED!
-                direction: 0,
+                direction: 1,
                 callback: true
             })
         );
@@ -440,6 +440,7 @@ contract LiFiDexAggregatorTest is TestBase {
         address tokenIn,
         address pool1,
         address pool2,
+        uint8 direction,
         bool isStable
     ) private pure returns (bytes memory) {
         return
@@ -450,7 +451,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 uint16(65535), // share (100%)
                 uint8(6), // pool type: VelodromeV2
                 pool1, // first pool
-                uint8(0), // direction
+                direction, // direction
                 pool2, // send to second pool
                 uint24(3000), // fee - NOT USED!
                 isStable ? uint8(1) : uint8(0), // stable flag
@@ -484,12 +485,14 @@ contract LiFiDexAggregatorTest is TestBase {
     function _buildMultiHopRoute(
         MultiHopTestParams memory params,
         address recipient,
+        uint8 firstHopDirection,
         uint8 secondHopDirection
     ) private pure returns (bytes memory) {
         bytes memory firstHop = _buildFirstHop(
             params.tokenIn,
             params.pool1,
             params.pool2,
+            firstHopDirection,
             params.isStableFirst
         );
 
@@ -658,7 +661,7 @@ contract LiFiDexAggregatorTest is TestBase {
         );
 
         // Build route and execute swap
-        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 0);
+        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 1);
 
         // Approve and execute
         IERC20(params.tokenIn).approve(address(liFiDEXAggregator), 1000 * 1e6);
@@ -743,7 +746,7 @@ contract LiFiDexAggregatorTest is TestBase {
         );
 
         // Build route and execute swap
-        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1); // direction 1 for second hop
+        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 0);
 
         // Approve and execute
         IERC20(params.tokenIn).approve(address(liFiDEXAggregator), 1000 * 1e6);
@@ -857,6 +860,7 @@ contract LiFiDexAggregatorTest is TestBase {
             params.tokenIn,
             params.pool1,
             params.pool2,
+            1, // direction
             params.isStableFirst
         );
 

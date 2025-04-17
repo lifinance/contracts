@@ -786,7 +786,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
                 .getReserves();
             if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
-            uint256 reserveIn = direction == 0 ? reserve0 : reserve1;
+            uint256 reserveIn = direction == 1 ? reserve0 : reserve1;
 
             amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
         } else {
@@ -806,8 +806,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         // set the appropriate output amount based on which token is being swapped
         // determine output amounts based on direction
-        uint256 amount0Out = direction == 0 ? 0 : amountOut;
-        uint256 amount1Out = direction == 0 ? amountOut : 0;
+        uint256 amount0Out = direction == 1 ? 0 : amountOut;
+        uint256 amount1Out = direction == 1 ? amountOut : 0;
 
         // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
         // Safety Checks Covered:
