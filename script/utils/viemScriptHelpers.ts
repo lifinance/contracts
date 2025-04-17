@@ -120,36 +120,42 @@ export const printSuccess = (message: string): void => {
 }
 
 /**
- * Extracts and ABI-encodes function selectors for a given contract, excluding optional ones.
+ * Extracts the function selectors (method IDs) from the contract's ABI JSON output.
  *
- * @param contractName Name of the contract (without .sol)
- * @param excludes Optional array of selectors to exclude (e.g., ['0x12345678'])
- * @returns Hex-encoded calldata array like cast abi-encode would produce
+ * @param contractName - Name of the contract (used to locate the compiled JSON)
+ * @param excludes - Optional list of function selectors (with or without '0x') to exclude
+ * @returns An array of function selectors as strings prefixed with '0x'
  */
 export function getFunctionSelectors(
   contractName: string,
   excludes: string[] = []
 ): `0x${string}`[] {
+  // Build the file path to the contract's compiled JSON file
   const filePath = path.resolve(
     `./out/${contractName}.sol/${contractName}.json`
   )
 
+  // Ensure the contract file exists
   if (!fs.existsSync(filePath)) {
     throw new Error(`Contract JSON not found at path: ${filePath}`)
   }
 
+  // Load and parse the compiled contract JSON
   const raw = fs.readFileSync(filePath, 'utf8')
   const json = JSON.parse(raw)
   const identifiers = json?.methodIdentifiers
 
+  // Ensure methodIdentifiers are present in the JSON (these map function signatures to selectors)
   if (!identifiers) {
     throw new Error(`No methodIdentifiers found in contract: ${contractName}`)
   }
 
+  // Clean the exclusion list (remove '0x' prefix and lowercase them for consistent comparison)
   const excludesClean = excludes.map((sel) =>
     sel.replace(/^0x/, '').toLowerCase()
   )
 
+  // Extract all function selectors, filter out excluded ones, and return as 0x-prefixed strings
   return Object.values(identifiers as Record<string, string>)
     .filter(
       (sel) => !excludesClean.includes(sel.replace(/^0x/, '').toLowerCase())
@@ -191,6 +197,7 @@ export function buildDiamondCutRemoveCalldata(
     'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
   ])
 
+  // prepare the diamondCut arguments for each facet to be removed
   const cutArgs = facets.map((facet) => ({
     facetAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`,
     action: 2,
