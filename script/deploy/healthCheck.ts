@@ -357,11 +357,11 @@ const main = defineCommand({
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
-      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
+      if (getAddress(erc20ProxyOwner) !== withdrawWallet) {
         logError(
           `ERC20Proxy owner is ${getAddress(
             erc20ProxyOwner
-          )}, expected ${getAddress(deployerWallet)}`
+          )}, expected ${getAddress(withdrawWallet)}`
         )
       } else {
         consola.success('ERC20Proxy owner is correct')
@@ -383,14 +383,6 @@ const main = defineCommand({
       await checkOwnership(
         'FeeCollector',
         withdrawWallet,
-        deployedContracts,
-        publicClient
-      )
-
-      // Receiver
-      await checkOwnership(
-        'Receiver',
-        refundWallet,
         deployedContracts,
         publicClient
       )

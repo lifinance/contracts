@@ -30,8 +30,8 @@ contract DeployScript is DeployScriptBase {
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
+        address withdrawWallet = globalConfigJson.readAddress(
+            ".withdrawWallet"
         );
 
         string memory path = string.concat(root, "/config/cbridge.json");
@@ -51,6 +51,6 @@ contract DeployScript is DeployScriptBase {
         );
         address diamond = _getConfigContractAddress(path, ".LiFiDiamond");
 
-        return abi.encode(refundWalletAddress, messageBus, diamond);
+        return abi.encode(withdrawWallet, messageBus, diamond);
     }
 }

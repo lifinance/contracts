@@ -32,8 +32,8 @@ contract DeployScript is DeployScriptBase {
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
+        address withdrawWallet = globalConfigJson.readAddress(
+            ".withdrawWallet"
         );
 
         // obtain address of Across's Spokepool contract in current network from config file
@@ -58,11 +58,6 @@ contract DeployScript is DeployScriptBase {
         uint256 recoverGas = 100000;
 
         return
-            abi.encode(
-                refundWalletAddress,
-                executor,
-                acrossSpokePool,
-                recoverGas
-            );
+            abi.encode(withdrawWallet, executor, acrossSpokePool, recoverGas);
     }
 }
