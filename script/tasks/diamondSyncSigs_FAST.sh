@@ -33,6 +33,8 @@ function diamondSyncSigs_FAST {
     echo "Should the script be executed on one network or all networks?"
     NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
     echo "[info] selected network: $NETWORK"
+    echo ""
+    echo ""
 
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
       checkRequiredVariablesInDotEnv $NETWORK
@@ -57,8 +59,9 @@ function diamondSyncSigs_FAST {
   function processNetwork {
     local NETWORK=$1
 
-    # Skip local/test networks
-    if [[ "$NETWORK" == "localanvil" || "$NETWORK" == "bsc-testnet" || "$NETWORK" == "lineatest" || "$NETWORK" == "mumbai" || "$NETWORK" == "sepolia" ]]; then
+    # Skip non-active mainnets
+    if ! isActiveMainnet "$NETWORK"; then
+      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not an active mainnet >> continuing without syncing on this network"
       return
     fi
 
@@ -66,7 +69,7 @@ function diamondSyncSigs_FAST {
     local RPC_URL=$(getRPCUrl "$NETWORK")
 
     if [[ -z "$DIAMOND_ADDRESS" || "$DIAMOND_ADDRESS" == "null" ]]; then
-      echo -e "❌ [\e[31m$NETWORK\e[0m] Failed - Missing contract address"
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Missing contract address"
       echo "[$NETWORK] Error: Missing contract address" >> "$FAILED_LOG_FILE"
       return
     fi
@@ -96,10 +99,10 @@ function diamondSyncSigs_FAST {
           if [[ -n "$TX_HASH" ]]; then
             printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced (tx: $TX_HASH)"
           else
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced"
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced (no tx hash available)"
           fi
         else
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures already approved"
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All signatures are approved"
         fi
         return
       fi
@@ -182,7 +185,7 @@ function diamondSyncSigs_FAST {
   else
     rm "$FAILED_LOG_FILE"
     echo ""
-    echo "✅ All networks synced successfully"
+    echo "✅ All active networks synced successfully"
     return 0
   fi
 }
