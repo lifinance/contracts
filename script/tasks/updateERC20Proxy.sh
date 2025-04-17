@@ -13,7 +13,7 @@ updateERC20Proxy() {
   local NETWORK=$1
   local ENVIRONMENT=$2
 
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get relevant contract addresses from deploy log file
 	ERC20PROXY=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "ERC20Proxy" )

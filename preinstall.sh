@@ -37,7 +37,7 @@ install_package_mac() {
 OS=$(uname -s)
 
 # List of required packages
-REQUIRED_PACKAGES=("jq" "bc" "gum")
+REQUIRED_PACKAGES=("jq" "bc" "gum" "mongosh")
 
 for PACKAGE in "${REQUIRED_PACKAGES[@]}"; do
   if ! command -v "$PACKAGE" &> /dev/null; then
