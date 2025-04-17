@@ -347,7 +347,8 @@ export async function sendOrPropose({
     consola.success('✅ Safe transaction proposed and stored in MongoDB')
   } catch (err) {
     consola.error('❌ Failed to store transaction in MongoDB:', err)
-    process.exit(1)
+    await mongoClient.close()
+    throw new Error(`Failed to store transaction in MongoDB: ${err.message}`)
   }
 
   await mongoClient.close()
