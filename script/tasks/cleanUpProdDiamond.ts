@@ -100,7 +100,16 @@ const command = defineCommand({
     if (facets) {
       consola.box('Running headless facet removal')
       // parse facetNames into string array
-      const facetNames: string[] = JSON.parse(facets)
+      let facetNames: string[]
+      try {
+        facetNames = JSON.parse(facets)
+        if (!Array.isArray(facetNames) || facetNames.some((n) => typeof n !== 'string')) {
+          throw new Error()
+        }
+      } catch {
+        consola.error('❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\'')
+        process.exit(1)
+      }
 
       // get function selectors for all facets
       const facetDefs = facetNames.map((name) => ({
