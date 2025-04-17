@@ -38,7 +38,7 @@ For non-EVM destinations (i.e. Solana, Bitcoin), set the `receiver` in `BridgeDa
 
 The facet supports the following chains with their respective IDs:
 
-[Reference](https://docs.chainflip.io/swapping/integrations/advanced/vault-swaps#supported-chains)
+[Reference](https://docs.chainflip.io/swapping/integrations/advanced/vault-swaps/encoding-reference#supported-chain-and-asset-notation)
 
 ## Swap Data
 
@@ -58,7 +58,7 @@ This parameter is strictly for analytics purposes. It's used to emit events that
 
 In the following some sample calls are shown that allow you to retrieve a populated transaction that can be sent to our contract via your wallet.
 
-All examples use our [/quote endpoint](https://apidocs.li.fi/reference/get_quote) to retrieve a quote which contains a `transactionRequest`. This request can directly be sent to your wallet to trigger the transaction.
+All examples use our [/quote endpoint](https://apidocs.li.fi/reference/get_v1-quote) to retrieve a quote which contains a `transactionRequest`. This request can directly be sent to your wallet to trigger the transaction.
 
 The quote result looks like the following:
 
