@@ -239,6 +239,11 @@ export async function sendOrPropose({
   environment: 'staging' | 'production'
   diamondAddress: string
 }) {
+  const isProd = environment === 'production'
+  const sendDirectly =
+    environment === 'staging' ||
+    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+
   // ───────────── DIRECT TX FLOW ───────────── //
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
@@ -264,13 +269,15 @@ export async function sendOrPropose({
       transport: http(),
     })
 
-    const hash = await walletClient.sendTransaction({
-      to: getAddress(diamondAddress),
-      data: calldata,
-    }).catch((err) => {
-      consola.error('❌ Failed to broadcast tx:', err)
-      throw err
-    })
+    const hash = await walletClient
+      .sendTransaction({
+        to: getAddress(diamondAddress),
+        data: calldata,
+      })
+      .catch((err) => {
+        consola.error('❌ Failed to broadcast tx:', err)
+        throw err
+      })
 
     consola.info(`⏳ Waiting for tx ${hash} to be mined...`)
 
