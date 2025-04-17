@@ -239,14 +239,6 @@ export async function sendOrPropose({
   environment: 'staging' | 'production'
   diamondAddress: string
 }) {
-  consola.log(`-`.repeat(120))
-  const isProd = environment === 'production'
-
-  // Send directly in staging or if SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is enabled
-  const sendDirectly =
-    environment === 'staging' ||
-    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-
   // ───────────── DIRECT TX FLOW ───────────── //
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
@@ -273,20 +265,21 @@ export async function sendOrPropose({
     })
 
     const hash = await walletClient.sendTransaction({
-      to: diamondAddress as `0x${string}`,
+      to: getAddress(diamondAddress),
       data: calldata,
+    }).catch((err) => {
+      consola.error('❌ Failed to broadcast tx:', err)
+      throw err
     })
 
     consola.info(`⏳ Waiting for tx ${hash} to be mined...`)
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-    if (receipt.status === 'success') {
-      consola.success(`✅ Tx confirmed in block ${receipt.blockNumber}`)
-    } else {
-      consola.error('❌ Tx failed')
-      process.exit(1)
-    }
+    if (receipt.status !== 'success')
+      throw new Error(`Tx reverted in block ${receipt.blockNumber}`)
+
+    consola.success(`✅ Tx confirmed in block ${receipt.blockNumber}`)
 
     return
   }
