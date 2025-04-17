@@ -776,9 +776,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
-        // we don't need 'fee' and 'stable' flags since the pool handles that internally but we need to read them anyway to iterate forward in the stream data
-        stream.readUint24(); // read 'pool fee' (in 1/1_000_000)
-        stream.readUint8(); // read 'stable' flag
         bool callback = stream.readUint8() == 1; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
         if (from == INTERNAL_INPUT_SOURCE) {

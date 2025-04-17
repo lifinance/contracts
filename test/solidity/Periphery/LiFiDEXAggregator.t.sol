@@ -68,7 +68,6 @@ contract LiFiDexAggregatorTest is TestBase {
         uint256 amountIn;
         address tokenOut;
         bool stable;
-        uint24 fee;
         uint8 direction;
         bool callback;
     }
@@ -116,8 +115,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(STG_TOKEN),
-                stable: false, // - NOT USED!
-                fee: 3000, // - NOT USED!
+                stable: false,
                 direction: 1,
                 callback: false
             })
@@ -138,8 +136,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenIn: address(STG_TOKEN),
                 amountIn: 500 * 1e18,
                 tokenOut: ADDRESS_USDC,
-                stable: false, // - NOT USED!
-                fee: 3000, // - NOT USED!
+                stable: false,
                 direction: 0,
                 callback: false
             })
@@ -156,8 +153,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
-                stable: true, // - NOT USED!
-                fee: 500, // - NOT USED!
+                stable: true,
                 direction: 1,
                 callback: false
             })
@@ -178,8 +174,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenIn: address(USDC_E_TOKEN),
                 amountIn: 500 * 1e6,
                 tokenOut: ADDRESS_USDC,
-                stable: true, // - NOT USED!
-                fee: 500, // - NOT USED!
+                stable: false,
                 direction: 0,
                 callback: false
             })
@@ -201,8 +196,7 @@ contract LiFiDexAggregatorTest is TestBase {
                     address(liFiDEXAggregator)
                 ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
-                stable: true, // - NOT USED!
-                fee: 500, // - NOT USED!
+                stable: false,
                 direction: 1,
                 callback: false
             })
@@ -221,8 +215,7 @@ contract LiFiDexAggregatorTest is TestBase {
                 tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
-                stable: true, // - NOT USED!
-                fee: 500, // - NOT USED!
+                stable: false,
                 direction: 1,
                 callback: true
             })
@@ -274,8 +267,6 @@ contract LiFiDexAggregatorTest is TestBase {
             pool, // pool address
             params.direction, // direction: 0 for normal, 1 for reverse
             params.to, // recipient
-            uint24(params.fee), // fee (e.g., 3000 or 500) - NOT USED!
-            params.stable ? uint8(1) : uint8(0), // stable flag: 1 for true, 0 for false // currently not used - NOT USED!
             params.callback ? uint8(1) : uint8(0) // callback flag: 1 for true, 0 for false
         );
 
@@ -354,8 +345,6 @@ contract LiFiDexAggregatorTest is TestBase {
         address tokenOut;
         address pool1;
         address pool2;
-        bool isStableFirst;
-        bool isStableSecond;
         uint256[] amounts1;
         uint256[] amounts2;
         uint256 pool1Fee;
@@ -440,8 +429,7 @@ contract LiFiDexAggregatorTest is TestBase {
         address tokenIn,
         address pool1,
         address pool2,
-        uint8 direction,
-        bool isStable
+        uint8 direction
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
@@ -453,8 +441,6 @@ contract LiFiDexAggregatorTest is TestBase {
                 pool1, // first pool
                 direction, // direction
                 pool2, // send to second pool
-                uint24(3000), // fee - NOT USED!
-                isStable ? uint8(1) : uint8(0), // stable flag
                 uint8(0) // no callback
             );
     }
@@ -464,8 +450,7 @@ contract LiFiDexAggregatorTest is TestBase {
         address tokenMid,
         address pool2,
         address recipient,
-        uint8 direction,
-        bool isStable
+        uint8 direction
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
@@ -475,8 +460,6 @@ contract LiFiDexAggregatorTest is TestBase {
                 pool2, // second pool
                 direction, // direction
                 recipient, // final recipient
-                uint24(3000), // fee - NOT USED!
-                isStable ? uint8(1) : uint8(0), // stable flag
                 uint8(0) // no callback
             );
     }
@@ -492,16 +475,14 @@ contract LiFiDexAggregatorTest is TestBase {
             params.tokenIn,
             params.pool1,
             params.pool2,
-            firstHopDirection,
-            params.isStableFirst
+            firstHopDirection
         );
 
         bytes memory secondHop = _buildSecondHop(
             params.tokenMid,
             params.pool2,
             recipient,
-            secondHopDirection,
-            params.isStableSecond
+            secondHopDirection
         );
 
         return bytes.concat(firstHop, secondHop);
@@ -860,16 +841,14 @@ contract LiFiDexAggregatorTest is TestBase {
             params.tokenIn,
             params.pool1,
             params.pool2,
-            1, // direction
-            params.isStableFirst
+            1 // direction
         );
 
         bytes memory secondHop = _buildSecondHop(
             params.tokenMid,
             params.pool2,
             USER_SENDER,
-            0, // direction
-            params.isStableSecond
+            0 // direction
         );
 
         bytes memory route = bytes.concat(firstHop, secondHop);
