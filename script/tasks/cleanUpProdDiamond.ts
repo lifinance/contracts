@@ -5,7 +5,7 @@
  *   - Remove facet(s) or unregister periphery contract(s) from the LiFiDiamond contract
  *   - Supports both interactive and headless CLI modes
  *   - In production, or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true in .env, it proposes calldata to our Safe (using SAFE_SIGNER_PRIVATE_KEY from .env)
- *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (or not set), it sends the transaction directly to the diamond (using PRIVATE_KEY from .env)
+ *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND!=true (or not set), it sends the transaction directly to the diamond (using PRIVATE_KEY from .env)
  *
  * Usage without parameters:
  *  bun script/tasks/cleanUpProdDiamond.ts
