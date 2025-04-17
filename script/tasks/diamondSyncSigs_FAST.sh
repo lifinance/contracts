@@ -44,9 +44,9 @@ function diamondSyncSigs_FAST {
   # create array with network/s for which the script should be executed
   if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
     # get array with all network names
-    NETWORKS=($(getIncludedNetworksArray))
+    mapfile -t NETWORKS < <(getIncludedNetworksArray)
   else
-    NETWORKS=($NETWORK)
+    NETWORKS=("$NETWORK")
   fi
 
   # Determine file suffix based on environment
