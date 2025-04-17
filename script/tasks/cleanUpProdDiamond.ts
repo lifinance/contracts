@@ -173,10 +173,15 @@ const command = defineCommand({
         .map((f) => f.replace('.sol', ''))
 
       // select one or more facets
-      const selectedFacets = await consola.prompt('Select facets to remove', {
+      const selectedFacets = (await consola.prompt('Select facets to remove', {
         type: 'multiselect',
         options: facetNames,
-      })
+      })) as string[]
+
+      if (!selectedFacets?.length) {
+        consola.info('No facets selected – aborting.')
+        process.exit(0)
+      }
 
       // get function selectors for each facet
       const facetDefs = selectedFacets.map((name) => ({
