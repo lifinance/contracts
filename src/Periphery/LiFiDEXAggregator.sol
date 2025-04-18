@@ -487,18 +487,21 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bool zeroForOne = stream.readUint8() > 0;
         address recipient = stream.readAddress();
 
+        uint256 balBefore = IERC20(tokenIn).balanceOf(pool);
         if (from == msg.sender)
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
                 address(this),
                 uint256(amountIn)
             );
+        uint256 balAfter = IERC20(tokenIn).balanceOf(pool);
+        uint256 actualIn = balAfter - balBefore;
 
         lastCalledPool = pool;
         IUniswapV3Pool(pool).swap(
             recipient,
             zeroForOne,
-            int256(amountIn),
+            int256(actualIn),
             zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
             abi.encode(tokenIn)
         );
