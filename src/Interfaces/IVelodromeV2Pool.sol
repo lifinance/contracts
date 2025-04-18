@@ -8,7 +8,7 @@ interface IVelodromeV2Pool {
     /// @notice Address of token in the pool with the lower address value
     function token0() external view returns (address);
 
-    /// @notice Address of token in the poool with the higher address value
+    /// @notice Address of token in the pool with the higher address value
     function token1() external view returns (address);
 
     /// @notice Address of linked PoolFees.sol

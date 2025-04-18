@@ -22,6 +22,8 @@ uint160 constant MIN_SQRT_RATIO = 4295128739;
 /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
 uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
+uint8 constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
@@ -453,7 +455,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         (uint256 r0, uint256 r1, ) = IUniswapV2Pair(pool).getReserves();
         if (r0 == 0 || r1 == 0) revert WrongPoolReserves();
-        (uint256 reserveIn, uint256 reserveOut) = direction == 1
+        (uint256 reserveIn, uint256 reserveOut) = direction ==
+            DIRECTION_TOKEN0_TO_TOKEN1
             ? (r0, r1)
             : (r1, r0);
         amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn; // tokens already were transferred
@@ -461,7 +464,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountInWithFee = amountIn * (1_000_000 - fee);
         uint256 amountOut = (amountInWithFee * reserveOut) /
             (reserveIn * 1_000_000 + amountInWithFee);
-        (uint256 amount0Out, uint256 amount1Out) = direction == 1
+        (uint256 amount0Out, uint256 amount1Out) = direction ==
+            DIRECTION_TOKEN0_TO_TOKEN1
             ? (uint256(0), amountOut)
             : (amountOut, uint256(0));
         IUniswapV2Pair(pool).swap(amount0Out, amount1Out, to, new bytes(0));
@@ -779,16 +783,15 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bool callback = stream.readUint8() == 1; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
         if (from == INTERNAL_INPUT_SOURCE) {
-            // processOnePool case
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
                 .getReserves();
             if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
-            uint256 reserveIn = direction == 1 ? reserve0 : reserve1;
+            uint256 reserveIn = direction == DIRECTION_TOKEN0_TO_TOKEN1
+                ? reserve0
+                : reserve1;
 
             amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
         } else {
-            // processMyERC20 and processUserERC20 cases
-            // transfer the input tokens to the pool
             if (from == address(this))
                 IERC20(tokenIn).safeTransfer(pool, amountIn);
             else if (from == msg.sender)
@@ -803,8 +806,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         // set the appropriate output amount based on which token is being swapped
         // determine output amounts based on direction
-        uint256 amount0Out = direction == 1 ? 0 : amountOut;
-        uint256 amount1Out = direction == 1 ? amountOut : 0;
+        uint256 amount0Out = direction == DIRECTION_TOKEN0_TO_TOKEN1
+            ? 0
+            : amountOut;
+        uint256 amount1Out = direction == DIRECTION_TOKEN0_TO_TOKEN1
+            ? amountOut
+            : 0;
 
         // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
         // Safety Checks Covered:
@@ -824,7 +831,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             amount0Out,
             amount1Out,
             to,
-            callback ? abi.encode(tokenIn) : new bytes(0)
+            callback ? abi.encode(tokenIn) : bytes("")
         );
     }
 }
