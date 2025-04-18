@@ -161,29 +161,50 @@ export class ViemSafe {
 
   static async init(options: {
     provider: string | Chain
-    privateKey: string
+    privateKey?: string
     safeAddress: Address
+    useLedger?: boolean
+    ledgerOptions?: {
+      derivationPath?: string
+      ledgerLive?: boolean
+      accountIndex?: number
+    }
   }): Promise<ViemSafe> {
-    const { privateKey, safeAddress, provider } = options
+    const { privateKey, safeAddress, provider, useLedger, ledgerOptions } =
+      options
 
-    // Create provider and signer with Viem
+    // Create provider with Viem
     let publicClient: PublicClient
+    let chain: Chain | undefined = undefined
+
     if (typeof provider === 'string') {
       publicClient = createPublicClient({
         transport: http(provider),
       })
     } else {
+      chain = provider
       publicClient = createPublicClient({
-        chain: provider,
+        chain: chain,
         transport: http(),
       })
     }
 
-    const account = privateKeyToAccount(
-      `0x${privateKey.replace(/^0x/, '')}` as Hex
-    )
+    // Get account - either from private key or Ledger
+    let account
+    if (useLedger) {
+      // Dynamically import the Ledger module to avoid dependency issues
+      const { getLedgerAccount } = await import('./ledger')
+      account = await getLedgerAccount(ledgerOptions)
+    } else if (privateKey) {
+      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}` as Hex)
+    } else {
+      throw new Error('Either privateKey or useLedger must be provided')
+    }
+
+    // Create wallet client with the account and chain
     const walletClient = createWalletClient({
       account,
+      chain,
       transport: http(typeof provider === 'string' ? provider : undefined),
     })
 
@@ -503,7 +524,7 @@ export class ViemSafe {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      // Build transaction for execution
+      // First, prepare the transaction data
       const txHash = await this.walletClient.writeContract({
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
@@ -814,14 +835,22 @@ export async function getPendingTransactionsByNetwork(
 /**
  * Initializes a Safe client for a specific network
  * @param network - Network name
- * @param privateKey - Private key for signing
+ * @param privateKey - Private key for signing (optional if useLedger is true)
  * @param rpcUrl - Optional RPC URL override
+ * @param useLedger - Whether to use a Ledger device for signing
+ * @param ledgerOptions - Options for Ledger connection
  * @returns Initialized ViemSafe instance and chain information
  */
 export async function initializeSafeClient(
   network: string,
-  privateKey: string,
-  rpcUrl?: string
+  privateKey?: string,
+  rpcUrl?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  }
 ): Promise<{
   safe: ViemSafe
   chain: Chain
@@ -842,6 +871,8 @@ export async function initializeSafeClient(
       provider: parsedRpcUrl,
       privateKey,
       safeAddress,
+      useLedger,
+      ledgerOptions,
     })
 
     return { safe, chain, safeAddress }

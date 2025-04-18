@@ -49,3 +49,5 @@ script/config.sh
 script/playground.sh
 test/solidity/TestPlayground.t.sol
 .aider*
+.claude*
+.direnv/
