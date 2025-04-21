@@ -69,6 +69,7 @@ const main = defineCommand({
 
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
+    const networkConfig = networksConfig[network.toLowerCase()]
 
     const chain = getViemChainForNetworkName(network.toLowerCase())
 
@@ -141,8 +142,8 @@ const main = defineCommand({
 
     let registeredFacets: string[] = []
     try {
-      if (networksConfig[network.toLowerCase()].rpcUrl) {
-        const rpcUrl: string = networksConfig[network.toLowerCase()].rpcUrl
+      if (networkConfig.rpcUrl) {
+        const rpcUrl: string = networkConfig.rpcUrl
         const facetsResult =
           await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
         const rawString = facetsResult.stdout
@@ -368,8 +369,8 @@ const main = defineCommand({
       }
 
       // Check that Diamond is owned by SAFE
-      if (networksConfig[network.toLowerCase()].safeAddress) {
-        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
+      if (networkConfig.safeAddress) {
+        const safeAddress = networkConfig.safeAddress
 
         await checkOwnership(
           'LiFiDiamond',
@@ -498,33 +499,49 @@ const main = defineCommand({
       //          │                   SAFE Configuration                    │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking SAFE configuration...')
-      const networkConfig: Network = networks[network.toLowerCase()]
-      if (!networkConfig.safeAddress || !networkConfig.safeApiUrl) {
-        consola.warn('SAFE address not configured')
-      } else {
-        const safeOwners = globalConfig.safeOwners
-        const safeAddress = networkConfig.safeAddress
-        const safeApiUrl = networkConfig.safeApiUrl
-        const configUrl = `${safeApiUrl}/v1/safes/${safeAddress}`
-        const res = await fetch(configUrl)
-        const safeConfig = await res.json()
+      try {
+        // get expected Safe owners from global config
+        const expectedSafeOwners = globalConfig.safeOwners.map((ownerAddress) =>
+          getAddress(ownerAddress)
+        )
 
-        // Check that each safeOwner is in safeConfig.owners
-        for (const o in safeOwners) {
-          const safeOwner = getAddress(safeOwners[o])
-          if (!safeConfig.owners.includes(safeOwner)) {
-            logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+        // get Safe address from config and connect to contract
+        const safeAddress = getAddress(networkConfig.safeAddress)
+
+        const safeContract = getContract({
+          address: safeAddress,
+          abi: parseAbi([
+            'function getOwners() view returns (address[])',
+            'function getThreshold() view returns (uint256)',
+          ]),
+          client: publicClient,
+        })
+
+        // get registered safe owners directly from safe contract
+        const onChainSafeOwners = (await safeContract.read.getOwners()).map(
+          (addr) => getAddress(addr.toLowerCase())
+        )
+
+        // get multisig threshold from safe contract
+        const onChainThreshold = Number(await safeContract.read.getThreshold())
+
+        for (const expectedOwner of expectedSafeOwners) {
+          if (!onChainSafeOwners.includes(expectedOwner)) {
+            logError(`SAFE owner ${expectedOwner} not in on-chain SAFE config`)
           } else {
-            consola.success(`SAFE owner ${safeOwner} is in SAFE configuration`)
+            consola.success(`SAFE owner ${expectedOwner} is in SAFE config`)
           }
         }
 
-        // Check that threshold is correct
-        if (safeConfig.threshold < SAFE_THRESHOLD) {
-          logError(`SAFE signature threshold is less than ${SAFE_THRESHOLD}`)
+        if (onChainThreshold < SAFE_THRESHOLD) {
+          logError(
+            `SAFE signature threshold is ${onChainThreshold}, expected at least ${SAFE_THRESHOLD}`
+          )
         } else {
-          consola.success(`SAFE signature threshold is ${safeConfig.threshold}`)
+          consola.success(`SAFE signature threshold is ${onChainThreshold}`)
         }
+      } catch (err: any) {
+        logError(`Failed to validate SAFE config on-chain: ${err.message}`)
       }
 
       finish()
