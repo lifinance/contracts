@@ -1411,20 +1411,20 @@ function addPeripheryToDexsJson() {
 
 # >>>>> writing to blockchain & verification
 function verifyContract() {
-  # Read function arguments
+  # read function arguments into variables
   local NETWORK=$1
   local CONTRACT=$2
   local ADDRESS=$3
   local ARGS=$4
 
-  # Derive API key environment variable name based on network
+  # get API key for blockchain explorer
   if [[ "$NETWORK" == "bsc-testnet" ]]; then
     API_KEY="BSC_ETHERSCAN_API_KEY"
   else
-    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")_ETHERSCAN_API_KEY"
+    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
   fi
 
-  # Logging debug information
+  # logging for debug purposes
   echo ""
   echoDebug "in function verifyContract"
   echoDebug "NETWORK=$NETWORK"
@@ -1434,24 +1434,21 @@ function verifyContract() {
   echoDebug "blockexplorer API_KEY=${API_KEY}"
   echoDebug "blockexplorer API_KEY value=${!API_KEY}"
 
-  # Skip verification for excluded networks
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
-      *,"$NETWORK",*)
-        echoDebug "network $NETWORK is excluded for contract verification, skipping $CONTRACT"
-        return 1
-        ;;
+    *,"$NETWORK",*)
+      echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+      return 1
+      ;;
     esac
   fi
 
-  # Setup retry variables and get contract + chain info
-  local MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
-  local RETRY_COUNT=0
-  local COMMAND_STATUS=1
-  local CONTRACT_FILE_PATH
+  # verify contract using forge
+  MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
+  RETRY_COUNT=0
+  COMMAND_STATUS=1
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
-  local FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
-  local CHAIN_ID
+  FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
 
   if [ $? -ne 0 ]; then
@@ -1501,9 +1498,7 @@ function verifyContract() {
     RETRY_COUNT=$((RETRY_COUNT + 1))
   done
 
-  # ---------------------------
-  # Final result handling
-  # ---------------------------
+  # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]; then
     warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
   else
@@ -1511,9 +1506,6 @@ function verifyContract() {
     return 0
   fi
 
-  # ---------------------------
-  # Fallback to Sourcify verification
-  # ---------------------------
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
   if isZkEvmNetwork "$NETWORK"; then
     FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
@@ -1543,9 +1535,11 @@ function verifyContract() {
   fi
 
   if [ $? -ne 0 ]; then
+    # verification apparently failed
     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
     return 1
   else
+    # verification successful
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
   fi
