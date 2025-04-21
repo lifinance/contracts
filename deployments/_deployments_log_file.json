@@ -30021,6 +30021,20 @@
           }
         ]
       }
+    },
+    "superposition": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x9bC66C208cc2DE73AC589431aa2b1fef34EfCa37",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-21 15:52:39",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc276200000000000000000000000002458ea5e6983e9b67cd8a183576b47ebafb64ad00000000000000000000000012f5778ff5e4f49d8a522230d1a456a9d1359ce0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RelayFacet": {
