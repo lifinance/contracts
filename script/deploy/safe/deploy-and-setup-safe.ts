@@ -74,7 +74,8 @@ const GNOSIS_SAFE_ABI = parseAbi([
 const main = defineCommand({
   meta: {
     name: 'deploy-and-setup-safe',
-    description: 'Deploys a new Gnosis Safe proxy and calls setup(...)',
+    description:
+      'Deploys a new Gnosis Safe proxy and calls setup(...) in staging or production environment',
   },
   args: {
     network: {
@@ -128,6 +129,21 @@ const main = defineCommand({
   },
   async run({ args }) {
     try {
+      // Add environment selection prompt with key information
+      const environment = (await consola.prompt(
+        'Which environment do you want to deploy to?',
+        {
+          type: 'select',
+          options: [
+            { value: 'staging', label: 'staging (uses PRIVATE_KEY from .env)' },
+            {
+              value: 'production',
+              label: 'production (uses PRIVATE_KEY_PRODUCTION from .env)',
+            },
+          ],
+        }
+      )) as 'staging' | 'production'
+
       const networkName = args.network as SupportedChain
       let threshold: number
       if (typeof args.threshold === 'number') {
@@ -151,54 +167,93 @@ const main = defineCommand({
       let safeSingleton: Address | undefined
       let proxyFactory: Address | undefined
 
-      // Try to get addresses from safe-deployments first
-      const safeSingletonDeployment = getSafeSingletonDeployment({
-        network: chainId.toString(),
-      })
-      const proxyFactoryDeployment = getProxyFactoryDeployment({
-        network: chainId.toString(),
-      })
-
-      if (safeSingletonDeployment && proxyFactoryDeployment) {
-        const safeSingletonFromDeployment =
-          safeSingletonDeployment.networkAddresses[chainId.toString()]
-        const proxyFactoryFromDeployment =
-          proxyFactoryDeployment.networkAddresses[chainId.toString()]
-
-        if (safeSingletonFromDeployment && proxyFactoryFromDeployment) {
-          safeSingleton = getAddress(safeSingletonFromDeployment)
-          proxyFactory = getAddress(proxyFactoryFromDeployment)
-          consola.info('Using Safe addresses from safe-deployments:')
-        } else {
-          consola.warn(
-            'Could not fetch Safe addresses from safe-deployments, using provided addresses if available'
-          )
-        }
-      } else {
-        consola.warn(
-          'Could not fetch Safe deployments from safe-deployments, using provided addresses if available'
-        )
-      }
-
-      // If we couldn't get addresses from safe-deployments, use provided addresses
-      if (!safeSingleton || !proxyFactory) {
-        if (!args.safeSingleton || !args.proxyFactory) {
-          throw new Error(
-            `Could not determine Safe contract addresses for chain ID ${chainId}.\n` +
-              'Please provide safeSingleton and proxyFactory addresses manually.'
-          )
-        }
+      // First check if addresses were provided as parameters
+      if (args.safeSingleton && args.proxyFactory) {
         safeSingleton = getAddress(args.safeSingleton)
         proxyFactory = getAddress(args.proxyFactory)
         consola.info('Using provided Safe addresses:')
+
+        // Try to verify against safe-deployments
+        const safeSingletonDeployment = getSafeSingletonDeployment({
+          network: chainId.toString(),
+        })
+        const proxyFactoryDeployment = getProxyFactoryDeployment({
+          network: chainId.toString(),
+        })
+
+        if (safeSingletonDeployment && proxyFactoryDeployment) {
+          const safeSingletonFromDeployment =
+            safeSingletonDeployment.networkAddresses[chainId.toString()]
+          const proxyFactoryFromDeployment =
+            proxyFactoryDeployment.networkAddresses[chainId.toString()]
+
+          if (safeSingletonFromDeployment && proxyFactoryFromDeployment) {
+            if (
+              safeSingleton.toLowerCase() !==
+                safeSingletonFromDeployment.toLowerCase() ||
+              proxyFactory.toLowerCase() !==
+                proxyFactoryFromDeployment.toLowerCase()
+            ) {
+              consola.warn(
+                'Provided addresses differ from safe-deployments package:'
+              )
+              consola.warn(
+                `Safe Singleton: provided=${safeSingleton}, safe-deployments=${safeSingletonFromDeployment}`
+              )
+              consola.warn(
+                `Proxy Factory: provided=${proxyFactory}, safe-deployments=${proxyFactoryFromDeployment}`
+              )
+            } else {
+              consola.success(
+                'Provided addresses match safe-deployments package'
+              )
+            }
+          }
+        } else {
+          consola.warn(
+            'Could not verify provided addresses against safe-deployments package (no deployment data available)'
+          )
+        }
+      } else {
+        // No addresses provided, try to get from safe-deployments
+        const safeSingletonDeployment = getSafeSingletonDeployment({
+          network: chainId.toString(),
+        })
+        const proxyFactoryDeployment = getProxyFactoryDeployment({
+          network: chainId.toString(),
+        })
+
+        if (safeSingletonDeployment && proxyFactoryDeployment) {
+          const safeSingletonFromDeployment =
+            safeSingletonDeployment.networkAddresses[chainId.toString()]
+          const proxyFactoryFromDeployment =
+            proxyFactoryDeployment.networkAddresses[chainId.toString()]
+
+          if (safeSingletonFromDeployment && proxyFactoryFromDeployment) {
+            safeSingleton = getAddress(safeSingletonFromDeployment)
+            proxyFactory = getAddress(proxyFactoryFromDeployment)
+            consola.info('Using Safe addresses from safe-deployments package:')
+          } else {
+            throw new Error(
+              `Could not find Safe contract addresses for chain ID ${chainId} in safe-deployments package.\n` +
+                'Please provide safeSingleton and proxyFactory addresses manually.'
+            )
+          }
+        } else {
+          throw new Error(
+            `Could not find Safe deployments for chain ID ${chainId} in safe-deployments package.\n` +
+              'Please provide safeSingleton and proxyFactory addresses manually.'
+          )
+        }
       }
 
       consola.info('Safe Singleton:', safeSingleton)
       consola.info('Proxy Factory:', proxyFactory)
 
       const { walletAccount, publicClient, walletClient } =
-        await setupEnvironment(networkName, null) // takes PRIVATE_KEY from .env
+        await setupEnvironment(networkName, null, environment)
 
+      consola.info('Environment:', environment)
       consola.info('Deployer (signer) address:', walletAccount.address)
 
       // Verify the contracts exist and are valid

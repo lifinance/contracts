@@ -18,6 +18,7 @@ import {
 } from 'viem'
 import networks from '../../../config/networks.json'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
@@ -564,18 +565,20 @@ export const setupEnvironment = async (
   environment: 'staging' | 'production' = 'staging'
 ) => {
   const RPC_URL = getRpcUrl(chain)
-  const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
+  const PRIVATE_KEY = getPrivateKeyForEnvironment(environment)
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 
+  const viemChain = getViemChainForNetworkName(chain)
+
   const publicClient = createPublicClient({
-    chain: getViemChain(chain),
+    chain: viemChain,
     transport: http(RPC_URL),
   })
 
   const walletAccount = privateKeyToAccount(typedPrivateKey)
 
   const walletClient = createWalletClient({
-    chain: getViemChain(chain),
+    chain: viemChain,
     transport: http(RPC_URL),
     account: walletAccount,
   })
@@ -784,4 +787,12 @@ export const ensureAllowance = async (
   } else {
     console.info('Sufficient allowance already exists.')
   }
+}
+
+export const getPrivateKeyForEnvironment = (
+  environment: 'staging' | 'production'
+): string => {
+  return environment === 'production'
+    ? getEnvVar('PRIVATE_KEY_PRODUCTION')
+    : getEnvVar('PRIVATE_KEY')
 }
