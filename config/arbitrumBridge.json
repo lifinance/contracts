@@ -3,9 +3,9 @@
     "gatewayRouter": "0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef",
     "inbox": "0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f"
   },
-  "superposition": {
-    "gatewayRouter": "0x705818fEbefB70Ff0997438E472C7B565eF8c6B1",
-    "inbox": "? "
+  "arbitrum": {
+    "gatewayRouter": "0x9fe42a08751e8566a0918807bf2870594bf22806",
+    "inbox": "0x2eaf07a964c6601c4faefd6d8969df0b84f65e55"
   },
   "goerli": {
     "gatewayRouter": "0x4c7708168395aEa569453Fc36862D2ffcDaC588c",
