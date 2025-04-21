@@ -1455,59 +1455,48 @@ function verifyContract() {
   CHAIN_ID=$(getChainId "$NETWORK")
 
   if [ $? -ne 0 ]; then
-    warning "could not find chainId for $NETWORK — update 'getChainId'"
+    warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
   fi
 
-  # ---------------------------
-  # Internal helper function
-  # Executes the verification command and checks output
-  # ---------------------------
-  function runVerificationCommand() {
-    local CMD_OUTPUT
-    local TOOL_CMD
-    local VERIFIER_CMD
+  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if [ "$ARGS" = "0x" ]; then
+      # only show output if DEBUG flag is activated
+      if [[ "$DEBUG" == *"true"* ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
+          # Verify using foundry-zksync
+          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        fi
 
-    # Select correct toolchain for verification based on network
-    if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-      TOOL_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync"
+        # TODO: add code that automatically identifies blockscout verification
+      else
+        if isZkEvmNetwork "$NETWORK"; then
+          # Verify using foundry-zksync
+          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        fi
+      fi
     else
-      TOOL_CMD="forge verify-contract"
+      # case: verify with constructor arguments
+      # only show output if DEBUG flag is activated
+      if [[ "$DEBUG" == *"true"* ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
+          # Verify using foundry-zksync
+         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
+        fi
+      else
+        if isZkEvmNetwork "$NETWORK"; then
+          # Verify using foundry-zksync
+         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        fi
+      fi
     fi
-
-    # Base command with shared arguments
-    VERIFIER_CMD="$TOOL_CMD --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-
-    # Include constructor arguments if provided
-    if [[ "$ARGS" != "0x" ]]; then
-      VERIFIER_CMD="$VERIFIER_CMD --constructor-args $ARGS"
-    fi
-
-    VERIFIER_CMD="$VERIFIER_CMD -e ${!API_KEY}"
-
-    # Run command with or without output depending on DEBUG
-    if [[ "$DEBUG" == *"true"* ]]; then
-      echoDebug "Running verification command: $VERIFIER_CMD"
-      CMD_OUTPUT=$(eval "$VERIFIER_CMD" 2>&1)
-      echoDebug "Verification output:"
-      echoDebug "$CMD_OUTPUT"
-    else
-      CMD_OUTPUT=$(eval "$VERIFIER_CMD" >/dev/null 2>&1)
-    fi
-
-    # Parse the command output to detect real failure, even if exit code is 0
-    echo "$CMD_OUTPUT" | grep -q "Fail - Unable to verify"
-    if [ $? -eq 0 ]; then
-      return 1  # verification failed
-    fi
-
-    return 0  # verification passed
-  }
-
-  # ---------------------------
-  # Retry logic for primary verification
-  # ---------------------------
-  while [ $COMMAND_STATUS -ne 0 ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    runVerificationCommand
     COMMAND_STATUS=$?
     RETRY_COUNT=$((RETRY_COUNT + 1))
   done
@@ -1526,10 +1515,32 @@ function verifyContract() {
   # Fallback to Sourcify verification
   # ---------------------------
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id "$CHAIN_ID" --verifier sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   echo "[info] checking Sourcify verification now"
-  forge verify-check "$ADDRESS" --chain-id "$CHAIN_ID" --verifier sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-check $ADDRESS \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   if [ $? -ne 0 ]; then
     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
