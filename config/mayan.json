@@ -15,6 +15,9 @@
     "bsc": {
       "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
+    "linea": {
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
+    },
     "optimism": {
       "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
