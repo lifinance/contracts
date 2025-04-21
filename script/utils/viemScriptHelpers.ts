@@ -4,6 +4,8 @@ import {
   encodeFunctionData,
   getAddress,
   parseAbi,
+  type Address,
+  type Hex,
 } from 'viem'
 import networksConfig from '../../config/networks.json'
 import * as dotenv from 'dotenv'
@@ -19,7 +21,6 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import type { Address, Hex } from 'viem'
 dotenv.config()
 
 export type NetworksObject = {

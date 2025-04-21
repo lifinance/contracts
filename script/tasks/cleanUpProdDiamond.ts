@@ -29,7 +29,9 @@ import {
   buildUnregisterPeripheryCalldata,
   getAllActiveNetworks,
   sendOrPropose,
+  getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
+import { Abi, createPublicClient, http, parseAbi, getAddress } from 'viem'
 
 function castEnv(value: string): 'staging' | 'production' {
   if (value !== 'staging' && value !== 'production') {
@@ -40,7 +42,7 @@ function castEnv(value: string): 'staging' | 'production' {
 
 const command = defineCommand({
   meta: {
-    name: 'remove',
+    name: 'Clean Up Production Diamonds',
     description: 'Removes facet(s) or periphery contract(s) from LiFiDiamond',
   },
   args: {
@@ -103,11 +105,16 @@ const command = defineCommand({
       let facetNames: string[]
       try {
         facetNames = JSON.parse(facets)
-        if (!Array.isArray(facetNames) || facetNames.some((n) => typeof n !== 'string')) {
+        if (
+          !Array.isArray(facetNames) ||
+          facetNames.some((n) => typeof n !== 'string')
+        ) {
           throw new Error()
         }
       } catch {
-        consola.error('❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\'')
+        consola.error(
+          '❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\''
+        )
         process.exit(1)
       }
 
@@ -171,6 +178,7 @@ const command = defineCommand({
         .readdirSync(facetDir)
         .filter((f) => f.endsWith('.sol'))
         .map((f) => f.replace('.sol', ''))
+        .sort((a, b) => a.localeCompare(b))
 
       // select one or more facets
       const selectedFacets = (await consola.prompt('Select facets to remove', {
@@ -188,6 +196,17 @@ const command = defineCommand({
         name,
         selectors: getFunctionSelectors(name),
       }))
+
+      // -------------
+      // make sure that all function selectors are indeed registered in the diamond
+      await verifySelectorsExistInDiamond({
+        diamondAddress,
+        facetDefs,
+        network,
+        deployLog,
+      })
+
+      // -------------
 
       // build the (combined) calldata for removal of all selected facets
       calldata = buildDiamondCutRemoveCalldata(facetDefs)
@@ -255,5 +274,75 @@ const command = defineCommand({
     }
   },
 })
+
+async function verifySelectorsExistInDiamond({
+  diamondAddress,
+  facetDefs,
+  network,
+  deployLog,
+}: {
+  diamondAddress: string
+  facetDefs: { name: string; selectors: `0x${string}`[] }[]
+  network: string
+  deployLog: Record<string, string>
+}): Promise<void> {
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({
+    chain,
+    transport: http(),
+  })
+
+  // prepare multicalls
+  const calls = facetDefs.map((facet) => ({
+    address: getAddress(diamondAddress),
+    abi: parseAbi([
+      'function facetFunctionSelectors(address _facet) view returns (bytes4[])',
+    ]) satisfies Abi,
+    functionName: 'facetFunctionSelectors',
+    args: [getAddress(facetAddressFromName(deployLog, facet.name))],
+  }))
+
+  // execute multicalls to obtain all registered facets/function selectors
+  const results = await client.multicall({ contracts: calls })
+
+  // go through all function selectors and check if they are present in the diamond
+  for (let i = 0; i < facetDefs.length; i++) {
+    const facet = facetDefs[i]
+    const result = results[i]
+
+    if (result.status !== 'success') {
+      consola.error(
+        `❌ Failed to fetch selectors for facet "${facet.name}". Multicall status: ${result.status}`
+      )
+      process.exit(1)
+    }
+
+    const selectorsOnChain = result.result as `0x${string}`[]
+    const missing = facet.selectors.filter(
+      (sel) => !selectorsOnChain.includes(sel)
+    )
+
+    if (missing.length > 0) {
+      consola.error(
+        `❌ The following selectors of facet "${facet.name}" are not registered in diamond ${diamondAddress}:\n` +
+          missing.map((s) => `  ${s}`).join('\n')
+      )
+      process.exit(1)
+    }
+  }
+
+  // All selectors present — return silently
+}
+
+function facetAddressFromName(
+  deployLog: Record<string, string>,
+  name: string
+): string {
+  const facetAddress = deployLog[name]
+  if (!facetAddress) {
+    throw new Error(`No address found for facet in deploy log: ${name}`)
+  }
+  return facetAddress
+}
 
 runMain(command)
