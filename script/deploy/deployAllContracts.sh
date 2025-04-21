@@ -39,7 +39,7 @@ deployAllContracts() {
   local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
 
-  # # deploy core facets
+  # deploy core facets
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"
   echo ""
 
