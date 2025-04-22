@@ -39,6 +39,7 @@ deployAndStoreCREATE3Factory() {
   local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
 	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f $NETWORK -vvvv --verify --json --legacy --broadcast --skip-simulation --gas-limit 2000000)
 	RETURN_CODE=$?
+  echo "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
 	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
 	RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
 
@@ -49,10 +50,10 @@ deployAndStoreCREATE3Factory() {
 
 
   # obtain deployed-to address
-	FACTORY_ADDRESS=$(echo $RETURN_DATA | jq -r '.factory.value')
+	FACTORY_ADDRESS=$(echo $RETURN_DATA | jq -r '.deployed.value')
 	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
 
-  if [[ -z "$FACTORY_ADDRESS" ]]; then
+  if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null"  ]]; then
     error "Failed to obtain deployed contract address for CREATE3Factory on $NETWORK ($ENVIRONMENT)"
     return 1
   fi
