@@ -14,6 +14,7 @@ import type {
   TransactionRequest,
   SignTypedDataParameters,
 } from 'viem'
+import { serializeTypedData } from 'viem'
 import consola from 'consola'
 
 /**
@@ -148,9 +149,7 @@ function createLedgerAccount({
         const rawTxHex = serializedTx.slice(2)
 
         // Import Ledger transaction resolution service
-        const {
-          default: { ledgerService },
-        } = await import('@ledgerhq/hw-app-eth')
+        const { ledgerService } = await import('@ledgerhq/hw-app-eth')
 
         // First, resolve the transaction to provide metadata to the Ledger
         consola.log('Resolving transaction with Ledger service...')
@@ -217,20 +216,14 @@ function createLedgerAccount({
       const eth = new Eth(transport)
 
       // Encode the typed data according to EIP-712
-      const domainSeparator = params.domain
-      const types = params.types
-      const message = params.message
-
       // Sign the typed data with Ledger
       // Note: Some Ledger firmware versions might not support all EIP-712 features
-      const result = await eth.signEIP712HashedMessage(
-        derivationPath,
-        JSON.stringify({
-          domain: domainSeparator,
-          types,
-          message,
-        })
-      )
+      const result = await eth.signEIP712Message(derivationPath, {
+        domain: params.domain,
+        types: params.types,
+        primaryType: params.primaryType,
+        message: params.message,
+      })
 
       // Format the signature
       return `0x${result.r}${result.s}${result.v.toString(16)}`
