@@ -23,6 +23,7 @@ uint160 constant MIN_SQRT_RATIO = 4295128739;
 uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
 uint8 constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+uint8 constant CALLBACK_ENABLED = 1;
 
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
@@ -780,7 +781,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
-        bool callback = stream.readUint8() == 1; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
+        bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
         if (from == INTERNAL_INPUT_SOURCE) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
