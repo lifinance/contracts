@@ -766,7 +766,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     /// @notice Performs a swap through VelodromeV2 pools
     /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
-    /// @param stream [pool, direction, to, fee (not used), stable (not used), callback]
+    /// @param stream [pool, direction, to, callback]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
