@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # deploys a CREATE3Factory
-# stores the address in deploy log as well as in networks.json
+# stores the deployed-to address in networks.json
 deployAndStoreCREATE3Factory() {
   echo ""
   echo ""
@@ -10,7 +10,6 @@ deployAndStoreCREATE3Factory() {
   # load config & helper functions
   source script/config.sh
   source script/helperFunctions.sh
-  source script/deploy/deploySingleContract.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -42,10 +41,11 @@ deployAndStoreCREATE3Factory() {
 		return 1
 	fi
 
+
+  # obtain deployed-to address
 	FACTORY_ADDRESS=$(echo $RETURN_DATA | jq -r '.factory.value')
 	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
 
-  # obtain deployed-to address and store it in networks.json
   if [[ -z "$FACTORY_ADDRESS" ]]; then
     error "Failed to obtain deployed contract address for CREATE3Factory on $NETWORK ($ENVIRONMENT)"
     return 1
