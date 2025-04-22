@@ -45,93 +45,93 @@ deployAllContracts() {
   checkFailure $? "deploy CREATE3Factory to network $NETWORK"
   echo ""
 
-  # # deploy core facets
-  # deployCoreFacets "$NETWORK" "$ENVIRONMENT"
-  # echo ""
+  # deploy core facets
+  deployCoreFacets "$NETWORK" "$ENVIRONMENT"
+  echo ""
 
-  # # get current diamond contract version
-  # local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
+  # get current diamond contract version
+  local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
 
-  # # deploy diamond
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $DIAMOND_CONTRACT_NAME now"
-  # deploySingleContract "$DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true"
+  # deploy diamond
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $DIAMOND_CONTRACT_NAME now"
+  deploySingleContract "$DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true"
 
-  # # check if last command was executed successfully, otherwise exit script with error message
-  # checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
+  # check if last command was executed successfully, otherwise exit script with error message
+  checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
 
-  # # update diamond with core facets
-  # echo ""
-  # echo ""
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
-  # diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
+  # update diamond with core facets
+  echo ""
+  echo ""
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
 
-  # # check if last command was executed successfully, otherwise exit script with error message
-  # checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
+  # check if last command was executed successfully, otherwise exit script with error message
+  checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
-  # # approve refund wallet to execute refund-related functions
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving refund wallet to execute functions listed in config/global.json"
-  # updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveRefundWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
-  # checkFailure $? "update approve refund wallet to execute refund-related functions"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< refund wallet approved"
+  # approve refund wallet to execute refund-related functions
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving refund wallet to execute functions listed in config/global.json"
+  updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveRefundWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
+  checkFailure $? "update approve refund wallet to execute refund-related functions"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< refund wallet approved"
 
-  # # approve deployer wallet to execute config-related functions
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving deployer wallet to execute functions listed in config/global.json"
-  # updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveDeployerWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
-  # checkFailure $? "update approve deployer wallet to execute config-related functions"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployer wallet approved"
+  # approve deployer wallet to execute config-related functions
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving deployer wallet to execute functions listed in config/global.json"
+  updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveDeployerWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
+  checkFailure $? "update approve deployer wallet to execute config-related functions"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployer wallet approved"
 
-  # # deploy all non-core facets (that are in target_state.JSON) and add to diamond
-  # echo ""
-  # echo ""
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying non-core facets and adding to diamond contract"
-  # # get all facet contract names
-  # local FACETS_PATH="$CONTRACT_DIRECTORY""Facets/"
+  # deploy all non-core facets (that are in target_state.JSON) and add to diamond
+  echo ""
+  echo ""
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying non-core facets and adding to diamond contract"
+  # get all facet contract names
+  local FACETS_PATH="$CONTRACT_DIRECTORY""Facets/"
 
-  # # prepare regExp to exclude core facets
-  # CORE_FACETS_OUTPUT=$(getCoreFacetsArray)
-  # checkFailure $? "retrieve core facets array from global.json"
+  # prepare regExp to exclude core facets
+  CORE_FACETS_OUTPUT=$(getCoreFacetsArray)
+  checkFailure $? "retrieve core facets array from global.json"
 
-  # local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
+  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
-  # # loop through facet contract names
-  # for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
-  #   if ! [[ "$FACET_NAME" =~ $EXCLUDED_FACETS_REGEXP ]]; then
-  #     # check if facet is existing in target state JSON
-  #     TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME")
+  # loop through facet contract names
+  for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
+    if ! [[ "$FACET_NAME" =~ $EXCLUDED_FACETS_REGEXP ]]; then
+      # check if facet is existing in target state JSON
+      TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME")
 
-  #     # check result
-  #     if [[ $? -ne 0 ]]; then
-  #       echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$FACET_NAME >> no deployment needed"
-  #     else
-  #       # deploy facet and add to diamond
-  #       deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
-  #     fi
-  #   fi
-  # done
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< non-core facets part completed"
+      # check result
+      if [[ $? -ne 0 ]]; then
+        echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$FACET_NAME >> no deployment needed"
+      else
+        # deploy facet and add to diamond
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
+      fi
+    fi
+  done
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< non-core facets part completed"
 
-  # # deploy periphery
-  # deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  # deploy periphery
+  deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
-  # # update periphery registry
-  # diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
+  # update periphery registry
+  diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
-  # # add core periphery addresses to dexs.json for whitelisting in subsequent steps
-  # addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
+  # add core periphery addresses to dexs.json for whitelisting in subsequent steps
+  addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
 
-  # # run sync dexs script
-  # echo ""
-  # diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  # run sync dexs script
+  echo ""
+  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
-  # # run sync sigs script
-  # echo ""
-  # diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  # run sync sigs script
+  echo ""
+  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
-  # # register Executor as authorized caller in ERC20Proxy
-  # echo ""
-  # updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+  # register Executor as authorized caller in ERC20Proxy
+  echo ""
+  updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
