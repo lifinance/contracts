@@ -3,6 +3,12 @@
 # deploys a CREATE3Factory
 # stores the deployed-to address in networks.json
 deployAndStoreCREATE3Factory() {
+  # make sure script was called with sufficient parameters
+  if [ "$#" -lt 2 ]; then
+    error "Usage: deployAndStoreCREATE3Factory <NETWORK> <ENVIRONMENT>"
+    return 1
+  fi
+
   echo ""
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying CREATE3Factory now...."
@@ -30,8 +36,8 @@ deployAndStoreCREATE3Factory() {
   echo ""
 
   # deploy CREATE3Factory
-  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-	RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f $NETWORK -vvvv --verify --json --legacy --broadcast --skip-simulation --gas-limit 2000000)
+  local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f $NETWORK -vvvv --verify --json --legacy --broadcast --skip-simulation --gas-limit 2000000)
 	RETURN_CODE=$?
 	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
 	RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
