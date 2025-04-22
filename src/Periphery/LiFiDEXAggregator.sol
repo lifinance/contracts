@@ -5,6 +5,7 @@ pragma solidity ^0.8.17;
 import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -487,21 +488,18 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bool zeroForOne = stream.readUint8() > 0;
         address recipient = stream.readAddress();
 
-        uint256 balBefore = IERC20(tokenIn).balanceOf(pool);
         if (from == msg.sender)
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
                 address(this),
                 uint256(amountIn)
             );
-        uint256 balAfter = IERC20(tokenIn).balanceOf(pool);
-        uint256 actualIn = balAfter - balBefore;
 
         lastCalledPool = pool;
         IUniswapV3Pool(pool).swap(
             recipient,
             zeroForOne,
-            int256(actualIn),
+            int256(amountIn),
             zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
             abi.encode(tokenIn)
         );
