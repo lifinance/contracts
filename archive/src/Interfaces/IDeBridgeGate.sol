@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @title Interface for DeBridgeGate
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IDeBridgeGate {
     /// @param fixedNativeFee Transfer fixed fee.
     /// @param isSupported Whether the chain for the asset is supported.

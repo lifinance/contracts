@@ -1,25 +1,28 @@
 {
   "bridges": {
     "mainnet": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "arbitrum": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "avalanche": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "base": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "bsc": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
+    },
+    "linea": {
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "optimism": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "polygon": {
-      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+      "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"
     },
     "unichain": {
       "bridge": "0x337685fdaB40D39bd02028545a4FfA7D287cC3E2"

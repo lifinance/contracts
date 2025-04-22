@@ -108,7 +108,8 @@ scriptMaster() {
       "9) Review deploy status (vs. target state)" \
       "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
       "11) Update diamond log(s)" \
-      "12) Propose upgrade TX to Gnosis SAFE"
+      "12) Propose upgrade TX to Gnosis SAFE" \
+      "13) Remove facets or periphery from diamond"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -134,8 +135,8 @@ scriptMaster() {
     # Handle ZkSync
     # We need to make sure that the zksync fork of foundry is available before
     # we can deploy contracts to zksync.
-    if [[ $NETWORK == "zksync" ]]; then
-      # update the deploy script directory to point to zksync-specific scripts
+    if isZkEvmNetwork "$NETWORK"; then
+      # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
@@ -146,7 +147,7 @@ scriptMaster() {
       SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     fi
 
-    # extract contract name
+    # get user-selected deploy script and contract from list
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for
@@ -522,7 +523,10 @@ scriptMaster() {
   # use case 12: Propose upgrade TX to Gnosis SAFE
   elif [[ "$SELECTION" == "12)"* ]]; then
     deployUpgradesToSAFE $ENVIRONMENT
-
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 13: Remove facets or periphery from diamond
+  elif [[ "$SELECTION" == "13)"* ]]; then
+    bun script/tasks/cleanUpProdDiamond.ts
 
   else
     error "invalid use case selected ('$SELECTION') - exiting script"

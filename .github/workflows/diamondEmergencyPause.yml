@@ -60,6 +60,7 @@ jobs:
           ETH_NODE_URI_BOBA: ${{ secrets.ETH_NODE_URI_BOBA }}
           ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
           ETH_NODE_URI_CELO: ${{ secrets.ETH_NODE_URI_CELO }}
+          ETH_NODE_URI_CORN: ${{ secrets.ETH_NODE_URI_CORN }}
           ETH_NODE_URI_FANTOM: ${{ secrets.ETH_NODE_URI_FANTOM }}
           ETH_NODE_URI_FRAXTAL: ${{ secrets.ETH_NODE_URI_FRAXTAL }}
           ETH_NODE_URI_FUSE: ${{ secrets.ETH_NODE_URI_FUSE }}
@@ -68,6 +69,7 @@ jobs:
           ETH_NODE_URI_IMMUTABLEZKEVM: ${{ secrets.ETH_NODE_URI_IMMUTABLEZKEVM }}
           ETH_NODE_URI_INK: ${{ secrets.ETH_NODE_URI_INK }}
           ETH_NODE_URI_KAIA: ${{ secrets.ETH_NODE_URI_KAIA }}
+          ETH_NODE_URI_LENS: ${{ secrets.ETH_NODE_URI_LENS }}
           ETH_NODE_URI_LINEA: ${{ secrets.ETH_NODE_URI_LINEA }}
           ETH_NODE_URI_LISK: ${{ secrets.ETH_NODE_URI_LISK }}
           ETH_NODE_URI_MANTLE: ${{ secrets.ETH_NODE_URI_MANTLE }}
@@ -84,6 +86,7 @@ jobs:
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
           ETH_NODE_URI_SONEIUM: ${{ secrets.ETH_NODE_URI_SONEIUM }}
           ETH_NODE_URI_SONIC: ${{ secrets.ETH_NODE_URI_SONIC }}
+          ETH_NODE_URI_SWELLCHAIN: ${{ secrets.ETH_NODE_URI_SWELLCHAIN }}
           ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
           ETH_NODE_URI_UNICHAIN: ${{ secrets.ETH_NODE_URI_UNICHAIN }}
           ETH_NODE_URI_WORLDCHAIN: ${{ secrets.ETH_NODE_URI_WORLDCHAIN }}

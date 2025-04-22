@@ -91,6 +91,10 @@
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
+  "soneium": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
   "sonic": {
     "metaRouter": "0xda8057acB94905eb6025120cB2c38415Fd81BfEB",
     "gateway": "0xb7aF032a0C8d350705eD7E4E3802377731a0cA07"

@@ -1459,7 +1459,7 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
@@ -1468,7 +1468,7 @@ function verifyContract() {
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1479,14 +1479,14 @@ function verifyContract() {
       # case: verify with constructor arguments
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
         fi
       else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1507,16 +1507,32 @@ function verifyContract() {
   fi
 
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract \
-    "$ADDRESS" \
-    "$CONTRACT" \
-    --chain-id "$CHAIN_ID" \
-    --verifier  sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   echo "[info] checking Sourcify verification now"
-  forge verify-check $ADDRESS \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-check $ADDRESS \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   if [ $? -ne 0 ]; then
     # verification apparently failed
@@ -2862,6 +2878,31 @@ function getPrivateKey() {
     fi
   fi
 }
+function isZkEvmNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in networks.json
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  # Check if isZkEVM property exists for this network
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "isZkEVM property not defined for network '$NETWORK' in networks.json"
+    return 1
+  fi
+
+  # Get the isZkEVM value
+  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
+
+  if [[ "$IS_ZK_EVM" == "true" ]]; then
+    return 0  # Success (true)
+  else
+    return 1  # Failure (false)
+  fi
+}
 
 function getChainId() {
   local NETWORK="$1"
@@ -3592,7 +3633,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+  local FOUNDRY_ZKSYNC_VERSION="nightly-ae9cfd10d906b5ab350258533219da1f4775c118"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -3642,7 +3683,7 @@ install_foundry_zksync() {
 
   # Construct download URL using the specified version
   local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_nightly_${os}_${arch}.tar.gz"
+  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist
