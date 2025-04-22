@@ -23877,6 +23877,20 @@
           }
         ]
       }
+    },
+    "soneium": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2F7dFE6dD24e76c44c24f98c8aDA0c46c5C9B753",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-22 09:06:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {
