@@ -221,7 +221,7 @@
       "auditCompletedOn": "22.04.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.04.22_LiFiDEXAggregator(v1.8.0).pdf",
+      "auditReportPath": "./audit/reports/2025.04.22_LiFiDexAggregator(v1.8.0).pdf",
       "auditCommitHash": "eef8eac61b8cfcc6a623a5a83c9c3910e25adb91"
     }
   },
