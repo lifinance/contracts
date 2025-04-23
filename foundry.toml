@@ -69,6 +69,7 @@ sei = "${ETH_NODE_URI_SEI}"
 soneium = "${ETH_NODE_URI_SONEIUM}"
 sonic = "${ETH_NODE_URI_SONIC}"
 superposition = "${ETH_NODE_URI_SUPERPOSITION}"
+swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 velas = "${ETH_NODE_URI_VELAS}"
 unichain = "${ETH_NODE_URI_UNICHAIN}"
@@ -120,8 +121,10 @@ rootstock= { key = "${ROOTSTOCK_ETHERSCAN_API_KEY}", url = "https://rootstock.bl
 scroll = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = "534352" }
 sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
 soneium = { key = "${SONEIUM_ETHERSCAN_API_KEY}", url = "https://soneium.blockscout.com/api", verifier = "blockscout", chain = "1868" }
+sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
 sonic = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=146", chain = "146" }
 superposition = { key = "${SUPERPOSITION_ETHERSCAN_API_KEY}", url = "https://explorer-superposition-1v9rjalnat.t.conduit.xyz/api/", chain = "55244", verifier = "blockscout" }
+swellchain = { key = "${SWELLCHAIN_ETHERSCAN_API_KEY}", url = "https://api.swellchainscan.io/api", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 unichain = { key = "${UNICHAIN_ETHERSCAN_API_KEY}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
