@@ -45,18 +45,19 @@ deployAndStoreCREATE3Factory() {
   echo "CLEAN_RETURN_DATA: "$CLEAN_RETURN_DATA""
 	RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
 
-  if [[ -z "$RETURN_DATA" || "$RETURN_DATA" == "null" ]]; then
-    error "Deployment succeeded but no return data found"
-    return 1
-  fi
-
+  # check if deployment was successful
 	if [[ $RETURN_CODE -ne 0 ]]; then
 		error "❌ Deployment of CREATE3Factory failed"
 		return 1
 	fi
 
+  # check if return data is available
+  if [[ -z "$RETURN_DATA" || "$RETURN_DATA" == "null" ]]; then
+    error "Deployment (apparently) succeeded but no return data found"
+    return 1
+  fi
 
-  # obtain deployed-to address
+  # obtain deployed-to address from return data
 	FACTORY_ADDRESS=$(echo "$RETURN_DATA" | jq -r '.deployed.value')
 	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
 
