@@ -40,9 +40,15 @@ deployAndStoreCREATE3Factory() {
   local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
 	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f $NETWORK -vvvv --verify --json --legacy --broadcast --skip-simulation --gas-limit 2000000)
 	RETURN_CODE=$?
-	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-  echo "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
-	RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+  unset PRIVATE_KEY
+	CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
+  echo "CLEAN_RETURN_DATA: "$CLEAN_RETURN_DATA""
+	RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
+
+  if [[ -z "$RETURN_DATA" || "$RETURN_DATA" == "null" ]]; then
+    error "Deployment succeeded but no return data found"
+    return 1
+  fi
 
 	if [[ $RETURN_CODE -ne 0 ]]; then
 		error "❌ Deployment of CREATE3Factory failed"
@@ -51,7 +57,7 @@ deployAndStoreCREATE3Factory() {
 
 
   # obtain deployed-to address
-	FACTORY_ADDRESS=$(echo $RETURN_DATA | jq -r '.deployed.value')
+	FACTORY_ADDRESS=$(echo "$RETURN_DATA" | jq -r '.deployed.value')
 	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
 
   if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null"  ]]; then
