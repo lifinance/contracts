@@ -242,6 +242,7 @@
         "LiFiDEXAggregator": "1.6.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.2",
+        "GasZipPeriphery": "1.0.1",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.0.0",
