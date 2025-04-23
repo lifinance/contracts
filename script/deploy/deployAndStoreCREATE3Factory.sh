@@ -45,7 +45,7 @@ deployAndStoreCREATE3Factory() {
 	RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
 
 	if [[ $RETURN_CODE -ne 0 ]]; then
-		echo "❌ Error: deployment was not successful"
+		error "❌ Deployment of CREATE3Factory failed"
 		return 1
 	fi
 
