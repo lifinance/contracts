@@ -29502,6 +29502,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "2.0.3": [
+          {
+            "ADDRESS": "0x37f3F3E9d909fB1163448C511193b8481e541C62",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-03-21 12:24:59",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "avalanche": {
