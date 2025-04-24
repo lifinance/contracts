@@ -53,7 +53,7 @@ library LibAsset {
     }
 
     /// @notice If the current allowance is insufficient, the allowance for a given spender
-    /// is set to MAX_UINT.
+    ///         is set to MAX_UINT.
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param amount allowance amount required for current transaction
@@ -66,7 +66,7 @@ library LibAsset {
     }
 
     /// @notice If the current allowance is insufficient, the allowance for a given spender
-    /// is set to the amount provided
+    ///         is set to the amount provided
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param requiredAllowance Allowance required for current transaction
@@ -182,13 +182,19 @@ library LibAsset {
             : transferERC20(assetId, recipient, amount);
     }
 
-    /// @dev Checks whether the given address is a contract and contains code
-    function isContract(address _contractAddr) internal view returns (bool) {
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
+    /// @notice Checks if the given address is a contract.
+    ///         Limitations:
+    ///         - Still returns false during construction phase of a contract
+    ///         - Cannot distinguish between EOA and self-destructed contract
+    /// @param account The address to be checked
+    function isContract(address account) internal view returns (bool) {
+        bytes32 codehash;
+        bytes32 accountHash = 0x0; // Old value: keccak256('') – sometimes used, but 0x0 is more common post-EIP-1052
+
         assembly {
-            size := extcodesize(_contractAddr)
+            codehash := extcodehash(account)
         }
-        return size > 0;
+
+        return (codehash != 0x0 && codehash != accountHash);
     }
 }
