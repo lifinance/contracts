@@ -1341,7 +1341,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
