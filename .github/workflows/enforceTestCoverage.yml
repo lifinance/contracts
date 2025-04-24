@@ -63,7 +63,7 @@ jobs:
       - name: Generate Coverage Report
         if: env.solidity_changed == 'true'
         run: |
-          forge coverage --report lcov --force --evm-version 'shanghai' --ir-minimum
+          forge coverage --report lcov --force --ir-minimum
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
