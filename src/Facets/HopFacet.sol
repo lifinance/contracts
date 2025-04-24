@@ -6,14 +6,14 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -147,12 +147,14 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         Storage storage s = getStorage();
         IHopBridge bridge = s.bridges[sendingAssetId];
 
-        // Give Hop approval to bridge tokens
-        LibAsset.maxApproveERC20(
-            IERC20(sendingAssetId),
-            address(bridge),
-            _bridgeData.minAmount
-        );
+        // Give Hop approval to bridge tokens (in case of ERC20)
+        if (!LibAsset.isNativeAsset(sendingAssetId)) {
+            LibAsset.maxApproveERC20(
+                IERC20(sendingAssetId),
+                address(bridge),
+                _bridgeData.minAmount
+            );
+        }
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
             ? _hopData.nativeFee + _bridgeData.minAmount
