@@ -134,7 +134,7 @@ library LibAsset {
     /// @param amount Amount to transfer from owner
     function depositAsset(address assetId, uint256 amount) internal {
         // make sure a meaningful amount was provided
-        if (amount == 0) revert InvalidAmount(); // TODO: CAN THIS BE REMOVED?
+        if (amount == 0) revert InvalidAmount();
 
         // check if native asset
         if (isNativeAsset(assetId)) {
