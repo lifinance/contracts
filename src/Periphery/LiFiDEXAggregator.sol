@@ -493,15 +493,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         IPool(pool).swap(swapData);
     }
 
-    /// @notice Returns true if `token` looks like an ERC4626 vault
-    function _isERC4626(address token) internal view returns (bool) {
-        // try a no-state-change view call with a dummy arg
-        (bool ok, ) = token.staticcall(
-            abi.encodeWithSelector(_SHARES_TO_ASSETS, uint256(1))
-        );
-        return ok;
-    }
-
     /// @notice UniswapV3 pool swap
     /// @param stream [pool, direction, recipient]
     /// @param from Where to take liquidity for swap
