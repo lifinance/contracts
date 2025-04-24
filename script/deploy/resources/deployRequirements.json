@@ -99,12 +99,12 @@
   "ArbitrumBridgeFacet": {
     "configData": {
       "_gatewayRouter": {
-        "configFileName": "arbitrum.json",
+        "configFileName": "arbitrumBridge.json",
         "keyInConfigFile": ".<NETWORK>.gatewayRouter",
         "allowToDeployWithZeroAddress": "false"
       },
       "_inbox": {
-        "configFileName": "arbitrum.json",
+        "configFileName": "arbitrumBridge.json",
         "keyInConfigFile": ".<NETWORK>.inbox",
         "allowToDeployWithZeroAddress": "false"
       }
