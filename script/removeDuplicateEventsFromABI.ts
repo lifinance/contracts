@@ -44,7 +44,7 @@ interface Event {
   anonymous: boolean
 }
 
-async function cleanABI() {
+async function removeDuplicateEventsFromABI() {
   // Files that we know have duplicate events
   const filesToClean = [
     'out/OwnershipFacet.sol/OwnershipFacet.json',
@@ -80,4 +80,4 @@ async function cleanABI() {
   }
 }
 
-cleanABI().catch(console.error)
+removeDuplicateEventsFromABI().catch(console.error)
