@@ -188,13 +188,26 @@ library LibAsset {
     ///         - Cannot distinguish between EOA and self-destructed contract
     /// @param account The address to be checked
     function isContract(address account) internal view returns (bool) {
+        uint256 size;
         bytes32 codehash;
-        bytes32 accountHash = keccak256("");
+        bytes3 delegationDesignator = 0xef0100;
+        bytes memory code = new bytes(3);
+        bytes32 emptyHash = keccak256("");
 
+        // use assembly to get codesize and codehash
         assembly {
+            size := extcodesize(account)
+            extcodecopy(account, add(code, 32), 0, 3)
             codehash := extcodehash(account)
         }
 
-        return codehash != accountHash;
+        // Check for delegation designator prefix (0xef0100) >> EIP7702
+        bytes3 prefix = bytes3(code);
+        if (prefix == delegationDesignator) {
+            return true;
+        }
+
+        // Traditional check for contract code
+        return (size > 0 && codehash != emptyHash);
     }
 }
