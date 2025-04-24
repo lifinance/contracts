@@ -75,8 +75,12 @@ async function removeDuplicateEventsFromABI() {
 
     // Update the ABI in the file
     content.abi = cleanedABI
-    await fs.writeJson(file, content, { spaces: 2 })
-    console.log(`Cleaned duplicate events from ${file}`)
+    try {
+      await fs.writeJson(file, content, { spaces: 2 })
+      console.log(`Cleaned duplicate events from ${file}`)
+    } catch (error) {
+      console.error(`Error writing to ${file}:`, error instanceof Error ? error.message : String(error))
+    }
   }
 }
 
