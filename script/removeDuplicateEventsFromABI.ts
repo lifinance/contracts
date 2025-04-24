@@ -57,8 +57,22 @@ async function removeDuplicateEventsFromABI() {
       continue
     }
 
-    const content = await fs.readJson(file)
-    const abi = content.abi as any[]
+    let content
+    let abi
+    try {
+      content = await fs.readJson(file)
+      if (!content.abi || !Array.isArray(content.abi)) {
+        console.error(`Invalid ABI format in ${file}, skipping...`)
+        continue
+      }
+      abi = content.abi as any[]
+    } catch (error) {
+      console.error(
+        `Error reading ${file}:`,
+        error instanceof Error ? error.message : String(error)
+      )
+      continue
+    }
 
     // Track seen events to remove duplicates
     const seenEvents = new Map<string, Event>()
