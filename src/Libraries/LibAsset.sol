@@ -15,8 +15,6 @@ library LibAsset {
     using SafeTransferLib for address;
     using SafeTransferLib for address payable;
 
-    uint256 private constant MAX_UINT = type(uint256).max;
-
     address internal constant NULL_ADDRESS = address(0);
 
     address internal constant NON_EVM_ADDRESS =
@@ -25,7 +23,7 @@ library LibAsset {
     /// @dev All native assets use the empty address for their asset id
     ///      by convention
 
-    address internal constant NATIVE_ASSETID = NULL_ADDRESS; //address(0)
+    address internal constant NATIVE_ASSETID = NULL_ADDRESS;
 
     /// @notice Gets the balance of the inheriting contract for the given asset
     /// @param assetId The asset identifier to get the balance of
@@ -35,6 +33,25 @@ library LibAsset {
             isNativeAsset(assetId)
                 ? address(this).balance
                 : assetId.balanceOf(address(this));
+    }
+
+    /// @notice Wrapper function to transfer a given asset (native or erc20) to
+    ///         some recipient. Should handle all non-compliant return value
+    ///         tokens as well by using the SafeERC20 contract by open zeppelin.
+    /// @param assetId Asset id for transfer (address(0) for native asset,
+    ///                token address for erc20s)
+    /// @param recipient Address to send asset to
+    /// @param amount Amount to send to given recipient
+    function transferAsset(
+        address assetId,
+        address payable recipient,
+        uint256 amount
+    ) internal {
+        if (isNativeAsset(assetId)) {
+            transferNativeAsset(recipient, amount);
+        } else {
+            transferERC20(assetId, recipient, amount);
+        }
     }
 
     /// @notice Transfers ether from the inheriting contract to a given
@@ -50,45 +67,6 @@ library LibAsset {
 
         // transfer native asset (will revert if target reverts or contract has insufficient balance)
         recipient.safeTransferETH(amount);
-    }
-
-    /// @notice If the current allowance is insufficient, the allowance for a given spender
-    ///         is set to MAX_UINT.
-    /// @param assetId Token address to transfer
-    /// @param spender Address to give spend approval to
-    /// @param amount allowance amount required for current transaction
-    function maxApproveERC20(
-        IERC20 assetId,
-        address spender,
-        uint256 amount
-    ) internal {
-        approveERC20(assetId, spender, amount, type(uint256).max);
-    }
-
-    /// @notice If the current allowance is insufficient, the allowance for a given spender
-    ///         is set to the amount provided
-    /// @param assetId Token address to transfer
-    /// @param spender Address to give spend approval to
-    /// @param requiredAllowance Allowance required for current transaction
-    /// @param setAllowanceTo The amount the allowance should be set to if current allowance is insufficient
-    function approveERC20(
-        IERC20 assetId,
-        address spender,
-        uint256 requiredAllowance,
-        uint256 setAllowanceTo
-    ) internal {
-        // make sure a meaningful spender address was provided
-        if (spender == NULL_ADDRESS) {
-            revert NullAddrIsNotAValidSpender();
-        }
-
-        // check if allowance is sufficient, otherwise set allowance to provided amount
-        // If the initial attempt to approve fails, attempts to reset the approved amount to zero,
-        // then retries the approval again (some tokens, e.g. USDT, requires this).
-        // Reverts upon failure
-        if (assetId.allowance(address(this), spender) < requiredAllowance) {
-            address(assetId).safeApproveWithRetry(spender, setAllowanceTo);
-        }
     }
 
     /// @notice Transfers tokens from the inheriting contract to a given recipient
@@ -158,28 +136,50 @@ library LibAsset {
         }
     }
 
+    /// @notice If the current allowance is insufficient, the allowance for a given spender
+    ///         is set to MAX_UINT.
+    /// @param assetId Token address to transfer
+    /// @param spender Address to give spend approval to
+    /// @param amount allowance amount required for current transaction
+    function maxApproveERC20(
+        IERC20 assetId,
+        address spender,
+        uint256 amount
+    ) internal {
+        approveERC20(assetId, spender, amount, type(uint256).max);
+    }
+
+    /// @notice If the current allowance is insufficient, the allowance for a given spender
+    ///         is set to the amount provided
+    /// @param assetId Token address to transfer
+    /// @param spender Address to give spend approval to
+    /// @param requiredAllowance Allowance required for current transaction
+    /// @param setAllowanceTo The amount the allowance should be set to if current allowance is insufficient
+    function approveERC20(
+        IERC20 assetId,
+        address spender,
+        uint256 requiredAllowance,
+        uint256 setAllowanceTo
+    ) internal {
+        // make sure a meaningful spender address was provided
+        if (spender == NULL_ADDRESS) {
+            revert NullAddrIsNotAValidSpender();
+        }
+
+        // check if allowance is sufficient, otherwise set allowance to provided amount
+        // If the initial attempt to approve fails, attempts to reset the approved amount to zero,
+        // then retries the approval again (some tokens, e.g. USDT, requires this).
+        // Reverts upon failure
+        if (assetId.allowance(address(this), spender) < requiredAllowance) {
+            address(assetId).safeApproveWithRetry(spender, setAllowanceTo);
+        }
+    }
+
     /// @notice Determines whether the given assetId is the native asset
     /// @param assetId The asset identifier to evaluate
     /// @return Boolean indicating if the asset is the native asset
     function isNativeAsset(address assetId) internal pure returns (bool) {
         return assetId == NATIVE_ASSETID;
-    }
-
-    /// @notice Wrapper function to transfer a given asset (native or erc20) to
-    ///         some recipient. Should handle all non-compliant return value
-    ///         tokens as well by using the SafeERC20 contract by open zeppelin.
-    /// @param assetId Asset id for transfer (address(0) for native asset,
-    ///                token address for erc20s)
-    /// @param recipient Address to send asset to
-    /// @param amount Amount to send to given recipient
-    function transferAsset(
-        address assetId,
-        address payable recipient,
-        uint256 amount
-    ) internal {
-        isNativeAsset(assetId)
-            ? transferNativeAsset(recipient, amount)
-            : transferERC20(assetId, recipient, amount);
     }
 
     /// @notice Checks if the given address is a contract.
@@ -195,6 +195,6 @@ library LibAsset {
             codehash := extcodehash(account)
         }
 
-        return (codehash != 0x0 && codehash != accountHash);
+        return codehash != accountHash;
     }
 }
