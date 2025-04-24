@@ -189,7 +189,7 @@ library LibAsset {
     /// @param account The address to be checked
     function isContract(address account) internal view returns (bool) {
         bytes32 codehash;
-        bytes32 accountHash = 0x0; // Old value: keccak256('') – sometimes used, but 0x0 is more common post-EIP-1052
+        bytes32 accountHash = keccak256("");
 
         assembly {
             codehash := extcodehash(account)

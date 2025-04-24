@@ -104,8 +104,12 @@ contract LibAssetTest is TestBase {
         assertEq(result, true);
     }
     function test_isNotAContract() public {
-        bool result = implementer.isContract(USER_SENDER);
+        bool result = implementer.isContract(address(0));
 
-        assertEq(result, true);
+        assertEq(result, false);
+
+        result = implementer.isContract(USER_SENDER);
+
+        assertEq(result, false);
     }
 }

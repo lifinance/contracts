@@ -158,7 +158,7 @@ contract OptimismBridgeFacetTest is TestBase {
 
         dai.transfer(USDC_HOLDER, dai.balanceOf(DAI_L1_HOLDER));
 
-        vm.expectRevert(abi.encodeWithSelector(TransferFromFailed.selector));
+        vm.expectRevert(TransferFromFailed.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
             validBridgeData,
             validOptimismData

@@ -20,7 +20,7 @@ contract TestHopFacet is HopFacet {
     }
 }
 
-contract HopFacetTest1 is TestBaseFacet {
+contract HopFacetTest is TestBaseFacet {
     // EVENTS
     event HopBridgeRegistered(address indexed assetId, address bridge);
     event HopInitialized(HopFacet.Config[] configs);

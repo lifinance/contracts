@@ -5,8 +5,7 @@ import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
-
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GnosisBridgeFacet Contract
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
