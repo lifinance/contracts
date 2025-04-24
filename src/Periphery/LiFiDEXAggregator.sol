@@ -5,6 +5,7 @@ pragma solidity ^0.8.17;
 import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IAlgebraPool } from "../Interfaces/IAlgebraPool.sol";
 import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -20,6 +21,11 @@ uint8 constant NOT_PAUSED = 1;
 uint160 constant MIN_SQRT_RATIO = 4295128739;
 /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
 uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+
+/// @dev selector for IERC4626.sharesToAssets(uint256)
+bytes4 constant _SHARES_TO_ASSETS = bytes4(
+    keccak256("sharesToAssets(uint256)")
+);
 
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
@@ -473,6 +479,15 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         IPool(pool).swap(swapData);
     }
 
+    /// @notice Returns true if `token` looks like an ERC4626 vault
+    function _isERC4626(address token) internal view returns (bool) {
+        // try a no-state-change view call with a dummy arg
+        (bool ok, ) = token.staticcall(
+            abi.encodeWithSelector(_SHARES_TO_ASSETS, uint256(1))
+        );
+        return ok;
+    }
+
     /// @notice UniswapV3 pool swap
     /// @param stream [pool, direction, recipient]
     /// @param from Where to take liquidity for swap
@@ -496,17 +511,32 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             );
 
         lastCalledPool = pool;
-        IUniswapV3Pool(pool).swap(
-            recipient,
-            zeroForOne,
-            int256(amountIn),
-            zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-            abi.encode(tokenIn)
-        );
+
+        if (_isERC4626(tokenIn)) {
+            console2.log("isERC4626");
+            // for vault-shares, use Algebra's fee-supporting entrypoint:
+            IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
+                address(this),
+                recipient,
+                zeroForOne,
+                int256(amountIn),
+                zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
+        } else {
+            IUniswapV3Pool(pool).swap(
+                recipient,
+                zeroForOne,
+                int256(amountIn),
+                zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
+        }
+
         require(
             lastCalledPool == IMPOSSIBLE_POOL_ADDRESS,
-            "RouteProcessor.swapUniV3: unexpected"
-        ); // Just to be sure
+            "RouteProcessor: unexpected"
+        );
     }
 
     /// @notice Called to `msg.sender` after executing a swap via IUniswapV3Pool#swap.
