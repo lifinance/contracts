@@ -4,6 +4,12 @@ pragma solidity ^0.8.17;
 /// @title IAlgebraPool Interface
 /// @notice Interface for Algebra pool with swap functionality
 interface IAlgebraPool {
+    /**
+     * @notice The first of the two tokens of the pool, sorted by address
+     * @return The token contract address
+     */
+    function token0() external view returns (address);
+
     /// @notice Swaps tokens supporting fee on input tokens
     /// @param sender The address of the sender
     /// @param recipient The address of the recipient
@@ -21,15 +27,6 @@ interface IAlgebraPool {
         uint160 limitSqrtPrice,
         bytes calldata data
     ) external returns (int256 amount0, int256 amount1);
-
-    /// @notice Returns the address of token0
-    /// @return The address of token0
-    function token0() external view returns (address);
-
-    /// @notice Returns the address of token1
-    /// @return The address of token1
-    function token1() external view returns (address);
-
     /// @notice Swaps tokens
     /// @param recipient The address of the recipient
     /// @param zeroForOne The direction of the swap, true for token0 to token1, false for token1 to token0

@@ -922,7 +922,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                 abi.encode(tokenIn)
             );
         } else {
-            // Standard ERC20 tokens use the regular swap path
             IAlgebraPool(pool).swap(
                 recipient,
                 direction,
@@ -933,7 +932,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         }
 
         if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS)
-            revert AlgebraSwapUnexpected(); // Use the Algebra-specific error
+            revert AlgebraSwapUnexpected();
     }
 }
 
