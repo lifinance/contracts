@@ -1341,7 +1341,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -2901,6 +2901,27 @@ function isZkEvmNetwork() {
     return 0  # Success (true)
   else
     return 1  # Failure (false)
+  fi
+}
+
+function isActiveMainnet() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in the JSON
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1  # false
+  fi
+
+  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
+  local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  # Check if both values are present and match required conditions
+  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+    return 0  # true
+  else
+    return 1  # false
   fi
 }
 

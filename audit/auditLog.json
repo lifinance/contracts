@@ -196,6 +196,13 @@
       "auditReportPath": "./audit/reports/2025.03.27_MayanFacet(v1.2.0).pdf",
       "auditCommitHash": "acc5becc02b9060a60b1135c9b25f3ccea8cbd31"
     },
+    "audit20250411": {
+      "auditCompletedOn": "11.04.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.04.11_LiFiDEXAggregator(v1.7.0).pdf",
+      "auditCommitHash": "f49cfdf2bfc6c0c2f5c83c65f9b5488dac975040"
+    },
     "audit20250413": {
       "auditCompletedOn": "13.04.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -209,6 +216,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.04.15_Permit2Proxy(v1.0.3).pdf",
       "auditCommitHash": "5b212bd302a7ec0c027c51753d6d5a9937f6769e"
+    },
+    "audit20250416": {
+      "auditCompletedOn": "16.04.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.04.16_GasZipFacet(v2.0.3).pdf",
+      "auditCommitHash": "74ad75cc34096244fa2da1e8d7647223c9fe5da5"
+    },
+    "audit20250422": {
+      "auditCompletedOn": "22.04.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.04.22_LiFiDexAggregator(v1.8.0).pdf",
+      "auditCommitHash": "eef8eac61b8cfcc6a623a5a83c9c3910e25adb91"
     }
   },
   "auditedContracts": {
@@ -248,7 +269,8 @@
     },
     "GasZipFacet": {
       "2.0.0": ["audit20241107"],
-      "2.0.2": ["audit20250110_1"]
+      "2.0.2": ["audit20250110_1"],
+      "2.0.3": ["audit20250416"]
     },
     "GasZipPeriphery": {
       "1.0.0": ["audit20241107"],
@@ -281,7 +303,9 @@
       "1.4.0": ["audit20250117_4"],
       "1.5.0": ["audit20241203"],
       "1.5.1": ["audit20250109_3"],
-      "1.6.0": ["audit20250109_2"]
+      "1.6.0": ["audit20250109_2"],
+      "1.7.0": ["audit20250411"],
+      "1.8.0": ["audit20250422"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2"]

@@ -25,6 +25,7 @@ jobs:
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
       ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      ETH_NODE_URI_OPTIMISM: ${{ secrets.ETH_NODE_URI_OPTIMISM }}
       ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
@@ -62,7 +63,7 @@ jobs:
       - name: Generate Coverage Report
         if: env.solidity_changed == 'true'
         run: |
-          forge coverage --report lcov --force --evm-version 'shanghai' --ir-minimum
+          forge coverage --report lcov --force --ir-minimum
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
