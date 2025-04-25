@@ -693,9 +693,4 @@ const main = defineCommand({
   },
 })
 
-// Run the command if executed directly
-if (require.main === module) {
-  runMain(main)
-}
-
-export { deploySafe }
+runMain(main)
