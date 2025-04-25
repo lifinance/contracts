@@ -306,7 +306,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @notice Call swap for all pools that swap from this token
     /// @param stream Streamed program
     function processOnePool(uint256 stream) private {
+        console2.log("processOnePool");
         address token = stream.readAddress();
+        console2.log("token", token);
         swap(stream, INTERNAL_INPUT_SOURCE, token, 0);
     }
 

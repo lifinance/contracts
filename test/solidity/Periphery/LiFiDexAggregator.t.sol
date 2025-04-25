@@ -14,7 +14,9 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { console2 } from "forge-std/console2.sol";
+
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
     event HookCalled(
         address sender,
@@ -1221,8 +1223,10 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
     // Override the abstract test with Algebra implementation
     function test_CanSwap_FromDexAggregator() public override {
-        // Fund dex aggregator contract with USDC
-        deal(APE_USD_TOKEN, address(liFiDEXAggregator), 100_000 * 1e6);
+        // Fund LDA from whale address
+        address whale = 0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b;
+        vm.prank(whale);
+        IERC20(APE_ETH_TOKEN).transfer(address(liFiDEXAggregator), 100 * 1e18);
 
         vm.startPrank(USER_SENDER);
 
@@ -1230,8 +1234,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             AlgebraSwapTestParams({
                 from: address(liFiDEXAggregator),
                 to: address(USER_SENDER),
-                tokenIn: APE_USD_TOKEN,
-                amountIn: IERC20(APE_USD_TOKEN).balanceOf(
+                tokenIn: APE_ETH_TOKEN,
+                amountIn: IERC20(APE_ETH_TOKEN).balanceOf(
                     address(liFiDEXAggregator)
                 ) - 1, // Adjust for slot undrain protection
                 tokenOut: address(WETH_TOKEN),
@@ -1340,122 +1344,16 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    // Override the abstract test with Algebra implementation
-    function test_CanSwap_MultiHop() public override {
-        // Setup a multi-hop swap: BORED -> WAPE -> CIF
-
-        address TOKEN_IN = 0x493a7A762Db6bb2A1CdC526697d37Ff9d32b0473;
-        address TOKEN_MID = 0x48b62137EdfA95a428D35C09E44256a739F6B557;
-        address TOKEN_OUT = 0x70bEe7Ca89300e9450Ecb6C083387132995152dd;
-        address pool1 = _getPool(TOKEN_IN, address(TOKEN_MID));
-        address pool2 = _getPool(address(TOKEN_MID), address(TOKEN_OUT));
-
-        vm.startPrank(0x6cc3737c48c4BeEef43ff88217AdB8c59f1E0d93); // Start acting as the whale address
-
-        // Transfer tokens from whale to USER_SENDER
-        uint256 amountToTransfer = 100 * 1e18;
-        IERC20(TOKEN_IN).transfer(USER_SENDER, amountToTransfer);
-
-        vm.stopPrank();
-        vm.startPrank(USER_SENDER);
-
-        // // Get expected output using QuoterV2 for the first hop
-        // uint256 expectedMidAmount = _getQuoteExactInput(
-        //     TOKEN_OUT,
-        //     address(WETH_TOKEN),
-        //     1_000 * 1e6
-        // );
-
-        // // Get expected output using QuoterV2 for the second hop
-        // uint256 expectedFinalAmount = _getQuoteExactInput(
-        //     address(WETH_TOKEN),
-        //     address(TOKEN_MID),
-        //     expectedMidAmount
-        // );
-
-        AlgebraMultiHopTestParams memory params = AlgebraMultiHopTestParams({
-            tokenIn: TOKEN_IN,
-            tokenMid: address(TOKEN_MID),
-            tokenOut: address(TOKEN_OUT),
-            pool1: pool1,
-            pool2: pool2,
-            amountIn: 10 * 1e18,
-            amountOutExpected: 0 // TODO: fix this
-        });
-
-        uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
-            USER_SENDER
-        );
-        uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
-            USER_SENDER
-        );
-
-        // Build multi-hop route
-        bytes memory route = _buildAlgebraMultiHopRoute(params, USER_SENDER);
-
-        // Approve tokens
-        IERC20(params.tokenIn).approve(
-            address(liFiDEXAggregator),
-            params.amountIn
-        );
-
-        // Execute the swap
-        vm.expectEmit(true, true, true, true);
-        emit Route(
-            USER_SENDER,
-            USER_SENDER,
-            params.tokenIn,
-            params.tokenOut,
-            params.amountIn,
-            0, // TODO: fix this is expected amount out
-            0
-        );
-
-        liFiDEXAggregator.processRoute(
-            params.tokenIn,
-            params.amountIn,
-            params.tokenOut,
-            0, // TODO: fix this is expected amount out
-            USER_SENDER,
-            route
-        );
-
-        // Verify balances changed appropriately
-        uint256 finalBalance1 = IERC20(params.tokenIn).balanceOf(USER_SENDER);
-        uint256 finalBalance2 = IERC20(params.tokenOut).balanceOf(USER_SENDER);
-
-        assertApproxEqAbs(
-            initialBalance1 - finalBalance1,
-            params.amountIn,
-            1, // 1 wei tolerance
-            "TokenIn spent amount mismatch"
-        );
-        assertGt(finalBalance2, initialBalance2, "TokenOut not received");
-
-        vm.stopPrank();
-    }
-
-    // Add the new test for fee-on-transfer tokens with multi-hop
-    function test_CanSwap_MultiHopWithFeeOnTransferToken() public {
-        // Deploy mock fee-on-transfer tokens
-        MockFeeOnTransferToken tokenA = new MockFeeOnTransferToken(
-            "Token A",
-            "FTA",
-            18,
-            0
-        ); // 0% fee
+    function test_CanSwap_MultiHop_WithFeeOnTransferToken() public {
+        ERC20 tokenA = new ERC20("Token A", "FTA", 18); // 0% fee
+        // Deploy mock fee-on-transfer token
         MockFeeOnTransferToken tokenB = new MockFeeOnTransferToken(
             "Fee Token B",
             "FTB",
             18,
             300
         ); // 3% fee
-        MockFeeOnTransferToken tokenC = new MockFeeOnTransferToken(
-            "Token C",
-            "FTC",
-            18,
-            0
-        ); // 0% fee (normal token)
+        ERC20 tokenC = new ERC20("Token C", "FTC", 18); // 0% fee (normal token)
 
         vm.label(address(tokenA), "Token A");
         vm.label(address(tokenB), "Token B");
@@ -1536,7 +1434,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Combine the hops
         bytes memory route = bytes.concat(firstHop, secondHop);
 
-        // Execute the swap
         liFiDEXAggregator.processRoute(
             address(tokenA),
             amountIn,
@@ -1565,121 +1462,118 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         );
 
         vm.stopPrank();
-
-        // Now run a comparison with non-fee tokens to demonstrate the difference
-        // _compareWithNonFeeTokenSwapUsingLDA();
     }
 
-    // Helper function to compare with a non-fee token swap using LDA as intermediate recipient
-    function _compareWithNonFeeTokenSwapUsingLDA() internal {
-        // Create non-fee tokens for comparison
-        MockFeeOnTransferToken tokenX = new MockFeeOnTransferToken(
-            "Normal Token X",
-            "NTX",
-            18,
-            0
-        );
-        MockFeeOnTransferToken tokenY = new MockFeeOnTransferToken(
-            "Normal Token Y",
-            "NTY",
-            18,
-            0
-        );
-        MockFeeOnTransferToken tokenZ = new MockFeeOnTransferToken(
-            "Normal Token Z",
-            "NTZ",
-            18,
-            0
-        );
+    function test_CanSwap_MultiHop() public override {
+        // Create regular ERC20 tokens (no fees)
+        ERC20 tokenA = new ERC20("Token A", "TA", 18);
+        ERC20 tokenB = new ERC20("Token B", "TB", 18);
+        ERC20 tokenC = new ERC20("Token C", "TC", 18);
 
-        // Mint initial supplies
-        tokenX.mint(address(this), 1_000_000 * 1e18);
-        tokenY.mint(address(this), 1_000_000 * 1e18);
-        tokenZ.mint(address(this), 1_000_000 * 1e18);
+        vm.label(address(tokenA), "Token A");
+        vm.label(address(tokenB), "Token B");
+        vm.label(address(tokenC), "Token C");
 
-        // Create pools
-        address poolXY = _createAlgebraPool(address(tokenX), address(tokenY));
-        address poolYZ = _createAlgebraPool(address(tokenY), address(tokenZ));
+        // Mint initial token supplies
+        tokenA.mint(address(this), 1_000_000 * 1e18);
+        tokenB.mint(address(this), 1_000_000 * 1e18);
+        tokenC.mint(address(this), 1_000_000 * 1e18);
 
-        // Add equal liquidity to maintain price ratio comparison
+        // Create pools using the Algebra factory
+        address pool1 = _createAlgebraPool(address(tokenA), address(tokenB));
+        address pool2 = _createAlgebraPool(address(tokenB), address(tokenC));
+
+        vm.label(pool1, "Pool 1");
+        vm.label(pool2, "Pool 2");
+
+        // Add liquidity to the pools
         _addLiquidityToPool(
-            poolXY,
-            address(tokenX),
-            address(tokenY),
+            pool1,
+            address(tokenA),
+            address(tokenB),
             100_000 * 1e18,
             100_000 * 1e18
         );
         _addLiquidityToPool(
-            poolYZ,
-            address(tokenY),
-            address(tokenZ),
+            pool2,
+            address(tokenB),
+            address(tokenC),
             100_000 * 1e18,
             100_000 * 1e18
         );
 
-        // Transfer to USER_SENDER
+        // Transfer tokens to the USER_SENDER
         uint256 amountToTransfer = 100 * 1e18;
-        tokenX.transfer(USER_SENDER, amountToTransfer);
+        tokenA.transfer(USER_SENDER, amountToTransfer);
 
         vm.startPrank(USER_SENDER);
 
         // Record initial balances
-        uint256 initialBalanceX = IERC20(address(tokenX)).balanceOf(
+        uint256 initialBalanceA = IERC20(address(tokenA)).balanceOf(
             USER_SENDER
         );
-        uint256 initialBalanceZ = IERC20(address(tokenZ)).balanceOf(
+        uint256 initialBalanceC = IERC20(address(tokenC)).balanceOf(
             USER_SENDER
         );
 
         uint256 amountIn = 50 * 1e18;
 
-        // Approve tokens
-        IERC20(address(tokenX)).approve(address(liFiDEXAggregator), amountIn);
+        // Approve tokenA for spending
+        IERC20(address(tokenA)).approve(address(liFiDEXAggregator), amountIn);
 
-        // Build the route with LDA as the recipient of first hop
+        // Build the first hop route
         bytes memory firstHop = abi.encodePacked(
             uint8(2), // command: processUserERC20
-            address(tokenX), // tokenIn
+            address(tokenA), // tokenIn
             uint8(1), // number of pools
             uint16(65535), // share (100%)
             uint8(7), // pool type: Algebra
-            poolXY, // first pool
+            pool1, // first pool
             uint8(1), // direction
-            address(liFiDEXAggregator) // Important: send to LDA instead of directly to pool2
+            address(liFiDEXAggregator) // send to LDA
         );
 
-        // Second hop using processMyERC20 since tokens are now in LDA
+        // Second hop using processMyERC20
         bytes memory secondHop = abi.encodePacked(
             uint8(1), // command: processMyERC20 (use LDA's balance)
-            address(tokenY), // tokenIn for second hop
+            address(tokenB), // tokenIn for second hop
             uint8(1), // number of pools
             uint16(65535), // share (100%)
             uint8(7), // pool type: Algebra
-            poolYZ, // second pool
-            uint8(1), // direction
-            USER_SENDER // recipient
+            pool2, // second pool
+            uint8(0), // direction
+            USER_SENDER // final recipient
         );
 
         // Combine the hops
         bytes memory route = bytes.concat(firstHop, secondHop);
 
-        // Execute the swap
+        // Execute the multi-hop swap
         liFiDEXAggregator.processRoute(
-            address(tokenX),
+            address(tokenA),
             amountIn,
-            address(tokenZ),
+            address(tokenC),
             0, // No minimum amount out for testing
             USER_SENDER,
             route
         );
 
-        // Verify and log the non-fee output for comparison
-        uint256 finalBalanceX = IERC20(address(tokenX)).balanceOf(USER_SENDER);
-        uint256 finalBalanceZ = IERC20(address(tokenZ)).balanceOf(USER_SENDER);
+        // Verify balances changed appropriately
+        uint256 finalBalanceA = IERC20(address(tokenA)).balanceOf(USER_SENDER);
+        uint256 finalBalanceC = IERC20(address(tokenC)).balanceOf(USER_SENDER);
 
+        assertApproxEqAbs(
+            initialBalanceA - finalBalanceA,
+            amountIn,
+            1, // 1 wei tolerance
+            "TokenA spent amount mismatch"
+        );
+        assertGt(finalBalanceC, initialBalanceC, "TokenC not received");
+
+        // Log the actual output amount
         emit log_named_uint(
-            "Output amount with NON-fee tokens using LDA routing",
-            finalBalanceZ - initialBalanceZ
+            "Output amount with regular tokens",
+            finalBalanceC - initialBalanceC
         );
 
         vm.stopPrank();
@@ -1768,109 +1662,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             z = (x / z + z) / 2;
         }
         return y;
-    }
-
-    // Helper function to compare with a non-fee token swap for reference
-    function _compareWithNonFeeTokenSwap() internal {
-        // Create non-fee tokens for comparison
-        MockFeeOnTransferToken tokenX = new MockFeeOnTransferToken(
-            "Normal Token X",
-            "NTX",
-            18,
-            0
-        );
-        MockFeeOnTransferToken tokenY = new MockFeeOnTransferToken(
-            "Normal Token Y",
-            "NTY",
-            18,
-            0
-        );
-        MockFeeOnTransferToken tokenZ = new MockFeeOnTransferToken(
-            "Normal Token Z",
-            "NTZ",
-            18,
-            0
-        );
-
-        // Mint initial supplies
-        tokenX.mint(address(this), 1_000_000 * 1e18);
-        tokenY.mint(address(this), 1_000_000 * 1e18);
-        tokenZ.mint(address(this), 1_000_000 * 1e18);
-
-        // Create pools
-        address poolXY = _createAlgebraPool(address(tokenX), address(tokenY));
-        address poolYZ = _createAlgebraPool(address(tokenY), address(tokenZ));
-
-        // Add equal liquidity to maintain price ratio comparison
-        _addLiquidityToPool(
-            poolXY,
-            address(tokenX),
-            address(tokenY),
-            100_000 * 1e18,
-            100_000 * 1e18
-        );
-        _addLiquidityToPool(
-            poolYZ,
-            address(tokenY),
-            address(tokenZ),
-            100_000 * 1e18,
-            100_000 * 1e18
-        );
-
-        // Transfer to USER_SENDER
-        uint256 amountToTransfer = 100 * 1e18;
-        tokenX.transfer(USER_SENDER, amountToTransfer);
-
-        vm.startPrank(USER_SENDER);
-
-        // Set up parameters for multi-hop swap
-        AlgebraMultiHopTestParams memory params = AlgebraMultiHopTestParams({
-            tokenIn: address(tokenX),
-            tokenMid: address(tokenY),
-            tokenOut: address(tokenZ),
-            pool1: poolXY,
-            pool2: poolYZ,
-            amountIn: 50 * 1e18,
-            amountOutExpected: 0
-        });
-
-        // Record initial balances
-        uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
-            USER_SENDER
-        );
-        uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
-            USER_SENDER
-        );
-
-        // Build multi-hop route
-        bytes memory route = _buildAlgebraMultiHopRoute(params, USER_SENDER);
-
-        // Approve tokens
-        IERC20(params.tokenIn).approve(
-            address(liFiDEXAggregator),
-            params.amountIn
-        );
-
-        // Execute the swap
-        liFiDEXAggregator.processRoute(
-            params.tokenIn,
-            params.amountIn,
-            params.tokenOut,
-            0,
-            USER_SENDER,
-            route
-        );
-
-        // Verify and log the non-fee output for comparison
-        uint256 finalBalance1 = IERC20(params.tokenIn).balanceOf(USER_SENDER);
-        uint256 finalBalance2 = IERC20(params.tokenOut).balanceOf(USER_SENDER);
-
-        emit log_named_uint(
-            "Output amount with NON-fee tokens",
-            finalBalance2 - initialBalance2
-        );
-
-        vm.stopPrank();
     }
 
     // Test that the proper error is thrown when algebra swap fails
