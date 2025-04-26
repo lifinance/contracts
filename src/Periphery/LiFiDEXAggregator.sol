@@ -8,7 +8,6 @@ import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -306,9 +305,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @notice Call swap for all pools that swap from this token
     /// @param stream Streamed program
     function processOnePool(uint256 stream) private {
-        console2.log("processOnePool");
         address token = stream.readAddress();
-        console2.log("token", token);
         swap(stream, INTERNAL_INPUT_SOURCE, token, 0);
     }
 

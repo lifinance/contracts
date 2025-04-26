@@ -11,10 +11,12 @@ import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { IAlgebraRouter } from "lifi/Interfaces/IAlgebraRouter.sol";
 import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
+import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
+import { MockFeeOnTransferToken } from "../utils/MockTokenFeeOnTransfer.sol";
 import { console2 } from "forge-std/console2.sol";
 
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
@@ -43,74 +45,6 @@ interface IOftERC4626 is IERC4626 {
     function assetsToShares(
         uint256 assets
     ) external view returns (uint256 shares);
-}
-
-// Add this interface after the existing imports
-interface IQuoterV2 {
-    struct QuoteExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint160 limitSqrtPrice;
-    }
-
-    struct QuoteExactOutputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint256 amount;
-        uint160 limitSqrtPrice;
-    }
-
-    function quoteExactInputSingle(
-        QuoteExactInputSingleParams memory params
-    )
-        external
-        returns (
-            uint256 amountOut,
-            uint160 sqrtPriceX96After,
-            uint32 initializedTicksCrossed,
-            uint256 gasEstimate
-        );
-
-    function quoteExactInput(
-        bytes memory path,
-        uint256 amountIn
-    )
-        external
-        returns (
-            uint256 amountOut,
-            uint160[] memory sqrtPriceX96AfterList,
-            uint32[] memory initializedTicksCrossedList,
-            uint256 gasEstimate
-        );
-
-    function quoteExactOutputSingle(
-        QuoteExactOutputSingleParams memory params
-    )
-        external
-        returns (
-            uint256 amountIn,
-            uint160 sqrtPriceX96After,
-            uint32 initializedTicksCrossed,
-            uint256 gasEstimate
-        );
-
-    function quoteExactOutput(
-        bytes memory path,
-        uint256 amountOut
-    )
-        external
-        returns (
-            uint256 amountIn,
-            uint160[] memory sqrtPriceX96AfterList,
-            uint32[] memory initializedTicksCrossedList,
-            uint256 gasEstimate
-        );
-
-    function getPool(
-        address tokenA,
-        address tokenB
-    ) external view returns (address);
 }
 
 /**
@@ -169,6 +103,8 @@ abstract contract LiFiDexAggregatorTest is TestBase {
 
     function setUp() public virtual {
         initTestBase();
+
+        vm.label(USER_SENDER, "USER_SENDER");
 
         privileged = new address[](2);
         privileged[0] = address(0xABC);
@@ -1009,87 +945,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
     }
 }
 
-// A mock fee-on-transfer token contract that implements ERC20
-contract MockFeeOnTransferToken is IERC20 {
-    string public name;
-    string public symbol;
-    uint8 public decimals;
-    uint256 public totalSupply;
-    uint256 public fee; // Fee percentage (e.g., 500 = 5%)
-
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals,
-        uint256 _fee
-    ) {
-        name = _name;
-        symbol = _symbol;
-        decimals = _decimals;
-        fee = _fee; // Fee in basis points (1/100 of a percent)
-    }
-
-    function mint(address to, uint256 amount) external {
-        totalSupply += amount;
-        balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        console2.log("transfer", amount);
-        uint256 feeAmount = (amount * fee) / 10000;
-        console2.log("feeAmount", feeAmount);
-        uint256 transferAmount = amount - feeAmount;
-        console2.log("transferAmount", transferAmount);
-        console2.log("msg.sender", msg.sender);
-        console2.log("balanceOf[msg.sender] before", balanceOf[msg.sender]);
-
-        balanceOf[msg.sender] -= amount;
-        console2.log("balanceOf[msg.sender] after", balanceOf[msg.sender]);
-        balanceOf[to] += transferAmount;
-        console2.log("balanceOf[to]", balanceOf[to]);
-        // Fee is burned
-
-        emit Transfer(msg.sender, to, transferAmount);
-        return true;
-    }
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool) {
-        if (allowance[from][msg.sender] != type(uint256).max) {
-            allowance[from][msg.sender] -= amount;
-        }
-
-        uint256 feeAmount = (amount * fee) / 10000;
-        uint256 transferAmount = amount - feeAmount;
-
-        balanceOf[from] -= amount;
-        balanceOf[to] += transferAmount;
-        // Fee is burned
-
-        emit Transfer(from, to, transferAmount);
-        return true;
-    }
-
-    // ERC4626-like function to make the token detectable as fee-on-transfer
-    function convertToAssets(uint256 shares) external pure returns (uint256) {
-        return shares;
-    }
-}
-
-contract LiquidityAdder {
+contract AlgebraLiquidityAdderHelper {
     address public immutable token0;
     address public immutable token1;
 
@@ -1174,10 +1030,9 @@ contract LiquidityAdder {
 
 /**
  * @title Algebra tests
- * @notice Tests specific to Algebra V2 pool type
+ * @notice Tests specific to Algebra pool type
  */
 contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
-    // Apechain-specific constants for fee-on-transfer test
     address private constant APE_ETH_TOKEN =
         0xcF800F4948D16F23333508191B1B1591daF70438;
     address private constant APE_USD_TOKEN =
@@ -1189,10 +1044,10 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     address private constant ALGEBRA_FACTORY_APECHAIN =
         0x10aA510d94E094Bd643677bd2964c3EE085Daffc;
     address private constant ALGEBRA_QUOTER_V2_APECHAIN =
-        0x61a060445C9A0a72ADb726452002f102A6781006;
+        0x60A186019F81bFD04aFc16c9C01804a04E79e68B;
     address private constant ALGEBRA_POOL_APECHAIN =
         0x217076aa74eFF7D54837D00296e9AEBc8c06d4F2;
-    address constant REAL_TENDERLY_USER_SENDER =
+    address constant APE_ETH_HOLDER_APECHAIN =
         address(0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b);
 
     struct AlgebraSwapTestParams {
@@ -1201,7 +1056,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         address tokenIn;
         uint256 amountIn;
         address tokenOut;
-        bool feeOnTransfer;
         bool direction;
     }
 
@@ -1224,9 +1078,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Override the abstract test with Algebra implementation
     function test_CanSwap_FromDexAggregator() public override {
         // Fund LDA from whale address
-        address whale = 0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b;
-        vm.prank(whale);
-        IERC20(APE_ETH_TOKEN).transfer(address(liFiDEXAggregator), 100 * 1e18);
+        vm.prank(APE_ETH_HOLDER_APECHAIN);
+        IERC20(APE_ETH_TOKEN).transfer(address(liFiDEXAggregator), 1 * 1e18);
 
         vm.startPrank(USER_SENDER);
 
@@ -1239,7 +1092,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                     address(liFiDEXAggregator)
                 ) - 1, // Adjust for slot undrain protection
                 tokenOut: address(WETH_TOKEN),
-                feeOnTransfer: false,
                 direction: true
             })
         );
@@ -1247,33 +1099,28 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    // Test for fee-on-transfer token using Apechain specific example
     function test_CanSwap_FeeOnTransferToken() public {
-        // Setup Apechain environment
         setupApechain();
 
-        // Get or fund user with APE_ETH_TOKEN tokens
         uint256 amountIn = 534451326669177;
-        address holder = 0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b;
-        vm.prank(holder);
-        IERC20(APE_ETH_TOKEN).transfer(REAL_TENDERLY_USER_SENDER, amountIn);
+        vm.prank(APE_ETH_HOLDER_APECHAIN);
+        IERC20(APE_ETH_TOKEN).transfer(APE_ETH_HOLDER_APECHAIN, amountIn);
 
-        vm.startPrank(REAL_TENDERLY_USER_SENDER);
+        vm.startPrank(APE_ETH_HOLDER_APECHAIN);
 
-        // Approve token spending
         IERC20(APE_ETH_TOKEN).approve(address(liFiDEXAggregator), amountIn);
 
         // Build route for algebra swap
         bytes memory route = _buildAlgebraRoute(
             APE_ETH_TOKEN,
             amountIn,
-            REAL_TENDERLY_USER_SENDER,
+            APE_ETH_HOLDER_APECHAIN,
             ALGEBRA_POOL_APECHAIN
         );
 
         // Track initial balance
         uint256 beforeBalance = IERC20(WETH_TOKEN).balanceOf(
-            REAL_TENDERLY_USER_SENDER
+            APE_ETH_HOLDER_APECHAIN
         );
 
         // Execute the swap
@@ -1282,22 +1129,21 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             amountIn,
             WETH_TOKEN,
             0, // minOut = 0 for this test
-            REAL_TENDERLY_USER_SENDER,
+            APE_ETH_HOLDER_APECHAIN,
             route
         );
 
         // Verify balances
         uint256 afterBalance = IERC20(WETH_TOKEN).balanceOf(
-            REAL_TENDERLY_USER_SENDER
+            APE_ETH_HOLDER_APECHAIN
         );
         assertGt(afterBalance - beforeBalance, 0, "Should receive some WETH");
 
         vm.stopPrank();
     }
 
-    // Test basic swap with Algebra
     function test_CanSwapViaAlgebra() public {
-        vm.startPrank(0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b); // Start acting as the whale address
+        vm.startPrank(APE_ETH_HOLDER_APECHAIN);
 
         // Transfer tokens from whale to USER_SENDER
         uint256 amountToTransfer = 100 * 1e18;
@@ -1314,7 +1160,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: APE_ETH_TOKEN,
                 amountIn: 10 * 1e18,
                 tokenOut: address(WETH_TOKEN),
-                feeOnTransfer: false,
                 direction: true
             })
         );
@@ -1322,9 +1167,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    // Test swap in reverse direction
     function test_CanSwapViaAlgebra_Reverse() public {
-        // First perform the forward swap to get WETH
         test_CanSwapViaAlgebra();
 
         vm.startPrank(USER_SENDER);
@@ -1336,7 +1179,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: address(WETH_TOKEN),
                 amountIn: 5 * 1e18,
                 tokenOut: APE_ETH_TOKEN,
-                feeOnTransfer: false,
                 direction: false
             })
         );
@@ -1613,19 +1455,28 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         uint160 initialPrice = uint160(1 << 96);
         IAlgebraPool(pool).initialize(initialPrice);
 
-        // Create LiquidityAdder with safe transfer logic
-        LiquidityAdder liquidityAdder = new LiquidityAdder(token0, token1);
+        // Create AlgebraLiquidityAdderHelper with safe transfer logic
+        AlgebraLiquidityAdderHelper AlgebraLiquidityAdderHelper = new AlgebraLiquidityAdderHelper(
+                token0,
+                token1
+            );
 
         // Transfer tokens with extra amounts to account for fees
-        IERC20(token0).transfer(address(liquidityAdder), transferAmount0);
-        IERC20(token1).transfer(address(liquidityAdder), transferAmount1);
+        IERC20(token0).transfer(
+            address(AlgebraLiquidityAdderHelper),
+            transferAmount0
+        );
+        IERC20(token1).transfer(
+            address(AlgebraLiquidityAdderHelper),
+            transferAmount1
+        );
 
         // Get actual balances to use for liquidity, accounting for any fees
         uint256 actualBalance0 = IERC20(token0).balanceOf(
-            address(liquidityAdder)
+            address(AlgebraLiquidityAdderHelper)
         );
         uint256 actualBalance1 = IERC20(token1).balanceOf(
-            address(liquidityAdder)
+            address(AlgebraLiquidityAdderHelper)
         );
 
         // Use the smaller of the two balances for liquidity amount
@@ -1634,7 +1485,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         );
 
         // Add liquidity using the actual token amounts we have
-        liquidityAdder.addLiquidity(
+        AlgebraLiquidityAdderHelper.addLiquidity(
             pool,
             -887220,
             887220,
@@ -1642,30 +1493,12 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         );
     }
 
-    // Helper function to encode price as sqrt(token1/token0) * 2^96
-    function encodePriceSquareRoot(
-        uint256 amount1,
-        uint256 amount0
-    ) internal pure returns (uint160) {
-        require(amount0 > 0 && amount1 > 0, "Invalid amounts");
-        // Use 1:1 ratio for initial price to avoid extreme values
-        return uint160(1 << 96); // Q64.96 format for price of 1.0
-    }
-
-    // Helper function to calculate square root
-    function sqrt(uint256 x) internal pure returns (uint256) {
-        if (x == 0) return 0;
-        uint256 z = (x + 1) / 2;
-        uint256 y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
-        return y;
-    }
-
     // Test that the proper error is thrown when algebra swap fails
     function testRevert_AlgebraSwapUnexpected() public {
+        // Transfer tokens from whale to user
+        vm.prank(APE_ETH_HOLDER_APECHAIN);
+        IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
+
         vm.startPrank(USER_SENDER);
 
         // Create invalid pool address
@@ -1674,7 +1507,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Create a route with an invalid pool
         bytes memory invalidRoute = abi.encodePacked(
             uint8(2), // command code: 2 for processUserERC20
-            APE_USD_TOKEN, // tokenIn
+            APE_ETH_TOKEN, // tokenIn
             uint8(1), // number of pools
             uint16(65535), // share (100%)
             uint8(7), // pool type: Algebra
@@ -1683,16 +1516,15 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             USER_SENDER // recipient
         );
 
-        // Deal tokens to user
-        deal(APE_USD_TOKEN, USER_SENDER, 1_000 * 1e6);
-
         // Approve tokens
-        IERC20(APE_USD_TOKEN).approve(address(liFiDEXAggregator), 1_000 * 1e6);
+        IERC20(APE_ETH_TOKEN).approve(address(liFiDEXAggregator), 1 * 1e18);
 
         // Mock the algebra pool to not reset lastCalledPool
         vm.mockCall(
             invalidPool,
-            abi.encodeWithSelector(IAlgebraPool.swap.selector),
+            abi.encodeWithSelector(
+                IAlgebraPool.swapSupportingFeeOnInputTokens.selector
+            ),
             abi.encode(0, 0)
         );
 
@@ -1700,8 +1532,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.expectRevert(AlgebraSwapUnexpected.selector);
 
         liFiDEXAggregator.processRoute(
-            APE_USD_TOKEN,
-            1_000 * 1e6,
+            APE_ETH_TOKEN,
+            1 * 1e18,
             address(WETH_TOKEN),
             0,
             USER_SENDER,
@@ -1742,16 +1574,48 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Find or create a pool
         address pool = _getPool(params.tokenIn, params.tokenOut);
 
+        vm.label(pool, "AlgebraPool");
+
+        // Get token0 from pool and label tokens accordingly
+        address token0 = IAlgebraPool(pool).token0();
+        if (params.tokenIn == token0) {
+            vm.label(
+                params.tokenIn,
+                string.concat("token0 (", ERC20(params.tokenIn).symbol(), ")")
+            );
+            vm.label(
+                params.tokenOut,
+                string.concat("token1 (", ERC20(params.tokenOut).symbol(), ")")
+            );
+        } else {
+            vm.label(
+                params.tokenIn,
+                string.concat("token1 (", ERC20(params.tokenIn).symbol(), ")")
+            );
+            vm.label(
+                params.tokenOut,
+                string.concat("token0 (", ERC20(params.tokenOut).symbol(), ")")
+            );
+        }
+
         // Record initial balances
         uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
         uint256 initialTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
 
         // Get expected output from QuoterV2
-        // uint256 expectedOutput = _getQuoteExactInput(
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     params.amountIn
-        // );
+        // NOTE: There may be a small discrepancy between the quoted amount and the actual output
+        // because the Quoter uses the regular swap() function for simulation while the actual
+        // execution may use swapSupportingFeeOnInputTokens() for fee-on-transfer tokens.
+        // The Quoter cannot accurately predict transfer fees taken by the token contract itself,
+        // resulting in minor "dust" differences that are normal and expected when dealing with
+        // non-standard token implementations.
+        uint256 expectedOutput = _getQuoteExactInput(
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn
+        );
+
+        console2.log("expectedOutput", expectedOutput);
 
         // Build the route
         uint8 commandCode = params.from == address(liFiDEXAggregator)
@@ -1780,6 +1644,10 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             ? USER_SENDER
             : params.from;
 
+        // NOTE: For fee-on-transfer tokens, the actual output may differ slightly from
+        // the expected output due to token transfer fees not accounted for in the quoter.
+        // We still use expectedOutput in the event for easier testing, though actual amounts
+        // received may have minor dust differences.
         vm.expectEmit(true, true, true, false);
         emit Route(
             from,
@@ -1787,8 +1655,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             params.tokenIn,
             params.tokenOut,
             params.amountIn,
-            0, // TODO: fix this is expected amount out
-            0 // TODO: fix this is expected amount out
+            expectedOutput,
+            expectedOutput
         );
 
         liFiDEXAggregator.processRoute(
@@ -1800,7 +1668,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             route
         );
 
-        // Verify balances
         uint256 finalTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
         uint256 finalTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
 
@@ -1811,12 +1678,15 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             "TokenIn amount mismatch"
         );
         assertGt(finalTokenOut, initialTokenOut, "TokenOut not received");
+
+        console2.log("finalTokenOut", finalTokenOut);
+        console2.log("expectedOutput", expectedOutput);
     }
 
     // Helper function to build a multi-hop route for Algebra
     function _buildAlgebraMultiHopRoute(
         AlgebraMultiHopTestParams memory params,
-        address recipient
+        address finalRecipient
     ) internal pure returns (bytes memory) {
         // First hop: send to second pool
         bytes memory firstHop = abi.encodePacked(
@@ -1837,7 +1707,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             params.pool2, // second pool
             uint8(1), // direction: true
-            recipient // final recipient
+            finalRecipient
         );
 
         return bytes.concat(firstHop, secondHop);
@@ -1860,16 +1730,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         address tokenOut,
         uint256 amountIn
     ) private returns (uint256 amountOut) {
-        IQuoterV2.QuoteExactInputSingleParams memory params = IQuoterV2
-            .QuoteExactInputSingleParams({
-                tokenIn: tokenIn,
-                tokenOut: tokenOut,
-                amountIn: amountIn,
-                limitSqrtPrice: 0
-            });
-
-        (amountOut, , , ) = IQuoterV2(ALGEBRA_QUOTER_V2_APECHAIN)
-            .quoteExactInputSingle(params);
+        (amountOut, ) = IAlgebraQuoter(ALGEBRA_QUOTER_V2_APECHAIN)
+            .quoteExactInputSingle(tokenIn, tokenOut, amountIn, 0);
         return amountOut;
     }
 }
