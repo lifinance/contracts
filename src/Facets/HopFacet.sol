@@ -155,8 +155,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
-        // Only _hopData.nativeFee is handled by the contract; relayerFee and bonderFee are displayed in the UI but not used on-chain.
-        // If there's no native fee (e.g. for ERC20 transfers), our API sets _hopData.nativeFee to 0.
+        // _hopData.nativeFee is a legacy parameter that is currently not in use. The LiFi API sets this value to 0.
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
             ? _hopData.nativeFee + _bridgeData.minAmount
             : _hopData.nativeFee;

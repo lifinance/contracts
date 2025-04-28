@@ -4,8 +4,8 @@
 
 The Hop Facet works by forwarding Hop specific calls to the [Hop Bridge contract](https://github.com/hop-protocol/contracts/blob/master/contracts/bridges/L2_Bridge.sol). Hop works by swapping tokens into intermediate **h** tokens before bridging. For example to send **USDC** from one chain to another, we need to swap **USDC** for **hUSDC** and then send them to the Hop bridge contract. Hop provides a useful [wrapper contract](https://github.com/hop-protocol/contracts/blob/master/contracts/bridges/L2_AmmWrapper.sol#L40) to do this for us so we only need to worry about sending **USDC** and calling [`swapAndSend`](https://github.com/hop-protocol/contracts/blob/3747b0b41defddc5b3c8ca328057847cd987c2c8/contracts/bridges/L2_AmmWrapper.sol#L40-L78) on the wrapper. Native tokens like **ETH** can be sent directly to the bridge.
 
-Only _hopData.nativeFee is handled by the contract; relayerFee and bonderFee are displayed in the UI but not used on-chain.
-If there's no native fee (e.g. for ERC20 transfers), our API sets _hopData.nativeFee to 0.
+- `_hopData.nativeFee` is a legacy parameter that is currently not in use. The LiFi API sets this value to 0.
+- Direct contract interaction without using the LiFi API can lead to unexpected behavior that is why it is strongly recommended to use the LiFi API for all Hop bridge interactions
 
 ```mermaid
 graph LR;
