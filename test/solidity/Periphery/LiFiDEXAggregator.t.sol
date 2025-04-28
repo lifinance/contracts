@@ -991,7 +991,7 @@ contract AlgebraLiquidityAdderHelper {
     function algebraMintCallback(
         uint256 amount0Owed,
         uint256 amount1Owed,
-        bytes calldata data
+        bytes calldata
     ) external {
         // Check token balances
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
@@ -1219,20 +1219,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.label(pool2, "Pool 2");
 
         // Add liquidity to the pools
-        _addLiquidityToPool(
-            pool1,
-            address(tokenA),
-            address(tokenB),
-            100_000 * 1e18,
-            100_000 * 1e18
-        );
-        _addLiquidityToPool(
-            pool2,
-            address(tokenB),
-            address(tokenC),
-            100_000 * 1e18,
-            100_000 * 1e18
-        );
+        _addLiquidityToPool(pool1, address(tokenA), address(tokenB));
+        _addLiquidityToPool(pool2, address(tokenB), address(tokenC));
 
         // Transfer tokens to the USER_SENDER
         uint256 amountToTransfer = 100 * 1e18;
@@ -1328,20 +1316,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.label(pool2, "Pool 2");
 
         // Add liquidity to the pools
-        _addLiquidityToPool(
-            pool1,
-            address(tokenA),
-            address(tokenB),
-            100_000 * 1e18,
-            100_000 * 1e18
-        );
-        _addLiquidityToPool(
-            pool2,
-            address(tokenB),
-            address(tokenC),
-            100_000 * 1e18,
-            100_000 * 1e18
-        );
+        _addLiquidityToPool(pool1, address(tokenA), address(tokenB));
+        _addLiquidityToPool(pool2, address(tokenB), address(tokenC));
 
         // Transfer tokens to the USER_SENDER
         uint256 amountToTransfer = 100 * 1e18;
@@ -1431,9 +1407,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     function _addLiquidityToPool(
         address pool,
         address token0,
-        address token1,
-        uint256 amount0,
-        uint256 amount1
+        address token1
     ) internal {
         // For fee-on-transfer tokens, we need to send more  to account for the fee
         // We'll use a small amount and send extra to cover fees
@@ -1449,27 +1423,27 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         IAlgebraPool(pool).initialize(initialPrice);
 
         // Create AlgebraLiquidityAdderHelper with safe transfer logic
-        AlgebraLiquidityAdderHelper AlgebraLiquidityAdderHelper = new AlgebraLiquidityAdderHelper(
+        AlgebraLiquidityAdderHelper algebraLiquidityAdderHelper = new AlgebraLiquidityAdderHelper(
                 token0,
                 token1
             );
 
         // Transfer tokens with extra amounts to account for fees
         IERC20(token0).transfer(
-            address(AlgebraLiquidityAdderHelper),
+            address(algebraLiquidityAdderHelper),
             transferAmount0
         );
         IERC20(token1).transfer(
-            address(AlgebraLiquidityAdderHelper),
+            address(algebraLiquidityAdderHelper),
             transferAmount1
         );
 
         // Get actual balances to use for liquidity, accounting for any fees
         uint256 actualBalance0 = IERC20(token0).balanceOf(
-            address(AlgebraLiquidityAdderHelper)
+            address(algebraLiquidityAdderHelper)
         );
         uint256 actualBalance1 = IERC20(token1).balanceOf(
-            address(AlgebraLiquidityAdderHelper)
+            address(algebraLiquidityAdderHelper)
         );
 
         // Use the smaller of the two balances for liquidity amount
@@ -1478,7 +1452,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         );
 
         // Add liquidity using the actual token amounts we have
-        AlgebraLiquidityAdderHelper.addLiquidity(
+        algebraLiquidityAdderHelper.addLiquidity(
             pool,
             -887220,
             887220,
