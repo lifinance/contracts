@@ -573,30 +573,6 @@ async function deploySafe(args: {
 
     // Update networks.json if enabled
     if (updateConfig) {
-      // Determine Safe Web URL based on chain
-      let safeWebUrl = ''
-      if (chain.id === 1) {
-        // Ethereum Mainnet
-        safeWebUrl = `https://app.safe.global/home?safe=eth:${safeAddress}`
-      } else {
-        // Other chains, use network-specific format
-        const networkKey = network.toLowerCase()
-        let chainShortName = networkKey
-
-        // Map to Safe's standard chain names if needed
-        const safeChainNameMap: Record<string, string> = {
-          arbitrum: 'arb1',
-          optimism: 'oeth',
-          polygon: 'matic',
-          bsc: 'bnb',
-          // Add more mappings as needed
-        }
-
-        if (safeChainNameMap[networkKey]) {
-          chainShortName = safeChainNameMap[networkKey]
-        }
-      }
-
       // Update configurations
       const updatedNetworksConfig = { ...networksConfig }
       updatedNetworksConfig[network.toLowerCase()].safeAddress = safeAddress
