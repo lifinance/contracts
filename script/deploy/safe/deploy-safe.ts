@@ -595,19 +595,12 @@ async function deploySafe(args: {
         if (safeChainNameMap[networkKey]) {
           chainShortName = safeChainNameMap[networkKey]
         }
-
-        safeWebUrl = `https://app.safe.global/home?safe=${chainShortName}:${safeAddress}`
       }
 
       // Update configurations
       const updatedNetworksConfig = { ...networksConfig }
       updatedNetworksConfig[network.toLowerCase()].safeAddress = safeAddress
       updatedNetworksConfig[network.toLowerCase()].safeWebUrl = safeWebUrl
-
-      // Create backup of networks.json
-      const backupPath = `${networksConfigPath}.backup-${Date.now()}`
-      fs.copyFileSync(networksConfigPath, backupPath)
-      consola.info(`Created backup of networks.json at ${backupPath}`)
 
       // Write updated config
       fs.writeFileSync(
@@ -616,7 +609,6 @@ async function deploySafe(args: {
         'utf8'
       )
       consola.success(`Updated networks.json with new Safe address`)
-      consola.success(`Safe Web URL: \u001b[36m${safeWebUrl}\u001b[0m`)
     }
 
     consola.info('-'.repeat(80))
