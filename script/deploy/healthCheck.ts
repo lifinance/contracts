@@ -20,17 +20,14 @@ import {
   networks,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
-import { coreFacets, pauserWallet } from '../../config/global.json'
+import {
+  coreFacets,
+  corePeriphery,
+  autoWhitelistPeripheryContracts,
+  pauserWallet,
+} from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
-
-const corePeriphery = [
-  'ERC20Proxy',
-  'Executor',
-  'FeeCollector',
-  'LiFiDEXAggregator',
-  'TokenWrapper',
-]
 
 const errors: string[] = []
 const main = defineCommand({
@@ -193,7 +190,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery facets are deployed      │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking periphery contracts...')
+    consola.box('Checking if all periphery contracts are deployed...')
     for (const contract of corePeriphery) {
       const isDeployed = await checkIsDeployed(
         contract,
@@ -233,7 +230,9 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking periphery contracts registered in diamond...')
+    consola.box(
+      'Checking periphery contracts  registered in diamond (PeripheryRegistry)...'
+    )
     const peripheryRegistry = getContract({
       address: deployedContracts['LiFiDiamond'],
       abi: parseAbi([
@@ -262,6 +261,7 @@ const main = defineCommand({
     if (dexs) {
       consola.box('Checking DEXs approved in diamond...')
 
+      // connect with diamond to get whitelisted DEXs
       const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
@@ -275,27 +275,13 @@ const main = defineCommand({
 
       let numMissing = 0
 
-      // Loop through DEXs excluding known core periphery contract addresses
-      for (const dex of dexs.filter((d) => {
-        if (!d) {
+      // Check for each address in dexs.json if it is whitelisted
+      for (const dex of dexs) {
+        if (!dex) {
           logError(`Encountered undefined DEX address.`)
-          return false
+          continue
         }
 
-        try {
-          const normalizedDex = getAddress(d)
-
-          const isCorePeriphery = corePeriphery.some((name) => {
-            const deployed = deployedContracts[name]
-            return deployed && getAddress(deployed) === normalizedDex
-          })
-
-          return !isCorePeriphery
-        } catch (err) {
-          logError(`Invalid DEX address encountered: ${d}`)
-          return false
-        }
-      })) {
         try {
           const normalized = getAddress(dex)
           if (!approvedDexs.includes(normalized)) {
@@ -307,14 +293,9 @@ const main = defineCommand({
         }
       }
 
-      // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
-      const mustBeWhitelisted = [
-        'FeeCollector',
-        'LiFiDEXAggregator',
-        'TokenWrapper',
-      ]
-
-      for (const name of mustBeWhitelisted) {
+      // Ensure that periphery contracts which are used like DEXs are whitelisted
+      for (const name of autoWhitelistPeripheryContracts) {
+        // get address from deploy log
         const addr = deployedContracts[name]
         if (!addr) {
           logError(`Periphery contract ${name} not deployed`)
@@ -322,6 +303,7 @@ const main = defineCommand({
           continue
         }
 
+        // check if address is whitelisted
         const normalized = getAddress(addr)
         if (!approvedDexs.includes(normalized)) {
           logError(`Periphery contract ${name} not approved as a DEX`)
