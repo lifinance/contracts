@@ -31,6 +31,10 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   version-control:
     if: ${{ github.event.pull_request.draft == false }}
