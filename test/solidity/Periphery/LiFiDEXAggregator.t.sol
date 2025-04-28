@@ -1116,7 +1116,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory route = _buildAlgebraRoute(
             2, // command code for user funds
             APE_ETH_TOKEN,
-            amountIn,
             APE_ETH_HOLDER_APECHAIN,
             ALGEBRA_POOL_APECHAIN,
             true
@@ -1259,7 +1258,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory firstHop = _buildAlgebraRoute(
             2, // command: processUserERC20
             address(tokenA), // tokenIn
-            amountIn,
             address(liFiDEXAggregator), // Important: send to LDA instead of directly to pool2
             pool1, // first pool
             false // supportsFeeOnTransfer
@@ -1269,7 +1267,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory secondHop = _buildAlgebraRoute(
             1, // command: processMyERC20 (use LDA's balance)
             address(tokenB), // tokenIn
-            0, // amountIn not needed for processMyERC20
             USER_SENDER, // recipient
             pool2, // second pool
             true // supportsFeeOnTransfer
@@ -1369,7 +1366,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory firstHop = _buildAlgebraRoute(
             2, // command: processUserERC20
             address(tokenA), // tokenIn
-            amountIn,
             address(liFiDEXAggregator), // send to LDA
             pool1, // first pool
             false // supportsFeeOnTransfer
@@ -1379,7 +1375,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory secondHop = _buildAlgebraRoute(
             1, // command: processMyERC20 (use LDA's balance)
             address(tokenB), // tokenIn for second hop
-            0, // amountIn not needed for processMyERC20
             USER_SENDER, // final recipient
             pool2, // second pool
             false // supportsFeeOnTransfer
@@ -1513,7 +1508,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory invalidRoute = _buildAlgebraRoute(
             2, // command: processUserERC20
             APE_ETH_TOKEN, // tokenIn
-            1 * 1e18, // amountIn
             USER_SENDER, // recipient
             invalidPool, // invalid pool address
             true // supportsFeeOnTransfer
@@ -1551,7 +1545,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     function _buildAlgebraRoute(
         uint8 commandCode,
         address tokenIn,
-        uint256 amountIn,
         address recipient,
         address pool,
         bool supportsFeeOnTransfer
@@ -1630,7 +1623,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         bytes memory route = _buildAlgebraRoute(
             commandCode,
             params.tokenIn,
-            params.amountIn,
             params.to,
             pool,
             params.supportsFeeOnTransfer
