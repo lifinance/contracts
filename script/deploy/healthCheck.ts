@@ -190,7 +190,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery facets are deployed      │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking if all periphery contracts are deployed...')
+    consola.box('Checking deploy status of periphery contracts...')
     for (const contract of corePeriphery) {
       const isDeployed = await checkIsDeployed(
         contract,
@@ -231,7 +231,7 @@ const main = defineCommand({
     //          │          Check registered periphery contracts           │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box(
-      'Checking periphery contracts  registered in diamond (PeripheryRegistry)...'
+      'Checking periphery registration in diamond (PeripheryRegistry)...'
     )
     const peripheryRegistry = getContract({
       address: deployedContracts['LiFiDiamond'],
