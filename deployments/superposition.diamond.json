@@ -63,7 +63,7 @@
       "Permit2Proxy": "0x4daaffbff35C3252FdE0C6d44bc007863B5AE384",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
-      "ReceiverStargateV2": "",
+      "ReceiverStargateV2": "0xD5D10E4305c337E1d9a9880aB61D2f674d46C9A9",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x698F5d62E6841B3623907330B9883afFC3d6A6D3"
     }
