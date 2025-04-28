@@ -33,7 +33,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: write # to edit PR title and assign/remove labels
 
 jobs:
   version-control:
