@@ -1035,10 +1035,6 @@ contract AlgebraLiquidityAdderHelper {
 contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     address private constant APE_ETH_TOKEN =
         0xcF800F4948D16F23333508191B1B1591daF70438;
-    address private constant APE_USD_TOKEN =
-        0xA2235d059F80e176D931Ef76b6C51953Eb3fBEf4;
-    address private constant WAPE_TOKEN =
-        0x48b62137EdfA95a428D35C09E44256a739F6B557;
     address private constant WETH_TOKEN =
         0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949;
     address private constant ALGEBRA_FACTORY_APECHAIN =
@@ -1058,16 +1054,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         address tokenOut;
         bool direction;
         bool supportsFeeOnTransfer;
-    }
-
-    struct AlgebraMultiHopTestParams {
-        address tokenIn;
-        address tokenMid;
-        address tokenOut;
-        address pool1;
-        address pool2;
-        uint256 amountIn;
-        uint256 amountOutExpected;
     }
 
     error AlgebraSwapUnexpected();
@@ -1114,11 +1100,13 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         // Build route for algebra swap with command code 2 (user funds)
         bytes memory route = _buildAlgebraRoute(
-            2, // command code for user funds
-            APE_ETH_TOKEN,
-            APE_ETH_HOLDER_APECHAIN,
-            ALGEBRA_POOL_APECHAIN,
-            true
+            AlgebraRouteParams({
+                commandCode: 2, // command code for user funds
+                tokenIn: APE_ETH_TOKEN,
+                recipient: APE_ETH_HOLDER_APECHAIN,
+                pool: ALGEBRA_POOL_APECHAIN,
+                supportsFeeOnTransfer: true
+            })
         );
 
         // Track initial balance
@@ -1244,20 +1232,24 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         // Build the route with LDA as the recipient of first hop
         bytes memory firstHop = _buildAlgebraRoute(
-            2, // command: processUserERC20
-            address(tokenA), // tokenIn
-            address(liFiDEXAggregator), // Important: send to LDA instead of directly to pool2
-            pool1, // first pool
-            false // supportsFeeOnTransfer
+            AlgebraRouteParams({
+                commandCode: 2, // command: processUserERC20
+                tokenIn: address(tokenA),
+                recipient: address(liFiDEXAggregator), // Important: send to LDA instead of directly to pool2
+                pool: pool1,
+                supportsFeeOnTransfer: false
+            })
         );
 
         // Second hop using processMyERC20 since tokens are now in LDA
         bytes memory secondHop = _buildAlgebraRoute(
-            1, // command: processMyERC20 (use LDA's balance)
-            address(tokenB), // tokenIn
-            USER_SENDER, // recipient
-            pool2, // second pool
-            true // supportsFeeOnTransfer
+            AlgebraRouteParams({
+                commandCode: 1, // command: processMyERC20 (use LDA's balance)
+                tokenIn: address(tokenB),
+                recipient: USER_SENDER,
+                pool: pool2,
+                supportsFeeOnTransfer: true
+            })
         );
 
         // Combine the hops
@@ -1340,20 +1332,24 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         // Build the first hop route
         bytes memory firstHop = _buildAlgebraRoute(
-            2, // command: processUserERC20
-            address(tokenA), // tokenIn
-            address(liFiDEXAggregator), // send to LDA
-            pool1, // first pool
-            false // supportsFeeOnTransfer
+            AlgebraRouteParams({
+                commandCode: 2, // command: processUserERC20
+                tokenIn: address(tokenA),
+                recipient: address(liFiDEXAggregator), // send to LDA
+                pool: pool1,
+                supportsFeeOnTransfer: false
+            })
         );
 
         // Second hop using processMyERC20
         bytes memory secondHop = _buildAlgebraRoute(
-            1, // command: processMyERC20 (use LDA's balance)
-            address(tokenB), // tokenIn for second hop
-            USER_SENDER, // final recipient
-            pool2, // second pool
-            false // supportsFeeOnTransfer
+            AlgebraRouteParams({
+                commandCode: 1, // command: processMyERC20 (use LDA's balance)
+                tokenIn: address(tokenB),
+                recipient: USER_SENDER,
+                pool: pool2,
+                supportsFeeOnTransfer: false
+            })
         );
 
         // Combine the hops
@@ -1480,11 +1476,13 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         // Create a route with an invalid pool
         bytes memory invalidRoute = _buildAlgebraRoute(
-            2, // command: processUserERC20
-            APE_ETH_TOKEN, // tokenIn
-            USER_SENDER, // recipient
-            invalidPool, // invalid pool address
-            true // supportsFeeOnTransfer
+            AlgebraRouteParams({
+                commandCode: 2, // command: processUserERC20
+                tokenIn: APE_ETH_TOKEN,
+                recipient: USER_SENDER,
+                pool: invalidPool,
+                supportsFeeOnTransfer: true
+            })
         );
 
         // Approve tokens
@@ -1515,28 +1513,32 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.clearMockedCalls();
     }
 
+    struct AlgebraRouteParams {
+        uint8 commandCode; // 1 for contract funds, 2 for user funds
+        address tokenIn; // Input token address
+        address recipient; // Address receiving the output tokens
+        address pool; // Algebra pool address
+        bool supportsFeeOnTransfer; // Whether to support fee-on-transfer tokens
+    }
+
     // Helper function to build route for Apechain Algebra swap
     function _buildAlgebraRoute(
-        uint8 commandCode,
-        address tokenIn,
-        address recipient,
-        address pool,
-        bool supportsFeeOnTransfer
+        AlgebraRouteParams memory params
     ) internal view returns (bytes memory route) {
-        address token0 = IAlgebraPool(pool).token0();
-        bool zeroForOne = (tokenIn == token0);
+        address token0 = IAlgebraPool(params.pool).token0();
+        bool zeroForOne = (params.tokenIn == token0);
         uint8 direction = zeroForOne ? 1 : 0;
 
         route = abi.encodePacked(
-            commandCode, // 1 for contract funds, 2 for user funds
-            tokenIn, // tokenIn
+            params.commandCode,
+            params.tokenIn,
             uint8(1), // one pool
             uint16(65535), // 100% share
             uint8(7), // poolType == 7 (Algebra)
-            pool, // Algebra pool
-            direction, // direction
-            recipient, // recipient
-            supportsFeeOnTransfer // supportsFeeOnTransfer
+            params.pool,
+            direction,
+            params.recipient,
+            params.supportsFeeOnTransfer
         );
 
         return route;
@@ -1595,11 +1597,13 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             ? uint8(1)
             : uint8(2); // Build the route using the helper function with the command code
         bytes memory route = _buildAlgebraRoute(
-            commandCode,
-            params.tokenIn,
-            params.to,
-            pool,
-            params.supportsFeeOnTransfer
+            AlgebraRouteParams({
+                commandCode: commandCode,
+                tokenIn: params.tokenIn,
+                recipient: params.to,
+                pool: pool,
+                supportsFeeOnTransfer: params.supportsFeeOnTransfer
+            })
         );
 
         // Approve tokens
