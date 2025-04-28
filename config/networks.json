@@ -281,6 +281,8 @@
     "safeWebUrl": "https://safe.usecorn.com/transactions/queue?safe=corn:0xE6c9461644Dd0945354d7A9528dDD114D235c266",
     "gasZipChainId": 391,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
   },
   "cronos": {
@@ -521,6 +523,8 @@
     "safeWebUrl": "https://safe.none.com",
     "gasZipChainId": 442,
     "isZkEVM": true,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.26",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "linea": {
@@ -893,6 +897,8 @@
     "safeWebUrl": "n/a",
     "gasZipChainId": 303,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "swellchain": {
@@ -913,6 +919,8 @@
     "safeWebUrl": "https://safe.optimism.io/transactions/queue?safe=swell-l2:0xEBc5021332BF54f9700F481A232731Dc2249917b",
     "gasZipChainId": 385,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593"
   },
   "taiko": {
