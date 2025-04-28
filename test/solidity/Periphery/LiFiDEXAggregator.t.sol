@@ -1256,29 +1256,23 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         IERC20(address(tokenA)).approve(address(liFiDEXAggregator), amountIn);
 
         // Build the route with LDA as the recipient of first hop
-        bytes memory firstHop = abi.encodePacked(
-            uint8(2), // command: processUserERC20
+        bytes memory firstHop = _buildAlgebraRoute(
+            2, // command: processUserERC20
             address(tokenA), // tokenIn
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
-            pool1, // first pool
-            uint8(1), // direction
+            amountIn,
             address(liFiDEXAggregator), // Important: send to LDA instead of directly to pool2
-            uint8(0) // supportsFeeOnTransfer
+            pool1, // first pool
+            false // supportsFeeOnTransfer
         );
 
         // Second hop using processMyERC20 since tokens are now in LDA
-        bytes memory secondHop = abi.encodePacked(
-            uint8(1), // command: processMyERC20 (use LDA's balance)
-            address(tokenB), // tokenIn for second hop
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
-            pool2, // second pool
-            uint8(0), // direction
+        bytes memory secondHop = _buildAlgebraRoute(
+            1, // command: processMyERC20 (use LDA's balance)
+            address(tokenB), // tokenIn
+            0, // amountIn not needed for processMyERC20
             USER_SENDER, // recipient
-            uint8(1) // supportsFeeOnTransfer
+            pool2, // second pool
+            true // supportsFeeOnTransfer
         );
 
         // Combine the hops
@@ -1372,29 +1366,23 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         IERC20(address(tokenA)).approve(address(liFiDEXAggregator), amountIn);
 
         // Build the first hop route
-        bytes memory firstHop = abi.encodePacked(
-            uint8(2), // command: processUserERC20
+        bytes memory firstHop = _buildAlgebraRoute(
+            2, // command: processUserERC20
             address(tokenA), // tokenIn
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
-            pool1, // first pool
-            uint8(1), // direction
+            amountIn,
             address(liFiDEXAggregator), // send to LDA
-            uint8(0) // supportsFeeOnTransfer
+            pool1, // first pool
+            false // supportsFeeOnTransfer
         );
 
         // Second hop using processMyERC20
-        bytes memory secondHop = abi.encodePacked(
-            uint8(1), // command: processMyERC20 (use LDA's balance)
+        bytes memory secondHop = _buildAlgebraRoute(
+            1, // command: processMyERC20 (use LDA's balance)
             address(tokenB), // tokenIn for second hop
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
-            pool2, // second pool
-            uint8(0), // direction
+            0, // amountIn not needed for processMyERC20
             USER_SENDER, // final recipient
-            uint8(0) // supportsFeeOnTransfer
+            pool2, // second pool
+            false // supportsFeeOnTransfer
         );
 
         // Combine the hops
@@ -1514,17 +1502,21 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Create invalid pool address
         address invalidPool = address(0x999);
 
+        // Mock token0() call on invalid pool
+        vm.mockCall(
+            invalidPool,
+            abi.encodeWithSelector(IAlgebraPool.token0.selector),
+            abi.encode(APE_ETH_TOKEN)
+        );
+
         // Create a route with an invalid pool
-        bytes memory invalidRoute = abi.encodePacked(
-            uint8(2), // command code: 2 for processUserERC20
+        bytes memory invalidRoute = _buildAlgebraRoute(
+            2, // command: processUserERC20
             APE_ETH_TOKEN, // tokenIn
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
+            1 * 1e18, // amountIn
+            USER_SENDER, // recipient
             invalidPool, // invalid pool address
-            uint8(1), // direction: true
-            uint8(1), // supportsFeeOnTransfer
-            USER_SENDER // recipient
+            true // supportsFeeOnTransfer
         );
 
         // Approve tokens
@@ -1688,36 +1680,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         console2.log("finalTokenOut", finalTokenOut);
         console2.log("expectedOutput", expectedOutput);
-    }
-
-    // Helper function to build a multi-hop route for Algebra
-    function _buildAlgebraMultiHopRoute(
-        AlgebraMultiHopTestParams memory params,
-        address finalRecipient
-    ) internal pure returns (bytes memory) {
-        // First hop: send to second pool
-        bytes memory firstHop = abi.encodePacked(
-            uint8(2), // command: processUserERC20
-            params.tokenIn, // tokenIn
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
-            params.pool1, // first pool
-            uint8(1), // direction: true
-            params.pool2 // send to second pool
-        );
-
-        // Second hop: process through second pool to final recipient
-        bytes memory secondHop = abi.encodePacked(
-            uint8(4), // command: processOnePool
-            params.tokenMid, // tokenIn for second hop
-            uint8(7), // pool type: Algebra
-            params.pool2, // second pool
-            uint8(1), // direction: true
-            finalRecipient
-        );
-
-        return bytes.concat(firstHop, secondHop);
     }
 
     function _getPool(
