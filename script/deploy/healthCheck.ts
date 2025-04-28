@@ -535,31 +535,51 @@ const main = defineCommand({
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking SAFE configuration...')
       const networkConfig: Network = networks[network.toLowerCase()]
-      if (!networkConfig.safeAddress || !networkConfig.safeApiUrl) {
+      if (!networkConfig.safeAddress) {
         consola.warn('SAFE address not configured')
       } else {
         const safeOwners = globalConfig.safeOwners
         const safeAddress = networkConfig.safeAddress
-        const safeApiUrl = networkConfig.safeApiUrl
-        const configUrl = `${safeApiUrl}/v1/safes/${safeAddress}`
-        const res = await fetch(configUrl)
-        const safeConfig = await res.json()
 
-        // Check that each safeOwner is in safeConfig.owners
-        for (const o in safeOwners) {
-          const safeOwner = getAddress(safeOwners[o])
-          if (!safeConfig.owners.includes(safeOwner)) {
-            logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-          } else {
-            consola.success(`SAFE owner ${safeOwner} is in SAFE configuration`)
+        try {
+          // Import getSafeInfoFromContract from safe-utils.ts
+          const { getSafeInfoFromContract } = await import('./safe/safe-utils')
+
+          // Get Safe info directly from the contract
+          const safeInfo = await getSafeInfoFromContract(
+            publicClient,
+            safeAddress
+          )
+
+          // Check that each safeOwner is in the Safe
+          for (const o in safeOwners) {
+            const safeOwner = getAddress(safeOwners[o])
+            const isOwner = safeInfo.owners.some(
+              (owner) => getAddress(owner) === safeOwner
+            )
+
+            if (!isOwner) {
+              logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+            } else {
+              consola.success(
+                `SAFE owner ${safeOwner} is in SAFE configuration`
+              )
+            }
           }
-        }
 
-        // Check that threshold is correct
-        if (safeConfig.threshold < SAFE_THRESHOLD) {
-          logError(`SAFE signature threshold is less than ${SAFE_THRESHOLD}`)
-        } else {
-          consola.success(`SAFE signature threshold is ${safeConfig.threshold}`)
+          // Check that threshold is correct
+          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD)) {
+            logError(
+              `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
+            )
+          } else {
+            consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
+          }
+
+          // Show current nonce
+          consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
+        } catch (error) {
+          logError(`Failed to get SAFE information: ${error}`)
         }
       }
 

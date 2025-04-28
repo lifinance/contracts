@@ -2,6 +2,9 @@
   "mainnet": {
     "thorchainRouter": "0xD37BbE5744D730a1d98d8DC97c42F0Ca46aD7146"
   },
+  "base": {
+    "thorchainRouter": "0x68208D99746b805a1Ae41421950A47b711E35681"
+  },
   "bsc": {
     "thorchainRouter": "0xb30ec53f98ff5947ede720d32ac2da7e52a5f56b"
   },
