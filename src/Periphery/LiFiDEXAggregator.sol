@@ -884,7 +884,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // Handle fee-on-transfer tokens with special care:
         // - These tokens modify balances during transfer (fees, rebasing, etc.)
         // - Algebra has built-in support via swapSupportingFeeOnInputTokens()
-        // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens
+        // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens.
         if (supportsFeeOnTransfer) {
             IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
                 address(this),

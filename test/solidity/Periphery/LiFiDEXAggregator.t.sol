@@ -17,7 +17,6 @@ import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../utils/MockTokenFeeOnTransfer.sol";
-import { console2 } from "forge-std/console2.sol";
 
 // Command codes for route processing
 enum CommandType {
@@ -103,9 +102,9 @@ abstract contract LiFiDexAggregatorTest is TestBase {
     address[] internal privileged;
 
     // Test users
-    address constant USER_A = address(0xA11CE);
-    address constant USER_B = address(0xB0B);
-    address constant USER_C = address(0xC1D);
+    address internal constant USER_A = address(0xA11CE);
+    address internal constant USER_B = address(0xB0B);
+    address internal constant USER_C = address(0xC1D);
 
     // Common events and errors
     event Route(
@@ -186,6 +185,7 @@ abstract contract LiFiDexAggregatorTest is TestBase {
      */
     function test_CanSwap_FromDexAggregator() public virtual {
         // Each DEX implementation must override this
+        // solhint-disable-next-line gas-custom-errors
         revert("test_CanSwap_FromDexAggregator: Not implemented");
     }
 
@@ -195,6 +195,7 @@ abstract contract LiFiDexAggregatorTest is TestBase {
      */
     function test_CanSwap_MultiHop() public virtual {
         // Each DEX implementation must override this
+        // solhint-disable-next-line gas-custom-errors
         revert("test_CanSwap_MultiHop: Not implemented");
     }
 }
@@ -990,12 +991,12 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
 }
 
 contract AlgebraLiquidityAdderHelper {
-    address public immutable token0;
-    address public immutable token1;
+    address public immutable TOKEN_0;
+    address public immutable TOKEN_1;
 
     constructor(address _token0, address _token1) {
-        token0 = _token0;
-        token1 = _token1;
+        TOKEN_0 = _token0;
+        TOKEN_1 = _token1;
     }
 
     function addLiquidity(
@@ -1008,8 +1009,8 @@ contract AlgebraLiquidityAdderHelper {
         returns (uint256 amount0, uint256 amount1, uint128 liquidityActual)
     {
         // Get balances before
-        uint256 balance0Before = IERC20(token0).balanceOf(address(this));
-        uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+        uint256 balance0Before = IERC20(TOKEN_0).balanceOf(address(this));
+        uint256 balance1Before = IERC20(TOKEN_1).balanceOf(address(this));
 
         // Call mint
         (amount0, amount1, liquidityActual) = IAlgebraPool(pool).mint(
@@ -1018,12 +1019,12 @@ contract AlgebraLiquidityAdderHelper {
             bottomTick,
             topTick,
             amount,
-            abi.encode(token0, token1)
+            abi.encode(TOKEN_0, TOKEN_1)
         );
 
         // Get balances after to account for fees
-        uint256 balance0After = IERC20(token0).balanceOf(address(this));
-        uint256 balance1After = IERC20(token1).balanceOf(address(this));
+        uint256 balance0After = IERC20(TOKEN_0).balanceOf(address(this));
+        uint256 balance1After = IERC20(TOKEN_1).balanceOf(address(this));
 
         // Calculate actual amounts transferred accounting for fees
         amount0 = balance0Before - balance0After;
@@ -1038,21 +1039,22 @@ contract AlgebraLiquidityAdderHelper {
         bytes calldata
     ) external {
         // Check token balances
-        uint256 balance0 = IERC20(token0).balanceOf(address(this));
-        uint256 balance1 = IERC20(token1).balanceOf(address(this));
+        uint256 balance0 = IERC20(TOKEN_0).balanceOf(address(this));
+        uint256 balance1 = IERC20(TOKEN_1).balanceOf(address(this));
 
         // Transfer what we can, limited by actual balance
         if (amount0Owed > 0) {
             uint256 amount0ToSend = amount0Owed > balance0
                 ? balance0
                 : amount0Owed;
-            uint256 balance0Before = IERC20(token0).balanceOf(
+            uint256 balance0Before = IERC20(TOKEN_0).balanceOf(
                 address(msg.sender)
             );
-            IERC20(token0).transfer(msg.sender, amount0ToSend);
-            uint256 balance0After = IERC20(token0).balanceOf(
+            IERC20(TOKEN_0).transfer(msg.sender, amount0ToSend);
+            uint256 balance0After = IERC20(TOKEN_0).balanceOf(
                 address(msg.sender)
             );
+            // solhint-disable-next-line gas-custom-errors
             require(balance0After > balance0Before, "Transfer failed");
         }
 
@@ -1060,13 +1062,14 @@ contract AlgebraLiquidityAdderHelper {
             uint256 amount1ToSend = amount1Owed > balance1
                 ? balance1
                 : amount1Owed;
-            uint256 balance1Before = IERC20(token1).balanceOf(
+            uint256 balance1Before = IERC20(TOKEN_1).balanceOf(
                 address(msg.sender)
             );
-            IERC20(token1).transfer(msg.sender, amount1ToSend);
-            uint256 balance1After = IERC20(token1).balanceOf(
+            IERC20(TOKEN_1).transfer(msg.sender, amount1ToSend);
+            uint256 balance1After = IERC20(TOKEN_1).balanceOf(
                 address(msg.sender)
             );
+            // solhint-disable-next-line gas-custom-errors
             require(balance1After > balance1Before, "Transfer failed");
         }
     }
@@ -1087,7 +1090,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         0x60A186019F81bFD04aFc16c9C01804a04E79e68B;
     address private constant ALGEBRA_POOL_APECHAIN =
         0x217076aa74eFF7D54837D00296e9AEBc8c06d4F2;
-    address constant APE_ETH_HOLDER_APECHAIN =
+    address private constant APE_ETH_HOLDER_APECHAIN =
         address(0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b);
 
     struct AlgebraSwapTestParams {
@@ -1638,8 +1641,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             params.amountIn
         );
 
-        console2.log("expectedOutput", expectedOutput);
-
         // Build the route
         uint8 commandCode = params.from == address(liFiDEXAggregator)
             ? uint8(CommandType.ProcessMyERC20)
@@ -1695,9 +1696,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             "TokenIn amount mismatch"
         );
         assertGt(finalTokenOut, initialTokenOut, "TokenOut not received");
-
-        console2.log("finalTokenOut", finalTokenOut);
-        console2.log("expectedOutput", expectedOutput);
     }
 
     function _getPool(
