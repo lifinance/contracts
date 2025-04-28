@@ -1057,6 +1057,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         uint256 amountIn;
         address tokenOut;
         bool direction;
+        bool supportsFeeOnTransfer;
     }
 
     struct AlgebraMultiHopTestParams {
@@ -1092,7 +1093,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                     address(liFiDEXAggregator)
                 ) - 1, // Adjust for slot undrain protection
                 tokenOut: address(WETH_TOKEN),
-                direction: true
+                direction: true,
+                supportsFeeOnTransfer: true
             })
         );
 
@@ -1115,7 +1117,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             APE_ETH_TOKEN,
             amountIn,
             APE_ETH_HOLDER_APECHAIN,
-            ALGEBRA_POOL_APECHAIN
+            ALGEBRA_POOL_APECHAIN,
+            true
         );
 
         // Track initial balance
@@ -1160,7 +1163,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: APE_ETH_TOKEN,
                 amountIn: 10 * 1e18,
                 tokenOut: address(WETH_TOKEN),
-                direction: true
+                direction: true,
+                supportsFeeOnTransfer: true
             })
         );
 
@@ -1179,7 +1183,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: address(WETH_TOKEN),
                 amountIn: 5 * 1e18,
                 tokenOut: APE_ETH_TOKEN,
-                direction: false
+                direction: false,
+                supportsFeeOnTransfer: false
             })
         );
 
@@ -1258,7 +1263,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             pool1, // first pool
             uint8(1), // direction
-            address(liFiDEXAggregator) // Important: send to LDA instead of directly to pool2
+            address(liFiDEXAggregator), // Important: send to LDA instead of directly to pool2
+            uint8(0) // supportsFeeOnTransfer
         );
 
         // Second hop using processMyERC20 since tokens are now in LDA
@@ -1270,7 +1276,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             pool2, // second pool
             uint8(0), // direction
-            USER_SENDER // recipient
+            USER_SENDER, // recipient
+            uint8(1) // supportsFeeOnTransfer
         );
 
         // Combine the hops
@@ -1372,7 +1379,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             pool1, // first pool
             uint8(1), // direction
-            address(liFiDEXAggregator) // send to LDA
+            address(liFiDEXAggregator), // send to LDA
+            uint8(0) // supportsFeeOnTransfer
         );
 
         // Second hop using processMyERC20
@@ -1384,7 +1392,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             pool2, // second pool
             uint8(0), // direction
-            USER_SENDER // final recipient
+            USER_SENDER, // final recipient
+            uint8(0) // supportsFeeOnTransfer
         );
 
         // Combine the hops
@@ -1513,6 +1522,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             invalidPool, // invalid pool address
             uint8(1), // direction: true
+            uint8(1), // supportsFeeOnTransfer
             USER_SENDER // recipient
         );
 
@@ -1549,7 +1559,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         address tokenIn,
         uint256 amountIn,
         address recipient,
-        address pool
+        address pool,
+        bool supportsFeeOnTransfer
     ) internal view returns (bytes memory route) {
         address token0 = IAlgebraPool(pool).token0();
         bool zeroForOne = (tokenIn == token0);
@@ -1563,7 +1574,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // poolType == 7 (Algebra)
             pool, // Algebra pool
             direction, // direction
-            recipient // recipient
+            recipient, // recipient
+            supportsFeeOnTransfer // supportsFeeOnTransfer
         );
 
         return route;
@@ -1630,7 +1642,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(7), // pool type: Algebra
             pool, // pool address
             params.direction ? uint8(1) : uint8(0), // direction
-            params.to // recipient
+            params.to, // recipient
+            params.supportsFeeOnTransfer ? uint8(1) : uint8(0) // supportsFeeOnTransfer
         );
 
         // Approve tokens

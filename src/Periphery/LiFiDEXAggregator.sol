@@ -856,33 +856,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         );
     }
 
-    /// @notice Detects if a token implements fee-on-transfer mechanics by checking for common interfaces
-    /// @dev This function helps determine the appropriate swap path for tokens, particularly for protocols like Algebra:
-    ///      - Fee-on-transfer tokens include tokens that:
-    ///        * Take a fee on transfer operations
-    ///        * Generate "dust" through rebasing mechanics
-    ///        * Implement elastic supply mechanisms
-    ///      - Instead of maintaining token lists across multiple chains, we dynamically detect token type
-    ///      - Can be extended for other standards
-    ///      - Uses staticcall to safely probe for interfaces without state changes
-    /// @param token The token address to check for fee-on-transfer mechanics
-    /// @return bool True if token implements known fee-on-transfer interfaces
-    function _isFeeOnTransferToken(address token) private view returns (bool) {
-        // Try ERC4626 detection
-        (bool success1, ) = token.staticcall(
-            abi.encodeWithSignature("convertToAssets(uint256)", 1)
-        );
-        if (success1) return true;
-
-        // Try OFTERC4626 detection
-        (bool success2, ) = token.staticcall(
-            abi.encodeWithSignature("sharesToAssets(uint256)", 1)
-        );
-        if (success2) return true;
-
-        return false;
-    }
-
     /// @notice Algebra pool swap
     /// @param stream [pool, direction, recipient]
     /// @param from Where to take liquidity for swap
@@ -897,6 +870,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address pool = stream.readAddress();
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
+        bool supportsFeeOnTransfer = stream.readUint8() > 0;
 
         if (from == msg.sender)
             IERC20(tokenIn).safeTransferFrom(
@@ -911,7 +885,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // - These tokens modify balances during transfer (fees, rebasing, etc.)
         // - Algebra has built-in support via swapSupportingFeeOnInputTokens()
         // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens
-        if (_isFeeOnTransferToken(tokenIn)) {
+        if (supportsFeeOnTransfer) {
             IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
                 address(this),
                 recipient,
