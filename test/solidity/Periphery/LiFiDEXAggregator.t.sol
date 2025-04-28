@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
@@ -73,17 +72,6 @@ contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
         emit HookCalled(sender, amount0, amount1, data);
     }
 }
-
-interface IOftERC4626 is IERC4626 {
-    function transferShares(
-        address to,
-        uint256 shares
-    ) external returns (uint256 assets);
-    function assetsToShares(
-        uint256 assets
-    ) external view returns (uint256 shares);
-}
-
 /**
  * @title LiFiDexAggregatorTest
  * @notice Base test contract with common functionality and abstractions for DEX-specific tests
@@ -213,14 +201,14 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         internal mockFlashloanCallbackReceiver;
 
     // Velodrome V2 structs
-    struct SwapTestParams {
+    struct VelodromeV2SwapTestParams {
         address from;
         address to;
         address tokenIn;
         uint256 amountIn;
         address tokenOut;
         bool stable;
-        uint8 direction;
+        SwapDirection direction;
         bool callback;
     }
 
@@ -270,14 +258,14 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.startPrank(USER_SENDER);
 
         _testSwap(
-            SwapTestParams({
+            VelodromeV2SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(USER_SENDER),
                 tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(STG_TOKEN),
                 stable: false,
-                direction: 1,
+                direction: SwapDirection.Token0ToToken1,
                 callback: false
             })
         );
@@ -291,14 +279,14 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
 
         vm.startPrank(USER_SENDER);
         _testSwap(
-            SwapTestParams({
+            VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
                 tokenIn: address(STG_TOKEN),
                 amountIn: 500 * 1e18,
                 tokenOut: ADDRESS_USDC,
                 stable: false,
-                direction: 0,
+                direction: SwapDirection.Token1ToToken0,
                 callback: false
             })
         );
@@ -308,14 +296,14 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
     function test_CanSwapViaVelodromeV2_Stable() public {
         vm.startPrank(USER_SENDER);
         _testSwap(
-            SwapTestParams({
+            VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
                 tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true,
-                direction: 1,
+                direction: SwapDirection.Token0ToToken1,
                 callback: false
             })
         );
@@ -329,14 +317,14 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.startPrank(USER_SENDER);
 
         _testSwap(
-            SwapTestParams({
+            VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
                 tokenIn: address(USDC_E_TOKEN),
                 amountIn: 500 * 1e6,
                 tokenOut: ADDRESS_USDC,
                 stable: false,
-                direction: 0,
+                direction: SwapDirection.Token1ToToken0,
                 callback: false
             })
         );
@@ -350,7 +338,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
 
         vm.startPrank(USER_SENDER);
         _testSwap(
-            SwapTestParams({
+            VelodromeV2SwapTestParams({
                 from: address(liFiDEXAggregator),
                 to: address(USER_SENDER),
                 tokenIn: ADDRESS_USDC,
@@ -359,7 +347,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
                 ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
-                direction: 1,
+                direction: SwapDirection.Token0ToToken1,
                 callback: false
             })
         );
@@ -371,14 +359,14 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
 
         vm.startPrank(USER_SENDER);
         _testSwap(
-            SwapTestParams({
+            VelodromeV2SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(mockFlashloanCallbackReceiver),
                 tokenIn: ADDRESS_USDC,
                 amountIn: 1_000 * 1e6,
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
-                direction: 1,
+                direction: SwapDirection.Token0ToToken1,
                 callback: true
             })
         );
@@ -536,7 +524,6 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
             address(0),
             uint8(SwapDirection.Token1ToToken0),
             USER_SENDER,
-            uint8(CallbackStatus.Disabled),
             uint8(CallbackStatus.Disabled)
         );
 
@@ -562,7 +549,6 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
             validPool,
             uint8(SwapDirection.Token1ToToken0),
             address(0),
-            uint8(CallbackStatus.Disabled),
             uint8(CallbackStatus.Disabled)
         );
 
@@ -640,7 +626,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
      * @dev Helper function to test a VelodromeV2 swap.
      * Uses a struct to group parameters and reduce stack depth.
      */
-    function _testSwap(SwapTestParams memory params) internal {
+    function _testSwap(VelodromeV2SwapTestParams memory params) internal {
         // get expected output amounts from the router.
         IVelodromeV2Router.Route[]
             memory routes = new IVelodromeV2Router.Route[](1);
@@ -666,13 +652,13 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         emit log_named_uint("Pool address:", uint256(uint160(pool)));
 
         // if tokens come from the aggregator (address(liFiDEXAggregator)), use command code 1; otherwise, use 2.
-        uint8 commandCode = params.from == address(liFiDEXAggregator)
-            ? uint8(CommandType.ProcessMyERC20)
-            : uint8(CommandType.ProcessUserERC20);
+        CommandType commandCode = params.from == address(liFiDEXAggregator)
+            ? CommandType.ProcessMyERC20
+            : CommandType.ProcessUserERC20;
 
         // build the route.
         bytes memory route = abi.encodePacked(
-            commandCode,
+            uint8(commandCode),
             params.tokenIn,
             uint8(1),
             FULL_SHARE,
@@ -1093,7 +1079,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         address tokenIn;
         uint256 amountIn;
         address tokenOut;
-        bool direction;
+        SwapDirection direction;
         bool supportsFeeOnTransfer;
     }
 
@@ -1118,9 +1104,9 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: APE_ETH_TOKEN,
                 amountIn: IERC20(APE_ETH_TOKEN).balanceOf(
                     address(liFiDEXAggregator)
-                ) - 1, // Adjust for slot undrain protection
+                ) - 1,
                 tokenOut: address(WETH_TOKEN),
-                direction: true,
+                direction: SwapDirection.Token0ToToken1,
                 supportsFeeOnTransfer: true
             })
         );
@@ -1142,7 +1128,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Build route for algebra swap with command code 2 (user funds)
         bytes memory route = _buildAlgebraRoute(
             AlgebraRouteParams({
-                commandCode: 2, // command code for user funds
+                commandCode: CommandType.ProcessUserERC20,
                 tokenIn: APE_ETH_TOKEN,
                 recipient: APE_ETH_HOLDER_APECHAIN,
                 pool: ALGEBRA_POOL_APECHAIN,
@@ -1192,7 +1178,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: APE_ETH_TOKEN,
                 amountIn: 10 * 1e18,
                 tokenOut: address(WETH_TOKEN),
-                direction: true,
+                direction: SwapDirection.Token0ToToken1,
                 supportsFeeOnTransfer: true
             })
         );
@@ -1212,7 +1198,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
                 tokenIn: address(WETH_TOKEN),
                 amountIn: 5 * 1e18,
                 tokenOut: APE_ETH_TOKEN,
-                direction: false,
+                direction: SwapDirection.Token1ToToken0,
                 supportsFeeOnTransfer: false
             })
         );
@@ -1263,7 +1249,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Create a route with an invalid pool
         bytes memory invalidRoute = _buildAlgebraRoute(
             AlgebraRouteParams({
-                commandCode: 2, // command: processUserERC20
+                commandCode: CommandType.ProcessUserERC20,
                 tokenIn: APE_ETH_TOKEN,
                 recipient: USER_SENDER,
                 pool: invalidPool,
@@ -1428,7 +1414,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     ) private returns (bytes memory) {
         bytes memory firstHop = _buildAlgebraRoute(
             AlgebraRouteParams({
-                commandCode: 2, // command: processUserERC20
+                commandCode: CommandType.ProcessUserERC20,
                 tokenIn: address(state.tokenA),
                 recipient: address(liFiDEXAggregator),
                 pool: state.pool1,
@@ -1438,7 +1424,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         bytes memory secondHop = _buildAlgebraRoute(
             AlgebraRouteParams({
-                commandCode: 1, // command: processMyERC20
+                commandCode: CommandType.ProcessMyERC20,
                 tokenIn: address(state.tokenB),
                 recipient: USER_SENDER,
                 pool: state.pool2,
@@ -1560,7 +1546,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     }
 
     struct AlgebraRouteParams {
-        uint8 commandCode; // 1 for contract funds, 2 for user funds
+        CommandType commandCode; // 1 for contract funds, 2 for user funds
         address tokenIn; // Input token address
         address recipient; // Address receiving the output tokens
         address pool; // Algebra pool address
@@ -1573,9 +1559,9 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     ) internal returns (bytes memory route) {
         address token0 = IAlgebraPool(params.pool).token0();
         bool zeroForOne = (params.tokenIn == token0);
-        uint8 direction = zeroForOne
-            ? uint8(SwapDirection.Token0ToToken1)
-            : uint8(SwapDirection.Token1ToToken0);
+        SwapDirection direction = zeroForOne
+            ? SwapDirection.Token0ToToken1
+            : SwapDirection.Token1ToToken0;
 
         route = abi.encodePacked(
             params.commandCode,
@@ -1584,11 +1570,9 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             FULL_SHARE, // 100% share
             uint8(PoolType.Algebra),
             params.pool,
-            direction,
+            uint8(direction),
             params.recipient,
-            params.supportsFeeOnTransfer
-                ? uint8(CallbackStatus.Enabled)
-                : uint8(CallbackStatus.Disabled)
+            params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
         );
 
         return route;
@@ -1641,9 +1625,9 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         );
 
         // Build the route
-        uint8 commandCode = params.from == address(liFiDEXAggregator)
-            ? uint8(CommandType.ProcessMyERC20)
-            : uint8(CommandType.ProcessUserERC20);
+        CommandType commandCode = params.from == address(liFiDEXAggregator)
+            ? CommandType.ProcessMyERC20
+            : CommandType.ProcessUserERC20;
         bytes memory route = _buildAlgebraRoute(
             AlgebraRouteParams({
                 commandCode: commandCode,
