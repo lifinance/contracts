@@ -1112,8 +1112,9 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         IERC20(APE_ETH_TOKEN).approve(address(liFiDEXAggregator), amountIn);
 
-        // Build route for algebra swap
+        // Build route for algebra swap with command code 2 (user funds)
         bytes memory route = _buildAlgebraRoute(
+            2, // command code for user funds
             APE_ETH_TOKEN,
             amountIn,
             APE_ETH_HOLDER_APECHAIN,
@@ -1556,6 +1557,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
     // Helper function to build route for Apechain Algebra swap
     function _buildAlgebraRoute(
+        uint8 commandCode,
         address tokenIn,
         uint256 amountIn,
         address recipient,
@@ -1567,7 +1569,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         uint8 direction = zeroForOne ? 1 : 0;
 
         route = abi.encodePacked(
-            uint8(2), // processUserERC20
+            commandCode, // 1 for contract funds, 2 for user funds
             tokenIn, // tokenIn
             uint8(1), // one pool
             uint16(65535), // 100% share
@@ -1632,18 +1634,14 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         // Build the route
         uint8 commandCode = params.from == address(liFiDEXAggregator)
             ? uint8(1)
-            : uint8(2);
-
-        bytes memory route = abi.encodePacked(
-            commandCode, // 1 for contract funds, 2 for user funds
-            params.tokenIn, // tokenIn
-            uint8(1), // number of pools
-            uint16(65535), // share (100%)
-            uint8(7), // pool type: Algebra
-            pool, // pool address
-            params.direction ? uint8(1) : uint8(0), // direction
-            params.to, // recipient
-            params.supportsFeeOnTransfer ? uint8(1) : uint8(0) // supportsFeeOnTransfer
+            : uint8(2); // Build the route using the helper function with the command code
+        bytes memory route = _buildAlgebraRoute(
+            commandCode,
+            params.tokenIn,
+            params.amountIn,
+            params.to,
+            pool,
+            params.supportsFeeOnTransfer
         );
 
         // Approve tokens
@@ -1657,10 +1655,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             ? USER_SENDER
             : params.from;
 
-        // NOTE: For fee-on-transfer tokens, the actual output may differ slightly from
-        // the expected output due to token transfer fees not accounted for in the quoter.
-        // We still use expectedOutput in the event for easier testing, though actual amounts
-        // received may have minor dust differences.
         vm.expectEmit(true, true, true, false);
         emit Route(
             from,
