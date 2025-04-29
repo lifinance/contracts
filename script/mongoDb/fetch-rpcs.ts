@@ -17,27 +17,38 @@ async function fetchRpcEndpoints(): Promise<{
     throw new Error('MONGODB_URI is not defined in the environment')
 
   const client = new MongoClient(MONGODB_URI)
-  await client.connect()
-  const db = client.db('blockchain-configs')
-  const collection = db.collection('RpcEndpoints')
+  try {
+    await client.connect()
+    const db = client.db('blockchain-configs')
+    const collection = db.collection('RpcEndpoints')
 
-  const cursor = collection.find({})
-  const endpoints: { [network: string]: RpcEndpoint[] } = {}
+    const cursor = collection.find({})
+    const endpoints: { [network: string]: RpcEndpoint[] } = {}
 
-  await cursor.forEach((doc) => {
-    if (doc.chainName && Array.isArray(doc.rpcs)) {
-      const validEndpoints: RpcEndpoint[] = doc.rpcs.filter((r: any) => !!r.url)
-      // Sort endpoints in descending order so that the endpoint with the highest priority comes first
-      validEndpoints.sort((a, b) => b.priority - a.priority)
-      if (validEndpoints.length > 0) {
-        const envVar = `ETH_NODE_URI_${doc.chainName.toUpperCase()}`
-        endpoints[envVar] = validEndpoints
+    await cursor.forEach((doc) => {
+      if (doc?.chainName && Array.isArray(doc?.rpcs)) {
+        const validEndpoints: RpcEndpoint[] = doc.rpcs.filter(
+          (r: any) => !!r.url
+        )
+        // Sort endpoints in descending order so that the endpoint with the highest priority comes first
+        validEndpoints.sort((a, b) => b.priority - a.priority)
+        if (validEndpoints.length > 0) {
+          const envVar = `ETH_NODE_URI_${doc.chainName.toUpperCase()}`
+          endpoints[envVar] = validEndpoints
+        }
       }
-    }
-  })
+    })
 
-  await client.close()
-  return endpoints
+    await client.close()
+    return endpoints
+  } catch (error) {
+    try {
+      await client.close()
+    } catch {
+      /* ignore closure errors */
+    }
+    throw new Error(`Failed to fetch RPC endpoints: ${error}`)
+  }
 }
 
 async function mergeEndpointsIntoEnv() {
