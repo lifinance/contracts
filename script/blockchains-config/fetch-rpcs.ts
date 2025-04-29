@@ -16,8 +16,8 @@ async function fetchRpcEndpoints(): Promise<{ [network: string]: string }> {
 
   const client = new MongoClient(MONGODB_URI)
   await client.connect()
-  const db = client.db('blockchain_configs')
-  const collection = db.collection('rpc_endpoints')
+  const db = client.db('blockchain-configs')
+  const collection = db.collection('RpcEndpoints')
 
   // Suppose each document has a chainName field and an array of endpoints in "rpcs"
   const cursor = collection.find({})
