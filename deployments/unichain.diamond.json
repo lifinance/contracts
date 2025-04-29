@@ -65,24 +65,23 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xdD35f430d70FE8Ec70a5CeE7FD674Fb0Ba7EC98c": {
+      "0x0Ed72910Cd2f801aC2048464389605ae05bb4bAB": {
         "Name": "MayanFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
       "Executor": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
       "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
-      "GasZipPeriphery": "0x9bC66C208cc2DE73AC589431aa2b1fef34EfCa37",
-      "LiFiDEXAggregator": "0x53900B852FF27Ef230DDBF2AC22dC772d181b2b4",
-      "LiFuelFeeCollector": "",
+      "GasZipPeriphery": "0x7859570b2196f7c764f400b41C6A0080512219b3",
+      "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
       "Permit2Proxy": "0x4BDB8cb372AeF4047626869dD5580536DBA9b053",
       "ReceiverAcrossV3": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b",
-      "ReceiverChainflip": ""
+      "TokenWrapper": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b"
     }
   }
 }

@@ -74,18 +74,14 @@
       "ERC20Proxy": "0x55A5cE71307Ec425F0E533400A0bcEb136e6E800",
       "Executor": "0x1B874Aae59d738079Fe3E4F7D90B5793D3a51481",
       "FeeCollector": "0xaFb8cC8fCd71cd768Ce117C11eB723119FCDb1f8",
-      "GasZipPeriphery": "0x3925eFbD0C1d9c119eC771649052eed7587094AA",
-      "LiFiDEXAggregator": "0xAdf8d87723Ec7f011Ae56DDD6dC10FA8b2C3863A",
-      "LiFuelFeeCollector": "0xbA01f8b54F8F6B3789Bc9E1Bbd7206bE4e6830e5",
+      "GasZipPeriphery": "0x6F703111cc3f898f521d29E1151b3F56aA0a1E5B",
+      "LiFiDEXAggregator": "0xA03513f40409D1316c4958dbCef86e7Ab5Cd2009",
       "Permit2Proxy": "",
-      "Receiver": "0xbE539601FDf7736A4Dd730008082Bf2C16e6f728",
       "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "0xB05796e54CfADA2C4F7771A0553D6538DD66Ba9a",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x51f5A9675A0663C3EC2b46121eB1504687922911",
-      "GasZipPeriphery.flattened": "",
-      "LiFiDEXAggregator.flattened": "",
-      "ReceiverChainflip": ""
+      "TokenWrapper": "0x51f5A9675A0663C3EC2b46121eB1504687922911"
     }
   }
 }
