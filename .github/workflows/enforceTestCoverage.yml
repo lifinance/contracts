@@ -34,12 +34,12 @@ jobs:
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           bun fetch-rpcs
-          # Inject the variables from .env into the GitHub Actions environment
+          # Only inject RPC endpoint variables into the GitHub Actions environment
           while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" != "" ]]; then
-              echo "$line" >> $GITHUB_ENV
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              echo "$line" >> "$GITHUB_ENV"
             fi
-          done < .env
+          done < ".env"
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
