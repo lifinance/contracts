@@ -20,17 +20,21 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/across.json");
+        string memory configPath = string.concat(root, "/config/across.json");
+        string memory networksPath = string.concat(
+            root,
+            "/config/networks.json"
+        );
 
         address acrossSpokePool = _getConfigContractAddress(
-            path,
+            configPath,
             string.concat(".", network, ".acrossSpokePool")
         );
-        address weth = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".weth")
+        address wrappedNativeAddress = _getConfigContractAddress(
+            networksPath,
+            string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        return abi.encode(acrossSpokePool, weth);
+        return abi.encode(acrossSpokePool, wrappedNativeAddress);
     }
 }

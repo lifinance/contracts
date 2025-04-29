@@ -1,5 +1,4 @@
 import { privateKeyToAccount } from 'viem/accounts'
-import { formatEther, formatUnits, zeroAddress } from 'viem'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
@@ -9,12 +8,15 @@ import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 import {
   Chain,
+  Narrow,
   createPublicClient,
   createWalletClient,
   getContract,
   http,
-  Narrow,
   parseAbi,
+  formatEther,
+  formatUnits,
+  zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
@@ -483,6 +485,22 @@ export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
 }
 
 /**
+ * Converts an Ethereum address to a 32-byte hexadecimal string,
+ * mimicking Solidity's `bytes32(bytes20(uint160(address)))` conversion.
+ * The address is right-padded with zeros to fit into a 32-byte value.
+ *
+ * @param address - A valid Ethereum address (20 bytes).
+ * @returns A 32-byte hexadecimal string representation of the address.
+ */
+export function addressToBytes32RightPadded(address: string): `0x${string}` {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error('Invalid Ethereum address format')
+  }
+  const hex = address.replace(/^0x/, '').toLowerCase()
+  return `0x${hex.padEnd(64, '0')}`
+}
+
+/**
  * Retrieve the value of an environment variable.
  * Throws an error if the environment variable is not defined.
  */
@@ -725,13 +743,21 @@ export const executeTransaction = async <T>(
  * Ensures that the address wallet has the required token balance.
  */
 export const ensureBalance = async (
-  tokenContract: any,
+  asset: any,
   walletAddress: string,
-  requiredAmount: bigint
+  requiredAmount: bigint,
+  publicClient: any = null
 ): Promise<void> => {
-  const balance: bigint = (await tokenContract.read.balanceOf([
-    walletAddress,
-  ])) as bigint
+  let balance: bigint
+
+  if (asset === zeroAddress) {
+    // Special case: asset represents the native token (e.g. ETH).
+    // Retrieve the native balance using the public client.
+    balance = await publicClient.getBalance({ address: walletAddress })
+  } else {
+    // Standard ERC20 balance check using the asset's balanceOf method.
+    balance = (await asset.read.balanceOf([walletAddress])) as bigint
+  }
 
   if (balance < requiredAmount) {
     console.error(

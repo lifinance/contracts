@@ -113,7 +113,8 @@ scriptMaster() {
       "9) Review deploy status (vs. target state)" \
       "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
       "11) Update diamond log(s)" \
-      "12) Propose upgrade TX to Gnosis SAFE"
+      "12) Propose upgrade TX to Gnosis SAFE" \
+      "13) Remove facets or periphery from diamond"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -527,7 +528,10 @@ scriptMaster() {
   # use case 12: Propose upgrade TX to Gnosis SAFE
   elif [[ "$SELECTION" == "12)"* ]]; then
     deployUpgradesToSAFE $ENVIRONMENT
-
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 13: Remove facets or periphery from diamond
+  elif [[ "$SELECTION" == "13)"* ]]; then
+    bun script/tasks/cleanUpProdDiamond.ts
 
   else
     error "invalid use case selected ('$SELECTION') - exiting script"

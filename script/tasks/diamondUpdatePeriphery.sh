@@ -187,9 +187,9 @@ register() {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
-        if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-          echo "DEPLOY_NEW_NETWORK_MODE is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
@@ -209,9 +209,9 @@ register() {
     else
       # do not print output to console
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
-        if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-          echo "DEPLOY_NEW_NETWORK_MODE is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
