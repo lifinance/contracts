@@ -46,7 +46,47 @@ const main = defineCommand({
     // Check if there's an existing document for the given chainName
     const existingDoc = await collection.findOne({ chainName })
 
-    // Calculate the new highest priority: if there are existing endpoints, assign (max priority + 1), else 1
+    // Check if the RPC endpoint already exists for the given chain
+    if (existingDoc && existingDoc.rpcs) {
+      const existingRpcIndex = existingDoc.rpcs.findIndex(
+        (rpc: { url: string }) => rpc.url === rpcUrl
+      )
+
+      if (existingRpcIndex !== -1) {
+        // Calculate highest priority excluding the current endpoint
+        const otherEndpoints = existingDoc.rpcs.filter(
+          (_: any, index: number) => index !== existingRpcIndex
+        )
+        const newPriority =
+          otherEndpoints.length > 0
+            ? Math.max(
+                ...otherEndpoints.map(
+                  (rpc: { priority: number }) => rpc.priority || 0
+                )
+              ) + 1
+            : 1
+
+        // Update the priority of the existing RPC endpoint
+        await collection.updateOne(
+          { chainName },
+          {
+            $set: {
+              lastUpdated: new Date(),
+              [`rpcs.${existingRpcIndex}.priority`]: newPriority,
+              [`rpcs.${existingRpcIndex}.environment`]: environment,
+            },
+          }
+        )
+
+        consola.success(
+          `Updated priority of existing RPC endpoint ${rpcUrl} to ${newPriority}`
+        )
+        await client.close()
+        return
+      }
+    }
+
+    // Calculate the new highest priority for new endpoints
     let newPriority = 1
     if (
       existingDoc &&
@@ -59,22 +99,6 @@ const main = defineCommand({
             (rpc: { priority: number }) => rpc.priority || 0
           )
         ) + 1
-    }
-
-    // Check if the RPC endpoint already exists for the given chain
-    if (existingDoc && existingDoc.rpcs) {
-      if (
-        existingDoc.rpcs.some(
-          (rpc: { url: string; priority: number; environment: string }) =>
-            rpc.url === rpcUrl
-        )
-      ) {
-        consola.error(
-          `RPC endpoint ${rpcUrl} already exists for chain ${chainName}`
-        )
-        await client.close()
-        process.exit(1)
-      }
     }
 
     // Construct the new RPC endpoint object with the new highest priority
