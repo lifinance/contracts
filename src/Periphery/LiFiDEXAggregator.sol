@@ -886,14 +886,27 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // - Algebra has built-in support via swapSupportingFeeOnInputTokens()
         // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens.
         if (supportsFeeOnTransfer) {
-            IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
-                address(this),
-                recipient,
-                direction,
-                int256(amountIn),
-                direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-                abi.encode(tokenIn)
-            );
+            try
+                IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
+                    address(this),
+                    recipient,
+                    direction,
+                    int256(amountIn),
+                    direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                    abi.encode(tokenIn)
+                )
+            {} catch {
+                // Fallback to regular swap if swapSupportingFeeOnInputTokens is not available
+                // Note: This shouldn't typically occur as it wouldn't make economic sense for liquidity
+                // providers to deposit fee-on-transfer tokens into pools that don't support them.
+                IAlgebraPool(pool).swap(
+                    recipient,
+                    direction,
+                    int256(amountIn),
+                    direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                    abi.encode(tokenIn)
+                );
+            }
         } else {
             IAlgebraPool(pool).swap(
                 recipient,
