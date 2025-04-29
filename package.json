@@ -74,9 +74,9 @@
     "confirm-safe-tx": "bun fetch-rpcs && bun ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners-and-threshold": "bun fetch-rpcs && bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "flatten": "forge flatten --output",
-    "fetch-rpcs": "bun ./script/blockchains-config/fetch-rpcs.ts",
-    "display-rpcs": "bun ./script/blockchains-config/display-rpcs.ts",
-    "add-network-rpc": "bun ./script/blockchains-config/add-network-rpc.ts"
+    "fetch-rpcs": "bun ./script/mongoDb/fetch-rpcs.ts",
+    "display-rpcs": "bun ./script/mongoDb/display-rpcs.ts",
+    "add-network-rpc": "bun ./script/mongoDb/add-network-rpc.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
