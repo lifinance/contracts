@@ -75,7 +75,6 @@
     "add-safe-owners-and-threshold": "bun fetch-rpcs && bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "flatten": "forge flatten --output",
     "fetch-rpcs": "bun ./script/mongoDb/fetch-rpcs.ts",
-    "display-rpcs": "bun ./script/mongoDb/display-rpcs.ts",
     "add-network-rpc": "bun ./script/mongoDb/add-network-rpc.ts"
   },
   "dependencies": {
