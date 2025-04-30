@@ -8,15 +8,16 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to post the coverage summary as a PR comment
+
 jobs:
   enforce-min-test-coverage:
     runs-on: ubuntu-latest
     # will only run once the PR is in "Ready for Review" state
     if: ${{ github.event.pull_request.draft == false }}
 
-    permissions:
-      pull-requests: write
-      contents: read
     env:
       ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
       # keep the rest in alphabetic order
@@ -161,7 +162,6 @@ jobs:
             ${{ env.FUNCTION_COVERAGE_REPORT }}
             ${{ env.BRANCH_COVERAGE_REPORT }}
             ${{ env.RESULT_COVERAGE_REPORT }}
-
 
       - name: Skip Tests (No Solidity Changes)
         if: env.solidity_changed == 'false'
