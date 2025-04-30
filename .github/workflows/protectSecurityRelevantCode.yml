@@ -9,14 +9,16 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: read # required to check out the repo and read workflow / script files
+  pull-requests: read # required to read reviews and PR metadata (via GitHub API)
+
 jobs:
   protect-critical-code:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
-    permissions:
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.1.7
