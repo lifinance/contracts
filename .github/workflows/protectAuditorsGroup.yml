@@ -7,7 +7,8 @@ name: Protect Auditors Group
 on:
   push:
 
-permissions: {}
+permissions:
+  actions: read # required to authenticate and query organization team members using the GitHub CLI
 
 jobs:
   protect-auditors-group:

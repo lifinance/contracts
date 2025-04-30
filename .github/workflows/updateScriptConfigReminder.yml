@@ -9,7 +9,7 @@ on:
       - synchronize
 
 permissions:
-  contents: read
+  contents: read # required to evaluate changed files and trigger based on path filters
 
 jobs:
   notify:

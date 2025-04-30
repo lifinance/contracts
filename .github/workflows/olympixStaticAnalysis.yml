@@ -16,8 +16,8 @@ on:
       - 'src/**/*.sol'
 
 permissions:
-  contents: read
-  security-events: write
+  contents: read # required to fetch repository contents
+  security-events: write # required to upload SARIF results to GitHub Code Scanning
 
 jobs:
   static-analysis:

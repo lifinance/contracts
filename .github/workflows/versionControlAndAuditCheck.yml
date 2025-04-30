@@ -32,9 +32,9 @@ on:
     types: [submitted]
 
 permissions:
-  contents: read
-  pull-requests: write # to edit PR title and assign/remove labels
-  actions: write # for uploading artifacts
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to edit PR title and assign/remove labels
+  actions: write # required to upload/download artifacts between jobs
 
 jobs:
   version-control:

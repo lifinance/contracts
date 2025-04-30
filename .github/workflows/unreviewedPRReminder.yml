@@ -6,8 +6,8 @@ on:
   workflow_dispatch: # enables manual trigger
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: read # required to fetch repository contents
+  pull-requests: read # required to list PRs and access metadata (via GitHub API or gh CLI)
 
 jobs:
   check:

@@ -12,7 +12,9 @@ on:
   pull_request_review:
     types: [submitted]
 
-permissions: {}
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to add/remove labels
 
 jobs:
   protect_audit_labels:

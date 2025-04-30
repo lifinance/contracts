@@ -9,8 +9,8 @@ on:
     types: [submitted]
 
 permissions:
-  pull-requests: read
-  contents: read
+  pull-requests: read # required to read PR reviews and metadata
+  contents: read # required to read local workspace contents (e.g. access tmp file)
 
 jobs:
   core-dev-approval:

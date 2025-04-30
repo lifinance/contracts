@@ -3,14 +3,15 @@ name: Types Bindings
 on:
   push:
 
+permissions:
+  contents: write # Needed to push new tags
+
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
   generate-tag:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Needed to push new tags
 
     steps:
       # Step 1: Checkout the contracts repository

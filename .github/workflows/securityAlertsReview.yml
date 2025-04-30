@@ -16,9 +16,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pull-requests: write # To post/update PR comments and convert to draft
-  issues: write # Needed to comment on PRs (since PR comments are tied to issues API)
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to post, update PR comments & revert PR to draft
+  issues: write # required to post comments via the GitHub Issues API (used for PR comments)
 
 jobs:
   check-security-alerts:

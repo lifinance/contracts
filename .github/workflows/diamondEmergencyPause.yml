@@ -8,7 +8,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: read # required to fetch repository contents
 
 jobs:
   diamond-emergency-pause:

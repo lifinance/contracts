@@ -11,7 +11,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: read
+  contents: read # required to fetch repository contents
 
 jobs:
   check-new-network-health:
