@@ -34,6 +34,7 @@ jobs:
       - name: Fetch RPC endpoints from MongoDB
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
           bun fetch-rpcs
           # Only inject RPC endpoint variables into the GitHub Actions environment
           while IFS= read -r line || [[ -n "$line" ]]; do
