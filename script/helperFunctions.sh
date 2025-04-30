@@ -1341,7 +1341,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1459,7 +1459,7 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
@@ -1468,7 +1468,7 @@ function verifyContract() {
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1479,14 +1479,14 @@ function verifyContract() {
       # case: verify with constructor arguments
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
         fi
       else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1507,16 +1507,32 @@ function verifyContract() {
   fi
 
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract \
-    "$ADDRESS" \
-    "$CONTRACT" \
-    --chain-id "$CHAIN_ID" \
-    --verifier  sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   echo "[info] checking Sourcify verification now"
-  forge verify-check $ADDRESS \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-check $ADDRESS \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   if [ $? -ne 0 ]; then
     # verification apparently failed
@@ -2885,6 +2901,27 @@ function isZkEvmNetwork() {
     return 0  # Success (true)
   else
     return 1  # Failure (false)
+  fi
+}
+
+function isActiveMainnet() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in the JSON
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1  # false
+  fi
+
+  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
+  local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  # Check if both values are present and match required conditions
+  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+    return 0  # true
+  else
+    return 1  # false
   fi
 }
 

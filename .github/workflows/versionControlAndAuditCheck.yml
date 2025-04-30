@@ -31,6 +31,11 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to edit PR title and assign/remove labels
+  actions: write # required to upload/download artifacts between jobs
+
 jobs:
   version-control:
     if: ${{ github.event.pull_request.draft == false }}
