@@ -79,6 +79,9 @@ jobs:
           ALERTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
 
+          echo "Filtering to Olympix Static Analysis alerts only"
+          ALERTS=$(echo "$ALERTS" | jq -c '[ .[] | select(.tool.name == "Olympix Static Analysis") ]')
+
           # Log raw API response for debugging
           echo "Raw API Response:"
           echo "$ALERTS"
