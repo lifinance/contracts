@@ -15,6 +15,11 @@ on:
       - 'src/**/*.sol'
   workflow_dispatch:
 
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to post, update PR comments & revert PR to draft
+  issues: write # required to post comments via the GitHub Issues API (used for PR comments)
+
 jobs:
   check-security-alerts:
     runs-on: ubuntu-latest
@@ -74,7 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           echo "Fetching security alerts for PR #${PR_NUMBER}..."
-          
+
           # Fetch security alerts via GitHub API
           ALERTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
@@ -93,7 +98,7 @@ jobs:
           UNRESOLVED_COUNT=$(echo "$UNRESOLVED_ALERTS" | jq -r 'length')
           DISMISSED_COUNT=$(echo "$DISMISSED_ALERTS" | jq -r 'length')
           COMMENTED_COUNT=$(echo "$RESOLVED_ALERTS" | jq -r 'length')
-          
+
           # Count dismissed alerts with the invalid reason "Used in tests" (invalid because only production code is analyzed)
           INVALID_REASON_COUNT=$(echo "$RESOLVED_ALERTS" | jq -r '[.[] | select(.dismissed_reason == "used in tests")] | length')
 
@@ -121,7 +126,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           echo "Searching for existing PR comment..."
-          
+
           COMMENT_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" | jq -r \
             '.[] | select(.body | startswith("### 🤖 GitHub Action: Security Alerts Review")) | .id')
@@ -179,7 +184,7 @@ jobs:
               ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
-              
+
               COMMENT_BODY+="❌ [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
               COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
               COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON** (invalid for production code)\n\n"
