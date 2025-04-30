@@ -14,14 +14,14 @@ jobs:
   diamond-emergency-pause:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.7
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
       
       - name: Install dev dependencies
         run: bun install
-
-      - name: Checkout repository
-        uses: actions/checkout@v4.1.7
 
       - name: Check input
         if: ${{ inputs.Warning != 'UNDERSTOOD' }}
