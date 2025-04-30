@@ -53,7 +53,31 @@ async function fetchRpcEndpoints(): Promise<{
 
 async function mergeEndpointsIntoEnv() {
   try {
-    const newEndpoints = await fetchRpcEndpoints()
+    // Try to fetch from MongoDB first
+    let newEndpoints: { [network: string]: RpcEndpoint[] } = {}
+    try {
+      newEndpoints = await fetchRpcEndpoints()
+    } catch (error) {
+      consola.warn(
+        'Failed to fetch from MongoDB, falling back to networks.json:',
+        error
+      )
+      // Fall back to networks.json
+      const networks = (await import('../../config/networks.json')).default
+      newEndpoints = Object.entries(networks).reduce(
+        (acc, [networkName, config]) => {
+          const envVar = `ETH_NODE_URI_${networkName.toUpperCase()}`
+          acc[envVar] = [
+            {
+              url: config.rpcUrl,
+              priority: 1,
+            },
+          ]
+          return acc
+        },
+        {} as { [network: string]: RpcEndpoint[] }
+      )
+    }
 
     // Group endpoints by first letter after "ETH_NODE_URI_"
     const groupedEndpoints = Object.entries(newEndpoints).reduce(
