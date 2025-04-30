@@ -21,10 +21,17 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
+import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
+import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
 dotenv.config()
 
 export type NetworksObject = {
   [key: string]: Omit<Network, 'id'>
+}
+
+export enum Environment {
+  'staging',
+  'production',
 }
 
 export type Network = {
@@ -118,6 +125,58 @@ export const getAllActiveNetworks = (): Network[] => {
 export const printSuccess = (message: string): void => {
   if (!message?.trim()) return
   console.log(`${colors.green}${message}${colors.reset}`)
+}
+
+/**
+ * Retries a function multiple times if it fails
+ * @param func - The async function to retry
+ * @param retries - Number of retries remaining
+ * @returns The result of the function
+ */
+export const retry = async <T>(
+  func: () => Promise<T>,
+  retries = 3
+): Promise<T> => {
+  try {
+    const result = await func()
+    return result
+  } catch (e) {
+    consola.error('Error details:', {
+      error: e,
+      remainingRetries: retries - 1,
+    })
+    if (retries > 0) {
+      return retry(func, retries - 1)
+    }
+    throw e
+  }
+}
+
+/**
+ * Returns
+ * @param func - The async function to retry
+ * @param retries - Number of retries remaining
+ * @returns The result of the function
+ */
+export const getContractAddressForNetwork = async (
+  contractName: string,
+  network: SupportedChain,
+  environment: Environment = Environment.production
+): Promise<string> => {
+  // get network deploy log file
+  const deployments = await getDeployments(network, environment)
+  if (!deployments)
+    throw Error(`Could not deploy log for network ${network} in ${environment}`)
+
+  // extract address
+  const address = deployments[contractName] as `0x${string}`
+
+  if (!address)
+    throw Error(
+      `Could not find address of contract ${contractName} for network ${network} in ${environment} deploy log`
+    )
+
+  return address
 }
 
 /**

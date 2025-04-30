@@ -74,6 +74,7 @@
     "propose-safe-tx": "bun fetch-rpcs && bun ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "bun fetch-rpcs && bun ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners-and-threshold": "bun fetch-rpcs && bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
+    "unpause-all-diamonds": "bun fetch-rpcs && bun ./script/tasks/unpauseAllDiamonds.ts",
     "deploy-safe": "bun fetch-rpcs && bun ./script/deploy/safe/deploy-safe.ts",
     "flatten": "forge flatten --output",
     "remove-from-diamond": "bun fetch-rpcs && bun script/tasks/cleanUpProdDiamond.ts",

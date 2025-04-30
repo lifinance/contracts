@@ -19,8 +19,8 @@ import {
   zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
+import { Environment } from '../../utils/viemScriptHelpers'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
-import { MongoClient } from 'mongodb'
 import { config } from 'dotenv'
 
 config()
@@ -555,13 +555,15 @@ const getViemChain = (chain: SupportedChain): Chain => {
 /**
  * Utility function to dynamically import the deployments file for a chain.
  */
-const getDeployments = async (
+export const getDeployments = async (
   chain: SupportedChain,
-  environment: 'staging' | 'production' = 'staging'
+  environment: Environment = Environment.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === 'production' ? `${chain}.json` : `${chain}.staging.json`
+    environment === Environment.production
+      ? `${chain}.json`
+      : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
 
   try {
