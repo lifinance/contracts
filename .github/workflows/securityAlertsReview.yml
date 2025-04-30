@@ -87,12 +87,12 @@ jobs:
           echo "Raw API Response:"
           echo "$ALERTS"
 
-          # echo "Filtering to Olympix Static Analysis alerts only"
-          # ALERTS=$(echo "$ALERTS" | jq -c '[ .[] | select(.tool.name == "Olympix Static Analysis") ]')
+          echo "Filtering to Olympix Static Analysis alerts only"
+          ALERTS=$(echo "$ALERTS" | jq -c '[ .[] | select(.tool.name == "Olympix Integrated Security") ]')
 
-          # # Log raw API response for debugging
-          # echo "Filtered alerts:"
-          # echo "$ALERTS"
+          # Log raw API response for debugging
+          echo "Filtered alerts:"
+          echo "$ALERTS"
 
           # Extract unresolved alerts (open alerts)
           UNRESOLVED_ALERTS=$(echo "$ALERTS" | jq -c '[.[] | select(.state == "open") ]' || echo "[]")
