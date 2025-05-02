@@ -161,6 +161,10 @@ library LibAsset {
         uint256 requiredAllowance,
         uint256 setAllowanceTo
     ) internal {
+        if (isNativeAsset(address(assetId))) {
+            return;
+        }
+
         // make sure a meaningful spender address was provided
         if (spender == NULL_ADDRESS) {
             revert NullAddrIsNotAValidSpender();
