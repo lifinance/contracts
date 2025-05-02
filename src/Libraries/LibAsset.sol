@@ -182,32 +182,22 @@ library LibAsset {
         return assetId == NATIVE_ASSETID;
     }
 
-    /// @notice Checks if the given address is a contract.
+    /// @notice Checks if the given address is a contract (including EIP‑7702 AA‑wallets)
+    ///         Returns true for any account with runtime code or with the 0xef0100 prefix (EIP‑7702).
     ///         Limitations:
     ///         - Still returns false during construction phase of a contract
     ///         - Cannot distinguish between EOA and self-destructed contract
     /// @param account The address to be checked
     function isContract(address account) internal view returns (bool) {
         uint256 size;
-        bytes32 codehash;
-        bytes3 delegationDesignator = 0xef0100;
-        bytes memory code = new bytes(3);
-        bytes32 emptyHash = keccak256("");
+        bytes3 prefix;
 
-        // use assembly to get codesize and codehash
         assembly {
             size := extcodesize(account)
-            extcodecopy(account, add(code, 32), 0, 3)
-            codehash := extcodehash(account)
+            extcodecopy(account, add(prefix, 0x20), 0, 3)
         }
 
         // Check for delegation designator prefix (0xef0100) >> EIP7702
-        bytes3 prefix = bytes3(code);
-        if (prefix == delegationDesignator) {
-            return true;
-        }
-
-        // Traditional check for contract code
-        return (size > 0 && codehash != emptyHash);
+        return prefix == 0xef0100 || size > 0;
     }
 }
