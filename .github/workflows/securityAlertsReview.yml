@@ -88,9 +88,8 @@ jobs:
           echo "$ALERTS"
 
           echo "Filtering to Olympix Static Analysis alerts only"
-          ALERTS=$(echo "$ALERTS" | jq -c '[ .[] | select(.tool.name == "Olympix Integrated Security") ]')
+          ALERTS=$(echo "$ALERTS" | jq -c '[ .[] | select(.tool.name == "Olympix Integrated Security") ]' || echo "[]")
 
-          # Log raw API response for debugging
           echo "Filtered alerts:"
           echo "$ALERTS"
 
