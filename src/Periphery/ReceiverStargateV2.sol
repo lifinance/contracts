@@ -9,6 +9,7 @@ import { OFTComposeMsgCodec } from "../Libraries/OFTComposeMsgCodec.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+// solhint-disable-next-line no-unused-import
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { ITokenMessaging } from "../Interfaces/IStargate.sol";
 
@@ -44,9 +45,13 @@ contract ReceiverStargateV2 is
     using SafeERC20 for IERC20;
 
     /// Storage ///
+    // solhint-disable-next-line immutable-vars-naming
     IExecutor public immutable executor;
+    // solhint-disable-next-line immutable-vars-naming
     ITokenMessaging public immutable tokenMessaging;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable endpointV2;
+    // solhint-disable-next-line immutable-vars-naming
     uint256 public immutable recoverGas;
 
     /// Modifiers ///
@@ -73,6 +78,19 @@ contract ReceiverStargateV2 is
 
     /// External Methods ///
 
+    /// @dev Because the endpoint’s `lzCompose` is permissionless and must be
+    ///       replayed with exactly the same parameters, a frontrunner could slip in
+    ///       first with too little gas and force our internal `_swapAndCompleteBridgeTokens`
+    ///       into its “recover only” fallback. The user would then receive raw bridged
+    ///       tokens instead of the intended swap output. This is a known protocol level
+    ///       limitation that cannot be 100% prevented on-chain. We *do not* further
+    ///       validate the `_executor` argument here, because in production we’ve had
+    ///       on-chain retries and manual re-executions after polite failures and
+    ///       pinning to a single executor address would break that operational
+    ///       flexibility. For simplicity and manual recoverability, we leave the
+    ///       executor check out, but consumers should monitor `LiFiTransferRecovered`
+    ///       events and retry if necessary.
+    ///
     /// @notice Completes a stargateV2 cross-chain transaction on the receiving chain
     /// @dev This function is called by Stargate Router via LayerZero endpoint (sendCompose(...) function)
     /// @param _from The address initiating the composition, typically the OApp where the lzReceive was called
