@@ -128,4 +128,31 @@ contract LibAssetTest is TestBase {
         bool result = implementer.isContract(USER_SENDER);
         assertTrue(result, "delegationDesignator prefix was not detected");
     }
+
+    function test_isContractWithInvalidDelegation() public {
+        // create a delegation to address(0), which is not a valid delegate
+        bytes memory invalidCode = abi.encodePacked(
+            hex"ef0100",
+            bytes20(address(0))
+        );
+
+        vm.etch(USER_SENDER, invalidCode);
+
+        bool result = implementer.isContract(USER_SENDER);
+        assertFalse(
+            result,
+            "Delegation to invalid delegate should return false"
+        );
+
+        // create a delegation to a valid contract address
+        bytes memory validCode = abi.encodePacked(
+            hex"ef0100",
+            bytes20(address(implementer))
+        );
+
+        vm.etch(USER_SENDER, validCode);
+
+        result = implementer.isContract(USER_SENDER);
+        assertTrue(result, "Delegation to valid delegate should return true");
+    }
 }

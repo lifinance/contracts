@@ -190,14 +190,35 @@ library LibAsset {
     /// @param account The address to be checked
     function isContract(address account) internal view returns (bool) {
         uint256 size;
-        bytes3 prefix;
+        bytes memory code = new bytes(23); // 3 bytes prefix + 20 bytes address
 
         assembly {
             size := extcodesize(account)
-            extcodecopy(account, add(prefix, 0x20), 0, 3)
+            extcodecopy(account, add(code, 0x20), 0, 23)
         }
 
         // Check for delegation designator prefix (0xef0100) >> EIP7702
-        return prefix == 0xef0100 || size > 0;
+        bytes3 prefix = bytes3(code);
+
+        if (prefix == 0xef0100) {
+            // Extract the delegate address (next 20 bytes after prefix)
+            address delegateAddr;
+            assembly {
+                delegateAddr := mload(add(add(code, 0x20), 3))
+                // Shift right to get proper alignment (12 bytes * 8 bits = 96 bits)
+                delegateAddr := shr(96, delegateAddr)
+            }
+
+            // Check if the delegate address has code
+            uint256 delegateSize;
+            assembly {
+                delegateSize := extcodesize(delegateAddr)
+            }
+
+            return delegateSize > 0;
+        }
+
+        // Traditional check for contract code
+        return size > 0;
     }
 }
