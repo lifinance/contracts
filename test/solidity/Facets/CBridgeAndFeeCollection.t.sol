@@ -201,20 +201,32 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         uint256 amountIn = amounts[0];
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        // Encode the call data for the swap and store in a local variable.
+        bytes memory swapCallDataFirstSwap = abi.encodeWithSelector(
+            feeCollector.collectTokenFees.selector,
+            ADDRESS_USDC,
+            fee,
+            lifiFee,
+            address(0xb33f)
+        );
         swapData[0] = LibSwap.SwapData(
             address(feeCollector),
             address(feeCollector),
             ADDRESS_USDC,
             ADDRESS_USDC,
             amountIn + fee + lifiFee,
-            abi.encodeWithSelector(
-                feeCollector.collectTokenFees.selector,
-                ADDRESS_USDC,
-                fee,
-                lifiFee,
-                address(0xb33f)
-            ),
+            swapCallDataFirstSwap,
             true
+        );
+
+        // Encode the call data for the swap and store in a local variable.
+        bytes memory swapCallDataSecondSwap = abi.encodeWithSelector(
+            uniswap.swapExactTokensForTokens.selector,
+            amountIn,
+            amountToBridge,
+            path,
+            address(cBridge),
+            block.timestamp
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -223,14 +235,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
             ADDRESS_USDC,
             ADDRESS_DAI,
             amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountToBridge,
-                path,
-                address(cBridge),
-                block.timestamp
-            ),
+            swapCallDataSecondSwap,
             false
         );
         // Approve USDC

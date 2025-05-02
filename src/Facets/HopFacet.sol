@@ -156,6 +156,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
+        // _hopData.nativeFee is a legacy parameter that is currently not in use. The LiFi API sets this value to 0.
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
             ? _hopData.nativeFee + _bridgeData.minAmount
             : _hopData.nativeFee;

@@ -17,6 +17,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=eth:0x37347dD595C49212C5FC2D95EA10d1085896f51E",
     "gasZipChainId": 255,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "abstract": {
@@ -37,10 +39,12 @@
     "safeWebUrl": "https://abstract-safe.protofire.io/home?safe=abstract:0x257CBCDc7FcBA79a83149C9D7160ef15A86FA39c",
     "gasZipChainId": 110,
     "isZkEVM": true,
+    "deployedWithEvmVersion": "shanghai",
+    "deployedWithSolcVersion": "0.8.26",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "apechain": {
-    "name": "Ape Chain",
+    "name": "apechain",
     "chainId": 33139,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "APE",
@@ -57,6 +61,8 @@
     "safeWebUrl": "https://safe.apechain.com/home?safe=ape:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 296,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "arbitrum": {
@@ -77,6 +83,8 @@
     "safeWebUrl": "https://app.safe.global/home?chain=oeth&safe=arb1:0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15",
     "gasZipChainId": 57,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "aurora": {
@@ -97,6 +105,8 @@
     "safeWebUrl": "https://app.safe.global/home?chain=oeth&safe=aurora:0xC7291F249424A35b17976F057D2C97B30c92b88C",
     "gasZipChainId": 62,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "avalanche": {
@@ -117,6 +127,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=avax:0x27d4eb2854d93a1A7Df8e2aeD1a535b080a6f6e4",
     "gasZipChainId": 15,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "base": {
@@ -137,6 +149,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=base:0x1F6974C11B833Eb52ea07E0B442510165D87d82e",
     "gasZipChainId": 54,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "berachain": {
@@ -157,6 +171,8 @@
     "safeWebUrl": "https://safe.berachain.com/home?safe=berachain:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 143,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.26",
     "create3Factory": "0x5f63A2d7850776465b84Bc0fe6284BBC8188dbC7"
   },
   "blast": {
@@ -177,6 +193,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=blast:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 96,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "boba": {
@@ -197,6 +215,8 @@
     "safeWebUrl": "https://multisig.boba.network/home?chain=boba&safe=boba:0x05d34Bd70E0CBf8b82423d0C2ee8b2a8f02E4128",
     "gasZipChainId": 140,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "bsc": {
@@ -217,6 +237,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=bnb:0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15",
     "gasZipChainId": 148,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "celo": {
@@ -237,6 +259,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=celo:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 21,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "corn": {
@@ -257,6 +281,8 @@
     "safeWebUrl": "https://safe.usecorn.com/transactions/queue?safe=corn:0xE6c9461644Dd0945354d7A9528dDD114D235c266",
     "gasZipChainId": 391,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
   },
   "cronos": {
@@ -277,7 +303,31 @@
     "safeWebUrl": "https://cronos-safe.org/home?safe=cro:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 36,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+  },
+  "etherlink": {
+    "name": "etherlink",
+    "chainId": 42793,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "XTZ",
+    "wrappedNativeAddress": "0xc9B53AB2679f573e480d01e0f49e2B5CFB7a3EAb",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://node.mainnet.etherlink.com",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://explorer.etherlink.com",
+    "explorerApiUrl": "https://explorer.etherlink.com/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.safe.etherlink.com/api",
+    "safeAddress": "0x8859899C3b09eC45F333c59AB8F7be66b9fc3fA5",
+    "safeWebUrl": "https://safe.etherlink.com/transactions/queue?safe=etlk:0x8859899C3b09eC45F333c59AB8F7be66b9fc3fA5",
+    "gasZipChainId": 346,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.28",
+    "create3Factory": "0x95d0A9c49A990514cB6FDAA7FfB49550BD23F148"
   },
   "fantom": {
     "name": "fantom",
@@ -297,6 +347,8 @@
     "safeWebUrl": "https://safe.fantom.network/transactions/queue?safe=ftm:0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b",
     "gasZipChainId": 20,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "fraxtal": {
@@ -317,6 +369,8 @@
     "safeWebUrl": "https://safe.optimism.io/transactions/queue?safe=fraxtal:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 10,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "fuse": {
@@ -337,6 +391,8 @@
     "safeWebUrl": "https://safe.fuse.io/fuse:0x5336e97bA7332FAC20281Bda8B790c8892245Ded/transactions/queue",
     "gasZipChainId": 31,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "gnosis": {
@@ -357,6 +413,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=gno:0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A",
     "gasZipChainId": 16,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "gravity": {
@@ -377,6 +435,8 @@
     "safeWebUrl": "https://safe.gravity.xyz/transactions/queue?safe=gravity:0x245B16CaCE8730b009c5352186DcE7d73c3037A1",
     "gasZipChainId": 240,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "immutablezkevm": {
@@ -397,6 +457,8 @@
     "safeWebUrl": "https://safe.immutable.com/transactions/queue?safe=imx:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 95,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "ink": {
@@ -417,6 +479,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=ink:0xaf6051D0268c1bFCb69b3121ea21fD54B25C6cbc",
     "gasZipChainId": 392,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "kaia": {
@@ -437,6 +501,8 @@
     "safeWebUrl": "https://safe.kaia.io/transactions/queue?safe=mainnet:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 33,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0xC3C73FEE9Cef413880696e6C39365BDf8cD564f9"
   },
   "lens": {
@@ -457,6 +523,8 @@
     "safeWebUrl": "https://safe.none.com",
     "gasZipChainId": 442,
     "isZkEVM": true,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.26",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "linea": {
@@ -477,10 +545,12 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=linea:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 59,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "lisk": {
-    "name": "Lisk",
+    "name": "lisk",
     "chainId": 1135,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -497,6 +567,8 @@
     "safeWebUrl": "https://safe.optimism.io/home?safe=lisk:0x86E02d7383D6a045848b0a1A842996AC9E943113",
     "gasZipChainId": 238,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "mantle": {
@@ -517,6 +589,8 @@
     "safeWebUrl": "https://multisig.mantle.xyz/transactions/queue?safe=mantle:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 13,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "metis": {
@@ -537,6 +611,8 @@
     "safeWebUrl": "https://metissafe.tech/transactions/queue?safe=metis-andromeda:0x925cD8289Ac2d617F52974da8338867f3bB62d56",
     "gasZipChainId": 30,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x763f212f355433C59d734C71247d16fCE74D8785"
   },
   "mode": {
@@ -557,6 +633,8 @@
     "safeWebUrl": "https://safe.optimism.io/transactions/queue?safe=mode:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 73,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "moonbeam": {
@@ -577,6 +655,8 @@
     "safeWebUrl": "https://multisig.moonbeam.network/transactions/queue?safe=mbeam:0xB51E43CeCAB8A42cD6225e16C9C3a3ba1A76871A",
     "gasZipChainId": 28,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "moonriver": {
@@ -597,6 +677,8 @@
     "safeWebUrl": "https://multisig.moonbeam.network/transactions/queue?safe=mriver:0xfC78B018B4daD77351095f00D92934A9A851DA34",
     "gasZipChainId": 29,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "optimism": {
@@ -617,6 +699,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=oeth:0xa8892eA3fdDeF2aa8AfB1E3643a3284f978A5114",
     "gasZipChainId": 55,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "opbnb": {
@@ -637,6 +721,8 @@
     "safeWebUrl": "https://multisig.bnbchain.org/transactions/queue?safe=opbnb:0xaAD94196680Edb94B421bb5B1E1A0B27db686C72",
     "gasZipChainId": 58,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "polygon": {
@@ -657,6 +743,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=matic:0x8BCC385948C73736423D38cc567cFEdE0F1826A3",
     "gasZipChainId": 17,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "polygonzkevm": {
@@ -677,6 +765,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=zkevm:0x9575B9fC42dec56D3772B3df5DA047a1f1D55582",
     "gasZipChainId": 52,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "rootstock": {
@@ -697,6 +787,8 @@
     "safeWebUrl": "https://safe.rootstock.io/transactions/queue?safe=rsk:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 254,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "scroll": {
@@ -717,6 +809,8 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=scr:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 41,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "sei": {
@@ -737,6 +831,8 @@
     "safeWebUrl": "https://sei-safe.protofire.io/transactions/queue?safe=sei:0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "gasZipChainId": 246,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "soneium": {
@@ -757,6 +853,8 @@
     "safeWebUrl": "https://safe.optimism.io/transactions/queue?safe=soneium:0x245B16CaCE8730b009c5352186DcE7d73c3037A1",
     "gasZipChainId": 414,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "sonic": {
@@ -777,7 +875,31 @@
     "safeWebUrl": "https://app.safe.global/home?safe=sonic:0x37DC6C2C8db8B027E818592CBae6B5acdc1381BE",
     "gasZipChainId": 389,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+  },
+  "superposition": {
+    "name": "superposition",
+    "chainId": 55244,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x1fB719f10b56d7a85DCD32f27f897375fB21cfdd",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.superposition.so",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://explorer.superposition.so",
+    "explorerApiUrl": "https://explorer.superposition.so/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "n/a",
+    "safeAddress": "0x12f5778Ff5E4F49d8A522230D1A456a9d1359ce0",
+    "safeWebUrl": "n/a",
+    "gasZipChainId": 303,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "swellchain": {
     "name": "swellchain",
@@ -797,6 +919,8 @@
     "safeWebUrl": "https://safe.optimism.io/transactions/queue?safe=swell-l2:0xEBc5021332BF54f9700F481A232731Dc2249917b",
     "gasZipChainId": 385,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593"
   },
   "taiko": {
@@ -817,10 +941,12 @@
     "safeWebUrl": "https://safe.taiko.xyz/transactions/queue?safe=tko-mainnet:0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "gasZipChainId": 249,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "unichain": {
-    "name": "Unichain",
+    "name": "unichain",
     "chainId": 130,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -837,10 +963,12 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=unichain:0x428653b7537717cA9B81b453601436D576081aF6",
     "gasZipChainId": 362,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "worldchain": {
-    "name": "World Chain",
+    "name": "worldchain",
     "chainId": 480,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -857,6 +985,8 @@
     "safeWebUrl": "https://app.safe.global/home?safe=wc:0xa6E64bC059ddAa72ec374C50B1A5c6b3a27d64Ce",
     "gasZipChainId": 269,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "xlayer": {
@@ -877,6 +1007,8 @@
     "safeWebUrl": "https://app.safe.global/home?chain=oeth&safe=xlayer:0x3fD21B437b5E0a903A8376D33824F9BA658756C2",
     "gasZipChainId": 146,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "zksync": {
@@ -897,6 +1029,8 @@
     "safeWebUrl": "https://app.safe.global/home?chain=oeth&safe=zksync:0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744",
     "gasZipChainId": 51,
     "isZkEVM": true,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "localanvil": {
@@ -917,6 +1051,8 @@
     "safeWebUrl": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
+    "deployedWithEvmVersion": "",
+    "deployedWithSolcVersion": "",
     "create3Factory": ""
   }
 }
