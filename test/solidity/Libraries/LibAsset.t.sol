@@ -112,4 +112,20 @@ contract LibAssetTest is TestBase {
 
         assertEq(result, false);
     }
+
+    function test_isContractWithDelegationDesignator() public {
+        // 0xef0100 is the delegation designator
+        // build a 23‑byte blob: 0xef0100 ‖ <20‑byte delegate address>
+        // here we just point back at the test contract itself,
+        // but you can put any 20‑byte address
+        bytes memory aaCode = abi.encodePacked(
+            hex"ef0100",
+            bytes20(address(this))
+        );
+
+        vm.etch(USER_SENDER, aaCode); // inject the delegation designator into the USER_SENDER address
+
+        bool result = implementer.isContract(USER_SENDER);
+        assertTrue(result, "delegationDesignator prefix was not detected");
+    }
 }
