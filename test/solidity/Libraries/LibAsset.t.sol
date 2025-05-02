@@ -64,6 +64,11 @@ contract LibAssetTest is TestBase {
         );
     }
 
+    function test_approveERC20WithNativeAsset() public {
+        // Should return early without reverting when trying to approve native asset
+        implementer.approveERC20(address(0), address(1), 1, 1);
+    }
+
     function testRevert_transferERC20ToZeroAddress() public {
         vm.expectRevert(InvalidReceiver.selector);
 
