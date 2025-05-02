@@ -50,8 +50,17 @@ import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 dotenv.config()
+
+const SAFE_ARTIFACT = JSON.parse(
+  readFileSync(
+    join(__dirname, '../../../out/Safe_flattened.sol/Safe.json'),
+    'utf8'
+  )
+)
 
 const GNOSIS_SAFE_PROXY_FACTORY_ABI = parseAbi([
   'function createProxyWithNonce(address _singleton, bytes initializer, uint256 saltNonce) returns (address proxy)',
@@ -332,140 +341,136 @@ const main = defineCommand({
       consola.info('Payment:', payment)
       consola.info('Payment Receiver:', paymentReceiver)
 
-      // encode the setup(...) call data for the Gnosis Safe
-      const initData = encodeFunctionData({
-        abi: GNOSIS_SAFE_ABI,
+      // Deploy using proxy factory
+      const setupData = encodeFunctionData({
+        abi: SAFE_ARTIFACT.abi,
         functionName: 'setup',
         args: [
-          owners, // address[] _owners
-          BigInt(threshold), // uint256 _threshold
-          zeroAddress, // address to (set to 0 if no call)
-          '0x', // bytes data (empty)
-          fallbackHandler, // address fallbackHandler
-          paymentToken, // address paymentToken
-          payment, // uint256 payment
-          paymentReceiver, // address payable paymentReceiver
+          owners,
+          BigInt(threshold),
+          zeroAddress,
+          '0x',
+          fallbackHandler,
+          paymentToken,
+          payment,
+          paymentReceiver,
         ],
       })
 
-      // call createProxyWithNonce(...) on the proxyFactory
-      consola.info('Creating Gnosis Safe Proxy via Factory...')
-      try {
-        // Use random value directly as saltNonce for uniqueness
-        const saltNonce = BigInt(
-          Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
-        )
-        consola.info('Using chainId:', chainId)
-        consola.info('Using saltNonce:', saltNonce.toString())
-
-        const hash = await walletClient.writeContract({
-          address: proxyFactory,
+      const gasEstimate = await publicClient.estimateGas({
+        account: walletAccount.address,
+        to: proxyFactory,
+        data: encodeFunctionData({
           abi: GNOSIS_SAFE_PROXY_FACTORY_ABI,
           functionName: 'createProxyWithNonce',
-          args: [safeSingleton, initData, saltNonce],
-        })
-        consola.info('Transaction sent. Hash:', hash)
+          args: [safeSingleton, setupData, BigInt(Date.now())],
+        }),
+      })
 
-        const receipt = await publicClient.waitForTransactionReceipt({ hash })
-        if (receipt.status === 'reverted') {
-          // Try to get the revert reason
-          try {
-            const tx = await publicClient.getTransaction({ hash })
-            const result = await publicClient.call({
-              account: walletAccount.address,
-              to: proxyFactory,
-              data: tx.input,
-            })
-            throw new Error(`Transaction reverted: ${result}`)
-          } catch (error) {
-            throw new Error(
-              'Transaction reverted for an unknown reason. Please check the Safe contract addresses and parameters.'
-            )
-          }
+      const hash = await walletClient.writeContract({
+        address: proxyFactory,
+        abi: GNOSIS_SAFE_PROXY_FACTORY_ABI,
+        functionName: 'createProxyWithNonce',
+        args: [
+          safeSingleton,
+          setupData,
+          BigInt(Date.now()), // salt nonce
+        ],
+        gas: gasEstimate + 100_000n, // Add buffer to gas estimate
+      })
+
+      consola.info('Transaction sent. Hash:', hash)
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      if (receipt.status === 'reverted') {
+        // Try to get the revert reason
+        try {
+          const tx = await publicClient.getTransaction({ hash })
+          const result = await publicClient.call({
+            account: walletAccount.address,
+            to: proxyFactory,
+            data: tx.input,
+          })
+          throw new Error(`Transaction reverted: ${result}`)
+        } catch (error) {
+          throw new Error(
+            'Transaction reverted for an unknown reason. Please check the Safe contract addresses and parameters.'
+          )
         }
-        consola.info('Transaction confirmed in block', receipt.blockNumber)
+      }
+      consola.info('Transaction confirmed in block', receipt.blockNumber)
 
-        // retrieve the new proxy address from logs
-        let newSafeAddress: Address | undefined
-        if (receipt.logs) {
-          for (const log of receipt.logs) {
-            const proxyCreationTopic =
-              '0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
-            if (log.address.toLowerCase() === proxyFactory.toLowerCase()) {
-              // - topic[0] = keccak256(ProxyCreation) - topic
-              // data contains proxy contract address as a first address param
-              if (
-                log &&
-                log.topics[0] === proxyCreationTopic &&
-                log.topics[1]
-              ) {
-                // Assuming the proxy address is the first indexed parameter,
-                // it should be in topics[1]. Extract the last 40 characters.
-                const rawProxyAddress = '0x' + log.topics[1].slice(-40)
-                newSafeAddress = getAddress(rawProxyAddress)
-                break
-              }
+      // retrieve the new proxy address from logs
+      let newSafeAddress: Address | undefined
+      if (receipt.logs) {
+        for (const log of receipt.logs) {
+          const proxyCreationTopic =
+            '0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
+          if (log.address.toLowerCase() === proxyFactory.toLowerCase()) {
+            // - topic[0] = keccak256(ProxyCreation) - topic
+            // data contains proxy contract address as a first address param
+            if (log && log.topics[0] === proxyCreationTopic && log.topics[1]) {
+              // Assuming the proxy address is the first indexed parameter,
+              // it should be in topics[1]. Extract the last 40 characters.
+              const rawProxyAddress = '0x' + log.topics[1].slice(-40)
+              newSafeAddress = getAddress(rawProxyAddress)
+              break
             }
           }
         }
+      }
 
-        if (!newSafeAddress) {
-          throw new Error(
-            'Could not find ProxyCreation log in transaction receipt. ' +
-              'Check that the addresses/ABIs are correct.'
-          )
-        }
+      if (!newSafeAddress) {
+        throw new Error(
+          'Could not find ProxyCreation log in transaction receipt. ' +
+            'Check that the addresses/ABIs are correct.'
+        )
+      }
 
-        consola.success('New Gnosis Safe deployed at:', newSafeAddress)
-        consola.success('Setup complete!')
+      consola.success('New Gnosis Safe deployed at:', newSafeAddress)
+      consola.success('Setup complete!')
 
-        const GNOSIS_SAFE_VERIFICATION_ABI = parseAbi([
-          'function getOwners() view returns (address[])',
-          'function getThreshold() view returns (uint256)',
-        ])
+      const GNOSIS_SAFE_VERIFICATION_ABI = parseAbi([
+        'function getOwners() view returns (address[])',
+        'function getThreshold() view returns (uint256)',
+      ])
 
-        if (newSafeAddress) {
-          consola.info('Verifying deployed Gnosis Safe configuration...')
+      if (newSafeAddress) {
+        consola.info('Verifying deployed Gnosis Safe configuration...')
 
-          try {
-            // fetch Safe owners
-            const ownersAfterSetup = await publicClient.readContract({
-              address: newSafeAddress,
-              abi: GNOSIS_SAFE_VERIFICATION_ABI,
-              functionName: 'getOwners',
-            })
+        try {
+          // fetch Safe owners
+          const ownersAfterSetup = await publicClient.readContract({
+            address: newSafeAddress,
+            abi: GNOSIS_SAFE_VERIFICATION_ABI,
+            functionName: 'getOwners',
+            args: [],
+          })
 
-            // fetch threshold
-            const thresholdAfterSetup = await publicClient.readContract({
-              address: newSafeAddress,
-              abi: GNOSIS_SAFE_VERIFICATION_ABI,
-              functionName: 'getThreshold',
-            })
+          // fetch threshold
+          const thresholdAfterSetup = await publicClient.readContract({
+            address: newSafeAddress,
+            abi: GNOSIS_SAFE_VERIFICATION_ABI,
+            functionName: 'getThreshold',
+            args: [],
+          })
 
-            // log the results
-            if (
-              JSON.stringify(ownersAfterSetup) === JSON.stringify(owners) &&
-              BigInt(thresholdAfterSetup) === BigInt(threshold)
-            ) {
-              consola.success('Owners and threshold match the expected values.')
-            } else {
-              consola.error('Mismatch in Safe setup configuration!')
-              consola.error('Expected Owners:', owners)
-              consola.error('Actual Owners:', ownersAfterSetup)
-              consola.error('Expected Threshold:', threshold)
-              consola.error('Actual Threshold:', thresholdAfterSetup)
-            }
-          } catch (error) {
-            consola.error('Error verifying Gnosis Safe configuration:', error)
+          // log the results
+          if (
+            JSON.stringify(ownersAfterSetup) === JSON.stringify(owners) &&
+            BigInt(thresholdAfterSetup) === BigInt(threshold)
+          ) {
+            consola.success('Owners and threshold match the expected values.')
+          } else {
+            consola.error('Mismatch in Safe setup configuration!')
+            consola.error('Expected Owners:', owners)
+            consola.error('Actual Owners:', ownersAfterSetup)
+            consola.error('Expected Threshold:', threshold)
+            consola.error('Actual Threshold:', thresholdAfterSetup)
           }
+        } catch (error) {
+          consola.error('Error verifying Gnosis Safe configuration:', error)
         }
-      } catch (error: any) {
-        if (error.message.includes('insufficient funds')) {
-          throw new Error(
-            'Insufficient funds to deploy Safe. Please ensure your account has enough ETH to cover gas costs.'
-          )
-        }
-        throw error
       }
     } catch (error: any) {
       consola.error('Error deploying Gnosis Safe:', error.message)
