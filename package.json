@@ -74,6 +74,7 @@
     "propose-safe-tx": "bun ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners-and-threshold": "bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
+    "unpause-all-diamonds": "bun ./script/tasks/unpauseAllDiamonds.ts",
     "deploy-safe": "bun ./script/deploy/safe/deploy-safe.ts",
     "flatten": "forge flatten --output",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts"

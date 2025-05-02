@@ -20,6 +20,7 @@ import {
 } from 'viem'
 import networks from '../../../config/networks.json'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { Environment } from '../../utils/viemScriptHelpers'
 
 export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
@@ -551,13 +552,15 @@ const getViemChain = (chain: SupportedChain): Chain => {
 /**
  * Utility function to dynamically import the deployments file for a chain.
  */
-const getDeployments = async (
+export const getDeployments = async (
   chain: SupportedChain,
-  environment: 'staging' | 'production' = 'staging'
+  environment: Environment = Environment.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === 'production' ? `${chain}.json` : `${chain}.staging.json`
+    environment === Environment.production
+      ? `${chain}.json`
+      : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
 
   try {
