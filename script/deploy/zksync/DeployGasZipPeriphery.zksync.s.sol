@@ -43,14 +43,21 @@ contract DeployScript is DeployScriptBase {
             ".LiFiDEXAggregator"
         );
 
-        // get network's SAFE address to become contract owner for potential fund withdrawals
-        path = string.concat(root, "/config/networks.json");
-
-        address safeAddress = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".safeAddress")
+        // get path of global config file
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
         );
 
-        return abi.encode(gasZipRouter, liFiDEXAggregator, safeAddress);
+        // read file into json variable
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract withdrawWallet address
+        address withdrawWalletAddress = globalConfigJson.readAddress(
+            ".withdrawWallet"
+        );
+
+        return
+            abi.encode(gasZipRouter, liFiDEXAggregator, withdrawWalletAddress);
     }
 }

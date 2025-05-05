@@ -32,8 +32,8 @@ contract DeployScript is DeployScriptBase {
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
+        address withdrawWallet = globalConfigJson.readAddress(
+            ".withdrawWallet"
         );
 
         // obtain address of Chainflip vault in current network from config file
@@ -55,6 +55,6 @@ contract DeployScript is DeployScriptBase {
         );
         address executor = _getConfigContractAddress(path, ".Executor");
 
-        return abi.encode(refundWalletAddress, executor, chainflipVault);
+        return abi.encode(withdrawWallet, executor, chainflipVault);
     }
 }
