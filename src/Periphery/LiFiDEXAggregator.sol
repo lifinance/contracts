@@ -744,7 +744,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8(); // 0 = X2Y, 1 = Y2X
         address to = stream.readAddress();
-        bytes memory data = stream.readBytes();
 
         // Handle token transfer
         if (from == msg.sender) {
@@ -763,14 +762,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                 to,
                 uint128(amountIn),
                 IZUMI_LEFT_MOST_PT,
-                data
+                abi.encode(tokenIn)
             );
         } else {
             IiZiSwapPool(pool).swapY2X(
                 to,
                 uint128(amountIn),
                 IZUMI_RIGHT_MOST_PT,
-                data
+                abi.encode(tokenIn)
             );
         }
 
@@ -779,7 +778,40 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         }
     }
 
-    function iZiSwapV3SwapCallback(
+    /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapX2Y.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amountX The amount of tokenX to be sent to the pool
+    /// @param data Any data passed through by the caller via the IiZiSwapPool#swapX2Y call
+    function swapX2YCallback(
+        uint256 amountX,
+        // solhint-disable-next-line no-unused-vars
+        uint256 amountY,
+        bytes calldata data
+    ) external {
+        if (msg.sender != lastCalledPool) {
+            revert IzumiV3SwapCallbackUnknownSource();
+        }
+
+        address tokenIn = abi.decode(data, (address));
+
+        // In swapX2Y, we're swapping from tokenX to tokenY
+        // The pool will expect us to transfer the tokenX amount
+        uint256 amountToPay = amountX;
+
+        if (amountToPay <= 0) {
+            revert IzumiV3SwapCallbackNotPositiveAmount();
+        }
+
+        lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
+        IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapY2X.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amountY The amount of tokenY to be sent to the pool
+    /// @param data Any data passed through by the caller via the IiZiSwapPool#swapY2X call
+    function swapY2XCallback(
+        // solhint-disable-next-line no-unused-vars
         uint256 amountX,
         uint256 amountY,
         bytes calldata data
@@ -789,9 +821,10 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         }
 
         address tokenIn = abi.decode(data, (address));
-        uint256 amountToPay = tokenIn == IiZiSwapPool(msg.sender).tokenX()
-            ? amountX
-            : amountY;
+
+        // In swapY2X, we're swapping from tokenY to tokenX
+        // The pool will expect us to transfer the tokenY amount
+        uint256 amountToPay = amountY;
 
         if (amountToPay <= 0) {
             revert IzumiV3SwapCallbackNotPositiveAmount();
