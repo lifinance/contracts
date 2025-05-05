@@ -6,6 +6,7 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+// solhint-disable-next-line no-unused-import
 import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -154,6 +155,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
+        // _hopData.nativeFee is a legacy parameter that is currently not in use. The LiFi API sets this value to 0.
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
             ? _hopData.nativeFee + _bridgeData.minAmount
             : _hopData.nativeFee;
