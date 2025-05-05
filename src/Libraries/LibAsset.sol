@@ -25,6 +25,9 @@ library LibAsset {
 
     address internal constant NATIVE_ASSETID = NULL_ADDRESS;
 
+    /// @dev EIP-7702 delegation designator prefix for Account Abstraction
+    bytes3 internal constant DELEGATION_DESIGNATOR = 0xef0100;
+
     /// @notice Gets the balance of the inheriting contract for the given asset
     /// @param assetId The asset identifier to get the balance of
     /// @return Balance held by contracts using this library (returns 0 if assetId does not exist)
@@ -209,7 +212,7 @@ library LibAsset {
         // Check for delegation designator prefix (0xef0100) >> EIP7702
         bytes3 prefix = bytes3(code);
 
-        if (prefix == 0xef0100) {
+        if (prefix == DELEGATION_DESIGNATOR) {
             // Extract the delegate address (next 20 bytes after prefix)
             address delegateAddr;
             assembly {
