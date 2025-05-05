@@ -201,36 +201,39 @@ library LibAsset {
     ///         - Cannot distinguish between EOA and self-destructed contract
     /// @param account The address to be checked
     function isContract(address account) internal view returns (bool) {
-        uint256 size;
         bytes memory code = new bytes(23); // 3 bytes prefix + 20 bytes address
 
         assembly {
-            size := extcodesize(account)
             extcodecopy(account, add(code, 0x20), 0, 23)
         }
 
-        // Check for delegation designator prefix (0xef0100) >> EIP7702
-        bytes3 prefix = bytes3(code);
+        // Check for delegation designator prefix
+        bytes3 prefix;
+        assembly {
+            prefix := mload(add(code, 32))
+        }
 
         if (prefix == DELEGATION_DESIGNATOR) {
-            // Extract the delegate address (next 20 bytes after prefix)
+            // Extract delegate address (next 20 bytes)
             address delegateAddr;
             assembly {
                 delegateAddr := mload(add(add(code, 0x20), 3))
-                // Shift right to get proper alignment (12 bytes * 8 bits = 96 bits)
                 delegateAddr := shr(96, delegateAddr)
             }
 
-            // Check if the delegate address has code
+            // Only check first level of delegation
             uint256 delegateSize;
             assembly {
                 delegateSize := extcodesize(delegateAddr)
             }
-
             return delegateSize > 0;
         }
 
-        // Traditional check for contract code
+        // If not delegated, check if it's a regular contract
+        uint256 size;
+        assembly {
+            size := extcodesize(account)
+        }
         return size > 0;
     }
 }
