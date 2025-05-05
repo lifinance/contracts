@@ -7,6 +7,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
+import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -23,6 +24,10 @@ uint160 constant MIN_SQRT_RATIO = 4295128739;
 /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
 uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
+/// @dev iZiSwap pool price points boundaries
+int24 constant IZUMI_LEFT_MOST_PT = -800000;
+int24 constant IZUMI_RIGHT_MOST_PT = 800000;
+
 uint8 constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
 uint8 constant CALLBACK_ENABLED = 1;
 
@@ -35,6 +40,7 @@ uint8 constant POOL_TYPE_TRIDENT = 4;
 uint8 constant POOL_TYPE_CURVE = 5;
 uint8 constant POOL_TYPE_VELODROME_V2 = 6;
 uint8 constant POOL_TYPE_ALGEBRA = 7;
+uint8 constant POOL_TYPE_IZUMI_V3 = 8;
 
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
@@ -68,6 +74,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     error UniswapV3SwapCallbackNotPositiveAmount();
     error WrongPoolReserves();
     error AlgebraSwapUnexpected();
+    error IzumiV3SwapUnexpected();
+    error IzumiV3SwapCallbackUnknownSource();
+    error IzumiV3SwapCallbackNotPositiveAmount();
 
     IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
@@ -372,6 +381,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             swapVelodromeV2(stream, from, tokenIn, amountIn);
         else if (poolType == POOL_TYPE_ALGEBRA)
             swapAlgebra(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_IZUMI_V3)
+            swapIzumiV3(stream, from, tokenIn, amountIn);
         else revert UnknownPoolType();
     }
 
@@ -721,6 +732,73 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes calldata data
     ) external {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice iZiSwap V3 swap callback — must match IiZiSwapCallback
+    function swapIzumiV3(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        uint8 direction = stream.readUint8(); // 0 = X2Y, 1 = Y2X
+        address to = stream.readAddress();
+        bytes memory data = stream.readBytes();
+
+        // Handle token transfer
+        if (from == msg.sender) {
+            IERC20(tokenIn).safeTransferFrom(
+                msg.sender,
+                address(this),
+                amountIn
+            );
+        }
+
+        lastCalledPool = pool;
+
+        // Execute swap - we need both amounts for the Swap event
+        if (direction == DIRECTION_TOKEN0_TO_TOKEN1) {
+            IiZiSwapPool(pool).swapX2Y(
+                to,
+                uint128(amountIn),
+                IZUMI_LEFT_MOST_PT,
+                data
+            );
+        } else {
+            IiZiSwapPool(pool).swapY2X(
+                to,
+                uint128(amountIn),
+                IZUMI_RIGHT_MOST_PT,
+                data
+            );
+        }
+
+        if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS) {
+            revert IzumiV3SwapUnexpected();
+        }
+    }
+
+    function iZiSwapV3SwapCallback(
+        uint256 amountX,
+        uint256 amountY,
+        bytes calldata data
+    ) external {
+        if (msg.sender != lastCalledPool) {
+            revert IzumiV3SwapCallbackUnknownSource();
+        }
+
+        address tokenIn = abi.decode(data, (address));
+        uint256 amountToPay = tokenIn == IiZiSwapPool(msg.sender).tokenX()
+            ? amountX
+            : amountY;
+
+        if (amountToPay <= 0) {
+            revert IzumiV3SwapCallbackNotPositiveAmount();
+        }
+
+        lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
+        IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
     }
 
     /// @notice Curve pool swap. Legacy pools that don't return amountOut and have native coins are not supported
