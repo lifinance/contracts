@@ -1627,7 +1627,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             uint8(1), // one pool
             FULL_SHARE, // 100% share
             uint8(PoolType.Algebra),
-            params.pool,
+            params.pool, // pool address
             uint8(direction),
             params.recipient,
             params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
@@ -1877,16 +1877,47 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
     }
 
     function test_CanSwap_ToAnotherRecipient() public {
-        _testSwap(
-            IzumiV3SwapTestParams({
-                from: USER_SENDER,
-                to: USER_RECEIVER,
-                tokenIn: IZUMI_USDC,
-                amountIn: AMOUNT_USDC,
-                tokenOut: IZUMI_WETH,
-                direction: SwapDirection.Token0ToToken1
-            })
+        // Setup initial balances
+        deal(address(IZUMI_USDC), USER_SENDER, 1_000_000_000);
+
+        // Approve USDC spending
+        vm.startPrank(USER_SENDER);
+        IERC20(IZUMI_USDC).approve(address(liFiDEXAggregator), 1_000_000_000);
+
+        // Prepare swap data - this is where the fix is needed
+        bytes memory swapData = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // Add command type
+            IZUMI_USDC, // tokenIn
+            uint8(1), // number of pools (1)
+            FULL_SHARE, // 100% share
+            uint8(PoolType.iZiSwap), // pool type
+            IZUMI_USDC_WETH_POOL, // pool address
+            uint8(SwapDirection.Token1ToToken0), // direction
+            USER_RECEIVER // recipient
         );
+
+        // Execute swap
+        vm.expectEmit(true, true, true, false);
+        emit Route(
+            USER_SENDER,
+            USER_RECEIVER,
+            IZUMI_USDC,
+            IZUMI_WETH,
+            1_000_000_000,
+            0,
+            0
+        );
+
+        liFiDEXAggregator.processRoute(
+            IZUMI_USDC,
+            1_000_000_000,
+            IZUMI_WETH,
+            0,
+            USER_RECEIVER,
+            swapData
+        );
+
+        vm.stopPrank();
     }
 
     function _testSwap(IzumiV3SwapTestParams memory params) internal {
