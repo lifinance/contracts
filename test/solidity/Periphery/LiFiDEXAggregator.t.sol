@@ -1725,11 +1725,13 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             expectedOutput
         );
 
+        uint256 minOut = (expectedOutput * 995) / 1000; // 0.5% slippage
+
         liFiDEXAggregator.processRoute(
             params.tokenIn,
             params.amountIn,
             params.tokenOut,
-            0,
+            minOut,
             params.to,
             route
         );
