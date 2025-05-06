@@ -1469,7 +1469,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Helper function to build the multi-hop route for test
     function _buildMultiHopRouteForTest(
         MultiHopTestState memory state
-    ) private returns (bytes memory) {
+    ) private view returns (bytes memory) {
         bytes memory firstHop = _buildAlgebraRoute(
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
@@ -1614,7 +1614,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Helper function to build route for Apechain Algebra swap
     function _buildAlgebraRoute(
         AlgebraRouteParams memory params
-    ) internal returns (bytes memory route) {
+    ) internal view returns (bytes memory route) {
         address token0 = IAlgebraPool(params.pool).token0();
         bool zeroForOne = (params.tokenIn == token0);
         SwapDirection direction = zeroForOne
@@ -1775,19 +1775,19 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address internal constant IZUMI_WETH =
         0x4200000000000000000000000000000000000006;
-    address internal constant IZUMI_DAI =
-        0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
+    address internal constant IZUMI_USDB_C =
+        0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA;
 
     // iZiSwap pools
-    address internal constant IZUMI_USDC_WETH_POOL =
+    address internal constant IZUMI_WETH_USDC_POOL =
         0xb92A9A91a9F7E8e6Bb848508A6DaF08f9D718554;
-    address internal constant IZUMI_USDC_DAI_POOL =
-        0x51A7e6542ea6B3c60b83C14a42eCc7ddEAD0349B;
+    address internal constant IZUMI_WETH_USDB_C_POOL =
+        0xdb5D62f06EEcEf0Da7506e0700c2f03c57016De5;
 
     // Test parameters
-    uint256 internal constant AMOUNT_USDC = 1000 * 1e6; // 1000 USDC with 6 decimals
+    uint256 internal constant AMOUNT_USDC = 100 * 1e6; // 100 USDC with 6 decimals
     uint256 internal constant AMOUNT_WETH = 1 * 1e18; // 1 WETH with 18 decimals
-    uint256 internal constant AMOUNT_DAI = 10 * 1e6; // 10 DEXFC with 6 decimals
+    uint256 internal constant AMOUNT_DAI = 100 * 1e6; // 100 DAI with 6 decimals
 
     // iZiSwap structs
     struct IzumiV3SwapTestParams {
@@ -1810,11 +1810,15 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         SwapDirection direction2;
     }
 
+    error IzumiV3SwapUnexpected();
+    error IzumiV3SwapCallbackUnknownSource();
+    error IzumiV3SwapCallbackNotPositiveAmount();
+
     function setUp() public override {
         super.setUp();
 
-        string memory zkSyncRPC = vm.envString("ETH_NODE_URI_BASE");
-        vm.createSelectFork(zkSyncRPC, 29831758);
+        string memory baseRpc = vm.envString("ETH_NODE_URI_BASE");
+        vm.createSelectFork(baseRpc, 29831758); // Updated block number
 
         privileged = new address[](2);
         privileged[0] = address(0xABC);
@@ -1830,9 +1834,9 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
         vm.label(IZUMI_USDC, "USDC");
         vm.label(IZUMI_WETH, "WETH");
-        vm.label(IZUMI_DAI, "DEXFC");
-        vm.label(IZUMI_USDC_WETH_POOL, "USDC-WETH Pool");
-        vm.label(IZUMI_USDC_DAI_POOL, "USDC-DEXFC Pool");
+        vm.label(IZUMI_USDB_C, "USDB-C");
+        vm.label(IZUMI_WETH_USDC_POOL, "WETH-USDC Pool");
+        vm.label(IZUMI_WETH_USDB_C_POOL, "WETH-USDB-C Pool");
     }
 
     function test_CanSwap_FromDexAggregator() public override {
@@ -1865,13 +1869,13 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         _testMultiHopSwap(
             MultiHopTestParams({
                 tokenIn: IZUMI_USDC,
-                tokenMid: IZUMI_DAI,
-                tokenOut: IZUMI_WETH,
-                pool1: IZUMI_USDC_DAI_POOL,
-                pool2: IZUMI_USDC_WETH_POOL,
+                tokenMid: IZUMI_WETH,
+                tokenOut: IZUMI_USDB_C,
+                pool1: IZUMI_WETH_USDC_POOL,
+                pool2: IZUMI_WETH_USDB_C_POOL,
                 amountIn: AMOUNT_USDC,
-                direction1: SwapDirection.Token0ToToken1,
-                direction2: SwapDirection.Token1ToToken0
+                direction1: SwapDirection.Token1ToToken0,
+                direction2: SwapDirection.Token0ToToken1
             })
         );
     }
@@ -1884,16 +1888,13 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         vm.startPrank(USER_SENDER);
         IERC20(IZUMI_USDC).approve(address(liFiDEXAggregator), 1_000_000_000);
 
-        // Prepare swap data - this is where the fix is needed
-        bytes memory swapData = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // Add command type
-            IZUMI_USDC, // tokenIn
-            uint8(1), // number of pools (1)
-            FULL_SHARE, // 100% share
-            uint8(PoolType.iZiSwap), // pool type
-            IZUMI_USDC_WETH_POOL, // pool address
-            uint8(SwapDirection.Token1ToToken0), // direction
-            USER_RECEIVER // recipient
+        // Fix the swap data encoding
+        bytes memory swapData = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            IZUMI_USDC,
+            uint8(SwapDirection.Token1ToToken0),
+            IZUMI_WETH_USDC_POOL,
+            USER_RECEIVER
         );
 
         // Execute swap
@@ -1920,6 +1921,100 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
+    function testRevert_IzumiV3SwapUnexpected() public {
+        // Transfer tokens from whale to user
+        deal(IZUMI_USDC, USER_SENDER, 1 * 1e6);
+
+        vm.startPrank(USER_SENDER);
+
+        // Create invalid pool address
+        address invalidPool = address(0x999);
+
+        // Create a route with an invalid pool
+        bytes memory invalidRoute = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            IZUMI_USDC,
+            uint8(SwapDirection.Token1ToToken0),
+            invalidPool,
+            USER_SENDER
+        );
+
+        // Approve tokens
+        IERC20(IZUMI_USDC).approve(address(liFiDEXAggregator), 1 * 1e6);
+
+        // Mock the iZiSwap pool to return without updating lastCalledPool
+        vm.mockCall(
+            invalidPool,
+            abi.encodeWithSignature("swapY2X(address,uint128,int24,bytes)"),
+            abi.encode(0, 0) // Return amountX and amountY without triggering callback or updating lastCalledPool
+        );
+
+        // Expect the IzumiV3SwapUnexpected error
+        vm.expectRevert(IzumiV3SwapUnexpected.selector);
+
+        liFiDEXAggregator.processRoute(
+            IZUMI_USDC,
+            1 * 1e6,
+            IZUMI_WETH,
+            0,
+            USER_SENDER,
+            invalidRoute
+        );
+
+        vm.stopPrank();
+        vm.clearMockedCalls();
+    }
+
+    function testRevert_IzumiV3SwapCallbackUnknownSource() public {
+        // Transfer tokens from whale to user
+        deal(IZUMI_USDC, USER_SENDER, 1 * 1e6);
+
+        // Create invalid pool address
+        address invalidPool = address(0x999);
+
+        // Approve tokens
+        vm.prank(USER_SENDER);
+        IERC20(IZUMI_USDC).approve(address(liFiDEXAggregator), 1 * 1e6);
+
+        // Mock the pool to call the callback directly without setting lastCalledPool
+        vm.mockCall(
+            invalidPool,
+            abi.encodeWithSignature("swapY2X(address,uint128,int24,bytes)"),
+            abi.encode(0, 0)
+        );
+
+        // Try to call the callback directly from the pool without setting lastCalledPool
+        vm.prank(invalidPool);
+        vm.expectRevert(IzumiV3SwapCallbackUnknownSource.selector);
+        liFiDEXAggregator.swapY2XCallback(0, 1 * 1e6, abi.encode(IZUMI_USDC));
+
+        vm.clearMockedCalls();
+    }
+
+    function testRevert_IzumiV3SwapCallbackNotPositiveAmount() public {
+        // Transfer tokens from whale to user
+        deal(IZUMI_USDC, USER_SENDER, 1 * 1e6);
+
+        // Create pool address
+        address pool = IZUMI_WETH_USDC_POOL;
+
+        // Set lastCalledPool to the pool address to pass the unknown source check
+        vm.store(
+            address(liFiDEXAggregator),
+            bytes32(uint256(3)), // slot for lastCalledPool
+            bytes32(uint256(uint160(pool)))
+        );
+
+        // Try to call the callback with zero amount
+        vm.prank(pool);
+        vm.expectRevert(IzumiV3SwapCallbackNotPositiveAmount.selector);
+        liFiDEXAggregator.swapY2XCallback(
+            0,
+            0, // zero amount should trigger the error
+            abi.encode(IZUMI_USDC)
+        );
+    }
+
     function _testSwap(IzumiV3SwapTestParams memory params) internal {
         // Fund the sender with tokens if not the contract itself
         if (params.from != address(liFiDEXAggregator)) {
@@ -1944,7 +2039,7 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
             commandCode,
             params.tokenIn,
             uint8(params.direction == SwapDirection.Token0ToToken1 ? 1 : 0),
-            IZUMI_USDC_WETH_POOL,
+            IZUMI_WETH_USDC_POOL,
             params.to
         );
 
@@ -2073,45 +2168,29 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         address pool,
         address recipient
     ) internal pure returns (bytes memory) {
-        if (
-            commandCode == CommandType.ProcessMyERC20 ||
-            commandCode == CommandType.ProcessUserERC20
-        ) {
-            return
-                abi.encodePacked(
-                    uint8(commandCode),
-                    tokenIn, // include tokenIn for these commands
-                    uint8(1), // number of pools
-                    FULL_SHARE, // 100% share for single pool
-                    uint8(PoolType.iZiSwap), // pool type
-                    pool, // pool address
-                    direction, // swap direction (0=Y2X, 1=X2Y)
-                    recipient // recipient address
-                );
-        }
-
         return
             abi.encodePacked(
                 uint8(commandCode),
-                uint8(1), // number of pools
-                FULL_SHARE, // 100% share for single pool
+                tokenIn,
+                uint8(1), // number of pools (1)
+                FULL_SHARE, // 100% share
                 uint8(PoolType.iZiSwap), // pool type
-                pool, // pool address
-                direction, // swap direction (0=Y2X, 1=X2Y)
-                recipient // recipient address
+                pool,
+                uint8(direction),
+                recipient
             );
     }
 
     function _buildIzumiV3MultiHopRoute(
         MultiHopTestParams memory params
-    ) internal pure returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         // First hop: USER_ERC20 -> pool1
         bytes memory firstHop = _buildIzumiV3Route(
             CommandType.ProcessUserERC20,
             params.tokenIn,
             uint8(params.direction1),
             params.pool1,
-            address(0) // intermediate recipient is the aggregator itself
+            address(liFiDEXAggregator)
         );
 
         // Second hop: MY_ERC20 -> pool2

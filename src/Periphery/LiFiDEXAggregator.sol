@@ -742,7 +742,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
-        uint8 direction = stream.readUint8(); // 0 = X2Y, 1 = Y2X
+        uint8 direction = stream.readUint8(); // 0 = Y2X, 1 = X2Y
         address to = stream.readAddress();
 
         // Handle token transfer
@@ -778,6 +778,27 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         }
     }
 
+    /// @dev Common logic for iZiSwap callbacks
+    /// @param amountToPay The amount of tokens to be sent to the pool
+    /// @param data The data passed through by the caller
+    function _handleIzumiV3SwapCallback(
+        uint256 amountToPay,
+        bytes calldata data
+    ) private {
+        if (msg.sender != lastCalledPool) {
+            revert IzumiV3SwapCallbackUnknownSource();
+        }
+
+        address tokenIn = abi.decode(data, (address));
+
+        if (amountToPay <= 0) {
+            revert IzumiV3SwapCallbackNotPositiveAmount();
+        }
+
+        lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
+        IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
+    }
+
     /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapX2Y.
     /// @dev In the implementation you must pay the pool tokens owed for the swap.
     /// @param amountX The amount of tokenX to be sent to the pool
@@ -788,22 +809,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountY,
         bytes calldata data
     ) external {
-        if (msg.sender != lastCalledPool) {
-            revert IzumiV3SwapCallbackUnknownSource();
-        }
-
-        address tokenIn = abi.decode(data, (address));
-
         // In swapX2Y, we're swapping from tokenX to tokenY
         // The pool will expect us to transfer the tokenX amount
-        uint256 amountToPay = amountX;
-
-        if (amountToPay <= 0) {
-            revert IzumiV3SwapCallbackNotPositiveAmount();
-        }
-
-        lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
-        IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
+        _handleIzumiV3SwapCallback(amountX, data);
     }
 
     /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapY2X.
@@ -816,22 +824,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountY,
         bytes calldata data
     ) external {
-        if (msg.sender != lastCalledPool) {
-            revert IzumiV3SwapCallbackUnknownSource();
-        }
-
-        address tokenIn = abi.decode(data, (address));
-
         // In swapY2X, we're swapping from tokenY to tokenX
         // The pool will expect us to transfer the tokenY amount
-        uint256 amountToPay = amountY;
-
-        if (amountToPay <= 0) {
-            revert IzumiV3SwapCallbackNotPositiveAmount();
-        }
-
-        lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
-        IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
+        _handleIzumiV3SwapCallback(amountY, data);
     }
 
     /// @notice Curve pool swap. Legacy pools that don't return amountOut and have native coins are not supported
