@@ -83,11 +83,6 @@ abstract contract LiFiDexAggregatorTest is TestBase {
     LiFiDEXAggregator internal liFiDEXAggregator;
     address[] internal privileged;
 
-    // Test users
-    address internal constant USER_A = address(0xA11CE);
-    address internal constant USER_B = address(0xB0B);
-    address internal constant USER_C = address(0xC1D);
-
     // Common events and errors
     event Route(
         address indexed from,
@@ -331,7 +326,6 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    // Override the abstract test with VelodromeV2 implementation
     function test_CanSwap_FromDexAggregator() public override {
         // fund dex aggregator contract so that the contract holds USDC
         deal(ADDRESS_USDC, address(liFiDEXAggregator), 100_000 * 1e6);
@@ -1334,7 +1328,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
             route
         );
 
-        // Verify the swap was successful
         uint256 finalBalanceIn = tokenA.balanceOf(USER_SENDER);
         uint256 finalBalanceOut = tokenB.balanceOf(USER_SENDER);
 
@@ -1345,7 +1338,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         );
         assertGt(finalBalanceOut - initialBalanceOut, 0, "No output received");
 
-        // Clear the mock
         vm.clearMockedCalls();
         vm.stopPrank();
     }
