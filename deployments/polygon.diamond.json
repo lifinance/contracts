@@ -121,9 +121,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324": {
+      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
         "Name": "MayanFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -133,7 +133,7 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x21a786957c69424A4353Afe743242Bd9Db3cC07b": {
+      "0xF397a797Fb52599DE29084080322Ac355c55D658": {
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
@@ -153,7 +153,7 @@
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
+      "0x11944Dd80c7Df07C8a7c895B5b1635a754BD191A": {
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },

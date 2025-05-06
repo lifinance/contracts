@@ -3,11 +3,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read # required to fetch repository contents
+
 jobs:
   validate-json:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
       # Step 1: Checkout code

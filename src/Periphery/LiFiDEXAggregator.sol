@@ -968,7 +968,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     }
 
     /// @notice Algebra pool swap
-    /// @param stream [pool, direction, recipient]
+    /// @param stream [pool, direction, recipient, supportsFeeOnTransfer]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
