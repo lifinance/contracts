@@ -734,7 +734,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
-    /// @notice iZiSwap V3 swap callback — must match IiZiSwapCallback
+    /// @notice Performs a swap through iZiSwap V3 pools
+    /// @dev This function handles both X to Y and Y to X swaps through iZiSwap V3 pools
+    /// @param stream [pool, direction, to]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
     function swapIzumiV3(
         uint256 stream,
         address from,
@@ -799,9 +804,11 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
     }
 
-    /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapX2Y.
-    /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// @param amountX The amount of tokenX to be sent to the pool
+    /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapX2Y
+    /// @dev In the implementation you must pay the pool tokens owed for the swap
+    /// @dev The caller of this method must be checked to be an iZiSwap pool deployed by the canonical iZiSwap factory
+    /// @param amountX The amount of tokenX that must be sent to the pool by the end of the swap
+    /// @param amountY The amount of tokenY that was sent by the pool in the swap
     /// @param data Any data passed through by the caller via the IiZiSwapPool#swapX2Y call
     function swapX2YCallback(
         uint256 amountX,
@@ -809,14 +816,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountY,
         bytes calldata data
     ) external {
-        // In swapX2Y, we're swapping from tokenX to tokenY
-        // The pool will expect us to transfer the tokenX amount
         _handleIzumiV3SwapCallback(amountX, data);
     }
 
-    /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapY2X.
-    /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// @param amountY The amount of tokenY to be sent to the pool
+    /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapY2X
+    /// @dev In the implementation you must pay the pool tokens owed for the swap
+    /// @dev The caller of this method must be checked to be an iZiSwap pool deployed by the canonical iZiSwap factory
+    /// @param amountX The amount of tokenX that was sent by the pool in the swap
+    /// @param amountY The amount of tokenY that must be sent to the pool by the end of the swap
     /// @param data Any data passed through by the caller via the IiZiSwapPool#swapY2X call
     function swapY2XCallback(
         // solhint-disable-next-line no-unused-vars
