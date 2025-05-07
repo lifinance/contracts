@@ -1,5 +1,5 @@
 /**
- * Deploy and Setup a new multisig Safe
+ * Deploy a Safe multisig contract using the SafeProxyFactory
  * The script combines owners from two sources:
  * 1. The global configuration (config/global.json)
  * 2. Additional owners provided via command line arguments
@@ -10,8 +10,6 @@
  *
  * Optional Parameters:
  * - owners: Comma-separated list of additional owner addresses
- * - safeSingleton: Address of the Gnosis Safe singleton contract (optional - will be fetched from safe-deployments)
- * - proxyFactory: Address of the Gnosis Safe Proxy Factory contract (optional - will be fetched from safe-deployments)
  * - fallbackHandler: Address of the fallback handler contract
  * - paymentToken: Address of the payment token (default: 0x0 for ETH)
  * - payment: Payment amount in wei (default: 0)
@@ -22,13 +20,7 @@
  * - ETH_NODE_URI_{NETWORK}: RPC URL for the target network (must be configured in .env)
  *
  * Example Usage:
- * bun deploy-and-setup-safe.ts --network arbitrum --threshold 3 --owners 0x123,0x456
- *
- * The script will:
- * 1. Verify the provided or fetched Safe contract addresses
- * 2. Deploy a new Safe proxy
- * 3. Initialize it with the specified owners and threshold
- * 4. Verify the final configuration
+ * bun deploy-standalone-safe.ts --network arbitrum --threshold 3 --owners 0x123,0x456
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -39,19 +31,17 @@ import {
   getAddress,
   Address,
   zeroAddress,
+  decodeEventLog,
 } from 'viem'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
-import {
-  getSafeSingletonDeployment,
-  getProxyFactoryDeployment,
-} from '@safe-global/safe-deployments'
 import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { execSync } from 'child_process'
 
 dotenv.config()
 
@@ -62,29 +52,87 @@ const SAFE_ARTIFACT = JSON.parse(
   )
 )
 
-const GNOSIS_SAFE_PROXY_FACTORY_ABI = parseAbi([
-  'function createProxyWithNonce(address _singleton, bytes initializer, uint256 saltNonce) returns (address proxy)',
-])
+const SAFE_PROXY_FACTORY_ARTIFACT = JSON.parse(
+  readFileSync(
+    join(
+      __dirname,
+      '../../../out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json'
+    ),
+    'utf8'
+  )
+)
 
-const GNOSIS_SAFE_ABI = parseAbi([
-  // setup(
-  //   address[] calldata _owners,
-  //   uint256 _threshold,
-  //   address to,
-  //   bytes calldata data,
-  //   address fallbackHandler,
-  //   address paymentToken,
-  //   uint256 payment,
-  //   address payable paymentReceiver
-  // ) external
-  'function setup(address[],uint256,address,bytes,address,address,uint256,address) external',
-])
+// Helper function to get chain ID (similar to your bash version)
+const getChainId = (network: string): string => {
+  const chainId = networks[network]?.chainId
+  if (!chainId) {
+    throw new Error(`Chain ID not found for network ${network}`)
+  }
+  return chainId.toString()
+}
+
+// Helper to get the verifier URL from foundry.toml
+const getVerifierUrl = (network: string): string => {
+  // Read and parse foundry.toml
+  const foundryConfig = readFileSync('foundry.toml', 'utf8')
+  const etherscanSection = foundryConfig.split('[etherscan]')[1]
+  const networkConfig = etherscanSection
+    .split(`${network} =`)[1]
+    ?.split('\n')[0]
+
+  if (!networkConfig) {
+    throw new Error(
+      `Network ${network} not found in foundry.toml etherscan configuration`
+    )
+  }
+
+  // Extract URL from the config
+  const urlMatch = networkConfig.match(/url\s*=\s*"([^"]*)"/)
+  return urlMatch?.[1] || ''
+}
+
+const verifyContract = async (
+  address: string,
+  contractPath: string,
+  contractName: string,
+  constructorArgs: string,
+  network: string
+) => {
+  try {
+    const constructorArgsFlag =
+      constructorArgs === '0x' ? '' : `--constructor-args ${constructorArgs}`
+
+    // Add the API key explicitly
+    const command = `forge verify-contract --chain-id 42161 --verifier-url https://api.etherscan.io/v2/api?chainid=42161 --etherscan-api-key ${process.env.MAINNET_ETHERSCAN_API_KEY} --watch ${constructorArgsFlag} ${address} ${contractPath}:${contractName}`
+
+    consola.info(`Running verification command: ${command}`)
+    execSync(command, { stdio: 'inherit' })
+    return true
+  } catch (error) {
+    // Try Sourcify verification as fallback
+    consola.info(`Trying to verify ${contractName} using Sourcify...`)
+    try {
+      execSync(
+        `forge verify-contract ${address} ${contractName} --chain-id ${getChainId(
+          network
+        )} --verifier sourcify --watch`,
+        { stdio: 'inherit' }
+      )
+      return true
+    } catch (sourcifyError) {
+      consola.error(
+        `Failed to verify ${contractName} with both Etherscan and Sourcify:`,
+        error
+      )
+      return false
+    }
+  }
+}
 
 const main = defineCommand({
   meta: {
-    name: 'deploy-and-setup-safe',
-    description:
-      'Deploys a new Gnosis Safe proxy and calls setup(...) in staging or production environment',
+    name: 'deploy-standalone-safe',
+    description: 'Deploys a standalone Safe multisig contract',
   },
   args: {
     network: {
@@ -101,18 +149,6 @@ const main = defineCommand({
       type: 'string',
       description:
         'Comma-separated list of additional owner addresses (e.g. 0xabc,0xdef). These will be combined with owners from global.json',
-      required: false,
-    },
-    safeSingleton: {
-      type: 'string',
-      description:
-        'Address of the Gnosis Safe singleton contract (optional - will be fetched from safe-deployments package if not provided)',
-      required: false,
-    },
-    proxyFactory: {
-      type: 'string',
-      description:
-        'Address of the Gnosis Safe Proxy Factory contract (optional - will be fetched from safe-deployments package if not provided)',
       required: false,
     },
     fallbackHandler: {
@@ -167,313 +203,215 @@ const main = defineCommand({
         throw new Error('Threshold must be at least 1')
       }
 
-      // Get Safe contract addresses from safe-deployments if not provided
-      const chainId = networks[networkName]?.chainId
-      if (!chainId) {
-        throw new Error(`Chain ID not found for network ${networkName}`)
-      }
-
-      let safeSingleton: Address | undefined
-      let proxyFactory: Address | undefined
-
-      // First check if addresses were provided as parameters
-      if (args.safeSingleton && args.proxyFactory) {
-        safeSingleton = getAddress(args.safeSingleton)
-        proxyFactory = getAddress(args.proxyFactory)
-        consola.info('Using provided Safe addresses:')
-
-        // Try to verify against safe-deployments
-        const safeSingletonDeployment = getSafeSingletonDeployment({
-          network: chainId.toString(),
-        })
-        const proxyFactoryDeployment = getProxyFactoryDeployment({
-          network: chainId.toString(),
-        })
-
-        if (safeSingletonDeployment && proxyFactoryDeployment) {
-          const safeSingletonFromDeployment =
-            safeSingletonDeployment.networkAddresses[chainId.toString()]
-          const proxyFactoryFromDeployment =
-            proxyFactoryDeployment.networkAddresses[chainId.toString()]
-
-          if (safeSingletonFromDeployment && proxyFactoryFromDeployment) {
-            if (
-              safeSingleton.toLowerCase() !==
-                safeSingletonFromDeployment.toLowerCase() ||
-              proxyFactory.toLowerCase() !==
-                proxyFactoryFromDeployment.toLowerCase()
-            ) {
-              consola.warn(
-                'Provided addresses differ from safe-deployments package:'
-              )
-              consola.warn(
-                `Safe Singleton: provided=${safeSingleton}, safe-deployments=${safeSingletonFromDeployment}`
-              )
-              consola.warn(
-                `Proxy Factory: provided=${proxyFactory}, safe-deployments=${proxyFactoryFromDeployment}`
-              )
-            } else {
-              consola.success(
-                'Provided addresses match safe-deployments package'
-              )
-            }
-          }
-        } else {
-          consola.warn(
-            'Could not verify provided addresses against safe-deployments package (no deployment data available)'
-          )
-        }
-      } else {
-        // No addresses provided, try to get from safe-deployments
-        const safeSingletonDeployment = getSafeSingletonDeployment({
-          network: chainId.toString(),
-        })
-        const proxyFactoryDeployment = getProxyFactoryDeployment({
-          network: chainId.toString(),
-        })
-
-        if (safeSingletonDeployment && proxyFactoryDeployment) {
-          const safeSingletonFromDeployment =
-            safeSingletonDeployment.networkAddresses[chainId.toString()]
-          const proxyFactoryFromDeployment =
-            proxyFactoryDeployment.networkAddresses[chainId.toString()]
-
-          if (safeSingletonFromDeployment && proxyFactoryFromDeployment) {
-            safeSingleton = getAddress(safeSingletonFromDeployment)
-            proxyFactory = getAddress(proxyFactoryFromDeployment)
-            consola.info('Using Safe addresses from safe-deployments package:')
-          } else {
-            throw new Error(
-              `Could not find Safe contract addresses for chain ID ${chainId} in safe-deployments package.\n` +
-                'Please provide safeSingleton and proxyFactory addresses manually.'
-            )
-          }
-        } else {
-          throw new Error(
-            `Could not find Safe deployments for chain ID ${chainId} in safe-deployments package.\n` +
-              'Please provide safeSingleton and proxyFactory addresses manually.'
-          )
-        }
-      }
-
-      consola.info('Safe Singleton:', safeSingleton)
-      consola.info('Proxy Factory:', proxyFactory)
-
       const { walletAccount, publicClient, walletClient } =
         await setupEnvironment(networkName, null, environment)
 
       consola.info('Environment:', environment)
       consola.info('Deployer (signer) address:', walletAccount.address)
 
-      // Verify the contracts exist and are valid
-      try {
-        const safeSingletonCode = await publicClient.getCode({
-          address: safeSingleton,
-        })
-        if (!safeSingletonCode || safeSingletonCode === '0x') {
-          throw new Error(
-            `Safe Singleton contract not found at ${safeSingleton}`
-          )
-        }
+      // const ownersArg = args.owners || ''
+      // const ownersRaw = ownersArg
+      //   .split(',')
+      //   .map((o) => o.trim())
+      //   .filter((o) => o.length > 0)
 
-        const proxyFactoryCode = await publicClient.getCode({
-          address: proxyFactory,
-        })
-        if (!proxyFactoryCode || proxyFactoryCode === '0x') {
-          throw new Error(`Proxy Factory contract not found at ${proxyFactory}`)
-        }
-      } catch (error) {
-        consola.error('Error verifying Safe contracts:', error)
-        throw new Error(
-          'Failed to verify Safe contract addresses. Please check the addresses are correct for this network.'
-        )
-      }
+      // // validate owners
+      // const ownersFromGlobalConfig = globalConfig.safeOwners as Address[]
+      // const ownersFromArgs = ownersRaw.map((o) => {
+      //   if (!isAddress(o)) {
+      //     throw new Error(`Invalid address in --owners: ${o}`)
+      //   }
+      //   return getAddress(o)
+      // })
 
-      const ownersArg = args.owners || ''
-      const ownersRaw = ownersArg
-        .split(',')
-        .map((o) => o.trim())
-        .filter((o) => o.length > 0)
+      // const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
 
-      // validate owners
-      const ownersFromGlobalConfig = globalConfig.safeOwners as Address[]
-      const ownersFromArgs = ownersRaw.map((o) => {
-        if (!isAddress(o)) {
-          throw new Error(`Invalid address in --owners: ${o}`)
-        }
-        return getAddress(o)
-      })
+      // if (owners.length === 0) {
+      //   throw new Error('At least one owner address must be provided')
+      // }
 
-      const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
+      // if (threshold > owners.length) {
+      //   throw new Error('Threshold cannot be greater than the number of owners')
+      // }
 
-      if (owners.length === 0) {
-        throw new Error('At least one owner address must be provided')
-      }
+      // // optional parameters
+      // const fallbackHandler =
+      //   args.fallbackHandler && isAddress(args.fallbackHandler)
+      //     ? getAddress(args.fallbackHandler)
+      //     : zeroAddress
 
-      if (threshold > owners.length) {
-        throw new Error('Threshold cannot be greater than the number of owners')
-      }
+      // const paymentToken =
+      //   args.paymentToken && isAddress(args.paymentToken)
+      //     ? getAddress(args.paymentToken)
+      //     : zeroAddress
 
-      // optional parameters
-      const fallbackHandler =
-        args.fallbackHandler && isAddress(args.fallbackHandler)
-          ? getAddress(args.fallbackHandler)
-          : zeroAddress
+      // const payment = args.payment ? BigInt(args.payment) : 0n
+      // const paymentReceiver =
+      //   args.paymentReceiver && isAddress(args.paymentReceiver)
+      //     ? getAddress(args.paymentReceiver)
+      //     : zeroAddress
 
-      const paymentToken =
-        args.paymentToken && isAddress(args.paymentToken)
-          ? getAddress(args.paymentToken)
-          : zeroAddress
+      // consola.info('Network:', networkName)
+      // consola.info('Owners:', owners)
+      // consola.info('Threshold:', threshold)
+      // consola.info('Fallback Handler:', fallbackHandler)
+      // consola.info('Payment Token:', paymentToken)
+      // consola.info('Payment:', payment)
+      // consola.info('Payment Receiver:', paymentReceiver)
 
-      const payment = args.payment ? BigInt(args.payment) : 0n
-      const paymentReceiver =
-        args.paymentReceiver && isAddress(args.paymentReceiver)
-          ? getAddress(args.paymentReceiver)
-          : zeroAddress
+      // // First deploy the Safe implementation if not already deployed
+      // consola.info('Deploying Safe implementation...')
+      // const implementationHash = await walletClient.deployContract({
+      //   abi: SAFE_ARTIFACT.abi,
+      //   bytecode: SAFE_ARTIFACT.bytecode.object as `0x${string}`,
+      //   args: [],
+      // })
 
-      consola.info('Network:', networkName)
-      consola.info('Master Copy:', safeSingleton)
-      consola.info('Proxy Factory:', proxyFactory)
-      consola.info('Owners:', owners)
-      consola.info('Threshold:', threshold)
-      consola.info('Fallback Handler:', fallbackHandler)
-      consola.info('Payment Token:', paymentToken)
-      consola.info('Payment:', payment)
-      consola.info('Payment Receiver:', paymentReceiver)
+      // consola.info('Safe implementation deployment transaction sent. Hash:', implementationHash)
 
-      // Deploy using proxy factory
-      const setupData = encodeFunctionData({
-        abi: SAFE_ARTIFACT.abi,
-        functionName: 'setup',
-        args: [
-          owners,
-          BigInt(threshold),
-          zeroAddress,
-          '0x',
-          fallbackHandler,
-          paymentToken,
-          payment,
-          paymentReceiver,
-        ],
-      })
+      // const implementationReceipt = await publicClient.waitForTransactionReceipt({
+      //   hash: implementationHash
+      // })
+      // if (implementationReceipt.status === 'reverted') {
+      //   throw new Error('Safe implementation deployment transaction reverted')
+      // }
 
-      const gasEstimate = await publicClient.estimateGas({
-        account: walletAccount.address,
-        to: proxyFactory,
-        data: encodeFunctionData({
-          abi: GNOSIS_SAFE_PROXY_FACTORY_ABI,
-          functionName: 'createProxyWithNonce',
-          args: [safeSingleton, setupData, BigInt(Date.now())],
-        }),
-      })
+      // if (!implementationReceipt.contractAddress) {
+      //   throw new Error('No contract address in implementation deployment receipt')
+      // }
 
-      const hash = await walletClient.writeContract({
-        address: proxyFactory,
-        abi: GNOSIS_SAFE_PROXY_FACTORY_ABI,
-        functionName: 'createProxyWithNonce',
-        args: [
-          safeSingleton,
-          setupData,
-          BigInt(Date.now()), // salt nonce
-        ],
-        gas: gasEstimate + 100_000n, // Add buffer to gas estimate
-      })
+      // const implementationAddress = implementationReceipt.contractAddress
+      // consola.info('Safe implementation deployed at:', implementationAddress)
 
-      consola.info('Transaction sent. Hash:', hash)
+      // // Deploy the SafeProxyFactory if not already deployed
+      // consola.info('Deploying SafeProxyFactory...')
+      // const factoryHash = await walletClient.deployContract({
+      //   abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+      //   bytecode: SAFE_PROXY_FACTORY_ARTIFACT.bytecode.object as `0x${string}`,
+      //   args: [],
+      // })
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
-      if (receipt.status === 'reverted') {
-        // Try to get the revert reason
-        try {
-          const tx = await publicClient.getTransaction({ hash })
-          const result = await publicClient.call({
-            account: walletAccount.address,
-            to: proxyFactory,
-            data: tx.input,
-          })
-          throw new Error(`Transaction reverted: ${result}`)
-        } catch (error) {
-          throw new Error(
-            'Transaction reverted for an unknown reason. Please check the Safe contract addresses and parameters.'
-          )
-        }
-      }
-      consola.info('Transaction confirmed in block', receipt.blockNumber)
+      // consola.info('SafeProxyFactory deployment transaction sent. Hash:', factoryHash)
 
-      // retrieve the new proxy address from logs
-      let newSafeAddress: Address | undefined
-      if (receipt.logs) {
-        for (const log of receipt.logs) {
-          const proxyCreationTopic =
-            '0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
-          if (log.address.toLowerCase() === proxyFactory.toLowerCase()) {
-            // - topic[0] = keccak256(ProxyCreation) - topic
-            // data contains proxy contract address as a first address param
-            if (log && log.topics[0] === proxyCreationTopic && log.topics[1]) {
-              // Assuming the proxy address is the first indexed parameter,
-              // it should be in topics[1]. Extract the last 40 characters.
-              const rawProxyAddress = '0x' + log.topics[1].slice(-40)
-              newSafeAddress = getAddress(rawProxyAddress)
-              break
-            }
-          }
-        }
-      }
+      // const factoryReceipt = await publicClient.waitForTransactionReceipt({
+      //   hash: factoryHash
+      // })
+      // if (factoryReceipt.status === 'reverted') {
+      //   throw new Error('SafeProxyFactory deployment transaction reverted')
+      // }
 
-      if (!newSafeAddress) {
-        throw new Error(
-          'Could not find ProxyCreation log in transaction receipt. ' +
-            'Check that the addresses/ABIs are correct.'
-        )
-      }
+      // if (!factoryReceipt.contractAddress) {
+      //   throw new Error('No contract address in factory deployment receipt')
+      // }
 
-      consola.success('New Gnosis Safe deployed at:', newSafeAddress)
-      consola.success('Setup complete!')
+      // const factoryAddress = factoryReceipt.contractAddress
+      // consola.info('SafeProxyFactory deployed at:', factoryAddress)
 
-      const GNOSIS_SAFE_VERIFICATION_ABI = parseAbi([
-        'function getOwners() view returns (address[])',
-        'function getThreshold() view returns (uint256)',
-      ])
+      // // Prepare the initializer data for the proxy
+      // const initializerData = encodeFunctionData({
+      //   abi: SAFE_ARTIFACT.abi,
+      //   functionName: 'setup',
+      //   args: [
+      //     owners,
+      //     BigInt(threshold),
+      //     zeroAddress,
+      //     '0x',
+      //     fallbackHandler,
+      //     paymentToken,
+      //     payment,
+      //     paymentReceiver,
+      //   ],
+      // })
 
-      if (newSafeAddress) {
-        consola.info('Verifying deployed Gnosis Safe configuration...')
+      // // Create proxy using the factory
+      // consola.info('Creating Safe proxy...')
+      // const proxyHash = await walletClient.writeContract({
+      //   address: factoryAddress,
+      //   abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+      //   functionName: 'createProxyWithNonce',
+      //   args: [
+      //     implementationAddress,
+      //     initializerData,
+      //     BigInt(Date.now()), // Using timestamp as salt nonce
+      //   ],
+      // })
 
-        try {
-          // fetch Safe owners
-          const ownersAfterSetup = await publicClient.readContract({
-            address: newSafeAddress,
-            abi: GNOSIS_SAFE_VERIFICATION_ABI,
-            functionName: 'getOwners',
-            args: [],
-          })
+      // consola.info('Proxy creation transaction sent. Hash:', proxyHash)
 
-          // fetch threshold
-          const thresholdAfterSetup = await publicClient.readContract({
-            address: newSafeAddress,
-            abi: GNOSIS_SAFE_VERIFICATION_ABI,
-            functionName: 'getThreshold',
-            args: [],
-          })
+      // const proxyReceipt = await publicClient.waitForTransactionReceipt({
+      //   hash: proxyHash
+      // })
+      // if (proxyReceipt.status === 'reverted') {
+      //   throw new Error('Proxy creation transaction reverted')
+      // }
 
-          // log the results
-          if (
-            JSON.stringify(ownersAfterSetup) === JSON.stringify(owners) &&
-            BigInt(thresholdAfterSetup) === BigInt(threshold)
-          ) {
-            consola.success('Owners and threshold match the expected values.')
-          } else {
-            consola.error('Mismatch in Safe setup configuration!')
-            consola.error('Expected Owners:', owners)
-            consola.error('Actual Owners:', ownersAfterSetup)
-            consola.error('Expected Threshold:', threshold)
-            consola.error('Actual Threshold:', thresholdAfterSetup)
-          }
-        } catch (error) {
-          consola.error('Error verifying Gnosis Safe configuration:', error)
-        }
-      }
+      // // Find the proxy address from the ProxyCreation event
+      // const proxyCreationEvents = proxyReceipt.logs.map(log => {
+      //   try {
+      //     return decodeEventLog({
+      //       abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+      //       data: log.data,
+      //       topics: log.topics,
+      //     })
+      //   } catch {
+      //     return null
+      //   }
+      // }).filter(event => event && event.eventName === 'ProxyCreation')
+
+      // if (proxyCreationEvents.length === 0) {
+      //   throw new Error('Could not find ProxyCreation event in receipt')
+      // }
+
+      // const safeAddress = proxyCreationEvents[0].args.proxy as Address
+      // consola.info('Safe proxy deployed at:', safeAddress)
+
+      // After successful deployment and configuration verification, verify the contracts
+      consola.info('Starting contract verification...')
+
+      const implementationAddress = '0xb82be7c20e83893bb1159f87bc412fb89f6641ae'
+      const factoryAddress = '0x602482ed1f26e39723c30a01e76290e05125c2b3'
+      const safeAddress = '0x6A599De7E42c5384058119B4eC577123d7B4a6dE'
+      // 1. Verify Safe implementation
+      consola.info('Verifying Safe implementation...')
+      await verifyContract(
+        implementationAddress,
+        'src/Safe/Safe_flattened.sol',
+        'Safe',
+        '0x', // Empty constructor args
+        networkName
+      )
+
+      // 2. Verify SafeProxyFactory
+      consola.info('Verifying SafeProxyFactory...')
+      await verifyContract(
+        factoryAddress,
+        'src/Safe/SafeProxyFactory_flattened.sol',
+        'SafeProxyFactory',
+        '$(cast abi-encode "constructor()")',
+        networkName
+      )
+
+      // 3. Verify Safe Proxy
+      consola.info('Verifying Safe Proxy...')
+      const proxyConstructorArgs = await execSync(
+        `cast abi-encode "constructor(address)" "${implementationAddress}"`
+      )
+        .toString()
+        .trim()
+
+      consola.info('Proxy constructor args:', proxyConstructorArgs)
+
+      await verifyContract(
+        safeAddress,
+        'src/Safe/SafeProxyFactory_flattened.sol',
+        'SafeProxy',
+        proxyConstructorArgs,
+        networkName
+      )
+
+      consola.success('All contracts verified successfully!')
     } catch (error: any) {
-      consola.error('Error deploying Gnosis Safe:', error.message)
+      consola.error('Error deploying Safe:', error.message)
       process.exit(1)
     }
   },
