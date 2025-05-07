@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 /// @title IAlgebraPool Interface
-/// @notice Interface for Algebra pool with swap functionality
+/// @notice Interface for Algebra pool
+/// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IAlgebraPool {
     /**
      * @notice The first of the two tokens of the pool, sorted by address
