@@ -1,0 +1,67 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x2ADd6d51A768D36815360548C3580120e14A8BB3": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x9243a046C01ae883E31c5e68a5C8e90D62814a11": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0xB2d46B6fF7c7EeB47fCaf69aDF7d85531642e6f2": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x22109a0F5F864BC2c0B95Ca444e01033cbe5AC2A": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x0101B21C9BD0c4A6c1931858FB9360AB45D400A5": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.1"
+      },
+      "0xa79AfB8A1bFF1fA86D6488225FE8efa13c1A29F4": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xb5CA5571BABd74Ba2fAb0bcdD468EF72C80B9b19": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x6548168eC873cDebb3Ce784e8444a799a0B60FE1": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xe94b1ae152eBdE91A7be0da47423F0939348A1De": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
+      },
+      "0xAe1dFe82d46eA64a14FDcFd049c2ce4f12377ce2": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.0"
+      },
+      "0x56082b55c73F2d9dFe5C8c06a921d07911042385": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0xb169B095022D1208d7a8CfF534F7589Dc02BDE36": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0xe670b3E309b8C867Df2559237884b4548cF69a41",
+      "Executor": "0x3E72E2D59E1b87644291e026b04B0A7D6bEd7E20",
+      "FeeCollector": "0x5d9C68B76809B33317d869FF6034929F4458913c",
+      "GasZipPeriphery": "0x157aBA344DEFc17Ee47553FeA42322819D71fd82",
+      "LiFiDEXAggregator": "0xeDA29b03Be07709064ba36233C0a0430450b5941",
+      "Permit2Proxy": "0xc53366aD74aaFB58F12Cc83D38B77A11A097b118",
+      "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
+      "ReceiverStargateV2": "",
+      "RelayerCelerIM": "",
+      "TokenWrapper": "0xBB99EbdfA348239ac16a1949E0e69d29e2957C98"
+    }
+  }
+}

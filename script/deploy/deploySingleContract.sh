@@ -92,10 +92,9 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkSync and Abstract
+  # Handle ZkEVM Chains
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
-  #
   if isZkEvmNetwork "$NETWORK"; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     FILE_EXTENSION=".zksync.s.sol"
@@ -371,7 +370,7 @@ deploySingleContract() {
       RELAYER_CONSTR_ARGS=$(cast abi-encode "someFunction(address,address,address)" "$CBRIDGE_MESSAGE_BUS_ADDRESS" "$REFUND_WALLET" "$DIAMOND_ADDRESS")
 
       # get RPC URL for given network
-      RPC_URL=$(getRPCUrl "$NETWORK")
+      RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
       # get address of RelayerCelerIM
       RELAYER_ADDRESS=$(cast call $ADDRESS "relayer() returns (address)" --rpc-url "$RPC_URL")
