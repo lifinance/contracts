@@ -1,3 +1,4 @@
+/* solhint-disable */
 // Sources flattened with hardhat v2.22.19 https://hardhat.org
 
 // SPDX-License-Identifier: LGPL-3.0-only
