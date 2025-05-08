@@ -68,6 +68,10 @@
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
+      },
+      "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
