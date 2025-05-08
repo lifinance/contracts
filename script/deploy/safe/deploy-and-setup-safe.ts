@@ -357,7 +357,9 @@ const main = defineCommand({
         args: [
           implementationAddress,
           initializerData,
-          BigInt(Date.now()), // Using timestamp as salt nonce
+          // Combine timestamp with deployer address to make nonce unique per deployer
+          BigInt(Date.now()) ^
+            BigInt.asUintN(64, BigInt(walletAccount.address)),
         ],
       })
 
