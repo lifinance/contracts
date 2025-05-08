@@ -27,13 +27,11 @@ import { defineCommand, runMain } from 'citty'
 import {
   encodeFunctionData,
   isAddress,
-  parseAbi,
   getAddress,
   Address,
   zeroAddress,
   decodeEventLog,
 } from 'viem'
-import consola from 'consola'
 import * as dotenv from 'dotenv'
 import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
@@ -42,6 +40,7 @@ import networks from '../../../config/networks.json'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
+import { consola } from 'consola'
 
 dotenv.config()
 
@@ -63,7 +62,7 @@ const SAFE_PROXY_FACTORY_ARTIFACT = JSON.parse(
 )
 
 // Helper function to get chain ID (similar to your bash version)
-const getChainId = (network: string): string => {
+const getChainId = (network: keyof typeof networks): string => {
   const chainId = networks[network]?.chainId
   if (!chainId) {
     throw new Error(`Chain ID not found for network ${network}`)
@@ -96,7 +95,7 @@ const verifyContract = async (
   contractPath: string,
   contractName: string,
   constructorArgs: string,
-  network: string
+  network: keyof typeof networks
 ) => {
   try {
     // Get verifier URL from foundry.toml
@@ -104,29 +103,16 @@ const verifyContract = async (
     const constructorArgsFlag =
       constructorArgs === '0x' ? '' : `--constructor-args ${constructorArgs}`
 
-    const command = `forge verify-contract --verifier-url "${verifierUrl}" --watch ${constructorArgsFlag} ${address} ${contractPath}:${contractName}`
+    const command = `forge verify-contract --verifier-url "${verifierUrl}" --chain ${getChainId(
+      network
+    )} --watch ${constructorArgsFlag} ${address} ${contractPath}:${contractName}`
 
     consola.info(`Running verification command: ${command}`)
     execSync(command, { stdio: 'inherit' })
     return true
   } catch (error) {
-    // Try Sourcify verification as fallback
-    consola.info(`Trying to verify ${contractName} using Sourcify...`)
-    try {
-      execSync(
-        `forge verify-contract ${address} ${contractName} --chain-id ${getChainId(
-          network
-        )} --verifier sourcify --watch`,
-        { stdio: 'inherit' }
-      )
-      return true
-    } catch (sourcifyError) {
-      consola.error(
-        `Failed to verify ${contractName} with both Etherscan and Sourcify:`,
-        error
-      )
-      return false
-    }
+    consola.error(`Failed to verify ${contractName}.`, error)
+    return false
   }
 }
 
@@ -210,168 +196,184 @@ const main = defineCommand({
       consola.info('Environment:', environment)
       consola.info('Deployer (signer) address:', walletAccount.address)
 
-      // const ownersArg = args.owners || ''
-      // const ownersRaw = ownersArg
-      //   .split(',')
-      //   .map((o) => o.trim())
-      //   .filter((o) => o.length > 0)
+      const ownersArg = args.owners || ''
+      const ownersRaw = ownersArg
+        .split(',')
+        .map((o) => o.trim())
+        .filter((o) => o.length > 0)
 
-      // // validate owners
-      // const ownersFromGlobalConfig = globalConfig.safeOwners as Address[]
-      // const ownersFromArgs = ownersRaw.map((o) => {
-      //   if (!isAddress(o)) {
-      //     throw new Error(`Invalid address in --owners: ${o}`)
-      //   }
-      //   return getAddress(o)
-      // })
+      // validate owners
+      const ownersFromGlobalConfig = globalConfig.safeOwners as Address[]
+      const ownersFromArgs = ownersRaw.map((o) => {
+        if (!isAddress(o)) {
+          throw new Error(`Invalid address in --owners: ${o}`)
+        }
+        return getAddress(o)
+      })
 
-      // const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
+      const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
 
-      // if (owners.length === 0) {
-      //   throw new Error('At least one owner address must be provided')
-      // }
+      if (owners.length === 0) {
+        throw new Error('At least one owner address must be provided')
+      }
 
-      // if (threshold > owners.length) {
-      //   throw new Error('Threshold cannot be greater than the number of owners')
-      // }
+      if (threshold > owners.length) {
+        throw new Error('Threshold cannot be greater than the number of owners')
+      }
 
-      // // optional parameters
-      // const fallbackHandler =
-      //   args.fallbackHandler && isAddress(args.fallbackHandler)
-      //     ? getAddress(args.fallbackHandler)
-      //     : zeroAddress
+      // optional parameters
+      const fallbackHandler =
+        args.fallbackHandler && isAddress(args.fallbackHandler)
+          ? getAddress(args.fallbackHandler)
+          : zeroAddress
 
-      // const paymentToken =
-      //   args.paymentToken && isAddress(args.paymentToken)
-      //     ? getAddress(args.paymentToken)
-      //     : zeroAddress
+      const paymentToken =
+        args.paymentToken && isAddress(args.paymentToken)
+          ? getAddress(args.paymentToken)
+          : zeroAddress
 
-      // const payment = args.payment ? BigInt(args.payment) : 0n
-      // const paymentReceiver =
-      //   args.paymentReceiver && isAddress(args.paymentReceiver)
-      //     ? getAddress(args.paymentReceiver)
-      //     : zeroAddress
+      const payment = args.payment ? BigInt(args.payment) : 0n
+      const paymentReceiver =
+        args.paymentReceiver && isAddress(args.paymentReceiver)
+          ? getAddress(args.paymentReceiver)
+          : zeroAddress
 
-      // consola.info('Network:', networkName)
-      // consola.info('Owners:', owners)
-      // consola.info('Threshold:', threshold)
-      // consola.info('Fallback Handler:', fallbackHandler)
-      // consola.info('Payment Token:', paymentToken)
-      // consola.info('Payment:', payment)
-      // consola.info('Payment Receiver:', paymentReceiver)
+      consola.info('Network:', networkName)
+      consola.info('Owners:', owners)
+      consola.info('Threshold:', threshold)
+      consola.info('Fallback Handler:', fallbackHandler)
+      consola.info('Payment Token:', paymentToken)
+      consola.info('Payment:', payment)
+      consola.info('Payment Receiver:', paymentReceiver)
 
-      // // First deploy the Safe implementation if not already deployed
-      // consola.info('Deploying Safe implementation...')
-      // const implementationHash = await walletClient.deployContract({
-      //   abi: SAFE_ARTIFACT.abi,
-      //   bytecode: SAFE_ARTIFACT.bytecode.object as `0x${string}`,
-      //   args: [],
-      // })
+      // First deploy the Safe implementation if not already deployed
+      consola.info('Deploying Safe implementation...')
+      const implementationHash = await walletClient.deployContract({
+        abi: SAFE_ARTIFACT.abi,
+        bytecode: SAFE_ARTIFACT.bytecode.object as `0x${string}`,
+        args: [],
+      })
 
-      // consola.info('Safe implementation deployment transaction sent. Hash:', implementationHash)
+      consola.info(
+        'Safe implementation deployment transaction sent. Hash:',
+        implementationHash
+      )
 
-      // const implementationReceipt = await publicClient.waitForTransactionReceipt({
-      //   hash: implementationHash
-      // })
-      // if (implementationReceipt.status === 'reverted') {
-      //   throw new Error('Safe implementation deployment transaction reverted')
-      // }
+      const implementationReceipt =
+        await publicClient.waitForTransactionReceipt({
+          hash: implementationHash,
+        })
+      if (implementationReceipt.status === 'reverted') {
+        throw new Error('Safe implementation deployment transaction reverted')
+      }
 
-      // if (!implementationReceipt.contractAddress) {
-      //   throw new Error('No contract address in implementation deployment receipt')
-      // }
+      if (!implementationReceipt.contractAddress) {
+        throw new Error(
+          'No contract address in implementation deployment receipt'
+        )
+      }
 
-      // const implementationAddress = implementationReceipt.contractAddress
-      // consola.info('Safe implementation deployed at:', implementationAddress)
+      const implementationAddress = implementationReceipt.contractAddress
+      consola.info('Safe implementation deployed at:', implementationAddress)
 
-      // // Deploy the SafeProxyFactory if not already deployed
-      // consola.info('Deploying SafeProxyFactory...')
-      // const factoryHash = await walletClient.deployContract({
-      //   abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
-      //   bytecode: SAFE_PROXY_FACTORY_ARTIFACT.bytecode.object as `0x${string}`,
-      //   args: [],
-      // })
+      // Deploy the SafeProxyFactory if not already deployed
+      consola.info('Deploying SafeProxyFactory...')
+      const factoryHash = await walletClient.deployContract({
+        abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+        bytecode: SAFE_PROXY_FACTORY_ARTIFACT.bytecode.object as `0x${string}`,
+        args: [],
+      })
 
-      // consola.info('SafeProxyFactory deployment transaction sent. Hash:', factoryHash)
+      consola.info(
+        'SafeProxyFactory deployment transaction sent. Hash:',
+        factoryHash
+      )
 
-      // const factoryReceipt = await publicClient.waitForTransactionReceipt({
-      //   hash: factoryHash
-      // })
-      // if (factoryReceipt.status === 'reverted') {
-      //   throw new Error('SafeProxyFactory deployment transaction reverted')
-      // }
+      const factoryReceipt = await publicClient.waitForTransactionReceipt({
+        hash: factoryHash,
+      })
+      if (factoryReceipt.status === 'reverted') {
+        throw new Error('SafeProxyFactory deployment transaction reverted')
+      }
 
-      // if (!factoryReceipt.contractAddress) {
-      //   throw new Error('No contract address in factory deployment receipt')
-      // }
+      if (!factoryReceipt.contractAddress) {
+        throw new Error('No contract address in factory deployment receipt')
+      }
 
-      // const factoryAddress = factoryReceipt.contractAddress
-      // consola.info('SafeProxyFactory deployed at:', factoryAddress)
+      const factoryAddress = factoryReceipt.contractAddress
+      consola.info('SafeProxyFactory deployed at:', factoryAddress)
 
-      // // Prepare the initializer data for the proxy
-      // const initializerData = encodeFunctionData({
-      //   abi: SAFE_ARTIFACT.abi,
-      //   functionName: 'setup',
-      //   args: [
-      //     owners,
-      //     BigInt(threshold),
-      //     zeroAddress,
-      //     '0x',
-      //     fallbackHandler,
-      //     paymentToken,
-      //     payment,
-      //     paymentReceiver,
-      //   ],
-      // })
+      // Prepare the initializer data for the proxy
+      const initializerData = encodeFunctionData({
+        abi: SAFE_ARTIFACT.abi,
+        functionName: 'setup',
+        args: [
+          owners,
+          BigInt(threshold),
+          zeroAddress,
+          '0x',
+          fallbackHandler,
+          paymentToken,
+          payment,
+          paymentReceiver,
+        ],
+      })
 
-      // // Create proxy using the factory
-      // consola.info('Creating Safe proxy...')
-      // const proxyHash = await walletClient.writeContract({
-      //   address: factoryAddress,
-      //   abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
-      //   functionName: 'createProxyWithNonce',
-      //   args: [
-      //     implementationAddress,
-      //     initializerData,
-      //     BigInt(Date.now()), // Using timestamp as salt nonce
-      //   ],
-      // })
+      // Create proxy using the factory
+      consola.info('Creating Safe proxy...')
+      const proxyHash = await walletClient.writeContract({
+        address: factoryAddress,
+        abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+        functionName: 'createProxyWithNonce',
+        args: [
+          implementationAddress,
+          initializerData,
+          BigInt(Date.now()), // Using timestamp as salt nonce
+        ],
+      })
 
-      // consola.info('Proxy creation transaction sent. Hash:', proxyHash)
+      consola.info('Proxy creation transaction sent. Hash:', proxyHash)
 
-      // const proxyReceipt = await publicClient.waitForTransactionReceipt({
-      //   hash: proxyHash
-      // })
-      // if (proxyReceipt.status === 'reverted') {
-      //   throw new Error('Proxy creation transaction reverted')
-      // }
+      const proxyReceipt = await publicClient.waitForTransactionReceipt({
+        hash: proxyHash,
+      })
+      if (proxyReceipt.status === 'reverted') {
+        throw new Error('Proxy creation transaction reverted')
+      }
 
-      // // Find the proxy address from the ProxyCreation event
-      // const proxyCreationEvents = proxyReceipt.logs.map(log => {
-      //   try {
-      //     return decodeEventLog({
-      //       abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
-      //       data: log.data,
-      //       topics: log.topics,
-      //     })
-      //   } catch {
-      //     return null
-      //   }
-      // }).filter(event => event && event.eventName === 'ProxyCreation')
+      // Find the proxy address from the ProxyCreation event
+      const proxyCreationEvents = proxyReceipt.logs
+        .map((log) => {
+          try {
+            return decodeEventLog({
+              abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+              data: log.data,
+              topics: log.topics,
+            }) as { eventName: string; args: { proxy: Address } } | null
+          } catch {
+            return null
+          }
+        })
+        .filter(
+          (event): event is { eventName: string; args: { proxy: Address } } =>
+            event !== null &&
+            'eventName' in event &&
+            event.eventName === 'ProxyCreation'
+        )
 
-      // if (proxyCreationEvents.length === 0) {
-      //   throw new Error('Could not find ProxyCreation event in receipt')
-      // }
+      if (proxyCreationEvents.length === 0) {
+        throw new Error('Could not find ProxyCreation event in receipt')
+      }
 
-      // const safeAddress = proxyCreationEvents[0].args.proxy as Address
-      // consola.info('Safe proxy deployed at:', safeAddress)
+      const safeAddress = proxyCreationEvents[0].args.proxy as Address
+      consola.info('Safe proxy deployed at:', safeAddress)
 
       // After successful deployment and configuration verification, verify the contracts
       consola.info('Starting contract verification...')
 
-      const implementationAddress = '0xb82be7c20e83893bb1159f87bc412fb89f6641ae'
-      const factoryAddress = '0x602482ed1f26e39723c30a01e76290e05125c2b3'
-      const safeAddress = '0x6A599De7E42c5384058119B4eC577123d7B4a6dE'
+      // const implementationAddress = '0xb82be7c20e83893bb1159f87bc412fb89f6641ae'
+      // const factoryAddress = '0x602482ed1f26e39723c30a01e76290e05125c2b3'
+      // const safeAddress = '0x6A599De7E42c5384058119B4eC577123d7B4a6dE'
       // 1. Verify Safe implementation
       consola.info('Verifying Safe implementation...')
       await verifyContract(
