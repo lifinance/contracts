@@ -2,6 +2,7 @@
 // Sources flattened with hardhat v2.22.19 https://hardhat.org
 
 // SPDX-License-Identifier: LGPL-3.0-only
+// custom:version 1.0.0
 
 // File contracts/libraries/Enum.sol
 
