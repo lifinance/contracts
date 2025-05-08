@@ -53,23 +53,6 @@ import { consola } from 'consola'
 
 dotenv.config()
 
-const SAFE_ARTIFACT = JSON.parse(
-  readFileSync(
-    join(__dirname, '../../../out/Safe_flattened.sol/Safe.json'),
-    'utf8'
-  )
-)
-
-const SAFE_PROXY_FACTORY_ARTIFACT = JSON.parse(
-  readFileSync(
-    join(
-      __dirname,
-      '../../../out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json'
-    ),
-    'utf8'
-  )
-)
-
 // Helper function to get chain ID (similar to your bash version)
 const getChainId = (network: keyof typeof networks): string => {
   const chainId = networks[network]?.chainId
@@ -194,6 +177,34 @@ const main = defineCommand({
           `Safe contract already deployed for network ${networkName} at address ${existingSafeAddress}. Please remove or update the safeAddress in networks.json if you want to deploy a new Safe.`
         )
       }
+
+      // Run forge build
+      consola.info('Running forge build...')
+      try {
+        execSync('forge build', { stdio: 'inherit' })
+        consola.success('forge build completed successfully')
+      } catch (error) {
+        consola.error('forge build failed:', error)
+        throw error
+      }
+
+      // Now read the artifacts after successful build
+      const SAFE_ARTIFACT = JSON.parse(
+        readFileSync(
+          join(__dirname, '../../../out/Safe_flattened.sol/Safe.json'),
+          'utf8'
+        )
+      )
+
+      const SAFE_PROXY_FACTORY_ARTIFACT = JSON.parse(
+        readFileSync(
+          join(
+            __dirname,
+            '../../../out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json'
+          ),
+          'utf8'
+        )
+      )
 
       let threshold: number
       if (typeof args.threshold === 'number') {
@@ -450,11 +461,7 @@ const main = defineCommand({
       )
       consola.info('')
       consola.info(
-        'IMPORTANT: Please manually update the safeWebUrl in networks.json for proper Safe UI integration.'
-      )
-      consola.info('Suggested safeWebUrl format:')
-      consola.info(
-        `https://app.safe.global/transactions/queue?safe=${networkName}:${safeAddress}`
+        'IMPORTANT: Please manually update the safeWebUrl and safeApiUrl in networks.json for proper Safe UI integration.'
       )
     } catch (error: any) {
       consola.error('Error deploying Safe:', error.message)
