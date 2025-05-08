@@ -31326,5 +31326,21 @@
         ]
       }
     }
+  },
+  "Patcher": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xE65b50EcF482f97f53557f0E02946aa27f8839EC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-08 17:01:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }

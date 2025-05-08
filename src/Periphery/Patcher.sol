@@ -1,9 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
 /// @title Patcher
+/// @author LI.FI (https://li.fi)
 /// @notice A contract that patches calldata with dynamically retrieved values before execution
 /// @dev Designed to be used with delegate calls
+/// @custom:version 1.0.0
 contract Patcher {
     /// @notice Error when getting a dynamic value fails
     error FailedToGetDynamicValue();
