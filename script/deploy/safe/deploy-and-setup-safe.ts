@@ -4,6 +4,15 @@
  * 1. The global configuration (config/global.json)
  * 2. Additional owners provided via command line arguments
  *
+ * Note: This deployment uses flattened versions of Safe contracts v1.4.1 and deploys
+ * them directly from bytecode, rather than using official deployed Safe singletons
+ * and factory contracts. This approach enables rapid deployments on new chains
+ * without waiting for official Safe contract deployments.
+ *
+ * The script maintains deployment state in networks.json:
+ * - Prevents duplicate deployments by checking existing Safe addresses
+ * - Automatically updates the Safe address after successful deployment
+ *
  * Required Parameters:
  * - network: The target network name (e.g., arbitrum)
  * - threshold: Number of signatures required for transactions
@@ -20,7 +29,7 @@
  * - ETH_NODE_URI_{NETWORK}: RPC URL for the target network (must be configured in .env)
  *
  * Example Usage:
- * bun deploy-standalone-safe.ts --network arbitrum --threshold 3 --owners 0x123,0x456
+ * bun deploy-and-setup.ts --network arbitrum --threshold 3 --owners 0x123,0x456
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -37,7 +46,7 @@ import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { readFileSync } from 'fs'
+import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
 import { consola } from 'consola'
@@ -177,6 +186,15 @@ const main = defineCommand({
       )) as 'staging' | 'production'
 
       const networkName = args.network as SupportedChain
+
+      // Check if Safe address already exists for the network
+      const existingSafeAddress = networks[networkName]?.safeAddress
+      if (existingSafeAddress && existingSafeAddress !== zeroAddress) {
+        throw new Error(
+          `Safe contract already deployed for network ${networkName} at address ${existingSafeAddress}. Please remove or update the safeAddress in networks.json if you want to deploy a new Safe.`
+        )
+      }
+
       let threshold: number
       if (typeof args.threshold === 'number') {
         threshold = args.threshold
@@ -371,9 +389,6 @@ const main = defineCommand({
       // After successful deployment and configuration verification, verify the contracts
       consola.info('Starting contract verification...')
 
-      // const implementationAddress = '0xb82be7c20e83893bb1159f87bc412fb89f6641ae'
-      // const factoryAddress = '0x602482ed1f26e39723c30a01e76290e05125c2b3'
-      // const safeAddress = '0x6A599De7E42c5384058119B4eC577123d7B4a6dE'
       // 1. Verify Safe implementation
       consola.info('Verifying Safe implementation...')
       await verifyContract(
@@ -413,6 +428,34 @@ const main = defineCommand({
       )
 
       consola.success('All contracts verified successfully!')
+
+      // After successful deployment and verification, update networks.json
+      consola.info('Updating networks.json with the new Safe address...')
+
+      // Update the networks configuration
+      networks[networkName] = {
+        ...networks[networkName],
+        safeAddress: safeAddress,
+      }
+
+      // Write back to networks.json
+      writeFileSync(
+        join(__dirname, '../../../config/networks.json'),
+        JSON.stringify(networks, null, 2),
+        'utf8'
+      )
+
+      consola.success(
+        'Successfully updated networks.json with the new Safe address!'
+      )
+      consola.info('')
+      consola.info(
+        'IMPORTANT: Please manually update the safeWebUrl in networks.json for proper Safe UI integration.'
+      )
+      consola.info('Suggested safeWebUrl format:')
+      consola.info(
+        `https://app.safe.global/transactions/queue?safe=${networkName}:${safeAddress}`
+      )
     } catch (error: any) {
       consola.error('Error deploying Safe:', error.message)
       process.exit(1)
