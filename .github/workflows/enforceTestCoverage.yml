@@ -19,20 +19,31 @@ jobs:
     if: ${{ github.event.pull_request.draft == false }}
 
     env:
-      ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
-      # keep the rest in alphabetic order
-      ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
-      ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
-      ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
-      ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
-      ETH_NODE_URI_OPTIMISM: ${{ secrets.ETH_NODE_URI_OPTIMISM }}
-      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
       - uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs
+          # Only inject RPC endpoint variables into the GitHub Actions environment
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              echo "$line" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Check for Solidity file changes
         id: check_files
