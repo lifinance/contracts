@@ -399,7 +399,6 @@ const main = defineCommand({
       )
 
       privateKey = getPrivateKey(
-        undefined,
         keyChoice as 'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'
       )
       keyType =
