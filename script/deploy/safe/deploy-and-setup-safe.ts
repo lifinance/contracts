@@ -99,11 +99,12 @@ const verifyContract = async (
   network: string
 ) => {
   try {
+    // Get verifier URL from foundry.toml
+    const verifierUrl = getVerifierUrl(network)
     const constructorArgsFlag =
       constructorArgs === '0x' ? '' : `--constructor-args ${constructorArgs}`
 
-    // Add the API key explicitly
-    const command = `forge verify-contract --chain-id 42161 --verifier-url https://api.etherscan.io/v2/api?chainid=42161 --etherscan-api-key ${process.env.MAINNET_ETHERSCAN_API_KEY} --watch ${constructorArgsFlag} ${address} ${contractPath}:${contractName}`
+    const command = `forge verify-contract --verifier-url "${verifierUrl}" --watch ${constructorArgsFlag} ${address} ${contractPath}:${contractName}`
 
     consola.info(`Running verification command: ${command}`)
     execSync(command, { stdio: 'inherit' })
