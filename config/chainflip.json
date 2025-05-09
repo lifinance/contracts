@@ -1,8 +1,6 @@
 {
-  "mainnet": {
-    "chainflipVault": "0xF5e10380213880111522dd0efD3dbb45b9f62Bcc"
-  },
-  "arbitrum": {
-    "chainflipVault": "0x79001a5e762f3bEFC8e5871b42F6734e00498920"
+  "chainflipVault": {
+    "mainnet": "0xF5e10380213880111522dd0efD3dbb45b9f62Bcc",
+    "arbitrum": "0x79001a5e762f3bEFC8e5871b42F6734e00498920"
   }
 }
