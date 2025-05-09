@@ -27,9 +27,12 @@ async function fetchRpcEndpoints(): Promise<{
 
     await cursor.forEach((doc) => {
       if (doc?.chainName && Array.isArray(doc?.rpcs)) {
-        const validEndpoints: RpcEndpoint[] = doc.rpcs.filter(
-          (r: any) => !!r.url
-        )
+        const validEndpoints: RpcEndpoint[] = doc.rpcs
+          .filter((r: any) => !!r.url)
+          .map((r: any) => ({
+            url: `${r.url}`,
+            priority: r.priority,
+          }))
         // Sort endpoints in descending order so that the endpoint with the highest priority comes first
         validEndpoints.sort((a, b) => b.priority - a.priority)
         if (validEndpoints.length > 0) {
@@ -103,11 +106,17 @@ async function mergeEndpointsIntoEnv() {
 
         // Process each chain's endpoints separately and add spacing between chains
         const processedEntries = group.map(([key, endpoints]) => {
-          const chainEntries = endpoints.map((endpoint, index) =>
-            index === 0
-              ? `${key}="${endpoint.url}"`
-              : `# ${key}="${endpoint.url}"`
-          )
+          const chainEntries = endpoints.map((endpoint, index) => {
+            // Make sure we're getting just the URL
+            const url = endpoint.url.toString().trim()
+
+            // Construct the environment variable line
+            const envValue =
+              index === 0 ? `${key}="${url}"` : `# ${key}="${url}"`
+
+            // Add the comment AFTER the quotes
+            return `${envValue} # [pre-commit-checker: not a secret]`
+          })
           // Add a blank line after each chain's entries
           return [...chainEntries, '']
         })
@@ -139,8 +148,9 @@ async function mergeEndpointsIntoEnv() {
     // Filter out any existing content, including both RPC lines and category headers
     const filteredLines = envContent.split('\n').filter((line) => {
       return !(
-        /^\s*#?\s*ETH_NODE_URI_[A-Z0-9_]+\s*=/.test(line) ||
-        /^\s*#\s*=+\s*[A-Z]\s*=+\s*$/.test(line)
+        /^(?:#\s*)?ETH_NODE_URI_[A-Z0-9_]+\s*=/.test(line) ||
+        /^#\s*=+\s*[A-Z]\s*=+\s*$/.test(line) ||
+        /^\s*#\s*\[pre-commit-checker: not a secret\]\s*$/.test(line)
       )
     })
 
@@ -158,6 +168,10 @@ async function mergeEndpointsIntoEnv() {
       // Ensure file ends with newline
       '',
     ].join('\n')
+
+    // Add debug logging
+    console.log('Writing content to .env:')
+    console.log(mergedContent)
 
     fs.writeFileSync('.env', mergedContent)
     consola.success('RPC endpoints fetched successfully into .env')
