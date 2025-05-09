@@ -105,8 +105,8 @@ async function mergeEndpointsIntoEnv() {
         const processedEntries = group.map(([key, endpoints]) => {
           const chainEntries = endpoints.map((endpoint, index) =>
             index === 0
-              ? `${key}="${endpoint.url}"`
-              : `# ${key}="${endpoint.url}"`
+              ? `${key}="${endpoint.url}" # [pre-commit-checker: not a secret]`
+              : `# ${key}="${endpoint.url}" # [pre-commit-checker: not a secret]`
           )
           // Add a blank line after each chain's entries
           return [...chainEntries, '']
