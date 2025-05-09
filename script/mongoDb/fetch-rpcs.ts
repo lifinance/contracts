@@ -103,11 +103,14 @@ async function mergeEndpointsIntoEnv() {
 
         // Process each chain's endpoints separately and add spacing between chains
         const processedEntries = group.map(([key, endpoints]) => {
-          const chainEntries = endpoints.map((endpoint, index) =>
-            index === 0
-              ? `${key}="${endpoint.url}" # [pre-commit-checker: not a secret]`
-              : `# ${key}="${endpoint.url}" # [pre-commit-checker: not a secret]`
-          )
+          const chainEntries = endpoints.map((endpoint, index) => {
+            // Store the RPC URL without the comment in the environment variable
+            const envEntry = `${key}="${endpoint.url}"`
+            // Add the comment after a space so it's treated as a shell comment
+            return index === 0
+              ? `${envEntry} # [pre-commit-checker: not a secret]`
+              : `# ${envEntry} # [pre-commit-checker: not a secret]`
+          })
           // Add a blank line after each chain's entries
           return [...chainEntries, '']
         })
