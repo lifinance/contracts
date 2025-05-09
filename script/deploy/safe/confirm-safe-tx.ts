@@ -456,7 +456,6 @@ const main = defineCommand({
       )
 
       privateKey = getPrivateKey(
-        undefined,
         keyChoice as 'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'
       )
       keyType =
@@ -464,7 +463,7 @@ const main = defineCommand({
           ? privateKeyType.SAFE_SIGNER
           : privateKeyType.DEPLOYER
     } else {
-      privateKey = getPrivateKey(args.privateKey)
+      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
     }
 
     // Connect to MongoDB and fetch ALL pending transactions

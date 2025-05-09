@@ -149,7 +149,7 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0xDd661337B48BEA5194F6d26F2C59fF0855E15289": {
+      "0xa884c21873A671bD010567cf97c937b153F842Cc": {
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
       },
@@ -158,8 +158,8 @@
         "Version": "1.2.0"
       },
       "0x37f3F3E9d909fB1163448C511193b8481e541C62": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.3"
       }
     },
     "Periphery": {

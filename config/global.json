@@ -54,5 +54,14 @@
     "OwnershipFacet",
     "PeripheryRegistryFacet",
     "WithdrawFacet"
+  ],
+  "corePeriphery": [
+    "ERC20Proxy",
+    "Executor",
+    "FeeCollector",
+    "GasZipPeriphery",
+    "LiFiDEXAggregator",
+    "Permit2Proxy",
+    "TokenWrapper"
   ]
 }

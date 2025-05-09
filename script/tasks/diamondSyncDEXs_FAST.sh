@@ -15,29 +15,30 @@ function diamondSyncDEXs_FAST {
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
 
-  # List of failed networks
-  FAILED_NETWORKS=()
-
   # Limit the number of concurrent processes
   MAX_CONCURRENT_JOBS=5
 
-  # If no NETWORK was passed, prompt user
+  # Temp file to track failed logs
+  FAILED_LOG_FILE=$(mktemp)
+
+  # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
+    # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     echo ""
     echo "Should the script be executed on one network or all networks?"
-    NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
+    echo "[info] selected network: $NETWORK"
+    echo ""
+    echo ""
+
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
       checkRequiredVariablesInDotEnv $NETWORK
     fi
   fi
 
-  # Ask for contract name if not provided
-  if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
-    echo ""
-    echo "Please select which type of diamond contract to sync:"
-    DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
-    echo "[info] Selected diamond type: $DIAMOND_CONTRACT_NAME"
-  fi
+  # no need to distinguish between mutable and immutable anymore
+  DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
   # Determine which networks to process
   if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
@@ -50,25 +51,23 @@ function diamondSyncDEXs_FAST {
   function processNetwork {
     local NETWORK=$1  # Network name as argument
 
-    # Exclude test networks and local environments
-    if [[ "$NETWORK" == "localanvil" || "$NETWORK" == "bsc-testnet" || "$NETWORK" == "lineatest" || "$NETWORK" == "mumbai" || "$NETWORK" == "sepolia" ]]; then
+    # Skip non-active mainnets
+    if ! isActiveMainnet "$NETWORK"; then
+      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not an active mainnet >> continuing without syncing on this network"
       return
     fi
 
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
-    # Print sync start message
-    echo "[$NETWORK] Whitelisting addresses for $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS"
-
     # Check if contract address exists
     if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
-      FAILED_NETWORKS+=("$NETWORK")
-      echo -e "❌ [\e[31m$NETWORK\e[0m] Failed - Missing contract address"
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Missing contract address"
+      echo "[$NETWORK] Error: Missing contract address" >> "$FAILED_LOG_FILE"
       return
     fi
 
-    RPC_URL=$(getRPCUrl "$NETWORK")
+    RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     # Fetch required DEX addresses from configuration
     CFG_DEXS=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/dexs.json")
@@ -85,7 +84,7 @@ function diamondSyncDEXs_FAST {
           if [[ "$result" == "[]" ]]; then
             echo ""
           else
-            echo $(echo ${result:1:${#result}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]')
+            echo $(echo ${result:1:${#result}-2} | tr ',' '\n' | tr '[:upper:]' '[:lower:]')
           fi
           return 0
         fi
@@ -100,8 +99,12 @@ function diamondSyncDEXs_FAST {
     # Get approved DEXs
     DEXS=($(getApprovedDEXs))
     if [[ $? -ne 0 ]]; then
-      FAILED_NETWORKS+=("$NETWORK")
-      echo -e "❌ [\e[31m$NETWORK\e[0m] Failed - Unable to fetch approved DEXs"
+      # Report failure
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Unable to fetch approved DEXs"
+      {
+        echo "[$NETWORK] Error: Unable to fetch approved DEXs"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
       return
     fi
 
@@ -132,8 +135,12 @@ function diamondSyncDEXs_FAST {
         # Verify updated DEX list
         DEXS_UPDATED=($(getApprovedDEXs))
         if [[ $? -ne 0 ]]; then
-          FAILED_NETWORKS+=("$NETWORK")
-          echo -e "❌ [\e[31m$NETWORK\e[0m] Failed - DEX update verification failed"
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] DEX update verification failed"
+
+          {
+            echo "[$NETWORK] Error: DEX update verification failed"
+            echo ""
+          } >> "$FAILED_LOG_FILE"
           return
         fi
 
@@ -145,17 +152,21 @@ function diamondSyncDEXs_FAST {
         done
 
         if [ ${#MISSING_DEXS[@]} -eq 0 ]; then
-          echo -e "✅ [\e[32m$NETWORK\e[0m] Success - All DEXs added"
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Success - All DEXs added"
           return
         fi
 
         ATTEMPTS=$((ATTEMPTS + 1))
       done
 
-      FAILED_NETWORKS+=("$NETWORK")
-      error "❌ [$NETWORK] - Could not whitelist all addresses"
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] - Could not whitelist all addresses"
+      {
+        echo "[$NETWORK] Error: Could not whitelist all addresses"
+        echo "[$NETWORK] Attempted to add: ${NEW_DEXS[*]}"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
     else
-      success "✅ [$NETWORK] - All addresses are whitelisted"
+      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] - All addresses are whitelisted"
     fi
   }
 
@@ -169,13 +180,26 @@ function diamondSyncDEXs_FAST {
 
   wait
 
-  # Summary of failed networks
-  if [ ${#FAILED_NETWORKS[@]} -ne 0 ]; then
+  # Summary of failures
+  if [ -s "$FAILED_LOG_FILE" ]; then
     echo ""
-    echo "[error] The following networks failed to update:"
-    for NET in "${FAILED_NETWORKS[@]}"; do
-      echo -e "❌ [\e[31m$NET\e[0m]"
+    printf '\033[0;31m%s\033[0m\n' "The following networks failed to sync:"
+
+    awk '/^\[.*\] Error: /' "$FAILED_LOG_FILE" | while read -r line; do
+      echo -e "❌ ${line}"
     done
+
+    echo ""
+    echo "Full error logs for all failed networks:"
+    cat "$FAILED_LOG_FILE"
+
+    rm "$FAILED_LOG_FILE"
+    return 1
+  else
+    rm "$FAILED_LOG_FILE"
+    echo ""
+    echo "✅ All active networks updated successfully"
+    return 0
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script syncDEXs completed"
