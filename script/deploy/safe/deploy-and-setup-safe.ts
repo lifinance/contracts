@@ -88,9 +88,8 @@ const verifyContract = async (
   contractName: string,
   constructorArgs: string,
   network: keyof typeof networks
-) => {
+): Promise<{ success: boolean; contractName: string }> => {
   try {
-    // Get verifier URL from foundry.toml
     const verifierUrl = getVerifierUrl(network)
     const constructorArgsFlag =
       constructorArgs === '0x' ? '' : `--constructor-args ${constructorArgs}`
@@ -101,10 +100,10 @@ const verifyContract = async (
 
     consola.info(`Running verification command: ${command}`)
     execSync(command, { stdio: 'inherit' })
-    return true
+    return { success: true, contractName }
   } catch (error) {
     consola.error(`Failed to verify ${contractName}.`, error)
-    return false
+    return { success: false, contractName }
   }
 }
 
@@ -402,28 +401,6 @@ const main = defineCommand({
       // After successful deployment and configuration verification, verify the contracts
       consola.info('Starting contract verification...')
 
-      // 1. Verify Safe implementation
-      consola.info('Verifying Safe implementation...')
-      await verifyContract(
-        implementationAddress,
-        'src/Safe/Safe_flattened.sol',
-        'Safe',
-        '0x', // Empty constructor args
-        networkName
-      )
-
-      // 2. Verify SafeProxyFactory
-      consola.info('Verifying SafeProxyFactory...')
-      await verifyContract(
-        factoryAddress,
-        'src/Safe/SafeProxyFactory_flattened.sol',
-        'SafeProxyFactory',
-        '$(cast abi-encode "constructor()")',
-        networkName
-      )
-
-      // 3. Verify Safe Proxy
-      consola.info('Verifying Safe Proxy...')
       const proxyConstructorArgs = await execSync(
         `cast abi-encode "constructor(address)" "${implementationAddress}"`
       )
@@ -432,15 +409,45 @@ const main = defineCommand({
 
       consola.info('Proxy constructor args:', proxyConstructorArgs)
 
-      await verifyContract(
-        safeAddress,
-        'src/Safe/SafeProxyFactory_flattened.sol',
-        'SafeProxy',
-        proxyConstructorArgs,
-        networkName
-      )
+      const verificationResults = await Promise.all([
+        // 1. Verify Safe implementation
+        verifyContract(
+          implementationAddress,
+          'src/Safe/Safe_flattened.sol',
+          'Safe',
+          '0x',
+          networkName
+        ),
 
-      consola.success('All contracts verified successfully!')
+        // 2. Verify SafeProxyFactory
+        verifyContract(
+          factoryAddress,
+          'src/Safe/SafeProxyFactory_flattened.sol',
+          'SafeProxyFactory',
+          '$(cast abi-encode "constructor()")',
+          networkName
+        ),
+
+        // 3. Verify Safe Proxy
+        verifyContract(
+          safeAddress,
+          'src/Safe/SafeProxyFactory_flattened.sol',
+          'SafeProxy',
+          proxyConstructorArgs,
+          networkName
+        ),
+      ])
+
+      const failedVerifications = verificationResults.filter((r) => !r.success)
+
+      if (failedVerifications.length > 0) {
+        consola.warn('Some contracts failed to verify:')
+        failedVerifications.forEach((result) => {
+          consola.warn(`- ${result.contractName}`)
+        })
+      } else {
+        consola.success('All contracts verified successfully!')
+      }
 
       // After successful deployment and verification, update networks.json
       consola.info('Updating networks.json with the new Safe address...')
