@@ -21,6 +21,7 @@ import {
 import networks from '../../../config/networks.json'
 import { Environment } from '../../utils/viemScriptHelpers'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import { config } from 'dotenv'
 
 config()
@@ -584,43 +585,51 @@ export const getDeployments = async (
  */
 export const setupEnvironment = async (
   chain: SupportedChain,
-  facetAbi: Narrow<readonly any[]>,
+  facetAbi: Narrow<readonly any[]> | null,
   environment: 'staging' | 'production' = 'staging'
 ) => {
-  const RPC_URL = await getRpcUrl(chain)
-  const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
+  const RPC_URL = getRpcUrl(chain)
+  const PRIVATE_KEY = getPrivateKeyForEnvironment(environment)
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 
+  const viemChain = getViemChainForNetworkName(chain)
+
   const publicClient = createPublicClient({
-    chain: getViemChain(chain),
+    chain: viemChain,
     transport: http(RPC_URL),
   })
 
   const walletAccount = privateKeyToAccount(typedPrivateKey)
 
   const walletClient = createWalletClient({
-    chain: getViemChain(chain),
+    chain: viemChain,
     transport: http(RPC_URL),
     account: walletAccount,
   })
 
-  const deployments = await getDeployments(chain, environment)
+  const deployments = facetAbi ? await getDeployments(chain, environment) : null
 
   const client = { public: publicClient, wallet: walletClient }
 
-  const lifiDiamondAddress = deployments.LiFiDiamond as `0x${string}`
+  const lifiDiamondAddress = deployments
+    ? (deployments.LiFiDiamond as `0x${string}`)
+    : null
 
-  const lifiDiamondContract = getContract({
-    address: lifiDiamondAddress,
-    abi: facetAbi,
-    client,
-  })
+  const lifiDiamondContract =
+    facetAbi && lifiDiamondAddress
+      ? getContract({
+          address: lifiDiamondAddress,
+          abi: facetAbi,
+          client,
+        })
+      : null
 
   return {
     walletAccount,
     lifiDiamondContract,
     lifiDiamondAddress,
     publicClient,
+    walletClient,
     client,
   }
 }
@@ -810,4 +819,12 @@ export const ensureAllowance = async (
   } else {
     console.info('Sufficient allowance already exists.')
   }
+}
+
+export const getPrivateKeyForEnvironment = (
+  environment: 'staging' | 'production'
+): string => {
+  return environment === 'production'
+    ? getEnvVar('PRIVATE_KEY_PRODUCTION')
+    : getEnvVar('PRIVATE_KEY')
 }
