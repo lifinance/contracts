@@ -85,6 +85,8 @@
     "@arbitrum/sdk": "^3.0.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@layerzerolabs/lz-v2-utilities": "^2.3.21",
+    "@ledgerhq/hw-app-eth": "^6.43.0",
+    "@ledgerhq/hw-transport-node-hid": "^6.29.5",
     "@octokit/rest": "^21.0.1",
     "@safe-global/safe-deployments": "^1.37.32",
     "@uma/sdk": "^0.22.1",
