@@ -868,7 +868,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
-        bool direction = stream.readUint8() > 0; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
         address recipient = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0;
 
