@@ -506,11 +506,6 @@ export class ViemSafe {
     // For Safe signatures in format r+s+v, signature should be 130 chars (65 bytes)
     // r = 32 bytes (64 chars), s = 32 bytes (64 chars), v = 1 byte (2 chars)
     if (sigWithoutPrefix.length !== 130) {
-      // But EIP-712 signatures are also 65 bytes but may be formatted differently
-      // Let's allow these if they match the standard signature length
-      if (sigWithoutPrefix.length === 130) {
-        return true
-      }
       return false
     }
 
