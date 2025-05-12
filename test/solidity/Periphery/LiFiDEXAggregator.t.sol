@@ -1067,6 +1067,9 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     address private constant APE_ETH_HOLDER_APECHAIN =
         address(0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b);
 
+    address private constant IMPOSSIBLE_POOL_ADDRESS =
+        0x0000000000000000000000000000000000000001;
+
     struct AlgebraSwapTestParams {
         address from;
         address to;
@@ -1760,5 +1763,137 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         (amountOut, ) = IAlgebraQuoter(ALGEBRA_QUOTER_V2_APECHAIN)
             .quoteExactInputSingle(tokenIn, tokenOut, amountIn, 0);
         return amountOut;
+    }
+
+    function testRevert_AlgebraSwap_ZeroAddressPool() public {
+        // Transfer tokens from whale to user
+        vm.prank(APE_ETH_HOLDER_APECHAIN);
+        IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
+
+        vm.startPrank(USER_SENDER);
+
+        // Mock token0() call on address(0)
+        vm.mockCall(
+            address(0),
+            abi.encodeWithSelector(IAlgebraPool.token0.selector),
+            abi.encode(APE_ETH_TOKEN)
+        );
+
+        // Build route with address(0) as pool
+        bytes memory route = _buildAlgebraRoute(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessUserERC20,
+                tokenIn: APE_ETH_TOKEN,
+                recipient: USER_SENDER,
+                pool: address(0), // Zero address pool
+                supportsFeeOnTransfer: true
+            })
+        );
+
+        // Approve tokens
+        IERC20(APE_ETH_TOKEN).approve(address(liFiDEXAggregator), 1 * 1e18);
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+
+        liFiDEXAggregator.processRoute(
+            APE_ETH_TOKEN,
+            1 * 1e18,
+            address(WETH_TOKEN),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+        vm.clearMockedCalls();
+    }
+
+    function testRevert_AlgebraSwap_ImpossiblePoolAddress() public {
+        // Transfer tokens from whale to user
+        vm.prank(APE_ETH_HOLDER_APECHAIN);
+        IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
+
+        vm.startPrank(USER_SENDER);
+
+        // Mock token0() call on IMPOSSIBLE_POOL_ADDRESS
+        vm.mockCall(
+            IMPOSSIBLE_POOL_ADDRESS,
+            abi.encodeWithSelector(IAlgebraPool.token0.selector),
+            abi.encode(APE_ETH_TOKEN)
+        );
+
+        // Build route with IMPOSSIBLE_POOL_ADDRESS as pool
+        bytes memory route = _buildAlgebraRoute(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessUserERC20,
+                tokenIn: APE_ETH_TOKEN,
+                recipient: USER_SENDER,
+                pool: IMPOSSIBLE_POOL_ADDRESS, // Impossible pool address
+                supportsFeeOnTransfer: true
+            })
+        );
+
+        // Approve tokens
+        IERC20(APE_ETH_TOKEN).approve(address(liFiDEXAggregator), 1 * 1e18);
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+
+        liFiDEXAggregator.processRoute(
+            APE_ETH_TOKEN,
+            1 * 1e18,
+            address(WETH_TOKEN),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+        vm.clearMockedCalls();
+    }
+
+    function testRevert_AlgebraSwap_ZeroAddressRecipient() public {
+        // Transfer tokens from whale to user
+        vm.prank(APE_ETH_HOLDER_APECHAIN);
+        IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
+
+        vm.startPrank(USER_SENDER);
+
+        // Mock token0() call on the pool
+        vm.mockCall(
+            ALGEBRA_POOL_APECHAIN,
+            abi.encodeWithSelector(IAlgebraPool.token0.selector),
+            abi.encode(APE_ETH_TOKEN)
+        );
+
+        // Build route with address(0) as recipient
+        bytes memory route = _buildAlgebraRoute(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessUserERC20,
+                tokenIn: APE_ETH_TOKEN,
+                recipient: address(0), // Zero address recipient
+                pool: ALGEBRA_POOL_APECHAIN,
+                supportsFeeOnTransfer: true
+            })
+        );
+
+        // Approve tokens
+        IERC20(APE_ETH_TOKEN).approve(address(liFiDEXAggregator), 1 * 1e18);
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+
+        liFiDEXAggregator.processRoute(
+            APE_ETH_TOKEN,
+            1 * 1e18,
+            address(WETH_TOKEN),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+        vm.clearMockedCalls();
     }
 }
