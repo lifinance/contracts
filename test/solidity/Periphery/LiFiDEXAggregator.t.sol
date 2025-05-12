@@ -1282,69 +1282,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.clearMockedCalls();
     }
 
-    function test_CanSwapViaAlgebra_FallbackToRegularSwap() public {
-        ERC20 tokenA = new ERC20("Token A", "TA", 18);
-        ERC20 tokenB = new ERC20("Token B", "TB", 18);
-
-        tokenA.mint(address(this), 1_000_000 * 1e18);
-        tokenB.mint(address(this), 1_000_000 * 1e18);
-
-        address pool = _createAlgebraPool(address(tokenA), address(tokenB));
-
-        _addLiquidityToPool(pool, address(tokenA), address(tokenB));
-
-        tokenA.mint(USER_SENDER, 100 * 1e18);
-
-        vm.startPrank(USER_SENDER);
-
-        // Mock the swapSupportingFeeOnInputTokens to revert
-        vm.mockCallRevert(
-            pool,
-            abi.encodeWithSelector(
-                IAlgebraPool.swapSupportingFeeOnInputTokens.selector
-            ),
-            "Function not supported"
-        );
-
-        // Build route with supportsFeeOnTransfer = true to trigger fallback
-        bytes memory route = _buildAlgebraRoute(
-            AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
-                tokenIn: address(tokenA),
-                recipient: USER_SENDER,
-                pool: pool,
-                supportsFeeOnTransfer: true // This should trigger the fallback
-            })
-        );
-
-        uint256 initialBalanceIn = tokenA.balanceOf(USER_SENDER);
-        uint256 initialBalanceOut = tokenB.balanceOf(USER_SENDER);
-
-        tokenA.approve(address(liFiDEXAggregator), 10 * 1e18);
-
-        liFiDEXAggregator.processRoute(
-            address(tokenA),
-            10 * 1e18,
-            address(tokenB),
-            0, // No minimum for test
-            USER_SENDER,
-            route
-        );
-
-        uint256 finalBalanceIn = tokenA.balanceOf(USER_SENDER);
-        uint256 finalBalanceOut = tokenB.balanceOf(USER_SENDER);
-
-        assertEq(
-            initialBalanceIn - finalBalanceIn,
-            10 * 1e18,
-            "Input amount incorrect"
-        );
-        assertGt(finalBalanceOut - initialBalanceOut, 0, "No output received");
-
-        vm.clearMockedCalls();
-        vm.stopPrank();
-    }
-
     // Helper function to setup tokens and pools
     function _setupTokensAndPools(
         MultiHopTestState memory state

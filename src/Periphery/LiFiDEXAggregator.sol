@@ -892,30 +892,20 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         // Handle fee-on-transfer tokens with special care:
         // - These tokens modify balances during transfer (fees, rebasing, etc.)
-        // - Algebra has built-in support via swapSupportingFeeOnInputTokens()
+        // - newest pool of Algebra versions has built-in support via swapSupportingFeeOnInputTokens()
         // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens.
         if (supportsFeeOnTransfer) {
-            try
-                IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
-                    address(this),
-                    recipient,
-                    direction,
-                    int256(amountIn),
-                    direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-                    abi.encode(tokenIn)
-                )
-            {} catch {
-                // Fallback to regular swap if swapSupportingFeeOnInputTokens is not available
-                // Note: This shouldn't typically occur as it wouldn't make economic sense for liquidity
-                // providers to deposit fee-on-transfer tokens into pools that don't support them.
-                IAlgebraPool(pool).swap(
-                    recipient,
-                    direction,
-                    int256(amountIn),
-                    direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
-                    abi.encode(tokenIn)
-                );
-            }
+            // If the pool is not using a version of Algebra that supports this feature, the swap will revert
+            // when attempting to use swapSupportingFeeOnInputTokens(), indicating the token was incorrectly
+            // flagged as fee-on-transfer or the pool doesn't support such tokens.
+            IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
+                address(this),
+                recipient,
+                direction,
+                int256(amountIn),
+                direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
         } else {
             IAlgebraPool(pool).swap(
                 recipient,
