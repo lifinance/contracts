@@ -113,7 +113,7 @@ const main = defineCommand({
       }
       privateKey = undefined
     } else {
-      privateKey = getPrivateKey(args.privateKey)
+      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
     }
 
     const ledgerOptions = {
