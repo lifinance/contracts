@@ -266,6 +266,21 @@ const main = defineCommand({
           ? getAddress(args.paymentReceiver)
           : zeroAddress
 
+      // Validate fallbackHandler is a deployed contract
+      if (fallbackHandler !== zeroAddress) {
+        const code = await publicClient.getCode({ address: fallbackHandler })
+        if (!code || code === '0x') {
+          consola.warn(
+            'Warning: fallbackHandler has no contract code—fallback calls will fail.'
+          )
+          const proceed = await consola.prompt(
+            'fallbackHandler is not a contract. Proceed anyway?',
+            { type: 'confirm', initial: false }
+          )
+          if (!proceed) throw new Error('Deployment cancelled by user')
+        }
+      }
+
       consola.info('Network:', networkName)
       consola.info('Owners:', owners)
       consola.info('Threshold:', threshold)
