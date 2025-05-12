@@ -861,6 +861,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
+    /// @dev The supportsFeeOnTransfer flag accepts any non-zero value (1-255) to enable fee-on-transfer handling.
+    /// When enabled, the swap will first attempt to use swapSupportingFeeOnInputTokens(), and if that fails,
+    /// it will fall back to the regular swap() function. A value of 0 disables fee-on-transfer handling.
     function swapAlgebra(
         uint256 stream,
         address from,
@@ -870,7 +873,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
         address recipient = stream.readAddress();
-        bool supportsFeeOnTransfer = stream.readUint8() > 0;
+        bool supportsFeeOnTransfer = stream.readUint8() > 0; // Any non-zero value enables fee-on-transfer handling
 
         if (
             pool == address(0) ||
