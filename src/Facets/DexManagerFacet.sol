@@ -150,4 +150,13 @@ contract DexManagerFacet {
     {
         return LibAllowList.getAllowedContracts();
     }
+
+    /// @notice Returns whether a contract address is approved
+    /// @param _contract the contract address to query
+    /// @return approved Approved or not
+    function isContractApproved(
+        address _contract
+    ) public view returns (bool approved) {
+        return LibAllowList.contractIsAllowed(_contract);
+    }
 }

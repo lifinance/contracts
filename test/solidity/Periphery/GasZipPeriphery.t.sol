@@ -10,6 +10,7 @@ import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
+import { console } from "forge-std/console.sol";
 
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
@@ -39,16 +40,11 @@ contract GasZipPeripheryTest is TestBase {
         customBlockNumberForForking = 20931877;
         initTestBase();
 
+        // Deploy contracts and set up the Diamond with the facets
+        gnosisBridgeFacet = _getGnosisBridgeFacet();
+
         // Deploy DexManagerFacet and add it to the diamond
         dexManagerFacet = new DexManagerFacet();
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = DexManagerFacet.addDex.selector;
-        functionSelectors[1] = DexManagerFacet
-            .setFunctionApprovalBySignature
-            .selector;
-
-        addFacet(diamond, address(dexManagerFacet), functionSelectors);
-        dexManagerFacet = DexManagerFacet(address(diamond));
 
         // Deploy GasZipPeriphery with diamond from TestBase
         gasZipPeriphery = new GasZipPeriphery(
@@ -57,10 +53,65 @@ contract GasZipPeripheryTest is TestBase {
             USER_DIAMOND_OWNER
         );
 
-        defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
+        bytes4[] memory functionSelectors = new bytes4[](4);
+        functionSelectors[0] = DexManagerFacet.addDex.selector;
+        functionSelectors[1] = DexManagerFacet
+            .setFunctionApprovalBySignature
+            .selector;
+        functionSelectors[2] = DexManagerFacet.isContractApproved.selector;
+        functionSelectors[3] = DexManagerFacet.isFunctionApproved.selector;
 
-        // Deploy contracts and set up the Diamond with the facets
-        gnosisBridgeFacet = _getGnosisBridgeFacet();
+        addFacet(diamond, address(dexManagerFacet), functionSelectors);
+        dexManagerFacet = DexManagerFacet(address(diamond));
+
+        // whitelist DEXs / Periphery contracts
+        dexManagerFacet.addDex(address(uniswap));
+        dexManagerFacet.addDex(address(gasZipPeriphery));
+        dexManagerFacet.addDex(address(feeCollector));
+
+        console.log("uniswap", address(uniswap));
+        console.log("gasZipPeriphery", address(gasZipPeriphery));
+        console.log("feeCollector", address(feeCollector));
+
+        vm.label(address(uniswap), "Uniswap");
+        vm.label(address(gasZipPeriphery), "GasZipPeriphery");
+        vm.label(address(feeCollector), "FeeCollector");
+
+        // add function selectors for GasZipPeriphery
+        dexManagerFacet.setFunctionApprovalBySignature(
+            gasZipPeriphery.depositToGasZipERC20.selector,
+            true
+        );
+        dexManagerFacet.setFunctionApprovalBySignature(
+            gasZipPeriphery.depositToGasZipNative.selector,
+            true
+        );
+
+        // add function selectors for FeeCollector
+        dexManagerFacet.setFunctionApprovalBySignature(
+            feeCollector.collectTokenFees.selector,
+            true
+        );
+
+        // add function selectors for Uniswap
+        dexManagerFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector,
+            true
+        );
+        dexManagerFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForETH.selector,
+            true
+        );
+        dexManagerFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector,
+            true
+        );
+        dexManagerFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactETHForTokens.selector,
+            true
+        );
+
+        defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
 
         defaultGasZipData = IGasZip.GasZipData({
             receiverAddress: defaultReceiverBytes32,
@@ -189,6 +240,13 @@ contract GasZipPeripheryTest is TestBase {
         );
         uint256 swapOutputAmount = amounts[1];
 
+        console.log("here");
+        console.log("swap data callTo uniswap", address(uniswap));
+        console.log(
+            "swap data callTo gasZipPeriphery",
+            address(gasZipPeriphery)
+        );
+
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
@@ -207,16 +265,17 @@ contract GasZipPeripheryTest is TestBase {
         );
         vm.stopPrank();
 
+        console.log("here2");
         // // get swapData for gas zip
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
         (
             LibSwap.SwapData memory gasZipSwapData,
 
-        ) = _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
-                ADDRESS_DAI,
-                gasZipERC20Amount
-            );
+        ) = _getUniswapERC20ToNativeSwapData(ADDRESS_DAI, gasZipERC20Amount);
 
+        console.log("here3");
+        console.log("USER_DIAMOND_OWNER");
+        console.log(USER_DIAMOND_OWNER);
         swapData[2] = LibSwap.SwapData(
             address(gasZipPeriphery),
             address(gasZipPeriphery),
@@ -245,15 +304,6 @@ contract GasZipPeripheryTest is TestBase {
             hasDestinationCall: false
         });
 
-        // whitelist gasZipPeriphery and FeeCollector
-        // gasZipPeriphery.addDex(address(gasZipPeriphery));
-        // gasZipPeriphery.setFunctionApprovalBySignature(
-        //     gasZipPeriphery.depositToGasZipERC20.selector
-        // );
-        // gasZipPeriphery.addDex(address(feeCollector));
-        // gasZipPeriphery.setFunctionApprovalBySignature(
-        //     feeCollector.collectTokenFees.selector
-        // );
         // set approval for bridging
         usdc.approve(address(gnosisBridgeFacet), defaultUSDCAmount);
 
@@ -353,7 +403,7 @@ contract GasZipPeripheryTest is TestBase {
         chainIds[0] = 51;
         chainIds[1] = 52;
 
-        assertEq(gasZipPeriphery.getDestinationChainsValue(chainIds), 13108);
+        assertEq(gasZipPeriphery.getDestinationChainsValue(chainIds), 3342388);
 
         // case 3
         chainIds = new uint8[](5);
@@ -365,73 +415,32 @@ contract GasZipPeripheryTest is TestBase {
 
         assertEq(
             gasZipPeriphery.getDestinationChainsValue(chainIds),
-            65336774203
+            276716361166703427643
+        );
+
+        chainIds = new uint8[](16);
+        chainIds[0] = 255; // Chain ID 255
+        chainIds[1] = 57; // Chain ID 57
+        chainIds[2] = 62; // Chain ID 62
+        chainIds[3] = 15; // Chain ID 15
+        chainIds[4] = 54; // Chain ID 54
+        chainIds[5] = 96; // Chain ID 96
+        chainIds[6] = 140; // Chain ID 140
+        chainIds[7] = 148; // Chain ID 148
+        chainIds[8] = 21; // Chain ID 21
+        chainIds[9] = 20; // Chain ID 20
+        chainIds[10] = 10; // Chain ID 10
+        chainIds[11] = 31; // Chain ID 31
+        chainIds[12] = 16; // Chain ID 16
+        chainIds[13] = 59; // Chain ID 59
+        chainIds[14] = 13; // Chain ID 13
+        chainIds[15] = 30; // Chain ID 30
+
+        assertEq(
+            gasZipPeriphery.getDestinationChainsValue(chainIds),
+            450547538260953446430386195920619374874770272090431965477324569820816801822
         );
     }
-
-    // function testRevert_WillFailIfDEXNotWhitelisted() public {
-    //     vm.startPrank(USER_SENDER);
-
-    //     // set DAI approval for GasZipPeriphery
-    //     dai.approve(address(gasZipPeriphery), type(uint256).max);
-
-    //     // Remove DEX from diamond whitelist
-    //     vm.startPrank(USER_DIAMOND_OWNER);
-    //     gnosisBridgeFacet.removeDex(LIFI_DEX_AGGREGATOR_MAINNET);
-    //     vm.stopPrank();
-
-    //     // Get swapData for gas zip
-    //     uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
-    //     (
-    //         LibSwap.SwapData memory gasZipSwapData,
-
-    //     ) = _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
-    //             ADDRESS_DAI,
-    //             gasZipERC20Amount
-    //         );
-
-    //     vm.startPrank(USER_SENDER);
-    //     // Expect the call to fail because the DEX is not whitelisted in the diamond
-    //     vm.expectRevert(ContractCallNotAllowed.selector);
-
-    //     // Execute the call
-    //     gasZipPeriphery.depositToGasZipERC20(
-    //         gasZipSwapData,
-    //         defaultGasZipData
-    //     );
-    // }
-
-    // function testRevert_WillFailIfFunctionSelectorNotWhitelisted() public {
-    //     vm.startPrank(USER_SENDER);
-
-    //     // set DAI approval for GasZipPeriphery
-    //     dai.approve(address(gasZipPeriphery), type(uint256).max);
-
-    //     // Remove function selector from diamond whitelist
-    //     vm.startPrank(USER_DIAMOND_OWNER);
-    //     gnosisBridgeFacet.setFunctionApprovalBySignature(PROCESS_ROUTE_SELECTOR, false);
-    //     vm.stopPrank();
-
-    //     // Get swapData for gas zip
-    //     uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
-    //     (
-    //         LibSwap.SwapData memory gasZipSwapData,
-
-    //     ) = _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
-    //             ADDRESS_DAI,
-    //             gasZipERC20Amount
-    //         );
-
-    //     vm.startPrank(USER_SENDER);
-    //     // Expect the call to fail because the function selector is not whitelisted in the diamond
-    //     vm.expectRevert(ContractCallNotAllowed.selector);
-
-    //     // Execute the call
-    //     gasZipPeriphery.depositToGasZipERC20(
-    //         gasZipSwapData,
-    //         defaultGasZipData
-    //     );
-    // }
 
     function testRevert_WillFailIfSwapViaLiFiDEXAggregatorIsUnsuccessful()
         public
@@ -451,10 +460,7 @@ contract GasZipPeripheryTest is TestBase {
         (
             LibSwap.SwapData memory gasZipSwapData,
 
-        ) = _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
-                ADDRESS_DAI,
-                gasZipERC20Amount
-            );
+        ) = _getUniswapERC20ToNativeSwapData(ADDRESS_DAI, gasZipERC20Amount);
 
         // use an invalid function selector to force the call to LiFiDEXAggregator to fail
         // Note: The function must pass the whitelist check but fail when executed
@@ -521,42 +527,10 @@ contract GasZipPeripheryTest is TestBase {
 
         _gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        // whitelist DEXs / Periphery contracts
-        _gnosisBridgeFacet.addDex(address(uniswap));
-        _gnosisBridgeFacet.addDex(address(gasZipPeriphery));
-        _gnosisBridgeFacet.addDex(address(feeCollector));
-
-        // add function selectors for GasZipPeriphery
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            gasZipPeriphery.depositToGasZipERC20.selector
-        );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            gasZipPeriphery.depositToGasZipNative.selector
-        );
-
-        // add function selectors for FeeCollector
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            feeCollector.collectTokenFees.selector
-        );
-
-        // add function selectors for Uniswap
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForETH.selector
-        );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactETHForTokens.selector
-        );
-
         setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
     }
 
-    function _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
+    function _getUniswapERC20ToNativeSwapData(
         address sendingAssetId,
         uint256 fromAmount
     )
@@ -569,18 +543,25 @@ contract GasZipPeripheryTest is TestBase {
         path[0] = sendingAssetId;
         path[1] = ADDRESS_WRAPPED_NATIVE;
 
-        // Calculate USDC input amount
+        // Calculate expected amount out
         uint256[] memory amounts = uniswap.getAmountsOut(fromAmount, path);
         amountOutMin = amounts[1];
 
+        // Use Uniswap directly instead of LiFiDEXAggregator
         swapData = LibSwap.SwapData(
-            LIFI_DEX_AGGREGATOR_MAINNET,
-            LIFI_DEX_AGGREGATOR_MAINNET,
+            address(uniswap),
+            address(uniswap),
             sendingAssetId,
-            address(0),
+            address(0), // receiving native ETH
             fromAmount,
-            // this is calldata for the DEXAggregator to swap 2 DAI to native
-            hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f0000000000000000000000000000000000000000000000001bc16d674ec80000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002f70244563dc70000000000000000000000007f2922c09dd671055c5abbc4f5657f874c18062900000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00A478c2975Ab1Ea89e8196811F51A7B7Ade33eB1101e43ca1Dee3F0fc1e2df73A0745674545F11A59F5000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02007F2922c09DD671055C5aBBC4F5657f874c18062900000000000000000000000000",
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForETH.selector, // Use swapExactTokensForETH
+                fromAmount,
+                amountOutMin,
+                path,
+                address(gasZipPeriphery), // Send ETH to GasZipPeriphery
+                block.timestamp + 20 minutes
+            ),
             true
         );
     }

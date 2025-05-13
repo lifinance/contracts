@@ -9,15 +9,16 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
+import { console } from "forge-std/console.sol";
 
-/// @title Interface for checking if a DEX contract and function selector are allowed
 interface IDexManager {
-    function contractIsAllowed(address _contract) external view returns (bool);
     function isFunctionApproved(
         bytes4 _signature
     ) external view returns (bool);
+    function isContractApproved(
+        address _contract
+    ) external view returns (bool);
 }
-
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
@@ -28,7 +29,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     /// State ///
     IGasZip public immutable GAS_ZIP_ROUTER;
     address public immutable LIFI_DIAMOND;
-    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32; // TODO: Check if this is correct
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 16;
 
     /// Errors ///
     error TooManyChainIds();
@@ -52,12 +53,13 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibSwap.SwapData calldata _swapData,
         IGasZip.GasZipData calldata _gasZipData
     ) public {
-        // Check if the DEX contract and function selector are whitelisted in the Diamond
+        // Access the DexManagerFacet through the diamond
+        IDexManager dexManager = IDexManager(LIFI_DIAMOND);
+
+        // Check if both the contract and function are allowed
         if (
-            !IDexManager(LIFI_DIAMOND).contractIsAllowed(_swapData.callTo) ||
-            !IDexManager(LIFI_DIAMOND).isFunctionApproved(
-                bytes4(_swapData.callData[:4])
-            )
+            !dexManager.isContractApproved(_swapData.callTo) ||
+            !dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
         ) {
             revert ContractCallNotAllowed();
         }
@@ -72,17 +74,21 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             _swapData.fromAmount
         );
 
+        console.log("1111");
         // execute swap using the whitelisted DEX
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = _swapData.callTo.call(
             _swapData.callData
         );
+        console.log("2222");
         if (!success) {
             LibUtil.revertWith(res);
         }
+        console.log("3333");
         // extract the swap output amount from the call return value
         uint256 swapOutputAmount = abi.decode(res, (uint256));
 
+        console.log("4444");
         // deposit native tokens to Gas.zip protocol
         depositToGasZipNative(_gasZipData, swapOutputAmount);
     }
@@ -104,10 +110,15 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );
+        console.log("5555");
 
         // return unused native value to msg.sender, if any
         // this is required due to LI.FI backend-internal requirements (money flow)
         uint256 remainingNativeBalance = address(this).balance;
+        console.log("msg.sender");
+        console.log(msg.sender);
+        console.log("remainingNativeBalance");
+        console.logUint(remainingNativeBalance);
         if (remainingNativeBalance > 0) {
             msg.sender.safeTransferETH(remainingNativeBalance);
         }
