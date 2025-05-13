@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb'
 import fs from 'fs'
 import { config } from 'dotenv'
-import consola from 'consola'
+import { consola } from 'consola'
 config()
 
 interface RpcEndpoint {
@@ -17,6 +17,7 @@ async function fetchRpcEndpoints(): Promise<{
     throw new Error('MONGODB_URI is not defined in the environment')
 
   const client = new MongoClient(MONGODB_URI)
+
   try {
     await client.connect()
     const db = client.db('blockchain-configs')
@@ -39,15 +40,12 @@ async function fetchRpcEndpoints(): Promise<{
       }
     })
 
-    await client.close()
     return endpoints
   } catch (error) {
-    try {
-      await client.close()
-    } catch {
-      /* ignore closure errors */
-    }
     throw new Error(`Failed to fetch RPC endpoints: ${error}`)
+  } finally {
+    // Ensure the client is always closed, even if there's an error
+    await client.close()
   }
 }
 
