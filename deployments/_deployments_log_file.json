@@ -30089,6 +30089,20 @@
           }
         ]
       }
+    },
+    "worldchain": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0xfD7c2Ad2fd5c5392904e6d64226c28b0F42da9ed",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-13 13:17:22",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000a6e64bc059ddaa72ec374c50b1a5c6b3a27d64ce",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
