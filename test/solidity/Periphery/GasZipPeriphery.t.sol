@@ -9,6 +9,7 @@ import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
@@ -20,6 +21,7 @@ contract GasZipPeripheryTest is TestBase {
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
     GasZipPeriphery internal gasZipPeriphery;
+    DexManagerFacet internal dexManagerFacet;
     IGasZip.GasZipData internal defaultGasZipData;
     bytes32 internal defaultReceiverBytes32 =
         bytes32(uint256(uint160(USER_RECEIVER)));
@@ -37,6 +39,17 @@ contract GasZipPeripheryTest is TestBase {
         customBlockNumberForForking = 20931877;
         initTestBase();
 
+        // Deploy DexManagerFacet and add it to the diamond
+        dexManagerFacet = new DexManagerFacet();
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = DexManagerFacet.addDex.selector;
+        functionSelectors[1] = DexManagerFacet
+            .setFunctionApprovalBySignature
+            .selector;
+
+        addFacet(diamond, address(dexManagerFacet), functionSelectors);
+        dexManagerFacet = DexManagerFacet(address(diamond));
+
         // Deploy GasZipPeriphery with diamond from TestBase
         gasZipPeriphery = new GasZipPeriphery(
             GAS_ZIP_ROUTER_MAINNET,
@@ -48,6 +61,7 @@ contract GasZipPeripheryTest is TestBase {
 
         // Deploy contracts and set up the Diamond with the facets
         gnosisBridgeFacet = _getGnosisBridgeFacet();
+
         defaultGasZipData = IGasZip.GasZipData({
             receiverAddress: defaultReceiverBytes32,
             destinationChains: defaultDestinationChains
@@ -191,6 +205,7 @@ contract GasZipPeripheryTest is TestBase {
             ),
             false // not required since tokens are already in diamond
         );
+        vm.stopPrank();
 
         // // get swapData for gas zip
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
@@ -426,7 +441,12 @@ contract GasZipPeripheryTest is TestBase {
         // set DAI approval for GasZipPeriphery
         dai.approve(address(gasZipPeriphery), type(uint256).max);
 
-        // // get swapData for gas zip
+        // Add DEX and selector to whitelist
+        // vm.startPrank(USER_DIAMOND_OWNER);
+        // dexManagerFacet.addDex(LIFI_DEX_AGGREGATOR_MAINNET);
+        // dexManagerFacet.setFunctionApprovalBySignature(PROCESS_ROUTE_SELECTOR, true);
+        // vm.stopPrank();
+
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
         (
             LibSwap.SwapData memory gasZipSwapData,
@@ -489,16 +509,12 @@ contract GasZipPeripheryTest is TestBase {
             IXDaiBridge(XDAI_BRIDGE)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = _gnosisBridgeFacet
             .startBridgeTokensViaXDaiBridge
             .selector;
         functionSelectors[1] = _gnosisBridgeFacet
             .swapAndStartBridgeTokensViaXDaiBridge
-            .selector;
-        functionSelectors[2] = _gnosisBridgeFacet.addDex.selector;
-        functionSelectors[3] = _gnosisBridgeFacet
-            .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(_gnosisBridgeFacet), functionSelectors);
