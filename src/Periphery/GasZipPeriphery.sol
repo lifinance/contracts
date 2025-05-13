@@ -8,19 +8,27 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
+
+/// @title Interface for checking if a DEX contract and function selector are allowed
+interface IDexManager {
+    function contractIsAllowed(address _contract) external view returns (bool);
+    function isFunctionApproved(
+        bytes4 _signature
+    ) external view returns (bool);
+}
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// State ///
-    IGasZip public immutable gasZipRouter;
-    address public immutable liFiDEXAggregator;
-    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
+    IGasZip public immutable GAS_ZIP_ROUTER;
+    address public immutable LIFI_DIAMOND;
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32; // TODO: Check if this is correct
 
     /// Errors ///
     error TooManyChainIds();
@@ -28,15 +36,15 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     /// Constructor ///
     constructor(
         address _gasZipRouter,
-        address _liFiDEXAggregator,
+        address _liFiDiamond,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        gasZipRouter = IGasZip(_gasZipRouter);
-        liFiDEXAggregator = _liFiDEXAggregator;
+        GAS_ZIP_ROUTER = IGasZip(_gasZipRouter);
+        LIFI_DIAMOND = _liFiDiamond;
     }
 
     /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
-    ///         Swaps are only allowed via the LiFiDEXAggregator
+    ///         Swaps are allowed via any whitelisted DEX from the Diamond's DexManagerFacet
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _swapData The swap data that executes the swap from ERC20 to native
     /// @param _gasZipData contains information about which chains gas should be sent to
@@ -44,19 +52,29 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibSwap.SwapData calldata _swapData,
         IGasZip.GasZipData calldata _gasZipData
     ) public {
+        // Check if the DEX contract and function selector are whitelisted in the Diamond
+        if (
+            !IDexManager(LIFI_DIAMOND).contractIsAllowed(_swapData.callTo) ||
+            !IDexManager(LIFI_DIAMOND).isFunctionApproved(
+                bytes4(_swapData.callData[:4])
+            )
+        ) {
+            revert ContractCallNotAllowed();
+        }
+
         // deposit ERC20 asset from diamond
         LibAsset.depositAsset(_swapData.sendingAssetId, _swapData.fromAmount);
 
         // max approve to DEX, if not already done
         LibAsset.maxApproveERC20(
             IERC20(_swapData.sendingAssetId),
-            liFiDEXAggregator,
+            _swapData.callTo,
             _swapData.fromAmount
         );
 
-        // execute swap using LiFiDEXAggregator
+        // execute swap using the whitelisted DEX
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = liFiDEXAggregator.call(
+        (bool success, bytes memory res) = _swapData.callTo.call(
             _swapData.callData
         );
         if (!success) {
@@ -82,7 +100,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             revert InvalidCallData();
 
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
-        gasZipRouter.deposit{ value: _amount }(
+        GAS_ZIP_ROUTER.deposit{ value: _amount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );
@@ -105,9 +123,9 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
-            // Shift destinationChains left by 8 bits and add the next chainID
+            // Shift destinationChains left by 16 bits and add the next chainID
             destinationChains =
-                (destinationChains << 8) |
+                (destinationChains << 16) |
                 uint256(_chainIds[i]);
         }
     }
