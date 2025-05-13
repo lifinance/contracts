@@ -468,7 +468,7 @@ async function deploySafe(args: {
     const { network, rpcUrl, updateConfig = true } = args
 
     // Get private key
-    const privateKey = getPrivateKey(args.privateKey, 'PRIVATE_KEY_PRODUCTION')
+    const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
     // Load configuration files
     const globalConfigPath = path.resolve('./config/global.json')

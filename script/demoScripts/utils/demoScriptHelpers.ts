@@ -19,8 +19,11 @@ import {
   zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
-import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
 import { Environment } from '../../utils/viemScriptHelpers'
+import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { config } from 'dotenv'
+
+config()
 
 export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
@@ -584,7 +587,7 @@ export const setupEnvironment = async (
   facetAbi: Narrow<readonly any[]>,
   environment: 'staging' | 'production' = 'staging'
 ) => {
-  const RPC_URL = getRpcUrl(chain)
+  const RPC_URL = await getRpcUrl(chain)
   const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 

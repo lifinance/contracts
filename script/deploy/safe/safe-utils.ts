@@ -161,29 +161,50 @@ export class ViemSafe {
 
   static async init(options: {
     provider: string | Chain
-    privateKey: string
+    privateKey?: string
     safeAddress: Address
+    useLedger?: boolean
+    ledgerOptions?: {
+      derivationPath?: string
+      ledgerLive?: boolean
+      accountIndex?: number
+    }
   }): Promise<ViemSafe> {
-    const { privateKey, safeAddress, provider } = options
+    const { privateKey, safeAddress, provider, useLedger, ledgerOptions } =
+      options
 
-    // Create provider and signer with Viem
+    // Create provider with Viem
     let publicClient: PublicClient
+    let chain: Chain | undefined = undefined
+
     if (typeof provider === 'string') {
       publicClient = createPublicClient({
         transport: http(provider),
       })
     } else {
+      chain = provider
       publicClient = createPublicClient({
-        chain: provider,
+        chain: chain,
         transport: http(),
       })
     }
 
-    const account = privateKeyToAccount(
-      `0x${privateKey.replace(/^0x/, '')}` as Hex
-    )
+    // Get account - either from private key or Ledger
+    let account
+    if (useLedger) {
+      // Dynamically import the Ledger module to avoid dependency issues
+      const { getLedgerAccount } = await import('./ledger')
+      account = await getLedgerAccount(ledgerOptions)
+    } else if (privateKey) {
+      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}` as Hex)
+    } else {
+      throw new Error('Either privateKey or useLedger must be provided')
+    }
+
+    // Create wallet client with the account and chain
     const walletClient = createWalletClient({
       account,
+      chain,
       transport: http(typeof provider === 'string' ? provider : undefined),
     })
 
@@ -411,8 +432,57 @@ export class ViemSafe {
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
   async signTransaction(safeTx: SafeTransaction): Promise<SafeTransaction> {
     try {
-      const hash = await this.getTransactionHash(safeTx)
-      const signature = await this.signHash(hash)
+      // Get chain ID for domain
+      const chainId = await this.publicClient.getChainId()
+
+      // Define EIP-712 domain and types
+      const domain = {
+        chainId,
+        verifyingContract: this.safeAddress,
+      }
+
+      const types = {
+        SafeTx: [
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'data', type: 'bytes' },
+          { name: 'operation', type: 'uint8' },
+          { name: 'safeTxGas', type: 'uint256' },
+          { name: 'baseGas', type: 'uint256' },
+          { name: 'gasPrice', type: 'uint256' },
+          { name: 'gasToken', type: 'address' },
+          { name: 'refundReceiver', type: 'address' },
+          { name: 'nonce', type: 'uint256' },
+        ],
+      }
+
+      // Message to sign following EIP-712 structure
+      const message = {
+        to: safeTx.data.to,
+        value: safeTx.data.value,
+        data: safeTx.data.data,
+        operation: safeTx.data.operation,
+        safeTxGas: 0n,
+        baseGas: 0n,
+        gasPrice: 0n,
+        gasToken: '0x0000000000000000000000000000000000000000' as Address,
+        refundReceiver: '0x0000000000000000000000000000000000000000' as Address,
+        nonce: safeTx.data.nonce,
+      }
+
+      // Sign typed data using walletClient
+      const typedDataSignature = await this.walletClient.signTypedData({
+        domain,
+        types,
+        primaryType: 'SafeTx',
+        message,
+      })
+
+      // Format the signature for Safe contract
+      const signature = {
+        signer: this.account,
+        data: typedDataSignature,
+      }
 
       // Add signature to transaction
       safeTx.signatures.set(signature.signer.toLowerCase(), signature)
@@ -439,12 +509,14 @@ export class ViemSafe {
       return false
     }
 
-    // We're now using eth_sign signatures with the Safe, which means v values of 31 or 32
+    // For eth_sign signatures (type 1), v values should be 31 or 32
     // (normal v value of 27/28 + 4 = 31/32)
     const vValue = parseInt(sigWithoutPrefix.slice(128, 130), 16)
 
-    // We expect eth_sign (type 1) signatures with v values 31 or 32
-    return vValue === 31 || vValue === 32
+    // Check for eth_sign signatures or standard EIP-712 signatures
+    // EIP-712 signatures typically have v values of 27 or 28
+    // eth_sign signatures have v values of 31 or 32
+    return vValue === 27 || vValue === 28 || vValue === 31 || vValue === 32
   }
 
   // Format signatures as bytes for contract submission
@@ -503,7 +575,7 @@ export class ViemSafe {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      // Build transaction for execution
+      // First, prepare the transaction data
       const txHash = await this.walletClient.writeContract({
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
@@ -814,14 +886,22 @@ export async function getPendingTransactionsByNetwork(
 /**
  * Initializes a Safe client for a specific network
  * @param network - Network name
- * @param privateKey - Private key for signing
+ * @param privateKey - Private key for signing (optional if useLedger is true)
  * @param rpcUrl - Optional RPC URL override
+ * @param useLedger - Whether to use a Ledger device for signing
+ * @param ledgerOptions - Options for Ledger connection
  * @returns Initialized ViemSafe instance and chain information
  */
 export async function initializeSafeClient(
   network: string,
-  privateKey: string,
-  rpcUrl?: string
+  privateKey?: string,
+  rpcUrl?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  }
 ): Promise<{
   safe: ViemSafe
   chain: Chain
@@ -842,6 +922,8 @@ export async function initializeSafeClient(
       provider: parsedRpcUrl,
       privateKey,
       safeAddress,
+      useLedger,
+      ledgerOptions,
     })
 
     return { safe, chain, safeAddress }

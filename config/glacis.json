@@ -11,10 +11,28 @@
   "base": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "berachain": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "blast": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
   "bsc": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "celo": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "gnosis": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "ink": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
   "linea": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "lisk": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "mode": {
@@ -26,7 +44,19 @@
   "polygon": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "polygonzkevm": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
   "scroll": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "sonic": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "swellchain": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "unichain": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   }
 }

@@ -67,7 +67,7 @@ function diamondSyncDEXs_FAST {
       return
     fi
 
-    RPC_URL=$(getRPCUrl "$NETWORK")
+    RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     # Fetch required DEX addresses from configuration
     CFG_DEXS=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/dexs.json")

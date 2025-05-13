@@ -227,7 +227,7 @@
     "wrappedNativeAddress": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://rpc.ankr.com/bsc",
+    "rpcUrl": "https://bsc.drpc.org",
     "verificationType": "etherscan",
     "explorerUrl": "https://bscscan.com",
     "explorerApiUrl": "https://api.bscscan.com/api",
