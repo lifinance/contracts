@@ -3,21 +3,13 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGasZip } from "../Interfaces/IGasZip.sol";
+import { IDexManagerFacet } from "../Interfaces/IDexManagerFacet.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData, ContractCallNotAllowed, InvalidConfig } from "../Errors/GenericErrors.sol";
-
-interface IDexManager {
-    function isFunctionApproved(
-        bytes4 _signature
-    ) external view returns (bool);
-    function isContractApproved(
-        address _contract
-    ) external view returns (bool);
-}
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
@@ -32,7 +24,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
 
     /// Errors ///
     error TooManyChainIds();
-    error ERC20ReceivedInsteadOfNative();
+    error SwapOutputMustBeNative();
 
     /// Constructor ///
     constructor(
@@ -60,15 +52,12 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibSwap.SwapData calldata _swapData,
         IGasZip.GasZipData calldata _gasZipData
     ) public {
-        // Check early that we're receiving native tokens
         if (_swapData.receivingAssetId != address(0)) {
-            revert ERC20ReceivedInsteadOfNative();
+            revert SwapOutputMustBeNative();
         }
 
-        // Access the DexManagerFacet through the diamond
-        IDexManager dexManager = IDexManager(LIFI_DIAMOND);
+        IDexManagerFacet dexManager = IDexManagerFacet(LIFI_DIAMOND);
 
-        // Check if both the contract and function are allowed
         if (
             !dexManager.isContractApproved(_swapData.callTo) ||
             !dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))

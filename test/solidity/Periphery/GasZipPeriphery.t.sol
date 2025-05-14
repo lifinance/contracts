@@ -252,7 +252,6 @@ contract GasZipPeripheryTest is TestBase {
             ),
             false // not required since tokens are already in diamond
         );
-        vm.stopPrank();
 
         // // get swapData for gas zip
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
@@ -515,8 +514,7 @@ contract GasZipPeripheryTest is TestBase {
             true
         );
 
-        // expect the ERC20ReceivedInsteadOfNative error
-        vm.expectRevert(GasZipPeriphery.ERC20ReceivedInsteadOfNative.selector);
+        vm.expectRevert(GasZipPeriphery.SwapOutputMustBeNative.selector);
 
         // call depositToGasZipERC20 with non-native receiving asset, should revert immediately
         gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
