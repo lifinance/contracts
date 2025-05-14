@@ -10,7 +10,6 @@ import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
-import { console } from "forge-std/console.sol";
 
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
@@ -35,6 +34,7 @@ contract GasZipPeripheryTest is TestBase {
 
     error TooManyChainIds();
     error ETHTransferFailed();
+    error SwapFailed();
 
     function setUp() public {
         customBlockNumberForForking = 20931877;
@@ -68,10 +68,6 @@ contract GasZipPeripheryTest is TestBase {
         dexManagerFacet.addDex(address(uniswap));
         dexManagerFacet.addDex(address(gasZipPeriphery));
         dexManagerFacet.addDex(address(feeCollector));
-
-        console.log("uniswap", address(uniswap));
-        console.log("gasZipPeriphery", address(gasZipPeriphery));
-        console.log("feeCollector", address(feeCollector));
 
         vm.label(address(uniswap), "Uniswap");
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
@@ -201,7 +197,7 @@ contract GasZipPeripheryTest is TestBase {
         // Testcase:
         // 1. pay 1 USDC fee to FeeCollector in USDC
         // 2. swap remaining (9) USDC to DAI
-        // 3. deposit 2 DAI to gasZip
+        // 3. deposit 2 DAI to GasZipPeriphery which will be swapped to ETH and sent to the GasZip contract
         // 4. bridge remaining DAI to Gnosis using GnosisBridgeFacet
 
         deal(ADDRESS_USDC, address(this), defaultUSDCAmount);
@@ -240,13 +236,6 @@ contract GasZipPeripheryTest is TestBase {
         );
         uint256 swapOutputAmount = amounts[1];
 
-        console.log("here");
-        console.log("swap data callTo uniswap", address(uniswap));
-        console.log(
-            "swap data callTo gasZipPeriphery",
-            address(gasZipPeriphery)
-        );
-
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
@@ -265,7 +254,6 @@ contract GasZipPeripheryTest is TestBase {
         );
         vm.stopPrank();
 
-        console.log("here2");
         // // get swapData for gas zip
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
         (
@@ -273,9 +261,6 @@ contract GasZipPeripheryTest is TestBase {
 
         ) = _getUniswapERC20ToNativeSwapData(ADDRESS_DAI, gasZipERC20Amount);
 
-        console.log("here3");
-        console.log("USER_DIAMOND_OWNER");
-        console.log(USER_DIAMOND_OWNER);
         swapData[2] = LibSwap.SwapData(
             address(gasZipPeriphery),
             address(gasZipPeriphery),
@@ -311,7 +296,6 @@ contract GasZipPeripheryTest is TestBase {
             bridgeData,
             swapData
         );
-        console.log("GasZipPeriphery after swap and start bridge");
     }
 
     function test_canDepositNativeThenSwapThenBridge() public {
@@ -508,6 +492,76 @@ contract GasZipPeripheryTest is TestBase {
         }(defaultGasZipData, defaultNativeDepositAmount);
     }
 
+    function testRevert_WillFailIfReceivingAssetIsNotNative() public {
+        vm.startPrank(USER_SENDER);
+
+        // create SwapData with non-native receiving asset (e.g., DAI instead of ETH/address(0))
+        uint256 daiAmount = 1e18;
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            ADDRESS_USDC, // sending USDC
+            ADDRESS_DAI, // receiving DAI (non-native) - this should cause revert
+            daiAmount,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                daiAmount,
+                0,
+                new address[](0), // not important for this test
+                address(0),
+                0
+            ),
+            true
+        );
+
+        // expect the ERC20ReceivedInsteadOfNative error
+        vm.expectRevert(GasZipPeriphery.ERC20ReceivedInsteadOfNative.selector);
+
+        // call depositToGasZipERC20 with non-native receiving asset, should revert immediately
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+    }
+
+    function testRevert_WillFailWhenSwapOperationIsUnsuccessful() public {
+        // deploy a simple mock contract that can be called and will revert with our custom error
+        MockFailingDexWithCustomError mockDex = new MockFailingDexWithCustomError();
+
+        // whitelist the mock DEX in the DexManager
+        vm.startPrank(USER_DIAMOND_OWNER);
+        dexManagerFacet.addDex(address(mockDex));
+
+        bytes4 mockSelector = uniswap.swapExactTokensForETH.selector;
+        dexManagerFacet.setFunctionApprovalBySignature(mockSelector, true);
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+
+        // SwapData with the mock DEX that will fail
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(mockDex), // callTo - the mock contract that will revert
+            address(mockDex),
+            ADDRESS_DAI,
+            address(0), // receivingAssetId - set to native to pass the initial check
+            1e18, // fromAmount
+            abi.encodeWithSelector(
+                mockSelector,
+                1e18,
+                0,
+                new address[](2),
+                address(0),
+                0
+            ),
+            true
+        );
+
+        deal(ADDRESS_DAI, USER_SENDER, 1e18);
+
+        dai.approve(address(gasZipPeriphery), 1e18);
+
+        vm.expectRevert(SwapFailed.selector);
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+    }
+
     function _getGnosisBridgeFacet()
         internal
         returns (TestGnosisBridgeFacet _gnosisBridgeFacet)
@@ -566,4 +620,24 @@ contract GasZipPeripheryTest is TestBase {
             true
         );
     }
+}
+
+contract MockFailingDexWithCustomError {
+    error SwapFailed();
+
+    function swapExactTokensForETH(
+        uint256,
+        uint256,
+        address[] calldata,
+        address,
+        uint256
+    ) external pure {
+        revert SwapFailed();
+    }
+
+    fallback() external {
+        revert SwapFailed();
+    }
+
+    receive() external payable {}
 }

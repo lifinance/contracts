@@ -9,7 +9,6 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
-import { console } from "forge-std/console.sol";
 
 interface IDexManager {
     function isFunctionApproved(
@@ -33,6 +32,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
 
     /// Errors ///
     error TooManyChainIds();
+    error ERC20ReceivedInsteadOfNative();
 
     /// Constructor ///
     constructor(
@@ -53,21 +53,15 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibSwap.SwapData calldata _swapData,
         IGasZip.GasZipData calldata _gasZipData
     ) public {
+        // Check early that we're receiving native tokens
+        if (_swapData.receivingAssetId != address(0)) {
+            revert ERC20ReceivedInsteadOfNative();
+        }
+
         // Access the DexManagerFacet through the diamond
         IDexManager dexManager = IDexManager(LIFI_DIAMOND);
 
         // Check if both the contract and function are allowed
-        console.log("callTo", _swapData.callTo);
-        console.log("selector");
-        console.logBytes4(bytes4(_swapData.callData[:4]));
-        console.log(
-            "contract approved?",
-            dexManager.isContractApproved(_swapData.callTo)
-        );
-        console.log(
-            "function approved?",
-            dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
-        );
         if (
             !dexManager.isContractApproved(_swapData.callTo) ||
             !dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
@@ -85,21 +79,18 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             _swapData.fromAmount
         );
 
-        console.log("1111");
         // execute swap using the whitelisted DEX
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = _swapData.callTo.call(
             _swapData.callData
         );
-        console.log("2222");
         if (!success) {
             LibUtil.revertWith(res);
         }
-        console.log("3333");
-        // extract the swap output amount from the call return value
-        uint256 swapOutputAmount = abi.decode(res, (uint256));
 
-        console.log("4444");
+        // get the output amount from the contract's balance (which will be sent in full to gasZip router)
+        uint256 swapOutputAmount = address(this).balance;
+
         // deposit native tokens to Gas.zip protocol
         depositToGasZipNative(_gasZipData, swapOutputAmount);
     }
@@ -121,15 +112,10 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );
-        console.log("5555");
 
         // return unused native value to msg.sender, if any
         // this is required due to LI.FI backend-internal requirements (money flow)
         uint256 remainingNativeBalance = address(this).balance;
-        console.log("msg.sender");
-        console.log(msg.sender);
-        console.log("remainingNativeBalance");
-        console.logUint(remainingNativeBalance);
         if (remainingNativeBalance > 0) {
             msg.sender.safeTransferETH(remainingNativeBalance);
         }
