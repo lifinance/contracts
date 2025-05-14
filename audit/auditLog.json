@@ -237,6 +237,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.05.06_LibAsset(v2.0.0).pdf",
       "auditCommitHash": "648d4724eb7be6e206e1cd083677f575705dacc3"
+    },
+    "audit20250510": {
+      "auditCompletedOn": "10.05.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.05.10_LiFiDexAggregator(v1.9.0).pdf",
+      "auditCommitHash": "eb255e62405c477f24c1bd78076c7d3677284681"
     }
   },
   "auditedContracts": {
@@ -319,7 +326,8 @@
       "1.5.1": ["audit20250109_3"],
       "1.6.0": ["audit20250109_2"],
       "1.7.0": ["audit20250411"],
-      "1.8.0": ["audit20250422"]
+      "1.8.0": ["audit20250422"],
+      "1.9.0": ["audit20250510"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2"]
