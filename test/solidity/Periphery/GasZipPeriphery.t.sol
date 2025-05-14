@@ -434,12 +434,6 @@ contract GasZipPeripheryTest is TestBase {
         // set DAI approval for GasZipPeriphery
         dai.approve(address(gasZipPeriphery), type(uint256).max);
 
-        // Add DEX and selector to whitelist
-        // vm.startPrank(USER_DIAMOND_OWNER);
-        // dexManagerFacet.addDex(LIFI_DEX_AGGREGATOR_MAINNET);
-        // dexManagerFacet.setFunctionApprovalBySignature(PROCESS_ROUTE_SELECTOR, true);
-        // vm.stopPrank();
-
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
         (
             LibSwap.SwapData memory gasZipSwapData,
