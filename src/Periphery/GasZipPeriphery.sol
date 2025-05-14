@@ -76,6 +76,9 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         );
 
         // execute swap using the whitelisted DEX
+        // Note on slippage protection:
+        // 1. Individual swap slippage is protected via minAmountOut parameter in _swapData.callData
+        // 2. Final output amount slippage is checked at diamond contract level in SwapperV2._depositAndSwap()
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = _swapData.callTo.call(
             _swapData.callData
