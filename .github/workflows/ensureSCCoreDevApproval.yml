@@ -8,6 +8,10 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  pull-requests: read # required to read PR reviews and metadata
+  contents: read # required to read local workspace contents (e.g. access tmp file)
+
 jobs:
   core-dev-approval:
     if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
