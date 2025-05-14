@@ -4,26 +4,17 @@ pragma solidity ^0.8.17;
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
+import { IDexManagerFacet } from "../Interfaces/IDexManagerFacet.sol";
 import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
 /// @title Dex Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing approved DEXs to be used in swaps.
-/// @custom:version 1.0.2
-contract DexManagerFacet {
-    /// Events ///
-
-    event DexAdded(address indexed dexAddress);
-    event DexRemoved(address indexed dexAddress);
-    event FunctionSignatureApprovalChanged(
-        bytes4 indexed functionSignature,
-        bool indexed approved
-    );
-
+/// @custom:version 1.0.3
+contract DexManagerFacet is IDexManagerFacet {
     /// External Methods ///
 
-    /// @notice Register the address of a DEX contract to be approved for swapping.
-    /// @param _dex The address of the DEX contract to be approved.
+    /// @inheritdoc IDexManagerFacet
     function addDex(address _dex) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -34,8 +25,7 @@ contract DexManagerFacet {
         emit DexAdded(_dex);
     }
 
-    /// @notice Batch register the address of DEX contracts to be approved for swapping.
-    /// @param _dexs The addresses of the DEX contracts to be approved.
+    /// @inheritdoc IDexManagerFacet
     function batchAddDex(address[] calldata _dexs) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -61,8 +51,7 @@ contract DexManagerFacet {
         }
     }
 
-    /// @notice Unregister the address of a DEX contract approved for swapping.
-    /// @param _dex The address of the DEX contract to be unregistered.
+    /// @inheritdoc IDexManagerFacet
     function removeDex(address _dex) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -71,8 +60,7 @@ contract DexManagerFacet {
         emit DexRemoved(_dex);
     }
 
-    /// @notice Batch unregister the addresses of DEX contracts approved for swapping.
-    /// @param _dexs The addresses of the DEX contracts to be unregistered.
+    /// @inheritdoc IDexManagerFacet
     function batchRemoveDex(address[] calldata _dexs) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -87,9 +75,7 @@ contract DexManagerFacet {
         }
     }
 
-    /// @notice Adds/removes a specific function signature to/from the allowlist
-    /// @param _signature the function signature to allow/disallow
-    /// @param _approval whether the function signature should be allowed
+    /// @inheritdoc IDexManagerFacet
     function setFunctionApprovalBySignature(
         bytes4 _signature,
         bool _approval
@@ -107,9 +93,7 @@ contract DexManagerFacet {
         emit FunctionSignatureApprovalChanged(_signature, _approval);
     }
 
-    /// @notice Batch Adds/removes a specific function signature to/from the allowlist
-    /// @param _signatures the function signatures to allow/disallow
-    /// @param _approval whether the function signatures should be allowed
+    /// @inheritdoc IDexManagerFacet
     function batchSetFunctionApprovalBySignature(
         bytes4[] calldata _signatures,
         bool _approval
@@ -132,17 +116,14 @@ contract DexManagerFacet {
         }
     }
 
-    /// @notice Returns whether a function signature is approved
-    /// @param _signature the function signature to query
-    /// @return approved Approved or not
+    /// @inheritdoc IDexManagerFacet
     function isFunctionApproved(
         bytes4 _signature
     ) public view returns (bool approved) {
         return LibAllowList.selectorIsAllowed(_signature);
     }
 
-    /// @notice Returns a list of all approved DEX addresses.
-    /// @return addresses List of approved DEX addresses
+    /// @inheritdoc IDexManagerFacet
     function approvedDexs()
         external
         view
@@ -151,9 +132,7 @@ contract DexManagerFacet {
         return LibAllowList.getAllowedContracts();
     }
 
-    /// @notice Returns whether a contract address is approved
-    /// @param _contract the contract address to query
-    /// @return approved Approved or not
+    /// @inheritdoc IDexManagerFacet
     function isContractApproved(
         address _contract
     ) public view returns (bool approved) {

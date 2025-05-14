@@ -8,7 +8,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { InvalidCallData, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, ContractCallNotAllowed, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 interface IDexManager {
     function isFunctionApproved(
@@ -40,6 +40,13 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         address _liFiDiamond,
         address _owner
     ) WithdrawablePeriphery(_owner) {
+        if (
+            _gasZipRouter == address(0) ||
+            _liFiDiamond == address(0) ||
+            _owner == address(0)
+        ) {
+            revert InvalidConfig();
+        }
         GAS_ZIP_ROUTER = IGasZip(_gasZipRouter);
         LIFI_DIAMOND = _liFiDiamond;
     }

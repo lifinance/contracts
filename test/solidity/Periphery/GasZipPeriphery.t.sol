@@ -4,12 +4,12 @@ pragma solidity ^0.8.17;
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
-import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
-import { NonETHReceiver } from "../utils/TestHelpers.sol";
-import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
+import { InvalidCallData, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
+import { NonETHReceiver } from "../utils/TestHelpers.sol";
 
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
@@ -560,6 +560,36 @@ contract GasZipPeripheryTest is TestBase {
 
         vm.expectRevert(SwapFailed.selector);
         gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+    }
+
+    function testRevert_WillFailWithZeroGasZipRouter() public {
+        // Try to deploy with zero address for gasZipRouter
+        vm.expectRevert(InvalidConfig.selector);
+        new GasZipPeriphery(
+            address(0), // zero address for gasZipRouter
+            address(diamond),
+            USER_DIAMOND_OWNER
+        );
+    }
+
+    function testRevert_WillFailWithZeroLiFiDiamond() public {
+        // Try to deploy with zero address for liFiDiamond
+        vm.expectRevert(InvalidConfig.selector);
+        new GasZipPeriphery(
+            GAS_ZIP_ROUTER_MAINNET,
+            address(0), // zero address for liFiDiamond
+            USER_DIAMOND_OWNER
+        );
+    }
+
+    function testRevert_WillFailWithZeroOwner() public {
+        // Try to deploy with zero address for owner
+        vm.expectRevert(InvalidConfig.selector);
+        new GasZipPeriphery(
+            GAS_ZIP_ROUTER_MAINNET,
+            address(diamond),
+            address(0) // zero address for owner
+        );
     }
 
     function _getGnosisBridgeFacet()
