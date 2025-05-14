@@ -311,6 +311,7 @@ contract GasZipPeripheryTest is TestBase {
             bridgeData,
             swapData
         );
+        console.log("GasZipPeriphery after swap and start bridge");
     }
 
     function test_canDepositNativeThenSwapThenBridge() public {

@@ -57,6 +57,17 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         IDexManager dexManager = IDexManager(LIFI_DIAMOND);
 
         // Check if both the contract and function are allowed
+        console.log("callTo", _swapData.callTo);
+        console.log("selector");
+        console.logBytes4(bytes4(_swapData.callData[:4]));
+        console.log(
+            "contract approved?",
+            dexManager.isContractApproved(_swapData.callTo)
+        );
+        console.log(
+            "function approved?",
+            dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
+        );
         if (
             !dexManager.isContractApproved(_swapData.callTo) ||
             !dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
