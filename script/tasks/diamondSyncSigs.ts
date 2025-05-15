@@ -74,8 +74,8 @@ const main = defineCommand({
       transport: http(rpcUrl),
     })
 
-    // Instantiate readonly dex manager contract
-    const dexManagerReader = getContract({
+    // Instantiate readonly whitelist manager contract
+    const whitelistManagerReader = getContract({
       address: deployedContracts['LiFiDiamond'],
       abi: parseAbi([
         'function isFunctionApproved(bytes4) external view returns (bool)',
@@ -87,7 +87,7 @@ const main = defineCommand({
     const { sigs } = await import(`../../config/sigs.json`)
     const calls = sigs.map((sig: string) => {
       return {
-        ...dexManagerReader,
+        ...whitelistManagerReader,
         functionName: 'isFunctionApproved',
         args: [sig],
       }

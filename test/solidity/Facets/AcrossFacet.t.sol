@@ -15,8 +15,8 @@ contract TestAcrossFacet is AcrossFacet {
         IAcrossSpokePool _spokePool
     ) AcrossFacet(_spokePool, ADDRESS_WRAPPED_NATIVE) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -45,14 +45,14 @@ contract AcrossFacetTest is TestBaseFacet {
         functionSelectors[1] = acrossFacet
             .swapAndStartBridgeTokensViaAcross
             .selector;
-        functionSelectors[2] = acrossFacet.addDex.selector;
+        functionSelectors[2] = acrossFacet.addToWhitelist.selector;
         functionSelectors[3] = acrossFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(acrossFacet), functionSelectors);
         acrossFacet = TestAcrossFacet(address(diamond));
-        acrossFacet.addDex(ADDRESS_UNISWAP);
+        acrossFacet.addToWhitelist(ADDRESS_UNISWAP);
         acrossFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

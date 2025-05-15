@@ -522,7 +522,7 @@ contract GasZipPeripheryTest is TestBase {
         // deploy a simple mock contract that can be called and will revert with our custom error
         MockFailingDexWithCustomError mockDex = new MockFailingDexWithCustomError();
 
-        // whitelist the mock DEX in the DexManager
+        // whitelist the mock DEX in the WhitelistManager
         vm.startPrank(USER_DIAMOND_OWNER);
         whitelistManagerFacet.addToWhitelist(address(mockDex));
 

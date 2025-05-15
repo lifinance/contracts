@@ -1,8 +1,8 @@
 #!/bin/bash
 
-function diamondSyncDEXs {
+function diamondSyncWhitelistedAddresses {
   echo ""
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncDEXs now...."
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncWhitelistedAddresses now...."
   # load env variables
   source .env
 
@@ -56,7 +56,7 @@ function diamondSyncDEXs {
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
     echo ""
-    echoDebug "in function syncDEXs"
+    echoDebug "in function syncWhitelistedAddresses"
     echoDebug "CURRENT NETWORK=$NETWORK"
     echoDebug "ENVIRONMENT=$ENVIRONMENT"
     echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
@@ -73,19 +73,19 @@ function diamondSyncDEXs {
 
     RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-    echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
+    echo "[info] now syncing whitelisted addresses for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
-    # get a list of all addresses that need to be whitelisted from dexs.json config file
-    CFG_DEXS=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/dexs.json")
+    # get a list of all addresses that need to be whitelisted from whitelistedAddresses.json config file
+    CFG_WHITELISTED_ADDRESSES=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/whitelistedAddresses.json")
 
-    # function to fetch approved DEXs
-    function getApprovedDEXs {
+    # function to fetch whitelisted addresses
+    function getWhitelistedAddresses {
       local RETRY_DELAY=3
       local ATTEMPT=1
       local result=""
 
       while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
-        result=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+        result=$(cast call "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
 
         if [[ $? -eq 0 && ! -z "$result" ]]; then
           if [[ "$result" == "[]" ]]; then
@@ -96,73 +96,73 @@ function diamondSyncDEXs {
           return 0
         fi
 
-        echo "[warn] Failed to fetch approved DEXs from $DIAMOND_ADDRESS on network $NETWORK (attempt $ATTEMPT/$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION). Retrying in $RETRY_DELAY seconds..."
+        echo "[warn] Failed to fetch whitelisted addresses from $DIAMOND_ADDRESS on network $NETWORK (attempt $ATTEMPT/$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION). Retrying in $RETRY_DELAY seconds..."
         sleep $RETRY_DELAY
         ATTEMPT=$((ATTEMPT + 1))
       done
 
-      echo "[error] Unable to fetch approved DEXs from $DIAMOND_ADDRESS on network $NETWORK after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts."
+      echo "[error] Unable to fetch whitelisted addresses from $DIAMOND_ADDRESS on network $NETWORK after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts."
       return 1 # Indicate failure
     }
 
-    # Fetch approved DEXs
-    DEXS=($(getApprovedDEXs))
+    # Fetch whitelisted addresses
+    WHITELISTED_ADDRESSES=($(getWhitelistedAddresses))
     if [[ $? -ne 0 ]]; then
       FAILED_NETWORKS+=("$NETWORK")
       continue
     fi
 
-    if [ ${#DEXS[@]} -eq 0 ]; then
-      echoDebug "0 approved DEXs found on diamond $DIAMOND_ADDRESS"
+    if [ ${#WHITELISTED_ADDRESSES[@]} -eq 0 ]; then
+      echoDebug "0 whitelisted addresses found on diamond $DIAMOND_ADDRESS"
     else
-      echoDebug "${#DEXS[@]} approved DEXs found on diamond $DIAMOND_ADDRESS: [${DEXS[*]}]"
+      echoDebug "${#WHITELISTED_ADDRESSES[@]} whitelisted addresses found on diamond $DIAMOND_ADDRESS: [${WHITELISTED_ADDRESSES[*]}]"
     fi
 
-    NEW_DEXS=()
-    for DEX_ADDRESS in $CFG_DEXS; do
-      if [[ ! " ${DEXS[*]} " == *" $(echo "$DEX_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
-        CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
+    NEW_WHITELISTED_ADDRESSES=()
+    for WHITELISTED_ADDRESS in $CFG_WHITELISTED_ADDRESSES; do
+      if [[ ! " ${WHITELISTED_ADDRESSES[*]} " == *" $(echo "$WHITELISTED_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
+        CHECKSUMMED=$(cast --to-checksum-address "$WHITELISTED_ADDRESS")
         CODE=$(cast code $CHECKSUMMED --rpc-url "$RPC_URL")
         if [[ "$CODE" == "0x" ]]; then
-          error "DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
-          echo "$NETWORK - $CHECKSUMMED" >>.invalid-dexs
+          error "Whitelisted address $CHECKSUMMED is not deployed on network $NETWORK - skipping"
+          echo "$NETWORK - $CHECKSUMMED" >>.invalid-whitelisted-addresses
           continue
         fi
-        NEW_DEXS+=("$CHECKSUMMED")
+        NEW_WHITELISTED_ADDRESSES+=("$CHECKSUMMED")
       fi
     done
 
-    echoDebug "${#NEW_DEXS[@]} new DEXs to be added: [${NEW_DEXS[*]}]"
+    echoDebug "${#NEW_WHITELISTED_ADDRESSES[@]} new whitelisted addresses to be added: [${NEW_WHITELISTED_ADDRESSES[*]}]"
 
-    if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
-      ADDRESS_STRING=$(printf "%s," "${NEW_DEXS[@]}")
+    if [[ ! ${#NEW_WHITELISTED_ADDRESSES[@]} -eq 0 ]]; then
+      ADDRESS_STRING=$(printf "%s," "${NEW_WHITELISTED_ADDRESSES[@]}")
       PARAMS="[${ADDRESS_STRING%,}]"
 
       local ATTEMPTS=1
       while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        echo "[info] Trying to add missing DEXs now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+        echo "[info] Trying to add missing whitelisted addresses now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
         doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
+        cast send "$DIAMOND_ADDRESS" "batchAddToWhitelist(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
 
         sleep 5 # Wait for confirmation
 
         # Check on-chain state after transaction
-        DEXS_UPDATED=($(getApprovedDEXs))
+        WHITELISTED_ADDRESSES_UPDATED=($(getWhitelistedAddresses))
         if [[ $? -ne 0 ]]; then
           FAILED_NETWORKS+=("$NETWORK")
           break
         fi
 
-        MISSING_DEXS=()
-        for DEX in "${NEW_DEXS[@]}"; do
-          if [[ ! " ${DEXS_UPDATED[*]} " == *" $(echo "$DEX" | tr '[:upper:]' '[:lower:]')"* ]]; then
-            MISSING_DEXS+=("$DEX")
+        MISSING_WHITELISTED_ADDRESSES=()
+        for WHITELISTED_ADDRESS in "${NEW_WHITELISTED_ADDRESSES[@]}"; do
+          if [[ ! " ${WHITELISTED_ADDRESSES_UPDATED[*]} " == *" $(echo "$WHITELISTED_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
+            MISSING_WHITELISTED_ADDRESSES+=("$WHITELISTED_ADDRESS")
           fi
         done
 
-        if [ ${#MISSING_DEXS[@]} -eq 0 ]; then
-          echo "[info] Successfully added all DEXs."
+        if [ ${#MISSING_WHITELISTED_ADDRESSES[@]} -eq 0 ]; then
+          echo "[info] Successfully added all whitelisted addresses."
           break
         fi
 
@@ -179,5 +179,5 @@ function diamondSyncDEXs {
     done
   fi
 
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script syncDEXs completed"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script syncWhitelistedAddresses completed"
 }

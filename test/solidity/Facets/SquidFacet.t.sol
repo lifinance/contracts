@@ -16,8 +16,8 @@ contract TestSquidFacet is SquidFacet {
 
     constructor(ISquidRouter _squidRouter) SquidFacet(_squidRouter) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -53,14 +53,14 @@ contract SquidFacetTest is TestBaseFacet {
         functionSelectors[1] = squidFacet
             .swapAndStartBridgeTokensViaSquid
             .selector;
-        functionSelectors[2] = squidFacet.addDex.selector;
+        functionSelectors[2] = squidFacet.addToWhitelist.selector;
         functionSelectors[3] = squidFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(squidFacet), functionSelectors);
         squidFacet = TestSquidFacet(address(diamond));
-        squidFacet.addDex(ADDRESS_UNISWAP);
+        squidFacet.addToWhitelist(ADDRESS_UNISWAP);
         squidFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
