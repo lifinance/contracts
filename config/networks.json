@@ -439,6 +439,28 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "hyperevm": {
+    "name": "hyperevm",
+    "chainId": 999,
+    "nativeAddress": "0x0d01dc56dcaaca66ad901c959b4011ec",
+    "nativeCurrency": "HYPE",
+    "wrappedNativeAddress": "0x5555555555555555555555555555555555555555",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://hyperliquid-json-rpc.stakely.io",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://www.hyperscan.com/",
+    "explorerApiUrl": "https://www.hyperscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "",
+    "safeAddress": "",
+    "safeWebUrl": "",
+    "gasZipChainId": 430,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": ""
+  },
   "immutablezkevm": {
     "name": "immutablezkevm",
     "chainId": 13371,
