@@ -189,7 +189,7 @@ register() {
       if [[ "$ENVIRONMENT" == "production" ]]; then
         # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
-          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
@@ -212,7 +212,7 @@ register() {
             echo "[info] Using diamond directly at $DIAMOND_ADDRESS for periphery registration"
           fi
 
-          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to "$TARGET_ADDRESS" with calldata $CALLDATA"
+          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${TARGET_ADDRESS}' with calldata $CALLDATA"
           bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
@@ -226,7 +226,7 @@ register() {
       if [[ "$ENVIRONMENT" == "production" ]]; then
         # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
-          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
@@ -252,7 +252,7 @@ register() {
             echoDebug "Using diamond directly at $DIAMOND_ADDRESS for periphery registration"
           fi
 
-          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to "$TARGET_ADDRESS" with calldata $CALLDATA"
+          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${TARGET_ADDRESS}' with calldata $CALLDATA"
           bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
