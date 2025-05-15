@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title IStETH
 /// @notice External interface for Lido's stETH contract which supports wrapping and unwrapping wstETH
@@ -43,6 +44,12 @@ contract LidoWrapper is WithdrawablePeriphery {
         address _wstETHAddress,
         address _owner
     ) WithdrawablePeriphery(_owner) {
+        if (
+            _stETHAddress == address(0) ||
+            _wstETHAddress == address(0) ||
+            _owner == address(0)
+        ) revert InvalidConfig();
+
         ST_ETH = IStETH(_stETHAddress);
         WST_ETH_ADDRESS = _wstETHAddress;
 
