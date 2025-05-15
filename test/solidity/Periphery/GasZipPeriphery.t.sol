@@ -6,7 +6,7 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
-import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
+import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { InvalidCallData, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
@@ -21,7 +21,7 @@ contract GasZipPeripheryTest is TestBase {
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
     GasZipPeriphery internal gasZipPeriphery;
-    DexManagerFacet internal dexManagerFacet;
+    WhitelistManagerFacet internal whitelistManagerFacet;
     IGasZip.GasZipData internal defaultGasZipData;
     bytes32 internal defaultReceiverBytes32 =
         bytes32(uint256(uint160(USER_RECEIVER)));
@@ -43,8 +43,8 @@ contract GasZipPeripheryTest is TestBase {
         // Deploy contracts and set up the Diamond with the facets
         gnosisBridgeFacet = _getGnosisBridgeFacet();
 
-        // Deploy DexManagerFacet and add it to the diamond
-        dexManagerFacet = new DexManagerFacet();
+        // Deploy WhitelistManagerFacet and add it to the diamond
+        whitelistManagerFacet = new WhitelistManagerFacet();
 
         // Deploy GasZipPeriphery with diamond from TestBase
         gasZipPeriphery = new GasZipPeriphery(
@@ -54,55 +54,59 @@ contract GasZipPeripheryTest is TestBase {
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = DexManagerFacet.addDex.selector;
-        functionSelectors[1] = DexManagerFacet
+        functionSelectors[0] = WhitelistManagerFacet.addToWhitelist.selector;
+        functionSelectors[1] = WhitelistManagerFacet
             .setFunctionApprovalBySignature
             .selector;
-        functionSelectors[2] = DexManagerFacet.isDexApproved.selector;
-        functionSelectors[3] = DexManagerFacet.isFunctionApproved.selector;
+        functionSelectors[2] = WhitelistManagerFacet
+            .isAddressWhitelisted
+            .selector;
+        functionSelectors[3] = WhitelistManagerFacet
+            .isFunctionApproved
+            .selector;
 
-        addFacet(diamond, address(dexManagerFacet), functionSelectors);
-        dexManagerFacet = DexManagerFacet(address(diamond));
+        addFacet(diamond, address(whitelistManagerFacet), functionSelectors);
+        whitelistManagerFacet = WhitelistManagerFacet(address(diamond));
 
         // whitelist DEXs / Periphery contracts
-        dexManagerFacet.addDex(address(uniswap));
-        dexManagerFacet.addDex(address(gasZipPeriphery));
-        dexManagerFacet.addDex(address(feeCollector));
+        whitelistManagerFacet.addToWhitelist(address(uniswap));
+        whitelistManagerFacet.addToWhitelist(address(gasZipPeriphery));
+        whitelistManagerFacet.addToWhitelist(address(feeCollector));
 
         vm.label(address(uniswap), "Uniswap");
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
         vm.label(address(feeCollector), "FeeCollector");
 
         // add function selectors for GasZipPeriphery
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             gasZipPeriphery.depositToGasZipERC20.selector,
             true
         );
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             gasZipPeriphery.depositToGasZipNative.selector,
             true
         );
 
         // add function selectors for FeeCollector
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector,
             true
         );
 
         // add function selectors for Uniswap
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector,
             true
         );
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForETH.selector,
             true
         );
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector,
             true
         );
-        dexManagerFacet.setFunctionApprovalBySignature(
+        whitelistManagerFacet.setFunctionApprovalBySignature(
             uniswap.swapExactETHForTokens.selector,
             true
         );
@@ -520,10 +524,13 @@ contract GasZipPeripheryTest is TestBase {
 
         // whitelist the mock DEX in the DexManager
         vm.startPrank(USER_DIAMOND_OWNER);
-        dexManagerFacet.addDex(address(mockDex));
+        whitelistManagerFacet.addToWhitelist(address(mockDex));
 
         bytes4 mockSelector = uniswap.swapExactTokensForETH.selector;
-        dexManagerFacet.setFunctionApprovalBySignature(mockSelector, true);
+        whitelistManagerFacet.setFunctionApprovalBySignature(
+            mockSelector,
+            true
+        );
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);

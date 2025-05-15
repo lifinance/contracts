@@ -1,0 +1,446 @@
+// SPDX-License-Identifier: Unlicense
+pragma solidity ^0.8.17;
+
+import { DSTest } from "ds-test/test.sol";
+import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
+import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
+import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+
+contract Foo {}
+
+contract WhitelistManagerFacetTest is DSTest, DiamondTest {
+    address internal constant USER_PAUSER = address(0xdeadbeef);
+    address internal constant USER_DIAMOND_OWNER = address(0x123456);
+    address internal constant NOT_DIAMOND_OWNER = address(0xabc123456);
+
+    LiFiDiamond internal diamond;
+    WhitelistManagerFacet internal whitelistMgr;
+    AccessManagerFacet internal accessMgr;
+    Foo internal c1;
+    Foo internal c2;
+    Foo internal c3;
+
+    event AddressWhitelisted(address indexed whitelistedAddress);
+    event AddressRemoved(address indexed removedAddress);
+    event FunctionSignatureApprovalChanged(
+        bytes4 indexed functionSignature,
+        bool indexed approved
+    );
+
+    function setUp() public {
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+        whitelistMgr = new WhitelistManagerFacet();
+        c1 = new Foo();
+        c2 = new Foo();
+        c3 = new Foo();
+
+        bytes4[] memory functionSelectors = new bytes4[](9);
+        functionSelectors[0] = WhitelistManagerFacet.addToWhitelist.selector;
+        functionSelectors[1] = WhitelistManagerFacet
+            .removeFromWhitelist
+            .selector;
+        functionSelectors[2] = WhitelistManagerFacet
+            .batchAddToWhitelist
+            .selector;
+        functionSelectors[3] = WhitelistManagerFacet
+            .batchRemoveFromWhitelist
+            .selector;
+        functionSelectors[4] = WhitelistManagerFacet
+            .getWhitelistedAddresses
+            .selector;
+        functionSelectors[5] = WhitelistManagerFacet
+            .setFunctionApprovalBySignature
+            .selector;
+        functionSelectors[6] = WhitelistManagerFacet
+            .batchSetFunctionApprovalBySignature
+            .selector;
+        functionSelectors[7] = WhitelistManagerFacet
+            .isFunctionApproved
+            .selector;
+
+        addFacet(diamond, address(whitelistMgr), functionSelectors);
+
+        // add AccessManagerFacet to be able to whitelist addresses for execution of protected functions
+        accessMgr = new AccessManagerFacet();
+
+        functionSelectors = new bytes4[](2);
+        functionSelectors[0] = accessMgr.setCanExecute.selector;
+        functionSelectors[1] = accessMgr.addressCanExecuteMethod.selector;
+        addFacet(diamond, address(accessMgr), functionSelectors);
+
+        accessMgr = AccessManagerFacet(address(diamond));
+        whitelistMgr = WhitelistManagerFacet(address(diamond));
+    }
+
+    function test_SucceedsIfOwnerAddsAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        whitelistMgr.addToWhitelist(address(c1));
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved[0], address(c1));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfOwnerRemovesAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressWhitelisted(address(c1));
+
+        whitelistMgr.addToWhitelist(address(c1));
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressRemoved(address(c1));
+
+        whitelistMgr.removeFromWhitelist(address(c1));
+
+        vm.stopPrank();
+
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 0);
+    }
+
+    function test_SucceedsIfOwnerBatchAddsAddresses() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+        addresses[2] = address(c3);
+        whitelistMgr.batchAddToWhitelist(addresses);
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved[0], addresses[0]);
+        assertEq(approved[1], addresses[1]);
+        assertEq(approved[2], addresses[2]);
+        assertEq(approved.length, 3);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfOwnerBatchRemovesAddresses() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+        addresses[2] = address(c3);
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        address[] memory remove = new address[](2);
+        remove[0] = address(c1);
+        remove[1] = address(c2);
+        whitelistMgr.batchRemoveFromWhitelist(remove);
+
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 1);
+        assertEq(approved[0], addresses[2]);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfOwnerApprovesFunctionSignature() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4 signature = hex"faceface";
+
+        vm.expectEmit(true, true, true, true);
+        emit FunctionSignatureApprovalChanged(signature, true);
+        whitelistMgr.setFunctionApprovalBySignature(signature, true);
+        assertTrue(whitelistMgr.isFunctionApproved(signature));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfOwnerBatchApprovesFunctionSignatures() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4[] memory signatures = new bytes4[](5);
+        signatures[0] = bytes4(hex"faceface");
+        signatures[1] = bytes4(hex"deadbeef");
+        signatures[2] = bytes4(hex"deaddead");
+        signatures[3] = bytes4(hex"deadface");
+        signatures[4] = bytes4(hex"beefbeef");
+        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, true);
+        for (uint256 i = 0; i < 5; ) {
+            assertTrue(whitelistMgr.isFunctionApproved(signatures[i]));
+            unchecked {
+                ++i;
+            }
+        }
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfAddingWithZeroAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(InvalidContract.selector);
+
+        whitelistMgr.addToWhitelist(address(0));
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfAddingAddressThatIsNotAContract() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(InvalidContract.selector);
+
+        whitelistMgr.addToWhitelist(address(1337));
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfBatchAddingWithZeroAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+        addresses[2] = address(0);
+
+        vm.expectRevert(InvalidContract.selector);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfBatchAddingAddressesThatAreNotContracts()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+        addresses[2] = address(1337);
+
+        vm.expectRevert(InvalidContract.selector);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToAddAddress() public {
+        vm.startPrank(NOT_DIAMOND_OWNER); // prank a non-owner to attempt adding an address
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        whitelistMgr.addToWhitelist(address(c1));
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToBatchAddAddresses() public {
+        vm.startPrank(NOT_DIAMOND_OWNER);
+        address[] memory addresses = new address[](2);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfAddingAddressThatIsWhitelistManager() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](2);
+        addresses[0] = address(c1);
+        addresses[1] = address(whitelistMgr); // contract itself
+
+        vm.expectRevert(CannotAuthoriseSelf.selector);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToRemoveAddress() public {
+        vm.prank(USER_DIAMOND_OWNER);
+
+        whitelistMgr.addToWhitelist(address(c1));
+
+        vm.stopPrank();
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        vm.prank(NOT_DIAMOND_OWNER);
+        whitelistMgr.removeFromWhitelist(address(c1));
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToBatchRemoveAddresses() public {
+        address[] memory addresses = new address[](2);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+
+        vm.prank(USER_DIAMOND_OWNER);
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        vm.prank(NOT_DIAMOND_OWNER);
+        whitelistMgr.batchRemoveFromWhitelist(addresses);
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToSetFunctionApprovalBySignature()
+        public
+    {
+        bytes4 signature = hex"faceface";
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        vm.prank(NOT_DIAMOND_OWNER);
+        whitelistMgr.setFunctionApprovalBySignature(signature, true);
+    }
+
+    function testRevert_FailsIfNonOwnerTriesToBatchSetFunctionApprovalBySignature()
+        public
+    {
+        bytes4[] memory signatures = new bytes4[](3);
+        signatures[0] = bytes4(hex"faceface");
+        signatures[1] = bytes4(hex"deadbeef");
+        signatures[2] = bytes4(hex"beefbeef");
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        vm.prank(NOT_DIAMOND_OWNER);
+        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, true);
+    }
+
+    function test_SucceedsIfOwnerSetsFunctionApprovalBySignature() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4 signature = hex"faceface";
+
+        whitelistMgr.setFunctionApprovalBySignature(signature, true);
+        assertTrue(whitelistMgr.isFunctionApproved(signature));
+
+        whitelistMgr.setFunctionApprovalBySignature(signature, false);
+        assertFalse(whitelistMgr.isFunctionApproved(signature));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfOwnerBatchSetsFunctionApprovalBySignature()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4[] memory signatures = new bytes4[](3);
+        signatures[0] = bytes4(hex"faceface");
+        signatures[1] = bytes4(hex"deadbeef");
+        signatures[2] = bytes4(hex"beefbeef");
+
+        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, true);
+        for (uint256 i = 0; i < 3; i++) {
+            assertTrue(whitelistMgr.isFunctionApproved(signatures[i]));
+        }
+
+        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, false);
+        for (uint256 i = 0; i < 3; i++) {
+            assertFalse(whitelistMgr.isFunctionApproved(signatures[i]));
+        }
+
+        vm.stopPrank();
+    }
+
+    function test_AllowsWhitelistedAddressToAddContract() public {
+        vm.stopPrank();
+        vm.startPrank(USER_PAUSER);
+        vm.expectRevert(UnAuthorized.selector);
+
+        whitelistMgr.addToWhitelist(address(c1));
+
+        // allow USER_PAUSER address to execute addToWhitelist() function
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        accessMgr.setCanExecute(
+            WhitelistManagerFacet.addToWhitelist.selector,
+            USER_PAUSER,
+            true
+        );
+
+        // try to call addToWhitelist()
+        vm.startPrank(USER_PAUSER);
+
+        whitelistMgr.addToWhitelist(address(c1));
+
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+
+        assertEq(approved[0], address(c1));
+    }
+
+    function test_AllowsWhitelistedAddressToBatchAddAddresses() public {
+        address[] memory addresses = new address[](2);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+
+        vm.stopPrank();
+        vm.startPrank(USER_PAUSER);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        // allow USER_PAUSER address to execute batchAddToWhitelist() function
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        accessMgr.setCanExecute(
+            WhitelistManagerFacet.batchAddToWhitelist.selector,
+            USER_PAUSER,
+            true
+        );
+
+        // try to call batchAddToWhitelist()
+        vm.startPrank(USER_PAUSER);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+
+        assertEq(approved[0], address(c1));
+        assertEq(approved[1], address(c2));
+    }
+
+    function test_BatchAddKeepsAlreadyApprovedAddressAndAddsNewOnes() public {
+        address[] memory addresses = new address[](1);
+        addresses[0] = address(c2);
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        accessMgr.setCanExecute(
+            WhitelistManagerFacet.batchAddToWhitelist.selector,
+            USER_PAUSER,
+            true
+        );
+
+        // try to call addToWhitelist()
+        vm.startPrank(USER_PAUSER);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+
+        assertEq(approved[0], address(c2));
+
+        addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2); // already whitelisted
+        addresses[2] = address(c3);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        approved = whitelistMgr.getWhitelistedAddresses();
+
+        assertEq(approved[0], address(c2));
+        assertEq(approved[1], address(c1));
+        assertEq(approved[2], address(c3));
+    }
+}

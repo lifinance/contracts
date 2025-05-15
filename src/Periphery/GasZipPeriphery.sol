@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGasZip } from "../Interfaces/IGasZip.sol";
-import { IDexManagerFacet } from "../Interfaces/IDexManagerFacet.sol";
+import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -45,7 +45,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     }
 
     /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
-    ///         Swaps are allowed via any whitelisted DEX from the Diamond's DexManagerFacet
+    ///         Swaps are allowed via any whitelisted contract from the Diamond's WhitelistManagerFacet
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _swapData The swap data that executes the swap from ERC20 to native
     /// @param _gasZipData contains information about which chains gas should be sent to
@@ -57,11 +57,15 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             revert SwapOutputMustBeNative();
         }
 
-        IDexManagerFacet dexManager = IDexManagerFacet(LIFI_DIAMOND);
+        IWhitelistManagerFacet whitelistManager = IWhitelistManagerFacet(
+            LIFI_DIAMOND
+        );
 
         if (
-            !dexManager.isDexApproved(_swapData.callTo) ||
-            !dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
+            !whitelistManager.isAddressWhitelisted(_swapData.callTo) ||
+            !whitelistManager.isFunctionApproved(
+                bytes4(_swapData.callData[:4])
+            )
         ) {
             revert ContractCallNotAllowed();
         }
@@ -72,7 +76,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         // max approve to DEX, if not already done
         LibAsset.maxApproveERC20(
             IERC20(_swapData.sendingAssetId),
-            _swapData.callTo,
+            _swapData.approveTo,
             _swapData.fromAmount
         );
 
