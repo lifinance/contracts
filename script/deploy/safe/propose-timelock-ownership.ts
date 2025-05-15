@@ -13,6 +13,7 @@ import { join } from 'path'
 import { Address, encodeFunctionData } from 'viem'
 import consola from 'consola'
 import { $ } from 'bun'
+import { parseArgs } from 'util'
 
 // Define interfaces for network configuration
 interface NetworkConfig {
@@ -29,19 +30,43 @@ interface DeploymentData {
   [key: string]: string | undefined
 }
 
+// Parse command line arguments
+const { values } = parseArgs({
+  options: {
+    privateKey: {
+      type: 'string',
+      short: 'k',
+    },
+    help: {
+      type: 'boolean',
+      short: 'h',
+    },
+  },
+})
+
+// Show help if requested
+if (values.help) {
+  console.log(`
+Usage: bun propose-timelock-ownership.ts [options]
+
+Options:
+  -k, --privateKey <key>  Private key to use for signing transactions
+  -h, --help              Show this help message
+  `)
+  process.exit(0)
+}
+
 // Main function
 async function main() {
-  // Use SAFE_SIGNER_PRIVATE_KEY by default
-  const privateKey = process.env.SAFE_SIGNER_PRIVATE_KEY
+  // Get private key from command line argument or environment variable
+  const privateKey = values.privateKey || process.env.SAFE_SIGNER_PRIVATE_KEY
 
   if (!privateKey) {
     consola.error(
-      'SAFE_SIGNER_PRIVATE_KEY is not set in environment variables.'
+      'No private key provided. Use --privateKey or set SAFE_SIGNER_PRIVATE_KEY environment variable.'
     )
     process.exit(1)
   }
-
-  consola.info('Using SAFE_SIGNER_PRIVATE_KEY for proposals')
 
   // Load networks configuration
   const networksConfigPath = join(process.cwd(), 'config', 'networks.json')
@@ -138,7 +163,7 @@ async function processNetwork(network: NetworkConfig, privateKey: string) {
     )
 
     try {
-      // Using Bun's $ helper for shell commands
+      // Using Bun's $ helper for shell commands with explicit privateKey argument
       const result =
         await $`bun script/deploy/safe/propose-to-safe.ts --to ${diamondAddress} --calldata ${calldata} --network ${network.name} --rpcUrl ${network.rpcUrl} --privateKey ${privateKey}`.quiet()
 
