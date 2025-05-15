@@ -872,6 +872,20 @@
           }
         ]
       }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x378202db86635B77115E48B425E9Ea654099Ec4A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 09:50:29",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1742,6 +1756,20 @@
             "ADDRESS": "0x662549307cCe3A703A1b6dC9a7c77f2237689CE2",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-04-08 12:49:31",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x099ae5416af8a89E4A65EB91E365702CE942DD37",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 09:51:33",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -3800,6 +3828,20 @@
           }
         ]
       }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x6fb1E935cE4DCb458f0c019434E426aF669793fe",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 09:50:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -4670,6 +4712,20 @@
             "ADDRESS": "0x106fE5F46C5c7eB3674C26183E7550Ba488f7142",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-04-08 12:47:27",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbA1201E531C11DEfB602B35398e753f148A762f1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 09:50:08",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"

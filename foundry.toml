@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.29'
-evm_version = 'cancun'
+solc_version = '0.8.17'
+evm_version = 'london'
 optimizer = true
 optimizer_runs = 1000000
 # use a known address with a balance so ZkEVM scripts work
@@ -45,6 +45,7 @@ fantom = "${ETH_NODE_URI_FANTOM}"
 fraxtal = "${ETH_NODE_URI_FRAXTAL}"
 fuse = "${ETH_NODE_URI_FUSE}"
 harmony = "${ETH_NODE_URI_HARMONY}"
+hyperevm = "${ETH_NODE_URI_HYPEREVM}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
 etherlink = "${ETH_NODE_URI_ETHERLINK}"
@@ -103,6 +104,7 @@ fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.i
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
+hyperevm = { key = "${HYPEREVM_ETHERSCAN_API_KEY}", url = "https://www.hyperscan.com/api", chain = "999", verifier = "blockscout" }
 etherlink = { key = "${ETHERLINK_ETHERSCAN_API_KEY}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
 ink = { key = "${INK_ETHERSCAN_API_KEY}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
 immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }

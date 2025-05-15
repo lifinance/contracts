@@ -459,7 +459,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "create3Factory": "0xf1469bEc8cDccEC511C0DdAaBa88B63f5841137a"
   },
   "immutablezkevm": {
     "name": "immutablezkevm",
