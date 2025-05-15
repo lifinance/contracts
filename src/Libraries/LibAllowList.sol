@@ -16,6 +16,7 @@ library LibAllowList {
         mapping(address => bool) allowlist;
         mapping(bytes4 => bool) selectorAllowList;
         address[] contracts;
+        bytes4[] selectors;
     }
 
     /// @dev Adds a contract address to the allow list
@@ -71,19 +72,46 @@ library LibAllowList {
     /// @dev Add a selector to the allow list
     /// @param _selector the selector to add
     function addAllowedSelector(bytes4 _selector) internal {
-        _getStorage().selectorAllowList[_selector] = true;
+        AllowListStorage storage als = _getStorage();
+
+        if (!als.selectorAllowList[_selector]) {
+            als.selectorAllowList[_selector] = true;
+            als.selectors.push(_selector);
+        } else {
+            als.selectorAllowList[_selector] = true;
+        }
     }
 
     /// @dev Removes a selector from the allow list
     /// @param _selector the selector to remove
     function removeAllowedSelector(bytes4 _selector) internal {
-        _getStorage().selectorAllowList[_selector] = false;
+        AllowListStorage storage als = _getStorage();
+
+        if (!als.selectorAllowList[_selector]) {
+            return;
+        }
+
+        als.selectorAllowList[_selector] = false;
+
+        uint256 length = als.selectors.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (als.selectors[i] == _selector) {
+                als.selectors[i] = als.selectors[length - 1];
+                als.selectors.pop();
+                break;
+            }
+        }
     }
 
     /// @dev Returns if selector has been added to the allow list
     /// @param _selector the selector to check
     function selectorIsAllowed(bytes4 _selector) internal view returns (bool) {
         return _getStorage().selectorAllowList[_selector];
+    }
+
+    /// @dev Fetch all allowed selectors
+    function getAllowedSelectors() internal view returns (bytes4[] memory) {
+        return _getStorage().selectors;
     }
 
     /// @dev Fetch local storage struct

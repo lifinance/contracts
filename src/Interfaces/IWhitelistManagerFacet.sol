@@ -70,4 +70,11 @@ interface IWhitelistManagerFacet {
     function isAddressWhitelisted(
         address _address
     ) external view returns (bool approved);
+
+    /// @notice Returns a list of all approved function signatures.
+    /// @return signatures List of approved function signatures.
+    function getApprovedFunctionSignatures()
+        external
+        view
+        returns (bytes4[] memory signatures);
 }

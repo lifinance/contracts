@@ -35,7 +35,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         c2 = new Foo();
         c3 = new Foo();
 
-        bytes4[] memory functionSelectors = new bytes4[](9);
+        bytes4[] memory functionSelectors = new bytes4[](10);
         functionSelectors[0] = WhitelistManagerFacet.addToWhitelist.selector;
         functionSelectors[1] = WhitelistManagerFacet
             .removeFromWhitelist
@@ -57,6 +57,12 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .selector;
         functionSelectors[7] = WhitelistManagerFacet
             .isFunctionApproved
+            .selector;
+        functionSelectors[8] = WhitelistManagerFacet
+            .isAddressWhitelisted
+            .selector;
+        functionSelectors[9] = WhitelistManagerFacet
+            .getApprovedFunctionSignatures
             .selector;
 
         addFacet(diamond, address(whitelistMgr), functionSelectors);
@@ -442,5 +448,172 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         assertEq(approved[0], address(c2));
         assertEq(approved[1], address(c1));
         assertEq(approved[2], address(c3));
+    }
+
+    function test_SucceedsIfNoApprovedSignaturesReturnsEmptyArray() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4[] memory signatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        assertEq(signatures.length, 0);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfSingleApprovedSignatureIsReturned() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4 signature = hex"faceface";
+        whitelistMgr.setFunctionApprovalBySignature(signature, true);
+
+        bytes4[] memory signatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        assertEq(signatures.length, 1);
+        assertEq(signatures[0], signature);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfMultipleApprovedSignaturesAreReturned() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4[] memory testSignatures = new bytes4[](3);
+        testSignatures[0] = bytes4(hex"faceface");
+        testSignatures[1] = bytes4(hex"deadbeef");
+        testSignatures[2] = bytes4(hex"beefbeef");
+
+        whitelistMgr.batchSetFunctionApprovalBySignature(testSignatures, true);
+
+        bytes4[] memory signatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        assertEq(signatures.length, 3);
+
+        bool foundSig0 = false;
+        bool foundSig1 = false;
+        bool foundSig2 = false;
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            if (signatures[i] == testSignatures[0]) foundSig0 = true;
+            if (signatures[i] == testSignatures[1]) foundSig1 = true;
+            if (signatures[i] == testSignatures[2]) foundSig2 = true;
+        }
+
+        assertTrue(foundSig0);
+        assertTrue(foundSig1);
+        assertTrue(foundSig2);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfRemovedSignaturesAreNotReturned() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4[] memory testSignatures = new bytes4[](3);
+        testSignatures[0] = bytes4(hex"faceface");
+        testSignatures[1] = bytes4(hex"deadbeef");
+        testSignatures[2] = bytes4(hex"beefbeef");
+
+        whitelistMgr.batchSetFunctionApprovalBySignature(testSignatures, true);
+
+        // Remove the middle signature
+        whitelistMgr.setFunctionApprovalBySignature(testSignatures[1], false);
+
+        bytes4[] memory signatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        assertEq(signatures.length, 2);
+
+        bool foundSig0 = false;
+        bool foundSig1 = false;
+        bool foundSig2 = false;
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            if (signatures[i] == testSignatures[0]) foundSig0 = true;
+            if (signatures[i] == testSignatures[1]) foundSig1 = true;
+            if (signatures[i] == testSignatures[2]) foundSig2 = true;
+        }
+
+        assertTrue(foundSig0);
+        assertFalse(foundSig1); // This should not be found
+        assertTrue(foundSig2);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfBatchRemovedSignaturesAreNotReturned() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4[] memory testSignatures = new bytes4[](5);
+        testSignatures[0] = bytes4(hex"faceface");
+        testSignatures[1] = bytes4(hex"deadbeef");
+        testSignatures[2] = bytes4(hex"beefbeef");
+        testSignatures[3] = bytes4(hex"beefdead");
+        testSignatures[4] = bytes4(hex"facedead");
+
+        whitelistMgr.batchSetFunctionApprovalBySignature(testSignatures, true);
+
+        bytes4[] memory removeSignatures = new bytes4[](3);
+        removeSignatures[0] = testSignatures[1]; // deadbeef
+        removeSignatures[1] = testSignatures[3]; // beefdead
+        removeSignatures[2] = testSignatures[4]; // facedead
+
+        whitelistMgr.batchSetFunctionApprovalBySignature(
+            removeSignatures,
+            false
+        );
+
+        bytes4[] memory signatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        assertEq(signatures.length, 2);
+
+        // Expected remaining: faceface (0) and beefbeef (2)
+        bool foundSig0 = false;
+        bool foundSig2 = false;
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            if (signatures[i] == testSignatures[0]) foundSig0 = true;
+            if (signatures[i] == testSignatures[2]) foundSig2 = true;
+        }
+
+        assertTrue(foundSig0);
+        assertTrue(foundSig2);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfRemovingNonWhitelistedAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Try to remove an address that was never whitelisted
+        whitelistMgr.removeFromWhitelist(address(c1));
+
+        // Add a different address to whitelist
+        whitelistMgr.addToWhitelist(address(c2));
+
+        // Verify the state is correct
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 1);
+        assertEq(approved[0], address(c2));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfRemovingNonApprovedSignature() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Add one signature
+        bytes4 signature1 = bytes4(hex"faceface");
+        whitelistMgr.setFunctionApprovalBySignature(signature1, true);
+
+        // Try to remove a different signature that was never approved
+        bytes4 signature2 = bytes4(hex"deadbeef");
+        whitelistMgr.setFunctionApprovalBySignature(signature2, false);
+
+        // Verify the state is correct
+        bytes4[] memory signatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        assertEq(signatures.length, 1);
+        assertEq(signatures[0], signature1);
+
+        vm.stopPrank();
     }
 }

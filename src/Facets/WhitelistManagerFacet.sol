@@ -138,4 +138,13 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     ) public view returns (bool approved) {
         return LibAllowList.contractIsAllowed(_address);
     }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function getApprovedFunctionSignatures()
+        external
+        view
+        returns (bytes4[] memory signatures)
+    {
+        return LibAllowList.getAllowedSelectors();
+    }
 }
