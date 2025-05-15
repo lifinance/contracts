@@ -196,9 +196,24 @@ register() {
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
 
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+          
+          # Get timelock controller address if it exists
+          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+          
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            # Use timelock controller instead of diamond for proposals
+            TARGET_ADDRESS="$TIMELOCK_ADDRESS"
+            echo "[info] Using timelock controller at $TIMELOCK_ADDRESS for periphery registration"
+          else
+            # Use diamond address directly
+            TARGET_ADDRESS="$DIAMOND_ADDRESS"
+            echo "[info] Using diamond directly at $DIAMOND_ADDRESS for periphery registration"
+          fi
 
-          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to "$TARGET_ADDRESS" with calldata $CALLDATA"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)
@@ -221,9 +236,24 @@ register() {
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
           echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
           echoDebug "NETWORK: $NETWORK"
+          
+          # Get timelock controller address if it exists
+          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+          
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            # Use timelock controller instead of diamond for proposals
+            TARGET_ADDRESS="$TIMELOCK_ADDRESS"
+            echoDebug "Using timelock controller at $TIMELOCK_ADDRESS for periphery registration"
+          else
+            # Use diamond address directly
+            TARGET_ADDRESS="$DIAMOND_ADDRESS"
+            echoDebug "Using diamond directly at $DIAMOND_ADDRESS for periphery registration"
+          fi
 
-          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to "$TARGET_ADDRESS" with calldata $CALLDATA"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)

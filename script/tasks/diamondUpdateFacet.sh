@@ -142,8 +142,23 @@ diamondUpdateFacet() {
         if [ "$FACET_CUT" != "0x" ]; then
           echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+          
+          # Get timelock controller address if it exists
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+          
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            # Use timelock controller instead of diamond for proposals
+            TARGET_ADDRESS="$TIMELOCK_ADDRESS"
+            echo "[info] Using timelock controller at $TIMELOCK_ADDRESS for facet update"
+          else
+            # Use diamond address directly
+            TARGET_ADDRESS="$DIAMOND_ADDRESS"
+            echo "[info] Using diamond directly at $DIAMOND_ADDRESS for facet update"
+          fi
+          
           RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       fi
     else
