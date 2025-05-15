@@ -10,6 +10,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData, ContractCallNotAllowed, InvalidConfig } from "../Errors/GenericErrors.sol";
+
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
@@ -59,7 +60,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         IDexManagerFacet dexManager = IDexManagerFacet(LIFI_DIAMOND);
 
         if (
-            !dexManager.isContractApproved(_swapData.callTo) ||
+            !dexManager.isDexApproved(_swapData.callTo) ||
             !dexManager.isFunctionApproved(bytes4(_swapData.callData[:4]))
         ) {
             revert ContractCallNotAllowed();

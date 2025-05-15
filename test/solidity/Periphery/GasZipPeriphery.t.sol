@@ -58,7 +58,7 @@ contract GasZipPeripheryTest is TestBase {
         functionSelectors[1] = DexManagerFacet
             .setFunctionApprovalBySignature
             .selector;
-        functionSelectors[2] = DexManagerFacet.isContractApproved.selector;
+        functionSelectors[2] = DexManagerFacet.isDexApproved.selector;
         functionSelectors[3] = DexManagerFacet.isFunctionApproved.selector;
 
         addFacet(diamond, address(dexManagerFacet), functionSelectors);

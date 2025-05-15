@@ -64,7 +64,7 @@ interface IDexManagerFacet {
     /// @notice Returns whether a contract address is approved.
     /// @param _contract The contract address to query.
     /// @return approved Approved or not.
-    function isContractApproved(
+    function isDexApproved(
         address _contract
     ) external view returns (bool approved);
 }

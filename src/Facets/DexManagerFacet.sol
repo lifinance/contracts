@@ -133,7 +133,7 @@ contract DexManagerFacet is IDexManagerFacet {
     }
 
     /// @inheritdoc IDexManagerFacet
-    function isContractApproved(
+    function isDexApproved(
         address _contract
     ) public view returns (bool approved) {
         return LibAllowList.contractIsAllowed(_contract);
