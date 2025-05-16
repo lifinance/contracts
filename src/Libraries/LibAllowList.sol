@@ -52,12 +52,9 @@ library LibAllowList {
         als.allowlist[_contract] = false;
 
         uint256 length = als.contracts.length;
-        // Find the contract in the list
         for (uint256 i = 0; i < length; i++) {
             if (als.contracts[i] == _contract) {
-                // Move the last element into the place to delete
                 als.contracts[i] = als.contracts[length - 1];
-                // Remove the last element
                 als.contracts.pop();
                 break;
             }

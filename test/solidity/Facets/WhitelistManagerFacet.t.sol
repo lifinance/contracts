@@ -373,9 +373,6 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             true
         );
 
-        // try to call addToWhitelist()
-        vm.startPrank(USER_PAUSER);
-
         whitelistMgr.addToWhitelist(address(c1));
 
         address[] memory approved = whitelistMgr.getWhitelistedAddresses();
@@ -613,6 +610,46 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .getApprovedFunctionSignatures();
         assertEq(signatures.length, 1);
         assertEq(signatures[0], signature1);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfAddressIsWhitelisted() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        whitelistMgr.addToWhitelist(address(c1));
+
+        assertTrue(whitelistMgr.isAddressWhitelisted(address(c1)));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfAddressIsNotWhitelisted() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        assertFalse(whitelistMgr.isAddressWhitelisted(address(c1)));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfZeroAddressIsNotWhitelisted() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        assertFalse(whitelistMgr.isAddressWhitelisted(address(0)));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfWhitelistStateChangesAreReflected() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        assertFalse(whitelistMgr.isAddressWhitelisted(address(c1)));
+
+        whitelistMgr.addToWhitelist(address(c1));
+        assertTrue(whitelistMgr.isAddressWhitelisted(address(c1)));
+
+        whitelistMgr.removeFromWhitelist(address(c1));
+        assertFalse(whitelistMgr.isAddressWhitelisted(address(c1)));
 
         vm.stopPrank();
     }

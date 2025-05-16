@@ -60,7 +60,7 @@ const main = defineCommand({
         k.includes('Facet')
       )
     })
-    const whitelistedAddresses = (
+    const expectedWhitelistedAddresses = (
       await import(`../../config/whitelistedAddresses.json`)
     )[network.toLowerCase()] as Address[]
 
@@ -258,7 +258,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                   Check whitelisted addresses           │
     //          ╰─────────────────────────────────────────────────────────╯
-    if (whitelistedAddresses) {
+    if (expectedWhitelistedAddresses) {
       consola.box('Checking whitelisted addresses in diamond...')
 
       // connect with diamond to get whitelisted addresses
@@ -267,34 +267,31 @@ const main = defineCommand({
         abi: parseAbi([
           'function getWhitelistedAddresses() external view returns (address[])',
           'function isFunctionApproved(bytes4) external returns (bool)',
+          'function getApprovedFunctionSignatures() view returns (bytes4[])',
         ]),
         client: publicClient,
       })
 
-      const whitelistedAddresses =
+      const onChainWhitelisted =
         await whitelistManager.read.getWhitelistedAddresses()
 
       let numMissing = 0
-
-      // Check for each address in whitelistedAddresses.json if it is whitelisted
-      for (const whitelistedAddress of whitelistedAddresses) {
-        if (!whitelistedAddress) {
+      for (const cfgAddress of expectedWhitelistedAddresses) {
+        if (!cfgAddress) {
           logError(`Encountered undefined whitelisted address.`)
           continue
         }
 
         try {
-          const normalized = getAddress(whitelistedAddress)
-          if (!whitelistedAddresses.includes(normalized)) {
+          const normalized = getAddress(cfgAddress)
+          if (!onChainWhitelisted.includes(normalized)) {
             logError(
               `Whitelisted address ${normalized} not whitelisted in Diamond`
             )
             numMissing++
           }
         } catch (err) {
-          logError(
-            `Invalid whitelisted address in main check: ${whitelistedAddress}`
-          )
+          logError(`Invalid whitelisted address in config: ${cfgAddress}`)
         }
       }
 
@@ -309,7 +306,7 @@ const main = defineCommand({
 
         // check if address is whitelisted
         const normalized = getAddress(addr)
-        if (!whitelistedAddresses.includes(normalized)) {
+        if (!onChainWhitelisted.includes(normalized)) {
           logError(`Periphery contract ${name} not whitelisted`)
           numMissing++
         } else {
@@ -327,7 +324,7 @@ const main = defineCommand({
       //          │                   Check approved sigs                   │
       //          ╰─────────────────────────────────────────────────────────╯
 
-      consola.box('Checking whitelisted addresses in diamond...')
+      consola.box('Checking approved signatures in diamond...')
       // Check if function signatures are approved
       const { sigs } = await import(`../../config/sigs.json`)
 
