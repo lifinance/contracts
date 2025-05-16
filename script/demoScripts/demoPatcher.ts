@@ -4,18 +4,13 @@ import {
   formatUnits,
   parseUnits,
   zeroAddress,
-  getCreate2Address,
-  keccak256,
-  concat,
-  encodeAbiParameters,
-  parseAbiParameters,
-  TypedDataEncoder,
-  SignTypedDataParameters,
   hashTypedData,
+  getAddress,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
 import { createPublicClient, createWalletClient, http } from 'viem'
+import { ethers } from 'ethers'
 import {
   SupportedChainId,
   OrderKind,
@@ -23,18 +18,18 @@ import {
   SwapAdvancedSettings,
   TradeParameters,
   TraderParameters,
+  OrderBookApi,
+  OrderSigningUtils,
 } from '@cowprotocol/cow-sdk'
+import { formatAddress } from './utils/lib/address'
 import { getEnvVar } from './utils/demoScriptHelpers'
+import { CowShedSdk } from './utils/lib/cowShedSdk'
 import deploymentsArbitrum from '../../deployments/arbitrum.staging.json'
 
 // Import necessary types and utilities
-import {
-  logKeyValue,
-  logSectionHeader,
-  logSuccess,
-} from '../../dump/src/lib/utils/logging'
-import { truncateCalldata } from '../../dump/src/lib/utils/formatting'
-import { left, Result, right } from '../../dump/src/lib/result'
+import { logKeyValue, logSectionHeader, logSuccess } from './utils/lib/logging'
+import { truncateCalldata } from './utils/lib/formatting'
+import { left, Result, right } from './utils/lib/result'
 
 // Define CoW Protocol constants
 const COW_SHED_FACTORY = '0x00E989b87700514118Fa55326CD1cCE82faebEF6'
@@ -108,19 +103,9 @@ const PATCHER_ABI = parseAbi([
   'function multiPatch(address targetAddress, bytes callDataToPatch, (address valueSource, bytes valueGetter, bytes32 valueToReplace, uint256 offset)[] patchOperations, bool delegateCall) payable returns (bytes memory)',
 ])
 
-// CoW Protocol constants and ABIs
-console.log('COW_SHED_FACTORY:', COW_SHED_FACTORY)
-console.log('COW_SHED_IMPLEMENTATION:', COW_SHED_IMPLEMENTATION)
-const PROXY_CREATION_CODE =
-  '0x60a034608e57601f61037138819003918201601f19168301916001600160401b038311848410176093578084926040948552833981010312608e57604b602060458360a9565b920160a9565b6080527f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc556040516102b490816100bd8239608051818181608f01526101720152f35b600080fd5b634e487b7160e01b600052604160045260246000fd5b51906001600160a01b0382168203608e5756fe60806040526004361015610018575b3661019457610194565b6000803560e01c908163025b22bc1461003b575063f851a4400361000e5761010d565b3461010a5760207ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc36011261010a5773ffffffffffffffffffffffffffffffffffffffff60043581811691828203610106577f0000000000000000000000000000000000000000000000000000000000000000163314600014610101577f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc557fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b8280a280f35b61023d565b8380fd5b80fd5b346101645760007ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc360112610164576020610146610169565b73ffffffffffffffffffffffffffffffffffffffff60405191168152f35b600080fd5b333003610101577f000000000000000000000000000000000000000000000000000000000000000090565b60ff7f68df44b1011761f481358c0f49a711192727fb02c377d697bcb0ea8ff8393ac0541615806101ef575b1561023d5760046040517ff92ee8a9000000000000000000000000000000000000000000000000000000008152fd5b507f400ada75000000000000000000000000000000000000000000000000000000007fffffffff000000000000000000000000000000000000000000000000000000006000351614156101c0565b7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc546000808092368280378136915af43d82803e1561027a573d90f35b3d90fdfea2646970667358221220c7c26ff3040b96a28e96d6d27b743972943aeaef81cc821544c5fe1e24f9b17264736f6c63430008190033'
-
-const FACTORY_ABI = parseAbi([
-  'function executeHooks((address target, uint256 value, bytes callData, bool allowFailure, bool isDelegateCall)[] calls, bytes32 nonce, uint256 deadline, address user, bytes signature) external',
-])
-
-const SHED_ABI = parseAbi([
-  'function executeHooks((address target, uint256 value, bytes callData, bool allowFailure, bool isDelegateCall)[] calls, bytes32 nonce, uint256 deadline, bytes signature) external',
-])
+// Log CoW Shed constants
+console.log('Using COW_SHED_FACTORY:', COW_SHED_FACTORY)
+console.log('Using COW_SHED_IMPLEMENTATION:', COW_SHED_IMPLEMENTATION)
 
 // Helper functions
 const encodeBalanceOfCall = (account: string): string => {
@@ -286,207 +271,7 @@ const processTransactionIntent = (
   }
 }
 
-// CoW Shed SDK implementation with Viem
-class CowShedSdk {
-  private factoryAddress: string
-  private implementationAddress: string
-  private proxyCreationCode: string
-  private chainId: number
-
-  constructor(options: {
-    factoryAddress: string
-    implementationAddress: string
-    proxyCreationCode?: string
-    chainId: number
-  }) {
-    this.factoryAddress = options.factoryAddress
-    this.implementationAddress = options.implementationAddress
-    this.proxyCreationCode = options.proxyCreationCode || PROXY_CREATION_CODE
-    this.chainId = options.chainId
-  }
-
-  computeProxyAddress(user: string): string {
-    console.log('Computing proxy address for user:', user)
-
-    if (!user || user === 'undefined' || !user.startsWith('0x')) {
-      throw new Error(`Invalid user address: ${user}`)
-    }
-
-    // Ensure addresses are properly formatted
-    if (!this.factoryAddress || !this.factoryAddress.startsWith('0x')) {
-      throw new Error(`Invalid factory address: ${this.factoryAddress}`)
-    }
-
-    if (
-      !this.implementationAddress ||
-      !this.implementationAddress.startsWith('0x')
-    ) {
-      throw new Error(
-        `Invalid implementation address: ${this.implementationAddress}`
-      )
-    }
-
-    const factoryAddress = this.factoryAddress as `0x${string}`
-    const implementationAddress = this.implementationAddress as `0x${string}`
-    const userAddress = user as `0x${string}`
-
-    console.log('Using addresses:', {
-      factoryAddress,
-      implementationAddress,
-      userAddress,
-    })
-
-    try {
-      const salt = encodeAbiParameters(parseAbiParameters('address'), [
-        userAddress,
-      ])
-      console.log('Salt:', salt)
-
-      const initCode = concat([
-        this.proxyCreationCode as `0x${string}`,
-        encodeAbiParameters(parseAbiParameters('address, address'), [
-          implementationAddress,
-          userAddress,
-        ]),
-      ])
-      console.log(
-        'InitCode (first 66 chars):',
-        initCode.substring(0, 66) + '...'
-      )
-
-      const initCodeHash = keccak256(initCode)
-      console.log('InitCodeHash:', initCodeHash)
-
-      // Log each parameter individually to identify which one might be undefined
-      console.log('getCreate2Address parameters:', {
-        factoryAddress: factoryAddress,
-        factoryAddressType: typeof factoryAddress,
-        salt: salt,
-        saltType: typeof salt,
-        bytecodeHash: initCodeHash,
-        bytecodeHashType: typeof initCodeHash,
-      })
-
-      // Validate each parameter
-      if (!factoryAddress || factoryAddress === 'undefined') {
-        throw new Error('factoryAddress is undefined')
-      }
-      if (!salt || salt === 'undefined') {
-        throw new Error('salt is undefined')
-      }
-      if (!initCodeHash || initCodeHash === 'undefined') {
-        throw new Error('initCodeHash is undefined')
-      }
-
-      // Ensure all parameters are properly formatted as hex strings
-      const formattedFactoryAddress = factoryAddress.startsWith('0x')
-        ? factoryAddress
-        : (`0x${factoryAddress}` as `0x${string}`)
-      const formattedSalt = salt.startsWith('0x')
-        ? salt
-        : (`0x${salt}` as `0x${string}`)
-      const formattedInitCodeHash = initCodeHash.startsWith('0x')
-        ? initCodeHash
-        : (`0x${initCodeHash}` as `0x${string}`)
-
-      const proxyAddress = getCreate2Address({
-        factoryAddress: formattedFactoryAddress,
-        salt: formattedSalt,
-        bytecodeHash: formattedInitCodeHash,
-      })
-
-      console.log('Computed proxy address:', proxyAddress)
-      return proxyAddress
-    } catch (error) {
-      console.error('Error in computeProxyAddress:', error)
-      throw error // Re-throw the error to propagate it
-    }
-  }
-
-  hashToSignWithUser(
-    calls: readonly ICall[],
-    nonce: `0x${string}`,
-    deadline: bigint,
-    user: string
-  ): `0x${string}` {
-    const proxy = this.computeProxyAddress(user)
-    return this.hashToSign(calls, nonce, deadline, proxy)
-  }
-
-  private hashToSign(
-    calls: readonly ICall[],
-    nonce: `0x${string}`,
-    deadline: bigint,
-    proxy: string
-  ): `0x${string}` {
-    const domain = {
-      name: 'COWShed',
-      version: '1.0.0',
-      chainId: this.chainId,
-      verifyingContract: proxy as `0x${string}`,
-    }
-
-    const types = {
-      ExecuteHooks: [
-        { name: 'calls', type: 'Call[]' },
-        { name: 'nonce', type: 'bytes32' },
-        { name: 'deadline', type: 'uint256' },
-      ],
-      Call: [
-        { name: 'target', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'callData', type: 'bytes' },
-        { name: 'allowFailure', type: 'bool' },
-        { name: 'isDelegateCall', type: 'bool' },
-      ],
-    }
-
-    const message = {
-      calls: calls.map((call) => ({
-        target: call.target as `0x${string}`,
-        value: call.value,
-        callData: call.callData as `0x${string}`,
-        allowFailure: call.allowFailure,
-        isDelegateCall: call.isDelegateCall,
-      })),
-      nonce,
-      deadline,
-    }
-
-    return hashTypedData({
-      domain,
-      types,
-      primaryType: 'ExecuteHooks',
-      message,
-    })
-  }
-
-  static encodeExecuteHooksForFactory(
-    calls: readonly ICall[],
-    nonce: `0x${string}`,
-    deadline: bigint,
-    user: string,
-    signature: `0x${string}`
-  ): string {
-    return encodeFunctionData({
-      abi: FACTORY_ABI,
-      functionName: 'executeHooks',
-      args: [
-        calls.map((call) => ({
-          target: call.target as `0x${string}`,
-          value: call.value,
-          callData: call.callData as `0x${string}`,
-          allowFailure: call.allowFailure,
-          isDelegateCall: call.isDelegateCall,
-        })),
-        nonce,
-        deadline,
-        user as `0x${string}`,
-        signature,
-      ],
-    })
-  }
-}
+// Using the CowShedSdk implementation from utils/lib/cowShedSdk.ts
 
 // Real implementation of CoW Protocol functions
 const calculateCowShedProxyAddress = async (
@@ -519,6 +304,7 @@ const calculateCowShedProxyAddress = async (
     throw new Error('COW_SHED_IMPLEMENTATION is undefined or invalid')
   }
 
+  // Use our new CowShedSdk implementation
   const shedSDK = new CowShedSdk({
     factoryAddress: COW_SHED_FACTORY,
     implementationAddress: COW_SHED_IMPLEMENTATION,
@@ -527,7 +313,6 @@ const calculateCowShedProxyAddress = async (
 
   const proxyAddress = shedSDK.computeProxyAddress(owner)
   console.log('Computed proxy address:', proxyAddress)
-
   return proxyAddress
 }
 
@@ -554,6 +339,8 @@ const setupCowShedPostHooks = async (
     Math.floor(Math.random() * 16).toString(16)
   ).join('')}` as `0x${string}`
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 7200) // now + 2 hours
+
+  // Get the proxy address
   const shedDeterministicAddress = shedSDK.computeProxyAddress(signerAddress)
 
   // Sign the post hooks
@@ -615,50 +402,62 @@ const cowFlow = async (
   postHooks: readonly any[]
 ): Promise<Result<Error, string>> => {
   try {
-    // Create trader parameters with a signer adapter for Viem wallet
-    const traderParams: TraderParameters = {
-      chainId,
-      signer: {
-        signMessage: async (message: string) => {
-          return walletClient.signMessage({
-            account: walletClient.account,
-            message: { raw: message as `0x${string}` },
-          })
-        },
-        getAddress: async () => walletClient.account.address,
-      },
-      appCode: 'LI.FI Patcher Demo',
+    console.log('Executing CoW Protocol flow...')
+    console.log('From token:', fromToken.address)
+    console.log('To token:', toToken.address)
+    console.log('Amount:', fromAmount.toString())
+    console.log('Receiver:', postReceiver)
+    console.log('Post hooks count:', postHooks.length)
+
+    // Get the private key from the environment
+    const privateKeyRaw = process.env.PRIVATE_KEY
+    if (!privateKeyRaw) {
+      throw new Error('PRIVATE_KEY environment variable is not set')
     }
 
-    // Create trade parameters
-    const params: TradeParameters = {
-      kind: OrderKind.SELL, // SELL order (specify amount in)
+    // Ensure the private key has the correct format
+    const privateKey = privateKeyRaw.startsWith('0x')
+      ? privateKeyRaw
+      : `0x${privateKeyRaw}`
+
+    // Create an ethers.js wallet from the private key
+    const provider = new ethers.providers.JsonRpcProvider(
+      process.env.ETH_NODE_URI_ARBITRUM
+    )
+    const ethersSigner = new ethers.Wallet(privateKey, provider)
+
+    // Initialize the CoW Protocol SDK with the ethers.js signer
+    const cowSdk = new TradingSdk({
+      chainId: chainId as SupportedChainId,
+      signer: ethersSigner,
+      appCode: 'LiFi',
+    })
+
+    // Create the order parameters
+    const parameters: TradeParameters = {
+      kind: OrderKind.SELL,
       sellToken: fromToken.address,
-      sellTokenDecimals: fromToken.decimals,
       buyToken: toToken.address,
-      buyTokenDecimals: toToken.decimals,
-      amount: fromAmount.toString(),
+      // Convert bigint to string for the API
+      sellAmountBeforeFee: fromAmount.toString(),
       receiver: postReceiver,
     }
 
-    // Create advanced settings with hooks
-    const advancedSettings: SwapAdvancedSettings = {
-      appData: {
-        metadata: {
-          hooks: {
-            version: '1',
-            pre: [...preHooks],
-            post: [...postHooks],
-          },
-        },
-      },
+    // Add post hooks if provided
+    if (postHooks && postHooks.length > 0) {
+      // Add post hooks to the parameters
+      const traderParams: TraderParameters = {
+        postHooks,
+      }
+
+      // Submit the order with post hooks
+      const orderId = await cowSdk.postSwapOrder(parameters, traderParams)
+      return right(orderId)
+    } else {
+      // Submit the order without post hooks
+      const orderId = await cowSdk.postSwapOrder(parameters)
+      return right(orderId)
     }
-
-    // Initialize the SDK and post the order
-    const sdk = new TradingSdk(traderParams)
-    const hash = await sdk.postSwapOrder(params, advancedSettings)
-
-    return right(hash)
   } catch (error) {
     return left(new Error(`Failed to execute CoW flow: ${error.message}`))
   }
