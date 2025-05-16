@@ -4,6 +4,9 @@ pragma solidity ^0.8.17;
 
 import { InvalidContract } from "../Errors/GenericErrors.sol";
 
+/// @notice Thrown when attempting to add a selector that is already marked as allowed
+error SelectorAlreadyMarkedAsAllowed(bytes4 selector);
+
 /// @title Lib Allow List
 /// @author LI.FI (https://li.fi)
 /// @notice Library for managing and accessing the conract address allow list
@@ -71,12 +74,28 @@ library LibAllowList {
     function addAllowedSelector(bytes4 _selector) internal {
         AllowListStorage storage als = _getStorage();
 
-        if (!als.selectorAllowList[_selector]) {
-            als.selectorAllowList[_selector] = true;
-            als.selectors.push(_selector);
-        } else {
-            als.selectorAllowList[_selector] = true;
+        if (als.selectorAllowList[_selector]) {
+            // Check if selector exists in the array to handle legacy state
+            // where a selector might be true in selectorAllowList mapping but missing from the array.
+            // Since this is an admin-only function called infrequently, the array iteration is acceptable.
+            bool existsInArray = false;
+            uint256 length = als.selectors.length;
+            for (uint256 i = 0; i < length; i++) {
+                if (als.selectors[i] == _selector) {
+                    existsInArray = true;
+                    break;
+                }
+            }
+
+            if (!existsInArray) {
+                als.selectors.push(_selector);
+            }
+            return;
         }
+
+        // New selector, add to both mapping and array
+        als.selectorAllowList[_selector] = true;
+        als.selectors.push(_selector);
     }
 
     /// @dev Removes a selector from the allow list
