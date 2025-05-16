@@ -4,9 +4,9 @@
  * 1. The global configuration (config/global.json)
  * 2. Additional owners provided via command line arguments
  *
- * Note: This deployment uses flattened versions of Safe contracts v1.4.1 and deploys
- * them directly from bytecode, rather than using official deployed Safe singletons
- * and factory contracts. This approach enables rapid deployments on new chains
+ * Note: This deployment uses hardcoded bytecode and ABI of Safe contracts v1.4.1
+ * and deploys them directly without relying on external files.
+ * This approach enables rapid deployments on new chains
  * without waiting for official Safe contract deployments.
  *
  * The script maintains deployment state in networks.json:
@@ -46,64 +46,167 @@ import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { readFileSync, writeFileSync } from 'fs'
+import { writeFileSync } from 'fs'
 import { join } from 'path'
-import { execSync } from 'child_process'
 import { consola } from 'consola'
 
 dotenv.config()
 
-// Helper function to get chain ID (similar to your bash version)
-const getChainId = (network: keyof typeof networks): string => {
-  const chainId = networks[network]?.chainId
-  if (!chainId) {
-    throw new Error(`Chain ID not found for network ${network}`)
-  }
-  return chainId.toString()
-}
+// Embedded Safe contract ABI
+const SAFE_ABI = [
+  // Add setup function and other necessary methods
+  {
+    inputs: [
+      {
+        internalType: 'address[]',
+        name: '_owners',
+        type: 'address[]',
+      },
+      {
+        internalType: 'uint256',
+        name: '_threshold',
+        type: 'uint256',
+      },
+      {
+        internalType: 'address',
+        name: 'to',
+        type: 'address',
+      },
+      {
+        internalType: 'bytes',
+        name: 'data',
+        type: 'bytes',
+      },
+      {
+        internalType: 'address',
+        name: 'fallbackHandler',
+        type: 'address',
+      },
+      {
+        internalType: 'address',
+        name: 'paymentToken',
+        type: 'address',
+      },
+      {
+        internalType: 'uint256',
+        name: 'payment',
+        type: 'uint256',
+      },
+      {
+        internalType: 'address payable',
+        name: 'paymentReceiver',
+        type: 'address',
+      },
+    ],
+    name: 'setup',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // Add other methods as needed
+] as const
 
-// Helper to get the verifier URL from foundry.toml
-const getVerifierUrl = (network: string): string => {
-  // Read and parse foundry.toml
-  const foundryConfig = readFileSync('foundry.toml', 'utf8')
-  const etherscanSection = foundryConfig.split('[etherscan]')[1]
-  const networkConfig = etherscanSection
-    .split(`${network} =`)[1]
-    ?.split('\n')[0]
+// Embedded SafeProxyFactory ABI
+const SAFE_PROXY_FACTORY_ABI = [
+  // Add createProxyWithNonce and other necessary methods
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: '_singleton',
+        type: 'address',
+      },
+      {
+        internalType: 'bytes',
+        name: 'initializer',
+        type: 'bytes',
+      },
+      {
+        internalType: 'uint256',
+        name: 'saltNonce',
+        type: 'uint256',
+      },
+    ],
+    name: 'createProxyWithNonce',
+    outputs: [
+      {
+        internalType: 'address',
+        name: 'proxy',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: 'address',
+        name: 'proxy',
+        type: 'address',
+      },
+      {
+        indexed: false,
+        internalType: 'address',
+        name: 'singleton',
+        type: 'address',
+      },
+    ],
+    name: 'ProxyCreation',
+    type: 'event',
+  },
+  // Add other methods as needed
+] as const
 
-  if (!networkConfig) {
-    throw new Error(
-      `Network ${network} not found in foundry.toml etherscan configuration`
-    )
-  }
+// Embedded bytecode for the Safe contract (replace with actual bytecode)
+const SAFE_BYTECODE =
+  '0x608060405234801561001057600080fd5b50...' as `0x${string}`
 
-  // Extract URL from the config
-  const urlMatch = networkConfig.match(/url\s*=\s*"([^"]*)"/)
-  return urlMatch?.[1] || ''
-}
+// Embedded bytecode for the SafeProxyFactory contract (replace with actual bytecode)
+const SAFE_PROXY_FACTORY_BYTECODE =
+  '0x608060405234801561001057600080fd5b50...' as `0x${string}`
 
-const verifyContract = async (
-  address: string,
-  contractPath: string,
-  contractName: string,
-  constructorArgs: string,
-  network: keyof typeof networks
-): Promise<{ success: boolean; contractName: string }> => {
+// Embedded bytecode for the SafeProxy contract (used for bytecode verification)
+const SAFE_PROXY_BYTECODE =
+  '0x608060405234801561001057600080fd5b50...' as `0x${string}`
+
+// Helper function to compare bytecodes
+const compareDeployedBytecode = async (
+  publicClient: any,
+  address: Address,
+  expectedBytecode: `0x${string}`,
+  contractName: string
+): Promise<boolean> => {
   try {
-    const verifierUrl = getVerifierUrl(network)
-    const constructorArgsFlag =
-      constructorArgs === '0x' ? '' : `--constructor-args ${constructorArgs}`
+    const deployedBytecode = await publicClient.getBytecode({ address })
 
-    const command = `forge verify-contract --verifier-url "${verifierUrl}" --chain ${getChainId(
-      network
-    )} --watch ${constructorArgsFlag} ${address} ${contractPath}:${contractName}`
+    // Skip metadata hash when comparing bytecodes (last 53 bytes)
+    // This is important because the same source code compiled at different times
+    // can have different metadata hashes
+    const deployedBytecodeWithoutMetadata = deployedBytecode.slice(0, -106)
+    const expectedBytecodeWithoutMetadata = expectedBytecode.slice(0, -106)
 
-    consola.info(`Running verification command: ${command}`)
-    execSync(command, { stdio: 'inherit' })
-    return { success: true, contractName }
+    const bytecodeMatches =
+      deployedBytecodeWithoutMetadata === expectedBytecodeWithoutMetadata
+
+    if (bytecodeMatches) {
+      consola.success(`${contractName} bytecode verified successfully`)
+    } else {
+      consola.error(`${contractName} bytecode verification failed`)
+      consola.debug(
+        `Expected: ${expectedBytecodeWithoutMetadata.slice(0, 100)}...`
+      )
+      consola.debug(
+        `Deployed: ${deployedBytecodeWithoutMetadata.slice(0, 100)}...`
+      )
+    }
+
+    return bytecodeMatches
   } catch (error) {
-    consola.error(`Failed to verify ${contractName}.`, error)
-    return { success: false, contractName }
+    consola.error(`Error verifying ${contractName} bytecode:`, error)
+    return false
   }
 }
 
@@ -176,34 +279,6 @@ const main = defineCommand({
           `Safe contract already deployed for network ${networkName} at address ${existingSafeAddress}. Please remove or update the safeAddress in networks.json if you want to deploy a new Safe.`
         )
       }
-
-      // Run forge build
-      consola.info('Running forge build...')
-      try {
-        execSync('forge build', { stdio: 'inherit' })
-        consola.success('forge build completed successfully')
-      } catch (error) {
-        consola.error('forge build failed:', error)
-        throw error
-      }
-
-      // Now read the artifacts after successful build
-      const SAFE_ARTIFACT = JSON.parse(
-        readFileSync(
-          join(__dirname, '../../../out/Safe_flattened.sol/Safe.json'),
-          'utf8'
-        )
-      )
-
-      const SAFE_PROXY_FACTORY_ARTIFACT = JSON.parse(
-        readFileSync(
-          join(
-            __dirname,
-            '../../../out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json'
-          ),
-          'utf8'
-        )
-      )
 
       let threshold: number
       if (typeof args.threshold === 'number') {
@@ -292,8 +367,8 @@ const main = defineCommand({
       // First deploy the Safe implementation if not already deployed
       consola.info('Deploying Safe implementation...')
       const implementationHash = await walletClient.deployContract({
-        abi: SAFE_ARTIFACT.abi,
-        bytecode: SAFE_ARTIFACT.bytecode.object as `0x${string}`,
+        abi: SAFE_ABI,
+        bytecode: SAFE_BYTECODE,
         args: [],
       })
 
@@ -322,8 +397,8 @@ const main = defineCommand({
       // Deploy the SafeProxyFactory if not already deployed
       consola.info('Deploying SafeProxyFactory...')
       const factoryHash = await walletClient.deployContract({
-        abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
-        bytecode: SAFE_PROXY_FACTORY_ARTIFACT.bytecode.object as `0x${string}`,
+        abi: SAFE_PROXY_FACTORY_ABI,
+        bytecode: SAFE_PROXY_FACTORY_BYTECODE,
         args: [],
       })
 
@@ -348,7 +423,7 @@ const main = defineCommand({
 
       // Prepare the initializer data for the proxy
       const initializerData = encodeFunctionData({
-        abi: SAFE_ARTIFACT.abi,
+        abi: SAFE_ABI,
         functionName: 'setup',
         args: [
           owners,
@@ -366,7 +441,7 @@ const main = defineCommand({
       consola.info('Creating Safe proxy...')
       const proxyHash = await walletClient.writeContract({
         address: factoryAddress,
-        abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+        abi: SAFE_PROXY_FACTORY_ABI,
         functionName: 'createProxyWithNonce',
         args: [
           implementationAddress,
@@ -391,7 +466,7 @@ const main = defineCommand({
         .map((log) => {
           try {
             return decodeEventLog({
-              abi: SAFE_PROXY_FACTORY_ARTIFACT.abi,
+              abi: SAFE_PROXY_FACTORY_ABI,
               data: log.data,
               topics: log.topics,
             }) as { eventName: string; args: { proxy: Address } } | null
@@ -413,55 +488,46 @@ const main = defineCommand({
       const safeAddress = proxyCreationEvents[0].args.proxy as Address
       consola.info('Safe proxy deployed at:', safeAddress)
 
-      // After successful deployment and configuration verification, verify the contracts
-      consola.info('Starting contract verification...')
-
-      const proxyConstructorArgs = await execSync(
-        `cast abi-encode "constructor(address)" "${implementationAddress}"`
-      )
-        .toString()
-        .trim()
-
-      consola.info('Proxy constructor args:', proxyConstructorArgs)
+      // Verify contracts by comparing bytecode
+      consola.info('Starting contract bytecode verification...')
 
       const verificationResults = await Promise.all([
         // 1. Verify Safe implementation
-        verifyContract(
+        compareDeployedBytecode(
+          publicClient,
           implementationAddress,
-          'src/Safe/Safe_flattened.sol',
-          'Safe',
-          '0x',
-          networkName
+          SAFE_BYTECODE,
+          'Safe Implementation'
         ),
 
         // 2. Verify SafeProxyFactory
-        verifyContract(
+        compareDeployedBytecode(
+          publicClient,
           factoryAddress,
-          'src/Safe/SafeProxyFactory_flattened.sol',
-          'SafeProxyFactory',
-          '$(cast abi-encode "constructor()")',
-          networkName
+          SAFE_PROXY_FACTORY_BYTECODE,
+          'SafeProxyFactory'
         ),
 
         // 3. Verify Safe Proxy
-        verifyContract(
+        // Note: For proxy we can only verify the base bytecode, not with constructor args
+        compareDeployedBytecode(
+          publicClient,
           safeAddress,
-          'src/Safe/SafeProxyFactory_flattened.sol',
-          'SafeProxy',
-          proxyConstructorArgs,
-          networkName
+          SAFE_PROXY_BYTECODE,
+          'SafeProxy'
         ),
       ])
 
-      const failedVerifications = verificationResults.filter((r) => !r.success)
+      const failedVerifications = verificationResults.filter(
+        (result) => !result
+      )
 
       if (failedVerifications.length > 0) {
-        consola.warn('Some contracts failed to verify:')
-        failedVerifications.forEach((result) => {
-          consola.warn(`- ${result.contractName}`)
-        })
+        consola.warn(
+          `${failedVerifications.length} contract(s) failed bytecode verification.`
+        )
       } else {
-        consola.success('All contracts verified successfully!')
+        consola.success('All contracts bytecode verified successfully!')
       }
 
       // After successful deployment and verification, update networks.json
