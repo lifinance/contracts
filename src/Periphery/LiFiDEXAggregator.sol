@@ -6,6 +6,7 @@ import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/E
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
+import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -25,10 +26,20 @@ uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970
 uint8 constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
 uint8 constant CALLBACK_ENABLED = 1;
 
+/// @dev Pool type identifiers used to determine which DEX protocol to interact with during swaps
+uint8 constant POOL_TYPE_UNIV2 = 0;
+uint8 constant POOL_TYPE_UNIV3 = 1;
+uint8 constant POOL_TYPE_WRAP_NATIVE = 2;
+uint8 constant POOL_TYPE_BENTO_BRIDGE = 3;
+uint8 constant POOL_TYPE_TRIDENT = 4;
+uint8 constant POOL_TYPE_CURVE = 5;
+uint8 constant POOL_TYPE_VELODROME_V2 = 6;
+uint8 constant POOL_TYPE_ALGEBRA = 7;
+
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.8.0
+/// @custom:version 1.9.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
@@ -56,6 +67,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     error UniswapV3SwapCallbackUnknownSource();
     error UniswapV3SwapCallbackNotPositiveAmount();
     error WrongPoolReserves();
+    error AlgebraSwapUnexpected();
 
     IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
@@ -344,14 +356,22 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         uint8 poolType = stream.readUint8();
-        if (poolType == 0) swapUniV2(stream, from, tokenIn, amountIn);
-        else if (poolType == 1) swapUniV3(stream, from, tokenIn, amountIn);
-        else if (poolType == 2) wrapNative(stream, from, tokenIn, amountIn);
-        else if (poolType == 3) bentoBridge(stream, from, tokenIn, amountIn);
-        else if (poolType == 4) swapTrident(stream, from, tokenIn, amountIn);
-        else if (poolType == 5) swapCurve(stream, from, tokenIn, amountIn);
-        else if (poolType == 6)
+        if (poolType == POOL_TYPE_UNIV2)
+            swapUniV2(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_UNIV3)
+            swapUniV3(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_WRAP_NATIVE)
+            wrapNative(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_BENTO_BRIDGE)
+            bentoBridge(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_TRIDENT)
+            swapTrident(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_CURVE)
+            swapCurve(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_VELODROME_V2)
             swapVelodromeV2(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_ALGEBRA)
+            swapAlgebra(stream, from, tokenIn, amountIn);
         else revert UnknownPoolType();
     }
 
@@ -505,7 +525,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
-        bool zeroForOne = stream.readUint8() > 0;
+        bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
 
         if (from == msg.sender)
@@ -518,9 +538,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         lastCalledPool = pool;
         IUniswapV3Pool(pool).swap(
             recipient,
-            zeroForOne,
+            direction,
             int256(amountIn),
-            zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+            direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
             abi.encode(tokenIn)
         );
         if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS)
@@ -834,6 +854,70 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             to,
             callback ? abi.encode(tokenIn) : bytes("")
         );
+    }
+
+    /// @notice Algebra pool swap
+    /// @param stream [pool, direction, recipient, supportsFeeOnTransfer]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    /// @dev The supportsFeeOnTransfer flag accepts any non-zero value (1-255) to enable fee-on-transfer handling.
+    /// When enabled, the swap will first attempt to use swapSupportingFeeOnInputTokens(), and if that fails,
+    /// it will fall back to the regular swap() function. A value of 0 disables fee-on-transfer handling.
+    function swapAlgebra(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
+        address recipient = stream.readAddress();
+        bool supportsFeeOnTransfer = stream.readUint8() > 0; // Any non-zero value enables fee-on-transfer handling
+
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
+
+        if (from == msg.sender)
+            IERC20(tokenIn).safeTransferFrom(
+                msg.sender,
+                address(this),
+                uint256(amountIn)
+            );
+
+        lastCalledPool = pool;
+
+        // Handle fee-on-transfer tokens with special care:
+        // - These tokens modify balances during transfer (fees, rebasing, etc.)
+        // - newest pool of Algebra versions has built-in support via swapSupportingFeeOnInputTokens()
+        // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens.
+        if (supportsFeeOnTransfer) {
+            // If the pool is not using a version of Algebra that supports this feature, the swap will revert
+            // when attempting to use swapSupportingFeeOnInputTokens(), indicating the token was incorrectly
+            // flagged as fee-on-transfer or the pool doesn't support such tokens.
+            IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
+                address(this),
+                recipient,
+                direction,
+                int256(amountIn),
+                direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
+        } else {
+            IAlgebraPool(pool).swap(
+                recipient,
+                direction,
+                int256(amountIn),
+                direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
+        }
+
+        if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS)
+            revert AlgebraSwapUnexpected();
     }
 }
 

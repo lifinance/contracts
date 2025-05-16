@@ -27735,6 +27735,18 @@
             "VERIFIED": "false"
           }
         ]
+      },
+      "staging": {
+        "1.8.0": [
+          {
+            "ADDRESS": "0x31b0b4DF8fE055532bd106b2E7C8afCFd39B65De",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-04-29 14:08:27",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "sonic": {
@@ -31896,6 +31908,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-07 17:28:58",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000023fa838682c115c2cfba96ef3791cb5bd931fc7",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "rootstock": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf41dace6f5b5b95dE104949C8aD5d07186c0cd2D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 07:20:49",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b303feb7c38b7fbee5bcb0dba2acc1171478e6d5",
             "SALT": "",
             "VERIFIED": "true"
           }
