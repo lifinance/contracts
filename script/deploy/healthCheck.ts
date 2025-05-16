@@ -265,15 +265,30 @@ const main = defineCommand({
       const whitelistManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
+          'function approvedDexs() external view returns (address[])',
           'function getWhitelistedAddresses() external view returns (address[])',
           'function isFunctionApproved(bytes4) external returns (bool)',
-          'function getApprovedFunctionSignatures() view returns (bytes4[])',
         ]),
         client: publicClient,
       })
 
-      const onChainWhitelisted =
-        await whitelistManager.read.getWhitelistedAddresses()
+      let onChainWhitelisted: Address[] = []
+      try {
+        onChainWhitelisted =
+          await whitelistManager.read.getWhitelistedAddresses()
+      } catch (error) {
+        // If getWhitelistedAddresses fails, try approvedDexs
+        try {
+          onChainWhitelisted = await whitelistManager.read.approvedDexs()
+          logError(
+            'Diamond needs to be upgraded from DexManagerFacet to WhitelistManagerFacet'
+          )
+        } catch (innerError) {
+          logError('Failed to get whitelisted addresses and approved dexs')
+          finish()
+          return
+        }
+      }
 
       let numMissing = 0
       for (const cfgAddress of expectedWhitelistedAddresses) {
@@ -324,35 +339,47 @@ const main = defineCommand({
       //          │                   Check approved sigs                   │
       //          ╰─────────────────────────────────────────────────────────╯
 
-      consola.box('Checking approved signatures in diamond...')
+      consola.box('Checking DEX signatures approved in diamond...')
       // Check if function signatures are approved
       const { sigs } = await import(`../../config/sigs.json`)
 
-      // Get all approved signatures in one call
-      const approvedSigsCall = {
-        ...whitelistManager,
-        functionName: 'getApprovedFunctionSignatures',
+      // Function to split array into chunks
+      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
+        const chunks: T[][] = []
+        for (let i = 0; i < array.length; i += chunkSize) {
+          chunks.push(array.slice(i, i + chunkSize))
+        }
+        return chunks
       }
 
-      const approvedSigsResult = await publicClient.readContract(
-        approvedSigsCall
-      )
-      const approvedSigs = approvedSigsResult as Hex[]
+      const batchSize = 20
+      const sigBatches = chunkArray(sigs, batchSize)
 
-      // Find signatures that need to be approved
       const sigsToApprove: Hex[] = []
 
-      for (const sig of sigs) {
-        if (!approvedSigs.includes(sig as Hex)) {
-          console.log('Function not approved:', sig)
-          sigsToApprove.push(sig as Hex)
+      for (const batch of sigBatches) {
+        const calls = batch.map((sig: string) => {
+          return {
+            ...dexManager,
+            functionName: 'isFunctionApproved',
+            args: [sig],
+          }
+        })
+
+        const results = await publicClient.multicall({ contracts: calls })
+
+        for (let i = 0; i < results.length; i++) {
+          if (results[i].status !== 'success' || !results[i].result) {
+            console.log('Function not approved:', batch[i])
+            sigsToApprove.push(batch[i] as Hex)
+          }
         }
       }
 
       if (sigsToApprove.length > 0) {
-        logError(`Missing ${sigsToApprove.length} whitelisted signatures`)
+        logError(`Missing ${sigsToApprove.length} DEX signatures`)
       } else {
-        consola.success('No missing whitelisted signatures.')
+        consola.success('No missing signatures.')
       }
 
       //          ╭─────────────────────────────────────────────────────────╮
