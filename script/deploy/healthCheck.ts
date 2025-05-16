@@ -265,9 +265,10 @@ const main = defineCommand({
       const whitelistManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
-          'function approvedDexs() external view returns (address[])',
-          'function getWhitelistedAddresses() external view returns (address[])',
-          'function isFunctionApproved(bytes4) external returns (bool)',
+          'function approvedDexs() external view returns (address[])', // old DexManagerFacet (depricated replaced by WhitelistManagerFacet getWhitelistedAddresses)
+          'function getWhitelistedAddresses() external view returns (address[])', // WhitelistManagerFacet
+          'function isFunctionApproved(bytes4) external returns (bool)', // WhitelistManagerFacet
+          'function getApprovedFunctionSignatures() external view returns (bytes4[])', // WhitelistManagerFacet
         ]),
         client: publicClient,
       })
@@ -343,43 +344,39 @@ const main = defineCommand({
       // Check if function signatures are approved
       const { sigs } = await import(`../../config/sigs.json`)
 
-      // Function to split array into chunks
-      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-        const chunks: T[][] = []
-        for (let i = 0; i < array.length; i += chunkSize) {
-          chunks.push(array.slice(i, i + chunkSize))
-        }
-        return chunks
+      // Get all approved signatures from contract
+      const approvedSigs = await getApprovedFunctionSignatures(whitelistManager)
+
+      // Convert sigs to normalized format for comparison
+      const normalizedConfigSigs = sigs.map((sig) => sig.toLowerCase() as Hex)
+      const normalizedApprovedSigs = approvedSigs.map((sig) =>
+        sig.toLowerCase()
+      )
+
+      // Find missing sigs in both directions
+      const missingInContract = normalizedConfigSigs.filter(
+        (sig) => !normalizedApprovedSigs.includes(sig)
+      )
+      const extraInContract = normalizedApprovedSigs.filter(
+        (sig) => !normalizedConfigSigs.includes(sig)
+      )
+
+      if (missingInContract.length > 0) {
+        logError(
+          `Missing ${missingInContract.length} signatures in contract that are in config:`
+        )
+        missingInContract.forEach((sig) => consola.info(`  ${sig}`))
       }
 
-      const batchSize = 20
-      const sigBatches = chunkArray(sigs, batchSize)
-
-      const sigsToApprove: Hex[] = []
-
-      for (const batch of sigBatches) {
-        const calls = batch.map((sig: string) => {
-          return {
-            ...dexManager,
-            functionName: 'isFunctionApproved',
-            args: [sig],
-          }
-        })
-
-        const results = await publicClient.multicall({ contracts: calls })
-
-        for (let i = 0; i < results.length; i++) {
-          if (results[i].status !== 'success' || !results[i].result) {
-            console.log('Function not approved:', batch[i])
-            sigsToApprove.push(batch[i] as Hex)
-          }
-        }
+      if (extraInContract.length > 0) {
+        logError(
+          `Found ${extraInContract.length} extra signatures in contract that are not in config:`
+        )
+        extraInContract.forEach((sig) => consola.info(`  ${sig}`))
       }
 
-      if (sigsToApprove.length > 0) {
-        logError(`Missing ${sigsToApprove.length} DEX signatures`)
-      } else {
-        consola.success('No missing signatures.')
+      if (missingInContract.length === 0 && extraInContract.length === 0) {
+        consola.success('All signatures match between config and contract.')
       }
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -652,6 +649,19 @@ const finish = () => {
   } else {
     consola.success('Deployment checks passed')
     process.exit(0)
+  }
+}
+
+const getApprovedFunctionSignatures = async (
+  whitelistManager: any
+): Promise<Hex[]> => {
+  try {
+    const approvedSigs =
+      await whitelistManager.read.getApprovedFunctionSignatures()
+    return approvedSigs
+  } catch (error) {
+    logError('Failed to get approved function signatures')
+    return []
   }
 }
 
