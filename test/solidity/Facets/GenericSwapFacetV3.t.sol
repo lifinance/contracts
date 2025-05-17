@@ -12,12 +12,12 @@ import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
     constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
-    function removeDex(address _dex) external {
-        LibAllowList.removeAllowedContract(_dex);
+    function removeFromWhitelist(address _address) external {
+        LibAllowList.removeAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -26,12 +26,12 @@ contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
 }
 
 contract TestGenericSwapFacet is GenericSwapFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
-    function removeDex(address _dex) external {
-        LibAllowList.removeAllowedContract(_dex);
+    function removeFromWhitelist(address _address) external {
+        LibAllowList.removeAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -68,8 +68,8 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addDex.selector;
-        functionSelectors[2] = genericSwapFacet.removeDex.selector;
+        functionSelectors[1] = genericSwapFacet.addToWhitelist.selector;
+        functionSelectors[2] = genericSwapFacet.removeFromWhitelist.selector;
         functionSelectors[3] = genericSwapFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -103,7 +103,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
 
         // whitelist uniswap dex with function selectors
         // v1
-        genericSwapFacet.addDex(address(uniswap));
+        genericSwapFacet.addToWhitelist(address(uniswap));
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
@@ -117,7 +117,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uniswap.swapExactETHForTokens.selector
         );
         // v3
-        genericSwapFacetV3.addDex(address(uniswap));
+        genericSwapFacetV3.addToWhitelist(address(uniswap));
         genericSwapFacetV3.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
@@ -133,7 +133,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
 
         // whitelist feeCollector with function selectors
         // v1
-        genericSwapFacet.addDex(FEE_COLLECTOR);
+        genericSwapFacet.addToWhitelist(FEE_COLLECTOR);
         genericSwapFacet.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector
         );
@@ -141,7 +141,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             feeCollector.collectNativeFees.selector
         );
         // v3
-        genericSwapFacetV3.addDex(FEE_COLLECTOR);
+        genericSwapFacetV3.addToWhitelist(FEE_COLLECTOR);
         genericSwapFacetV3.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector
         );
@@ -626,9 +626,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             LibSwap.SwapData[] memory swapData,
             uint256 minAmountOut
         ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
-
         vm.startPrank(USDC_HOLDER);
-
         // deploy, fund and whitelist a MockDEX
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
@@ -670,7 +668,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         vm.startPrank(USDC_HOLDER);
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeDex(ADDRESS_UNISWAP);
+        genericSwapFacetV3.removeFromWhitelist(ADDRESS_UNISWAP);
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -826,7 +824,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         ) = _produceSwapDataNativeToERC20();
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeDex(ADDRESS_UNISWAP);
+        genericSwapFacetV3.removeFromWhitelist(ADDRESS_UNISWAP);
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -1134,7 +1132,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             );
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeDex(ADDRESS_UNISWAP);
+        genericSwapFacetV3.removeFromWhitelist(ADDRESS_UNISWAP);
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -1967,7 +1965,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         );
 
         // whitelist DEX & function selector
-        genericSwapFacet.addDex(address(mockDex));
+        genericSwapFacet.addToWhitelist(address(mockDex));
         genericSwapFacet.setFunctionApprovalBySignature(
             mockDex.swapTokensForExactTokens.selector
         );

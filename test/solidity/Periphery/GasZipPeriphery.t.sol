@@ -19,12 +19,12 @@ contract TestGasZipPeriphery is GasZipPeriphery {
         address owner
     ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator, owner) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
-    function removeDex(address _dex) external {
-        LibAllowList.removeAllowedContract(_dex);
+    function removeFromWhitelist(address _address) external {
+        LibAllowList.removeAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -255,11 +255,11 @@ contract GasZipPeripheryTest is TestBase {
         });
 
         // whitelist gasZipPeriphery and FeeCollector
-        gasZipPeriphery.addDex(address(gasZipPeriphery));
+        gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
         gasZipPeriphery.setFunctionApprovalBySignature(
             gasZipPeriphery.depositToGasZipERC20.selector
         );
-        gasZipPeriphery.addDex(address(feeCollector));
+        gasZipPeriphery.addToWhitelist(address(feeCollector));
         gasZipPeriphery.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector
         );
@@ -347,7 +347,7 @@ contract GasZipPeripheryTest is TestBase {
         });
 
         // whitelist gasZipPeriphery and FeeCollector
-        gasZipPeriphery.addDex(address(gasZipPeriphery));
+        gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
         gasZipPeriphery.setFunctionApprovalBySignature(
             gasZipPeriphery.depositToGasZipNative.selector
         );
@@ -454,7 +454,7 @@ contract GasZipPeripheryTest is TestBase {
         functionSelectors[1] = _gnosisBridgeFacet
             .swapAndStartBridgeTokensViaXDaiBridge
             .selector;
-        functionSelectors[2] = _gnosisBridgeFacet.addDex.selector;
+        functionSelectors[2] = _gnosisBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = _gnosisBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -464,9 +464,9 @@ contract GasZipPeripheryTest is TestBase {
         _gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
         // whitelist DEXs / Periphery contracts
-        _gnosisBridgeFacet.addDex(address(uniswap));
-        _gnosisBridgeFacet.addDex(address(gasZipPeriphery));
-        _gnosisBridgeFacet.addDex(address(feeCollector));
+        _gnosisBridgeFacet.addToWhitelist(address(uniswap));
+        _gnosisBridgeFacet.addToWhitelist(address(gasZipPeriphery));
+        _gnosisBridgeFacet.addToWhitelist(address(feeCollector));
 
         // add function selectors for GasZipPeriphery
         _gnosisBridgeFacet.setFunctionApprovalBySignature(
