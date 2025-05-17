@@ -3,42 +3,49 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGasZip } from "../Interfaces/IGasZip.sol";
+import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, ContractCallNotAllowed, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// State ///
-    // solhint-disable-next-line immutable-vars-naming
-    IGasZip public immutable gasZipRouter;
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable liFiDEXAggregator;
-    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
+    IGasZip public immutable GAS_ZIP_ROUTER;
+    address public immutable LIFI_DIAMOND;
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 16;
 
     /// Errors ///
     error TooManyChainIds();
+    error SwapOutputMustBeNative();
 
     /// Constructor ///
     constructor(
         address _gasZipRouter,
-        address _liFiDEXAggregator,
+        address _liFiDiamond,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        gasZipRouter = IGasZip(_gasZipRouter);
-        liFiDEXAggregator = _liFiDEXAggregator;
+        if (
+            _gasZipRouter == address(0) ||
+            _liFiDiamond == address(0) ||
+            _owner == address(0)
+        ) {
+            revert InvalidConfig();
+        }
+        GAS_ZIP_ROUTER = IGasZip(_gasZipRouter);
+        LIFI_DIAMOND = _liFiDiamond;
     }
 
     /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
-    ///         Swaps are only allowed via the LiFiDEXAggregator
+    ///         Swaps are allowed via any whitelisted contract from the Diamond's WhitelistManagerFacet
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _swapData The swap data that executes the swap from ERC20 to native
     /// @param _gasZipData contains information about which chains gas should be sent to
@@ -46,26 +53,47 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibSwap.SwapData calldata _swapData,
         IGasZip.GasZipData calldata _gasZipData
     ) public {
+        if (_swapData.receivingAssetId != address(0)) {
+            revert SwapOutputMustBeNative();
+        }
+
+        IWhitelistManagerFacet whitelistManager = IWhitelistManagerFacet(
+            LIFI_DIAMOND
+        );
+
+        if (
+            !whitelistManager.isAddressWhitelisted(_swapData.callTo) ||
+            !whitelistManager.isFunctionApproved(
+                bytes4(_swapData.callData[:4])
+            )
+        ) {
+            revert ContractCallNotAllowed();
+        }
+
         // deposit ERC20 asset from diamond
         LibAsset.depositAsset(_swapData.sendingAssetId, _swapData.fromAmount);
 
         // max approve to DEX, if not already done
         LibAsset.maxApproveERC20(
             IERC20(_swapData.sendingAssetId),
-            liFiDEXAggregator,
+            _swapData.approveTo,
             _swapData.fromAmount
         );
 
-        // execute swap using LiFiDEXAggregator
+        // execute swap using the whitelisted DEX
+        // Note on slippage protection:
+        // 1. Individual swap slippage is protected via minAmountOut parameter in _swapData.callData
+        // 2. Final output amount slippage is checked at diamond contract level in SwapperV2._depositAndSwap()
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = liFiDEXAggregator.call(
+        (bool success, bytes memory res) = _swapData.callTo.call(
             _swapData.callData
         );
         if (!success) {
             LibUtil.revertWith(res);
         }
-        // extract the swap output amount from the call return value
-        uint256 swapOutputAmount = abi.decode(res, (uint256));
+
+        // get the output amount from the contract's balance (which will be sent in full to gasZip router)
+        uint256 swapOutputAmount = address(this).balance;
 
         // deposit native tokens to Gas.zip protocol
         depositToGasZipNative(_gasZipData, swapOutputAmount);
@@ -84,7 +112,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             revert InvalidCallData();
 
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
-        gasZipRouter.deposit{ value: _amount }(
+        GAS_ZIP_ROUTER.deposit{ value: _amount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );
@@ -107,9 +135,9 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
-            // Shift destinationChains left by 8 bits and add the next chainID
+            // Shift destinationChains left by 16 bits and add the next chainID
             destinationChains =
-                (destinationChains << 8) |
+                (destinationChains << 16) |
                 uint256(_chainIds[i]);
         }
     }
