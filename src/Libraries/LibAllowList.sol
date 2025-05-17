@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { InvalidContract } from "../Errors/GenericErrors.sol";
 
-/// @notice Thrown when attempting to add a selector that is already marked as allowed
-error SelectorAlreadyMarkedAsAllowed(bytes4 selector);
-
 /// @title Lib Allow List
 /// @author LI.FI (https://li.fi)
 /// @notice Library for managing and accessing the conract address allow list
+/// @custom:version 1.0.1
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =

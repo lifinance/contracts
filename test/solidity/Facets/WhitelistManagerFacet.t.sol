@@ -653,4 +653,61 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
         vm.stopPrank();
     }
+
+    function test_SucceedsIfLegacyApprovedSelectorIsMigratedToArray() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // choose a selector to test with
+        bytes4 selector = bytes4(hex"cafe0001");
+
+        bytes32 s = keccak256("com.lifi.library.allow.list");
+        // selectorAllowList mapping lives at slot s+1
+        bytes32 mappingSlot = bytes32(uint256(s) + 1);
+
+        // now the actual storage slot for your key is
+        bytes32 actualSlot = keccak256(
+            abi.encodePacked(
+                bytes32(selector), // left-pad your bytes4 to 32 bytes
+                mappingSlot
+            )
+        );
+
+        vm.store(address(diamond), actualSlot, bytes32(uint256(1)));
+
+        // verify our manipulation worked. the selector should be approved in the mapping
+        assertTrue(whitelistMgr.isFunctionApproved(selector));
+
+        // should not appear in the array yet
+        bytes4[] memory initialSignatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        bool foundInArray = false;
+        for (uint256 i = 0; i < initialSignatures.length; i++) {
+            if (initialSignatures[i] == selector) {
+                foundInArray = true;
+                break;
+            }
+        }
+        assertFalse(foundInArray, "Selector should not be in array yet");
+
+        // now call addAllowedSelector again via a function call that uses it
+        // this should trigger the legacy migration code
+        whitelistMgr.setFunctionApprovalBySignature(selector, true);
+
+        // now the selector should be in the array
+        bytes4[] memory finalSignatures = whitelistMgr
+            .getApprovedFunctionSignatures();
+        foundInArray = false;
+        for (uint256 i = 0; i < finalSignatures.length; i++) {
+            if (finalSignatures[i] == selector) {
+                foundInArray = true;
+                break;
+            }
+        }
+        assertTrue(foundInArray, "Selector should now be in array");
+
+        // and the array length should have increased by 1
+        assertEq(finalSignatures.length, initialSignatures.length + 1);
+
+        vm.stopPrank();
+    }
 }
