@@ -80,6 +80,8 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             _swapData.fromAmount
         );
 
+        uint256 preSwapBal = address(this).balance;
+
         // execute swap using the whitelisted DEX
         // Note on slippage protection:
         // 1. Individual swap slippage is protected via minAmountOut parameter in _swapData.callData
@@ -92,8 +94,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             LibUtil.revertWith(res);
         }
 
-        // get the output amount from the contract's balance (which will be sent in full to gasZip router)
-        uint256 swapOutputAmount = address(this).balance;
+        uint256 swapOutputAmount = address(this).balance - preSwapBal;
 
         // deposit native tokens to Gas.zip protocol
         depositToGasZipNative(_gasZipData, swapOutputAmount);
