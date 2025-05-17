@@ -4,92 +4,78 @@ pragma solidity ^0.8.17;
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
+import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
 import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
-/// @title Dex Manager Facet
+/// @title Whitelist Manager Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Facet contract for managing approved DEXs to be used in swaps.
-/// @custom:version 1.0.2
-contract DexManagerFacet {
-    /// Events ///
-
-    event DexAdded(address indexed dexAddress);
-    event DexRemoved(address indexed dexAddress);
-    event FunctionSignatureApprovalChanged(
-        bytes4 indexed functionSignature,
-        bool indexed approved
-    );
-
+/// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
+/// @custom:version 1.0.3
+contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
-    /// @notice Register the address of a DEX contract to be approved for swapping.
-    /// @param _dex The address of the DEX contract to be approved.
-    function addDex(address _dex) external {
+    /// @inheritdoc IWhitelistManagerFacet
+    function addToWhitelist(address _address) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
 
-        LibAllowList.addAllowedContract(_dex);
+        LibAllowList.addAllowedContract(_address);
 
-        emit DexAdded(_dex);
+        emit AddressWhitelisted(_address);
     }
 
-    /// @notice Batch register the address of DEX contracts to be approved for swapping.
-    /// @param _dexs The addresses of the DEX contracts to be approved.
-    function batchAddDex(address[] calldata _dexs) external {
+    /// @inheritdoc IWhitelistManagerFacet
+    function batchAddToWhitelist(address[] calldata _addresses) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        uint256 length = _dexs.length;
+        uint256 length = _addresses.length;
 
         for (uint256 i = 0; i < length; ) {
-            address dex = _dexs[i];
-            if (dex == address(this)) {
+            address addr = _addresses[i];
+            if (addr == address(this)) {
                 revert CannotAuthoriseSelf();
             }
-            if (LibAllowList.contractIsAllowed(dex)) {
+            if (LibAllowList.contractIsAllowed(addr)) {
                 unchecked {
                     ++i;
                 }
                 continue;
             }
-            LibAllowList.addAllowedContract(dex);
-            emit DexAdded(dex);
+            LibAllowList.addAllowedContract(addr);
+            emit AddressWhitelisted(addr);
             unchecked {
                 ++i;
             }
         }
     }
 
-    /// @notice Unregister the address of a DEX contract approved for swapping.
-    /// @param _dex The address of the DEX contract to be unregistered.
-    function removeDex(address _dex) external {
+    /// @inheritdoc IWhitelistManagerFacet
+    function removeFromWhitelist(address _address) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        LibAllowList.removeAllowedContract(_dex);
-        emit DexRemoved(_dex);
+        LibAllowList.removeAllowedContract(_address);
+        emit AddressRemoved(_address);
     }
 
-    /// @notice Batch unregister the addresses of DEX contracts approved for swapping.
-    /// @param _dexs The addresses of the DEX contracts to be unregistered.
-    function batchRemoveDex(address[] calldata _dexs) external {
+    /// @inheritdoc IWhitelistManagerFacet
+    function batchRemoveFromWhitelist(address[] calldata _addresses) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        uint256 length = _dexs.length;
+        uint256 length = _addresses.length;
         for (uint256 i = 0; i < length; ) {
-            LibAllowList.removeAllowedContract(_dexs[i]);
-            emit DexRemoved(_dexs[i]);
+            LibAllowList.removeAllowedContract(_addresses[i]);
+            emit AddressRemoved(_addresses[i]);
             unchecked {
                 ++i;
             }
         }
     }
 
-    /// @notice Adds/removes a specific function signature to/from the allowlist
-    /// @param _signature the function signature to allow/disallow
-    /// @param _approval whether the function signature should be allowed
+    /// @inheritdoc IWhitelistManagerFacet
     function setFunctionApprovalBySignature(
         bytes4 _signature,
         bool _approval
@@ -107,9 +93,7 @@ contract DexManagerFacet {
         emit FunctionSignatureApprovalChanged(_signature, _approval);
     }
 
-    /// @notice Batch Adds/removes a specific function signature to/from the allowlist
-    /// @param _signatures the function signatures to allow/disallow
-    /// @param _approval whether the function signatures should be allowed
+    /// @inheritdoc IWhitelistManagerFacet
     function batchSetFunctionApprovalBySignature(
         bytes4[] calldata _signatures,
         bool _approval
@@ -132,22 +116,35 @@ contract DexManagerFacet {
         }
     }
 
-    /// @notice Returns whether a function signature is approved
-    /// @param _signature the function signature to query
-    /// @return approved Approved or not
+    /// @inheritdoc IWhitelistManagerFacet
     function isFunctionApproved(
         bytes4 _signature
     ) public view returns (bool approved) {
         return LibAllowList.selectorIsAllowed(_signature);
     }
 
-    /// @notice Returns a list of all approved DEX addresses.
-    /// @return addresses List of approved DEX addresses
-    function approvedDexs()
+    /// @inheritdoc IWhitelistManagerFacet
+    function getWhitelistedAddresses()
         external
         view
         returns (address[] memory addresses)
     {
         return LibAllowList.getAllowedContracts();
+    }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function isAddressWhitelisted(
+        address _address
+    ) public view returns (bool approved) {
+        return LibAllowList.contractIsAllowed(_address);
+    }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function getApprovedFunctionSignatures()
+        external
+        view
+        returns (bytes4[] memory signatures)
+    {
+        return LibAllowList.getAllowedSelectors();
     }
 }

@@ -12,8 +12,8 @@ import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/E
 contract TestCBridgeFacet is CBridgeFacet {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -85,14 +85,14 @@ contract CBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addDex.selector;
+        functionSelectors[2] = cBridge.addToWhitelist.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
         functionSelectors[4] = cBridge.triggerRefund.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addDex(address(uniswap));
+        cBridge.addToWhitelist(address(uniswap));
         cBridge.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

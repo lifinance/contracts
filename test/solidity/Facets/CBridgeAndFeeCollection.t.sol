@@ -12,8 +12,8 @@ import { LibAllowList, TestBase } from "../utils/TestBase.sol";
 contract TestCBridgeFacet is CBridgeFacet {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -40,14 +40,14 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addDex.selector;
+        functionSelectors[2] = cBridge.addToWhitelist.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addDex(address(uniswap));
-        cBridge.addDex(address(feeCollector));
+        cBridge.addToWhitelist(address(uniswap));
+        cBridge.addToWhitelist(address(feeCollector));
         cBridge.setFunctionApprovalBySignature(
             bytes4(feeCollector.collectTokenFees.selector)
         );

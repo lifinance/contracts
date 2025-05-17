@@ -5,8 +5,8 @@ import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockUniswapDEX } from "./MockUniswapDEX.sol";
 
-interface DexManager {
-    function addDex(address _dex) external;
+interface IWhitelistManager {
+    function addToWhitelist(address _address) external;
 
     function setFunctionApprovalBySignature(bytes4 _signature) external;
 }
@@ -52,28 +52,27 @@ contract TestHelpers is Test {
             outputAmount,
             amountInActual
         );
-
         // whitelist DEX & function selector
-        DexManager(diamond).addDex(address(mockDex));
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).addToWhitelist(address(mockDex));
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapTokensForExactTokens.selector
         );
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapExactTokensForTokens.selector
         );
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapETHForExactTokens.selector
         );
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapExactETHForTokens.selector
         );
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapExactTokensForETH.selector
         );
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapTokensForExactETH.selector
         );
-        DexManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySignature(
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }
