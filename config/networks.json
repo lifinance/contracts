@@ -1003,13 +1003,13 @@
     "explorerApiUrl": "https://xdcscan.com/api",
     "multicallAddress": "0x0b1795cca8e4ec4df02346a082df54d437f8d9af",
     "safeApiUrl": "",
-    "safeAddress": "",
+    "safeAddress": "0x90A09987A2d13bE357Cb1677691A690740A95529",
     "safeWebUrl": "",
     "gasZipChainId": 420,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "deployedWithSolcVersion": "0.8.17",
+    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
   },
   "xlayer": {
     "name": "xlayer",

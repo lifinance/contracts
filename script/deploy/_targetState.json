@@ -1035,15 +1035,10 @@
         "ERC20Proxy": "1.1.0",
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
-<<<<<<< Updated upstream
-        "LiFiDEXAggregator": "1.6.0",
-        "TokenWrapper": "1.1.0",
-        "SymbiosisFacet": "1.0.0"
-=======
+        "SymbiosisFacet": "1.0.0",
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3"
->>>>>>> Stashed changes
       }
     }
   },
