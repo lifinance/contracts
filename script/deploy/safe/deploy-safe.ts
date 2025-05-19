@@ -322,10 +322,17 @@ async function createSafeProxy(params: {
   const safeAddr = (proxyEvent.args as any).proxy as Address
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
+  // verify on-chain proxy bytecode
   if (proxyBytecode) {
     const code = await publicClient.getCode({ address: safeAddr })
-    if (code === proxyBytecode) consola.success('✔ Proxy bytecode verified')
-    else consola.warn('⚠️ Proxy bytecode mismatch (continuing)')
+    if (code === proxyBytecode) {
+      consola.success('✔ Proxy bytecode verified')
+    } else {
+      consola.error('❌ Proxy bytecode mismatch')
+      consola.debug('On-chain:', code.slice(0, 100), '…')
+      consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
+      throw new Error('Proxy bytecode verification failed')
+    }
   }
 
   return safeAddr
