@@ -565,6 +565,106 @@ const main = defineCommand({
         }
       }
 
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │      Verify Permit2 address and compare bytecode        │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Validating Permit2 setup...')
+
+      try {
+        const permit2Config = await import('../../config/permit2Proxy.json')
+
+        const currentPermit2Address = getAddress(
+          permit2Config[network.toLowerCase()]
+        )
+        const mainnetPermit2Address = getAddress(permit2Config['mainnet'])
+
+        if (!currentPermit2Address || !mainnetPermit2Address) {
+          logError(
+            `Missing Permit2 address for ${network} or mainnet in permit2Proxy.json`
+          )
+        } else {
+          // Compare Permit2 bytecode between current network and mainnet
+          consola.info(
+            `Comparing Permit2 bytecode:\n- Current: ${currentPermit2Address}\n- Mainnet: ${mainnetPermit2Address}`
+          )
+
+          const rpcUrlMainnet = networksConfig['mainnet']?.rpcUrl
+          const rpcUrlCurrent = networksConfig[network.toLowerCase()]?.rpcUrl
+
+          if (!rpcUrlMainnet || !rpcUrlCurrent) {
+            logError(
+              `Missing RPC URL for ${network} or mainnet in networks config`
+            )
+          } else {
+            // get bytecode of both Permit2 deployments
+            const codeMainnet =
+              await $`cast code ${mainnetPermit2Address} --rpc-url ${rpcUrlMainnet}`
+            const codeCurrent =
+              await $`cast code ${currentPermit2Address} --rpc-url ${rpcUrlCurrent}`
+
+            // remove unnecessary blanks
+            const bytecodeMainnet = codeMainnet.stdout.trim()
+            const bytecodeCurrent = codeCurrent.stdout.trim()
+
+            /**
+             * Strips the Solidity compiler metadata trailer from contract bytecode.
+             * This metadata is appended to the bytecode and typically starts with:
+             * - `a264...` (CBOR metadata trailer for Solidity ≥0.6.0)
+             * - `a165...` (older metadata encoding)
+             *
+             * This function removes known trailer patterns so that logic comparisons
+             * between bytecodes ignore non-functional differences.
+             */
+            const stripMetadata = (code: string): string => {
+              return code
+                .replace(/a26[0-9a-fA-F]{2}[0-9a-fA-F]*$/, '')
+                .replace(/a16[0-9a-fA-F]{2}[0-9a-fA-F]*$/, '')
+            }
+
+            const strippedMainnet = stripMetadata(bytecodeMainnet)
+            const strippedCurrent = stripMetadata(bytecodeCurrent)
+
+            if (strippedMainnet !== strippedCurrent) {
+              logError(
+                'Permit2 bytecode does not match mainnet after metadata stripping'
+              )
+            } else {
+              consola.success(
+                'Permit2 bytecode matches mainnet after stripping metadata'
+              )
+            }
+          }
+
+          // Fetch on-chain Permit2 address from Permit2Proxy and compare to config
+          const permit2ProxyAddress = deployedContracts['Permit2Proxy']
+          if (!permit2ProxyAddress) {
+            logError('Permit2Proxy not found in deployed contracts')
+          } else {
+            const permit2ProxyContract = getContract({
+              address: permit2ProxyAddress,
+              abi: parseAbi([
+                'function PERMIT2() external view returns (address)',
+              ]),
+              client: publicClient,
+            })
+
+            const onChainPermit2 = await permit2ProxyContract.read.PERMIT2()
+
+            if (getAddress(onChainPermit2) !== currentPermit2Address) {
+              logError(
+                `Permit2 address mismatch:\n- Config: ${currentPermit2Address}\n- On-chain: ${getAddress(
+                  onChainPermit2
+                )}`
+              )
+            } else {
+              consola.success('Permit2 address in Permit2Proxy matches config')
+            }
+          }
+        }
+      } catch (e: any) {
+        logError(`Error while checking Permit2 bytecode: ${e.message}`)
+      }
+
       finish()
     } else {
       logError('No dexs configured')
