@@ -77,9 +77,9 @@ jobs:
         run: |
           forge coverage --report lcov --force --ir-minimum
 
-          echo "Filtering coverage report to only contain coverage info for 'src/' folder now"
+          echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
-          bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' 'Safe_flattened.sol' 'SafeProxyFactory_flattened.sol'
+          bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
 
           echo "Coverage report successfully filtered"
 
