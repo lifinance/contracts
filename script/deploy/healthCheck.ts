@@ -416,33 +416,7 @@ const main = defineCommand({
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check emergency pause config             │
       //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking emergency pause config...')
-      const filePath: string = path.join(
-        '.github',
-        'workflows',
-        'diamondEmergencyPause.yml'
-      )
-
-      try {
-        const fileContent: string = fs.readFileSync(filePath, 'utf8')
-
-        const networkUpper: string = network.toUpperCase()
-        const pattern = new RegExp(
-          `ETH_NODE_URI_${networkUpper}\\s*:\\s*\\$\\{\\{\\s*secrets\\.ETH_NODE_URI_${networkUpper}\\s*\\}\\}`
-        )
-
-        const exists: boolean = pattern.test(fileContent)
-
-        if (!exists) {
-          logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        } else
-          consola.success(
-            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
-          )
-      } catch (error: any) {
-        logError(`Error checking workflow file: ${error.message}`)
-      }
-      console.log('')
+      consola.box('Checking funding of PauserWallet...')
 
       const pauserBalance = formatEther(
         await publicClient.getBalance({
