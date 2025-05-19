@@ -1035,7 +1035,8 @@
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
         "LiFiDEXAggregator": "1.6.0",
-        "TokenWrapper": "1.1.0"
+        "TokenWrapper": "1.1.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
