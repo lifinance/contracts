@@ -15,10 +15,6 @@ interface IStETH is IERC20 {
     /// @notice Wraps stETH into wstETH
     /// @param amount The amount of stETH to wrap
     function unwrap(uint256 amount) external;
-
-    /// @notice Wraps stETH into wstETH using shares
-    /// @param amount The number of shares to unwrap
-    function unwrapShares(uint256 amount) external;
 }
 
 /// @title LidoWrapper
