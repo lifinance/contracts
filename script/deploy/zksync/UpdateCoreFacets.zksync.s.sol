@@ -18,7 +18,10 @@ contract DeployScript is UpdateScriptBase {
         );
         address ownership = _getConfigContractAddress(path, ".OwnershipFacet");
         address withdraw = _getConfigContractAddress(path, ".WithdrawFacet");
-        address dexMgr = _getConfigContractAddress(path, ".DexManagerFacet");
+        address whitelistMgr = _getConfigContractAddress(
+            path,
+            ".WhitelistManagerFacet"
+        );
         address accessMgr = _getConfigContractAddress(
             path,
             ".AccessManagerFacet"
@@ -86,12 +89,12 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(selectors, withdraw);
         }
 
-        // Dex Manager Facet
-        selectors = getSelectors("DexManagerFacet", exclude);
+        // Whitelist Manager Facet
+        selectors = getSelectors("WhitelistManagerFacet", exclude);
         if (loupeExists) {
-            buildDiamondCut(selectors, dexMgr);
+            buildDiamondCut(selectors, whitelistMgr);
         } else {
-            buildInitialCut(selectors, dexMgr);
+            buildInitialCut(selectors, whitelistMgr);
         }
 
         // Access Manager Facet

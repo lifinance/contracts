@@ -11,8 +11,8 @@ import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
     constructor(IXDaiBridge _xDaiBridge) GnosisBridgeFacet(_xDaiBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -44,7 +44,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = gnosisBridgeFacet
             .swapAndStartBridgeTokensViaXDaiBridge
             .selector;
-        functionSelectors[2] = gnosisBridgeFacet.addDex.selector;
+        functionSelectors[2] = gnosisBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = gnosisBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -53,7 +53,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        gnosisBridgeFacet.addDex(address(uniswap));
+        gnosisBridgeFacet.addToWhitelist(address(uniswap));
         gnosisBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

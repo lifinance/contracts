@@ -10,8 +10,8 @@ import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 contract TestAllBridgeFacet is AllBridgeFacet {
     constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _address) external {
+        LibAllowList.addAllowedContract(_address);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -40,14 +40,14 @@ contract AllBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = allBridgeFacet
             .swapAndStartBridgeTokensViaAllBridge
             .selector;
-        functionSelectors[2] = allBridgeFacet.addDex.selector;
+        functionSelectors[2] = allBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = allBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
-        allBridgeFacet.addDex(ADDRESS_UNISWAP);
+        allBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
         allBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

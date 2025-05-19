@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { InvalidContract } from "../Errors/GenericErrors.sol";
@@ -7,6 +6,7 @@ import { InvalidContract } from "../Errors/GenericErrors.sol";
 /// @title Lib Allow List
 /// @author LI.FI (https://li.fi)
 /// @notice Library for managing and accessing the conract address allow list
+/// @custom:version 1.0.1
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =
@@ -16,6 +16,7 @@ library LibAllowList {
         mapping(address => bool) allowlist;
         mapping(bytes4 => bool) selectorAllowList;
         address[] contracts;
+        bytes4[] selectors;
     }
 
     /// @dev Adds a contract address to the allow list
@@ -51,12 +52,9 @@ library LibAllowList {
         als.allowlist[_contract] = false;
 
         uint256 length = als.contracts.length;
-        // Find the contract in the list
         for (uint256 i = 0; i < length; i++) {
             if (als.contracts[i] == _contract) {
-                // Move the last element into the place to delete
                 als.contracts[i] = als.contracts[length - 1];
-                // Remove the last element
                 als.contracts.pop();
                 break;
             }
@@ -71,19 +69,62 @@ library LibAllowList {
     /// @dev Add a selector to the allow list
     /// @param _selector the selector to add
     function addAllowedSelector(bytes4 _selector) internal {
-        _getStorage().selectorAllowList[_selector] = true;
+        AllowListStorage storage als = _getStorage();
+
+        if (als.selectorAllowList[_selector]) {
+            // Check if selector exists in the array to handle legacy state
+            // where a selector might be true in selectorAllowList mapping but missing from the array.
+            // Since this is an admin-only function called infrequently, the array iteration is acceptable.
+            bool existsInArray = false;
+            uint256 length = als.selectors.length;
+            for (uint256 i = 0; i < length; i++) {
+                if (als.selectors[i] == _selector) {
+                    existsInArray = true;
+                    break;
+                }
+            }
+
+            if (!existsInArray) {
+                als.selectors.push(_selector);
+            }
+            return;
+        }
+
+        // New selector, add to both mapping and array
+        als.selectorAllowList[_selector] = true;
+        als.selectors.push(_selector);
     }
 
     /// @dev Removes a selector from the allow list
     /// @param _selector the selector to remove
     function removeAllowedSelector(bytes4 _selector) internal {
-        _getStorage().selectorAllowList[_selector] = false;
+        AllowListStorage storage als = _getStorage();
+
+        if (!als.selectorAllowList[_selector]) {
+            return;
+        }
+
+        als.selectorAllowList[_selector] = false;
+
+        uint256 length = als.selectors.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (als.selectors[i] == _selector) {
+                als.selectors[i] = als.selectors[length - 1];
+                als.selectors.pop();
+                break;
+            }
+        }
     }
 
     /// @dev Returns if selector has been added to the allow list
     /// @param _selector the selector to check
     function selectorIsAllowed(bytes4 _selector) internal view returns (bool) {
         return _getStorage().selectorAllowList[_selector];
+    }
+
+    /// @dev Fetch all allowed selectors
+    function getAllowedSelectors() internal view returns (bytes4[] memory) {
+        return _getStorage().selectors;
     }
 
     /// @dev Fetch local storage struct

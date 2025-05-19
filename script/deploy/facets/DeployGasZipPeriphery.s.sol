@@ -28,7 +28,7 @@ contract DeployScript is DeployScriptBase {
             string.concat(".gasZipRouters.", network)
         );
 
-        // get LiFiDEXAggregator address
+        // get LiFiDiamond address
         path = string.concat(
             root,
             "/deployments/",
@@ -38,10 +38,7 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
 
-        address liFiDEXAggregator = _getConfigContractAddress(
-            path,
-            ".LiFiDEXAggregator"
-        );
+        address liFiDiamond = _getConfigContractAddress(path, ".LiFiDiamond");
 
         // get network's SAFE address to become contract owner for potential fund withdrawals
         path = string.concat(root, "/config/networks.json");
@@ -51,6 +48,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".safeAddress")
         );
 
-        return abi.encode(gasZipRouter, liFiDEXAggregator, safeAddress);
+        return abi.encode(gasZipRouter, liFiDiamond, safeAddress);
     }
 }
