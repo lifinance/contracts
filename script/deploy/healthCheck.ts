@@ -258,18 +258,18 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                   Check approved DEXs                   │
     //          ╰─────────────────────────────────────────────────────────╯
+    const dexManager = getContract({
+      address: deployedContracts['LiFiDiamond'],
+      abi: parseAbi([
+        'function approvedDexs() external view returns (address[])',
+        'function isFunctionApproved(bytes4) external returns (bool)',
+      ]),
+      client: publicClient,
+    })
     if (dexs) {
       consola.box('Checking DEXs approved in diamond...')
 
       // connect with diamond to get whitelisted DEXs
-      const dexManager = getContract({
-        address: deployedContracts['LiFiDiamond'],
-        abi: parseAbi([
-          'function approvedDexs() external view returns (address[])',
-          'function isFunctionApproved(bytes4) external returns (bool)',
-        ]),
-        client: publicClient,
-      })
 
       const approvedDexs = await dexManager.read.approvedDexs()
 
@@ -316,339 +316,336 @@ const main = defineCommand({
       consola.info(
         `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
       )
-
-      //          ╭─────────────────────────────────────────────────────────╮
-      //          │                   Check approved sigs                   │
-      //          ╰─────────────────────────────────────────────────────────╯
-
-      consola.box('Checking DEX signatures approved in diamond...')
-      // Check if function signatures are approved
-      const { sigs } = await import(`../../config/sigs.json`)
-
-      // Function to split array into chunks
-      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-        const chunks: T[][] = []
-        for (let i = 0; i < array.length; i += chunkSize) {
-          chunks.push(array.slice(i, i + chunkSize))
-        }
-        return chunks
-      }
-
-      const batchSize = 20
-      const sigBatches = chunkArray(sigs, batchSize)
-
-      const sigsToApprove: Hex[] = []
-
-      for (const batch of sigBatches) {
-        const calls = batch.map((sig: string) => {
-          return {
-            ...dexManager,
-            functionName: 'isFunctionApproved',
-            args: [sig],
-          }
-        })
-
-        const results = await publicClient.multicall({ contracts: calls })
-
-        for (let i = 0; i < results.length; i++) {
-          if (results[i].status !== 'success' || !results[i].result) {
-            console.log('Function not approved:', batch[i])
-            sigsToApprove.push(batch[i] as Hex)
-          }
-        }
-      }
-
-      if (sigsToApprove.length > 0) {
-        logError(`Missing ${sigsToApprove.length} DEX signatures`)
-      } else {
-        consola.success('No missing signatures.')
-      }
-
-      //          ╭─────────────────────────────────────────────────────────╮
-      //          │                Check contract ownership                 │
-      //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking ownership...')
-
-      const withdrawWallet = getAddress(globalConfig.withdrawWallet)
-      const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
-      const refundWallet = getAddress(globalConfig.refundWallet)
-
-      // Check ERC20Proxy ownership
-      const erc20ProxyOwner = await erc20Proxy.read.owner()
-      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
-        logError(
-          `ERC20Proxy owner is ${getAddress(
-            erc20ProxyOwner
-          )}, expected ${getAddress(deployerWallet)}`
-        )
-      } else {
-        consola.success('ERC20Proxy owner is correct')
-      }
-
-      // Check that Diamond is owned by SAFE
-      if (networksConfig[network.toLowerCase()].safeAddress) {
-        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
-
-        await checkOwnership(
-          'LiFiDiamond',
-          safeAddress,
-          deployedContracts,
-          publicClient
-        )
-      }
-
-      // FeeCollector
-      await checkOwnership(
-        'FeeCollector',
-        withdrawWallet,
-        deployedContracts,
-        publicClient
-      )
-
-      // Receiver
-      await checkOwnership(
-        'Receiver',
-        refundWallet,
-        deployedContracts,
-        publicClient
-      )
-
-      //          ╭─────────────────────────────────────────────────────────╮
-      //          │                Check emergency pause config             │
-      //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking funding of PauserWallet...')
-
-      const pauserBalance = formatEther(
-        await publicClient.getBalance({
-          address: pauserWallet,
-        })
-      )
-
-      if (!pauserBalance || pauserBalance === '0')
-        logError(`PauserWallet does not have any native balance`)
-      else consola.success(`PauserWallet is funded: ${pauserBalance}`)
-
-      //          ╭─────────────────────────────────────────────────────────╮
-      //          │                Check access permissions                 │
-      //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking access permissions...')
-      const accessManager = getContract({
-        address: deployedContracts['LiFiDiamond'],
-        abi: parseAbi([
-          'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
-        ]),
-        client: publicClient,
-      })
-
-      // Deployer wallet
-      const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
-        sig: Hex
-        name: string
-      }[]
-
-      for (const sig of approveSigs) {
-        if (
-          !(await accessManager.read.addressCanExecuteMethod([
-            sig.sig,
-            deployerWallet,
-          ]))
-        ) {
-          logError(
-            `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
-          )
-        } else {
-          consola.success(
-            `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
-          )
-        }
-      }
-
-      // Refund wallet
-      const refundSigs = globalConfig.approvedSigsForRefundWallet as {
-        sig: Hex
-        name: string
-      }[]
-
-      for (const sig of refundSigs) {
-        if (
-          !(await accessManager.read.addressCanExecuteMethod([
-            sig.sig,
-            refundWallet,
-          ]))
-        ) {
-          logError(
-            `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
-          )
-        } else {
-          consola.success(
-            `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
-          )
-        }
-      }
-
-      //          ╭─────────────────────────────────────────────────────────╮
-      //          │                   SAFE Configuration                    │
-      //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking SAFE configuration...')
-      const networkConfig: Network = networks[network.toLowerCase()]
-      if (!networkConfig.safeAddress) {
-        consola.warn('SAFE address not configured')
-      } else {
-        const safeOwners = globalConfig.safeOwners
-        const safeAddress = networkConfig.safeAddress
-
-        try {
-          // Import getSafeInfoFromContract from safe-utils.ts
-          const { getSafeInfoFromContract } = await import('./safe/safe-utils')
-
-          // Get Safe info directly from the contract
-          const safeInfo = await getSafeInfoFromContract(
-            publicClient,
-            safeAddress
-          )
-
-          // Check that each safeOwner is in the Safe
-          for (const o in safeOwners) {
-            const safeOwner = getAddress(safeOwners[o])
-            const isOwner = safeInfo.owners.some(
-              (owner) => getAddress(owner) === safeOwner
-            )
-
-            if (!isOwner) {
-              logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-            } else {
-              consola.success(
-                `SAFE owner ${safeOwner} is in SAFE configuration`
-              )
-            }
-          }
-
-          // Check that threshold is correct
-          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD)) {
-            logError(
-              `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
-            )
-          } else {
-            consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
-          }
-
-          // Show current nonce
-          consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
-        } catch (error) {
-          logError(`Failed to get SAFE information: ${error}`)
-        }
-      }
-
-      //          ╭─────────────────────────────────────────────────────────╮
-      //          │      Verify Permit2 address and compare bytecode        │
-      //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Validating Permit2 setup...')
-
-      try {
-        const permit2Config = await import('../../config/permit2Proxy.json')
-
-        let currentPermit2Address: Address
-        const networkPermitConfig = permit2Config[network.toLowerCase()]
-        if (!networkPermitConfig) {
-          logError(`permit2Proxy.json is missing an entry for "${network}"`)
-        } else {
-          currentPermit2Address = getAddress(networkPermitConfig)
-        }
-
-        const mainnetPermit2Address = getAddress(permit2Config['mainnet'])
-
-        if (!currentPermit2Address || !mainnetPermit2Address) {
-          logError(
-            `Missing Permit2 address for ${network} or mainnet in permit2Proxy.json`
-          )
-        } else {
-          // Compare Permit2 bytecode between current network and mainnet
-          consola.info(
-            `Comparing Permit2 bytecode:\n- Current: ${currentPermit2Address}\n- Mainnet: ${mainnetPermit2Address}`
-          )
-
-          const rpcUrlMainnet = networksConfig['mainnet']?.rpcUrl
-          const rpcUrlCurrent = networksConfig[network.toLowerCase()]?.rpcUrl
-
-          if (!rpcUrlMainnet || !rpcUrlCurrent) {
-            logError(
-              `Missing RPC URL for ${network} or mainnet in networks config`
-            )
-          } else {
-            // get bytecode of both Permit2 deployments
-            const codeMainnet =
-              await $`cast code ${mainnetPermit2Address} --rpc-url ${rpcUrlMainnet}`
-            const codeCurrent =
-              await $`cast code ${currentPermit2Address} --rpc-url ${rpcUrlCurrent}`
-
-            // remove unnecessary blanks
-            const bytecodeMainnet = codeMainnet.stdout.trim()
-            const bytecodeCurrent = codeCurrent.stdout.trim()
-
-            /**
-             * Strips the Solidity compiler metadata trailer from contract bytecode.
-             * This metadata is appended to the bytecode and typically starts with:
-             * - `a264...` (CBOR metadata trailer for Solidity ≥0.6.0)
-             * - `a165...` (older metadata encoding)
-             *
-             * This function removes known trailer patterns so that logic comparisons
-             * between bytecodes ignore non-functional differences.
-             */
-            const stripMetadata = (code: string): string => {
-              return code
-                .replace(/a26[0-9a-fA-F]{2}[0-9a-fA-F]*$/, '')
-                .replace(/a16[0-9a-fA-F]{2}[0-9a-fA-F]*$/, '')
-            }
-
-            const strippedMainnet = stripMetadata(bytecodeMainnet)
-            const strippedCurrent = stripMetadata(bytecodeCurrent)
-
-            if (strippedMainnet !== strippedCurrent) {
-              logError(
-                'Permit2 bytecode does not match mainnet after metadata stripping'
-              )
-            } else {
-              consola.success(
-                'Permit2 bytecode matches mainnet after stripping metadata'
-              )
-            }
-          }
-
-          // Fetch on-chain Permit2 address from Permit2Proxy and compare to config
-          const permit2ProxyAddress = deployedContracts['Permit2Proxy']
-          if (!permit2ProxyAddress) {
-            logError('Permit2Proxy not found in deployed contracts')
-          } else {
-            const permit2ProxyContract = getContract({
-              address: permit2ProxyAddress,
-              abi: parseAbi([
-                'function PERMIT2() external view returns (address)',
-              ]),
-              client: publicClient,
-            })
-
-            const onChainPermit2 = await permit2ProxyContract.read.PERMIT2()
-
-            if (getAddress(onChainPermit2) !== currentPermit2Address) {
-              logError(
-                `Permit2 address mismatch:\n- Config: ${currentPermit2Address}\n- On-chain: ${getAddress(
-                  onChainPermit2
-                )}`
-              )
-            } else {
-              consola.success('Permit2 address in Permit2Proxy matches config')
-            }
-          }
-        }
-      } catch (e: any) {
-        logError(`Error while checking Permit2 bytecode: ${e.message}`)
-      }
-
-      finish()
     } else {
       logError('No dexs configured')
-      finish()
     }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                   Check approved sigs                   │
+    //          ╰─────────────────────────────────────────────────────────╯
+
+    consola.box('Checking DEX signatures approved in diamond...')
+    // Check if function signatures are approved
+    const { sigs } = await import(`../../config/sigs.json`)
+
+    // Function to split array into chunks
+    const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
+      const chunks: T[][] = []
+      for (let i = 0; i < array.length; i += chunkSize) {
+        chunks.push(array.slice(i, i + chunkSize))
+      }
+      return chunks
+    }
+
+    const batchSize = 20
+    const sigBatches = chunkArray(sigs, batchSize)
+
+    const sigsToApprove: Hex[] = []
+
+    for (const batch of sigBatches) {
+      const calls = batch.map((sig: string) => {
+        return {
+          ...dexManager,
+          functionName: 'isFunctionApproved',
+          args: [sig],
+        }
+      })
+
+      const results = await publicClient.multicall({ contracts: calls })
+
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status !== 'success' || !results[i].result) {
+          console.log('Function not approved:', batch[i])
+          sigsToApprove.push(batch[i] as Hex)
+        }
+      }
+    }
+
+    if (sigsToApprove.length > 0) {
+      logError(`Missing ${sigsToApprove.length} DEX signatures`)
+    } else {
+      consola.success('No missing signatures.')
+    }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check contract ownership                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking ownership...')
+
+    const withdrawWallet = getAddress(globalConfig.withdrawWallet)
+    const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
+    const refundWallet = getAddress(globalConfig.refundWallet)
+
+    // Check ERC20Proxy ownership
+    const erc20ProxyOwner = await erc20Proxy.read.owner()
+    if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
+      logError(
+        `ERC20Proxy owner is ${getAddress(
+          erc20ProxyOwner
+        )}, expected ${getAddress(deployerWallet)}`
+      )
+    } else {
+      consola.success('ERC20Proxy owner is correct')
+    }
+
+    // Check that Diamond is owned by SAFE
+    if (networksConfig[network.toLowerCase()].safeAddress) {
+      const safeAddress = networksConfig[network.toLowerCase()].safeAddress
+
+      await checkOwnership(
+        'LiFiDiamond',
+        safeAddress,
+        deployedContracts,
+        publicClient
+      )
+    }
+
+    // FeeCollector
+    await checkOwnership(
+      'FeeCollector',
+      withdrawWallet,
+      deployedContracts,
+      publicClient
+    )
+
+    // Receiver
+    await checkOwnership(
+      'Receiver',
+      refundWallet,
+      deployedContracts,
+      publicClient
+    )
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check emergency pause config             │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking funding of PauserWallet...')
+
+    const pauserBalance = formatEther(
+      await publicClient.getBalance({
+        address: pauserWallet,
+      })
+    )
+
+    if (!pauserBalance || pauserBalance === '0')
+      logError(`PauserWallet does not have any native balance`)
+    else consola.success(`PauserWallet is funded: ${pauserBalance}`)
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check access permissions                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking access permissions...')
+    const accessManager = getContract({
+      address: deployedContracts['LiFiDiamond'],
+      abi: parseAbi([
+        'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
+      ]),
+      client: publicClient,
+    })
+
+    // Deployer wallet
+    const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
+      sig: Hex
+      name: string
+    }[]
+
+    for (const sig of approveSigs) {
+      if (
+        !(await accessManager.read.addressCanExecuteMethod([
+          sig.sig,
+          deployerWallet,
+        ]))
+      ) {
+        logError(
+          `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
+        )
+      } else {
+        consola.success(
+          `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
+        )
+      }
+    }
+
+    // Refund wallet
+    const refundSigs = globalConfig.approvedSigsForRefundWallet as {
+      sig: Hex
+      name: string
+    }[]
+
+    for (const sig of refundSigs) {
+      if (
+        !(await accessManager.read.addressCanExecuteMethod([
+          sig.sig,
+          refundWallet,
+        ]))
+      ) {
+        logError(
+          `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
+        )
+      } else {
+        consola.success(
+          `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
+        )
+      }
+    }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                   SAFE Configuration                    │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking SAFE configuration...')
+    const networkConfig: Network = networks[network.toLowerCase()]
+    if (!networkConfig.safeAddress) {
+      consola.warn('SAFE address not configured')
+    } else {
+      const safeOwners = globalConfig.safeOwners
+      const safeAddress = networkConfig.safeAddress
+
+      try {
+        // Import getSafeInfoFromContract from safe-utils.ts
+        const { getSafeInfoFromContract } = await import('./safe/safe-utils')
+
+        // Get Safe info directly from the contract
+        const safeInfo = await getSafeInfoFromContract(
+          publicClient,
+          safeAddress
+        )
+
+        // Check that each safeOwner is in the Safe
+        for (const o in safeOwners) {
+          const safeOwner = getAddress(safeOwners[o])
+          const isOwner = safeInfo.owners.some(
+            (owner) => getAddress(owner) === safeOwner
+          )
+
+          if (!isOwner) {
+            logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+          } else {
+            consola.success(`SAFE owner ${safeOwner} is in SAFE configuration`)
+          }
+        }
+
+        // Check that threshold is correct
+        if (safeInfo.threshold < BigInt(SAFE_THRESHOLD)) {
+          logError(
+            `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
+          )
+        } else {
+          consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
+        }
+
+        // Show current nonce
+        consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
+      } catch (error) {
+        logError(`Failed to get SAFE information: ${error}`)
+      }
+    }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │      Verify Permit2 address and compare bytecode        │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Validating Permit2 setup...')
+
+    try {
+      const permit2Config = await import('../../config/permit2Proxy.json')
+
+      let currentPermit2Address: Address
+      const networkPermitConfig = permit2Config[network.toLowerCase()]
+      if (!networkPermitConfig) {
+        logError(`permit2Proxy.json is missing an entry for "${network}"`)
+      } else {
+        currentPermit2Address = getAddress(networkPermitConfig)
+      }
+
+      const mainnetPermit2Address = getAddress(permit2Config['mainnet'])
+
+      if (!currentPermit2Address || !mainnetPermit2Address) {
+        logError(
+          `Missing Permit2 address for ${network} or mainnet in permit2Proxy.json`
+        )
+      } else {
+        // Compare Permit2 bytecode between current network and mainnet
+        consola.info(
+          `Comparing Permit2 bytecode:\n- Current: ${currentPermit2Address}\n- Mainnet: ${mainnetPermit2Address}`
+        )
+
+        const rpcUrlMainnet = networksConfig['mainnet']?.rpcUrl
+        const rpcUrlCurrent = networksConfig[network.toLowerCase()]?.rpcUrl
+
+        if (!rpcUrlMainnet || !rpcUrlCurrent) {
+          logError(
+            `Missing RPC URL for ${network} or mainnet in networks config`
+          )
+        } else {
+          // get bytecode of both Permit2 deployments
+          const codeMainnet =
+            await $`cast code ${mainnetPermit2Address} --rpc-url ${rpcUrlMainnet}`
+          const codeCurrent =
+            await $`cast code ${currentPermit2Address} --rpc-url ${rpcUrlCurrent}`
+
+          // remove unnecessary blanks
+          const bytecodeMainnet = codeMainnet.stdout.trim()
+          const bytecodeCurrent = codeCurrent.stdout.trim()
+
+          /**
+           * Strips the Solidity compiler metadata trailer from contract bytecode.
+           * This metadata is appended to the bytecode and typically starts with:
+           * - `a264...` (CBOR metadata trailer for Solidity ≥0.6.0)
+           * - `a165...` (older metadata encoding)
+           *
+           * This function removes known trailer patterns so that logic comparisons
+           * between bytecodes ignore non-functional differences.
+           */
+          const stripMetadata = (code: string): string => {
+            return code
+              .replace(/a26[0-9a-fA-F]{2}[0-9a-fA-F]*$/, '')
+              .replace(/a16[0-9a-fA-F]{2}[0-9a-fA-F]*$/, '')
+          }
+
+          const strippedMainnet = stripMetadata(bytecodeMainnet)
+          const strippedCurrent = stripMetadata(bytecodeCurrent)
+
+          if (strippedMainnet !== strippedCurrent) {
+            logError(
+              'Permit2 bytecode does not match mainnet after metadata stripping'
+            )
+          } else {
+            consola.success(
+              'Permit2 bytecode matches mainnet after stripping metadata'
+            )
+          }
+        }
+
+        // Fetch on-chain Permit2 address from Permit2Proxy and compare to config
+        const permit2ProxyAddress = deployedContracts['Permit2Proxy']
+        if (!permit2ProxyAddress) {
+          logError('Permit2Proxy not found in deployed contracts')
+        } else {
+          const permit2ProxyContract = getContract({
+            address: permit2ProxyAddress,
+            abi: parseAbi([
+              'function PERMIT2() external view returns (address)',
+            ]),
+            client: publicClient,
+          })
+
+          const onChainPermit2 = await permit2ProxyContract.read.PERMIT2()
+
+          if (getAddress(onChainPermit2) !== currentPermit2Address) {
+            logError(
+              `Permit2 address mismatch:\n- Config: ${currentPermit2Address}\n- On-chain: ${getAddress(
+                onChainPermit2
+              )}`
+            )
+          } else {
+            consola.success('Permit2 address in Permit2Proxy matches config')
+          }
+        }
+      }
+    } catch (e: any) {
+      logError(`Error while checking Permit2 bytecode: ${e.message}`)
+    }
+
+    finish()
   },
 })
 
