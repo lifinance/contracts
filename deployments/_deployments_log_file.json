@@ -24437,6 +24437,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc7Ae913CecE6eaa70dB876e90B7CbBF9231cB721",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 06:56:58",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {
