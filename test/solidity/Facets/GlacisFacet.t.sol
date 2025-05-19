@@ -7,7 +7,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { InsufficientBalance, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -373,13 +373,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // send all available source token balance to different account to ensure sending wallet has no source token funds
         srcToken.transfer(USER_RECEIVER, srcToken.balanceOf(USER_SENDER));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientBalance.selector,
-                bridgeData.minAmount,
-                0
-            )
-        );
+        vm.expectRevert(TransferFromFailed.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
