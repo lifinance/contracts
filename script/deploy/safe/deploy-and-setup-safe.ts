@@ -1,23 +1,42 @@
 /**
  * deploy-and-setup-safe.ts
  *
- * Deploys a Safe multisig wallet on any EVM chain, using either:
- *  1. @safe-global/safe-deployments for existing on-chain implementations & factory, or
- *  2. Your local v1.4.1 artifacts (Safe + SafeProxyFactory).
+ * Safe multisig deployment & setup script for any EVM chain.
  *
- * Combines owners from config/global.json + CLI args, prompts for staging vs. production,
- * creates a Safe proxy via createProxyWithNonce, runs setup, verifies bytecode/owners/threshold,
- * and updates config/networks.json.
+ * This script supports two deployment paths:
+ *   1. **On-chain Safe**: if @safe-global/safe-deployments provides a Safe singleton,
+ *      proxy factory and fallback handler for your chain, it will reuse those.
+ *   2. **Local v1.4.1 fallback**: otherwise it deploys the Safe implementation & proxy
+ *      factory bytecode you ship in `safe/`, then verifies their on-chain code.
  *
- * Usage:
- *   bun deploy-and-setup-safe.ts \
- *     --network arbitrum \
- *     --threshold 3 \
- *     [--owners 0xA…,0xB…] \
- *     [--fallbackHandler 0x…] \
- *     [--paymentToken 0x…] \
- *     [--payment 1000000000000000] \
- *     [--paymentReceiver 0x…]
+ * Workflow:
+ *   • Merge owners from `config/global.json` + `--owners` CLI argument
+ *   • Prompt for `staging` vs. `production` key (env vars `PRIVATE_KEY` / `PRIVATE_KEY_PRODUCTION`)
+ *   • Lookup or deploy Safe implementation & proxy factory
+ *   • Create a Safe proxy via `createProxyWithNonce(...)` with the `setup(...)` initializer
+ *   • Wait for the `ProxyCreation` event, verify proxy bytecode (if fallback)
+ *   • Call `getOwners()` and `getThreshold()` on the new Safe to confirm on-chain state
+ *   • Update `config/networks.json` with the new `safeAddress`
+ *
+ * Required parameters:
+ *   --network        SupportedChain name (e.g. arbitrum)
+ *   --threshold      number of required confirmations
+ *
+ * Optional parameters:
+ *   --owners         comma-separated extra owner addresses
+ *   --fallbackHandler  custom fallback handler address (default: zero)
+ *   --paymentToken   ERC20 token address for payment (default: zero = ETH)
+ *   --payment        payment amount in wei (default: 0)
+ *   --paymentReceiver address to receive payment (default: zero)
+ *
+ * Environment variables:
+ *   PRIVATE_KEY               deployer key for staging
+ *   PRIVATE_KEY_PRODUCTION    deployer key for production
+ *   ETH_NODE_URI_<NETWORK>    RPC URL(s) for each network, loaded via `.env`
+ *
+ * Example:
+ *   bun deploy-and-setup-safe.ts --network arbitrum --threshold 3 \
+ *     --owners 0xAb…123,0xCd…456 --paymentToken 0xErc…789 --payment 1000000000000000
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -142,7 +161,6 @@ async function compareDeployedBytecode(
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// ... existing code ...
 // Deploy local Safe implementation & factory v1.4.1
 async function deployLocalContracts(publicClient: any, walletClient: any) {
   const SAFE_ARTIFACT = JSON.parse(
@@ -185,6 +203,7 @@ async function deployLocalContracts(publicClient: any, walletClient: any) {
   })
   const implRcpt = await publicClient.waitForTransactionReceipt({
     hash: implTx,
+    confirmations: 5,
   })
   const implAddr = implRcpt.contractAddress!
   consola.success(`✔ Safe impl @ ${implAddr}`)
@@ -204,6 +223,7 @@ async function deployLocalContracts(publicClient: any, walletClient: any) {
   })
   const facRcpt = await publicClient.waitForTransactionReceipt({
     hash: facTx,
+    confirmations: 5,
   })
   const facAddr = facRcpt.contractAddress!
   consola.success(`✔ SafeProxyFactory @ ${facAddr}`)
@@ -276,6 +296,7 @@ async function createSafeProxy(params: {
   })
   const rcpt = await publicClient.waitForTransactionReceipt({
     hash: txHash,
+    confirmations: 5,
   })
   if (rcpt.status === 'reverted') throw new Error('Proxy creation reverted')
 
@@ -301,7 +322,6 @@ async function createSafeProxy(params: {
   const safeAddr = (proxyEvent.args as any).proxy as Address
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
-  // Optional: verify proxy bytecode
   if (proxyBytecode) {
     const code = await publicClient.getCode({ address: safeAddr })
     if (code === proxyBytecode) consola.success('✔ Proxy bytecode verified')
@@ -401,7 +421,7 @@ const main = defineCommand({
       throw new Error('Threshold cannot exceed number of owners')
     }
 
-    // 4️⃣ optional params
+    // optional params
     const fallbackHandler =
       args.fallbackHandler && isAddress(args.fallbackHandler)
         ? getAddress(args.fallbackHandler)
@@ -416,12 +436,12 @@ const main = defineCommand({
         ? getAddress(args.paymentReceiver)
         : zeroAddress
 
-    // 5️⃣ setup clients
+    // setup clients
     const { publicClient, walletClient, walletAccount } =
       await setupEnvironment(networkName, null, environment)
     consola.info('Deployer:', walletAccount.address)
 
-    // 6️⃣ attempt safe-deployments lookup
+    // attempt safe-deployments lookup
     const chainId = String(await publicClient.getChainId())
     const isL2 = Boolean((publicClient as any).chain?.contracts?.l2OutputOracle)
     const singletonD = isL2
@@ -443,7 +463,7 @@ const main = defineCommand({
       consola.info(`FallbackHandler   : ${fallbackAddr}`)
     } else {
       consola.warn(
-        '⚠️  No on-chain Safe deployments found for this chain; deploying local v1.4.1'
+        '⚠️  No on-chain Safe deployments found for this chain. Deploying local v1.4.1'
       )
       const deployed = await deployLocalContracts(publicClient, walletClient)
       singletonAddr = deployed.implAddr
@@ -452,7 +472,7 @@ const main = defineCommand({
       proxyBytecode = deployed.proxyBytecode
     }
 
-    // 7️⃣ create Safe proxy + setup
+    // create Safe proxy + setup
     const safeAddress = await createSafeProxy({
       publicClient,
       walletClient,
@@ -467,7 +487,7 @@ const main = defineCommand({
       paymentReceiver,
     })
 
-    // 8️⃣—NEW—verify on-chain owners & threshold
+    // verify on-chain owners & threshold
     consola.info('🔍 Verifying Safe on-chain state…')
     const [actualOwners, actualThreshold] = await Promise.all([
       publicClient.readContract({
@@ -507,7 +527,7 @@ const main = defineCommand({
       consola.success('✔ Threshold matches expected')
     }
 
-    // 9️⃣ update networks.json
+    // update networks.json
     networks[networkName] = {
       ...networks[networkName],
       safeAddress,
