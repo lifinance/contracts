@@ -1,12 +1,4 @@
-import {
-  parseAbi,
-  encodeFunctionData,
-  formatUnits,
-  parseUnits,
-  zeroAddress,
-  hashTypedData,
-  getAddress,
-} from 'viem'
+import { parseAbi, encodeFunctionData, parseUnits, zeroAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
 import { createPublicClient, createWalletClient, http } from 'viem'
@@ -15,10 +7,8 @@ import {
   SupportedChainId,
   OrderKind,
   TradingSdk,
-  SwapAdvancedSettings,
   TradeParameters,
 } from '@cowprotocol/cow-sdk'
-import { getEnvVar } from './utils/demoScriptHelpers'
 import { CowShedSdk } from './utils/lib/cowShedSdk'
 import deploymentsArbitrum from '../../deployments/arbitrum.staging.json'
 
@@ -432,25 +422,15 @@ const cowFlow = async (
     )
     const ethersSigner = new ethers.Wallet(privateKey, provider)
 
-    // Initialize the CoW Protocol SDK with the ethers.js signer
+    // Initialize the CoW Protocol SDK with the ethers.js signer for Arbitrum
     const cowSdk = new TradingSdk({
-      chainId: chainId as SupportedChainId,
+      chainId: SupportedChainId.ARBITRUM_ONE,
       signer: ethersSigner,
       appCode: 'LiFi',
     })
 
-    // Get the VaultRelayer address for the current chain
-    // Hardcoded VaultRelayer addresses for different chains
-    const vaultRelayerAddresses = {
-      [SupportedChainId.ARBITRUM_ONE]:
-        '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110',
-    }
-
-    const vaultRelayerAddress =
-      vaultRelayerAddresses[chainId as SupportedChainId]
-    if (!vaultRelayerAddress) {
-      throw new Error(`VaultRelayer address not found for chain ID ${chainId}`)
-    }
+    // Get the VaultRelayer address for Arbitrum
+    const vaultRelayerAddress = '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110'
     console.log(`VaultRelayer address: ${vaultRelayerAddress}`)
 
     // Create ERC20 contract instance for the sell token
@@ -562,7 +542,7 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
     const account = privateKeyToAccount(privateKey)
     console.log('Account address:', account.address)
 
-    console.log('Creating clients...')
+    console.log('Creating clients for Arbitrum...')
     const rpcUrl = process.env.ETH_NODE_URI_ARBITRUM
     if (!rpcUrl) {
       throw new Error('ETH_NODE_URI_ARBITRUM environment variable is not set')
@@ -597,10 +577,10 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
 
     const originalTokenOwner = account.address
     // Use the correct Arbitrum chain ID
-    const chainId = 42161
+    const chainId = 42161 // Arbitrum One
 
-    // Define token information
-    console.log('Setting up token information...')
+    // Define token information for Arbitrum
+    console.log('Setting up token information for Arbitrum...')
     const fromToken = {
       address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1' as `0x${string}`, // WETH on Arbitrum
       decimals: 18,
