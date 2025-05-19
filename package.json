@@ -59,7 +59,6 @@
     "codegen": "plop",
     "compile": "forge build",
     "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
-    "deploy-and-setup-safe": "bun ./script/deploy/safe/deploy-and-setup-safe.ts",
     "deploy-safe": "bun ./script/deploy/safe/deploy-safe.ts",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
