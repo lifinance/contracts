@@ -17,11 +17,7 @@ import {
   TradingSdk,
   SwapAdvancedSettings,
   TradeParameters,
-  TraderParameters,
-  OrderBookApi,
-  OrderSigningUtils,
 } from '@cowprotocol/cow-sdk'
-import { formatAddress } from './utils/lib/address'
 import { getEnvVar } from './utils/demoScriptHelpers'
 import { CowShedSdk } from './utils/lib/cowShedSdk'
 import deploymentsArbitrum from '../../deployments/arbitrum.staging.json'
@@ -32,54 +28,56 @@ import { truncateCalldata } from './utils/lib/formatting'
 import { left, Result, right } from './utils/lib/result'
 
 // Define CoW Protocol constants
-const COW_SHED_FACTORY = '0x00E989b87700514118Fa55326CD1cCE82faebEF6'
-const COW_SHED_IMPLEMENTATION = '0x2CFFA8cf11B90C9F437567b86352169dF4009F73'
+const COW_SHED_FACTORY =
+  '0x00E989b87700514118Fa55326CD1cCE82faebEF6' as `0x${string}`
+const COW_SHED_IMPLEMENTATION =
+  '0x2CFFA8cf11B90C9F437567b86352169dF4009F73' as `0x${string}`
 
 // Define interfaces and types
 interface Token {
-  readonly address: string
+  readonly address: `0x${string}`
   readonly decimals: number
 }
 
 interface ICall {
-  target: string
-  callData: string
+  target: `0x${string}`
+  callData: `0x${string}`
   value: bigint
   allowFailure: boolean
   isDelegateCall: boolean
 }
 
 interface PatchOperation {
-  valueSource: string
-  valueGetter: string
+  valueSource: `0x${string}`
+  valueGetter: `0x${string}`
   valueToReplace: string | number | bigint
 }
 
 type TransactionIntent =
   | {
       readonly type: 'regular'
-      readonly targetAddress: string
-      readonly callData: string
+      readonly targetAddress: `0x${string}`
+      readonly callData: `0x${string}`
       readonly nativeValue?: bigint
       readonly allowFailure?: boolean
       readonly isDelegateCall?: boolean
     }
   | {
       readonly type: 'dynamicValue'
-      readonly patcherAddress: string
-      readonly valueSource: string
-      readonly valueGetter: string
-      readonly targetAddress: string
-      readonly callDataToPatch: string
+      readonly patcherAddress: `0x${string}`
+      readonly valueSource: `0x${string}`
+      readonly valueGetter: `0x${string}`
+      readonly targetAddress: `0x${string}`
+      readonly callDataToPatch: `0x${string}`
       readonly valueToReplace: string | number | bigint
       readonly nativeValue?: bigint
       readonly delegateCall?: boolean
     }
   | {
       readonly type: 'multiPatch'
-      readonly patcherAddress: string
-      readonly targetAddress: string
-      readonly callDataToPatch: string
+      readonly patcherAddress: `0x${string}`
+      readonly targetAddress: `0x${string}`
+      readonly callDataToPatch: `0x${string}`
       readonly patchOperations: readonly PatchOperation[]
       readonly nativeValue?: bigint
       readonly delegateCall?: boolean
@@ -108,30 +106,30 @@ console.log('Using COW_SHED_FACTORY:', COW_SHED_FACTORY)
 console.log('Using COW_SHED_IMPLEMENTATION:', COW_SHED_IMPLEMENTATION)
 
 // Helper functions
-const encodeBalanceOfCall = (account: string): string => {
+const encodeBalanceOfCall = (account: string): `0x${string}` => {
   return encodeFunctionData({
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [account],
+    args: [account as `0x${string}`],
   })
 }
 
-const encodeTransferCall = (to: string, amount: string): string => {
+const encodeTransferCall = (to: string, amount: string): `0x${string}` => {
   return encodeFunctionData({
     abi: ERC20_ABI,
     functionName: 'transfer',
-    args: [to, BigInt(amount)],
+    args: [to as `0x${string}`, BigInt(amount)],
   })
 }
 
 const encodeGetDoubledBalanceCall = (
   token: string,
   account: string
-): string => {
+): `0x${string}` => {
   return encodeFunctionData({
     abi: DUMMY_TARGET_ABI,
     functionName: 'getDoubledBalance',
-    args: [token, account],
+    args: [token as `0x${string}`, account as `0x${string}`],
   })
 }
 
@@ -209,7 +207,11 @@ const processTransactionIntent = (
         return right(call)
       } catch (error) {
         return left(
-          new Error(`Failed to create dynamic value patch: ${error.message}`)
+          new Error(
+            `Failed to create dynamic value patch: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
         )
       }
     }
@@ -265,7 +267,13 @@ const processTransactionIntent = (
 
         return right(call)
       } catch (error) {
-        return left(new Error(`Failed to create multi-patch: ${error.message}`))
+        return left(
+          new Error(
+            `Failed to create multi-patch: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        )
       }
     }
   }
@@ -280,7 +288,7 @@ const calculateCowShedProxyAddress = async (
 ): Promise<string> => {
   console.log('calculateCowShedProxyAddress called with:', { chainId, owner })
 
-  if (!owner || owner === 'undefined') {
+  if (!owner || owner === '0x0000000000000000000000000000000000000000') {
     throw new Error('Owner address is undefined or empty')
   }
 
@@ -290,16 +298,14 @@ const calculateCowShedProxyAddress = async (
   // Validate inputs before creating the SDK
   if (
     !COW_SHED_FACTORY ||
-    COW_SHED_FACTORY === 'undefined' ||
-    COW_SHED_FACTORY === zeroAddress
+    COW_SHED_FACTORY === '0x0000000000000000000000000000000000000000'
   ) {
     throw new Error('COW_SHED_FACTORY is undefined or invalid')
   }
 
   if (
     !COW_SHED_IMPLEMENTATION ||
-    COW_SHED_IMPLEMENTATION === 'undefined' ||
-    COW_SHED_IMPLEMENTATION === zeroAddress
+    COW_SHED_IMPLEMENTATION === '0x0000000000000000000000000000000000000000'
   ) {
     throw new Error('COW_SHED_IMPLEMENTATION is undefined or invalid')
   }
@@ -433,25 +439,88 @@ const cowFlow = async (
       appCode: 'LiFi',
     })
 
+    // Get the VaultRelayer address for the current chain
+    // Hardcoded VaultRelayer addresses for different chains
+    const vaultRelayerAddresses = {
+      [SupportedChainId.ARBITRUM_ONE]:
+        '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110',
+    }
+
+    const vaultRelayerAddress =
+      vaultRelayerAddresses[chainId as SupportedChainId]
+    if (!vaultRelayerAddress) {
+      throw new Error(`VaultRelayer address not found for chain ID ${chainId}`)
+    }
+    console.log(`VaultRelayer address: ${vaultRelayerAddress}`)
+
+    // Create ERC20 contract instance for the sell token
+    const sellTokenContract = new ethers.Contract(
+      fromToken.address,
+      [
+        'function approve(address spender, uint256 amount) public returns (bool)',
+        'function allowance(address owner, address spender) public view returns (uint256)',
+      ],
+      ethersSigner
+    )
+
+    // Check current allowance
+    const currentAllowance = await sellTokenContract.allowance(
+      ethersSigner.address,
+      vaultRelayerAddress
+    )
+    console.log(`Current allowance: ${currentAllowance.toString()}`)
+
+    // If allowance is insufficient, approve the token
+    if (currentAllowance.lt(fromAmount)) {
+      console.log('Approving token for CoW Protocol VaultRelayer...')
+      const maxApproval = ethers.constants.MaxUint256
+      const approveTx = await sellTokenContract.approve(
+        vaultRelayerAddress,
+        maxApproval
+      )
+      console.log(`Approval transaction hash: ${approveTx.hash}`)
+
+      // Wait for the approval transaction to be confirmed
+      console.log('Waiting for approval transaction to be confirmed...')
+      await approveTx.wait()
+      console.log('Token approved successfully')
+    } else {
+      console.log('Token already has sufficient allowance')
+    }
+
     // Create the order parameters
     const parameters: TradeParameters = {
       kind: OrderKind.SELL,
       sellToken: fromToken.address,
+      sellTokenDecimals: fromToken.decimals,
       buyToken: toToken.address,
-      // Convert bigint to string for the API
-      sellAmountBeforeFee: fromAmount.toString(),
+      buyTokenDecimals: toToken.decimals,
+      amount: fromAmount.toString(),
       receiver: postReceiver,
+      // Add a reasonable validity period (30 minutes)
+      validFor: 30 * 60, // 30 minutes in seconds
+      // Add a reasonable slippage (0.5%)
+      slippageBps: 50,
     }
 
     // Add post hooks if provided
     if (postHooks && postHooks.length > 0) {
-      // Add post hooks to the parameters
-      const traderParams: TraderParameters = {
-        postHooks,
-      }
+      // Simplify post hooks to reduce payload size
+      const simplifiedPostHooks = postHooks.map((hook) => ({
+        target: hook.target,
+        callData: hook.callData.substring(0, 200), // Truncate calldata to reduce payload size
+        gasLimit: '1000000',
+      }))
 
       // Submit the order with post hooks
-      const orderId = await cowSdk.postSwapOrder(parameters, traderParams)
+      const orderId = await cowSdk.postSwapOrder(parameters, {
+        // Pass post hooks via appData
+        appData: JSON.stringify({
+          hooks: {
+            post: simplifiedPostHooks,
+          },
+        }),
+      })
       return right(orderId)
     } else {
       // Submit the order without post hooks
@@ -459,7 +528,14 @@ const cowFlow = async (
       return right(orderId)
     }
   } catch (error) {
-    return left(new Error(`Failed to execute CoW flow: ${error.message}`))
+    console.error('CoW Protocol error details:', error)
+    return left(
+      new Error(
+        `Failed to execute CoW flow: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    )
   }
 }
 
@@ -516,9 +592,6 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
     }
     console.log('Patcher address:', patcherAddress)
 
-    // Use a mock address for the dummy target
-    const dummyTargetAddress = '0x0000000000000000000000000000000000000001'
-
     const baseValuePlaceholder = '1000000000000000000'
     const doubledValuePlaceholder = '2000000000000000000'
 
@@ -529,12 +602,12 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
     // Define token information
     console.log('Setting up token information...')
     const fromToken = {
-      address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', // WETH on Arbitrum
+      address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1' as `0x${string}`, // WETH on Arbitrum
       decimals: 18,
     }
 
     const toToken = {
-      address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC on Arbitrum
+      address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as `0x${string}`, // USDC on Arbitrum
       decimals: 6,
     }
 
@@ -551,10 +624,10 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
     const transactionIntents: readonly TransactionIntent[] = [
       {
         type: 'dynamicValue',
-        patcherAddress: patcherAddress,
+        patcherAddress: patcherAddress as `0x${string}`,
         valueSource: toToken.address,
         valueGetter: encodeBalanceOfCall(shedProxyAddress),
-        targetAddress: dummyTargetAddress,
+        targetAddress: patcherAddress as `0x${string}`,
         callDataToPatch: encodeFunctionData({
           abi: DUMMY_TARGET_ABI,
           functionName: 'deposit',
@@ -565,8 +638,8 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
       },
       {
         type: 'multiPatch',
-        patcherAddress: patcherAddress,
-        targetAddress: dummyTargetAddress,
+        patcherAddress: patcherAddress as `0x${string}`,
+        targetAddress: patcherAddress as `0x${string}`,
         callDataToPatch: encodeFunctionData({
           abi: DUMMY_TARGET_ABI,
           functionName: 'multiDeposit',
@@ -584,9 +657,9 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
             valueToReplace: baseValuePlaceholder,
           },
           {
-            valueSource: dummyTargetAddress,
+            valueSource: patcherAddress as `0x${string}`,
             valueGetter: encodeGetDoubledBalanceCall(
-              toToken.address,
+              toToken.address as string,
               shedProxyAddress
             ),
             valueToReplace: doubledValuePlaceholder,
@@ -596,7 +669,7 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
       },
       {
         type: 'dynamicValue',
-        patcherAddress: patcherAddress,
+        patcherAddress: patcherAddress as `0x${string}`,
         valueSource: toToken.address,
         valueGetter: encodeBalanceOfCall(shedProxyAddress),
         targetAddress: toToken.address,
@@ -651,7 +724,7 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
 
     // Amount to swap (for example, 0.1 token)
     console.log('Calculating swap amount...')
-    const fromAmount = parseUnits('0.1', fromToken.decimals)
+    const fromAmount = parseUnits('0.001', fromToken.decimals)
 
     logSectionHeader('Creating CoW Swap Order')
     logKeyValue('From Token', fromToken.address)
