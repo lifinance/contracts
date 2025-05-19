@@ -47,6 +47,9 @@
   "polygonzkevm": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "rootstock": {
+    "airlift": "0xB303FEb7c38B7fbee5Bcb0dba2aCC1171478E6D5"
+  },
   "scroll": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
