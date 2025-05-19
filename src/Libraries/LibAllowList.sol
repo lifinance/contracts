@@ -10,11 +10,13 @@ import { InvalidContract } from "../Errors/GenericErrors.sol";
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.library.allow.list");
+        keccak256("com.lifi.library.allow.list.v2");
 
     struct AllowListStorage {
-        mapping(address => bool) allowlist;
+        mapping(address => bool) contractAllowList;
         mapping(bytes4 => bool) selectorAllowList;
+        mapping(address => uint256) contractToIndex;
+        mapping(bytes4 => uint256) selectorToIndex;
         address[] contracts;
         bytes4[] selectors;
     }
@@ -26,10 +28,11 @@ library LibAllowList {
 
         AllowListStorage storage als = _getStorage();
 
-        if (als.allowlist[_contract]) return;
+        if (als.contractAllowList[_contract]) return;
 
-        als.allowlist[_contract] = true;
+        als.contractAllowList[_contract] = true;
         als.contracts.push(_contract);
+        als.contractToIndex[_contract] = als.contracts.length;
     }
 
     /// @dev Checks whether a contract address has been added to the allow list
@@ -37,7 +40,7 @@ library LibAllowList {
     function contractIsAllowed(
         address _contract
     ) internal view returns (bool) {
-        return _getStorage().allowlist[_contract];
+        return _getStorage().contractAllowList[_contract];
     }
 
     /// @dev Remove a contract address from the allow list
@@ -45,20 +48,25 @@ library LibAllowList {
     function removeAllowedContract(address _contract) internal {
         AllowListStorage storage als = _getStorage();
 
-        if (!als.allowlist[_contract]) {
+        if (!als.contractAllowList[_contract]) {
             return;
         }
 
-        als.allowlist[_contract] = false;
+        uint256 oneBasedIndex = als.contractToIndex[_contract];
+        if (oneBasedIndex == 0) return;
 
-        uint256 length = als.contracts.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (als.contracts[i] == _contract) {
-                als.contracts[i] = als.contracts[length - 1];
-                als.contracts.pop();
-                break;
-            }
+        uint256 index = oneBasedIndex - 1;
+        uint256 lastIndex = als.contracts.length - 1;
+
+        if (index != lastIndex) {
+            address lastContract = als.contracts[lastIndex];
+            als.contracts[index] = lastContract;
+            als.contractToIndex[lastContract] = oneBasedIndex;
         }
+
+        als.contracts.pop();
+        delete als.contractToIndex[_contract];
+        als.contractAllowList[_contract] = false;
     }
 
     /// @dev Fetch contract addresses from the allow list
@@ -71,28 +79,11 @@ library LibAllowList {
     function addAllowedSelector(bytes4 _selector) internal {
         AllowListStorage storage als = _getStorage();
 
-        if (als.selectorAllowList[_selector]) {
-            // Check if selector exists in the array to handle legacy state
-            // where a selector might be true in selectorAllowList mapping but missing from the array.
-            // Since this is an admin-only function called infrequently, the array iteration is acceptable.
-            bool existsInArray = false;
-            uint256 length = als.selectors.length;
-            for (uint256 i = 0; i < length; i++) {
-                if (als.selectors[i] == _selector) {
-                    existsInArray = true;
-                    break;
-                }
-            }
+        if (als.selectorAllowList[_selector]) return;
 
-            if (!existsInArray) {
-                als.selectors.push(_selector);
-            }
-            return;
-        }
-
-        // New selector, add to both mapping and array
         als.selectorAllowList[_selector] = true;
         als.selectors.push(_selector);
+        als.selectorToIndex[_selector] = als.selectors.length;
     }
 
     /// @dev Removes a selector from the allow list
@@ -104,16 +95,21 @@ library LibAllowList {
             return;
         }
 
-        als.selectorAllowList[_selector] = false;
+        uint256 oneBasedIndex = als.selectorToIndex[_selector];
+        if (oneBasedIndex == 0) return;
 
-        uint256 length = als.selectors.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (als.selectors[i] == _selector) {
-                als.selectors[i] = als.selectors[length - 1];
-                als.selectors.pop();
-                break;
-            }
+        uint256 index = oneBasedIndex - 1;
+        uint256 lastIndex = als.selectors.length - 1;
+
+        if (index != lastIndex) {
+            bytes4 lastSelector = als.selectors[lastIndex];
+            als.selectors[index] = lastSelector;
+            als.selectorToIndex[lastSelector] = oneBasedIndex;
         }
+
+        als.selectors.pop();
+        delete als.selectorToIndex[_selector];
+        als.selectorAllowList[_selector] = false;
     }
 
     /// @dev Returns if selector has been added to the allow list

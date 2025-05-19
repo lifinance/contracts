@@ -654,59 +654,124 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_SucceedsIfLegacyApprovedSelectorIsMigratedToArray() public {
+    function test_SucceedsIfContractIndexMappingIsCorrect() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        // choose a selector to test with
-        bytes4 selector = bytes4(hex"cafe0001");
+        // Add first contract
+        whitelistMgr.addToWhitelist(address(c1));
+        assertTrue(whitelistMgr.isAddressWhitelisted(address(c1)));
 
-        bytes32 s = keccak256("com.lifi.library.allow.list");
-        // selectorAllowList mapping lives at slot s+1
-        bytes32 mappingSlot = bytes32(uint256(s) + 1);
+        // Add second contract
+        whitelistMgr.addToWhitelist(address(c2));
+        assertTrue(whitelistMgr.isAddressWhitelisted(address(c2)));
 
-        // now the actual storage slot for your key is
-        bytes32 actualSlot = keccak256(
-            abi.encodePacked(
-                bytes32(selector), // left-pad your bytes4 to 32 bytes
-                mappingSlot
-            )
-        );
+        // Get all addresses to verify order
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 2);
+        assertEq(approved[0], address(c1)); // Should be at index 1 (1-based)
+        assertEq(approved[1], address(c2)); // Should be at index 2 (1-based)
 
-        vm.store(address(diamond), actualSlot, bytes32(uint256(1)));
+        // Remove first contract
+        whitelistMgr.removeFromWhitelist(address(c1));
 
-        // verify our manipulation worked. the selector should be approved in the mapping
-        assertTrue(whitelistMgr.isFunctionApproved(selector));
+        // Verify c2 was moved to index 0
+        approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 1);
+        assertEq(approved[0], address(c2));
 
-        // should not appear in the array yet
-        bytes4[] memory initialSignatures = whitelistMgr
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfSelectorIndexMappingIsCorrect() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        bytes4 selector1 = hex"faceface";
+        bytes4 selector2 = hex"deadbeef";
+        bytes4 selector3 = hex"cafecafe";
+
+        whitelistMgr.setFunctionApprovalBySignature(selector1, true);
+        assertTrue(whitelistMgr.isFunctionApproved(selector1));
+
+        whitelistMgr.setFunctionApprovalBySignature(selector2, true);
+        assertTrue(whitelistMgr.isFunctionApproved(selector2));
+
+        whitelistMgr.setFunctionApprovalBySignature(selector3, true);
+        assertTrue(whitelistMgr.isFunctionApproved(selector3));
+
+        // get all selectors to verify order
+        bytes4[] memory approved = whitelistMgr
             .getApprovedFunctionSignatures();
-        bool foundInArray = false;
-        for (uint256 i = 0; i < initialSignatures.length; i++) {
-            if (initialSignatures[i] == selector) {
-                foundInArray = true;
-                break;
-            }
+        assertEq(approved.length, 3);
+        assertEq(approved[0], selector1);
+        assertEq(approved[1], selector2);
+        assertEq(approved[2], selector3);
+
+        // remove first selector
+        whitelistMgr.setFunctionApprovalBySignature(selector2, false);
+
+        // verify selector3 was moved to index 1
+        approved = whitelistMgr.getApprovedFunctionSignatures();
+        assertEq(approved.length, 2);
+        assertEq(approved[0], selector1);
+        assertEq(approved[1], selector3);
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfBatchAddingMaintainsCorrectIndices() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+        addresses[2] = address(c3);
+
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        for (uint256 i = 0; i < addresses.length; i++) {
+            assertTrue(whitelistMgr.isAddressWhitelisted(addresses[i]));
         }
-        assertFalse(foundInArray, "Selector should not be in array yet");
 
-        // now call addAllowedSelector again via a function call that uses it
-        // this should trigger the legacy migration code
-        whitelistMgr.setFunctionApprovalBySignature(selector, true);
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 3);
+        assertEq(approved[0], address(c1));
+        assertEq(approved[1], address(c2));
+        assertEq(approved[2], address(c3));
 
-        // now the selector should be in the array
-        bytes4[] memory finalSignatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        foundInArray = false;
-        for (uint256 i = 0; i < finalSignatures.length; i++) {
-            if (finalSignatures[i] == selector) {
-                foundInArray = true;
-                break;
-            }
-        }
-        assertTrue(foundInArray, "Selector should now be in array");
+        // remove middle address
+        whitelistMgr.removeFromWhitelist(address(c2));
 
-        // and the array length should have increased by 1
-        assertEq(finalSignatures.length, initialSignatures.length + 1);
+        // verify c3 moved to c2's position
+        approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, 2);
+        assertEq(approved[0], address(c1));
+        assertEq(approved[1], address(c3));
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfBatchRemovingMaintainsCorrectIndices() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        address[] memory addresses = new address[](3);
+        addresses[0] = address(c1);
+        addresses[1] = address(c2);
+        addresses[2] = address(c3);
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        // remove first and third addresses
+        address[] memory toRemove = new address[](2);
+        toRemove[0] = address(c1);
+        toRemove[1] = address(c3);
+        whitelistMgr.batchRemoveFromWhitelist(toRemove);
+
+        // verify only c2 remains and is at index 0
+        address[] memory remaining = whitelistMgr.getWhitelistedAddresses();
+        assertEq(remaining.length, 1);
+        assertEq(remaining[0], address(c2));
+
+        assertFalse(whitelistMgr.isAddressWhitelisted(address(c1)));
+        assertFalse(whitelistMgr.isAddressWhitelisted(address(c3)));
 
         vm.stopPrank();
     }
