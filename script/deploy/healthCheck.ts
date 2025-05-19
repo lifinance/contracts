@@ -265,10 +265,9 @@ const main = defineCommand({
       const whitelistManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
-          'function approvedDexs() external view returns (address[])', // old DexManagerFacet (depricated replaced by WhitelistManagerFacet getWhitelistedAddresses)
-          'function getWhitelistedAddresses() external view returns (address[])', // WhitelistManagerFacet
-          'function isFunctionApproved(bytes4) external returns (bool)', // WhitelistManagerFacet
-          'function getApprovedFunctionSignatures() external view returns (bytes4[])', // WhitelistManagerFacet
+          'function getWhitelistedAddresses() external view returns (address[])',
+          'function isFunctionApproved(bytes4) external returns (bool)',
+          'function getApprovedFunctionSignatures() external view returns (bytes4[])',
         ]),
         client: publicClient,
       })
@@ -278,17 +277,9 @@ const main = defineCommand({
         onChainWhitelisted =
           await whitelistManager.read.getWhitelistedAddresses()
       } catch (error) {
-        // If getWhitelistedAddresses fails, try approvedDexs
-        try {
-          onChainWhitelisted = await whitelistManager.read.approvedDexs()
-          logError(
-            'Diamond needs to be upgraded from DexManagerFacet to WhitelistManagerFacet'
-          )
-        } catch (innerError) {
-          logError('Failed to get whitelisted addresses and approved dexs')
-          finish()
-          return
-        }
+        logError('Failed to get whitelisted addresses')
+        finish()
+        return
       }
 
       let numMissing = 0
