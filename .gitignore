@@ -2,7 +2,7 @@ cache/
 zkcache/
 artifacts/
 artifacts-zk/
-out/
+/out/
 zkout/
 broadcast/
 foundry-zksync/*.tar.gz
