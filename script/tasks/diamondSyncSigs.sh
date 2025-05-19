@@ -16,9 +16,6 @@ function diamondSyncSigs {
   local DIAMOND_CONTRACT_NAME="$3"
   local EXIT_ON_ERROR="$4"
 
-  # Set max number of concurrent jobs
-  local MAX_CONCURRENT_JOBS=5
-
   # Validate required config path
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
 

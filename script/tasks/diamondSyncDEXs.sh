@@ -15,9 +15,6 @@ function diamondSyncDEXs {
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
 
-  # Limit the number of concurrent processes
-  MAX_CONCURRENT_JOBS=5
-
   # Temp file to track failed logs
   FAILED_LOG_FILE=$(mktemp)
 
