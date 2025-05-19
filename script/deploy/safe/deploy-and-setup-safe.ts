@@ -329,7 +329,9 @@ const main = defineCommand({
         return getAddress(o)
       })
 
-      const owners = [...ownersFromGlobalConfig, ...ownersFromArgs] as Address[]
+      const owners = [
+        ...new Set([...ownersFromGlobalConfig, ...ownersFromArgs]),
+      ] as Address[]
 
       if (owners.length === 0) {
         throw new Error('At least one owner address must be provided')
