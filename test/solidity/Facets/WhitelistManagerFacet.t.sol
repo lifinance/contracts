@@ -358,7 +358,6 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     }
 
     function test_AllowsWhitelistedAddressToAddContract() public {
-        vm.stopPrank();
         vm.startPrank(USER_PAUSER);
         vm.expectRevert(UnAuthorized.selector);
 
