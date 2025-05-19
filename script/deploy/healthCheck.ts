@@ -547,9 +547,14 @@ const main = defineCommand({
       try {
         const permit2Config = await import('../../config/permit2Proxy.json')
 
-        const currentPermit2Address = getAddress(
-          permit2Config[network.toLowerCase()]
-        )
+        let currentPermit2Address: Address
+        const networkPermitConfig = permit2Config[network.toLowerCase()]
+        if (!networkPermitConfig) {
+          logError(`permit2Proxy.json is missing an entry for "${network}"`)
+        } else {
+          currentPermit2Address = getAddress(networkPermitConfig)
+        }
+
         const mainnetPermit2Address = getAddress(permit2Config['mainnet'])
 
         if (!currentPermit2Address || !mainnetPermit2Address) {
