@@ -166,25 +166,14 @@ const compareDeployedBytecode = async (
   try {
     const deployedBytecode = await publicClient.getCode({ address })
 
-    // Skip metadata hash when comparing bytecodes (last 53 bytes)
-    // This is important because the same source code compiled at different times
-    // can have different metadata hashes
-    const deployedBytecodeWithoutMetadata = deployedBytecode.slice(0, -106)
-    const expectedBytecodeWithoutMetadata = expectedBytecode.slice(0, -106)
-
-    const bytecodeMatches =
-      deployedBytecodeWithoutMetadata === expectedBytecodeWithoutMetadata
+    const bytecodeMatches = deployedBytecode === expectedBytecode
 
     if (bytecodeMatches) {
       consola.success(`${contractName} bytecode verified successfully`)
     } else {
       consola.error(`${contractName} bytecode verification failed`)
-      consola.debug(
-        `Expected: ${expectedBytecodeWithoutMetadata.slice(0, 100)}...`
-      )
-      consola.debug(
-        `Deployed: ${deployedBytecodeWithoutMetadata.slice(0, 100)}...`
-      )
+      consola.debug(`Expected: ${deployedBytecode.slice(0, 100)}...`)
+      consola.debug(`Deployed: ${expectedBytecode.slice(0, 100)}...`)
     }
 
     return bytecodeMatches
