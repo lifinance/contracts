@@ -46,9 +46,6 @@ function diamondSyncSigs {
     NETWORKS=("$NETWORK")
   fi
 
-  # Determine file suffix based on environment
-  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
   # Temp file to track any failed network logs from background jobs
   FAILED_LOG_FILE=$(mktemp)
 
