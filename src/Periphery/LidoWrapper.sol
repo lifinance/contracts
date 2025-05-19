@@ -24,6 +24,8 @@ interface IStETH is IERC20 {
 /// @dev Any stETH or wstETH tokens sent directly to the contract can be irrecoverably swept by MEV bots
 /// @custom:version 1.0.0
 contract LidoWrapper is WithdrawablePeriphery {
+    uint256 public constant ETH_CHAIN_ID = 1;
+
     /// @notice Reference to the L2 stETH contract
     IStETH public immutable ST_ETH;
 
@@ -51,7 +53,8 @@ contract LidoWrapper is WithdrawablePeriphery {
         WST_ETH_ADDRESS = _wstETHAddress;
 
         // the wrap/unwrap functions are different on mainnet
-        if (block.chainid == 1) revert ContractNotYetReadyForMainnet();
+        if (block.chainid == ETH_CHAIN_ID)
+            revert ContractNotYetReadyForMainnet();
 
         // Approve stETH contract to pull wstETH from this contract
         IERC20(WST_ETH_ADDRESS).approve(address(ST_ETH), type(uint256).max);
