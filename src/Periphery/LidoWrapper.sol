@@ -25,6 +25,7 @@ interface IStETH is IERC20 {
 /// @author LI.FI (https://li.fi)
 /// @notice Wraps and unwraps Lido’s wstETH and stETH tokens
 /// @dev Be aware that Lido's L2 `wrap`/`unwrap` naming is reversed from the typical expectation.
+/// @dev Any stETH or wstETH tokens sent directly to the contract can be irrecoverably swept by MEV bots
 /// @custom:version 1.0.0
 contract LidoWrapper is WithdrawablePeriphery {
     /// @notice Reference to the L2 stETH contract
@@ -71,8 +72,12 @@ contract LidoWrapper is WithdrawablePeriphery {
             _amount
         );
 
-        // Call `unwrap` on stETH contract to get wstETH (naming is inverted)
-        ST_ETH.unwrap(_amount);
+        // Call `unwrap` on stETH contract to get wstETH (naming is inverted) with full stETH contract balance
+        // This contract is designed to not hold funds so sending full balance is not a problem
+        uint256 stETHBalance = IERC20(address(ST_ETH)).balanceOf(
+            address(this)
+        );
+        ST_ETH.unwrap(stETHBalance);
 
         // Transfer resulting wstETH to sender
         uint256 balance = IERC20(WST_ETH_ADDRESS).balanceOf(address(this));
