@@ -4,7 +4,7 @@
  * Safe multisig deployment & setup script for any EVM chain.
  *
  * This script supports two deployment paths:
- *   1. **On-chain Safe**: if @safe-global/safe-deployments provides a Safe singleton,
+ *   1. **On chain Safe**: if @safe-global/safe-deployments provides a Safe singleton,
  *      proxy factory and fallback handler for your chain, it will reuse those.
  *   2. **Local v1.4.1 fallback**: otherwise it deploys the Safe implementation & proxy
  *      factory bytecode you ship in `safe/`, then verifies their on-chain code.
@@ -372,9 +372,16 @@ const main = defineCommand({
       description: 'Where to send payment (default: 0x0)',
       required: false,
     },
+    updateConfig: {
+      type: 'boolean',
+      description:
+        'Whether to update networks.json with the new Safe address (default: true)',
+      required: false,
+      default: true,
+    },
   },
   async run({ args }) {
-    // 1️⃣ choose env
+    // choose env
     const environment = (await consola.prompt(
       'Which environment do you want to deploy to?',
       {
@@ -389,16 +396,16 @@ const main = defineCommand({
       }
     )) as 'staging' | 'production'
 
-    // 2️⃣ validate network & existing
+    // validate network & existing
     const networkName = args.network as SupportedChain
     const existing = networks[networkName]?.safeAddress
-    if (existing && existing !== zeroAddress) {
+    if (args.updateConfig !== false && existing && existing !== zeroAddress) {
       throw new Error(
         `Safe already deployed on ${networkName} @ ${existing}. Remove or clear networks.json to redeploy.`
       )
     }
 
-    // 3️⃣ parse & validate threshold + owners
+    // parse & validate threshold + owners
     const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1) {
       throw new Error('Threshold must be a positive integer')
@@ -502,7 +509,6 @@ const main = defineCommand({
       }),
     ])
 
-    // normalize to lowercase
     const expected = owners.map((o) => o.toLowerCase())
     const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
 
@@ -528,16 +534,21 @@ const main = defineCommand({
     }
 
     // update networks.json
-    networks[networkName] = {
-      ...networks[networkName],
-      safeAddress,
+    if (args.updateConfig !== false) {
+      networks[networkName] = {
+        ...networks[networkName],
+        safeAddress,
+      }
+      writeFileSync(
+        join(__dirname, '../../../config/networks.json'),
+        JSON.stringify(networks, null, 2),
+        'utf8'
+      )
+      consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
+    } else {
+      consola.info(`ℹ Skipping networks.json update (--updateConfig=false)`)
     }
-    writeFileSync(
-      join(__dirname, '../../../config/networks.json'),
-      JSON.stringify(networks, null, 2),
-      'utf8'
-    )
-    consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
+
     consola.info('🎉 Deployment & verification complete!')
     consola.info(
       'IMPORTANT: Please manually update the safeWebUrl and safeApiUrl in networks.json for proper Safe UI integration.'
