@@ -194,6 +194,8 @@ const compareDeployedBytecode = async (
   }
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 const main = defineCommand({
   meta: {
     name: 'deploy-standalone-safe',
@@ -418,6 +420,8 @@ const main = defineCommand({
       const implementationAddress = implementationReceipt.contractAddress
       consola.info('Safe implementation deployed at:', implementationAddress)
 
+      await sleep(5000)
+
       // Verify implementation bytecode immediately
       const implementationVerified = await compareDeployedBytecode(
         publicClient,
@@ -456,6 +460,8 @@ const main = defineCommand({
 
       const factoryAddress = factoryReceipt.contractAddress
       consola.info('SafeProxyFactory deployed at:', factoryAddress)
+
+      await sleep(5000)
 
       // Verify factory bytecode immediately
       const factoryVerified = await compareDeployedBytecode(
@@ -535,6 +541,8 @@ const main = defineCommand({
 
       const safeAddress = proxyCreationEvents[0].args.proxy as Address
       consola.info('Safe proxy deployed at:', safeAddress)
+
+      await sleep(5000)
 
       // Verify factory bytecode immediately
       const safeProxyVerified = await compareDeployedBytecode(
