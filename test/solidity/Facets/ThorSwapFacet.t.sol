@@ -10,8 +10,8 @@ import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 contract TestThorSwapFacet is ThorSwapFacet {
     constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

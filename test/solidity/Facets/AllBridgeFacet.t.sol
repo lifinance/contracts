@@ -10,8 +10,8 @@ import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 contract TestAllBridgeFacet is AllBridgeFacet {
     constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

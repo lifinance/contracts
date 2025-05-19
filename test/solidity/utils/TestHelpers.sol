@@ -6,7 +6,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockUniswapDEX } from "./MockUniswapDEX.sol";
 
 interface IWhitelistManager {
-    function addToWhitelist(address _address) external;
+    function addToWhitelist(address _contractAddress) external;
 
     function setFunctionApprovalBySignature(bytes4 _signature) external;
 }

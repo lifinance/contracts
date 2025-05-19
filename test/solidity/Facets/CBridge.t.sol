@@ -12,8 +12,8 @@ import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/E
 contract TestCBridgeFacet is CBridgeFacet {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

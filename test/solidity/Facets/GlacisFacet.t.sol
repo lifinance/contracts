@@ -13,8 +13,8 @@ import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameN
 contract TestGlacisFacet is GlacisFacet {
     constructor(IGlacisAirlift _airlift) GlacisFacet(_airlift) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

@@ -10,8 +10,8 @@ contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
         address _example
     ) {{titleCase name}}Facet(_example) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

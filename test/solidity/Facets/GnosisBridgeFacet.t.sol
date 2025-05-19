@@ -11,8 +11,8 @@ import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
     constructor(IXDaiBridge _xDaiBridge) GnosisBridgeFacet(_xDaiBridge) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

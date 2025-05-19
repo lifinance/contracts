@@ -19,8 +19,8 @@ contract TestGasZipPeriphery is GasZipPeriphery {
         address owner
     ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator, owner) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function removeFromWhitelist(address _address) external {

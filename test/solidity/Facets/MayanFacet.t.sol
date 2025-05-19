@@ -12,8 +12,8 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 contract TestMayanFacet is MayanFacet {
     constructor(IMayan _bridge) MayanFacet(_bridge) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

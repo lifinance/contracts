@@ -16,8 +16,8 @@ contract TestStargateFacetV2 is StargateFacetV2 {
         address _tokenMessagingAddress
     ) StargateFacetV2(_tokenMessagingAddress) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

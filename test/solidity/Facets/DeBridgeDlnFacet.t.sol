@@ -12,8 +12,8 @@ import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol"
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
     constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

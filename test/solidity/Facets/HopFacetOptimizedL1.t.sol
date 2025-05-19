@@ -10,8 +10,8 @@ import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacetOptimized {
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

@@ -12,8 +12,8 @@ import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
     constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function removeFromWhitelist(address _address) external {
@@ -26,8 +26,8 @@ contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
 }
 
 contract TestGenericSwapFacet is GenericSwapFacet {
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function removeFromWhitelist(address _address) external {

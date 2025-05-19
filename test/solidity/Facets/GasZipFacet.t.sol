@@ -10,8 +10,8 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfi
 contract TestGasZipFacet is GasZipFacet {
     constructor(address gasZipRouter) GasZipFacet(gasZipRouter) {}
 
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function removeFromWhitelist(address _address) external {

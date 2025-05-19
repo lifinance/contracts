@@ -19,8 +19,8 @@ interface IWhitelistManagerFacet {
     );
 
     /// @notice Register an address to be approved for interactions.
-    /// @param _address The address to be whitelisted.
-    function addToWhitelist(address _address) external;
+    /// @param _contractAddress The contractaddress to be whitelisted.
+    function addToWhitelist(address _contractAddress) external;
 
     /// @notice Batch register addresses to be approved for interactions.
     /// @param _addresses The addresses to be whitelisted.

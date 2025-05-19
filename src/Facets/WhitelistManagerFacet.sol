@@ -15,14 +15,14 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
     /// @inheritdoc IWhitelistManagerFacet
-    function addToWhitelist(address _address) external {
+    function addToWhitelist(address _contractAddress) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
 
-        LibAllowList.addAllowedContract(_address);
+        LibAllowList.addAllowedContract(_contractAddress);
 
-        emit AddressWhitelisted(_address);
+        emit AddressWhitelisted(_contractAddress);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
