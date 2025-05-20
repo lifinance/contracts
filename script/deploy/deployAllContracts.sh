@@ -6,13 +6,15 @@ deployAllContracts() {
   # load required resources
   source script/config.sh
   source script/helperFunctions.sh
-  source script/deploy/deployPeripheryContracts.sh
+  source script/deploy/deployAndStoreCREATE3Factory.sh
   source script/deploy/deployCoreFacets.sh
-  source script/tasks/diamondUpdateFacet.sh
+  source script/deploy/deployFacetAndAddToDiamond.sh
+  source script/deploy/deployPeripheryContracts.sh
   source script/tasks/diamondSyncDEXs.sh
   source script/tasks/diamondSyncSigs.sh
-  source script/deploy/deployFacetAndAddToDiamond.sh
+  source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
+  source script/tasks/updateERC20Proxy.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -37,6 +39,11 @@ deployAllContracts() {
   echo "Please select which type of diamond contract to deploy:"
   local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
+
+  # deploy CREATE3Factory
+  deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
+  checkFailure $? "deploy CREATE3Factory to network $NETWORK"
+  echo ""
 
   # deploy core facets
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"
@@ -83,7 +90,10 @@ deployAllContracts() {
   local FACETS_PATH="$CONTRACT_DIRECTORY""Facets/"
 
   # prepare regExp to exclude core facets
-  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS" | tr ',' '|'))$"
+  CORE_FACETS_OUTPUT=$(getCoreFacetsArray)
+  checkFailure $? "retrieve core facets array from global.json"
+
+  local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
   # loop through facet contract names
   for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
@@ -118,6 +128,10 @@ deployAllContracts() {
   # run sync sigs script
   echo ""
   diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+
+  # register Executor as authorized caller in ERC20Proxy
+  echo ""
+  updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"

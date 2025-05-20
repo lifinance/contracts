@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
@@ -12,7 +13,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
@@ -99,6 +100,13 @@ contract Permit2Proxy is WithdrawablePeriphery {
                 amount
             ) {
                 revert(reason);
+            }
+        } catch (bytes memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                LibUtil.revertWith(reason);
             }
         }
 

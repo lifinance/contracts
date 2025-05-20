@@ -106,10 +106,10 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkSync and Abstract
+  # Handle ZkEVM Chains
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
-  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+  if isZkEvmNetwork "$NETWORK"; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     FILE_EXTENSION=".zksync.s.sol"
   fi
@@ -170,6 +170,7 @@ deploySingleContract() {
 
   # get CREATE3_FACTORY_ADDRESS
   CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+  checkFailure $? "retrieve create3Factory address from networks.json"
 
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
@@ -212,7 +213,7 @@ deploySingleContract() {
     fi
   fi
 
-  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+  if isZkEvmNetwork "$NETWORK"; then
       # Check if a zksync contract has already been deployed for a specific
       # version otherwise it might fail since create2 will try to deploy to the
       # same address
@@ -224,13 +225,8 @@ deploySingleContract() {
 	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
         gum confirm "Deploy anyway?" || exit 0
       fi
-      # Clean all old artifacts
-      rm -fr ./out
-      rm -fr ./zkout
-      # # Clean zksync cache
-      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
-      #
-      # # Run zksync specific fork of forge
+
+      # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
 
@@ -243,7 +239,7 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+    if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
@@ -388,7 +384,7 @@ deploySingleContract() {
       RELAYER_CONSTR_ARGS=$(cast abi-encode "someFunction(address,address,address)" "$CBRIDGE_MESSAGE_BUS_ADDRESS" "$REFUND_WALLET" "$DIAMOND_ADDRESS")
 
       # get RPC URL for given network
-      RPC_URL=$(getRPCUrl "$NETWORK")
+      RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
       # get address of RelayerCelerIM
       RELAYER_ADDRESS=$(cast call $ADDRESS "relayer() returns (address)" --rpc-url "$RPC_URL")

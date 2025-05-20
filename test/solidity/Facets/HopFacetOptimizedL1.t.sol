@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacetOptimized {
@@ -170,7 +171,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         view
         override
     {
-        console.log("Not applicable for HopFacetOptimized");
+        // Not applicable for HopFacetOptimized
     }
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
@@ -178,7 +179,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         view
         override
     {
-        console.log("Not applicable for HopFacetOptimized");
+        // Not applicable for HopFacetOptimized
     }
 
     function testBase_Revert_BridgeWithInvalidAmount()
@@ -268,7 +269,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
 
         // OptimizedFacet does have less checks, therefore tx fails at different point in code
-        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        vm.expectRevert(TransferFromFailed.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();

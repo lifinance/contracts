@@ -31,7 +31,7 @@ const main = async () => {
   let tx
 
   const quote: Quote[] = await fetchQuote({
-    amount: 0.0010012345678,
+    amount: 0.0014012345678,
     fromToken: ARB_WETH_ADDRESS,
     toToken: POLYGON_USDT_ADDRESS,
     fromChain: 'arbitrum',

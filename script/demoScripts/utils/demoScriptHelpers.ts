@@ -8,17 +8,24 @@ import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 import {
   Chain,
+  Narrow,
   createPublicClient,
   createWalletClient,
   getContract,
   http,
-  Narrow,
   parseAbi,
+  formatEther,
+  formatUnits,
+  zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
+import { Environment } from '../../utils/viemScriptHelpers'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { config } from 'dotenv'
 
-export const DEV_WALLET_ADDRESS = '0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7'
+config()
+
+export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
@@ -180,19 +187,19 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   // get minAmountOut from Uniswap router
   console.log(`finalFromAmount  : ${fromAmount}`)
 
-  const finalMinAmountOut =
-    minAmountOut.toString() !== '0'
-      ? minAmountOut
-      : BigNumber.from(
-          await getAmountsOutUniswap(
-            uniswapAddress,
-            chainId,
-            [sendingAssetId, receivingAssetId],
-            fromAmount
-          )
-        )
-          .mul(99)
-          .div(100) // Apply 1% slippage tolerance by default
+  let finalMinAmountOut: BigNumber
+  if (minAmountOut.toString() !== '0') {
+    finalMinAmountOut = minAmountOut
+  } else {
+    const amountsOut = await getAmountsOutUniswap(
+      uniswapAddress,
+      chainId,
+      [sendingAssetId, receivingAssetId],
+      fromAmount
+    )
+    // Use the second element (index 1) as the estimated output
+    finalMinAmountOut = BigNumber.from(amountsOut[1]).mul(99).div(100)
+  }
   console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
 
   const uniswapCalldata = (
@@ -478,6 +485,22 @@ export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
 }
 
 /**
+ * Converts an Ethereum address to a 32-byte hexadecimal string,
+ * mimicking Solidity's `bytes32(bytes20(uint160(address)))` conversion.
+ * The address is right-padded with zeros to fit into a 32-byte value.
+ *
+ * @param address - A valid Ethereum address (20 bytes).
+ * @returns A 32-byte hexadecimal string representation of the address.
+ */
+export function addressToBytes32RightPadded(address: string): `0x${string}` {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error('Invalid Ethereum address format')
+  }
+  const hex = address.replace(/^0x/, '').toLowerCase()
+  return `0x${hex.padEnd(64, '0')}`
+}
+
+/**
  * Retrieve the value of an environment variable.
  * Throws an error if the environment variable is not defined.
  */
@@ -532,13 +555,15 @@ const getViemChain = (chain: SupportedChain): Chain => {
 /**
  * Utility function to dynamically import the deployments file for a chain.
  */
-const getDeployments = async (
+export const getDeployments = async (
   chain: SupportedChain,
-  environment: 'staging' | 'production' = 'staging'
+  environment: Environment = Environment.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === 'production' ? `${chain}.json` : `${chain}.staging.json`
+    environment === Environment.production
+      ? `${chain}.json`
+      : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
 
   try {
@@ -562,7 +587,7 @@ export const setupEnvironment = async (
   facetAbi: Narrow<readonly any[]>,
   environment: 'staging' | 'production' = 'staging'
 ) => {
-  const RPC_URL = getRpcUrl(chain)
+  const RPC_URL = await getRpcUrl(chain)
   const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 
@@ -620,6 +645,64 @@ export const getConfigElement = (
 /**
  * Executes a blockchain transaction, validates its receipt (optional), and handles errors.
  */
+export const getUniswapDataExactETHToERC20 = async (
+  uniswapAddress: string,
+  chainId: number,
+  exactETHAmount: bigint,
+  receivingAssetId: string,
+  receiverAddress: string,
+  requiresDeposit = false,
+  deadline = Math.floor(Date.now() / 1000) + 60 * 60
+) => {
+  const provider = getProviderForChainId(chainId)
+
+  const uniswap = new Contract(
+    uniswapAddress,
+    [
+      'function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)',
+      'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
+    ],
+    provider
+  )
+
+  const path = [ADDRESS_WETH_ETH, receivingAssetId]
+
+  try {
+    // Get the expected output amount for the exact ETH input
+    const amounts = await uniswap.getAmountsOut(exactETHAmount, path)
+    const expectedOutput = amounts[1]
+    const minAmountOut = BigNumber.from(expectedOutput).mul(95).div(100) // 5% slippage tolerance
+
+    console.log('Exact ETH input:', formatEther(exactETHAmount))
+    console.log('Expected USDC output:', formatUnits(expectedOutput, 6))
+    console.log('Min USDC output with slippage:', formatUnits(minAmountOut, 6))
+
+    const uniswapCalldata = (
+      await uniswap.populateTransaction.swapExactETHForTokens(
+        minAmountOut,
+        path,
+        receiverAddress,
+        deadline
+      )
+    ).data
+
+    if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
+
+    return {
+      callTo: uniswapAddress,
+      approveTo: uniswapAddress,
+      sendingAssetId: zeroAddress, // ETH
+      receivingAssetId,
+      fromAmount: exactETHAmount,
+      callData: uniswapCalldata,
+      requiresDeposit,
+    }
+  } catch (error) {
+    console.error('Error in Uniswap contract interaction:', error)
+    throw error
+  }
+}
+
 export const executeTransaction = async <T>(
   transaction: () => Promise<T>,
   transactionDescription: string,
@@ -662,13 +745,21 @@ export const executeTransaction = async <T>(
  * Ensures that the address wallet has the required token balance.
  */
 export const ensureBalance = async (
-  tokenContract: any,
+  asset: any,
   walletAddress: string,
-  requiredAmount: bigint
+  requiredAmount: bigint,
+  publicClient: any = null
 ): Promise<void> => {
-  const balance: bigint = (await tokenContract.read.balanceOf([
-    walletAddress,
-  ])) as bigint
+  let balance: bigint
+
+  if (asset === zeroAddress) {
+    // Special case: asset represents the native token (e.g. ETH).
+    // Retrieve the native balance using the public client.
+    balance = await publicClient.getBalance({ address: walletAddress })
+  } else {
+    // Standard ERC20 balance check using the asset's balanceOf method.
+    balance = (await asset.read.balanceOf([walletAddress])) as bigint
+  }
 
   if (balance < requiredAmount) {
     console.error(

@@ -6,10 +6,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
+import { LibAllowList, TestBase } from "../utils/TestBase.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
@@ -204,20 +201,32 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         uint256 amountIn = amounts[0];
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        // Encode the call data for the swap and store in a local variable.
+        bytes memory swapCallDataFirstSwap = abi.encodeWithSelector(
+            feeCollector.collectTokenFees.selector,
+            ADDRESS_USDC,
+            fee,
+            lifiFee,
+            address(0xb33f)
+        );
         swapData[0] = LibSwap.SwapData(
             address(feeCollector),
             address(feeCollector),
             ADDRESS_USDC,
             ADDRESS_USDC,
             amountIn + fee + lifiFee,
-            abi.encodeWithSelector(
-                feeCollector.collectTokenFees.selector,
-                ADDRESS_USDC,
-                fee,
-                lifiFee,
-                address(0xb33f)
-            ),
+            swapCallDataFirstSwap,
             true
+        );
+
+        // Encode the call data for the swap and store in a local variable.
+        bytes memory swapCallDataSecondSwap = abi.encodeWithSelector(
+            uniswap.swapExactTokensForTokens.selector,
+            amountIn,
+            amountToBridge,
+            path,
+            address(cBridge),
+            block.timestamp
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -226,14 +235,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
             ADDRESS_USDC,
             ADDRESS_DAI,
             amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountToBridge,
-                path,
-                address(cBridge),
-                block.timestamp
-            ),
+            swapCallDataSecondSwap,
             false
         );
         // Approve USDC

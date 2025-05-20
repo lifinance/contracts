@@ -39,8 +39,18 @@ contract DeployScriptBase is ScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
+            emit log("Contract is already deployed");
             return payable(predicted);
         }
+
+        // reproduce and log calldata that is sent to CREATE3
+        bytes memory create3Calldata = abi.encodeWithSelector(
+            CREATE3Factory.deploy.selector,
+            salt,
+            bytes.concat(creationCode, constructorArgs)
+        );
+        emit log("Contract is already deployed");
+        emit log_bytes(create3Calldata);
 
         deployed = payable(
             factory.deploy(salt, bytes.concat(creationCode, constructorArgs))

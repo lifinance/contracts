@@ -1,30 +1,109 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { TestBase, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { stdError } from "forge-std/Test.sol";
+
+abstract contract BaseMockPermitToken is ERC20, ERC20Permit {
+    constructor() ERC20("Mock", "MCK") ERC20Permit("Mock") {}
+
+    function permit(
+        // solhint-disable-next-line no-unused-vars
+        address owner,
+        // solhint-disable-next-line no-unused-vars
+        address spender,
+        // solhint-disable-next-line no-unused-vars
+        uint256 value,
+        // solhint-disable-next-line no-unused-vars
+        uint256 deadline,
+        // solhint-disable-next-line no-unused-vars
+        uint8 v,
+        // solhint-disable-next-line no-unused-vars
+        bytes32 r,
+        // solhint-disable-next-line no-unused-vars
+        bytes32 s
+    ) public pure override {
+        _permit();
+    }
+
+    function _permit() internal pure virtual;
+}
+
+contract MockPermitToken is BaseMockPermitToken {
+    function _permit() internal pure override {
+        revert CustomPermitError();
+    }
+
+    error CustomPermitError();
+}
+
+contract MockPermitTokenPanic is BaseMockPermitToken {
+    // solhint-disable-next-line reason-string
+    function _permit() internal pure override {
+        assert(true == false);
+    }
+}
+
+contract MockPermitTokenEmptyRevert is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line gas-custom-errors,reason-string
+        revert();
+    }
+}
+
+contract MockPermitTokenStringRevert is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line gas-custom-errors
+        revert("Custom error message");
+    }
+}
+
+contract MockPermitTokenRequireRevert is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line gas-custom-errors
+        require(true == false, "Test revert message");
+    }
+}
+
+contract MockPermitTokenAdditionOverflow is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line no-unused-vars
+        uint256 test = type(uint256).max + 1;
+    }
+}
+
+contract MockPermitTokenDivisionByZero is BaseMockPermitToken {
+    function _permit() internal pure override {
+        // solhint-disable-next-line no-unused-vars
+        uint256 x = 0;
+        // solhint-disable-next-line no-unused-vars
+        uint256 y = 1 / x; // This will cause a division by zero at runtime
+    }
+}
 
 contract Permit2ProxyTest is TestBase {
     using PermitHash for ISignatureTransfer.PermitTransferFrom;
 
-    /// Constants ///
+    /// Constants / Immutables ///
 
     address internal constant PERMIT2_ADDRESS =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    uint256 internal PRIVATE_KEY = 0x1234567890;
-    address internal DIAMOND_ADDRESS =
+    uint256 internal constant PRIVATE_KEY = 0x1234567890;
+    address internal constant DIAMOND_ADDRESS =
         0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
 
     /// Storage ///
 
-    bytes32 internal PERMIT_WITH_WITNESS_TYPEHASH;
+    bytes32 internal permitWithWitnessTypehash;
     Permit2Proxy internal permit2Proxy;
     ISignatureTransfer internal uniPermit2;
-    address internal PERMIT2_USER;
+    address internal permit2User;
 
     /// Types ///
 
@@ -56,19 +135,19 @@ contract Permit2ProxyTest is TestBase {
             uniPermit2,
             USER_DIAMOND_OWNER
         );
-        PERMIT_WITH_WITNESS_TYPEHASH = keccak256(
+        permitWithWitnessTypehash = keccak256(
             abi.encodePacked(
                 PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB,
                 permit2Proxy.WITNESS_TYPE_STRING()
             )
         );
 
-        PERMIT2_USER = vm.addr(PRIVATE_KEY);
-        vm.label(PERMIT2_USER, "Permit2 User");
-        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
+        permit2User = vm.addr(PRIVATE_KEY);
+        vm.label(permit2User, "Permit2 User");
+        deal(ADDRESS_USDC, permit2User, 10000 ether);
 
         // Infinite approve to Permit2
-        vm.prank(PERMIT2_USER);
+        vm.prank(permit2User);
         ERC20(ADDRESS_USDC).approve(PERMIT2_ADDRESS, type(uint256).max);
     }
 
@@ -80,19 +159,19 @@ contract Permit2ProxyTest is TestBase {
         public
         assertBalanceChange(
             ADDRESS_USDC,
-            PERMIT2_USER,
+            permit2User,
             -int256(defaultUSDCAmount)
         )
         returns (TestDataEIP2612 memory)
     {
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
         TestDataEIP2612
-            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
                 ADDRESS_USDC,
                 domainSeparator,
                 block.timestamp + 1000
@@ -117,14 +196,14 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function testRevert_when_called_with_invalid_calldata() public {
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
         TestDataEIP2612
-            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
                 ADDRESS_USDC,
                 domainSeparator,
                 block.timestamp + 1000
@@ -152,7 +231,7 @@ contract Permit2ProxyTest is TestBase {
         TestDataEIP2612
             memory testdata = test_can_execute_calldata_using_eip2612_signature_usdc();
 
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         // // expect call to revert if same signature is used twice
         vm.expectRevert("EIP2612: invalid signature");
@@ -170,14 +249,14 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function testRevert_cannot_use_expired_eip2612_signature() public {
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
         TestDataEIP2612
-            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
                 ADDRESS_USDC,
                 domainSeparator,
                 block.timestamp - 1 //  deadline in the past
@@ -201,14 +280,14 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function testRevert_cannot_use_invalid_eip2612_signature() public {
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
         TestDataEIP2612
-            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
                 ADDRESS_USDC,
                 domainSeparator,
                 block.timestamp
@@ -239,7 +318,7 @@ contract Permit2ProxyTest is TestBase {
 
         // // using USDC on ETH for testing (implements EIP2612)
         TestDataEIP2612
-            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
                 ADDRESS_USDC,
                 domainSeparator,
                 block.timestamp
@@ -272,10 +351,10 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermit2TransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2TransferFromParamsSignedBypermit2User();
 
         // Execute
-        vm.prank(PERMIT2_USER);
+        vm.prank(permit2User);
         permit2Proxy.callDiamondWithPermit2(
             diamondCalldata,
             permitTransferFrom,
@@ -294,7 +373,7 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermit2TransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2TransferFromParamsSignedBypermit2User();
 
         // Execute
         vm.prank(USER_SENDER); // Not the original signer
@@ -315,13 +394,13 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2WitnessTransferFromParamsSignedBypermit2User();
 
         // Execute
         vm.prank(USER_SENDER); // Can be executed by anyone
         permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
-            PERMIT2_USER,
+            permit2User,
             permitTransferFrom,
             signature
         );
@@ -335,7 +414,7 @@ contract Permit2ProxyTest is TestBase {
             ,
             msgHash,
 
-        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2WitnessTransferFromParamsSignedBypermit2User();
 
         generatedMsgHash = permit2Proxy.getPermit2MsgHash(
             _getCalldataForBridging(),
@@ -351,7 +430,7 @@ contract Permit2ProxyTest is TestBase {
     function testRevert_cannot_call_diamond_single_with_same_signature_more_than_once()
         public
     {
-        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -360,26 +439,26 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2WitnessTransferFromParamsSignedBypermit2User();
 
         // Execute x2
         permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
-            PERMIT2_USER,
+            permit2User,
             permitTransferFrom,
             signature
         );
         vm.expectRevert(InvalidNonce.selector);
         permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
-            PERMIT2_USER,
+            permit2User,
             permitTransferFrom,
             signature
         );
     }
 
     function testRevert_cannot_set_different_calldata_than_intended() public {
-        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -388,15 +467,15 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2WitnessTransferFromParamsSignedBypermit2User();
 
-        bytes memory MALICIOUS_CALLDATA = hex"1337c0d3";
+        bytes memory maliciousCalldata = hex"1337c0d3";
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2Witness(
-            MALICIOUS_CALLDATA,
-            PERMIT2_USER,
+            maliciousCalldata,
+            permit2User,
             permitTransferFrom,
             signature
         );
@@ -405,7 +484,7 @@ contract Permit2ProxyTest is TestBase {
     function testRevert_cannot_use_permit2_signature_from_another_wallet()
         public
     {
-        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes32 msgHash;
@@ -414,7 +493,7 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             msgHash,
 
-        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2WitnessTransferFromParamsSignedBypermit2User();
 
         // Sign with a random key
         bytes memory signature = _signMsgHash(msgHash, 987654321);
@@ -423,14 +502,14 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
-            PERMIT2_USER,
+            permit2User,
             permitTransferFrom,
             signature
         );
     }
 
     function testRevert_cannot_transfer_more_tokens_than_intended() public {
-        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes32 msgHash;
@@ -440,7 +519,7 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             msgHash,
             signature
-        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
+        ) = _getPermit2WitnessTransferFromParamsSignedBypermit2User();
 
         permitTransferFrom.permitted.amount += 1;
 
@@ -448,7 +527,7 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
-            PERMIT2_USER,
+            permit2User,
             permitTransferFrom,
             signature
         );
@@ -489,14 +568,14 @@ contract Permit2ProxyTest is TestBase {
         returns (TestDataEIP2612 memory)
     {
         // Record initial balance
-        uint256 initialBalance = ERC20(ADDRESS_USDC).balanceOf(PERMIT2_USER);
+        uint256 initialBalance = ERC20(ADDRESS_USDC).balanceOf(permit2User);
 
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         TestDataEIP2612
-            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
                 ADDRESS_USDC,
                 domainSeparator,
                 block.timestamp + 1000
@@ -507,7 +586,7 @@ contract Permit2ProxyTest is TestBase {
         vm.startPrank(address(0xA));
         // Attacker calls ERC20.permit directly
         ERC20Permit(ADDRESS_USDC).permit(
-            PERMIT2_USER, //victim address
+            permit2User, //victim address
             address(permit2Proxy),
             defaultUSDCAmount,
             testdata.deadline,
@@ -517,7 +596,7 @@ contract Permit2ProxyTest is TestBase {
         );
         vm.stopPrank();
 
-        vm.startPrank(PERMIT2_USER);
+        vm.startPrank(permit2User);
 
         // User's TX should succeed
         permit2Proxy.callDiamondWithEIP2612Signature(
@@ -531,8 +610,8 @@ contract Permit2ProxyTest is TestBase {
         );
         vm.stopPrank();
 
-        // Verify tokens were moved from PERMIT2_USER
-        uint256 finalBalance = ERC20(ADDRESS_USDC).balanceOf(PERMIT2_USER);
+        // Verify tokens were moved from permit2User
+        uint256 finalBalance = ERC20(ADDRESS_USDC).balanceOf(permit2User);
         assertEq(
             finalBalance,
             initialBalance - defaultUSDCAmount,
@@ -542,9 +621,172 @@ contract Permit2ProxyTest is TestBase {
         return testdata;
     }
 
+    function testRevert_FailsOnCustomErrorAndAllowance() public {
+        // deploy a mock ERC20Permit token that reverts with custom error on permit
+        MockPermitToken token = new MockPermitToken();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+
+        bytes memory callData = _getCalldataForBridging();
+
+        // we don't care about the signature since permit will revert anyway
+        vm.expectRevert(MockPermitToken.CustomPermitError.selector);
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnPanicDuringAllowance() public {
+        MockPermitTokenPanic token = new MockPermitTokenPanic();
+
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+
+        bytes memory callData = _getCalldataForBridging();
+
+        // expect panic error (0x01 for assertion failure)
+        vm.expectRevert(stdError.assertionError);
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnEmptyRevert() public {
+        MockPermitTokenEmptyRevert token = new MockPermitTokenEmptyRevert();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect empty revert
+        vm.expectRevert();
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnStringRevert() public {
+        MockPermitTokenStringRevert token = new MockPermitTokenStringRevert();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect string revert
+        vm.expectRevert("Custom error message");
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnRequireRevert() public {
+        MockPermitTokenRequireRevert token = new MockPermitTokenRequireRevert();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect require revert
+        vm.expectRevert("Test revert message");
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            500, // Amount less than 1000 to trigger require
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnAdditionOverflow() public {
+        MockPermitTokenAdditionOverflow token = new MockPermitTokenAdditionOverflow();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect arithmetic overflow panic
+        vm.expectRevert(stdError.arithmeticError);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsOnDivisionByZero() public {
+        MockPermitTokenDivisionByZero token = new MockPermitTokenDivisionByZero();
+        address tokenAddress = address(token);
+
+        vm.startPrank(permit2User);
+        bytes memory callData = _getCalldataForBridging();
+
+        // Expect arithmetic error (division by zero)
+        vm.expectRevert(stdError.divisionError);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            defaultUSDCAmount,
+            block.timestamp + 1000,
+            27, // dummy v
+            bytes32(0), // dummy r
+            bytes32(0), // dummy s
+            callData
+        );
+
+        vm.stopPrank();
+    }
+
     /// Helper Functions ///
 
-    function _getPermit2TransferFromParamsSignedByPERMIT2_USER()
+    function _getPermit2TransferFromParamsSignedBypermit2User()
         internal
         view
         returns (
@@ -566,7 +808,7 @@ contract Permit2ProxyTest is TestBase {
         bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
 
         // Nonce
-        uint256 nonce = permit2Proxy.nextNonce(PERMIT2_USER);
+        uint256 nonce = permit2Proxy.nextNonce(permit2User);
 
         // PermitTransferFrom
         msgHash = _getPermitTransferFromHash(
@@ -586,7 +828,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER()
+    function _getPermit2WitnessTransferFromParamsSignedBypermit2User()
         internal
         view
         returns (
@@ -613,7 +855,7 @@ contract Permit2ProxyTest is TestBase {
         bytes32 witness = _getWitnessHash(lifiCall);
 
         // Nonce
-        uint256 nonce = permit2Proxy.nextNonce(PERMIT2_USER);
+        uint256 nonce = permit2Proxy.nextNonce(permit2User);
 
         // PermitTransferWithWitness
         msgHash = _getPermitWitnessTransferFromHash(
@@ -705,7 +947,7 @@ contract Permit2ProxyTest is TestBase {
     ) internal view returns (bytes32) {
         bytes32 dataHash = keccak256(
             abi.encode(
-                PERMIT_WITH_WITNESS_TYPEHASH,
+                permitWithWitnessTypehash,
                 permit,
                 spender,
                 nonce,
@@ -718,13 +960,13 @@ contract Permit2ProxyTest is TestBase {
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
-    function _getTestDataEIP2612SignedByPERMIT2_USER(
+    function _getTestDataEIP2612SignedBypermit2User(
         address tokenAddress,
         bytes32 domainSeparator,
         uint256 deadline
     ) internal view returns (TestDataEIP2612 memory testdata) {
         testdata.tokenAddress = tokenAddress;
-        testdata.userWallet = PERMIT2_USER;
+        testdata.userWallet = permit2User;
         testdata.nonce = ERC20Permit(tokenAddress).nonces(testdata.userWallet);
         testdata.deadline = deadline;
 

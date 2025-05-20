@@ -7,23 +7,28 @@
 
 updateERC20Proxy() {
 	source .env
+  source script/helperFunctions.sh
 
-	if [[ -z "$PRODUCTION" ]]; then
-		FILE_SUFFIX="staging."
-	fi
 
-	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
-  echo $RPC
-	ERC20PROXY=$(jq -r '.ERC20Proxy' "./deployments/$NETWORK.${FILE_SUFFIX}json")
-	EXECUTOR=$(jq -r '.Executor' "./deployments/$NETWORK.${FILE_SUFFIX}json")
+  local NETWORK=$1
+  local ENVIRONMENT=$2
 
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+
+  # get relevant contract addresses from deploy log file
+	ERC20PROXY=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "ERC20Proxy" )
+	EXECUTOR=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "Executor" )
+
+  if [[ -z "$ERC20PROXY" || -z "$EXECUTOR" ]]; then
+    error "Missing address (ERC20Proxy=$ERC20PROXY, Executor=$EXECUTOR)"
+    exit 1
+  fi
+
+	echo ""
 	echo "Setting $EXECUTOR as authorized caller for $ERC20PROXY on $NETWORK..."
 
-	NETWORK_UPPER=$(tr '[:lower:]' '[:upper:]' <<< $NETWORK)
-  RPC="ETH_NODE_URI_$NETWORK_UPPER"
-
-
-	cast send $ERC20PROXY "setAuthorizedCaller(address, bool)" $EXECUTOR true --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy
+	cast send $ERC20PROXY "setAuthorizedCaller(address, bool)" $EXECUTOR true --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL" --legacy
+	echo ""
 }
 
 

@@ -3,181 +3,199 @@
 function diamondSyncDEXs {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncDEXs now...."
-  # load env variables
+
+  # Load environment variables
   source .env
 
-  # load config & helper functions
+  # Load configuration & helper functions
   source script/helperFunctions.sh
 
-  # read function arguments into variables
+  # Read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
-  local EXIT_ON_ERROR="$4"
+
+  # Temp file to track failed logs
+  FAILED_LOG_FILE=$(mktemp)
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
     # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     echo ""
-    echo "Should the script be executed on one network or all networks"
-    NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
+    echo "Should the script be executed on one network or all networks?"
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
+    echo "[info] selected network: $NETWORK"
+    echo ""
+    echo ""
+
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
       checkRequiredVariablesInDotEnv $NETWORK
     fi
   fi
 
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  # no need to distinguish between mutable and immutable anymore
+  DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
-  # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select it
-  if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
-    echo ""
-    echo "Please select which type of diamond contract to sync:"
-    DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
-    echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
-  fi
-
-  # create array with network/s for which the script should be executed
+  # Determine which networks to process
   if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
-    # get array with all network names
     NETWORKS=($(getIncludedNetworksArray))
   else
     NETWORKS=($NETWORK)
   fi
 
+  # Function to process a network in parallel
+  function processNetwork {
+    local NETWORK=$1  # Network name as argument
 
-
-  # go through all networks and execute the script
-  for NETWORK in "${NETWORKS[@]}"; do
-
-    # Skip for localanvil or any testnet
-    if [[ "$NETWORK" == "localanvil" || \
-          "$NETWORK" == "bsc-testnet" || \
-          "$NETWORK" == "lineatest" || \
-          "$NETWORK" == "mumbai" || \
-          "$NETWORK" == "sepolia" ]]; then
-        continue
+    # Skip non-active mainnets
+    if ! isActiveMainnet "$NETWORK"; then
+      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not an active mainnet >> continuing without syncing on this network"
+      return
     fi
 
-    # get diamond address from deployments script
+    # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
-    # logging for debug purposes
-    echo ""
-    echoDebug "in function syncDEXs"
-    echoDebug "NETWORKS=$NETWORKS"
-    echoDebug "CURRENT NETWORK=$NETWORK"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo ""
-
-    # if no diamond address was found, throw an error and exit the script
+    # Check if contract address exists
     if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
-      error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting syncDEXs script now"
-      local RETURN=1
-      continue
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Missing contract address"
+      echo "[$NETWORK] Error: Missing contract address" >> "$FAILED_LOG_FILE"
+      return
     fi
 
-    # get RPC URL for given network
-    RPC_URL=$(getRPCUrl "$NETWORK")
+    RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-    echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
-
-    # get list of DEX addresses from config file
+    # Fetch required DEX addresses from configuration
     CFG_DEXS=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/dexs.json")
 
-    # get addresses of DEXs that are already approved in the diamond contract
-    RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL")
+    # Function to get approved DEXs from the contract
+    function getApprovedDEXs {
+      local ATTEMPT=1
+      local result=""
 
-    # Check if any approved DEXs were found
-    if [[ "$RESULT" == "[]" ]]; then
-      DEXS=()
-    else
-      # reformat
-      DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
+      while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
+        result=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+
+        if [[ $? -eq 0 && ! -z "$result" ]]; then
+          if [[ "$result" == "[]" ]]; then
+            echo ""
+          else
+            echo $(echo ${result:1:${#result}-2} | tr ',' '\n' | tr '[:upper:]' '[:lower:]')
+          fi
+          return 0
+        fi
+
+        sleep 3
+        ATTEMPT=$((ATTEMPT + 1))
+      done
+
+      return 1
+    }
+
+    # Get approved DEXs
+    DEXS=($(getApprovedDEXs))
+    if [[ $? -ne 0 ]]; then
+      # Report failure
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Unable to fetch approved DEXs"
+      {
+        echo "[$NETWORK] Error: Unable to fetch approved DEXs"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
+      return
     fi
 
-    # Check the length of the array
-    if [ ${#DEXS[@]} -eq 0 ]; then
-      echoDebug "0 approved DEXs found on diamond $DIAMOND_ADDRESS"
-    else
-      echoDebug "${#DEXS[@]} approved DEXs found on diamond $DIAMOND_ADDRESS: [${DEXS[*]}]"
-    fi
-
-    # Loop through all DEX addresses from config and check if they are already known by the diamond
+    # Determine missing DEXs
     NEW_DEXS=()
     for DEX_ADDRESS in $CFG_DEXS; do
-      # if address is in config file but not in DEX addresses returned from diamond...
       if [[ ! " ${DEXS[*]} " == *" $(echo "$DEX_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
         CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
         CODE=$(cast code $CHECKSUMMED --rpc-url "$RPC_URL")
         if [[ "$CODE" == "0x" ]]; then
-          error "DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
-          echo "$NETWORK - $CHECKSUMMED" >>.invalid-dexs
           continue
         fi
-        # ... add it to the array
         NEW_DEXS+=("$CHECKSUMMED")
       fi
     done
 
-    echoDebug "${#NEW_DEXS[@]} new DEXs to be added: [${NEW_DEXS[*]}]"
-
-    # add new DEXs to diamond
+    # Add missing DEXs
     if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
-      # Convert the list of addresses to an array
-      ADDRESS_ARRAY=($(echo "${NEW_DEXS[*]}"))
-
-      # Convert the array to a string with comma-separated values
-      ADDRESS_STRING=$(printf "%s," "${ADDRESS_ARRAY[@]}")
+      ADDRESS_STRING=$(printf "%s," "${NEW_DEXS[@]}")
       PARAMS="[${ADDRESS_STRING%,}]"
 
-      # call batchAddDex function in diamond to add DEXs
       local ATTEMPTS=1
       while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        echo "[info] Trying to add missing DEXs now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
 
-        # ensure that gas price is below maximum threshold (for mainnet only)
-        doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+        sleep 5
 
-        # call diamond
-        if [[ "$DEBUG" == *"true"* ]]; then
-          # print output to console
-          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
-        else
-          # do not print output to console
-          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
+        # Verify updated DEX list
+        DEXS_UPDATED=($(getApprovedDEXs))
+        if [[ $? -ne 0 ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] DEX update verification failed"
+
+          {
+            echo "[$NETWORK] Error: DEX update verification failed"
+            echo ""
+          } >> "$FAILED_LOG_FILE"
+          return
         fi
 
-        # check the return code the last call
-        if [ $? -eq 0 ]; then
-          break # exit the loop if the operation was successful
+        MISSING_DEXS=()
+        for DEX in "${NEW_DEXS[@]}"; do
+          if [[ ! " ${DEXS_UPDATED[*]} " == *" $(echo "$DEX" | tr '[:upper:]' '[:lower:]')"* ]]; then
+            MISSING_DEXS+=("$DEX")
+          fi
+        done
+
+        if [ ${#MISSING_DEXS[@]} -eq 0 ]; then
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Success - All DEXs added"
+          return
         fi
 
-        ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
-        sleep 1                    # wait for 1 second before trying the operation again
+        ATTEMPTS=$((ATTEMPTS + 1))
       done
 
-      # check if call was executed successfully or used all ATTEMPTS
-      if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-        error "failed to add missing DEXs to $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS on network $NETWORK"
-        RETURN=1
-      fi
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] - Could not whitelist all addresses"
+      {
+        echo "[$NETWORK] Error: Could not whitelist all addresses"
+        echo "[$NETWORK] Attempted to add: ${NEW_DEXS[*]}"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
     else
-      echo '[info] no new DEXs to add'
+      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] - All addresses are whitelisted"
     fi
+  }
+
+  # Run networks in parallel with concurrency control
+  for NETWORK in "${NETWORKS[@]}"; do
+    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+      sleep 1
+    done
+    processNetwork "$NETWORK" &
   done
 
-  # end script according to return status
-  if [ "$RETURN" == 1 ]; then
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
-      return 1
-    else
-      exit 1
-    fi
+  wait
+
+  # Summary of failures
+  if [ -s "$FAILED_LOG_FILE" ]; then
+    echo ""
+    printf '\033[0;31m%s\033[0m\n' "The following networks failed to sync:"
+
+    awk '/^\[.*\] Error: /' "$FAILED_LOG_FILE" | while read -r line; do
+      echo -e "❌ ${line}"
+    done
+
+    echo ""
+    echo "Full error logs for all failed networks:"
+    cat "$FAILED_LOG_FILE"
+
+    rm "$FAILED_LOG_FILE"
+    return 1
   else
+    rm "$FAILED_LOG_FILE"
+    echo ""
+    echo "✅ All active networks updated successfully"
     return 0
   fi
 

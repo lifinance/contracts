@@ -3,18 +3,10 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
-
-    struct Approval {
-        address a_tokenAddress;
-        address b_contractAddress;
-        string c_tokenName;
-        string d_contractName;
-    }
 
     address[] internal contractAddresses;
     address[] internal tokenAddresses;
@@ -30,8 +22,8 @@ contract DeployScript is UpdateScriptBase {
 
         // Loop through all items and split them in arrays
         for (uint256 i = 0; i < approvals.length; i++) {
-            contractAddresses.push(approvals[i].b_contractAddress);
-            tokenAddresses.push(approvals[i].a_tokenAddress);
+            contractAddresses.push(approvals[i].bContractAddress);
+            tokenAddresses.push(approvals[i].aTokenAddress);
         }
 
         vm.startBroadcast(deployerPrivateKey);

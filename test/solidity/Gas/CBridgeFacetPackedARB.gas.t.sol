@@ -2,8 +2,7 @@ pragma solidity ^0.8.17;
 
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
-import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi, ERC20 } from "../utils/TestBase.sol";
+import { TestBase } from "../utils/TestBase.sol";
 
 contract CBridgeGasARBTest is TestBase {
     address internal constant CBRIDGE_ROUTER =
@@ -17,16 +16,16 @@ contract CBridgeGasARBTest is TestBase {
     CBridgeFacetPacked internal cBridgeFacetPacked;
     CBridgeFacetPacked internal standAlone;
 
-    bytes32 transactionId;
-    uint64 destinationChainId;
-    uint64 nonce;
-    uint32 maxSlippage;
+    bytes32 internal transactionId;
+    uint64 internal destinationChainId;
+    uint64 internal nonce;
+    uint32 internal maxSlippage;
 
-    uint256 amountNative;
-    bytes packedNative;
+    uint256 internal amountNative;
+    bytes internal packedNative;
 
-    uint256 amountUSDC;
-    bytes packedUSDC;
+    uint256 internal amountUSDC;
+    bytes internal packedUSDC;
 
     function setUp() public {
         customBlockNumberForForking = 58467500;
@@ -110,7 +109,7 @@ contract CBridgeGasARBTest is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -121,7 +120,7 @@ contract CBridgeGasARBTest is TestBase {
             packedNative
         );
         if (!success) {
-            revert();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -145,7 +144,7 @@ contract CBridgeGasARBTest is TestBase {
         usdc.approve(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }
@@ -155,7 +154,7 @@ contract CBridgeGasARBTest is TestBase {
         usdc.approve(address(standAlone), amountUSDC);
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
-            revert();
+            revert ERC20BridgeFailed();
         }
         vm.stopPrank();
     }

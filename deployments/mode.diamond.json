@@ -92,18 +92,21 @@
       "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
+      },
+      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-      "LiFiDEXAggregator": "0x78bF01555bCF05e6B1d4dad017dBD0A105652DC9",
-      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "GasZipPeriphery": "0x0c9a1471790D1E4cb67c9FCB48c054024F4466cA",
+      "LiFiDEXAggregator": "0x67D6DC9A8d0D97FD4d51f8755636aCE06e3D578F",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
-      "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"

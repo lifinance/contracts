@@ -46,8 +46,9 @@ checkExecutorAndReceiver() {
     # get array of all (not-excluded) networks
     NETWORKS=($(getIncludedNetworksArray))
   else
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
-    local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
     # create array with selected network as only entry
     NETWORKS=($NETWORK)
   fi

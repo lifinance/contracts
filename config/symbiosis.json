@@ -19,6 +19,10 @@
     "metaRouter": "0x691df9C4561d95a4a726313089c8536dd682b946",
     "gateway": "0x41Ae964d0F61Bb5F5e253141A462aD6F3b625B92"
   },
+  "berachain": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
   "blast": {
     "metaRouter": "0x7057aB3fB2BeE9c18e0cDe4240DE4ff7f159E365",
     "gateway": "0xa0079829B9F1Edc5DD0DE3eC104f281745C4bD81"
@@ -36,6 +40,10 @@
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
   "fraxtal": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
+  "gnosis": {
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
@@ -58,6 +66,10 @@
   "mantle": {
     "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
     "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
+  },
+  "opbnb": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
   "optimism": {
     "metaRouter": "0x0f91052dc5B4baE53d0FeA5DAe561A117268f5d2",
@@ -83,6 +95,10 @@
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
+  "soneium": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
   "sonic": {
     "metaRouter": "0xda8057acB94905eb6025120cB2c38415Fd81BfEB",
     "gateway": "0xb7aF032a0C8d350705eD7E4E3802377731a0cA07"
@@ -90,6 +106,10 @@
   "taiko": {
     "metaRouter": "0x7057aB3fB2BeE9c18e0cDe4240DE4ff7f159E365",
     "gateway": "0xa0079829B9F1Edc5DD0DE3eC104f281745C4bD81"
+  },
+  "unichain": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
   "zksync": {
     "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",

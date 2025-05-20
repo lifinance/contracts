@@ -3,6 +3,9 @@
 # defines the environment (true=production, false=staging)
 PRODUCTION=false
 
+# if true then transactions will be sent to diamond directly, if false it will propose tx to Safe address (from networks.json)
+SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false
+
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
@@ -15,6 +18,9 @@ MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
 
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
+
+# number of max jobs that scripts will do in parallel (e.g. when interacting with multiple networks)
+MAX_CONCURRENT_JOBS=100
 
 # the root directory of all contract src files
 CONTRACT_DIRECTORY="src/"
@@ -64,17 +70,17 @@ VERIFY_CONTRACTS=true
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
 
+# the path to the file that contains a list of all networks and their details
+NETWORKS_JSON_FILE_PATH="$(dirname "$0")/../config/networks.json"
+
 # the path to the file that contains a list of all networks
-NETWORKS_FILE_PATH="./networks"
+GLOBAL_FILE_PATH="$(dirname "$0")/../config/global.json"
 
 # script will use all periphery contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_PERIPHERY_CONTRACTS=""
 
 # scripts will use all facet contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_FACET_CONTRACTS=""
-
-# contains a list of all facets that are considered core facets (and will be deployed to every network)
-CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet,LIFuelFacet,GenericSwapFacet,StandardizedCallFacet,CalldataVerificationFacet"
 
 # enable/disable notification sounds for long-running scripts
 NOTIFICATION_SOUNDS=true
@@ -99,7 +105,10 @@ START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
 
 # all the periphery contracts listed here will automatically be whitelisted as DEX when deploying "all contracts"
-WHITELIST_PERIPHERY="FeeCollector,LiFuelFeeCollector,TokenWrapper,LiFiDEXAggregator"
+WHITELIST_PERIPHERY="FeeCollector,TokenWrapper,LiFiDEXAggregator"
 
 # if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
 COMPILE_ON_STARTUP=false
+
+# webhook URL for sending messages to Slack 'dev-sc-general' channel
+SLACK_WEBHOOK_SC_GENERAL=
