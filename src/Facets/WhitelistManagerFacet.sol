@@ -5,7 +5,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
-import { CannotAuthoriseSelf, InvalidContract } from "../Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
 /// @title Whitelist Manager Facet
 /// @author LI.FI (https://li.fi)
@@ -19,19 +19,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-
-        if (_contractAddress == address(0)) {
-            revert InvalidContract();
-        }
-        if (_contractAddress == address(this)) {
-            revert CannotAuthoriseSelf();
-        }
-
-        if (LibAllowList.contractIsAllowed(_contractAddress)) return;
-
-        LibAllowList.addAllowedContract(_contractAddress);
-
-        emit AddressWhitelisted(_contractAddress);
+        _addToWhitelist(_contractAddress);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
@@ -42,21 +30,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         uint256 length = _addresses.length;
 
         for (uint256 i = 0; i < length; ) {
-            address addr = _addresses[i];
-            if (addr == address(0)) {
-                revert InvalidContract();
-            }
-            if (addr == address(this)) {
-                revert CannotAuthoriseSelf();
-            }
-            if (LibAllowList.contractIsAllowed(addr)) {
-                unchecked {
-                    ++i;
-                }
-                continue;
-            }
-            LibAllowList.addAllowedContract(addr);
-            emit AddressWhitelisted(addr);
+            _addToWhitelist(_addresses[i]);
             unchecked {
                 ++i;
             }
@@ -68,8 +42,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        LibAllowList.removeAllowedContract(_address);
-        emit AddressRemoved(_address);
+        _removeFromWhitelist(_address);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
@@ -79,8 +52,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
         uint256 length = _addresses.length;
         for (uint256 i = 0; i < length; ) {
-            LibAllowList.removeAllowedContract(_addresses[i]);
-            emit AddressRemoved(_addresses[i]);
+            _removeFromWhitelist(_addresses[i]);
             unchecked {
                 ++i;
             }
@@ -97,14 +69,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-
-        if (_approval) {
-            LibAllowList.addAllowedSelector(_selector);
-        } else {
-            LibAllowList.removeAllowedSelector(_selector);
-        }
-
-        emit FunctionSelectorApprovalChanged(_selector, _approval);
+        _setFunctionApproval(_selector, _approval);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
@@ -117,13 +82,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
         uint256 length = _selectors.length;
         for (uint256 i = 0; i < length; ) {
-            bytes4 _selector = _selectors[i];
-            if (_approval) {
-                LibAllowList.addAllowedSelector(_selector);
-            } else {
-                LibAllowList.removeAllowedSelector(_selector);
-            }
-            emit FunctionSelectorApprovalChanged(_selector, _approval);
+            _setFunctionApproval(_selectors[i], _approval);
             unchecked {
                 ++i;
             }
@@ -160,5 +119,33 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         returns (bytes4[] memory selectors)
     {
         return LibAllowList.getAllowedSelectors();
+    }
+
+    /// @dev Internal function to handle whitelist addition logic
+    function _addToWhitelist(address _contractAddress) internal {
+        if (_contractAddress == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+
+        if (LibAllowList.contractIsAllowed(_contractAddress)) return;
+
+        LibAllowList.addAllowedContract(_contractAddress);
+        emit AddressWhitelisted(_contractAddress);
+    }
+
+    /// @dev Internal function to handle whitelist removal logic
+    function _removeFromWhitelist(address _address) internal {
+        LibAllowList.removeAllowedContract(_address);
+        emit AddressRemoved(_address);
+    }
+
+    /// @dev Internal function to handle function selector approval logic
+    function _setFunctionApproval(bytes4 _selector, bool _approval) internal {
+        if (_approval) {
+            LibAllowList.addAllowedSelector(_selector);
+        } else {
+            LibAllowList.removeAllowedSelector(_selector);
+        }
+        emit FunctionSelectorApprovalChanged(_selector, _approval);
     }
 }
