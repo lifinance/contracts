@@ -1,15 +1,14 @@
 #!/bin/bash
 
-# Ensure at least one argument (chainId) is provided
-if [ $# -lt 1 ]; then
-  echo "Usage: $0 <chainId> [address]"
+# Require: <rpc_url> <chainId> [permit2Address]
+if [ $# -lt 2 ]; then
+  echo "Usage: $0 <rpc_url> <chainId> [permit2Address]"
   exit 1
 fi
 
 RPC_URL="$1"
 CHAIN_ID="$2"
 ADDRESS="$3"
-
 # Run Permit2Code to get the bytecode
 CODE=$(forge script Permit2Code --sig "getCode(uint256)" "$CHAIN_ID" \
   | grep -oE 'bytes 0x[0-9a-fA-F]+' \
