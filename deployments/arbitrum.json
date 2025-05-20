@@ -57,5 +57,7 @@
   "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
   "RelayFacet": "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5",
   "DeBridgeDlnFacet": "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803",
-  "GlacisFacet": "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611"
+  "GlacisFacet": "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611",
+  "ChainflipFacet": "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4",
+  "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf"
 }
