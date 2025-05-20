@@ -12,9 +12,9 @@ interface IWhitelistManagerFacet {
     /// @notice Emitted when an address is removed from the whitelist.
     event AddressRemoved(address indexed removedAddress);
 
-    /// @notice Emitted when a function signature approval is changed.
-    event FunctionSignatureApprovalChanged(
-        bytes4 indexed functionSignature,
+    /// @notice Emitted when a function selector approval is changed.
+    event FunctionSelectorApprovalChanged(
+        bytes4 indexed functionSelector,
         bool indexed approved
     );
 
@@ -34,27 +34,27 @@ interface IWhitelistManagerFacet {
     /// @param _addresses The addresses to be removed from the whitelist.
     function batchRemoveFromWhitelist(address[] calldata _addresses) external;
 
-    /// @notice Adds or removes a specific function signature to/from the allowlist.
-    /// @param _signature The function signature to allow or disallow.
-    /// @param _approval Whether the function signature should be allowed.
-    function setFunctionApprovalBySignature(
-        bytes4 _signature,
+    /// @notice Adds or removes a specific function selector to/from the allowlist.
+    /// @param _selector The function selector to allow or disallow.
+    /// @param _approval Whether the function selector should be allowed.
+    function setFunctionApprovalBySelector(
+        bytes4 _selector,
         bool _approval
     ) external;
 
-    /// @notice Batch adds or removes specific function signatures to/from the allowlist.
-    /// @param _signatures The function signatures to allow or disallow.
-    /// @param _approval Whether the function signatures should be allowed.
-    function batchSetFunctionApprovalBySignature(
-        bytes4[] calldata _signatures,
+    /// @notice Batch adds or removes specific function selectors to/from the allowlist.
+    /// @param _selectors The function selectors to allow or disallow.
+    /// @param _approval Whether the function selectors should be allowed.
+    function batchSetFunctionApprovalBySelector(
+        bytes4[] calldata _selectors,
         bool _approval
     ) external;
 
-    /// @notice Returns whether a function signature is approved.
-    /// @param _signature The function signature to query.
+    /// @notice Returns whether a function selector is approved.
+    /// @param _selector The function selector to query.
     /// @return approved Approved or not.
     function isFunctionApproved(
-        bytes4 _signature
+        bytes4 _selector
     ) external view returns (bool approved);
 
     /// @notice Returns a list of all whitelisted addresses.
@@ -71,10 +71,10 @@ interface IWhitelistManagerFacet {
         address _address
     ) external view returns (bool approved);
 
-    /// @notice Returns a list of all approved function signatures.
-    /// @return signatures List of approved function signatures.
-    function getApprovedFunctionSignatures()
+    /// @notice Returns a list of all approved function selectors.
+    /// @return selectors List of approved function selectors.
+    function getApprovedFunctionSelectors()
         external
         view
-        returns (bytes4[] memory signatures);
+        returns (bytes4[] memory selectors);
 }

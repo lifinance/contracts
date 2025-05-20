@@ -23,8 +23,8 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
     event AddressWhitelisted(address indexed whitelistedAddress);
     event AddressRemoved(address indexed removedAddress);
-    event FunctionSignatureApprovalChanged(
-        bytes4 indexed functionSignature,
+    event FunctionSelectorApprovalChanged(
+        bytes4 indexed functionSelector,
         bool indexed approved
     );
 
@@ -50,10 +50,10 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .getWhitelistedAddresses
             .selector;
         functionSelectors[5] = WhitelistManagerFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         functionSelectors[6] = WhitelistManagerFacet
-            .batchSetFunctionApprovalBySignature
+            .batchSetFunctionApprovalBySelector
             .selector;
         functionSelectors[7] = WhitelistManagerFacet
             .isFunctionApproved
@@ -62,7 +62,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .isAddressWhitelisted
             .selector;
         functionSelectors[9] = WhitelistManagerFacet
-            .getApprovedFunctionSignatures
+            .getApprovedFunctionSelectors
             .selector;
 
         addFacet(diamond, address(whitelistMgr), functionSelectors);
@@ -146,31 +146,31 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_SucceedsIfOwnerApprovesFunctionSignature() public {
+    function test_SucceedsIfOwnerApprovesFunctionSelector() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4 signature = hex"faceface";
+        bytes4 selector = hex"faceface";
 
         vm.expectEmit(true, true, true, true);
-        emit FunctionSignatureApprovalChanged(signature, true);
-        whitelistMgr.setFunctionApprovalBySignature(signature, true);
-        assertTrue(whitelistMgr.isFunctionApproved(signature));
+        emit FunctionSelectorApprovalChanged(selector, true);
+        whitelistMgr.setFunctionApprovalBySelector(selector, true);
+        assertTrue(whitelistMgr.isFunctionApproved(selector));
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfOwnerBatchApprovesFunctionSignatures() public {
+    function test_SucceedsIfOwnerBatchApprovesFunctionSelectors() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory signatures = new bytes4[](5);
-        signatures[0] = bytes4(hex"faceface");
-        signatures[1] = bytes4(hex"deadbeef");
-        signatures[2] = bytes4(hex"deaddead");
-        signatures[3] = bytes4(hex"deadface");
-        signatures[4] = bytes4(hex"beefbeef");
-        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, true);
+        bytes4[] memory selectors = new bytes4[](5);
+        selectors[0] = bytes4(hex"faceface");
+        selectors[1] = bytes4(hex"deadbeef");
+        selectors[2] = bytes4(hex"deaddead");
+        selectors[3] = bytes4(hex"deadface");
+        selectors[4] = bytes4(hex"beefbeef");
+        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, true);
         for (uint256 i = 0; i < 5; ) {
-            assertTrue(whitelistMgr.isFunctionApproved(signatures[i]));
+            assertTrue(whitelistMgr.isFunctionApproved(selectors[i]));
             unchecked {
                 ++i;
             }
@@ -295,63 +295,61 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         whitelistMgr.batchRemoveFromWhitelist(addresses);
     }
 
-    function testRevert_FailsIfNonOwnerTriesToSetFunctionApprovalBySignature()
+    function testRevert_FailsIfNonOwnerTriesToSetFunctionApprovalBySelector()
         public
     {
-        bytes4 signature = hex"faceface";
+        bytes4 selector = hex"faceface";
 
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(NOT_DIAMOND_OWNER);
-        whitelistMgr.setFunctionApprovalBySignature(signature, true);
+        whitelistMgr.setFunctionApprovalBySelector(selector, true);
     }
 
-    function testRevert_FailsIfNonOwnerTriesToBatchSetFunctionApprovalBySignature()
+    function testRevert_FailsIfNonOwnerTriesToBatchSetFunctionApprovalBySelector()
         public
     {
-        bytes4[] memory signatures = new bytes4[](3);
-        signatures[0] = bytes4(hex"faceface");
-        signatures[1] = bytes4(hex"deadbeef");
-        signatures[2] = bytes4(hex"beefbeef");
+        bytes4[] memory selectors = new bytes4[](3);
+        selectors[0] = bytes4(hex"faceface");
+        selectors[1] = bytes4(hex"deadbeef");
+        selectors[2] = bytes4(hex"beefbeef");
 
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(NOT_DIAMOND_OWNER);
-        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, true);
+        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, true);
     }
 
-    function test_SucceedsIfOwnerSetsFunctionApprovalBySignature() public {
+    function test_SucceedsIfOwnerSetsFunctionApprovalBySelector() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4 signature = hex"faceface";
+        bytes4 selector = hex"faceface";
 
-        whitelistMgr.setFunctionApprovalBySignature(signature, true);
-        assertTrue(whitelistMgr.isFunctionApproved(signature));
+        whitelistMgr.setFunctionApprovalBySelector(selector, true);
+        assertTrue(whitelistMgr.isFunctionApproved(selector));
 
-        whitelistMgr.setFunctionApprovalBySignature(signature, false);
-        assertFalse(whitelistMgr.isFunctionApproved(signature));
+        whitelistMgr.setFunctionApprovalBySelector(selector, false);
+        assertFalse(whitelistMgr.isFunctionApproved(selector));
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfOwnerBatchSetsFunctionApprovalBySignature()
-        public
-    {
+    function test_SucceedsIfOwnerBatchSetsFunctionApprovalBySelector() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory signatures = new bytes4[](3);
-        signatures[0] = bytes4(hex"faceface");
-        signatures[1] = bytes4(hex"deadbeef");
-        signatures[2] = bytes4(hex"beefbeef");
+        bytes4[] memory selectors = new bytes4[](3);
+        selectors[0] = bytes4(hex"faceface");
+        selectors[1] = bytes4(hex"deadbeef");
+        selectors[2] = bytes4(hex"beefbeef");
 
-        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, true);
+        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, true);
         for (uint256 i = 0; i < 3; i++) {
-            assertTrue(whitelistMgr.isFunctionApproved(signatures[i]));
+            assertTrue(whitelistMgr.isFunctionApproved(selectors[i]));
         }
 
-        whitelistMgr.batchSetFunctionApprovalBySignature(signatures, false);
+        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, false);
         for (uint256 i = 0; i < 3; i++) {
-            assertFalse(whitelistMgr.isFunctionApproved(signatures[i]));
+            assertFalse(whitelistMgr.isFunctionApproved(selectors[i]));
         }
 
         vm.stopPrank();
@@ -446,132 +444,132 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         assertEq(approved[2], address(c3));
     }
 
-    function test_SucceedsIfNoApprovedSignaturesReturnsEmptyArray() public {
+    function test_SucceedsIfNoApprovedSelectorsReturnsEmptyArray() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory signatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        assertEq(signatures.length, 0);
+        bytes4[] memory selectors = whitelistMgr
+            .getApprovedFunctionSelectors();
+        assertEq(selectors.length, 0);
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfSingleApprovedSignatureIsReturned() public {
+    function test_SucceedsIfSingleApprovedSelectorIsReturned() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4 signature = hex"faceface";
-        whitelistMgr.setFunctionApprovalBySignature(signature, true);
+        bytes4 selector = hex"faceface";
+        whitelistMgr.setFunctionApprovalBySelector(selector, true);
 
-        bytes4[] memory signatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        assertEq(signatures.length, 1);
-        assertEq(signatures[0], signature);
+        bytes4[] memory selectors = whitelistMgr
+            .getApprovedFunctionSelectors();
+        assertEq(selectors.length, 1);
+        assertEq(selectors[0], selector);
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfMultipleApprovedSignaturesAreReturned() public {
+    function test_SucceedsIfMultipleApprovedSelectorsAreReturned() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory testSignatures = new bytes4[](3);
-        testSignatures[0] = bytes4(hex"faceface");
-        testSignatures[1] = bytes4(hex"deadbeef");
-        testSignatures[2] = bytes4(hex"beefbeef");
+        bytes4[] memory testSelectors = new bytes4[](3);
+        testSelectors[0] = bytes4(hex"faceface");
+        testSelectors[1] = bytes4(hex"deadbeef");
+        testSelectors[2] = bytes4(hex"beefbeef");
 
-        whitelistMgr.batchSetFunctionApprovalBySignature(testSignatures, true);
+        whitelistMgr.batchSetFunctionApprovalBySelector(testSelectors, true);
 
-        bytes4[] memory signatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        assertEq(signatures.length, 3);
+        bytes4[] memory selectors = whitelistMgr
+            .getApprovedFunctionSelectors();
+        assertEq(selectors.length, 3);
 
-        bool foundSig0 = false;
-        bool foundSig1 = false;
-        bool foundSig2 = false;
+        bool foundSel0 = false;
+        bool foundSel1 = false;
+        bool foundSel2 = false;
 
-        for (uint256 i = 0; i < signatures.length; i++) {
-            if (signatures[i] == testSignatures[0]) foundSig0 = true;
-            if (signatures[i] == testSignatures[1]) foundSig1 = true;
-            if (signatures[i] == testSignatures[2]) foundSig2 = true;
+        for (uint256 i = 0; i < selectors.length; i++) {
+            if (selectors[i] == testSelectors[0]) foundSel0 = true;
+            if (selectors[i] == testSelectors[1]) foundSel1 = true;
+            if (selectors[i] == testSelectors[2]) foundSel2 = true;
         }
 
-        assertTrue(foundSig0);
-        assertTrue(foundSig1);
-        assertTrue(foundSig2);
+        assertTrue(foundSel0);
+        assertTrue(foundSel1);
+        assertTrue(foundSel2);
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfRemovedSignaturesAreNotReturned() public {
+    function test_SucceedsIfRemovedSelectorsAreNotReturned() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory testSignatures = new bytes4[](3);
-        testSignatures[0] = bytes4(hex"faceface");
-        testSignatures[1] = bytes4(hex"deadbeef");
-        testSignatures[2] = bytes4(hex"beefbeef");
+        bytes4[] memory testSelectors = new bytes4[](3);
+        testSelectors[0] = bytes4(hex"faceface");
+        testSelectors[1] = bytes4(hex"deadbeef");
+        testSelectors[2] = bytes4(hex"beefbeef");
 
-        whitelistMgr.batchSetFunctionApprovalBySignature(testSignatures, true);
+        whitelistMgr.batchSetFunctionApprovalBySelector(testSelectors, true);
 
-        // Remove the middle signature
-        whitelistMgr.setFunctionApprovalBySignature(testSignatures[1], false);
+        // Remove the middle selector
+        whitelistMgr.setFunctionApprovalBySelector(testSelectors[1], false);
 
-        bytes4[] memory signatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        assertEq(signatures.length, 2);
+        bytes4[] memory selectors = whitelistMgr
+            .getApprovedFunctionSelectors();
+        assertEq(selectors.length, 2);
 
-        bool foundSig0 = false;
-        bool foundSig1 = false;
-        bool foundSig2 = false;
+        bool foundSel0 = false;
+        bool foundSel1 = false;
+        bool foundSel2 = false;
 
-        for (uint256 i = 0; i < signatures.length; i++) {
-            if (signatures[i] == testSignatures[0]) foundSig0 = true;
-            if (signatures[i] == testSignatures[1]) foundSig1 = true;
-            if (signatures[i] == testSignatures[2]) foundSig2 = true;
+        for (uint256 i = 0; i < selectors.length; i++) {
+            if (selectors[i] == testSelectors[0]) foundSel0 = true;
+            if (selectors[i] == testSelectors[1]) foundSel1 = true;
+            if (selectors[i] == testSelectors[2]) foundSel2 = true;
         }
 
-        assertTrue(foundSig0);
-        assertFalse(foundSig1); // This should not be found
-        assertTrue(foundSig2);
+        assertTrue(foundSel0);
+        assertFalse(foundSel1); // This should not be found
+        assertTrue(foundSel2);
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfBatchRemovedSignaturesAreNotReturned() public {
+    function test_SucceedsIfBatchRemovedSelectorsAreNotReturned() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory testSignatures = new bytes4[](5);
-        testSignatures[0] = bytes4(hex"faceface");
-        testSignatures[1] = bytes4(hex"deadbeef");
-        testSignatures[2] = bytes4(hex"beefbeef");
-        testSignatures[3] = bytes4(hex"beefdead");
-        testSignatures[4] = bytes4(hex"facedead");
+        bytes4[] memory testSelectors = new bytes4[](5);
+        testSelectors[0] = bytes4(hex"faceface");
+        testSelectors[1] = bytes4(hex"deadbeef");
+        testSelectors[2] = bytes4(hex"beefbeef");
+        testSelectors[3] = bytes4(hex"beefdead");
+        testSelectors[4] = bytes4(hex"facedead");
 
-        whitelistMgr.batchSetFunctionApprovalBySignature(testSignatures, true);
+        whitelistMgr.batchSetFunctionApprovalBySelector(testSelectors, true);
 
-        bytes4[] memory removeSignatures = new bytes4[](3);
-        removeSignatures[0] = testSignatures[1]; // deadbeef
-        removeSignatures[1] = testSignatures[3]; // beefdead
-        removeSignatures[2] = testSignatures[4]; // facedead
+        bytes4[] memory removeSelectors = new bytes4[](3);
+        removeSelectors[0] = testSelectors[1]; // deadbeef
+        removeSelectors[1] = testSelectors[3]; // beefdead
+        removeSelectors[2] = testSelectors[4]; // facedead
 
-        whitelistMgr.batchSetFunctionApprovalBySignature(
-            removeSignatures,
+        whitelistMgr.batchSetFunctionApprovalBySelector(
+            removeSelectors,
             false
         );
 
-        bytes4[] memory signatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        assertEq(signatures.length, 2);
+        bytes4[] memory selectors = whitelistMgr
+            .getApprovedFunctionSelectors();
+        assertEq(selectors.length, 2);
 
         // Expected remaining: faceface (0) and beefbeef (2)
-        bool foundSig0 = false;
-        bool foundSig2 = false;
+        bool foundSel0 = false;
+        bool foundSel2 = false;
 
-        for (uint256 i = 0; i < signatures.length; i++) {
-            if (signatures[i] == testSignatures[0]) foundSig0 = true;
-            if (signatures[i] == testSignatures[2]) foundSig2 = true;
+        for (uint256 i = 0; i < selectors.length; i++) {
+            if (selectors[i] == testSelectors[0]) foundSel0 = true;
+            if (selectors[i] == testSelectors[2]) foundSel2 = true;
         }
 
-        assertTrue(foundSig0);
-        assertTrue(foundSig2);
+        assertTrue(foundSel0);
+        assertTrue(foundSel2);
 
         vm.stopPrank();
     }
@@ -593,22 +591,22 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_SucceedsIfRemovingNonApprovedSignature() public {
+    function test_SucceedsIfRemovingNonApprovedSelector() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        // Add one signature
-        bytes4 signature1 = bytes4(hex"faceface");
-        whitelistMgr.setFunctionApprovalBySignature(signature1, true);
+        // Add one selector
+        bytes4 selector1 = bytes4(hex"faceface");
+        whitelistMgr.setFunctionApprovalBySelector(selector1, true);
 
-        // Try to remove a different signature that was never approved
-        bytes4 signature2 = bytes4(hex"deadbeef");
-        whitelistMgr.setFunctionApprovalBySignature(signature2, false);
+        // Try to remove a different selector that was never approved
+        bytes4 selector2 = bytes4(hex"deadbeef");
+        whitelistMgr.setFunctionApprovalBySelector(selector2, false);
 
         // Verify the state is correct
-        bytes4[] memory signatures = whitelistMgr
-            .getApprovedFunctionSignatures();
-        assertEq(signatures.length, 1);
-        assertEq(signatures[0], signature1);
+        bytes4[] memory selectors = whitelistMgr
+            .getApprovedFunctionSelectors();
+        assertEq(selectors.length, 1);
+        assertEq(selectors[0], selector1);
 
         vm.stopPrank();
     }
@@ -688,28 +686,27 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         bytes4 selector2 = hex"deadbeef";
         bytes4 selector3 = hex"cafecafe";
 
-        whitelistMgr.setFunctionApprovalBySignature(selector1, true);
+        whitelistMgr.setFunctionApprovalBySelector(selector1, true);
         assertTrue(whitelistMgr.isFunctionApproved(selector1));
 
-        whitelistMgr.setFunctionApprovalBySignature(selector2, true);
+        whitelistMgr.setFunctionApprovalBySelector(selector2, true);
         assertTrue(whitelistMgr.isFunctionApproved(selector2));
 
-        whitelistMgr.setFunctionApprovalBySignature(selector3, true);
+        whitelistMgr.setFunctionApprovalBySelector(selector3, true);
         assertTrue(whitelistMgr.isFunctionApproved(selector3));
 
         // get all selectors to verify order
-        bytes4[] memory approved = whitelistMgr
-            .getApprovedFunctionSignatures();
+        bytes4[] memory approved = whitelistMgr.getApprovedFunctionSelectors();
         assertEq(approved.length, 3);
         assertEq(approved[0], selector1);
         assertEq(approved[1], selector2);
         assertEq(approved[2], selector3);
 
         // remove first selector
-        whitelistMgr.setFunctionApprovalBySignature(selector2, false);
+        whitelistMgr.setFunctionApprovalBySelector(selector2, false);
 
         // verify selector3 was moved to index 1
-        approved = whitelistMgr.getApprovedFunctionSignatures();
+        approved = whitelistMgr.getApprovedFunctionSelectors();
         assertEq(approved.length, 2);
         assertEq(approved[0], selector1);
         assertEq(approved[1], selector3);

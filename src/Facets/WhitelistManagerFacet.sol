@@ -10,7 +10,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @title Whitelist Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
-/// @custom:version 1.0.3
+/// @custom:version 1.0.0
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
@@ -75,9 +75,11 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
     }
 
-    /// @inheritdoc IWhitelistManagerFacet
-    function setFunctionApprovalBySignature(
-        bytes4 _signature,
+    /// @notice Adds or removes a specific function selector to/from the allowlist.
+    /// @param _selector The function selector to allow or disallow.
+    /// @param _approval Whether the function selector should be allowed.
+    function setFunctionApprovalBySelector(
+        bytes4 _selector,
         bool _approval
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
@@ -85,31 +87,31 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
 
         if (_approval) {
-            LibAllowList.addAllowedSelector(_signature);
+            LibAllowList.addAllowedSelector(_selector);
         } else {
-            LibAllowList.removeAllowedSelector(_signature);
+            LibAllowList.removeAllowedSelector(_selector);
         }
 
-        emit FunctionSignatureApprovalChanged(_signature, _approval);
+        emit FunctionSelectorApprovalChanged(_selector, _approval);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function batchSetFunctionApprovalBySignature(
-        bytes4[] calldata _signatures,
+    function batchSetFunctionApprovalBySelector(
+        bytes4[] calldata _selectors,
         bool _approval
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        uint256 length = _signatures.length;
+        uint256 length = _selectors.length;
         for (uint256 i = 0; i < length; ) {
-            bytes4 _signature = _signatures[i];
+            bytes4 _selector = _selectors[i];
             if (_approval) {
-                LibAllowList.addAllowedSelector(_signature);
+                LibAllowList.addAllowedSelector(_selector);
             } else {
-                LibAllowList.removeAllowedSelector(_signature);
+                LibAllowList.removeAllowedSelector(_selector);
             }
-            emit FunctionSignatureApprovalChanged(_signature, _approval);
+            emit FunctionSelectorApprovalChanged(_selector, _approval);
             unchecked {
                 ++i;
             }
@@ -118,9 +120,9 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
     /// @inheritdoc IWhitelistManagerFacet
     function isFunctionApproved(
-        bytes4 _signature
-    ) public view returns (bool approved) {
-        return LibAllowList.selectorIsAllowed(_signature);
+        bytes4 _selector
+    ) external view returns (bool approved) {
+        return LibAllowList.selectorIsAllowed(_selector);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
@@ -135,15 +137,15 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// @inheritdoc IWhitelistManagerFacet
     function isAddressWhitelisted(
         address _address
-    ) public view returns (bool approved) {
+    ) external view returns (bool approved) {
         return LibAllowList.contractIsAllowed(_address);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function getApprovedFunctionSignatures()
+    function getApprovedFunctionSelectors()
         external
         view
-        returns (bytes4[] memory signatures)
+        returns (bytes4[] memory selectors)
     {
         return LibAllowList.getAllowedSelectors();
     }
