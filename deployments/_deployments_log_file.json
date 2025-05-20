@@ -31363,6 +31363,20 @@
           }
         ]
       }
+    },
+    "xdc": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x7aB489424AA464681a00aDE625B87538Ce4d5783",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-20 16:18:21",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762000000000000000000000000eccc2ce02907c1c86b286fb50d1355384f55a29800000000000000000000000090a09987a2d13be357cb1677691a690740a95529",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RelayFacet": {

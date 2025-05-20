@@ -1035,7 +1035,6 @@
         "ERC20Proxy": "1.1.0",
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
-        "SymbiosisFacet": "1.0.0",
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3"
@@ -1141,8 +1140,7 @@
         "Permit2Proxy": "1.0.3",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0",
-        "GlacisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -1494,6 +1492,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
