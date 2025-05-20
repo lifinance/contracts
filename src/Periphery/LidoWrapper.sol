@@ -4,17 +4,18 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title IStETH
 /// @notice External interface for Lido's stETH contract which supports wrapping and unwrapping wstETH
 interface IStETH is IERC20 {
     /// @notice Unwraps wstETH into stETH
     /// @param amount The amount of wstETH to unwrap
-    function wrap(uint256 amount) external;
+    function wrap(uint256 amount) external returns (uint256 unwrappedAmount);
 
     /// @notice Wraps stETH into wstETH
     /// @param amount The amount of stETH to wrap
-    function unwrap(uint256 amount) external;
+    function unwrap(uint256 amount) external returns (uint256 wrappedAmount);
 }
 
 /// @title LidoWrapper
@@ -63,7 +64,9 @@ contract LidoWrapper is WithdrawablePeriphery {
     /// @notice Wraps stETH into wstETH
     /// @dev Transfers `_amount` stETH from caller, unwraps it via the stETH contract (which yields wstETH), and returns wstETH to the caller.
     /// @param _amount The amount of stETH to wrap into wstETH
-    function wrapStETHToWstETH(uint256 _amount) external {
+    function wrapStETHToWstETH(
+        uint256 _amount
+    ) external returns (uint256 wrappedAmount) {
         // Pull stETH from sender
         IERC20(address(ST_ETH)).transferFrom(
             msg.sender,
@@ -76,17 +79,24 @@ contract LidoWrapper is WithdrawablePeriphery {
         uint256 stETHBalance = IERC20(address(ST_ETH)).balanceOf(
             address(this)
         );
-        ST_ETH.unwrap(stETHBalance);
+        uint256 returnedAmount = ST_ETH.unwrap(stETHBalance);
 
         // Transfer resulting wstETH to sender
-        uint256 balance = IERC20(WST_ETH_ADDRESS).balanceOf(address(this));
-        IERC20(WST_ETH_ADDRESS).transfer(msg.sender, balance);
+        uint256 wrappedAmount = IERC20(WST_ETH_ADDRESS).balanceOf(
+            address(this)
+        );
+        IERC20(WST_ETH_ADDRESS).transfer(msg.sender, wrappedAmount);
+
+        console2.log("returnedAmount:  ", returnedAmount);
+        console2.log("wrappedAmount:   ", wrappedAmount);
     }
 
     /// @notice Unwraps wstETH into stETH
     /// @dev Transfers `_amount` wstETH from caller, wraps it via stETH contract (yielding stETH), and returns stETH to the caller.
     /// @param _amount The amount of wstETH to unwrap into stETH
-    function unwrapWstETHToStETH(uint256 _amount) external {
+    function unwrapWstETHToStETH(
+        uint256 _amount
+    ) external returns (uint256 unwrappedAmount) {
         // Pull wstETH from sender
         IERC20(WST_ETH_ADDRESS).transferFrom(
             msg.sender,
@@ -95,10 +105,13 @@ contract LidoWrapper is WithdrawablePeriphery {
         );
 
         // Call `wrap` on stETH contract to get stETH (again, inverted naming)
-        ST_ETH.wrap(_amount);
+        uint256 returnedAmount = ST_ETH.wrap(_amount);
 
         // Transfer resulting stETH to sender
-        uint256 balance = IERC20(address(ST_ETH)).balanceOf(address(this));
-        IERC20(address(ST_ETH)).transfer(msg.sender, balance);
+        unwrappedAmount = IERC20(address(ST_ETH)).balanceOf(address(this));
+        IERC20(address(ST_ETH)).transfer(msg.sender, unwrappedAmount);
+
+        console2.log("returnedAmount:  ", returnedAmount);
+        console2.log("unwrappedAmount: ", unwrappedAmount);
     }
 }
