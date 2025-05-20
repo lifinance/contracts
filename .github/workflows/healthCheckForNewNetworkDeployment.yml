@@ -99,6 +99,10 @@ jobs:
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: bun install
 
+      - name: Generate Typechain Types
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: bun run typechain
+
       - name: Run Health Checks on New Networks
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
