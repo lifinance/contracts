@@ -8,6 +8,7 @@ import {
   OrderKind,
   TradingSdk,
   TradeParameters,
+  SwapAdvancedSettings,
 } from '@cowprotocol/cow-sdk'
 import { CowShedSdk } from './utils/lib/cowShedSdk'
 import deploymentsArbitrum from '../../deployments/arbitrum.staging.json'
@@ -362,12 +363,17 @@ const setupCowShedPostHooks = async (
     signature
   )
 
+  // Log the encoded post hooks calldata
+  console.log('Encoded post hooks calldata:')
+  console.log(`Calldata: ${shedEncodedPostHooksCallData}`)
+  console.log(`Calldata length: ${shedEncodedPostHooksCallData.length} bytes`)
+
   // Create the post hooks
   const postHooks = [
     {
       target: COW_SHED_FACTORY,
       callData: shedEncodedPostHooksCallData,
-      gasLimit: '2000000',
+      gasLimit: '3000000', // Increased gas limit for full calldata
     },
   ]
 
@@ -483,30 +489,46 @@ const cowFlow = async (
       slippageBps: 50,
     }
 
-    // Add post hooks if provided
-    if (postHooks && postHooks.length > 0) {
-      // Simplify post hooks to reduce payload size
-      const simplifiedPostHooks = postHooks.map((hook) => ({
-        target: hook.target,
-        callData: hook.callData.substring(0, 200), // Truncate calldata to reduce payload size
-        gasLimit: '1000000',
-      }))
+    // Add post hooks - this script requires post hooks
+    if (!postHooks || postHooks.length === 0) {
+      return left(
+        new Error('Post hooks are required for this script to function')
+      )
+    }
 
-      // Submit the order with post hooks
-      const orderId = await cowSdk.postSwapOrder(parameters, {
-        // Pass post hooks via appData
-        appData: JSON.stringify({
+    // Create post hooks with full calldata
+    const simplifiedPostHooks = postHooks.map((hook) => ({
+      target: hook.target,
+      callData: hook.callData, // Use the full calldata without truncation
+      gasLimit: '3000000',
+    }))
+
+    // Log the full calldata for debugging
+    console.log('Full post hook calldata:')
+    simplifiedPostHooks.forEach((hook, index) => {
+      console.log(`Hook ${index + 1} target: ${hook.target}`)
+      console.log(`Hook ${index + 1} calldata: ${hook.callData}`)
+      console.log(
+        `Hook ${index + 1} calldata length: ${hook.callData.length} bytes`
+      )
+    })
+
+    // Create advanced settings with the correct format
+    const advancedSettings: SwapAdvancedSettings = {
+      appData: {
+        metadata: {
           hooks: {
+            version: '1',
+            pre: [],
             post: simplifiedPostHooks,
           },
-        }),
-      })
-      return right(orderId)
-    } else {
-      // Submit the order without post hooks
-      const orderId = await cowSdk.postSwapOrder(parameters)
-      return right(orderId)
+        },
+      },
     }
+
+    // Submit the order with post hooks
+    const orderId = await cowSdk.postSwapOrder(parameters, advancedSettings)
+    return right(orderId)
   } catch (error) {
     console.error('CoW Protocol error details:', error)
     return left(
@@ -712,6 +734,18 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
     logKeyValue('Amount', fromAmount.toString())
     logKeyValue('Token Receiver', shedProxyAddress)
     logKeyValue('Post-hook receiver', shedDeterministicAddress)
+
+    // Log the original post hooks
+    console.log('Original post hooks:')
+    postHooks.forEach((hook, index) => {
+      console.log(`Original hook ${index + 1} target: ${hook.target}`)
+      console.log(`Original hook ${index + 1} calldata: ${hook.callData}`)
+      console.log(
+        `Original hook ${index + 1} calldata length: ${
+          hook.callData.length
+        } bytes`
+      )
+    })
 
     // Execute the CoW Protocol flow
     console.log('Executing CoW Protocol flow...')
