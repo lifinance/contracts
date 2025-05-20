@@ -1003,7 +1003,7 @@
     "explorerApiUrl": "https://xdcscan.com/api",
     "multicallAddress": "0x0b1795cca8e4ec4df02346a082df54d437f8d9af",
     "safeApiUrl": "",
-    "safeAddress": "0x90A09987A2d13bE357Cb1677691A690740A95529",
+    "safeAddress": "0x20577798deE0F3116cF4f7ffff0143228d6A5090",
     "safeWebUrl": "",
     "gasZipChainId": 420,
     "isZkEVM": false,
