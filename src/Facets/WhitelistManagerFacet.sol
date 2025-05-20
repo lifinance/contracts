@@ -5,7 +5,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
-import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf, InvalidContract } from "../Errors/GenericErrors.sol";
 
 /// @title Whitelist Manager Facet
 /// @author LI.FI (https://li.fi)
@@ -19,6 +19,15 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
+
+        if (_contractAddress == address(0)) {
+            revert InvalidContract();
+        }
+        if (_contractAddress == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+
+        if (LibAllowList.contractIsAllowed(_contractAddress)) return;
 
         LibAllowList.addAllowedContract(_contractAddress);
 
@@ -34,6 +43,9 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
         for (uint256 i = 0; i < length; ) {
             address addr = _addresses[i];
+            if (addr == address(0)) {
+                revert InvalidContract();
+            }
             if (addr == address(this)) {
                 revert CannotAuthoriseSelf();
             }
