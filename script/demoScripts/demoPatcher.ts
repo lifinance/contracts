@@ -23,6 +23,8 @@ const COW_SHED_FACTORY =
   '0x00E989b87700514118Fa55326CD1cCE82faebEF6' as `0x${string}`
 const COW_SHED_IMPLEMENTATION =
   '0x2CFFA8cf11B90C9F437567b86352169dF4009F73' as `0x${string}`
+const DUMMY_TARGET =
+  '0x00c8Bd044Be424E48FDCC2C171eF5adebE631C09' as `0x${string}`
 
 // Define interfaces and types
 interface Token {
@@ -88,8 +90,8 @@ const DUMMY_TARGET_ABI = parseAbi([
 ])
 
 const PATCHER_ABI = parseAbi([
-  'function dynamicValuePatch(address valueSource, bytes valueGetter, address targetAddress, bytes callDataToPatch, bytes32 valueToReplace, uint256 offset, bool delegateCall) payable returns (bytes memory)',
-  'function multiPatch(address targetAddress, bytes callDataToPatch, (address valueSource, bytes valueGetter, bytes32 valueToReplace, uint256 offset)[] patchOperations, bool delegateCall) payable returns (bytes memory)',
+  'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes callDataToPatch, uint256[] offsets, bool delegateCall) returns (bool success, bytes memory returnData)',
+  'function executeWithMultiplePatches(address[] valueSources, bytes[] valueGetters, address finalTarget, uint256 value, bytes callDataToPatch, uint256[][] offsetGroups, bool delegateCall) returns (bool success, bytes memory returnData)',
 ])
 
 // Log CoW Shed constants
@@ -169,19 +171,17 @@ const processTransactionIntent = (
         // Create dynamic patch call
         const callData = encodeFunctionData({
           abi: PATCHER_ABI,
-          functionName: 'dynamicValuePatch',
+          functionName: 'executeWithDynamicPatches',
           args: [
             intent.valueSource,
             intent.valueGetter,
             intent.targetAddress,
+            BigInt(0), // value
             intent.callDataToPatch,
-            `0x${intent.valueToReplace
-              .toString()
-              .padStart(64, '0')}` as `0x${string}`,
-            BigInt(0), // offset
+            [BigInt(36)], // array of offsets - amount parameter is at offset 36 (4 bytes function selector + 32 bytes address)
             intent.delegateCall ?? false,
           ],
-        })
+        }) as `0x${string}`
 
         const call: ICall = {
           target: intent.patcherAddress,
@@ -213,36 +213,40 @@ const processTransactionIntent = (
           logSectionHeader(
             `Creating multi-patch call with ${intent.patchOperations.length} operations`
           )
-          logKeyValue(
-            'Call data to patch',
-            truncateCalldata(intent.callDataToPatch, 10)
-          )
+          logKeyValue('Call data to patch', intent.callDataToPatch)
           logKeyValue('Target', intent.targetAddress)
         }
 
-        // Format patch operations for the contract call
-        const patchOperations = intent.patchOperations.map((op) => {
-          return {
-            valueSource: op.valueSource,
-            valueGetter: op.valueGetter,
-            valueToReplace: `0x${op.valueToReplace
-              .toString()
-              .padStart(64, '0')}` as `0x${string}`,
-            offset: BigInt(0),
-          }
-        })
+        // Prepare arrays for executeWithMultiplePatches
+        const valueSources = intent.patchOperations.map(
+          (op) => op.valueSource
+        ) as `0x${string}`[]
+        const valueGetters = intent.patchOperations.map(
+          (op) => op.valueGetter
+        ) as `0x${string}`[]
+
+        // For multiDeposit function:
+        // baseAmount parameter is at offset 36 (4 bytes function selector + 32 bytes address)
+        // doubledAmount parameter is at offset 68 (4 bytes function selector + 32 bytes address + 32 bytes baseAmount)
+        const offsetGroups = [
+          [BigInt(36)], // First operation patches at offset 36
+          [BigInt(68)], // Second operation patches at offset 68
+        ] as readonly (readonly bigint[])[]
 
         // Create multi-patch call
         const callData = encodeFunctionData({
           abi: PATCHER_ABI,
-          functionName: 'multiPatch',
+          functionName: 'executeWithMultiplePatches',
           args: [
+            valueSources,
+            valueGetters,
             intent.targetAddress,
+            BigInt(0), // value
             intent.callDataToPatch,
-            patchOperations,
+            offsetGroups,
             intent.delegateCall ?? false,
           ],
-        })
+        }) as `0x${string}`
 
         const call: ICall = {
           target: intent.patcherAddress,
@@ -332,26 +336,52 @@ const setupCowShedPostHooks = async (
   })
 
   // Generate nonce and deadline for CoW Shed
+  // Use a 32-byte nonce (bytes32)
   const nonce = `0x${Array.from({ length: 64 }, () =>
     Math.floor(Math.random() * 16).toString(16)
   ).join('')}` as `0x${string}`
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 7200) // now + 2 hours
+
+  // Use a longer deadline to ensure it doesn't expire during testing
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 24 * 60 * 60) // now + 24 hours
 
   // Get the proxy address
   const shedDeterministicAddress = shedSDK.computeProxyAddress(signerAddress)
 
-  // Sign the post hooks
-  const hashToSign = shedSDK.hashToSignWithUser(
-    calls,
-    nonce,
-    deadline,
-    signerAddress
-  )
-
-  // Sign with the wallet
-  const signature = await walletClient.signMessage({
+  // Sign with the wallet - use signTypedData with the exact same structure as the reference implementation
+  const signature = await walletClient.signTypedData({
     account,
-    message: { raw: hashToSign },
+    domain: {
+      name: 'COWShed',
+      version: '1.0.0',
+      chainId: BigInt(chainId),
+      verifyingContract: shedDeterministicAddress as `0x${string}`,
+    },
+    types: {
+      ExecuteHooks: [
+        { name: 'calls', type: 'Call[]' },
+        { name: 'nonce', type: 'bytes32' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+      Call: [
+        { name: 'target', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'callData', type: 'bytes' },
+        { name: 'allowFailure', type: 'bool' },
+        { name: 'isDelegateCall', type: 'bool' },
+      ],
+    },
+    primaryType: 'ExecuteHooks',
+    message: {
+      calls: calls.map((call) => ({
+        target: call.target,
+        value: call.value,
+        callData: call.callData,
+        allowFailure: call.allowFailure,
+        isDelegateCall: call.isDelegateCall,
+      })),
+      nonce,
+      deadline,
+    },
   })
 
   // Encode the post hooks call data
@@ -629,7 +659,7 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
         patcherAddress: patcherAddress as `0x${string}`,
         valueSource: toToken.address,
         valueGetter: encodeBalanceOfCall(shedProxyAddress),
-        targetAddress: patcherAddress as `0x${string}`,
+        targetAddress: DUMMY_TARGET,
         callDataToPatch: encodeFunctionData({
           abi: DUMMY_TARGET_ABI,
           functionName: 'deposit',
@@ -641,7 +671,7 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
       {
         type: 'multiPatch',
         patcherAddress: patcherAddress as `0x${string}`,
-        targetAddress: patcherAddress as `0x${string}`,
+        targetAddress: DUMMY_TARGET,
         callDataToPatch: encodeFunctionData({
           abi: DUMMY_TARGET_ABI,
           functionName: 'multiDeposit',
@@ -659,7 +689,7 @@ const demoPatcher = async (): Promise<Result<Error, string>> => {
             valueToReplace: baseValuePlaceholder,
           },
           {
-            valueSource: patcherAddress as `0x${string}`,
+            valueSource: DUMMY_TARGET,
             valueGetter: encodeGetDoubledBalanceCall(
               toToken.address as string,
               shedProxyAddress
