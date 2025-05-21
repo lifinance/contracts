@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.29'
-evm_version = 'cancun'
+solc_version = '0.8.17'
+evm_version = 'london'
 optimizer = true
 optimizer_runs = 1000000
 # use a known address with a balance so ZkEVM scripts work
@@ -93,7 +93,7 @@ avalanche = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan
 base = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = "8453" }
 berachain = { key = "${BERACHAIN_ETHERSCAN_API_KEY}", url = "https://api.berascan.com", chain = "80094" }
 blast = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=81457", chain = "81457" }
-boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api", chain = "288" }
+boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "hhttps://api.routescan.io/v2/network/mainnet/evm/288/etherscan", chain = "288" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
 corn = { key = "${CORN_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan", chain = "21000000" }

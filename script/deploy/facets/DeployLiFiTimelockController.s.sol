@@ -41,14 +41,16 @@ contract DeployScript is DeployScriptBase {
             root,
             "/config/timelockcontroller.json"
         );
-        uint256 minDelay = timelockConfigPath.readUint(".minDelay");
+        string memory timelockJson = vm.readFile(timelockConfigPath);
+        uint256 minDelay = timelockJson.readUint(".minDelay");
 
         // get deployerWalletAddress from global.json
         string memory globalConfigPath = string.concat(
             root,
             "/config/global.json"
         );
-        address deployerWalletAddress = globalConfigPath.readAddress(
+        string memory globalJson = vm.readFile(globalConfigPath);
+        address deployerWalletAddress = globalJson.readAddress(
             ".deployerWallet"
         );
 

@@ -391,18 +391,18 @@
       },
       "_admin": {
         "configFileName": "networks.json",
-        "keyInConfigFile": ".safeAddress",
+        "keyInConfigFile": ".<NETWORK>.safeAddress",
         "allowToDeployWithZeroAddress": "false"
       },
       "_executors": {
         "configFileName": "global.json",
         "keyInConfigFile": ".deployerWallet",
         "allowToDeployWithZeroAddress": "false"
-      },
-      "contractAddresses": {
-        "LiFiDiamond": {
-          "allowToDeployWithZeroAddress": "false"
-        }
+      }
+    },
+    "contractAddresses": {
+      "LiFiDiamond": {
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
