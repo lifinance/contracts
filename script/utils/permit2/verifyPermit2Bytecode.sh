@@ -37,10 +37,7 @@ if [ -z "$ADDRESS" ]; then
 fi
 
 # Run Permit2Code to get the bytecode
-CODE=$(forge script Permit2Code --sig "getCode(uint256)" "$CHAIN_ID" \
-  | grep -oE 'bytes 0x[0-9a-fA-F]+' \
-  | sed 's/bytes //')
-
+CODE=$(forge script Permit2Code --sig "getCode(uint256,address)" $CHAIN_ID $ADDRESS --json | jq -r '.returns["0"].value')
 
 # compare expected bytecode with actual bytecode at given address
-forge script Permit2Check --sig "checkCode(address,bytes)" "$ADDRESS" "$CODE" --rpc-url "$RPC_URL" -vvvv
+forge script Permit2Check --sig "checkCode(address,bytes)" $ADDRESS $CODE --rpc-url "$RPC_URL" -vvvv
