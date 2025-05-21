@@ -2,15 +2,16 @@
 
 # load script
 source script/helperFunctions.sh
-source script/config.sh
 
-# Require: <network>
+# Require argument: <network>
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <network>"
   exit 1
 fi
 
 NETWORK="$1"
+
+declare NETWORKS_JSON_FILE_PATH="config/networks.json"
 
 # Get RPC URL and chain ID for given network
 RPC_URL=$(getRPCUrl "$NETWORK")
