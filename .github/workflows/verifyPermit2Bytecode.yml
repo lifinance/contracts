@@ -36,11 +36,11 @@ jobs:
         if: env.CONTINUE == 'true'
         id: detect-changes
         run: |
-          echo "Comparing permit2Proxy.json with main branch to find new or updated entries..."
+          echo "Comparing config/permit2Proxy.json with main branch..."
 
           git fetch origin main --depth=1
 
-          # Load old file or fallback to empty JSON
+          # Fallback to empty old file if none exists
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
             git show origin/main:config/permit2Proxy.json > old.json
           else
@@ -49,19 +49,19 @@ jobs:
 
           cp config/permit2Proxy.json new.json
 
-          # Detect changed or new keys only (skipping nulls)
+          # Extract list of keys that are either:
+          # - new (not in old)
+          # - changed (value is different)
           CHANGED_KEYS=$(jq -r '
             to_entries[]
-            | select(.key != null)
             | select(
-                (input | has(.key) | not)
-                or
-                ((input[.key] // "") != .value)
+                .key as $k
+                | .value != (input | .[$k] // null)
               )
             | .key
           ' new.json old.json)
 
-          echo "Detected changed or new keys:"
+          echo "Changed or new networks:"
           echo "$CHANGED_KEYS"
 
           if [ -z "$CHANGED_KEYS" ]; then
