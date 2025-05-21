@@ -45,10 +45,16 @@ jobs:
           jq -r 'to_entries[] | "\(.key)=\(.value)"' config/permit2Proxy.json | sort > new.txt
           comm -13 old.txt new.txt > changed_lines.txt
 
-          if [ ! -s changed_lines.txt ]; then
+          # Filter out entries with empty values
+          grep -vE '=$' changed_lines.txt > filtered_changes.txt
+
+          if [ ! -s filtered_changes.txt ]; then
             echo "SKIP_CHECK=true" >> $GITHUB_ENV
+            echo "✅ No new valid permit2 entries to check."
           else
-            cut -d= -f1 changed_lines.txt | jq -R . | jq -cs '.' > changed_networks.json
+            echo "📋 Networks to verify:"
+            cut -d= -f1 filtered_changes.txt | tee changed_networks_list.txt
+            cut -d= -f1 filtered_changes.txt | jq -R . | jq -cs '.' > changed_networks.json
             echo "CHANGED_NETWORKS=$(cat changed_networks.json)" >> $GITHUB_ENV
           fi
 
