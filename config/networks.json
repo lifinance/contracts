@@ -197,9 +197,9 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
-  "bob": {
-    "name": "bob",
-    "chainId": 60808,
+  "boba": {
+    "name": "boba",
+    "chainId": 288,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000",
@@ -219,9 +219,9 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
-  "boba": {
-    "name": "boba",
-    "chainId": 288,
+  "bob": {
+    "name": "bob",
+    "chainId": 60808,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
@@ -232,9 +232,9 @@
     "explorerUrl": "https://explorer.gobob.xyz",
     "explorerApiUrl": "https://explorer.gobob.xyz/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeApiUrl": "https://transaction.safe.gobob.xyz/",
+    "safeApiUrl": "",
     "safeAddress": "",
-    "safeWebUrl": "https://transaction.safe.gobob.xyz/",
+    "safeWebUrl": "",
     "gasZipChainId": 150,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
