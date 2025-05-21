@@ -2012,7 +2012,7 @@ function getCoreFacetsArray() {
 }
 
 # Function to check if NETWORKS_JSON_FILE_PATH is set and valid
-checkNetworksJsonFilePath() {
+function checkNetworksJsonFilePath() {
   if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
     error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
     return 1
@@ -2922,6 +2922,31 @@ function getCreate3FactoryAddress() {
 
 function convertToBcInt() {
   echo "$1" | tr -d '\n' | bc
+}
+
+readJsonValueFromConfigFile() {
+  # read arguments into variables
+  local CONFIG_FILE_NAME="$1"
+  local KEY="$2"
+  local CONFIG_FILE_PATH="config/$CONFIG_FILE_NAME"
+
+  # make sure that a config file exists at the given path
+  if [ ! -f "$CONFIG_FILE_PATH" ]; then
+    echo "[ERROR] Config file not found: $CONFIG_FILE_PATH" >&2
+    exit 1
+  fi
+
+  # try to get the value for the given key
+  local VALUE
+  VALUE=$(jq -r "$KEY // empty" "$CONFIG_FILE_PATH")
+
+  # throw an error if no value was found
+  if [ -z "$VALUE" ]; then
+    echo "[ERROR] Key '$KEY' not found or is empty in $CONFIG_FILE_PATH" >&2
+    exit 1
+  fi
+
+  echo "$VALUE"
 }
 
 

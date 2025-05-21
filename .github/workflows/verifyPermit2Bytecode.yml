@@ -1,0 +1,84 @@
+name: Verifies Bytecode of newly added Permit2 addresses
+# - detects newly added permit2 addresses in config/permit2Proxy.json
+# - runs address-specific verification via a dedicated Bash script
+# - verifies only the newly added entries (not full file scan)
+# - exits with error if any check fails
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-permit2-addresses:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if config/permit2Proxy.json was changed in this branch
+        id: check-file-change
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -q "config/permit2Proxy.json"; then
+            echo "config/permit2Proxy.json has been modified in this branch"
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          else
+            echo "No changes in config/permit2Proxy.json detected in this branch"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Detect Newly Added Permit2 Addresses
+        if: env.CONTINUE == 'true'
+        id: detect-changes
+        run: |
+          echo "Comparing config/permit2Proxy.json with the previous commit..."
+          git fetch origin main --depth=1 || echo "No previous commit found."
+
+          if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
+            OLD_ADDRESSES=$(git show origin/main:config/permit2Proxy.json | jq 'keys')
+          else
+            echo "❌ Error: No previous permit2Proxy.json found. Expected existing config."
+            exit 1
+          fi
+
+          NEW_ADDRESSES=$(jq 'keys' config/permit2Proxy.json)
+
+          ADDED_NETWORKS=$(jq -n --argjson old "$OLD_ADDRESSES" --argjson new "$NEW_ADDRESSES" '$new - $old')
+
+          echo "Added permit2 addresses: $ADDED_NETWORKS"
+
+          if [[ "$ADDED_NETWORKS" == "[]" ]]; then
+            echo "No new permit2 addresses detected."
+            echo "SKIP_CHECK=true" >> $GITHUB_ENV
+          else
+            echo "New permit2 addresses detected: $ADDED_NETWORKS"
+            echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
+          fi
+
+      - name: Install Foundry (provides forge and cast)
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        uses: foundry-rs/foundry-toolchain@v1.3.1
+
+      - name: Install dependencies (includes jq via preinstall.sh)
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: bun install
+
+      - name: Run Permit2 Verification for New Networks
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: |
+          echo "Running permit2 verification for new addresses..."
+          set -e
+          for NETWORK in $(echo $added_networks | jq -r '.[]'); do
+            echo "🔍 Verifying permit2 address for network: $NETWORK"
+            if ./script/utils/permit2/check-permit2.sh "$NETWORK"; then
+              echo "✅ $NETWORK verified successfully."
+            else
+              echo "❌ Verification failed for $NETWORK. Exiting..."
+              exit 1
+            fi
+          done
