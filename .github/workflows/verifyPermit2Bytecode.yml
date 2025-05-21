@@ -26,6 +26,7 @@ jobs:
           if git diff --name-only origin/main...HEAD | grep -q "config/permit2Proxy.json"; then
             echo "CONTINUE=true" >> $GITHUB_ENV
           else
+            echo "✅ No changes in permit2Proxy.json identified. Check passed."
             echo "CONTINUE=false" >> $GITHUB_ENV
           fi
 
