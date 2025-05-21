@@ -40,7 +40,7 @@ jobs:
 
           git fetch origin main --depth=1
 
-          # Fallback to empty JSON if not present in base branch
+          # Fallback to empty JSON if no previous file exists
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
             git show origin/main:config/permit2Proxy.json > old.json
           else
@@ -49,16 +49,11 @@ jobs:
 
           cp config/permit2Proxy.json new.json
 
-          # Safe compare: only evaluate .[$key] if it exists
+          # Final: Safe compare without `has()` — avoids "break" error entirely
           CHANGED_KEYS=$(jq -r '
             to_entries[]
             | select(
-                .key as $k
-                | (
-                    (input | has($k) | not)
-                    or
-                    (.value != (input | if has($k) then .[$k] else empty end))
-                  )
+                .value != (input[.key] // empty)
               )
             | .key
           ' new.json old.json)
