@@ -3005,7 +3005,8 @@ function extractDeployedAddressFromRawReturnData() {
     # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
     local COUNT=0
     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
-      if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
+      # check if address contains and bytecode and leave the loop if bytecode is found
+      if [[ "$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")" == "true" ]]; then
         break
       fi
       echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
