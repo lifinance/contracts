@@ -382,6 +382,30 @@
       }
     }
   },
+  "LiFiTimelockController": {
+    "configData": {
+      "_minDelay": {
+        "configFileName": "timelockcontroller.json",
+        "keyInConfigFile": ".minDelay",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_admin": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".safeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_executors": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".deployerWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "contractAddresses": {
+        "LiFiDiamond": {
+          "allowToDeployWithZeroAddress": "false"
+        }
+      }
+    }
+  },
   "ThorSwapFacet": {
     "configData": {
       "_thorchainRouter": {
