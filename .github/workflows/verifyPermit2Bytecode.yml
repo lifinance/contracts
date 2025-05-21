@@ -40,7 +40,7 @@ jobs:
 
           git fetch origin main --depth=1
 
-          # Get old file from main or fallback to empty
+          # Load old file or fallback to empty JSON
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
             git show origin/main:config/permit2Proxy.json > old.json
           else
@@ -49,15 +49,14 @@ jobs:
 
           cp config/permit2Proxy.json new.json
 
-          # Use jq to identify keys that are either:
-          # - missing in old.json (new key)
-          # - or have different value than in old.json (changed value)
+          # Detect changed or new keys only (skipping nulls)
           CHANGED_KEYS=$(jq -r '
             to_entries[]
+            | select(.key != null)
             | select(
-                (input | has(.key) | not)  # new key
+                (input | has(.key) | not)
                 or
-                (.value != (input[.key] // ""))  # value changed (also covers key added as empty in old)
+                ((input[.key] // "") != .value)
               )
             | .key
           ' new.json old.json)
@@ -69,7 +68,7 @@ jobs:
             echo "No new or updated permit2 addresses detected."
             echo "SKIP_CHECK=true" >> $GITHUB_ENV
           else
-            CHANGED_KEYS_JSON=$(printf '%s\n' $CHANGED_KEYS | jq -R . | jq -cs .)
+            CHANGED_KEYS_JSON=$(printf '%s\n' "$CHANGED_KEYS" | jq -R . | jq -cs .)
             echo "changed_keys=$CHANGED_KEYS_JSON" >> $GITHUB_ENV
           fi
 

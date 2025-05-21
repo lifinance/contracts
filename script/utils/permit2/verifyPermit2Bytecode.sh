@@ -4,9 +4,9 @@
 source script/helperFunctions.sh
 source script/config.sh
 
-# Require: <network> [permit2Address]
+# Require: <network>
 if [ $# -lt 1 ]; then
-  echo "Usage: $0 <network> [permit2Address]"
+  echo "Usage: $0 <network>"
   exit 1
 fi
 
