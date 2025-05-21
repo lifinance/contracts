@@ -40,7 +40,7 @@ jobs:
 
           git fetch origin main --depth=1
 
-          # Get previous version or fallback to empty
+          # Fallback to empty JSON if not present in base branch
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
             git show origin/main:config/permit2Proxy.json > old.json
           else
@@ -49,12 +49,16 @@ jobs:
 
           cp config/permit2Proxy.json new.json
 
-          # Detect keys whose stringified values differ (covers added + changed)
+          # Safe compare: only evaluate .[$key] if it exists
           CHANGED_KEYS=$(jq -r '
             to_entries[]
             | select(
                 .key as $k
-                | (tostring) != ((input | .[$k]) // empty | tostring)
+                | (
+                    (input | has($k) | not)
+                    or
+                    (.value != (input | if has($k) then .[$k] else empty end))
+                  )
               )
             | .key
           ' new.json old.json)
