@@ -32,32 +32,36 @@ jobs:
             echo "CONTINUE=false" >> $GITHUB_ENV
           fi
 
-      - name: Detect Newly Added Permit2 Addresses
+      - name: Detect New or Changed Permit2 Addresses
         if: env.CONTINUE == 'true'
         id: detect-changes
         run: |
-          echo "Comparing config/permit2Proxy.json with the previous commit..."
-          git fetch origin main --depth=1 || echo "No previous commit found."
+          echo "Comparing permit2Proxy.json with main branch to find new or updated entries..."
 
+          git fetch origin main --depth=1
+
+          # Get previous version of the file or fallback to empty object
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
-            OLD_ADDRESSES=$(git show origin/main:config/permit2Proxy.json | jq 'keys')
+            git show origin/main:config/permit2Proxy.json > old.json
           else
-            echo "❌ Error: No previous permit2Proxy.json found. Expected existing config."
-            exit 1
+            echo "{}" > old.json
           fi
 
-          NEW_ADDRESSES=$(jq 'keys' config/permit2Proxy.json)
+          cp config/permit2Proxy.json new.json
 
-          ADDED_NETWORKS=$(jq -n --argjson old "$OLD_ADDRESSES" --argjson new "$NEW_ADDRESSES" '$new - $old')
+          # Extract changed or added keys by comparing values
+          CHANGED_KEYS=$(jq -r 'to_entries[] | select(.value != input_filename | fromjson | .[.key]) | .key' new.json old.json)
 
-          echo "Added permit2 addresses: $ADDED_NETWORKS"
+          echo "Detected changed or new keys:"
+          echo "$CHANGED_KEYS"
 
-          if [[ "$ADDED_NETWORKS" == "[]" ]]; then
-            echo "No new permit2 addresses detected."
+          if [ -z "$CHANGED_KEYS" ]; then
+            echo "No new or updated permit2 addresses detected."
             echo "SKIP_CHECK=true" >> $GITHUB_ENV
           else
-            echo "New permit2 addresses detected: $ADDED_NETWORKS"
-            echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
+            # Convert to JSON array
+            CHANGED_KEYS_JSON=$(printf '%s\n' $CHANGED_KEYS | jq -R . | jq -cs .)
+            echo "changed_keys=$CHANGED_KEYS_JSON" >> $GITHUB_ENV
           fi
 
       - name: Install Foundry (provides forge and cast)
