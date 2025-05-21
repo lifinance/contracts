@@ -1,8 +1,7 @@
 name: Permit2 Bytecode Verifier
-# - detects newly added permit2 addresses in config/permit2Proxy.json
-# - runs address-specific verification via a dedicated Bash script
-# - verifies only the newly added entries (not full file scan)
-# - exits with error if any check fails
+# - detects newly added or changed permit2 addresses in config/permit2Proxy.json
+# - verifies only changed entries via a Bash script
+# - fails fast on mismatch
 
 on:
   pull_request:
@@ -21,93 +20,73 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if config/permit2Proxy.json was changed in this branch
-        id: check-file-change
+      - name: Check if permit2Proxy.json was modified
+        id: check-diff
         run: |
           if git diff --name-only origin/main...HEAD | grep -q "config/permit2Proxy.json"; then
-            echo "config/permit2Proxy.json has been modified in this branch"
             echo "CONTINUE=true" >> $GITHUB_ENV
           else
-            echo "No changes in config/permit2Proxy.json detected in this branch"
             echo "CONTINUE=false" >> $GITHUB_ENV
           fi
 
-      - name: Detect New or Changed Permit2 Addresses
+      - name: Detect changed or new permit2 addresses
         if: env.CONTINUE == 'true'
         id: detect-changes
         run: |
-          echo "Comparing config/permit2Proxy.json with main branch..."
-
           git fetch origin main --depth=1
 
-          # Fallback if no previous version exists
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
             git show origin/main:config/permit2Proxy.json | jq -r 'to_entries[] | "\(.key)=\(.value)"' | sort > old.txt
           else
-            echo "# fallback: no old file" > old.txt
+            echo "" > old.txt
           fi
 
-          # Current version
           jq -r 'to_entries[] | "\(.key)=\(.value)"' config/permit2Proxy.json | sort > new.txt
-
-          # Get lines only in new or changed (i.e., not in old)
           comm -13 old.txt new.txt > changed_lines.txt
 
           if [ ! -s changed_lines.txt ]; then
-            echo "No new or updated permit2 addresses detected."
             echo "SKIP_CHECK=true" >> $GITHUB_ENV
           else
-            echo "Found changed entries:"
-            cat changed_lines.txt
-
-            # Extract keys only
-            CHANGED_NETWORKS=$(cut -d= -f1 changed_lines.txt | jq -R . | jq -cs .)
-            echo "CHANGED_NETWORKS=$CHANGED_NETWORKS" >> $GITHUB_ENV
+            cut -d= -f1 changed_lines.txt | jq -R . | jq -cs '.' > changed_networks.json
+            echo "CHANGED_NETWORKS=$(cat changed_networks.json)" >> $GITHUB_ENV
           fi
 
-      - name: Install Foundry (provides forge and cast)
+      - name: Set up Foundry
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         uses: foundry-rs/foundry-toolchain@v1.3.1
 
-      - name: Install Bun
+      - name: Set up Bun
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
-      - name: Install dependencies (includes jq via preinstall.sh)
+      - name: Install project dependencies
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
           bun install
           forge install
 
-      - name: Strip etherscan section from foundry.toml in CI
+      - name: Strip [etherscan] section from foundry.toml
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: sed -i '/^\[etherscan\]/,/^$/d' foundry.toml
 
-      - name: Fetch RPC endpoints from MongoDB
+      - name: Fetch RPCs from MongoDB
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        run: |
-          echo "Fetching prioritized RPCs..."
-          bun fetch-rpcs
+        run: bun fetch-rpcs
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
-      - name: Create config.sh from config.example.sh (required by helperfunctions.sh)
+      - name: Prepare config for helper scripts
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        run: |
-          cp script/config.example.sh script/config.sh
+        run: cp script/config.example.sh script/config.sh
 
-      - name: Run Permit2 Verification for New Networks
+      - name: Run permit2 bytecode verification
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
-          echo "Running permit2 verification for new addresses..."
+          echo "Running permit2 verification..."
           set -e
-          for NETWORK in $(echo $CHANGED_NETWORKS | jq -r '.[]'); do
-            echo "🔍 Verifying permit2 address for network: $NETWORK"
-            if ./script/utils/permit2/verifyPermit2Bytecode.sh "$NETWORK"; then
-              echo "✅ $NETWORK verified successfully."
-            else
-              echo "❌ Verification failed for $NETWORK. Exiting..."
-              exit 1
-            fi
+          for NETWORK in $(echo "$CHANGED_NETWORKS" | jq -r '.[]'); do
+            echo "🔍 Verifying $NETWORK"
+            ./script/utils/permit2/verifyPermit2Bytecode.sh "$NETWORK"
           done
