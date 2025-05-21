@@ -40,33 +40,29 @@ jobs:
 
           git fetch origin main --depth=1
 
-          # Fallback to empty JSON if no previous file exists
+          # Fallback if no previous version exists
           if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
-            git show origin/main:config/permit2Proxy.json > old.json
+            git show origin/main:config/permit2Proxy.json | jq -r 'to_entries[] | "\(.key)=\(.value)"' | sort > old.txt
           else
-            echo "{}" > old.json
+            echo "# fallback: no old file" > old.txt
           fi
 
-          cp config/permit2Proxy.json new.json
+          # Current version
+          jq -r 'to_entries[] | "\(.key)=\(.value)"' config/permit2Proxy.json | sort > new.txt
 
-          # Final: Safe compare without `has()` — avoids "break" error entirely
-          CHANGED_KEYS=$(jq -r '
-            to_entries[]
-            | select(
-                .value != (input[.key] // empty)
-              )
-            | .key
-          ' new.json old.json)
+          # Get lines only in new or changed (i.e., not in old)
+          comm -13 old.txt new.txt > changed_lines.txt
 
-          echo "Changed or new networks:"
-          echo "$CHANGED_KEYS"
-
-          if [ -z "$CHANGED_KEYS" ]; then
+          if [ ! -s changed_lines.txt ]; then
             echo "No new or updated permit2 addresses detected."
             echo "SKIP_CHECK=true" >> $GITHUB_ENV
           else
-            CHANGED_KEYS_JSON=$(printf '%s\n' "$CHANGED_KEYS" | jq -R . | jq -cs .)
-            echo "changed_keys=$CHANGED_KEYS_JSON" >> $GITHUB_ENV
+            echo "Found changed entries:"
+            cat changed_lines.txt
+
+            # Extract keys only
+            CHANGED_KEYS=$(cut -d= -f1 changed_lines.txt | jq -R . | jq -cs .)
+            echo "changed_keys=$CHANGED_KEYS" >> $GITHUB_ENV
           fi
 
       - name: Install Foundry (provides forge and cast)
