@@ -82,22 +82,20 @@ jobs:
       - name: Fetch RPC endpoints from MongoDB
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
-          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
-          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
-          bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
-              echo "$line" >> "$GITHUB_ENV"
-            fi
-          done < ".env"
+          echo "Fetching prioritized RPCs..."
+          bun fetch-rpcs > .env || echo "" > .env  # fallback to empty .env to avoid script crash
+
+          # Export only ETH_NODE_URI_* entries to GitHub Actions env
+          grep '^ETH_NODE_URI_' .env | while IFS= read -r line; do
+            echo "$line" >> "$GITHUB_ENV"
+          done
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Create config.sh from config.example.sh (required by helperfunctions.sh)
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
-          cp script/script-config.example.sh script/script-config.sh
+          cp script/config.example.sh script/config.sh
 
       - name: Run Permit2 Verification for New Networks
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
