@@ -20,9 +20,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -34,9 +34,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -48,9 +48,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -62,9 +62,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -99,12 +99,12 @@
   "ArbitrumBridgeFacet": {
     "configData": {
       "_gatewayRouter": {
-        "configFileName": "arbitrum.json",
+        "configFileName": "arbitrumBridge.json",
         "keyInConfigFile": ".<NETWORK>.gatewayRouter",
         "allowToDeployWithZeroAddress": "false"
       },
       "_inbox": {
-        "configFileName": "arbitrum.json",
+        "configFileName": "arbitrumBridge.json",
         "keyInConfigFile": ".<NETWORK>.inbox",
         "allowToDeployWithZeroAddress": "false"
       }
@@ -350,19 +350,10 @@
       }
     }
   },
-  "StargateFacet": {
-    "configData": {
-      "_composer": {
-        "configFileName": "stargate.json",
-        "keyInConfigFile": ".composers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "StargateFacetV2": {
     "configData": {
       "_tokenMessaging": {
-        "configFileName": "stargate.json",
+        "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
@@ -424,37 +415,13 @@
         "allowToDeployWithZeroAddress": "false"
       },
       "_endpointV2": {
-        "configFileName": "stargate.json",
+        "configFileName": "stargateV2.json",
         "keyInConfigFile": ".endpointV2.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       },
       "_tokenMessaging": {
-        "configFileName": "stargate.json",
+        "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    },
-    "contractAddresses": {
-      "Executor": {
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "Receiver": {
-    "configData": {
-      "_sgRouter": {
-        "configFileName": "stargate.json",
-        "keyInConfigFile": ".composers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "true"
-      },
-      "_amarokRouter": {
-        "configFileName": "amarok.json",
-        "keyInConfigFile": ".<NETWORK>.connextHandler",
-        "allowToDeployWithZeroAddress": "true"
-      },
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     },
@@ -497,15 +464,6 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".withdrawWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "LiFuelFeeCollector": {
-    "configData": {
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".lifuelRebalanceWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -566,6 +524,34 @@
     },
     "contractAddresses": {
       "LiFiDEXAggregator": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ChainflipFacet": {
+    "configData": {
+      "_chainflipVault": {
+        "configFileName": "chainflip.json",
+        "keyInConfigFile": ".chainflipVault.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ReceiverChainflip": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_chainflipVault": {
+        "configFileName": "chainflip.json",
+        "keyInConfigFile": ".chainflipVault.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
         "allowToDeployWithZeroAddress": "false"
       }
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase, console } from "./ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -11,9 +11,16 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
 
+    error InvalidHexDigit(uint8 d);
+
     struct FunctionSignature {
         string name;
         bytes sig;
+    }
+
+    struct Approval {
+        address aTokenAddress;
+        address bContractAddress;
     }
 
     address internal diamond;
@@ -71,8 +78,8 @@ contract UpdateScriptBase is ScriptBase {
                 callData
             );
 
-            console.log("DiamondCutCalldata: ");
-            console.logBytes(cutData);
+            emit log("DiamondCutCalldata: ");
+            emit log_bytes(cutData);
         }
 
         if (noBroadcast) {
@@ -201,7 +208,7 @@ contract UpdateScriptBase is ScriptBase {
         } else if (10 <= uint8(d) && uint8(d) <= 15) {
             return bytes1(uint8(bytes1("a")) + d - 10);
         }
-        revert();
+        revert InvalidHexDigit(d);
     }
 
     function fromCode(bytes4 code) public pure returns (string memory) {

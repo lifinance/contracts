@@ -21,6 +21,7 @@ function diamondEMERGENCYPause {
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
     # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     echo ""
     echo "Should the script be executed on one network or all networks?"
     NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
@@ -131,7 +132,7 @@ function handleNetwork() {
   local BLACKLIST=$5 # a list of facet addresses that should not be reactivated when unpausing the diamond
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "$DIAMOND_CONTRACT_NAME")
 
@@ -184,7 +185,7 @@ function handleNetwork() {
         echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig now"
 
         local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")
-        npx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       fi
     else
       echoDebug "[network: $NETWORK] removing $FACET_CONTRACT_NAME now"

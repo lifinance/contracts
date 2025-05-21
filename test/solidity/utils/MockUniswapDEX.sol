@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { InsufficientBalance, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { console2 } from "forge-std/console2.sol";
 
 // this contract is used for testing purposes and mocks the behaviour of a Uniswap-like DEX but
 // adds the option to simulate positive slippage as well as failing swaps

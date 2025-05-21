@@ -2,12 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { InvalidContract, OnlyContractOwner, CannotAuthoriseSelf, UnAuthorized, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
+import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract Foo {}
 
@@ -22,6 +20,13 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
     Foo internal c1;
     Foo internal c2;
     Foo internal c3;
+
+    event DexAdded(address indexed dexAddress);
+    event DexRemoved(address indexed dexAddress);
+    event FunctionSignatureApprovalChanged(
+        bytes4 indexed functionSignature,
+        bool indexed approved
+    );
 
     function setUp() public {
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
@@ -71,7 +76,14 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
     function test_SucceedsIfOwnerRemovesDex() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
+        vm.expectEmit(true, true, true, true);
+        emit DexAdded(address(c1));
+
         dexMgr.addDex(address(c1));
+
+        vm.expectEmit(true, true, true, true);
+        emit DexRemoved(address(c1));
+
         dexMgr.removeDex(address(c1));
 
         vm.stopPrank();
@@ -122,6 +134,9 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 signature = hex"faceface";
+
+        vm.expectEmit(true, true, true, true);
+        emit FunctionSignatureApprovalChanged(signature, true);
         dexMgr.setFunctionApprovalBySignature(signature, true);
         assertTrue(dexMgr.isFunctionApproved(signature));
 
@@ -380,5 +395,40 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
 
         assertEq(approved[0], address(c1));
         assertEq(approved[1], address(c2));
+    }
+
+    function test_BatchAddKeepsAlreadyApprovedDexAndAddsNewOnes() public {
+        address[] memory dexs = new address[](1);
+        dexs[0] = address(c2);
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        accessMgr.setCanExecute(
+            DexManagerFacet.batchAddDex.selector,
+            USER_PAUSER,
+            true
+        );
+
+        // try to call addDex()
+        vm.startPrank(USER_PAUSER);
+
+        dexMgr.batchAddDex(dexs);
+
+        address[] memory approved = dexMgr.approvedDexs();
+
+        assertEq(approved[0], address(c2));
+
+        dexs = new address[](3);
+        dexs[0] = address(c1);
+        dexs[1] = address(c2); // already whitelisted
+        dexs[2] = address(c3);
+
+        dexMgr.batchAddDex(dexs);
+
+        approved = dexMgr.approvedDexs();
+
+        assertEq(approved[0], address(c2));
+        assertEq(approved[1], address(c1));
+        assertEq(approved[2], address(c3));
     }
 }

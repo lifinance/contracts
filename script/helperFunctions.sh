@@ -725,7 +725,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute multicall now - attempt ${attempts}"
     # try to execute call
-    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
+    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy) # [pre-commit-checker: not a secret]
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -764,7 +764,7 @@ function saveDiamondPeriphery() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # get RPC URL
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -905,7 +905,7 @@ function checkRequiredVariablesInDotEnv() {
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # Check if it's using MAINNET_ETHERSCAN_API_KEY
   if [[ "$KEY_VAR" == "MAINNET_ETHERSCAN_API_KEY" ]]; then
@@ -1341,7 +1341,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1459,7 +1459,7 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
         else
@@ -1468,7 +1468,7 @@ function verifyContract() {
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
           FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1479,14 +1479,14 @@ function verifyContract() {
       # case: verify with constructor arguments
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
         else
           forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
         fi
       else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+        if isZkEvmNetwork "$NETWORK"; then
           # Verify using foundry-zksync
          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
         else
@@ -1507,16 +1507,32 @@ function verifyContract() {
   fi
 
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract \
-    "$ADDRESS" \
-    "$CONTRACT" \
-    --chain-id "$CHAIN_ID" \
-    --verifier  sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   echo "[info] checking Sourcify verification now"
-  forge verify-check $ADDRESS \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-check $ADDRESS \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
 
   if [ $? -ne 0 ]; then
     # verification apparently failed
@@ -1704,7 +1720,7 @@ function confirmOwnershipTransfer() {
   attempts=1 # initialize attempts to 0
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
@@ -1965,6 +1981,7 @@ function getAddressOfDeployedContractFromDeploymentsFiles() {
 
 }
 function getAllNetworksArray() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # prepare required variables
   local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
@@ -2010,9 +2027,24 @@ function getCoreFacetsArray() {
   printf '%s\n' "${ARRAY[@]}"
 }
 
+# Function to check if NETWORKS_JSON_FILE_PATH is set and valid
+checkNetworksJsonFilePath() {
+  if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
+    return 1
+  elif [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH does not point to a valid file: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  elif [[ ! -s "$NETWORKS_JSON_FILE_PATH" ]]; then
+    error "NETWORKS_JSON_FILE_PATH file is empty: $NETWORKS_JSON_FILE_PATH"
+    return 1
+  fi
+}
+
 
 function getIncludedNetworksArray() {
   # prepare required variables
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   local FILE="$NETWORKS_JSON_FILE_PATH"
   local ARRAY=()
 
@@ -2148,6 +2180,7 @@ function userDialogSelectDiamondType() {
   echo "$DIAMOND_CONTRACT_NAME"
 }
 function getUserSelectedNetwork() {
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network
   local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
 
@@ -2415,7 +2448,7 @@ function getDeployerBalance() {
   local ENVIRONMENT=$2
 
   # get RPC URL
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get deployer address
   ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -2436,7 +2469,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get list of all core facet contracts from global.json
   FACETS_NAMES=($(getCoreFacetsArray))
@@ -2483,7 +2516,7 @@ function getPeripheryAddressFromDiamond() {
   local PERIPHERY_CONTRACT_NAME="$3"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # call diamond to check for periphery address
   PERIPHERY_CONTRACT_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME" --rpc-url "${RPC_URL}")
@@ -2586,7 +2619,7 @@ function doesFacetExistInDiamond() {
   local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # loop through facet selectors and see if this selector is known by the diamond
   for SELECTOR in $SELECTORS; do
@@ -2615,7 +2648,7 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # check if NODE_URL is available
   if [ -z "$RPC_URL" ]; then
@@ -2643,7 +2676,7 @@ function getFacetAddressFromDiamond() {
   local SELECTOR="$3"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
 
@@ -2654,7 +2687,7 @@ function getCurrentGasPrice() {
   local NETWORK=$1
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL")
 
@@ -2667,7 +2700,7 @@ function getContractOwner() {
   local contract=$3
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
   local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
@@ -2696,7 +2729,7 @@ function getPendingContractOwner() {
   local contract=$3
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
   local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
@@ -2759,6 +2792,24 @@ function getRPCUrl() {
 
   # return RPC URL
   echo "${!RPC_KEY}"
+}
+function getRpcUrlFromNetworksJson() {
+  local NETWORK="$1"
+
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
+    echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
+    return 1
+  fi
+
+  local RPC_URL=$(jq -r --arg network "$NETWORK" '.[$network].rpcUrl // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  if [[ -z "$RPC_URL" ]]; then
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
+    return 1
+  fi
+
+  echo "$RPC_URL"
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
@@ -2845,10 +2896,57 @@ function getPrivateKey() {
     fi
   fi
 }
+function isZkEvmNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in networks.json
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  # Check if isZkEVM property exists for this network
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "isZkEVM property not defined for network '$NETWORK' in networks.json"
+    return 1
+  fi
+
+  # Get the isZkEVM value
+  local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
+
+  if [[ "$IS_ZK_EVM" == "true" ]]; then
+    return 0  # Success (true)
+  else
+    return 1  # Failure (false)
+  fi
+}
+
+function isActiveMainnet() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in the JSON
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1  # false
+  fi
+
+  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
+  local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  # Check if both values are present and match required conditions
+  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+    return 0  # true
+  else
+    return 1  # false
+  fi
+}
 
 function getChainId() {
   local NETWORK="$1"
 
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
     echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
     return 1
@@ -2866,7 +2964,7 @@ function getChainId() {
 
 function getCreate3FactoryAddress() {
   NETWORK="$1"
-
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [ -z "$CREATE3_FACTORY" ]; then
@@ -2879,6 +2977,54 @@ function getCreate3FactoryAddress() {
 
 function convertToBcInt() {
   echo "$1" | tr -d '\n' | bc
+}
+
+function extractDeployedAddressFromRawReturnData() {
+  local RAW_DATA="$1"
+  local NETWORK="$2"
+  local ADDRESS=""
+  local CLEAN_DATA=""
+
+  # Attempt to isolate the JSON blob that starts with {"logs":
+  CLEAN_DATA=$(echo "$RAW_DATA" | grep -o '{\"logs\":.*')
+
+  # Try extracting from `.returns.deployed.value`
+  ADDRESS=$(echo "$CLEAN_DATA" | jq -r '.returns.deployed.value // empty' 2>/dev/null)
+
+  # Fallback: try to extract from Etherscan "contract_address"
+  if [[ -z "$ADDRESS" ]]; then
+    ADDRESS=$(echo "$RAW_DATA" | grep -oE '"contract_address"\s*:\s*"0x[a-fA-F0-9]{40}"' | head -n1 | grep -oE '0x[a-fA-F0-9]{40}')
+  fi
+
+  # Last resort: use first 0x-prefixed address in blob
+  if [[ -z "$ADDRESS" ]]; then
+    ADDRESS=$(echo "$RAW_DATA" | grep -oE '0x[a-fA-F0-9]{40}' | head -n1)
+  fi
+
+  # Validate the format of the extracted address
+  if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+    # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
+    local COUNT=0
+    while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
+      if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
+        break
+      fi
+      echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
+      sleep 10
+      COUNT=$((COUNT + 10))
+    done
+
+    if [ $COUNT -ge "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
+      echo "❌ Extracted address does not contain bytecode" >&2
+      return 1
+    fi
+
+    echo "$ADDRESS"
+    return 0
+  else
+    echo "❌ Failed to find any deployed-to address in raw return data" >&2
+    return 1
+  fi
 }
 
 
@@ -2897,7 +3043,7 @@ transferContractOwnership() {
     local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
     local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
 
-    local RPC_URL=$(getRPCUrl "$NETWORK")
+    local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     # Get address of old and new owner
     local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
@@ -3574,7 +3720,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
+  local FOUNDRY_ZKSYNC_VERSION="nightly-ae9cfd10d906b5ab350258533219da1f4775c118"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -3624,7 +3770,7 @@ install_foundry_zksync() {
 
   # Construct download URL using the specified version
   local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_nightly_${os}_${arch}.tar.gz"
+  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist

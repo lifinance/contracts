@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { AcrossFacetV3, IAcrossSpokePool } from "lifi/Facets/AcrossFacetV3.sol";
+import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
@@ -20,17 +20,21 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/across.json");
+        string memory configPath = string.concat(root, "/config/across.json");
+        string memory networksPath = string.concat(
+            root,
+            "/config/networks.json"
+        );
 
         address acrossSpokePool = _getConfigContractAddress(
-            path,
+            configPath,
             string.concat(".", network, ".acrossSpokePool")
         );
-        address weth = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".weth")
+        address wrappedNativeAddress = _getConfigContractAddress(
+            networksPath,
+            string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        return abi.encode(acrossSpokePool, weth, deployerAddress);
+        return abi.encode(acrossSpokePool, wrappedNativeAddress);
     }
 }

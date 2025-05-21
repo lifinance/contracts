@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
@@ -25,16 +26,25 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     DeBridgeDlnFacet.DeBridgeDlnData internal validDeBridgeDlnData;
     TestDeBridgeDlnFacet internal deBridgeDlnFacet;
-    IDlnSource internal DLN_SOURCE =
+    IDlnSource internal constant DLN_SOURCE =
         IDlnSource(0xeF4fB24aD0916217251F553c0596F8Edc630EB66);
-    uint256 internal FIXED_FEE;
+    uint256 internal fixedFee;
 
     // Errors
     error EmptyNonEVMAddress();
     error UnknownDeBridgeChain();
 
     // Events
+    event DeBridgeInitialized(DeBridgeDlnFacet.ChainIdConfig[] chainIdConfigs);
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
+    event DlnOrderCreated(bytes32 indexed orderId);
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes receiver
+    );
+
+    bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
     function setUp() public {
         customBlockNumberForForking = 19279222;
@@ -103,17 +113,17 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         });
 
         vm.label(address(DLN_SOURCE), "DLN_SOURCE");
-        FIXED_FEE = DLN_SOURCE.globalFixedNativeFee();
+        fixedFee = DLN_SOURCE.globalFixedNativeFee();
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
-                value: bridgeData.minAmount + FIXED_FEE
+                value: bridgeData.minAmount + fixedFee
             }(bridgeData, validDeBridgeDlnData);
         } else {
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
-                value: FIXED_FEE
+                value: fixedFee
             }(bridgeData, validDeBridgeDlnData);
         }
     }
@@ -123,13 +133,41 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
-                value: defaultNativeAmount + FIXED_FEE
+                value: defaultNativeAmount + fixedFee
             }(bridgeData, swapData, validDeBridgeDlnData);
         } else {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
-                value: FIXED_FEE
+                value: fixedFee
             }(bridgeData, swapData, validDeBridgeDlnData);
         }
+    }
+
+    function test_Initialize() public {
+        vm.store(
+            address(deBridgeDlnFacet),
+            bytes32(uint256(namespace) + 1),
+            bytes32(uint256(0))
+        ); // setting initialize var in storage
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Initialize
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/dln.json"
+        );
+        string memory json = vm.readFile(path);
+        bytes memory rawChains = json.parseRaw(".mappings");
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = abi.decode(
+            rawChains,
+            (DeBridgeDlnFacet.ChainIdConfig[])
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit DeBridgeInitialized(cidCfg);
+        deBridgeDlnFacet.initDeBridgeDln(cidCfg);
+
+        vm.stopPrank();
     }
 
     function test_CanSwapAndBridgeTokensFromNative()
@@ -193,6 +231,10 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
         //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false); // we don't care about orderId
+        emit DlnOrderCreated(
+            0x0000000000000000000000000000000000000000000000000000000000000123
+        );
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -202,7 +244,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // check balances after call
         assertEq(
             USER_SENDER.balance,
-            initialETHBalance - swapData[0].fromAmount - FIXED_FEE
+            initialETHBalance - swapData[0].fromAmount - fixedFee
         );
     }
 
@@ -280,6 +322,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
         //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            validDeBridgeDlnData.receiver
+        );
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -289,7 +337,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // check balances after call
         assertEq(
             USER_SENDER.balance,
-            initialETHBalance - swapData[0].fromAmount - FIXED_FEE
+            initialETHBalance - swapData[0].fromAmount - fixedFee
         );
     }
 
@@ -429,7 +477,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         vm.expectRevert(EmptyNonEVMAddress.selector);
 
-        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: FIXED_FEE }(
+        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
             bridgeData,
             validDeBridgeDlnData
         );
@@ -438,8 +486,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     }
 
     function test_CanGetStorage() public {
-        bytes32 namespace = keccak256("com.lifi.facets.debridgedln");
-
         uint256 chainIdKey = 1;
         uint256 expectedValue = 42;
 

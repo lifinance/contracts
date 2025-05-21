@@ -4,14 +4,12 @@ pragma solidity ^0.8.17;
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
-import { TestBase, console, ILiFi, ERC20 } from "../utils/TestBase.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
-import { NativeAssetTransferFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {

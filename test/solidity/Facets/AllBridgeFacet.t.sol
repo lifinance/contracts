@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 
@@ -19,7 +20,7 @@ contract TestAllBridgeFacet is AllBridgeFacet {
 }
 
 contract AllBridgeFacetTest is TestBaseFacet {
-    IAllBridge internal constant allBridgeRouter =
+    IAllBridge internal constant ALLBRIDGE_ROUTER =
         IAllBridge(0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e);
     address internal constant ALLBRIDGE_POOL =
         0xa7062bbA94c91d565Ae33B893Ab5dFAF1Fc57C4d;
@@ -31,7 +32,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
         customBlockNumberForForking = 17556456;
         initTestBase();
 
-        allBridgeFacet = new TestAllBridgeFacet(allBridgeRouter);
+        allBridgeFacet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = allBridgeFacet
             .startBridgeTokensViaAllBridge
@@ -63,8 +64,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
         bridgeData.bridge = "allbridge";
         bridgeData.destinationChainId = 137;
 
-        uint256 fees = allBridgeRouter.getTransactionCost(5) +
-            allBridgeRouter.getMessageCost(
+        uint256 fees = ALLBRIDGE_ROUTER.getTransactionCost(5) +
+            ALLBRIDGE_ROUTER.getMessageCost(
                 5,
                 IAllBridge.MessengerProtocol.Allbridge
             );
@@ -107,7 +108,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
 
     function test_CanBridgeAndPayFeeWithBridgedToken() public {
         validAllBridgeData.fees =
-            allBridgeRouter.getBridgingCostInTokens(
+            ALLBRIDGE_ROUTER.getBridgingCostInTokens(
                 5,
                 IAllBridge.MessengerProtocol.Allbridge,
                 ADDRESS_USDC
@@ -135,7 +136,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
         validAllBridgeData.fees =
-            allBridgeRouter.getBridgingCostInTokens(
+            ALLBRIDGE_ROUTER.getBridgingCostInTokens(
                 5,
                 IAllBridge.MessengerProtocol.Allbridge,
                 ADDRESS_USDC

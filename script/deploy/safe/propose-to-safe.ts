@@ -1,49 +1,23 @@
+/**
+ * Propose to Safe
+ *
+ * This script proposes a transaction to a Gnosis Safe and stores it in MongoDB.
+ * The transaction can later be confirmed and executed using the confirm-safe-tx script.
+ */
+
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import type { Chain } from 'viem'
-import { MongoClient } from 'mongodb'
-const { default: Safe } = await import('@safe-global/protocol-kit')
-import { ethers } from 'ethers6'
-import {
-  OperationType,
-  type SafeTransactionDataPartial,
-} from '@safe-global/safe-core-sdk-types'
-import * as chains from 'viem/chains'
-import {
-  NetworksObject,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
-import data from '../../../config/networks.json'
-const networks: NetworksObject = data as NetworksObject
+import { Address, Hex } from 'viem'
 import consola from 'consola'
-
-/**
- * Retries a function multiple times if it fails
- * @param func - The async function to retry
- * @param retries - Number of retries remaining
- * @returns The result of the function
- */
-const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
-  try {
-    const result = await func()
-    return result
-  } catch (e) {
-    consola.error('Error details:', {
-      error: e,
-      remainingRetries: retries - 1,
-    })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
-    throw e
-  }
-}
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
+import {
+  getSafeMongoCollection,
+  getNextNonce,
+  initializeSafeClient,
+  getPrivateKey,
+  storeTransactionInMongoDB,
+  OperationType,
+  isAddressASafeOwner,
+} from './safe-utils'
 
 /**
  * Main command definition for proposing transactions to a Safe
@@ -65,8 +39,8 @@ const main = defineCommand({
     },
     privateKey: {
       type: 'string',
-      description: 'Private key of the signer',
-      required: true,
+      description: 'Private key of the signer (not needed if using --ledger)',
+      required: false,
     },
     to: {
       type: 'string',
@@ -78,102 +52,146 @@ const main = defineCommand({
       description: 'Calldata',
       required: true,
     },
+    ledger: {
+      type: 'boolean',
+      description: 'Use Ledger hardware wallet for signing',
+      required: false,
+    },
+    ledgerLive: {
+      type: 'boolean',
+      description: 'Use Ledger Live derivation path',
+      required: false,
+    },
+    accountIndex: {
+      type: 'number',
+      description: 'Ledger account index (default: 0)',
+      required: false,
+    },
+    derivationPath: {
+      type: 'string',
+      description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
   },
   /**
    * Executes the propose-to-safe command
    * @param args - Command arguments including network, rpcUrl, privateKey, to address, and calldata
    */
   async run({ args }) {
-    const chain = getViemChainForNetworkName(args.network)
+    // Get MongoDB collection
+    const { client: mongoClient, pendingTransactions } =
+      await getSafeMongoCollection()
 
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable is required')
+    // Validate that we have either a private key or ledger
+    if (!args.privateKey && !args.ledger) {
+      throw new Error('Either --privateKey or --ledger must be provided')
     }
 
-    const mongoClient = new MongoClient(process.env.MONGODB_URI)
-    const db = mongoClient.db('SAFE')
-    const pendingTransactions = db.collection('pendingTransactions')
+    // Set up signing options
+    const useLedger = args.ledger || false
+    let privateKey: string | undefined
 
-    const safeAddress = networks[args.network.toLowerCase()].safeAddress
-
-    const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
-    const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const signer = new ethers.Wallet(args.privateKey, provider)
-
-    let protocolKit: Safe
-    try {
-      protocolKit = await Safe.init({
-        provider: rpcUrl,
-        signer: args.privateKey,
-        safeAddress,
-      })
-    } catch (error) {
-      consola.error('Failed to initialize Safe protocol kit:', error)
-      throw error
+    // Validate that incompatible Ledger options aren't provided together
+    if (args.derivationPath && args.ledgerLive) {
+      throw new Error(
+        "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+      )
     }
 
-    const latestTx = await pendingTransactions
-      .find({
-        safeAddress,
-        network: args.network.toLowerCase(),
-        chainId: chain.id,
-        status: 'pending',
-      })
-      .sort({ nonce: -1 })
-      .limit(1)
-      .toArray()
-
-    // it seems that different versions of the SAFE package produce different object structures for "latestTx" so we use this approach to cover both cases
-    const nextNonce =
-      latestTx.length > 0
-        ? (latestTx[0].safeTx?.data?.nonce || latestTx[0].data?.nonce) + 1
-        : await protocolKit.getNonce()
-    const safeTransactionData: SafeTransactionDataPartial = {
-      to: args.to,
-      value: '0',
-      data: args.calldata,
-      operation: OperationType.Call,
-      nonce: nextNonce,
+    if (useLedger) {
+      consola.info('Using Ledger hardware wallet for signing')
+      if (args.ledgerLive) {
+        consola.info(
+          `Using Ledger Live derivation path with account index ${
+            args.accountIndex || 0
+          }`
+        )
+      } else if (args.derivationPath) {
+        consola.info(`Using custom derivation path: ${args.derivationPath}`)
+      } else {
+        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+      }
+      privateKey = undefined
+    } else {
+      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
     }
 
-    const senderAddress = await signer.getAddress()
+    const ledgerOptions = {
+      ledgerLive: args.ledgerLive || false,
+      accountIndex: args.accountIndex || 0,
+      derivationPath: args.derivationPath,
+    }
 
-    // Create and prepare the Safe transaction with the provided transaction data
-    // This will be signed and proposed to the Safe for execution
-    let safeTransaction = await protocolKit.createTransaction({
-      transactions: [safeTransactionData],
+    // Initialize Safe client
+    const { safe, chain, safeAddress } = await initializeSafeClient(
+      args.network,
+      privateKey,
+      args.rpcUrl,
+      useLedger,
+      ledgerOptions
+    )
+
+    // Get the account address
+    const senderAddress = safe.account
+
+    // Check if the current signer is an owner
+    const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
+      consola.error('The current signer is not an owner of this Safe')
+      consola.error('Signer address:', senderAddress)
+      consola.error('Current owners:', existingOwners)
+      consola.error('Cannot propose transactions - exiting')
+      await mongoClient.close()
+      process.exit(1)
+    }
+
+    // Get the next nonce
+    const nextNonce = await getNextNonce(
+      pendingTransactions,
+      safeAddress,
+      args.network,
+      chain.id,
+      await safe.getNonce()
+    )
+
+    // Create and sign the Safe transaction
+    const safeTransaction = await safe.createTransaction({
+      transactions: [
+        {
+          to: args.to as Address,
+          value: 0n,
+          data: args.calldata as Hex,
+          operation: OperationType.Call,
+          nonce: nextNonce,
+        },
+      ],
     })
-    safeTransaction = await protocolKit.signTransaction(safeTransaction)
-    const safeTxHash = await protocolKit.getTransactionHash(safeTransaction)
+
+    const signedTx = await safe.signTransaction(safeTransaction)
+    const safeTxHash = await safe.getTransactionHash(signedTx)
 
     consola.info('Signer Address', senderAddress)
     consola.info('Safe Address', safeAddress)
     consola.info('Network', chain.name)
     consola.info('Proposing transaction to', args.to)
 
-    // Store transaction in MongoDB
+    // Store transaction in MongoDB using the utility function
     try {
-      const txDoc = {
-        safeAddress: await protocolKit.getAddress(),
-        network: args.network.toLowerCase(),
-        chainId: chain.id,
-        safeTx: safeTransaction,
+      const result = await storeTransactionInMongoDB(
+        pendingTransactions,
+        safeAddress,
+        args.network,
+        chain.id,
+        signedTx,
         safeTxHash,
-        proposer: senderAddress,
-        timestamp: new Date(),
-        status: 'pending',
-      }
-
-      const result = await retry(async () => {
-        const insertResult = await pendingTransactions.insertOne(txDoc)
-        return insertResult
-      })
+        senderAddress
+      )
 
       if (!result.acknowledged) {
         throw new Error('MongoDB insert was not acknowledged')
       }
 
-      consola.info('Transaction successfully stored in MongoDB')
+      consola.success('Transaction successfully stored in MongoDB')
     } catch (error) {
       consola.error('Failed to store transaction in MongoDB:', error)
       throw error

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
@@ -259,9 +262,9 @@ contract HopFacetTest is TestBaseFacet {
     }
 
     function test_BridgeFromL2ToL1() public {
-        address AMM_WRAPPER_POLYGON = 0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
-        address ADDRESS_USDC_POLYGON = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-        address USER_USDC_WHALE_POLYGON = 0x1a13F4Ca1d028320A707D99520AbFefca3998b7F; //USDC Whale Polygon
+        address ammWrapperPolygon = 0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
+        address addressUSDCPolygon = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
+        address userUSDCWhalePolygon = 0x1a13F4Ca1d028320A707D99520AbFefca3998b7F; //USDC Whale Polygon
 
         // create polygon fork
         string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
@@ -269,7 +272,7 @@ contract HopFacetTest is TestBaseFacet {
         vm.createSelectFork(rpcUrl, blockNumber);
 
         // get USDC contract and approve
-        ERC20 usdcPoly = ERC20(ADDRESS_USDC_POLYGON); // USDC on Polygon
+        ERC20 usdcPoly = ERC20(addressUSDCPolygon); // USDC on Polygon
 
         // re-deploy diamond and facet
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
@@ -282,17 +285,14 @@ contract HopFacetTest is TestBaseFacet {
         addFacet(diamond, address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](1);
-        configs[0] = HopFacet.Config(
-            ADDRESS_USDC_POLYGON,
-            AMM_WRAPPER_POLYGON
-        );
+        configs[0] = HopFacet.Config(addressUSDCPolygon, ammWrapperPolygon);
 
         hopFacet2 = TestHopFacet(address(diamond));
         hopFacet2.initHop(configs);
 
         // adjust bridgeData
         bridgeData.destinationChainId = 1;
-        bridgeData.sendingAssetId = ADDRESS_USDC_POLYGON;
+        bridgeData.sendingAssetId = addressUSDCPolygon;
 
         // produce valid HopData
         validHopData = HopFacet.HopData({
@@ -307,7 +307,7 @@ contract HopFacetTest is TestBaseFacet {
         });
 
         // activate token whale account and approve USDC
-        vm.startPrank(USER_USDC_WHALE_POLYGON);
+        vm.startPrank(userUSDCWhalePolygon);
         usdcPoly.approve(address(hopFacet2), defaultUSDCAmount);
 
         //prepare check for events

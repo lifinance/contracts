@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibSwap, LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
-import { InsufficientBalance } from "src/Errors/GenericErrors.sol";
+import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
-
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GnosisBridgeFacet Contract
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
@@ -186,13 +185,8 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         dai.transfer(USER_RECEIVER, dai.balanceOf(USER_SENDER));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientBalance.selector,
-                bridgeData.minAmount,
-                0
-            )
-        );
+        vm.expectRevert(TransferFromFailed.selector);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }

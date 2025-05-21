@@ -9,14 +9,16 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: read # required to check out the repo and read workflow / script files
+  pull-requests: read # required to read reviews and PR metadata (via GitHub API)
+
 jobs:
   protect-critical-code:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
-    permissions:
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.1.7
@@ -48,7 +50,8 @@ jobs:
               continue
             fi
             ##### check for github actions and pre-commit checker paths
-            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit'; then              ##### modified git action found
+            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit'; then
+              ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
           done <<< "$FILES"
@@ -62,10 +65,11 @@ jobs:
             exit 0
           else
             ##### set action output to true
-            echo -e "\033[31mThe following security-relevant files were are changed by this PR:\033[0m"
+            echo -e "\033[31mThe following security-relevant files were changed by this PR:\033[0m"
             echo "$PROTECTED_FILES"
             echo "CONTINUE=true" >> $GITHUB_ENV
           fi
+
       - name: Get "Information Security Manager" Group Members
         if: env.CONTINUE == 'true'
         env:
@@ -109,18 +113,18 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
               reset: "\033[0m",
               red: "\033[31m",
               green: "\033[32m",
-              yellow: "\033[33m",
             };
 
             // Read git handles from file
             const itSecHandlesFile = 'itSec_git_handles.txt';
             const itSecHandles = fs.readFileSync(itSecHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
-            if (!itSecHandles) {
+            if (!itSecHandles.length) {
               console.log(`${colors.red}Could not get the git handles of the InformationSecurityManager team.${colors.reset}`);
               core.setFailed("Cannot read from InformationSecurityManager team.");
               return;
@@ -133,47 +137,65 @@ jobs:
               return;
             }
 
-            // get all reviewers that have approved this PR
-            const { data: reviews } = await github.rest.pulls.listReviews({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pullNumber,
-              per_page: 100, // makes sure that only the LATEST 100 items are fetched (without this flag it gets all, starting with the first items)
+            async function getAllReviews(github, owner, repo, pull_number) {
+              let page = 1;
+              let allReviews = [];
+
+              while (true) {
+                const { data: reviews } = await github.rest.pulls.listReviews({
+                  owner,
+                  repo,
+                  pull_number,
+                  per_page: 100,
+                  page,
+                  headers: {
+                    'Cache-Control': 'no-cache'
+                  }
+                });
+
+                if (reviews.length === 0) break;
+
+                allReviews = [...allReviews, ...reviews];
+                page++;
+              }
+
+              return allReviews;
+            }
+
+            const allReviews = await getAllReviews(github, context.repo.owner, context.repo.repo, pullNumber);
+
+            if (!allReviews.length) {
+              console.log(`${colors.red}No reviews found.${colors.reset}`);
+              core.setFailed("Required approval is missing.");
+              return;
+            }
+
+            // Keep only the latest review per user
+            const latestReviews = {};
+            allReviews.forEach(review => {
+              latestReviews[review.user.login] = review;
             });
 
-            // make sure that reviews are available
-            if(!reviews || reviews.length === 0) {
-              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-              return
+            // Get final list of approvals
+            const approvedReviews = Object.values(latestReviews).filter(review =>
+              review.state === "APPROVED" && !review.dismissed_at
+            );
+
+            if (!approvedReviews.length) {
+              console.log(`${colors.red}No valid approvals found.${colors.reset}`);
+              core.setFailed("Required approval is missing.");
+              return;
             }
 
-            // Filter to only include reviews that have "APPROVED" status
-            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
-
-            if(!approvedReviews.length) {
-              console.log(`${colors.red}Could not find any reviews with approval.${colors.reset}`);
-              console.log(`${colors.red}Cannot continue. Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-              return
-            }
-
-            // extract the git login handles of all reviewers that approved this PR
+            // Get approving users
             const reviewerHandles = approvedReviews.map(review => review.user.login);
 
-            if(approvedReviews.length === 0)
-              console.log(`${colors.red}This PR has no approvals${colors.reset}`);
-            else
-              console.log(`This PR has been approved by the following git members: ${reviewerHandles}`);
+            console.log(`This PR has been approved by: ${reviewerHandles}`);
 
-            // check if at least one of these reviewers is member of InformationSecurityManager group
-            if (reviewerHandles.some((handle) => itSecHandles.includes(handle))) {
-              console.log(`${colors.green}The current PR is approved by a member of the InformationSecurityManager group.${colors.reset}`);
-              console.log(`${colors.green}Check passed.${colors.reset}`);
+            if (reviewerHandles.some(handle => itSecHandles.includes(handle))) {
+              console.log(`${colors.green}PR approved by a member of the Information Security Manager group.${colors.reset}`);
               core.setOutput('approved', 'true');
-              } else {
-              console.log(`${colors.red}The PR requires a missing approval by a member of the InformationSecurityManager group (https://github.com/orgs/lifinance/teams/InformationSecurityManager).${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
+            } else {
+              console.log(`${colors.red}Approval from a security manager is missing.${colors.reset}`);
+              core.setFailed("Required approval is missing.");
             }

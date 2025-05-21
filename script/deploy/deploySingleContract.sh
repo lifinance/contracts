@@ -92,10 +92,10 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkSync and Abstract
+  # Handle ZkEVM Chains
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
-  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+  if isZkEvmNetwork "$NETWORK"; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     FILE_EXTENSION=".zksync.s.sol"
   fi
@@ -199,7 +199,7 @@ deploySingleContract() {
     fi
   fi
 
-  if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+  if isZkEvmNetwork "$NETWORK"; then
       # Check if a zksync contract has already been deployed for a specific
       # version otherwise it might fail since create2 will try to deploy to the
       # same address
@@ -211,13 +211,8 @@ deploySingleContract() {
 	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
         gum confirm "Deploy anyway?" || exit 0
       fi
-      # Clean all old artifacts
-      rm -fr ./out
-      rm -fr ./zkout
-      # # Clean zksync cache
-      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge cache clean
-      #
-      # # Run zksync specific fork of forge
+
+      # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
 
@@ -230,7 +225,7 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
+    if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
@@ -255,35 +250,15 @@ deploySingleContract() {
 
     # check the return code the last call
     elif [ $RETURN_CODE -eq 0 ]; then
-      # clean tx return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-      checkFailure $? "clean return data (original data: $RAW_RETURN_DATA)"
-
-      # extract the "returns" field and its contents from the return data (+hide errors)
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
-
       # extract deployed-to address from return data
-      ADDRESS=$(echo $RETURN_DATA | jq -r '.deployed.value')
-
-      # check every ten seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC if code is deployed
-      local COUNT=0
-      while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
-        # check if bytecode is deployed at address
-        if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
-          echo "[info] bytecode deployment at address $ADDRESS verified through block explorer"
-          break 2 # exit both loops if the operation was successful
+        ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+        if [[ $? -ne 0 ]]; then
+          error "❌ Could not extract deployed address from raw return data"
+          return 1
+        elif [[ -n "$ADDRESS" ]]; then
+          # address successfully extracted
+          break
         fi
-        # wait for 10 seconds to allow blockchain to sync
-        echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
-        sleep 10
-
-        COUNT=$((COUNT + 10))
-      done
-
-      if [ $COUNT -gt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
-        warning "contract deployment tx successful but doesAddressContainBytecode returned false. Please check if contract was actually deployed (NETWORK=$NETWORK, ADDRESS:$ADDRESS)"
-      fi
-
     fi
 
     attempts=$((attempts + 1)) # increment attempts
@@ -317,7 +292,7 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
+  CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
@@ -375,7 +350,7 @@ deploySingleContract() {
       RELAYER_CONSTR_ARGS=$(cast abi-encode "someFunction(address,address,address)" "$CBRIDGE_MESSAGE_BUS_ADDRESS" "$REFUND_WALLET" "$DIAMOND_ADDRESS")
 
       # get RPC URL for given network
-      RPC_URL=$(getRPCUrl "$NETWORK")
+      RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
       # get address of RelayerCelerIM
       RELAYER_ADDRESS=$(cast call $ADDRESS "relayer() returns (address)" --rpc-url "$RPC_URL")

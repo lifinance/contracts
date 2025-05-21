@@ -173,6 +173,7 @@ function main {
   local NETWORKS=()
 
   # loop through networks.json list and add each network to ARRAY that is not excluded
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   while IFS= read -r network; do
     NETWORKS+=("$network")
   done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")

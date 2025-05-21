@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase, console } from "./ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract DeployScriptBase is ScriptBase {
     address internal predicted;
@@ -39,7 +40,7 @@ contract DeployScriptBase is ScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            console.log("Contract is already deployed");
+            emit log("Contract is already deployed");
             return payable(predicted);
         }
 
@@ -49,9 +50,8 @@ contract DeployScriptBase is ScriptBase {
             salt,
             bytes.concat(creationCode, constructorArgs)
         );
-        console.log("Create3Calldata: ");
-        console.logBytes(create3Calldata);
-        console.log(" ");
+        emit log("Contract is already deployed");
+        emit log_bytes(create3Calldata);
 
         deployed = payable(
             factory.deploy(salt, bytes.concat(creationCode, constructorArgs))
@@ -60,13 +60,14 @@ contract DeployScriptBase is ScriptBase {
         vm.stopBroadcast();
     }
 
+    /// @notice Checks if the given address is a contract (including EIP‑7702 AA‑wallets)
+    ///         Returns true for any account with runtime code or with the 0xef0100 prefix (EIP‑7702).
+    ///         Limitations:
+    ///         - Still returns false during construction phase of a contract
+    ///         - Cannot distinguish between EOA and self-destructed contract
+    /// @param _contractAddr The address to be checked
     function isContract(address _contractAddr) internal view returns (bool) {
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            size := extcodesize(_contractAddr)
-        }
-        return size > 0;
+        return LibAsset.isContract(_contractAddr);
     }
 
     function isDeployed() internal view returns (bool) {

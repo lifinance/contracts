@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
@@ -59,6 +58,7 @@ contract MockGateway {
 }
 
 contract ExecutorTest is DSTest {
+    // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     Executor internal executor;
     TestAMM internal amm;
@@ -66,6 +66,15 @@ contract ExecutorTest is DSTest {
     Setter internal setter;
     MockGateway internal gw;
     ERC20Proxy internal erc20Proxy;
+
+    address internal constant DAI_ADDRESS =
+        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant DAI_WHALE =
+        0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+    address internal constant WETH_ADDRESS =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant UNISWAP_V2_ROUTER_ADDRESS =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     function setUp() public {
         gw = new MockGateway();
@@ -210,12 +219,6 @@ contract ExecutorTest is DSTest {
 
     function testCanReceiveNativeTokensFromDestinationSwap() public {
         fork();
-        address DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        address payable DAI_WHALE = payable(
-            address(0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD)
-        );
-        address WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-        address UNISWAP_V2_ROUTER_ADDRESS = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
         ERC20 dai = ERC20(DAI_ADDRESS);
         ERC20 weth = ERC20(WETH_ADDRESS);
         UniswapV2Router02 uniswap = UniswapV2Router02(
@@ -259,7 +262,7 @@ contract ExecutorTest is DSTest {
             "txId",
             swapData,
             DAI_ADDRESS,
-            DAI_WHALE
+            payable(DAI_WHALE)
         );
         vm.stopPrank();
     }
