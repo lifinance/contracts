@@ -1,0 +1,93 @@
+name: Permit2 Bytecode Verifier
+# - detects newly added or changed permit2 addresses in config/permit2Proxy.json
+# - verifies only changed entries via a Bash script
+# - fails fast on mismatch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-permit2-addresses:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if permit2Proxy.json was modified
+        id: check-diff
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -q "config/permit2Proxy.json"; then
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          else
+            echo "✅ No changes in permit2Proxy.json identified. Check passed."
+            echo "CONTINUE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Detect changed or new permit2 addresses
+        if: env.CONTINUE == 'true'
+        id: detect-changes
+        run: |
+          git fetch origin main --depth=1
+
+          if git show origin/main:config/permit2Proxy.json > /dev/null 2>&1; then
+            git show origin/main:config/permit2Proxy.json | jq -r 'to_entries[] | "\(.key)=\(.value)"' | sort > old.txt
+          else
+            echo "" > old.txt
+          fi
+
+          jq -r 'to_entries[] | "\(.key)=\(.value)"' config/permit2Proxy.json | sort > new.txt
+          comm -13 old.txt new.txt > changed_lines.txt
+
+          if [ ! -s changed_lines.txt ]; then
+            echo "SKIP_CHECK=true" >> $GITHUB_ENV
+          else
+            cut -d= -f1 changed_lines.txt | jq -R . | jq -cs '.' > changed_networks.json
+            echo "CHANGED_NETWORKS=$(cat changed_networks.json)" >> $GITHUB_ENV
+          fi
+
+      - name: Set up Foundry
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        uses: foundry-rs/foundry-toolchain@v1.3.1
+
+      - name: Set up Bun
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install project dependencies
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: |
+          bun install
+          forge install
+
+      - name: Strip [etherscan] section from foundry.toml
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: sed -i '/^\[etherscan\]/,/^$/d' foundry.toml
+
+      - name: Fetch RPCs from MongoDB
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: bun fetch-rpcs
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Prepare config for helper scripts
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: cp script/config.example.sh script/config.sh
+
+      - name: Run permit2 bytecode verification
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        run: |
+          echo "Running permit2 verification..."
+          set -e
+          for NETWORK in $(echo "$CHANGED_NETWORKS" | jq -r '.[]'); do
+            echo "🔍 Verifying $NETWORK"
+            ./script/utils/permit2/verifyPermit2Bytecode.sh "$NETWORK"
+          done
