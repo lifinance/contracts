@@ -35,12 +35,8 @@ if [ -z "$ADDRESS" ]; then
   echo "[error] No permit2 address found for network '$NETWORK' in $CONFIG_FILE_NAME"
   exit 1
 fi
-
 # Run Permit2Code to get the bytecode
-CODE=$(forge script Permit2Code --sig "getCode(uint256)" "$CHAIN_ID" \
-  | grep -oE 'bytes 0x[0-9a-fA-F]+' \
-  | sed 's/bytes //')
-
+CODE=$(forge script Permit2Code --sig "getCode(uint256)" $CHAIN_ID --json | jq -r '.returns["0"].value')
 
 # compare expected bytecode with actual bytecode at given address
-forge script Permit2Check --sig "checkCode(address,bytes)" "$ADDRESS" "$CODE" --rpc-url "$RPC_URL" -vvvv
+forge script Permit2Check --sig "checkCode(address,bytes)" $ADDRESS $CODE --rpc-url "$RPC_URL" -vvvv
