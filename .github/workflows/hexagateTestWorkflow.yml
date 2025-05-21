@@ -34,11 +34,11 @@ jobs:
           exit 1
 
       - name: Debug Log - Test Workflow Triggered
-        if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
         run: echo "Hexagate test workflow has been successfully triggered."
 
       - name: Send Reminder to Slack SC-general Channel
-        if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
