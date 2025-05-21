@@ -40,31 +40,31 @@ deployAllContracts() {
   local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
 
-  # # add RPC URL to MongoDB
-  # echo ""
-  # echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
-  # bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
-  # bun fetch-rpcs
+  # add RPC URL to MongoDB
+  echo ""
+  echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
+  bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
+  bun fetch-rpcs
 
-  # # deploy CREATE3Factory
-  # deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
-  # checkFailure $? "deploy CREATE3Factory to network $NETWORK"
-  # echo ""
+  # deploy CREATE3Factory
+  deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
+  checkFailure $? "deploy CREATE3Factory to network $NETWORK"
+  echo ""
 
-  # # deploy core facets
-  # deployCoreFacets "$NETWORK" "$ENVIRONMENT"
-  # echo ""
+  # deploy core facets
+  deployCoreFacets "$NETWORK" "$ENVIRONMENT"
+  echo ""
 
-  # # get current diamond contract version
-  # local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
+  # get current diamond contract version
+  local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
 
-  # # deploy diamond
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $DIAMOND_CONTRACT_NAME now"
-  # deploySingleContract "$DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true"
+  # deploy diamond
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $DIAMOND_CONTRACT_NAME now"
+  deploySingleContract "$DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true"
 
-  # # check if last command was executed successfully, otherwise exit script with error message
-  # checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
+  # check if last command was executed successfully, otherwise exit script with error message
+  checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
 
   # update diamond with core facets
   echo ""

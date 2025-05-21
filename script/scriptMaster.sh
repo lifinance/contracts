@@ -247,11 +247,6 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy all contracts to one selected network (=new network)"
 
-    echo ""
-    echo "overwriting value of SEND_PROPOSALS_DIRECTLY_TO_DIAMOND flag to true"
-    echo ""
-    export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
-
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
     local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")

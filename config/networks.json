@@ -233,7 +233,7 @@
     "explorerApiUrl": "https://explorer.gobob.xyz/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "",
-    "safeAddress": "",
+    "safeAddress": "0xd28503EeE7B0bBb2437c16DC8d2a42997B2922C9",
     "safeWebUrl": "",
     "gasZipChainId": 150,
     "isZkEVM": false,

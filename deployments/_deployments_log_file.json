@@ -13038,6 +13038,20 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xb1E9A462Bc38f62855662962c92Bf5C8aB67D699",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:21:11",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -14102,6 +14116,20 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x6501F452591e9D03608830A9c99f018d7e613675",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:21:21",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b1e9a462bc38f62855662962c92bf5c8ab67d699000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -14961,6 +14989,20 @@
             "ADDRESS": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-19 10:17:36",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bob": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x728f23859C718B9e1cA762f051C29Ea99119B92D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:21:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
@@ -24140,6 +24182,20 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2c3B1f633c00bCd65dB98317daE1049c4c918C0a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:19:30",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AmarokFacetPacked": {
@@ -25505,6 +25561,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-19 10:21:24",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000951857744785e80e2de051c32ee7b25f9c458c42000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bob": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x917F0625dD20f9a8eA45500361d2F1F1a39DF8DE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:23:11",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -28378,6 +28448,20 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "1.9.0": [
+          {
+            "ADDRESS": "0x8F3736CC9B10e340937B9cff5aB5302B84933685",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:21:50",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -30563,6 +30647,20 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x9c8EE267255dF4cbBE81052C2a95C60668F31f11",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:22:06",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000452cf1b8597e6319cd21abd847312bf17e26d8d1000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000d28503eee7b0bbb2437c16dc8d2a42997b2922c9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
@@ -31545,6 +31643,20 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x0A735a259805b8aCfb257aac3f2DCDDf3d235811",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:21:41",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000008f3736cc9b10e340937b9cff5ab5302b84933685000000000000000000000000d28503eee7b0bbb2437c16dc8d2a42997b2922c9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RelayFacet": {
@@ -32012,6 +32124,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-04-08 08:22:17",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f042fcc6bd5cb48b2862d9f22d3de5b342e94f4c000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bob": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd9D09dE51e06D7Dc5253f8eD3a2eb119C8E2abb2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 19:07:10",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000aa467eba42a3d604b3d74d63b2b6c6cb000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
             "SALT": "",
             "VERIFIED": "true"
           }
