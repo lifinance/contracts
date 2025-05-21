@@ -81,6 +81,9 @@ jobs:
           bun install
           forge install
 
+      - name: Strip etherscan section from foundry.toml in CI
+        run: sed -i '/^\[etherscan\]/,/^$/d' foundry.toml
+
       - name: Fetch RPC endpoints from MongoDB
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
