@@ -54,6 +54,7 @@ export type Network = {
   deployedWithSolcVersion: string
   gasZipChainId: number
   id: string
+  devNotes?: string
 }
 
 const colors = {
