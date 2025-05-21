@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
-
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { stdJson } from "forge-std/Script.sol";
 
 interface IContractDeployer {
@@ -74,12 +74,13 @@ contract DeployScriptBase is ScriptBase {
         vm.stopBroadcast();
     }
 
+    /// @notice Checks if the given address is a contract (including EIP‑7702 AA‑wallets)
+    ///         Returns true for any account with runtime code or with the 0xef0100 prefix (EIP‑7702).
+    ///         Limitations:
+    ///         - Still returns false during construction phase of a contract
+    ///         - Cannot distinguish between EOA and self-destructed contract
+    /// @param _contractAddr The address to be checked
     function isContract(address _contractAddr) internal view returns (bool) {
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            size := extcodesize(_contractAddr)
-        }
-        return size > 0;
+        return LibAsset.isContract(_contractAddr);
     }
 }
