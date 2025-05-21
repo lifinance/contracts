@@ -36,10 +36,6 @@ deployCoreFacets() {
 
   # loop through all contracts
   for CONTRACT in "${FACETS_ARRAY[@]}"; do
-
-    if [[ $CONTRACT == "CalldataVerificationFacet" ]]; then
-      continue
-    fi
     # get current contract version
     local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
