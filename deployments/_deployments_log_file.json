@@ -32207,6 +32207,20 @@
           }
         ]
       }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7B8837786aE9A2b6DCEbcB2572B348E0bfa5dC08",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-21 14:46:02",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   }
 }

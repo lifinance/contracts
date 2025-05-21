@@ -26,6 +26,9 @@
   "gnosis": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "hyperevm": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
   "ink": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
