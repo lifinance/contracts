@@ -77,7 +77,9 @@ jobs:
 
       - name: Install dependencies (includes jq via preinstall.sh)
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        run: bun install
+        run: |
+          bun install
+          forge install
 
       - name: Fetch RPC endpoints from MongoDB
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
