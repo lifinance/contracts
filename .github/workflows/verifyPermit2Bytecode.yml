@@ -84,7 +84,7 @@ jobs:
         run: |
           echo "Running permit2 verification for new addresses..."
           set -e
-          for NETWORK in $(echo $added_networks | jq -r '.[]'); do
+          for NETWORK in $(echo $CHANGED_KEYS | jq -r '.[]'); do
             echo "🔍 Verifying permit2 address for network: $NETWORK"
             if ./script/utils/permit2/check-permit2.sh "$NETWORK"; then
               echo "✅ $NETWORK verified successfully."
