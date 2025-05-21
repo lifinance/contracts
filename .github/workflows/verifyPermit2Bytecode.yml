@@ -88,12 +88,7 @@ jobs:
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
           echo "Fetching prioritized RPCs..."
-          bun fetch-rpcs > .env || echo "" > .env  # fallback to empty .env to avoid script crash
-
-          # Export only ETH_NODE_URI_* entries to GitHub Actions env
-          grep '^ETH_NODE_URI_' .env | while IFS= read -r line; do
-            echo "$line" >> "$GITHUB_ENV"
-          done
+          bun fetch-rpcs
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
