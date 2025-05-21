@@ -11,7 +11,7 @@ fi
 
 NETWORK="$1"
 
-declare NETWORKS_JSON_FILE_PATH="config/networks.json"
+export NETWORKS_JSON_FILE_PATH="config/networks.json"
 
 # Get RPC URL and chain ID for given network
 RPC_URL=$(getRPCUrl "$NETWORK")
