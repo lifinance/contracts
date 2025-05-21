@@ -18,6 +18,8 @@ contract ERC20Proxy is WithdrawablePeriphery {
     /// Constructor
     constructor(address _owner) WithdrawablePeriphery(_owner) {}
 
+    function bla9000832() external {}
+
     /// @notice Sets whether or not a specified caller is authorized to call this contract
     /// @param caller the caller to change authorization for
     /// @param authorized specifies whether the caller is authorized (true/false)

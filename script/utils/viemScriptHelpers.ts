@@ -51,6 +51,8 @@ export type Network = {
   deployedWithEvmVersion: string
   deployedWithSolcVersion: string
   gasZipChainId: number
+  evmVersion: string
+  maxSolcVersionForDeploy: string
   id: string
   devNotes?: string
 }

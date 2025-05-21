@@ -90,6 +90,20 @@ deploySingleContract() {
     echo ""
   fi
 
+  FOUNDRY_PROFILE="default"
+
+  # special handling for rootstock as it requires specific EVM and (max) solc version
+  if [[ $NETWORK == "rootstock" ]]; then
+    echo "Deploying to rootstock – switching compiler settings to rootstock profile"
+
+    # Set the profile to "rootstock" so Foundry uses [profile.rootstock] in foundry.toml.
+    export FOUNDRY_PROFILE=rootstock
+
+    # Clear cache and rebuild with updated evm and solc versions
+    forge clean &&  forge build
+  fi
+
+
   FILE_EXTENSION=".s.sol"
 
   # Handle ZkEVM Chains
@@ -230,7 +244,7 @@ deploySingleContract() {
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=$FOUNDRY_PROFILE DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
     fi
 
     RETURN_CODE=$?
@@ -372,12 +386,12 @@ deploySingleContract() {
         # verify RelayerCelerIM if flag is set and contract is not verified yet
         if [[ $VERIFY_CONTRACTS == "true" && ("$RELAYER_VERIFIED_LOG" != "true" || $REDEPLOYMENT == "true") ]]; then
           if [[ $DEBUG == "true" ]]; then
-            verifyContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$RELAYER_CONSTR_ARGS"
+            verifyContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$RELAYER_CONSTR_ARGS" "$FOUNDRY_PROFILE"
             if [ $? -eq 0 ]; then
               RELAYER_VERIFIED=true
             fi
           else
-            verifyContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$RELAYER_CONSTR_ARGS" 2>/dev/null
+            verifyContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$RELAYER_CONSTR_ARGS" "$FOUNDRY_PROFILE" 2>/dev/null
             if [ $? -eq 0 ]; then
               RELAYER_VERIFIED=true
             fi
@@ -421,12 +435,12 @@ deploySingleContract() {
   if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
-      verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+      verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$FOUNDRY_PROFILE"
       if [ $? -eq 0 ]; then
         VERIFIED=true
       fi
     else
-      verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" 2>/dev/null
+      verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$FOUNDRY_PROFILE" 2>/dev/null
       if [ $? -eq 0 ]; then
         VERIFIED=true
       fi
