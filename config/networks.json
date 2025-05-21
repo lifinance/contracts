@@ -239,7 +239,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "bsc": {
     "name": "bsc",
