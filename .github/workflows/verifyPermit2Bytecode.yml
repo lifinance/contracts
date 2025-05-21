@@ -69,6 +69,12 @@ jobs:
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         uses: foundry-rs/foundry-toolchain@v1.3.1
 
+      - name: Install Bun
+        if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
       - name: Install dependencies (includes jq via preinstall.sh)
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: bun install
