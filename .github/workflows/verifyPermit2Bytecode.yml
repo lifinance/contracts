@@ -86,7 +86,7 @@ jobs:
           set -e
           for NETWORK in $(echo $CHANGED_NETWORKS | jq -r '.[]'); do
             echo "🔍 Verifying permit2 address for network: $NETWORK"
-            if ./script/utils/permit2/check-permit2.sh "$NETWORK"; then
+            if ./script/utils/permit2/verifyPermit2Bytecode.sh "$NETWORK"; then
               echo "✅ $NETWORK verified successfully."
             else
               echo "❌ Verification failed for $NETWORK. Exiting..."
