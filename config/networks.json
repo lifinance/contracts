@@ -161,7 +161,7 @@
     "safeWebUrl": "https://app.safe.global/transactions/queue?safe=base:0x1F6974C11B833Eb52ea07E0B442510165D87d82e",
     "gasZipChainId": 54,
     "evmVersion": "shanghai",
-    "maxSolcVersionForDeploy": "0.8.17"
+    "maxSolcVersionForDeploy": "0.8.17",
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
