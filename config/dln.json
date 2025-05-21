@@ -1,33 +1,36 @@
 {
   "networks": {
+    "mainnet": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
     "arbitrum": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
     "avalanche": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
-    "bsc": {
-      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
-    },
-    "mainnet": {
-      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
-    },
-    "polygon": {
-      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
-    },
-    "linea": {
-      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
-    },
     "base": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
-    "optimism": {
+    "bob": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
+    "bsc": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
     "gnosis": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
+    "linea": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
     "metis": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
+    "optimism": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
+    "polygon": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
     "solana": {
@@ -36,32 +39,19 @@
   },
   "mappings": [
     {
-      "chainId": 42161,
-      "deBridgeChainId": 42161
-    },
-    {
-      "chainId": 43114,
-      "deBridgeChainId": 43114
-    },
-    {
-      "chainId": 56,
-      "deBridgeChainId": 56
+      "find more chainId mappings here: ": "https://docs.debridge.finance/dln-the-debridge-liquidity-network-protocol/fees-and-supported-chains"
     },
     {
       "chainId": 1,
       "deBridgeChainId": 1
     },
     {
+      "chainId": 56,
+      "deBridgeChainId": 56
+    },
+    {
       "chainId": 137,
       "deBridgeChainId": 137
-    },
-    {
-      "chainId": 59144,
-      "deBridgeChainId": 59144
-    },
-    {
-      "chainId": 8453,
-      "deBridgeChainId": 8453
     },
     {
       "chainId": 10,
@@ -74,6 +64,26 @@
     {
       "chainId": 1088,
       "deBridgeChainId": 100000004
+    },
+    {
+      "chainId": 8453,
+      "deBridgeChainId": 8453
+    },
+    {
+      "chainId": 42161,
+      "deBridgeChainId": 42161
+    },
+    {
+      "chainId": 43114,
+      "deBridgeChainId": 43114
+    },
+    {
+      "chainId": 59144,
+      "deBridgeChainId": 59144
+    },
+    {
+      "chainId": 60808,
+      "deBridgeChainId": 100000021
     },
     {
       "chainId": 1151111081099710,
