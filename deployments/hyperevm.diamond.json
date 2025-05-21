@@ -44,6 +44,10 @@
       "0x5Bae480B2eEC6016721202aa45970EaA68eef731": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x7B8837786aE9A2b6DCEbcB2572B348E0bfa5dC08": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
