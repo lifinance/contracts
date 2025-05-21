@@ -3,7 +3,7 @@ name: EMERGENCY >> Pause all PROD diamonds
 on:
   workflow_dispatch:
     inputs:
-      Warning:
+      warning:
         description: "By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
         required: true
 
@@ -24,13 +24,13 @@ jobs:
         run: bun install
 
       - name: Check input
-        if: ${{ inputs.Warning != 'UNDERSTOOD' }}
+        if: ${{ inputs.warning != 'UNDERSTOOD' }}
         run: |
           echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
           exit 1
 
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
-        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
         id: authenticate-user
         uses: tspascoal/get-user-teams-membership@v3
         with:
@@ -40,7 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
 
       - name: Check team membership
-        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
         run: |
           if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
             echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
