@@ -61,8 +61,8 @@ jobs:
             cat changed_lines.txt
 
             # Extract keys only
-            CHANGED_KEYS=$(cut -d= -f1 changed_lines.txt | jq -R . | jq -cs .)
-            echo "changed_keys=$CHANGED_KEYS" >> $GITHUB_ENV
+            CHANGED_NETWORKS=$(cut -d= -f1 changed_lines.txt | jq -R . | jq -cs .)
+            echo "CHANGED_NETWORKS=$CHANGED_NETWORKS" >> $GITHUB_ENV
           fi
 
       - name: Install Foundry (provides forge and cast)
@@ -84,7 +84,7 @@ jobs:
         run: |
           echo "Running permit2 verification for new addresses..."
           set -e
-          for NETWORK in $(echo $CHANGED_KEYS | jq -r '.[]'); do
+          for NETWORK in $(echo $CHANGED_NETWORKS | jq -r '.[]'); do
             echo "🔍 Verifying permit2 address for network: $NETWORK"
             if ./script/utils/permit2/check-permit2.sh "$NETWORK"; then
               echo "✅ $NETWORK verified successfully."
