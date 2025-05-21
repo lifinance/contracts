@@ -107,6 +107,15 @@
     "weth": "0x4200000000000000000000000000000000000006",
     "tokensToApprove": []
   },
+  "lens": {
+    "chainId": 232,
+    "acrossSpokePool": "0xe7cb3e167e7475dE1331Cf6E0CEb187654619E12",
+    "weth": "0x6bDc36E20D267Ff0dd6097799f82e78907105e2F",
+    "tokensToApprove": [
+      "0x6bDc36E20D267Ff0dd6097799f82e78907105e2F",
+      "0x000000000000000000000000000000000000800A"
+    ]
+  },
   "linea": {
     "chainId": 59144,
     "acrossSpokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",

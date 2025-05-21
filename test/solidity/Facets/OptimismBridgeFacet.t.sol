@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
 import { LibAllowList, LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
-import { InvalidAmount, InvalidReceiver, InsufficientBalance, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub OptimismBridgeFacet Contract
 contract TestOptimismBridgeFacet is OptimismBridgeFacet {
@@ -158,13 +158,7 @@ contract OptimismBridgeFacetTest is TestBase {
 
         dai.transfer(USDC_HOLDER, dai.balanceOf(DAI_L1_HOLDER));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientBalance.selector,
-                10 * 10 ** dai.decimals(),
-                0
-            )
-        );
+        vm.expectRevert(TransferFromFailed.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
             validBridgeData,
             validOptimismData

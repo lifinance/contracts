@@ -5,6 +5,8 @@ on:
   pull_request:
     types: [opened]
 
+permissions: {}
+
 jobs:
   mark-new-PRs-as-draft:
     name: Mark as draft
