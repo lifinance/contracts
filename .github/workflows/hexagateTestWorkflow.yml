@@ -6,12 +6,14 @@ name: Hexagate Test Workflow
 # logs test echo
 # sends test slack message
 
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
     inputs:
       warning: # "warning" starts with small letter because Hexagate lower case all keys
-        description: "TODO: By clicking the next button you are sending test message to slack. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
+        description: "By clicking the next button you are sending test message to slack. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
         required: true
 
 jobs:
