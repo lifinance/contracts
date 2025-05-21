@@ -1011,6 +1011,28 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "xdc": {
+    "name": "xdc",
+    "chainId": 50,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "XDC",
+    "wrappedNativeAddress": "0x951857744785e80e2de051c32ee7b25f9c458c42",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.ankr.com/xdc",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://xdcscan.com",
+    "explorerApiUrl": "https://xdcscan.com/api",
+    "multicallAddress": "0x0b1795cca8e4ec4df02346a082df54d437f8d9af",
+    "safeApiUrl": "",
+    "safeAddress": "0x20577798deE0F3116cF4f7ffff0143228d6A5090",
+    "safeWebUrl": "https://xdcsafe.xdcobserver.io/",
+    "gasZipChainId": 420,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.17",
+    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
+  },
   "xlayer": {
     "name": "xlayer",
     "chainId": 196,
