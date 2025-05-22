@@ -586,9 +586,11 @@ export const getDeployments = async (
 export const setupEnvironment = async (
   chain: SupportedChain,
   facetAbi: Narrow<readonly any[]> | null,
-  environment: 'staging' | 'production' = 'staging'
+  environment: Environment = Environment.staging,
+  customRpcUrl?: string
 ) => {
-  const RPC_URL = getRpcUrl(chain)
+  // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
+  const RPC_URL = customRpcUrl || getRpcUrl(chain)
   const PRIVATE_KEY = getPrivateKeyForEnvironment(environment)
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 
@@ -631,6 +633,7 @@ export const setupEnvironment = async (
     publicClient,
     walletClient,
     client,
+    chain: viemChain,
   }
 }
 
@@ -822,9 +825,9 @@ export const ensureAllowance = async (
 }
 
 export const getPrivateKeyForEnvironment = (
-  environment: 'staging' | 'production'
+  environment: Environment
 ): string => {
-  return environment === 'production'
+  return environment === Environment.production
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }

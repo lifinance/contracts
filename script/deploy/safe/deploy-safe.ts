@@ -56,13 +56,14 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import consola from 'consola'
+import { consola } from 'consola'
 import {
   getSafeSingletonDeployment,
   getSafeL2SingletonDeployment,
   getProxyFactoryDeployment,
   getFallbackHandlerDeployment,
 } from '@safe-global/safe-deployments'
+import { Environment } from '../../utils/viemScriptHelpers'
 
 dotenv.config()
 
@@ -316,7 +317,27 @@ async function createSafeProxy(params: {
     .find((e) => e && e.eventName === 'ProxyCreation')
 
   if (!proxyEvent) {
-    throw new Error('ProxyCreation event not found')
+    consola.warn('No ProxyCreation events found in transaction logs')
+    consola.info(`Please check transaction ${txHash} on the explorer`)
+
+    const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
+      ?.url
+    if (explorerUrl) {
+      consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
+    }
+
+    const safeAddress = (await consola.prompt(
+      'Enter the deployed Safe address:',
+      {
+        type: 'text',
+        validate: (input: string) =>
+          /^0x[a-fA-F0-9]{40}$/.test(input)
+            ? true
+            : 'Please enter a valid Ethereum address',
+      }
+    )) as Address
+
+    return safeAddress
   }
 
   const safeAddr = (proxyEvent.args as any).proxy as Address
@@ -340,7 +361,7 @@ async function createSafeProxy(params: {
 
 const main = defineCommand({
   meta: {
-    name: 'deploy-and-setup-safe',
+    name: 'deploy-safe',
     description: 'Deploys (or reuses) a Gnosis Safe multisig on an EVM chain',
   },
   args: {
@@ -379,12 +400,18 @@ const main = defineCommand({
       description: 'Where to send payment (default: 0x0)',
       required: false,
     },
-    updateConfig: {
+    allowOverride: {
       type: 'boolean',
       description:
-        'Whether to update networks.json with the new Safe address (default: true)',
+        'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: true,
+      default: false,
+    },
+    rpcUrl: {
+      type: 'string',
+      description:
+        'Custom RPC URL (optional, uses network default if not provided)',
+      required: false,
     },
   },
   async run({ args }) {
@@ -401,14 +428,14 @@ const main = defineCommand({
           },
         ],
       }
-    )) as 'staging' | 'production'
+    )) as unknown as Environment
 
     // validate network & existing
     const networkName = args.network as SupportedChain
     const existing = networks[networkName]?.safeAddress
-    if (args.updateConfig !== false && existing && existing !== zeroAddress) {
+    if (existing && existing !== zeroAddress && !args.allowOverride) {
       throw new Error(
-        `Safe already deployed on ${networkName} @ ${existing}. Remove or clear networks.json to redeploy.`
+        `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
       )
     }
 
@@ -451,8 +478,8 @@ const main = defineCommand({
         : zeroAddress
 
     // setup clients
-    const { publicClient, walletClient, walletAccount } =
-      await setupEnvironment(networkName, null, environment)
+    const { publicClient, walletClient, walletAccount, chain } =
+      await setupEnvironment(networkName, null, environment, args.rpcUrl)
     consola.info('Deployer:', walletAccount.address)
 
     // attempt safe-deployments lookup
@@ -466,8 +493,48 @@ const main = defineCommand({
 
     let singletonAddr = singletonD?.networkAddresses?.[chainId] as `0x${string}`
     let factoryAddr = factoryD?.networkAddresses?.[chainId] as `0x${string}`
-    let fallbackAddr =
-      (fallbackD?.networkAddresses?.[chainId] as `0x${string}`) || zeroAddress
+
+    if (!factoryAddr && factoryD) {
+      consola.warn(
+        `No factory deployment found for chain ID ${chainId}. Using latest version.`
+      )
+      const networks = Object.keys(factoryD.networkAddresses).sort(
+        (a, b) => parseInt(b) - parseInt(a)
+      )
+
+      if (networks.length > 0) {
+        factoryAddr = factoryD.networkAddresses[networks[0]] as `0x${string}`
+        consola.info(
+          `Using factory from network ${networks[0]}: ${factoryAddr}`
+        )
+      } else {
+        throw new Error(
+          'No Safe factory deployment found in @safe-global/safe-deployments'
+        )
+      }
+    }
+
+    let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`
+
+    if (!fallbackAddr && fallbackD) {
+      consola.warn(
+        `No fallback handler deployment found for chain ID ${chainId}. Using latest version.`
+      )
+      const networks = Object.keys(fallbackD.networkAddresses).sort(
+        (a, b) => parseInt(b) - parseInt(a)
+      )
+
+      if (networks.length > 0) {
+        fallbackAddr = fallbackD.networkAddresses[networks[0]] as `0x${string}`
+        consola.info(
+          `Using fallback handler from network ${networks[0]}: ${fallbackAddr}`
+        )
+      } else {
+        fallbackAddr = zeroAddress
+        consola.warn(`Using zero address for fallback handler`)
+      }
+    }
+
     let proxyBytecode: `0x${string}` | undefined
 
     if (singletonAddr && factoryAddr) {
@@ -541,8 +608,8 @@ const main = defineCommand({
     }
 
     // update networks.json
-    if (args.updateConfig !== false) {
-      networks[networkName] = {
+    if (args.allowOverride) {
+      ;(networks as any)[networkName] = {
         ...networks[networkName],
         safeAddress,
       }
@@ -553,13 +620,21 @@ const main = defineCommand({
       )
       consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
     } else {
-      consola.info(`ℹ Skipping networks.json update (--updateConfig=false)`)
+      consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
     }
 
-    consola.info('🎉 Deployment & verification complete!')
-    consola.info(
-      'IMPORTANT: Please manually update the safeWebUrl and safeApiUrl in networks.json for proper Safe UI integration.'
-    )
+    if (safeAddress) {
+      consola.info('-'.repeat(80))
+      consola.info('🎉 Deployment complete!')
+      consola.info(`Safe Address: \u001b[32m${safeAddress}\u001b[0m`)
+      const explorerUrl = chain.blockExplorers?.default?.url
+      if (explorerUrl) {
+        consola.info(
+          `Explorer URL: \u001b[36m${explorerUrl}/address/${safeAddress}\u001b[0m`
+        )
+      }
+      consola.info('-'.repeat(80))
+    }
   },
 })
 
