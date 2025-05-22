@@ -46,7 +46,7 @@ deployAllContracts() {
   bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
   bun fetch-rpcs
 
-  deploy CREATE3Factory
+  # deploy CREATE3Factory
   deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
   checkFailure $? "deploy CREATE3Factory to network $NETWORK"
   echo ""
