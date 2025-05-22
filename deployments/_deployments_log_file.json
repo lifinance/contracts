@@ -31419,6 +31419,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xECCD021343d25a58596482781323AE50EF936a01",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-22 18:45:26",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762000000000000000000000000a41c306315e61120c8f50832d84e1ecbe3b564d50000000000000000000000009e606d0d2bba344b911e2f4eab95d9235a83fe15",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
