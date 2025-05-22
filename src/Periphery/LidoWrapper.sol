@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title IStETH
 /// @notice External interface for Lido's stETH contract which supports wrapping and unwrapping wstETH
@@ -79,16 +78,12 @@ contract LidoWrapper is WithdrawablePeriphery {
         uint256 stETHBalance = IERC20(address(ST_ETH)).balanceOf(
             address(this)
         );
-        uint256 returnedAmount = ST_ETH.unwrap(stETHBalance);
+        wrappedAmount = ST_ETH.unwrap(stETHBalance);
 
         // Transfer resulting wstETH to sender
-        uint256 wrappedAmount = IERC20(WST_ETH_ADDRESS).balanceOf(
-            address(this)
-        );
         IERC20(WST_ETH_ADDRESS).transfer(msg.sender, wrappedAmount);
 
-        console2.log("returnedAmount:  ", returnedAmount);
-        console2.log("wrappedAmount:   ", wrappedAmount);
+        // we are not emitting an event since the Lido contracts already emit events
     }
 
     /// @notice Unwraps wstETH into stETH
@@ -105,13 +100,11 @@ contract LidoWrapper is WithdrawablePeriphery {
         );
 
         // Call `wrap` on stETH contract to get stETH (again, inverted naming)
-        uint256 returnedAmount = ST_ETH.wrap(_amount);
+        unwrappedAmount = ST_ETH.wrap(_amount);
 
         // Transfer resulting stETH to sender
-        unwrappedAmount = IERC20(address(ST_ETH)).balanceOf(address(this));
         IERC20(address(ST_ETH)).transfer(msg.sender, unwrappedAmount);
 
-        console2.log("returnedAmount:  ", returnedAmount);
-        console2.log("unwrappedAmount: ", unwrappedAmount);
+        // we are not emitting an event since the Lido contracts already emit events
     }
 }

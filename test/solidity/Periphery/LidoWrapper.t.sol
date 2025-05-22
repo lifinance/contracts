@@ -1,3 +1,4 @@
+// solhint-disable
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
@@ -9,11 +10,12 @@ import { TestRelayFacet } from "../Facets/RelayFacet.t.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { console2 } from "forge-std/console2.sol";
 contract LidoWrapperTest is TestBase {
     LidoWrapper private lidoWrapper;
     address private constant ST_ETH_ADDRESS_OPTIMISM =
         0x76A50b8c7349cCDDb7578c6627e79b5d99D24138;
+    address private constant ST_ETH_ADDRESS_MAINNET =
+        0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
     address private constant WST_ETH_ADDRESS_OPTIMISM =
         0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb;
     address private constant WST_ETH_ADDRESS_MAINNET =
@@ -67,7 +69,8 @@ contract LidoWrapperTest is TestBase {
         );
 
         // prepare diamond setup
-        // add symbiosis bridge
+        // add relay bridge
+        // slither-disable-next-line reentrancy
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
 
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -83,19 +86,19 @@ contract LidoWrapperTest is TestBase {
         functionSelectors[5] = relayFacet.setConsumedId.selector;
 
         addFacet(diamond, address(relayFacet), functionSelectors);
+        // slither-disable-next-line reentrancy-no-eth
         relayFacet = TestRelayFacet(address(diamond));
-
-        // setFacetAddressInTestBase(address(relayFacet), "RelayFacet");
 
         // update bridgeData
         bridgeData.bridge = "symbiosis";
         bridgeData.destinationChainId = 1;
         bridgeData.minAmount = 0.1 ether;
-        bridgeData.minAmount = 83152588364537670;
+        // bridgeData.minAmount = 83152588364537670;
         bridgeData.sendingAssetId = WST_ETH_ADDRESS_OPTIMISM;
         bridgeData.hasSourceSwaps = true;
 
         // prepare relayData
+        // slither-disable-next-line reentrancy-no-eth
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
             nonEVMReceiver: "",
@@ -104,24 +107,6 @@ contract LidoWrapperTest is TestBase {
             ),
             signature: ""
         });
-
-        // prepare LidoWrapper swapData
-        delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(lidoWrapper),
-                approveTo: address(lidoWrapper),
-                sendingAssetId: ST_ETH_ADDRESS_OPTIMISM,
-                receivingAssetId: WST_ETH_ADDRESS_OPTIMISM,
-                fromAmount: 0.1 ether - 1,
-                // fromAmount: 0,
-                callData: abi.encodeWithSelector(
-                    lidoWrapper.wrapStETHToWstETH.selector,
-                    0.1 ether
-                ),
-                requiresDeposit: true
-            })
-        );
 
         // whitelist LidoWrapper as periphery
         relayFacet.addDex(address(lidoWrapper));
@@ -193,19 +178,37 @@ contract LidoWrapperTest is TestBase {
 
     // ######## Test cases for indirect interactions with LidoWrapper through our diamond #########
 
-    function test_canWrapStEthTokensViaDiamond() public {
+    function test_canWrapStEthTokensViaDiamondPreBridge() public {
         vm.startPrank(USER_SENDER);
 
         uint256 stEthBalanceBefore = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
             USER_SENDER
         );
-        uint256 wstEthBalanceBefore = IERC20(WST_ETH_ADDRESS_OPTIMISM)
-            .balanceOf(USER_SENDER);
 
         // set approval from user to diamond for stETH tokens
         IERC20(ST_ETH_ADDRESS_OPTIMISM).approve(
             address(diamond),
             stEthBalanceBefore
+        );
+
+        // update bridgeData
+        bridgeData.minAmount = 83152588364537669;
+
+        // prepare LidoWrapper swapData
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(lidoWrapper),
+                approveTo: address(lidoWrapper),
+                sendingAssetId: ST_ETH_ADDRESS_OPTIMISM,
+                receivingAssetId: WST_ETH_ADDRESS_OPTIMISM,
+                fromAmount: 0.1 ether - 1,
+                callData: abi.encodeWithSelector(
+                    lidoWrapper.wrapStETHToWstETH.selector,
+                    0.1 ether - 1
+                ),
+                requiresDeposit: true
+            })
         );
 
         // (fake-)sign relayData
@@ -219,37 +222,155 @@ contract LidoWrapperTest is TestBase {
         );
 
         vm.stopPrank();
+    }
+    function test_canUnwrapWstEthTokensViaDiamondPreBridge() public {
+        vm.startPrank(USER_SENDER);
 
-        uint256 stEthBalanceAfter = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
-            USER_SENDER
-        );
-        uint256 wstEthBalanceAfter = IERC20(WST_ETH_ADDRESS_OPTIMISM)
+        uint256 wstEthBalanceBefore = IERC20(WST_ETH_ADDRESS_OPTIMISM)
             .balanceOf(USER_SENDER);
 
-        console2.log(
-            "Balance stETH diamond: ",
-            IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(address(diamond))
+        // set approval from user to diamond for wstETH tokens
+        IERC20(WST_ETH_ADDRESS_OPTIMISM).approve(
+            address(diamond),
+            wstEthBalanceBefore
         );
-        console2.log(
-            "Balance stETH address(this): ",
-            IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(address(this))
+
+        // update bridgeData
+        bridgeData.minAmount = 0.1 ether;
+        bridgeData.sendingAssetId = ST_ETH_ADDRESS_OPTIMISM;
+
+        // update relayData
+        validRelayData.receivingAssetId = bytes32(
+            uint256(uint160(ST_ETH_ADDRESS_MAINNET))
         );
-        console2.log(
-            "Balance stETH address(lidoWrapper): ",
-            IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(address(lidoWrapper))
+
+        // prepare LidoWrapper swapData
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(lidoWrapper),
+                approveTo: address(lidoWrapper),
+                sendingAssetId: WST_ETH_ADDRESS_OPTIMISM,
+                receivingAssetId: ST_ETH_ADDRESS_OPTIMISM,
+                fromAmount: wstEthBalanceBefore,
+                callData: abi.encodeWithSelector(
+                    lidoWrapper.unwrapWstETHToStETH.selector,
+                    wstEthBalanceBefore
+                ),
+                requiresDeposit: true
+            })
         );
-        console2.log(
-            "Balance wstETH diamond: ",
-            IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(address(diamond))
+
+        // (fake-)sign relayData
+        validRelayData.signature = signData(bridgeData, validRelayData);
+
+        // call diamond
+        relayFacet.swapAndStartBridgeTokensViaRelay(
+            bridgeData,
+            swapData,
+            validRelayData
         );
-        console2.log(
-            "Balance wstETH address(this): ",
-            IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(address(this))
+
+        vm.stopPrank();
+    }
+
+    // TODO: UPDATE
+    function test_canWrapStEthTokensViaDiamondGenericSwap() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 stEthBalanceBefore = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
+            USER_SENDER
         );
-        console2.log(
-            "Balance wstETH address(lidoWrapper): ",
-            IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(address(lidoWrapper))
+
+        // set approval from user to diamond for stETH tokens
+        IERC20(ST_ETH_ADDRESS_OPTIMISM).approve(
+            address(diamond),
+            stEthBalanceBefore
         );
+
+        // update bridgeData
+        bridgeData.minAmount = 83152588364537669;
+
+        // prepare LidoWrapper swapData
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(lidoWrapper),
+                approveTo: address(lidoWrapper),
+                sendingAssetId: ST_ETH_ADDRESS_OPTIMISM,
+                receivingAssetId: WST_ETH_ADDRESS_OPTIMISM,
+                fromAmount: 0.1 ether - 1,
+                callData: abi.encodeWithSelector(
+                    lidoWrapper.wrapStETHToWstETH.selector,
+                    0.1 ether - 1
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // (fake-)sign relayData
+        validRelayData.signature = signData(bridgeData, validRelayData);
+
+        // call diamond
+        relayFacet.swapAndStartBridgeTokensViaRelay(
+            bridgeData,
+            swapData,
+            validRelayData
+        );
+
+        vm.stopPrank();
+    }
+
+    // TODO: UPDATE
+    function test_canUnwrapWstEthTokensViaDiamondGenericSwap() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 wstEthBalanceBefore = IERC20(WST_ETH_ADDRESS_OPTIMISM)
+            .balanceOf(USER_SENDER);
+
+        // set approval from user to diamond for wstETH tokens
+        IERC20(WST_ETH_ADDRESS_OPTIMISM).approve(
+            address(diamond),
+            wstEthBalanceBefore
+        );
+
+        // update bridgeData
+        bridgeData.minAmount = 0.1 ether;
+        bridgeData.sendingAssetId = ST_ETH_ADDRESS_OPTIMISM;
+
+        // update relayData
+        validRelayData.receivingAssetId = bytes32(
+            uint256(uint160(ST_ETH_ADDRESS_MAINNET))
+        );
+
+        // prepare LidoWrapper swapData
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(lidoWrapper),
+                approveTo: address(lidoWrapper),
+                sendingAssetId: WST_ETH_ADDRESS_OPTIMISM,
+                receivingAssetId: ST_ETH_ADDRESS_OPTIMISM,
+                fromAmount: wstEthBalanceBefore,
+                callData: abi.encodeWithSelector(
+                    lidoWrapper.unwrapWstETHToStETH.selector,
+                    wstEthBalanceBefore
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // (fake-)sign relayData
+        validRelayData.signature = signData(bridgeData, validRelayData);
+
+        // call diamond
+        relayFacet.swapAndStartBridgeTokensViaRelay(
+            bridgeData,
+            swapData,
+            validRelayData
+        );
+
+        vm.stopPrank();
     }
 
     function signData(
