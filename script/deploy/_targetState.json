@@ -190,6 +190,7 @@
         "RelayerCelerIM": "2.1.1",
         "CelerIMFacetMutable": "2.0.0",
         "GlacisFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "MayanFacet": "1.2.0",
         "RelayFacet": "1.0.0",
         "SquidFacet": "1.0.0",
@@ -259,6 +260,8 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -292,6 +295,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
@@ -329,6 +333,7 @@
         "ReceiverAcrossV3": "1.1.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "SquidFacet": "1.0.0",
@@ -386,6 +391,7 @@
         "Permit2Proxy": "1.0.3",
         "CBridgeFacet": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -420,6 +426,8 @@
         "CelerIMFacetMutable": "2.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "MayanFacet": "1.2.0",
         "RelayFacet": "1.0.0",
         "SquidFacet": "1.0.0",
@@ -452,6 +460,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "AllBridgeFacet": "2.0.0",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "SquidFacet": "1.0.0"
       }
@@ -637,6 +646,8 @@
         "CBridgeFacet": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -702,6 +713,8 @@
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
         "GlacisFacet": "1.0.0"
+        "GasZipPeriphery": "1.0.1",
+        "GlacisFacet": "1.0.0"
       }
     }
   },
@@ -754,6 +767,7 @@
         "AcrossFacetV3": "1.1.0",
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
@@ -816,6 +830,8 @@
         "ReceiverAcrossV3": "1.1.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
+        "DeBridgeDlnFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
@@ -881,6 +897,8 @@
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "GlacisFacet": "1.0.0"
+        "ReceiverAcrossV3": "1.1.0",
+        "GlacisFacet": "1.0.0"
       }
     }
   },
@@ -935,6 +953,7 @@
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
         "DeBridgeDlnFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -968,6 +987,7 @@
         "AcrossFacetV3": "1.1.0",
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1062,6 +1082,8 @@
         "CelerIMFacetMutable": "2.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -1131,6 +1153,8 @@
         "CelerIMFacetMutable": "2.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
+        "DeBridgeDlnFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -1168,6 +1192,7 @@
         "RelayerCelerIM": "2.1.1",
         "CelerIMFacetMutable": "2.0.0",
         "GlacisFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
         "RelayFacet": "1.0.0",
@@ -1196,6 +1221,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -1232,6 +1258,7 @@
         "ReceiverAcrossV3": "1.1.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
+        "GlacisFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
@@ -1323,12 +1350,14 @@
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
         "GlacisFacet": "1.0.0",
+        "GlacisFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
       }
     }
   },
+  "swellchain": {
   "swellchain": {
     "production": {
       "LiFiDiamond": {
@@ -1353,9 +1382,12 @@
         "GasZipPeriphery": "1.0.1",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0"
+        "GlacisFacet": "1.0.0",
+        "RelayFacet": "1.0.0"
       }
     }
   },
+  "superposition": {
   "superposition": {
     "production": {
       "LiFiDiamond": {
@@ -1381,9 +1413,12 @@
         "RelayFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
       }
     }
   },
+  "taiko": {
   "taiko": {
     "production": {
       "LiFiDiamond": {
@@ -1409,9 +1444,13 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
+  "unichain": {
   "unichain": {
     "production": {
       "LiFiDiamond": {
@@ -1440,9 +1479,16 @@
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
+        "AcrossFacetV3": "1.1.0",
+        "AcrossFacetPackedV3": "1.2.0",
+        "ReceiverAcrossV3": "1.1.0",
+        "GlacisFacet": "1.0.0",
+        "RelayFacet": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
+  "worldchain": {
   "worldchain": {
     "production": {
       "LiFiDiamond": {
@@ -1469,9 +1515,11 @@
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "RelayFacet": "1.0.0"
+        "RelayFacet": "1.0.0"
       }
     }
   },
+  "xlayer": {
   "xlayer": {
     "production": {
       "LiFiDiamond": {
@@ -1496,9 +1544,12 @@
         "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3"
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3"
       }
     }
   },
+  "xdc": {
   "xdc": {
     "production": {
       "LiFiDiamond": {
@@ -1527,6 +1578,7 @@
     }
   },
   "zksync": {
+  "zksync": {
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
@@ -1548,6 +1600,16 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
+        "AcrossFacet": "2.0.0",
+        "AcrossFacetPacked": "1.0.0",
+        "AcrossFacetV3": "1.1.0",
+        "AcrossFacetPackedV3": "1.2.0",
+        "ReceiverAcrossV3": "1.1.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerIMFacetMutable": "2.0.0",
+        "RelayFacet": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AcrossFacetV3": "1.1.0",

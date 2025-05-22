@@ -1,6 +1,5 @@
 {
   "according to docs all EVM networks should be using the same address": "https://docs.debridge.finance/dln-the-debridge-liquidity-network-protocol/deployed-contracts",
-
   "networks": {
     "mainnet": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
