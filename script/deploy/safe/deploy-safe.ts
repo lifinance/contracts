@@ -20,9 +20,9 @@
  *
  * Required parameters:
  *   --network        SupportedChain name (e.g. arbitrum)
- *   --threshold      number of required confirmations
  *
  * Optional parameters:
+ *   --threshold      number of required confirmations (default: 3)
  *   --owners         comma-separated extra owner addresses
  *   --fallbackHandler  custom fallback handler address (default: zero)
  *   --paymentToken   ERC20 token address for payment (default: zero = ETH)
@@ -37,7 +37,7 @@
  *   ETH_NODE_URI_<NETWORK>    RPC URL(s) for each network, loaded via `.env`
  *
  * Example:
- *   bun deploy-and-setup-safe.ts --network arbitrum --threshold 3 \
+ *   bun deploy-and-setup-safe.ts --network arbitrum \
  *     --owners 0xAb…123,0xCd…456 --paymentToken 0xErc…789 --payment 1000000000000000
  */
 
@@ -374,8 +374,9 @@ const main = defineCommand({
     },
     threshold: {
       type: 'string',
-      description: 'Number of required confirmations',
-      required: true,
+      description: 'Number of required confirmations (default: 3)',
+      required: false,
+      default: '3',
     },
     owners: {
       type: 'string',
@@ -442,9 +443,14 @@ const main = defineCommand({
     }
 
     // parse & validate threshold + owners
+    const isDefaultThreshold = !process.argv.includes('--threshold')
     const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1) {
       throw new Error('Threshold must be a positive integer')
+    }
+
+    if (isDefaultThreshold) {
+      consola.info('ℹ Using default threshold of 3 required confirmations')
     }
 
     const extraOwners = (args.owners || '')
