@@ -121,9 +121,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324": {
+      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
         "Name": "MayanFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -156,17 +156,21 @@
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "GasZipPeriphery": "0xECCD021343d25a58596482781323AE50EF936a01",
+      "LiFiDEXAggregator": "0xA41c306315e61120C8F50832D84e1EcbE3B564D5",
       "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
-      "ReceiverChainflip": "",
+      "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
