@@ -250,35 +250,15 @@ deploySingleContract() {
 
     # check the return code the last call
     elif [ $RETURN_CODE -eq 0 ]; then
-      # clean tx return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-      checkFailure $? "clean return data (original data: $RAW_RETURN_DATA)"
-
-      # extract the "returns" field and its contents from the return data (+hide errors)
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
-
       # extract deployed-to address from return data
-      ADDRESS=$(echo $RETURN_DATA | jq -r '.deployed.value')
-
-      # check every ten seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC if code is deployed
-      local COUNT=0
-      while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
-        # check if bytecode is deployed at address
-        if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
-          echo "[info] bytecode deployment at address $ADDRESS verified through block explorer"
-          break 2 # exit both loops if the operation was successful
+        ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+        if [[ $? -ne 0 ]]; then
+          error "❌ Could not extract deployed address from raw return data"
+          return 1
+        elif [[ -n "$ADDRESS" ]]; then
+          # address successfully extracted
+          break
         fi
-        # wait for 10 seconds to allow blockchain to sync
-        echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
-        sleep 10
-
-        COUNT=$((COUNT + 10))
-      done
-
-      if [ $COUNT -gt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
-        warning "contract deployment tx successful but doesAddressContainBytecode returned false. Please check if contract was actually deployed (NETWORK=$NETWORK, ADDRESS:$ADDRESS)"
-      fi
-
     fi
 
     attempts=$((attempts + 1)) # increment attempts
@@ -312,7 +292,7 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
+  CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
