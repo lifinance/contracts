@@ -576,7 +576,6 @@ async function deploySafe(args: {
       // Update configurations
       const updatedNetworksConfig = { ...networksConfig }
       updatedNetworksConfig[network.toLowerCase()].safeAddress = safeAddress
-      updatedNetworksConfig[network.toLowerCase()].safeWebUrl = safeWebUrl
 
       // Write updated config
       fs.writeFileSync(

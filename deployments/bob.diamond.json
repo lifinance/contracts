@@ -1,0 +1,71 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xFE8BC485d9DBaa93c1982Ab105cd55Dc6F7816eA": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x15e9dc50561E106824dc345d31E9E601A1B2eABc": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x7711848FFf05C8Ac4B998F9E3035B16DE8CCe118": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x86b6D3907176c72729fd2b1c0D63e9E37Eab674F": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.2"
+      },
+      "0xDD713608198bCfA8a178f72882d908cb4D913Bfa": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xE9885Fd4773B79927771c15c3D50ffBC37C28F93": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x40aFCf2ee6d025f19b3516531fFf8D313E37a7ce": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x6A782f93D8DAeC9A56b50A08F3ca12CC7bD4DcD6": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
+      },
+      "0xa60541D42ce7dC6dec29Bc296D382e5e0ecC2e85": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.0"
+      },
+      "0x9c367d9F13945b6bA507b697fD5203E971FEB9E0": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0xd9D09dE51e06D7Dc5253f8eD3a2eb119C8E2abb2": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0x2c3B1f633c00bCd65dB98317daE1049c4c918C0a": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0xb1E9A462Bc38f62855662962c92Bf5C8aB67D699",
+      "Executor": "0x6501F452591e9D03608830A9c99f018d7e613675",
+      "FeeCollector": "0x728f23859C718B9e1cA762f051C29Ea99119B92D",
+      "GasZipPeriphery": "0x0A735a259805b8aCfb257aac3f2DCDDf3d235811",
+      "LiFiDEXAggregator": "0x8F3736CC9B10e340937B9cff5aB5302B84933685",
+      "Permit2Proxy": "0x9c8EE267255dF4cbBE81052C2a95C60668F31f11",
+      "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
+      "ReceiverStargateV2": "",
+      "RelayerCelerIM": "",
+      "TokenWrapper": "0x917F0625dD20f9a8eA45500361d2F1F1a39DF8DE"
+    }
+  }
+}
