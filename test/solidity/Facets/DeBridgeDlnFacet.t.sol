@@ -82,7 +82,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // Initialize
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/dln.json"
+            "/config/debridgedln.json"
         );
         string memory json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");
@@ -154,7 +154,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // Initialize
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/dln.json"
+            "/config/debridgedln.json"
         );
         string memory json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");

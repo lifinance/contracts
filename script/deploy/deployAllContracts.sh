@@ -40,7 +40,13 @@ deployAllContracts() {
   local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
 
-  # deploy CREATE3Factory
+  # add RPC URL to MongoDB
+  echo ""
+  echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
+  bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
+  bun fetch-rpcs
+
+  deploy CREATE3Factory
   deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
   checkFailure $? "deploy CREATE3Factory to network $NETWORK"
   echo ""
