@@ -319,7 +319,7 @@ async function createSafeProxy(params: {
     .find((e) => e && e.eventName === 'ProxyCreation')
 
   if (!proxyEvent) {
-    consola.warn('No ProxyCreation events found in transaction logs')
+    consola.warn('No ProxyCreation events found in transaction logs ')
     consola.info(`Please check transaction ${txHash} on the explorer`)
 
     const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
