@@ -74,7 +74,9 @@
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "ReceiverStargateV2": "0x60f7fc4F9191e49582851C86C3f1E0493E6BE622",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+      "Permit2Proxy.flattened": "",
+      "ReceiverChainflip": ""
     }
   }
 }
