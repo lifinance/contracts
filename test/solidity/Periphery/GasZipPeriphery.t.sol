@@ -6,7 +6,7 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
-import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
+import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
@@ -37,8 +37,8 @@ contract GasZipPeripheryTest is TestBase {
         0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762;
     address public constant LIFI_DEX_AGGREGATOR_MAINNET =
         0xe43ca1Dee3F0fc1e2df73A0745674545F11A59F5;
-    address internal constant XDAI_BRIDGE =
-        0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+    address internal constant GNOSIS_BRIDGE_ROUTER =
+        0x9a873656c19Efecbfb4f9FAb5B7acdeAb466a0B0;
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
     TestGasZipPeriphery internal gasZipPeriphery;
@@ -267,7 +267,7 @@ contract GasZipPeripheryTest is TestBase {
         // set approval for bridging
         usdc.approve(address(gnosisBridgeFacet), defaultUSDCAmount);
 
-        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge(
             bridgeData,
             swapData
         );
@@ -352,7 +352,7 @@ contract GasZipPeripheryTest is TestBase {
             gasZipPeriphery.depositToGasZipNative.selector
         );
 
-        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge{
             value: nativeFromAmount
         }(bridgeData, swapData);
     }
@@ -444,15 +444,15 @@ contract GasZipPeripheryTest is TestBase {
         returns (TestGnosisBridgeFacet _gnosisBridgeFacet)
     {
         _gnosisBridgeFacet = new TestGnosisBridgeFacet(
-            IXDaiBridge(XDAI_BRIDGE)
+            IGnosisBridgeRouter(GNOSIS_BRIDGE_ROUTER)
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = _gnosisBridgeFacet
-            .startBridgeTokensViaXDaiBridge
+            .startBridgeTokensViaGnosisBridge
             .selector;
         functionSelectors[1] = _gnosisBridgeFacet
-            .swapAndStartBridgeTokensViaXDaiBridge
+            .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
         functionSelectors[2] = _gnosisBridgeFacet.addDex.selector;
         functionSelectors[3] = _gnosisBridgeFacet

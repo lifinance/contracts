@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
-import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
+import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GnosisBridgeFacet Contract
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
-    constructor(IXDaiBridge _xDaiBridge) GnosisBridgeFacet(_xDaiBridge) {}
+    constructor(
+        IGnosisBridgeRouter _xDaiBridge
+    ) GnosisBridgeFacet(_xDaiBridge) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -24,25 +27,35 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
     // EVENTS
 
     // These values are for Mainnet
-    address internal constant XDAI_BRIDGE =
-        0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+    address internal constant GNOSIS_BRIDGE_ROUTER =
+        0x9a873656c19Efecbfb4f9FAb5B7acdeAb466a0B0;
+    address internal constant ADDRESS_USDS =
+        0xdC035D45d973E3EC169d2276DDab16f1e407384F;
     // -----
+    ERC20 internal usds;
+    uint256 internal defaultUSDSAmount;
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
 
     function setUp() public {
+        customBlockNumberForForking = 22540123;
+        defaultUSDSAmount = defaultDAIAmount;
         initTestBase();
 
+        usds = ERC20(ADDRESS_USDS);
+
+        deal(ADDRESS_USDS, USER_SENDER, defaultUSDSAmount);
+
         gnosisBridgeFacet = new TestGnosisBridgeFacet(
-            IXDaiBridge(XDAI_BRIDGE)
+            IGnosisBridgeRouter(GNOSIS_BRIDGE_ROUTER)
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gnosisBridgeFacet
-            .startBridgeTokensViaXDaiBridge
+            .startBridgeTokensViaGnosisBridge
             .selector;
         functionSelectors[1] = gnosisBridgeFacet
-            .swapAndStartBridgeTokensViaXDaiBridge
+            .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
         functionSelectors[2] = gnosisBridgeFacet.addDex.selector;
         functionSelectors[3] = gnosisBridgeFacet
@@ -108,24 +121,25 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {
-        gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
+        gnosisBridgeFacet.startBridgeTokensViaGnosisBridge(bridgeData);
     }
 
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
         if (isNative) {
-            gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{
+            gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData);
         } else {
-            gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(
+            gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge(
                 bridgeData,
                 swapData
             );
         }
     }
 
+    // DAI case
     function testBase_CanBridgeTokens()
         public
         override
@@ -151,6 +165,33 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    // DAI case
+    function testBase_CanBridgeToken_WithUSDS()
+        public
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(
+            ADDRESS_USDS,
+            USER_SENDER,
+            -int256(defaultDAIAmount)
+        )
+        assertBalanceChange(ADDRESS_USDS, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.sendingAssetId = ADDRESS_USDS;
+
+        // approval
+        usds.approve(address(gnosisBridgeFacet), bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(gnosisBridgeFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support native bridging
     }
@@ -166,7 +207,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         setDefaultSwapData();
         bridgeData.hasSourceSwaps = true;
 
-        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge(
             bridgeData,
             swapData
         );
@@ -188,19 +229,6 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         vm.expectRevert(TransferFromFailed.selector);
 
         initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testRevertToBridgeTokensWhenReceiverIsXDaiBridgeAddress() public {
-        vm.startPrank(USER_SENDER);
-
-        dai.approve(address(gnosisBridgeFacet), defaultDAIAmount);
-
-        bridgeData.receiver = XDAI_BRIDGE;
-
-        vm.expectRevert();
-        gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
-
         vm.stopPrank();
     }
 
