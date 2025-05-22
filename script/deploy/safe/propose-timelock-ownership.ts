@@ -164,6 +164,7 @@ async function processNetwork(network: NetworkConfig, privateKey: string) {
 
     try {
       // Using Bun's $ helper for shell commands with explicit privateKey argument
+      console.log(calldata)
       const result =
         await $`bun script/deploy/safe/propose-to-safe.ts --to ${diamondAddress} --calldata ${calldata} --network ${network.name} --rpcUrl ${network.rpcUrl} --privateKey ${privateKey}`.quiet()
 

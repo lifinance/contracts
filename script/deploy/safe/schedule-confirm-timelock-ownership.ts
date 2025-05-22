@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
 /**
- * Execute Timelock Ownership Confirmation
+ * Schedule Timelock Ownership Confirmation
  *
- * This script executes a transaction through the LiFiTimelockController that calls confirmOwnershipTransfer
+ * This script schedules a transaction through the LiFiTimelockController that calls confirmOwnershipTransfer
  * on the LiFiDiamond for each network that has a safeAddress configured in networks.json.
  * It uses the PRIVATE_KEY_PRODUCTION environment variable to sign transactions.
  */
@@ -17,10 +17,11 @@ import {
   http,
   encodeFunctionData,
   Address,
+  Chain,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import consola from 'consola'
-import { parseArgs } from 'util'
+import { consola } from 'consola'
+import { parseArgs } from 'node:util'
 
 // Define interfaces for network configuration
 interface NetworkConfig {
@@ -51,17 +52,22 @@ const { values } = parseArgs({
       type: 'boolean',
       short: 'd',
     },
+    delay: {
+      type: 'string',
+      short: 't',
+    },
   },
 })
 
 // Show help if requested
 if (values.help) {
   console.log(`
-Usage: bun execute-timelock-ownership.ts [options]
+Usage: bun confirm-timelock-ownership.ts [options]
 
 Options:
   -k, --privateKey <key>  Private key to use for signing transactions (defaults to PRIVATE_KEY_PRODUCTION env var)
   -d, --dryRun            Simulate transactions without sending them
+  -t, --delay <seconds>   Delay in seconds before the transaction can be executed (defaults to minimum delay)
   -h, --help              Show this help message
   `)
   process.exit(0)
@@ -72,6 +78,7 @@ async function main() {
   // Get private key from command line argument or environment variable
   const privateKey = values.privateKey || process.env.PRIVATE_KEY_PRODUCTION
   const isDryRun = values.dryRun || false
+  const customDelay = values.delay ? BigInt(values.delay) : undefined
 
   if (!privateKey) {
     consola.error(
@@ -101,7 +108,7 @@ async function main() {
 
   // Ask for confirmation before proceeding
   const confirm = await consola.prompt(
-    `Are you sure you want to execute confirmOwnershipTransfer through the timelock controller on ${networksWithSafe.length} networks?`,
+    `Are you sure you want to schedule confirmOwnershipTransfer through the timelock controller on ${networksWithSafe.length} networks?`,
     {
       type: 'confirm',
     }
@@ -115,7 +122,7 @@ async function main() {
   // Process each network
   for (const network of networksWithSafe) {
     try {
-      await processNetwork(network, privateKey, isDryRun)
+      await processNetwork(network, privateKey, isDryRun, customDelay)
     } catch (error) {
       consola.error(`Error processing network ${network.name}:`, error)
     }
@@ -125,7 +132,8 @@ async function main() {
 async function processNetwork(
   network: NetworkConfig,
   privateKey: string,
-  isDryRun: boolean
+  isDryRun: boolean,
+  customDelay?: bigint
 ) {
   consola.info(`Processing network: ${network.name}`)
 
@@ -165,20 +173,57 @@ async function processNetwork(
     // Create viem clients
     const account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
 
-    const publicClient = createPublicClient({
-      chain: {
-        id: network.chainId,
+    // Create a minimal chain object with required properties
+    const chain = {
+      id: network.chainId,
+      name: network.name,
+      nativeCurrency: {
+        name: 'Ether',
+        symbol: 'ETH',
+        decimals: 18,
       },
+      rpcUrls: {
+        default: {
+          http: [network.rpcUrl],
+        },
+        public: {
+          http: [network.rpcUrl],
+        },
+      },
+    } as Chain
+
+    const publicClient = createPublicClient({
+      chain,
       transport: http(network.rpcUrl),
     })
 
     const walletClient = createWalletClient({
       account,
-      chain: {
-        id: network.chainId,
-      },
+      chain,
       transport: http(network.rpcUrl),
     })
+
+    // Get the minimum delay from the timelock controller
+    const minDelay = (await publicClient.readContract({
+      address: timelockAddress,
+      abi: [
+        {
+          inputs: [],
+          name: 'getMinDelay',
+          outputs: [{ type: 'uint256', name: '' }],
+          stateMutability: 'view',
+          type: 'function',
+        },
+      ],
+      functionName: 'getMinDelay',
+    })) as bigint
+
+    // Use custom delay if provided, otherwise use the minimum delay
+    const delay = customDelay !== undefined ? customDelay : minDelay
+
+    consola.info(
+      `Using delay: ${delay} seconds (minimum delay: ${minDelay} seconds)`
+    )
 
     // Encode the confirmOwnershipTransfer function call for the diamond
     const confirmOwnershipCalldata = encodeFunctionData({
@@ -195,47 +240,58 @@ async function processNetwork(
       args: [],
     })
 
-    // Encode the execute function call for the timelock controller
-    // This will execute the confirmOwnershipTransfer function on the diamond
-    const executeCalldata = encodeFunctionData({
+    // Generate a unique salt based on current timestamp
+    const salt = `0x${Date.now()
+      .toString(16)
+      .padStart(64, '0')}` as `0x${string}`
+
+    // Encode the schedule function call for the timelock controller
+    // This will schedule the confirmOwnershipTransfer function on the diamond
+    const scheduleCalldata = encodeFunctionData({
       abi: [
         {
           inputs: [
             { name: 'target', type: 'address' },
             { name: 'value', type: 'uint256' },
             { name: 'data', type: 'bytes' },
+            { name: 'predecessor', type: 'bytes32' },
+            { name: 'salt', type: 'bytes32' },
+            { name: 'delay', type: 'uint256' },
           ],
-          name: 'execute',
+          name: 'schedule',
           outputs: [],
-          stateMutability: 'payable',
+          stateMutability: 'nonpayable',
           type: 'function',
         },
       ],
-      functionName: 'execute',
+      functionName: 'schedule',
       args: [
         diamondAddress,
         0n, // No ETH value
-        confirmOwnershipCalldata as `0x${string}`,
+        confirmOwnershipCalldata,
+        '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // No predecessor
+        salt,
+        delay,
       ],
     })
 
     consola.info(
-      `Executing confirmOwnershipTransfer through timelock for network ${network.name}...`
+      `Scheduling confirmOwnershipTransfer through timelock for network ${network.name}...`
     )
 
     try {
       if (isDryRun) {
         // Simulate the transaction
-        consola.info(`[DRY RUN] Would execute transaction on ${network.name}:`)
+        consola.info(`[DRY RUN] Would schedule transaction on ${network.name}:`)
         consola.info(`  From: ${account.address}`)
         consola.info(`  To: ${timelockAddress}`)
-        consola.info(`  Data: ${executeCalldata}`)
+        consola.info(`  Data: ${scheduleCalldata}`)
 
         // Try to simulate the transaction
         const gasEstimate = await publicClient.estimateGas({
           account: account.address,
           to: timelockAddress,
-          data: executeCalldata,
+          data: scheduleCalldata,
           value: 0n,
         })
 
@@ -247,7 +303,7 @@ async function processNetwork(
         // Send the actual transaction
         const hash = await walletClient.sendTransaction({
           to: timelockAddress,
-          data: executeCalldata,
+          data: scheduleCalldata,
           value: 0n,
         })
 
@@ -258,7 +314,13 @@ async function processNetwork(
 
         if (receipt.status === 'success') {
           consola.success(
-            `Successfully executed confirmOwnershipTransfer for ${network.name}`
+            `Successfully scheduled confirmOwnershipTransfer for ${network.name}`
+          )
+          consola.info(
+            `The transaction will be ready to execute after ${delay} seconds`
+          )
+          consola.info(
+            `Use the execute-pending-timelock-tx.ts script to execute it after the delay has passed`
           )
         } else {
           consola.error(`Transaction failed for ${network.name}`)
@@ -266,7 +328,7 @@ async function processNetwork(
       }
     } catch (error) {
       consola.error(
-        `Failed to execute confirmOwnershipTransfer for ${network.name}:`,
+        `Failed to schedule confirmOwnershipTransfer for ${network.name}:`,
         error
       )
     }
