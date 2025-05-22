@@ -28,6 +28,8 @@
  *   --paymentToken   ERC20 token address for payment (default: zero = ETH)
  *   --payment        payment amount in wei (default: 0)
  *   --paymentReceiver address to receive payment (default: zero)
+ *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: false)
+ *   --rpcUrl         custom RPC URL (uses network default if not provided)
  *
  * Environment variables:
  *   PRIVATE_KEY               deployer key for staging
