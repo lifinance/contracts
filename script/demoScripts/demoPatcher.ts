@@ -93,15 +93,13 @@ class CowShedSdk {
     signature: `0x${string}`
   ): string {
     const cowShedFactoryAbi = parseAbi([
-      'function deployProxyAndExecuteHooks(address owner, address implementation, (address target, uint256 value, bytes callData, bool allowFailure, bool isDelegateCall)[] calls, bytes32 nonce, uint256 deadline, bytes signature) returns (address proxy)',
+      'function executeHooks((address target, uint256 value, bytes callData, bool allowFailure, bool isDelegateCall)[] calls, bytes32 nonce, uint256 deadline, address user, bytes signature) returns (address proxy)',
     ])
 
     return encodeFunctionData({
       abi: cowShedFactoryAbi,
-      functionName: 'deployProxyAndExecuteHooks',
+      functionName: 'executeHooks',
       args: [
-        owner,
-        COW_SHED_IMPLEMENTATION as `0x${string}`,
         calls.map((call) => ({
           target: call.target as `0x${string}`,
           value: call.value,
@@ -111,6 +109,7 @@ class CowShedSdk {
         })),
         nonce,
         deadline,
+        owner,
         signature,
       ],
     })
@@ -231,16 +230,16 @@ async function setupCowShedPostHooks(
   // Encode the patcher call
   const patcherCalldata = encodeFunctionData({
     abi: parseAbi([
-      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
+      'function executeWithMultiplePatches(address[] valueSources, bytes[] valueGetters, address finalTarget, uint256 value, bytes data, uint256[][] offsetGroups, bool delegateCall) returns (bool success, bytes returnData)',
     ]),
-    functionName: 'executeWithDynamicPatches',
+    functionName: 'executeWithMultiplePatches',
     args: [
-      usdcAddress as `0x${string}`, // valueSource - USDC contract
-      valueGetter, // valueGetter - balanceOf call
+      [usdcAddress as `0x${string}`], // valueSources - Array with USDC contract
+      [valueGetter], // valueGetters - Array with balanceOf call
       LIFI_DIAMOND_ARBITRUM as `0x${string}`, // finalTarget - LiFiDiamond contract
       0n, // value - no ETH being sent
       relayCalldata, // data - the encoded RelayFacet call
-      [BigInt(minAmountOffset)], // offsets - position of minAmount in the calldata
+      [[BigInt(minAmountOffset)]], // offsetGroups - Array of arrays with positions of minAmount in the calldata
       false, // delegateCall - regular call, not delegateCall
     ],
   })
@@ -310,7 +309,7 @@ async function setupCowShedPostHooks(
   // Create the post hooks
   const postHooks = [
     {
-      target: PATCHER_ARBITRUM as `0x${string}`,
+      target: COW_SHED_FACTORY,
       callData: shedEncodedPostHooksCallData,
       gasLimit: '3000000',
     },
