@@ -1,360 +1,251 @@
-import { parseAbi, encodeFunctionData, parseUnits, zeroAddress } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
-import { arbitrum } from 'viem/chains'
-import { createPublicClient, createWalletClient, http } from 'viem'
-import { ethers } from 'ethers'
+#!/usr/bin/env bun
+
 import {
-  SupportedChainId,
-  OrderKind,
-  TradingSdk,
-  TradeParameters,
-  SwapAdvancedSettings,
-} from '@cowprotocol/cow-sdk'
-import { CowShedSdk } from './utils/lib/cowShedSdk'
-import deploymentsArbitrum from '../../deployments/arbitrum.staging.json'
+  parseAbi,
+  parseUnits,
+  encodeFunctionData,
+  createWalletClient,
+  http,
+  getContract,
+  Hex,
+} from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { arbitrum, base } from 'viem/chains'
+import { randomBytes } from 'crypto'
+import { ethers } from 'ethers'
+import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import patcherArtifact from '../../out/Patcher.sol/Patcher.json'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 
-// Import necessary types and utilities
-import { logKeyValue, logSectionHeader, logSuccess } from './utils/lib/logging'
-import { truncateCalldata } from './utils/lib/formatting'
-import { left, Result, right } from './utils/lib/result'
-
-// Define CoW Protocol constants
-const COW_SHED_FACTORY =
-  '0x00E989b87700514118Fa55326CD1cCE82faebEF6' as `0x${string}`
-const COW_SHED_IMPLEMENTATION =
-  '0x2CFFA8cf11B90C9F437567b86352169dF4009F73' as `0x${string}`
-const DUMMY_TARGET =
-  '0x00c8Bd044Be424E48FDCC2C171eF5adebE631C09' as `0x${string}`
-
-// Define interfaces and types
-interface Token {
-  readonly address: `0x${string}`
-  readonly decimals: number
-}
-
-interface ICall {
-  target: `0x${string}`
-  callData: `0x${string}`
-  value: bigint
-  allowFailure: boolean
-  isDelegateCall: boolean
-}
-
-interface PatchOperation {
-  valueSource: `0x${string}`
-  valueGetter: `0x${string}`
-  valueToReplace: string | number | bigint
-}
-
-type TransactionIntent =
-  | {
-      readonly type: 'regular'
-      readonly targetAddress: `0x${string}`
-      readonly callData: `0x${string}`
-      readonly nativeValue?: bigint
-      readonly allowFailure?: boolean
-      readonly isDelegateCall?: boolean
-    }
-  | {
-      readonly type: 'dynamicValue'
-      readonly patcherAddress: `0x${string}`
-      readonly valueSource: `0x${string}`
-      readonly valueGetter: `0x${string}`
-      readonly targetAddress: `0x${string}`
-      readonly callDataToPatch: `0x${string}`
-      readonly valueToReplace: string | number | bigint
-      readonly nativeValue?: bigint
-      readonly delegateCall?: boolean
-    }
-  | {
-      readonly type: 'multiPatch'
-      readonly patcherAddress: `0x${string}`
-      readonly targetAddress: `0x${string}`
-      readonly callDataToPatch: `0x${string}`
-      readonly patchOperations: readonly PatchOperation[]
-      readonly nativeValue?: bigint
-      readonly delegateCall?: boolean
-    }
+// Constants
+const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
+const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+const LIFI_DIAMOND_ARBITRUM = '0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782'
+const PATCHER_ARBITRUM = '0xE65b50EcF482f97f53557f0E02946aa27f8839EC'
+const COW_SHED_FACTORY = '0x00E989b87700514118Fa55326CD1cCE82faebEF6'
+const COW_SHED_IMPLEMENTATION = '0x2CFFA8cf11B90C9F437567b86352169dF4009F73'
+const VAULT_RELAYER_ARBITRUM = '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110'
 
 // ABIs
-const ERC20_ABI = parseAbi([
-  'function balanceOf(address owner) view returns (uint256)',
-  'function transfer(address to, uint256 amount) returns (bool)',
-  'function approve(address spender, uint256 amount) returns (bool)',
-])
+const ERC20_ABI = erc20Artifact.abi
+const PATCHER_ABI = patcherArtifact.abi
 
-const DUMMY_TARGET_ABI = parseAbi([
-  'function deposit(address token, uint256 amount, bool flag) returns (bool)',
-  'function multiDeposit(address token, uint256 amount1, uint256 amount2, bool flag) returns (bool)',
-  'function getDoubledBalance(address token, address account) view returns (uint256)',
-])
+/**
+ * CowShed SDK for computing deterministic proxy addresses and encoding hook calls
+ */
+class CowShedSdk {
+  factoryAddress: string
+  implementationAddress: string
+  chainId: number
 
-const PATCHER_ABI = parseAbi([
-  'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes callDataToPatch, uint256[] offsets, bool delegateCall) returns (bool success, bytes memory returnData)',
-  'function executeWithMultiplePatches(address[] valueSources, bytes[] valueGetters, address finalTarget, uint256 value, bytes callDataToPatch, uint256[][] offsetGroups, bool delegateCall) returns (bool success, bytes memory returnData)',
-])
-
-// Log CoW Shed constants
-console.log('Using COW_SHED_FACTORY:', COW_SHED_FACTORY)
-console.log('Using COW_SHED_IMPLEMENTATION:', COW_SHED_IMPLEMENTATION)
-
-// Helper functions
-const encodeBalanceOfCall = (account: string): `0x${string}` => {
-  return encodeFunctionData({
-    abi: ERC20_ABI,
-    functionName: 'balanceOf',
-    args: [account as `0x${string}`],
-  })
-}
-
-const encodeTransferCall = (to: string, amount: string): `0x${string}` => {
-  return encodeFunctionData({
-    abi: ERC20_ABI,
-    functionName: 'transfer',
-    args: [to as `0x${string}`, BigInt(amount)],
-  })
-}
-
-const encodeGetDoubledBalanceCall = (
-  token: string,
-  account: string
-): `0x${string}` => {
-  return encodeFunctionData({
-    abi: DUMMY_TARGET_ABI,
-    functionName: 'getDoubledBalance',
-    args: [token as `0x${string}`, account as `0x${string}`],
-  })
-}
-
-// Process transaction intent
-const processTransactionIntent = (
-  intent: TransactionIntent,
-  verbose: boolean
-): Result<Error, ICall> => {
-  switch (intent.type) {
-    case 'regular': {
-      const call: ICall = {
-        target: intent.targetAddress,
-        callData: intent.callData,
-        value: intent.nativeValue ?? BigInt(0),
-        allowFailure: intent.allowFailure ?? false,
-        isDelegateCall: intent.isDelegateCall ?? false,
-      }
-
-      if (verbose) {
-        logKeyValue('Call data', truncateCalldata(intent.callData, 10))
-        logSuccess('Regular call created')
-      }
-
-      return right(call)
-    }
-
-    case 'dynamicValue': {
-      try {
-        if (!intent.patcherAddress || intent.patcherAddress === zeroAddress) {
-          return left(new Error('patcherAddress must be provided'))
-        }
-
-        if (verbose) {
-          logSectionHeader(`Creating dynamic value patch call`)
-          logKeyValue('Call', truncateCalldata(intent.callDataToPatch, 10))
-          logKeyValue('Value Source', intent.valueSource)
-          logKeyValue('Value Getter', truncateCalldata(intent.valueGetter, 10))
-          logKeyValue('Target', intent.targetAddress)
-          logKeyValue('Value to replace', intent.valueToReplace.toString())
-          logKeyValue(
-            'Native Value',
-            (intent.nativeValue || BigInt(0)).toString()
-          )
-        }
-
-        // Create dynamic patch call
-        const callData = encodeFunctionData({
-          abi: PATCHER_ABI,
-          functionName: 'executeWithDynamicPatches',
-          args: [
-            intent.valueSource,
-            intent.valueGetter,
-            intent.targetAddress,
-            BigInt(0), // value
-            intent.callDataToPatch,
-            [BigInt(36)], // array of offsets - amount parameter is at offset 36 (4 bytes function selector + 32 bytes address)
-            intent.delegateCall ?? false,
-          ],
-        }) as `0x${string}`
-
-        const call: ICall = {
-          target: intent.patcherAddress,
-          callData,
-          value: intent.nativeValue ?? BigInt(0),
-          allowFailure: false,
-          isDelegateCall: false,
-        }
-
-        if (verbose) {
-          logSuccess('Dynamic value patch call created')
-        }
-
-        return right(call)
-      } catch (error) {
-        return left(
-          new Error(
-            `Failed to create dynamic value patch: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          )
-        )
-      }
-    }
-
-    case 'multiPatch': {
-      try {
-        if (verbose) {
-          logSectionHeader(
-            `Creating multi-patch call with ${intent.patchOperations.length} operations`
-          )
-          logKeyValue('Call data to patch', intent.callDataToPatch)
-          logKeyValue('Target', intent.targetAddress)
-        }
-
-        // Prepare arrays for executeWithMultiplePatches
-        const valueSources = intent.patchOperations.map(
-          (op) => op.valueSource
-        ) as `0x${string}`[]
-        const valueGetters = intent.patchOperations.map(
-          (op) => op.valueGetter
-        ) as `0x${string}`[]
-
-        // For multiDeposit function:
-        // baseAmount parameter is at offset 36 (4 bytes function selector + 32 bytes address)
-        // doubledAmount parameter is at offset 68 (4 bytes function selector + 32 bytes address + 32 bytes baseAmount)
-        const offsetGroups = [
-          [BigInt(36)], // First operation patches at offset 36
-          [BigInt(68)], // Second operation patches at offset 68
-        ] as readonly (readonly bigint[])[]
-
-        // Create multi-patch call
-        const callData = encodeFunctionData({
-          abi: PATCHER_ABI,
-          functionName: 'executeWithMultiplePatches',
-          args: [
-            valueSources,
-            valueGetters,
-            intent.targetAddress,
-            BigInt(0), // value
-            intent.callDataToPatch,
-            offsetGroups,
-            intent.delegateCall ?? false,
-          ],
-        }) as `0x${string}`
-
-        const call: ICall = {
-          target: intent.patcherAddress,
-          callData,
-          value: intent.nativeValue ?? BigInt(0),
-          allowFailure: false,
-          isDelegateCall: false,
-        }
-
-        if (verbose) {
-          logSuccess('Multi-patch call created')
-        }
-
-        return right(call)
-      } catch (error) {
-        return left(
-          new Error(
-            `Failed to create multi-patch: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          )
-        )
-      }
-    }
-  }
-}
-
-// Using the CowShedSdk implementation from utils/lib/cowShedSdk.ts
-
-// Real implementation of CoW Protocol functions
-const calculateCowShedProxyAddress = async (
-  chainId: number,
-  owner: string
-): Promise<string> => {
-  console.log('calculateCowShedProxyAddress called with:', { chainId, owner })
-
-  if (!owner || owner === '0x0000000000000000000000000000000000000000') {
-    throw new Error('Owner address is undefined or empty')
-  }
-
-  console.log('Using COW_SHED_FACTORY:', COW_SHED_FACTORY)
-  console.log('Using COW_SHED_IMPLEMENTATION:', COW_SHED_IMPLEMENTATION)
-
-  // Validate inputs before creating the SDK
-  if (
-    !COW_SHED_FACTORY ||
-    COW_SHED_FACTORY === '0x0000000000000000000000000000000000000000'
-  ) {
-    throw new Error('COW_SHED_FACTORY is undefined or invalid')
-  }
-
-  if (
-    !COW_SHED_IMPLEMENTATION ||
-    COW_SHED_IMPLEMENTATION === '0x0000000000000000000000000000000000000000'
-  ) {
-    throw new Error('COW_SHED_IMPLEMENTATION is undefined or invalid')
-  }
-
-  // Use our new CowShedSdk implementation
-  const shedSDK = new CowShedSdk({
-    factoryAddress: COW_SHED_FACTORY,
-    implementationAddress: COW_SHED_IMPLEMENTATION,
+  constructor({
+    factoryAddress,
+    implementationAddress,
     chainId,
-  })
+  }: {
+    factoryAddress: string
+    implementationAddress: string
+    chainId: number
+  }) {
+    this.factoryAddress = factoryAddress
+    this.implementationAddress = implementationAddress
+    this.chainId = chainId
+  }
 
-  const proxyAddress = shedSDK.computeProxyAddress(owner)
-  console.log('Computed proxy address:', proxyAddress)
-  return proxyAddress
+  // Compute the deterministic proxy address for a user
+  computeProxyAddress(owner: string): string {
+    // This uses CREATE2 to compute the deterministic address
+    const salt = ethers.utils.solidityKeccak256(
+      ['address', 'address'],
+      [owner, this.implementationAddress]
+    )
+
+    const proxyBytecode =
+      '0x' +
+      ethers.utils
+        .solidityPack(
+          ['bytes', 'address'],
+          [
+            '0x3d602d80600a3d3981f3363d3d373d3d3d363d73',
+            this.implementationAddress,
+          ]
+        )
+        .slice(2) +
+      '5af43d82803e903d91602b57fd5bf3'
+
+    const create2Input = ethers.utils.solidityKeccak256(
+      ['bytes'],
+      [
+        ethers.utils.solidityPack(
+          ['bytes1', 'address', 'bytes32', 'bytes32'],
+          [
+            '0xff',
+            this.factoryAddress,
+            salt,
+            ethers.utils.keccak256(proxyBytecode),
+          ]
+        ),
+      ]
+    )
+
+    return ethers.utils.getAddress('0x' + create2Input.slice(26))
+  }
+
+  // Encode the executeHooks call for the factory
+  static encodeExecuteHooksForFactory(
+    calls: any[],
+    nonce: string,
+    deadline: bigint,
+    owner: string,
+    signature: string
+  ): string {
+    const cowShedFactoryAbi = parseAbi([
+      'function deployProxyAndExecuteHooks(address owner, address implementation, (address target, uint256 value, bytes callData, bool allowFailure, bool isDelegateCall)[] calls, bytes32 nonce, uint256 deadline, bytes signature) returns (address proxy)',
+    ])
+
+    return encodeFunctionData({
+      abi: cowShedFactoryAbi,
+      functionName: 'deployProxyAndExecuteHooks',
+      args: [
+        owner,
+        COW_SHED_IMPLEMENTATION,
+        calls.map((call) => ({
+          target: call.target,
+          value: call.value,
+          callData: call.callData,
+          allowFailure: call.allowFailure,
+          isDelegateCall: call.isDelegateCall,
+        })),
+        nonce,
+        deadline,
+        signature,
+      ],
+    })
+  }
 }
 
-const setupCowShedPostHooks = async (
+/**
+ * Setup CowShed post hooks for bridging USDC to BASE
+ */
+async function setupCowShedPostHooks(
   chainId: number,
   walletClient: any,
-  calls: ICall[],
-  verbose: boolean
-): Promise<{ shedDeterministicAddress: string; postHooks: any[] }> => {
+  usdcAddress: string,
+  receivedAmount: bigint
+) {
   const account = walletClient.account
   const signerAddress = account.address
 
-  console.log('Using COW_SHED_FACTORY:', COW_SHED_FACTORY)
-  console.log('Using COW_SHED_IMPLEMENTATION:', COW_SHED_IMPLEMENTATION)
-
   const shedSDK = new CowShedSdk({
     factoryAddress: COW_SHED_FACTORY,
     implementationAddress: COW_SHED_IMPLEMENTATION,
     chainId,
   })
 
-  // Generate nonce and deadline for CoW Shed
-  // Use a 32-byte nonce (bytes32)
+  // Generate a random nonce
   const nonce = `0x${Array.from({ length: 64 }, () =>
     Math.floor(Math.random() * 16).toString(16)
-  ).join('')}` as `0x${string}`
+  ).join('')}`
 
-  // Use a longer deadline to ensure it doesn't expire during testing
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 24 * 60 * 60) // now + 24 hours
+  // Set a deadline 24 hours from now
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 24 * 60 * 60)
 
   // Get the proxy address
   const shedDeterministicAddress = shedSDK.computeProxyAddress(signerAddress)
+  consola.info(`CowShed proxy address: ${shedDeterministicAddress}`)
 
-  // Sign with the wallet - use signTypedData with the exact same structure as the reference implementation
+  // Create the bridge data for LiFi
+  const bridgeData = {
+    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    bridge: 'across',
+    integrator: 'lifi-demo',
+    referrer: '0x0000000000000000000000000000000000000000',
+    sendingAssetId: usdcAddress,
+    receiver: signerAddress,
+    destinationChainId: 8453, // BASE chain ID
+    minAmount: receivedAmount,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
+  }
+
+  // Create AcrossV3Data
+  const acrossData = {
+    receiverAddress: signerAddress,
+    refundAddress: signerAddress,
+    receivingAssetId: BASE_USDC, // USDC on BASE
+    outputAmount: 0n, // This will be patched dynamically
+    outputAmountPercent: parseUnits('0.995', 18), // 0.5% fee (example)
+    exclusiveRelayer: '0x0000000000000000000000000000000000000000',
+    quoteTimestamp: Math.floor(Date.now() / 1000),
+    fillDeadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+    exclusivityDeadline: Math.floor(Date.now() / 1000),
+    message: '0x', // No message
+  }
+
+  // Encode the AcrossFacetV3 call
+  const acrossFacetAbi = parseAbi([
+    'function startBridgeTokensViaAcrossV3((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 destinationChainId, uint256 minAmount, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address receiverAddress, address refundAddress, address receivingAssetId, uint256 outputAmount, uint64 outputAmountPercent, address exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityDeadline, bytes message) _acrossData) payable',
+  ])
+
+  const acrossCalldata = encodeFunctionData({
+    abi: acrossFacetAbi,
+    functionName: 'startBridgeTokensViaAcrossV3',
+    args: [bridgeData, acrossData],
+  })
+
+  // Calculate the offset for the outputAmount field in the AcrossV3Data struct
+  // This is a fixed offset in the calldata where the outputAmount value needs to be patched
+  // The offset is calculated based on the ABI encoding of the function call
+  const outputAmountOffset = 644 // This offset needs to be calculated correctly
+
+  // Encode the balanceOf call to get the USDC balance
+  const valueGetter = encodeFunctionData({
+    abi: parseAbi([
+      'function balanceOf(address account) view returns (uint256)',
+    ]),
+    functionName: 'balanceOf',
+    args: [shedDeterministicAddress],
+  })
+
+  // Encode the patcher call
+  const patcherCalldata = encodeFunctionData({
+    abi: parseAbi([
+      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
+    ]),
+    functionName: 'executeWithDynamicPatches',
+    args: [
+      usdcAddress, // valueSource - USDC contract
+      valueGetter, // valueGetter - balanceOf call
+      LIFI_DIAMOND_ARBITRUM, // finalTarget - LiFiDiamond contract
+      0n, // value - no ETH being sent
+      acrossCalldata, // data - the encoded AcrossFacetV3 call
+      [outputAmountOffset], // offsets - position of outputAmount in the calldata
+      false, // delegateCall - regular call, not delegateCall
+    ],
+  })
+
+  // Define the post-swap call to the patcher
+  const postSwapCalls = [
+    {
+      target: PATCHER_ARBITRUM,
+      callData: patcherCalldata,
+      value: 0n,
+      allowFailure: false,
+      isDelegateCall: false,
+    },
+  ]
+
+  // Sign the typed data for the hooks
   const signature = await walletClient.signTypedData({
     account,
     domain: {
       name: 'COWShed',
       version: '1.0.0',
       chainId: BigInt(chainId),
-      verifyingContract: shedDeterministicAddress as `0x${string}`,
+      verifyingContract: shedDeterministicAddress,
     },
     types: {
       ExecuteHooks: [
@@ -372,7 +263,7 @@ const setupCowShedPostHooks = async (
     },
     primaryType: 'ExecuteHooks',
     message: {
-      calls: calls.map((call) => ({
+      calls: postSwapCalls.map((call) => ({
         target: call.target,
         value: call.value,
         callData: call.callData,
@@ -386,36 +277,21 @@ const setupCowShedPostHooks = async (
 
   // Encode the post hooks call data
   const shedEncodedPostHooksCallData = CowShedSdk.encodeExecuteHooksForFactory(
-    calls,
+    postSwapCalls,
     nonce,
     deadline,
     signerAddress,
     signature
   )
 
-  // Log the encoded post hooks calldata
-  console.log('Encoded post hooks calldata:')
-  console.log(`Calldata: ${shedEncodedPostHooksCallData}`)
-  console.log(`Calldata length: ${shedEncodedPostHooksCallData.length} bytes`)
-
   // Create the post hooks
   const postHooks = [
     {
       target: COW_SHED_FACTORY,
       callData: shedEncodedPostHooksCallData,
-      gasLimit: '3000000', // Increased gas limit for full calldata
+      gasLimit: '3000000',
     },
   ]
-
-  // Log information if verbose is true
-  if (verbose) {
-    logKeyValue('CoW-Shed deterministic address', shedDeterministicAddress)
-    logSuccess('Post hook ready for execution through CoW Protocol')
-    logKeyValue(
-      'CoW-Shed encoded post-hook',
-      truncateCalldata(shedEncodedPostHooksCallData, 25)
-    )
-  }
 
   return {
     shedDeterministicAddress,
@@ -423,422 +299,170 @@ const setupCowShedPostHooks = async (
   }
 }
 
-const cowFlow = async (
-  chainId: number,
-  walletClient: any,
-  fromToken: Token,
-  toToken: Token,
-  fromAmount: bigint,
-  postReceiver: string,
-  preHooks: readonly any[],
-  postHooks: readonly any[]
-): Promise<Result<Error, string>> => {
+/**
+ * Main function to execute the demo
+ */
+async function main(options: { privateKey: string; dryRun: boolean }) {
   try {
-    console.log('Executing CoW Protocol flow...')
-    console.log('From token:', fromToken.address)
-    console.log('To token:', toToken.address)
-    console.log('Amount:', fromAmount.toString())
-    console.log('Receiver:', postReceiver)
-    console.log('Post hooks count:', postHooks.length)
+    consola.start('Starting CowSwap with Patcher demo')
 
-    // Get the private key from the environment
-    const privateKeyRaw = process.env.PRIVATE_KEY
-    if (!privateKeyRaw) {
-      throw new Error('PRIVATE_KEY environment variable is not set')
-    }
-
-    // Ensure the private key has the correct format
-    const privateKey = privateKeyRaw.startsWith('0x')
-      ? privateKeyRaw
-      : `0x${privateKeyRaw}`
-
-    // Create an ethers.js wallet from the private key
-    const provider = new ethers.providers.JsonRpcProvider(
-      process.env.ETH_NODE_URI_ARBITRUM
-    )
-    const ethersSigner = new ethers.Wallet(privateKey, provider)
-
-    // Initialize the CoW Protocol SDK with the ethers.js signer for Arbitrum
-    const cowSdk = new TradingSdk({
-      chainId: SupportedChainId.ARBITRUM_ONE,
-      signer: ethersSigner,
-      appCode: 'LiFi',
+    // Set up wallet client
+    const account = privateKeyToAccount(options.privateKey as Hex)
+    const walletClient = createWalletClient({
+      chain: arbitrum,
+      transport: http(),
+      account,
     })
 
-    // Get the VaultRelayer address for Arbitrum
-    const vaultRelayerAddress = '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110'
-    console.log(`VaultRelayer address: ${vaultRelayerAddress}`)
+    const walletAddress = account.address
+    consola.info(`Connected wallet: ${walletAddress}`)
 
-    // Create ERC20 contract instance for the sell token
-    const sellTokenContract = new ethers.Contract(
-      fromToken.address,
-      [
-        'function approve(address spender, uint256 amount) public returns (bool)',
-        'function allowance(address owner, address spender) public view returns (uint256)',
-      ],
-      ethersSigner
-    )
+    // Amount to swap: 0.001 WETH
+    const swapAmount = parseUnits('0.001', 18)
+    consola.info(`Swap amount: 0.001 WETH`)
 
-    // Check current allowance
-    const currentAllowance = await sellTokenContract.allowance(
-      ethersSigner.address,
-      vaultRelayerAddress
-    )
-    console.log(`Current allowance: ${currentAllowance.toString()}`)
+    // Check WETH balance and approve if needed
+    const wethContract = getContract({
+      address: ARBITRUM_WETH as Hex,
+      abi: ERC20_ABI,
+      client: { public: walletClient, wallet: walletClient },
+    })
 
-    // If allowance is insufficient, approve the token
-    if (currentAllowance.lt(fromAmount)) {
-      console.log('Approving token for CoW Protocol VaultRelayer...')
-      const maxApproval = ethers.constants.MaxUint256
-      const approveTx = await sellTokenContract.approve(
-        vaultRelayerAddress,
-        maxApproval
-      )
-      console.log(`Approval transaction hash: ${approveTx.hash}`)
+    const wethBalance = await wethContract.read.balanceOf([walletAddress])
+    consola.info(`WETH balance: ${wethBalance}`)
 
-      // Wait for the approval transaction to be confirmed
-      console.log('Waiting for approval transaction to be confirmed...')
-      await approveTx.wait()
-      console.log('Token approved successfully')
-    } else {
-      console.log('Token already has sufficient allowance')
+    if (wethBalance < swapAmount) {
+      consola.error(`Insufficient WETH balance. Need at least 0.001 WETH.`)
+      process.exit(1)
     }
+
+    // Check allowance
+    const allowance = await wethContract.read.allowance([
+      walletAddress,
+      VAULT_RELAYER_ARBITRUM,
+    ])
+    consola.info(`Current allowance: ${allowance}`)
+
+    if (allowance < swapAmount) {
+      consola.info('Approving WETH for CoW Protocol VaultRelayer...')
+      if (!options.dryRun) {
+        const approveTx = await wethContract.write.approve([
+          VAULT_RELAYER_ARBITRUM,
+          BigInt(
+            '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+          ), // Max uint256
+        ])
+        consola.success(`Approval transaction sent: ${approveTx}`)
+      } else {
+        consola.info(`[DRY RUN] Would approve WETH for VaultRelayer`)
+      }
+    }
+
+    // Set up CowShed post hooks
+    const { shedDeterministicAddress, postHooks } = await setupCowShedPostHooks(
+      42161, // Arbitrum chain ID
+      walletClient,
+      ARBITRUM_USDC,
+      parseUnits('0', 6) // This will be dynamically patched
+    )
+
+    // Create ethers provider and signer for CoW SDK
+    const provider = new ethers.providers.JsonRpcProvider(
+      arbitrum.rpcUrls.default.http[0]
+    )
+    const ethersSigner = new ethers.Wallet(options.privateKey, provider)
+
+    // Initialize CoW SDK
+    const cowSdk = new TradingSdk({
+      chainId: SupportedChainId.ARBITRUM,
+      signer: ethersSigner,
+      appCode: 'lifi-demo',
+    })
 
     // Create the order parameters
-    const parameters: TradeParameters = {
+    const parameters = {
       kind: OrderKind.SELL,
-      sellToken: fromToken.address,
-      sellTokenDecimals: fromToken.decimals,
-      buyToken: toToken.address,
-      buyTokenDecimals: toToken.decimals,
-      amount: fromAmount.toString(),
-      receiver: postReceiver,
-      // Add a reasonable validity period (30 minutes)
+      sellToken: ARBITRUM_WETH,
+      sellTokenDecimals: 18,
+      buyToken: ARBITRUM_USDC,
+      buyTokenDecimals: 6,
+      amount: swapAmount.toString(),
+      receiver: shedDeterministicAddress, // Important: Set the receiver to the CowShed proxy
       validFor: 30 * 60, // 30 minutes in seconds
-      // Add a reasonable slippage (0.5%)
-      slippageBps: 50,
+      slippageBps: 50, // 0.5% slippage
     }
 
-    // Add post hooks - this script requires post hooks
-    if (!postHooks || postHooks.length === 0) {
-      return left(
-        new Error('Post hooks are required for this script to function')
-      )
-    }
-
-    // Create post hooks with full calldata
-    const simplifiedPostHooks = postHooks.map((hook) => ({
-      target: hook.target,
-      callData: hook.callData, // Use the full calldata without truncation
-      gasLimit: '3000000',
-    }))
-
-    // Log the full calldata for debugging
-    console.log('Full post hook calldata:')
-    simplifiedPostHooks.forEach((hook, index) => {
-      console.log(`Hook ${index + 1} target: ${hook.target}`)
-      console.log(`Hook ${index + 1} calldata: ${hook.callData}`)
-      console.log(
-        `Hook ${index + 1} calldata length: ${hook.callData.length} bytes`
-      )
-    })
-
-    // Create advanced settings with the correct format
-    const advancedSettings: SwapAdvancedSettings = {
+    // Create advanced settings with post hooks
+    const advancedSettings = {
       appData: {
         metadata: {
           hooks: {
             version: '1',
             pre: [],
-            post: simplifiedPostHooks,
+            post: postHooks,
           },
         },
       },
     }
 
     // Submit the order with post hooks
-    const orderId = await cowSdk.postSwapOrder(parameters, advancedSettings)
-    return right(orderId)
-  } catch (error) {
-    console.error('CoW Protocol error details:', error)
-    return left(
-      new Error(
-        `Failed to execute CoW flow: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      )
-    )
-  }
-}
+    if (!options.dryRun) {
+      consola.info('Submitting order to CowSwap...')
+      try {
+        // Add a timeout to the order submission
+        const orderPromise = cowSdk.postSwapOrder(parameters, advancedSettings)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(
+            () =>
+              reject(new Error('Order submission timed out after 30 seconds')),
+            30000
+          )
+        })
 
-// Main demo function
-const demoPatcher = async (): Promise<Result<Error, string>> => {
-  try {
-    logSectionHeader('Running Patcher Example with Post-Swap Flow')
-
-    // Setup environment
-    console.log('Setting up environment...')
-
-    // Get private key and ensure it has the correct format
-    const privateKeyRaw = process.env.PRIVATE_KEY
-    if (!privateKeyRaw) {
-      throw new Error('PRIVATE_KEY environment variable is not set')
-    }
-
-    // Ensure the private key has the correct format (0x prefix)
-    const privateKey = privateKeyRaw.startsWith('0x')
-      ? (privateKeyRaw as `0x${string}`)
-      : (`0x${privateKeyRaw}` as `0x${string}`)
-
-    console.log('Creating account...')
-    const account = privateKeyToAccount(privateKey)
-    console.log('Account address:', account.address)
-
-    console.log('Creating clients for Arbitrum...')
-    const rpcUrl = process.env.ETH_NODE_URI_ARBITRUM
-    if (!rpcUrl) {
-      throw new Error('ETH_NODE_URI_ARBITRUM environment variable is not set')
-    }
-
-    const publicClient = createPublicClient({
-      chain: arbitrum,
-      transport: http(rpcUrl),
-    })
-
-    const walletClient = createWalletClient({
-      chain: arbitrum,
-      transport: http(rpcUrl),
-      account,
-    })
-
-    console.log('Getting contract addresses...')
-    // Get the Patcher address from deployments
-    const patcherAddress = deploymentsArbitrum.Patcher
-    if (
-      !patcherAddress ||
-      patcherAddress === '0x0000000000000000000000000000000000000000'
-    ) {
-      throw new Error(
-        'Patcher address not found in deployments or is zero address'
-      )
-    }
-    console.log('Patcher address:', patcherAddress)
-
-    const baseValuePlaceholder = '1000000000000000000'
-    const doubledValuePlaceholder = '2000000000000000000'
-
-    const originalTokenOwner = account.address
-    // Use the correct Arbitrum chain ID
-    const chainId = 42161 // Arbitrum One
-
-    // Define token information for Arbitrum
-    console.log('Setting up token information for Arbitrum...')
-    const fromToken = {
-      address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1' as `0x${string}`, // WETH on Arbitrum
-      decimals: 18,
-    }
-
-    const toToken = {
-      address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as `0x${string}`, // USDC on Arbitrum
-      decimals: 6,
-    }
-
-    // Calculate CoW Shed proxy address
-    console.log('Calculating CoW Shed proxy address...')
-    const shedProxyAddress = await calculateCowShedProxyAddress(
-      chainId,
-      originalTokenOwner
-    )
-    console.log('Shed proxy address:', shedProxyAddress)
-
-    // Define transaction intents
-    console.log('Defining transaction intents...')
-    const transactionIntents: readonly TransactionIntent[] = [
-      {
-        type: 'dynamicValue',
-        patcherAddress: patcherAddress as `0x${string}`,
-        valueSource: toToken.address,
-        valueGetter: encodeBalanceOfCall(shedProxyAddress),
-        targetAddress: DUMMY_TARGET,
-        callDataToPatch: encodeFunctionData({
-          abi: DUMMY_TARGET_ABI,
-          functionName: 'deposit',
-          args: [toToken.address, BigInt(baseValuePlaceholder), true],
-        }),
-        valueToReplace: baseValuePlaceholder,
-        nativeValue: BigInt(0),
-      },
-      {
-        type: 'multiPatch',
-        patcherAddress: patcherAddress as `0x${string}`,
-        targetAddress: DUMMY_TARGET,
-        callDataToPatch: encodeFunctionData({
-          abi: DUMMY_TARGET_ABI,
-          functionName: 'multiDeposit',
-          args: [
-            toToken.address,
-            BigInt(baseValuePlaceholder),
-            BigInt(doubledValuePlaceholder),
-            true,
-          ],
-        }),
-        patchOperations: [
-          {
-            valueSource: toToken.address,
-            valueGetter: encodeBalanceOfCall(shedProxyAddress),
-            valueToReplace: baseValuePlaceholder,
-          },
-          {
-            valueSource: DUMMY_TARGET,
-            valueGetter: encodeGetDoubledBalanceCall(
-              toToken.address as string,
-              shedProxyAddress
-            ),
-            valueToReplace: doubledValuePlaceholder,
-          },
-        ],
-        nativeValue: BigInt(0),
-      },
-      {
-        type: 'dynamicValue',
-        patcherAddress: patcherAddress as `0x${string}`,
-        valueSource: toToken.address,
-        valueGetter: encodeBalanceOfCall(shedProxyAddress),
-        targetAddress: toToken.address,
-        callDataToPatch: encodeTransferCall(
-          originalTokenOwner,
-          baseValuePlaceholder
-        ),
-        valueToReplace: baseValuePlaceholder,
-        nativeValue: BigInt(0),
-      },
-    ]
-
-    logKeyValue('Patcher Address', patcherAddress)
-    logKeyValue('From Token', fromToken.address)
-    logKeyValue('To Token', toToken.address)
-
-    // Process transaction intents
-    console.log('Processing transaction intents...')
-    const processedIntents = transactionIntents.map((intent, index) => {
-      logSectionHeader(`Processing intent ${index + 1} (type: ${intent.type})`)
-      return processTransactionIntent(intent, true)
-    })
-
-    // Check for any errors in the processed intents
-    console.log('Checking for errors in processed intents...')
-    const errorResult = processedIntents.find(
-      (result) => result._type === 'Left'
-    )
-    if (errorResult && errorResult._type === 'Left') {
-      return errorResult
-    }
-
-    // Extract the successful calls
-    console.log('Extracting successful calls...')
-    const calls = processedIntents
-      .filter(
-        (result): result is { readonly _type: 'Right'; readonly data: ICall } =>
-          result._type === 'Right'
-      )
-      .map((result) => result.data)
-
-    // Setup post hooks for CoW Shed
-    console.log('Setting up post hooks for CoW Shed...')
-    const setupResult = await setupCowShedPostHooks(
-      chainId,
-      walletClient,
-      calls,
-      true
-    )
-
-    const { shedDeterministicAddress, postHooks } = setupResult
-
-    // Amount to swap (for example, 0.1 token)
-    console.log('Calculating swap amount...')
-    const fromAmount = parseUnits('0.001', fromToken.decimals)
-
-    logSectionHeader('Creating CoW Swap Order')
-    logKeyValue('From Token', fromToken.address)
-    logKeyValue('To Token', toToken.address)
-    logKeyValue('Amount', fromAmount.toString())
-    logKeyValue('Token Receiver', shedProxyAddress)
-    logKeyValue('Post-hook receiver', shedDeterministicAddress)
-
-    // Log the original post hooks
-    console.log('Original post hooks:')
-    postHooks.forEach((hook, index) => {
-      console.log(`Original hook ${index + 1} target: ${hook.target}`)
-      console.log(`Original hook ${index + 1} calldata: ${hook.callData}`)
-      console.log(
-        `Original hook ${index + 1} calldata length: ${
-          hook.callData.length
-        } bytes`
-      )
-    })
-
-    // Execute the CoW Protocol flow
-    console.log('Executing CoW Protocol flow...')
-    const cowHashResult = await cowFlow(
-      chainId,
-      walletClient,
-      fromToken,
-      toToken,
-      fromAmount,
-      shedProxyAddress,
-      [],
-      [...postHooks]
-    )
-
-    if (cowHashResult._type === 'Left') {
-      return cowHashResult
-    }
-
-    const orderHash = cowHashResult.data
-
-    logSectionHeader('CoW Swap Order Created')
-    logSuccess('Order submitted successfully')
-    logKeyValue('Order hash', orderHash)
-    logKeyValue(
-      'Explorer URL',
-      `https://explorer.cow.fi/orders/${orderHash}?chainId=${chainId}`
-    )
-
-    return right(
-      `Patcher integrated with CoW Protocol - Order created with hash: ${orderHash}`
-    )
-  } catch (error) {
-    console.error('Error in demoPatcher:', error)
-    return left(
-      new Error(
-        `Failed to execute patcher demo: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      )
-    )
-  }
-}
-
-async function main() {
-  try {
-    const result = await demoPatcher()
-    if (result && result._type === 'Left') {
-      console.error(
-        `Error: ${result.error ? result.error.message : 'Unknown error'}`
-      )
-      process.exit(1)
-    } else if (result && result._type === 'Right') {
-      console.log(result.data)
-      process.exit(0)
+        const orderId = await Promise.race([orderPromise, timeoutPromise])
+        consola.success(`Order created with hash: ${orderId}`)
+        consola.info(
+          `Explorer URL: https://explorer.cow.fi/orders/${orderId}?chainId=42161`
+        )
+      } catch (error) {
+        consola.error('Error submitting order to CowSwap:', error)
+        throw error
+      }
     } else {
-      console.error('Unexpected result format')
-      process.exit(1)
+      consola.info(`[DRY RUN] Would submit order to CowSwap with post hooks`)
+      consola.info(`Parameters: ${JSON.stringify(parameters, null, 2)}`)
+      consola.info(`Post hooks: ${JSON.stringify(postHooks, null, 2)}`)
     }
+
+    consola.success('Demo completed successfully')
   } catch (error) {
-    console.error('Unexpected error:', error)
+    consola.error('Error executing demo:', error)
     process.exit(1)
   }
 }
 
-// Run the script
-main()
+// CLI command definition
+const cmd = defineCommand({
+  meta: {
+    name: 'demoPatcher',
+    description: 'Demo script for CowSwap with Patcher contract',
+  },
+  args: {
+    privateKey: {
+      type: 'string',
+      description: 'Private key for the wallet',
+      required: true,
+    },
+    dryRun: {
+      type: 'boolean',
+      description: 'Run in dry-run mode without submitting transactions',
+      default: false,
+    },
+  },
+  run: async ({ args }) => {
+    await main(args)
+  },
+})
+
+// Run the command
+runMain(cmd)
