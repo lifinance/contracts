@@ -10,6 +10,8 @@ import { TestRelayFacet } from "../Facets/RelayFacet.t.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
+
 contract LidoWrapperTest is TestBase {
     LidoWrapper private lidoWrapper;
     address private constant ST_ETH_ADDRESS_OPTIMISM =
@@ -29,6 +31,7 @@ contract LidoWrapperTest is TestBase {
     address internal relaySolver = vm.addr(privateKey);
     TestRelayFacet internal relayFacet;
     RelayFacet.RelayData internal validRelayData;
+    GenericSwapFacetV3 internal genericSwapFacetV3;
 
     function setUp() public {
         vm.label(ST_ETH_ADDRESS_OPTIMISM, "stETH");
@@ -212,7 +215,7 @@ contract LidoWrapperTest is TestBase {
         );
 
         // (fake-)sign relayData
-        validRelayData.signature = signData(bridgeData, validRelayData);
+        validRelayData.signature = _signData(bridgeData, validRelayData);
 
         // call diamond
         relayFacet.swapAndStartBridgeTokensViaRelay(
@@ -262,7 +265,7 @@ contract LidoWrapperTest is TestBase {
         );
 
         // (fake-)sign relayData
-        validRelayData.signature = signData(bridgeData, validRelayData);
+        validRelayData.signature = _signData(bridgeData, validRelayData);
 
         // call diamond
         relayFacet.swapAndStartBridgeTokensViaRelay(
@@ -274,8 +277,8 @@ contract LidoWrapperTest is TestBase {
         vm.stopPrank();
     }
 
-    // TODO: UPDATE
     function test_canWrapStEthTokensViaDiamondGenericSwap() public {
+        _deployAndAddGenericSwapFacetV3ToDiamond();
         vm.startPrank(USER_SENDER);
 
         uint256 stEthBalanceBefore = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
@@ -288,9 +291,6 @@ contract LidoWrapperTest is TestBase {
             stEthBalanceBefore
         );
 
-        // update bridgeData
-        bridgeData.minAmount = 83152588364537669;
-
         // prepare LidoWrapper swapData
         delete swapData;
         swapData.push(
@@ -299,30 +299,31 @@ contract LidoWrapperTest is TestBase {
                 approveTo: address(lidoWrapper),
                 sendingAssetId: ST_ETH_ADDRESS_OPTIMISM,
                 receivingAssetId: WST_ETH_ADDRESS_OPTIMISM,
-                fromAmount: 0.1 ether - 1,
+                fromAmount: stEthBalanceBefore,
                 callData: abi.encodeWithSelector(
                     lidoWrapper.wrapStETHToWstETH.selector,
-                    0.1 ether - 1
+                    stEthBalanceBefore
                 ),
                 requiresDeposit: true
             })
         );
 
-        // (fake-)sign relayData
-        validRelayData.signature = signData(bridgeData, validRelayData);
-
-        // call diamond
-        relayFacet.swapAndStartBridgeTokensViaRelay(
-            bridgeData,
-            swapData,
-            validRelayData
+        // call GenericSwapFacetV3 via diamond
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20(
+            "RandomId",
+            "integrator",
+            "referrer",
+            payable(USER_RECEIVER),
+            bridgeData.minAmount,
+            swapData[0]
         );
 
         vm.stopPrank();
     }
 
-    // TODO: UPDATE
     function test_canUnwrapWstEthTokensViaDiamondGenericSwap() public {
+        _deployAndAddGenericSwapFacetV3ToDiamond();
+
         vm.startPrank(USER_SENDER);
 
         uint256 wstEthBalanceBefore = IERC20(WST_ETH_ADDRESS_OPTIMISM)
@@ -337,11 +338,6 @@ contract LidoWrapperTest is TestBase {
         // update bridgeData
         bridgeData.minAmount = 0.1 ether;
         bridgeData.sendingAssetId = ST_ETH_ADDRESS_OPTIMISM;
-
-        // update relayData
-        validRelayData.receivingAssetId = bytes32(
-            uint256(uint160(ST_ETH_ADDRESS_MAINNET))
-        );
 
         // prepare LidoWrapper swapData
         delete swapData;
@@ -360,20 +356,20 @@ contract LidoWrapperTest is TestBase {
             })
         );
 
-        // (fake-)sign relayData
-        validRelayData.signature = signData(bridgeData, validRelayData);
-
-        // call diamond
-        relayFacet.swapAndStartBridgeTokensViaRelay(
-            bridgeData,
-            swapData,
-            validRelayData
+        // call GenericSwapFacetV3 via diamond
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20(
+            "RandomId",
+            "integrator",
+            "referrer",
+            payable(USER_RECEIVER),
+            bridgeData.minAmount,
+            swapData[0]
         );
 
         vm.stopPrank();
     }
 
-    function signData(
+    function _signData(
         ILiFi.BridgeData memory _bridgeData,
         RelayFacet.RelayData memory _relayData
     ) internal view returns (bytes memory) {
@@ -399,5 +395,20 @@ contract LidoWrapperTest is TestBase {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, message);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
+    }
+
+    function _deployAndAddGenericSwapFacetV3ToDiamond() internal {
+        // deploy GenericSwapFacet
+        genericSwapFacetV3 = new GenericSwapFacetV3(address(0));
+
+        // prepare function selectors
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = genericSwapFacetV3
+            .swapTokensSingleV3ERC20ToERC20
+            .selector;
+
+        // add facet to diamond and  store diamond with facet interface in variable
+        addFacet(diamond, address(genericSwapFacetV3), functionSelectors);
+        genericSwapFacetV3 = GenericSwapFacetV3(address(diamond));
     }
 }
