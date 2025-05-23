@@ -6,9 +6,6 @@
  * Relay is a cross-chain payments system enabling instant, low-cost bridging
  * and cross-chain execution using relayers as financial agents.
  *
- * Note: There are some TypeScript errors related to the `0x${string}` type that could be fixed
- * with more type assertions, but the script should work correctly as is. The main issue with
- * the TraderParameters has been fixed.
  */
 
 import {
@@ -19,7 +16,6 @@ import {
   http,
   getContract,
   Hex,
-  getCreate2Address,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum, base } from 'viem/chains'
@@ -28,17 +24,16 @@ import { ethers } from 'ethers'
 import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import patcherArtifact from '../../out/Patcher.sol/Patcher.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 
 // Constants
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
-const LIFI_DIAMOND_ARBITRUM = '0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782'
-const PATCHER_ARBITRUM = '0xE65b50EcF482f97f53557f0E02946aa27f8839EC'
-const COW_SHED_FACTORY = '0x00E989b87700514118Fa55326CD1cCE82faebEF6'
-const COW_SHED_IMPLEMENTATION = '0x2CFFA8cf11B90C9F437567b86352169dF4009F73'
+import arbitrumDeployments from '../../deployments/arbitrum.staging.json'
+const LIFI_DIAMOND_ARBITRUM = arbitrumDeployments.LiFiDiamond
+const PATCHER_ARBITRUM = arbitrumDeployments.Patcher
+import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'
 const VAULT_RELAYER_ARBITRUM = '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110'
 // The creationCode of CoWShedProxy (type(COWShedProxy).creationCode)
 const PROXY_CREATION_CODE =
@@ -46,7 +41,6 @@ const PROXY_CREATION_CODE =
 
 // ABIs
 const ERC20_ABI = erc20Artifact.abi
-const PATCHER_ABI = patcherArtifact.abi
 
 /**
  * CowShed SDK for computing deterministic proxy addresses and encoding hook calls
@@ -79,12 +73,12 @@ class CowShedSdk {
         PROXY_CREATION_CODE,
         ethers.utils.defaultAbiCoder.encode(
           ['address', 'address'],
-          [COW_SHED_IMPLEMENTATION, owner]
+          [this.implementationAddress, owner]
         ),
       ]
     )
     return ethers.utils.getCreate2Address(
-      COW_SHED_FACTORY,
+      this.factoryAddress,
       salt,
       initCodeHash
     ) as `0x${string}`
