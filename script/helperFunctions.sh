@@ -2028,7 +2028,7 @@ function getCoreFacetsArray() {
 }
 
 # Function to check if NETWORKS_JSON_FILE_PATH is set and valid
-checkNetworksJsonFilePath() {
+function checkNetworksJsonFilePath() {
   if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
     error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
     return 1
@@ -2796,14 +2796,13 @@ function getRPCUrl() {
 function getRpcUrlFromNetworksJson() {
   local NETWORK="$1"
 
+  # make sure networks.json exists
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-  if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
-    echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
-    return 1
-  fi
 
+  # extract RPC URL from networks.json for given network
   local RPC_URL=$(jq -r --arg network "$NETWORK" '.[$network].rpcUrl // empty' "$NETWORKS_JSON_FILE_PATH")
 
+  # make sure a value was found
   if [[ -z "$RPC_URL" ]]; then
     echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
     return 1
@@ -3006,6 +3005,7 @@ function extractDeployedAddressFromRawReturnData() {
     # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
     local COUNT=0
     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
+      # check if address contains and bytecode and leave the loop if bytecode is found
       if [[ "$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")" == "true" ]]; then
         break
       fi

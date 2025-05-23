@@ -158,8 +158,8 @@
         "Version": "1.0.0"
       },
       "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
-        "Name": "",
-        "Version": ""
+        "Name": "ChainflipFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
