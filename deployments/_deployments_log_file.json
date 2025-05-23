@@ -32530,6 +32530,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x462A9B6879770050021823D63aE62470E65Af8D4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-23 14:33:50",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000076a50b8c7349ccddb7578c6627e79b5d99d241380000000000000000000000001f32b1c2345538c0c6f582fcb022739c4a194ebb000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     }
   }
