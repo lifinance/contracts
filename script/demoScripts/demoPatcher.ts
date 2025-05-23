@@ -161,22 +161,75 @@ async function setupCowShedPostHooks(
   }
 
   // Create RelayData
-  // Generate a random requestId for the demo
-  const requestId = `0x${randomBytes(32).toString('hex')}` as `0x${string}`
+  // First, create a quote request with a realistic amount
+  const estimatedUsdcAmount = '1000000' // 1 USDC (6 decimals)
 
-  // Create a dummy signature for demo purposes
-  // In a real scenario, this would be obtained from the Relay API
-  const relaySignature = `0x${randomBytes(65).toString('hex')}` as `0x${string}`
+  // Get a real signature from the Relay API
+  // First, create a quote request
+  const quoteParams = {
+    user: LIFI_DIAMOND_ARBITRUM,
+    originChainId: 42161, // Arbitrum
+    destinationChainId: 8453, // BASE
+    originCurrency: ARBITRUM_USDC,
+    destinationCurrency: BASE_USDC,
+    recipient: signerAddress,
+    tradeType: 'EXACT_INPUT',
+    amount: estimatedUsdcAmount, // Use a realistic amount instead of 0
+    referrer: 'lifi-demo',
+    useExternalLiquidity: false,
+  }
+
+  // Fetch the quote from the Relay API
+  consola.info('Fetching quote from Relay API...')
+  const quoteResponse = await fetch('https://api.relay.link/quote', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(quoteParams),
+  })
+
+  if (!quoteResponse.ok) {
+    throw new Error(
+      `Failed to get quote from Relay API: ${quoteResponse.statusText}`
+    )
+  }
+
+  const quoteData = await quoteResponse.json()
+  const relayRequestId = quoteData.steps[0].requestId
+  consola.info(`Got requestId from Relay API: ${relayRequestId}`)
+
+  // Fetch the signature from the Relay API
+  consola.info('Fetching signature from Relay API...')
+  const signatureResponse = await fetch(
+    `https://api.relay.link/requests/${relayRequestId}/signature/v2`,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+
+  if (!signatureResponse.ok) {
+    throw new Error(
+      `Failed to get signature from Relay API: ${signatureResponse.statusText}`
+    )
+  }
+
+  const signatureData = await signatureResponse.json()
+  const relaySignature = signatureData.signature as `0x${string}`
+  consola.info(
+    `Got signature from Relay API: ${relaySignature.slice(
+      0,
+      10
+    )}...${relaySignature.slice(-8)}`
+  )
 
   const relayData = {
-    requestId: requestId,
+    requestId: relayRequestId,
     nonEVMReceiver:
       '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // Not bridging to non-EVM chain
     receivingAssetId: `0x${BASE_USDC.slice(2).padStart(
       64,
       '0'
     )}` as `0x${string}`, // USDC on BASE as bytes32
-    signature: relaySignature, // This would be obtained from the Relay API in a real scenario
+    signature: relaySignature, // Real signature from the Relay API
   }
 
   // Encode the RelayFacet call
