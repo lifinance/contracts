@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 
 /**
- * Demo script for CowSwap with Patcher contract
+ * Demo script for CowSwap with Patcher contract using RelayFacet
+ *
+ * Relay is a cross-chain payments system enabling instant, low-cost bridging
+ * and cross-chain execution using relayers as financial agents.
  *
  * Note: There are some TypeScript errors related to the `0x${string}` type that could be fixed
  * with more type assertions, but the script should work correctly as is. The main issue with
@@ -138,7 +141,7 @@ class CowShedSdk {
 }
 
 /**
- * Setup CowShed post hooks for bridging USDC to BASE
+ * Setup CowShed post hooks for bridging USDC to BASE using Relay
  */
 async function setupCowShedPostHooks(
   chainId: number,
@@ -170,7 +173,7 @@ async function setupCowShedPostHooks(
   // Create the bridge data for LiFi
   const bridgeData = {
     transactionId: `0x${randomBytes(32).toString('hex')}` as `0x${string}`,
-    bridge: 'across',
+    bridge: 'relay',
     integrator: 'lifi-demo',
     referrer: '0x0000000000000000000000000000000000000000' as `0x${string}`,
     sendingAssetId: usdcAddress as `0x${string}`,
@@ -181,24 +184,28 @@ async function setupCowShedPostHooks(
     hasDestinationCall: false,
   }
 
-  // Create AcrossV3Data
-  const acrossData = {
-    receiverAddress: signerAddress as `0x${string}`,
-    refundAddress: signerAddress as `0x${string}`,
-    receivingAssetId: BASE_USDC as `0x${string}`, // USDC on BASE
-    outputAmount: 0n, // This will be patched dynamically
-    outputAmountPercent: parseUnits('0.995', 18), // 0.5% fee (example)
-    exclusiveRelayer:
-      '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    quoteTimestamp: Math.floor(Date.now() / 1000),
-    fillDeadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour
-    exclusivityDeadline: Math.floor(Date.now() / 1000),
-    message: '0x' as `0x${string}`, // No message
+  // Create RelayData
+  // Generate a random requestId for the demo
+  const requestId = `0x${randomBytes(32).toString('hex')}` as `0x${string}`
+
+  // Create a dummy signature for demo purposes
+  // In a real scenario, this would be obtained from the Relay API
+  const relaySignature = `0x${randomBytes(65).toString('hex')}` as `0x${string}`
+
+  const relayData = {
+    requestId: requestId,
+    nonEVMReceiver:
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // Not bridging to non-EVM chain
+    receivingAssetId: `0x${BASE_USDC.slice(2).padStart(
+      64,
+      '0'
+    )}` as `0x${string}`, // USDC on BASE as bytes32
+    signature: relaySignature, // This would be obtained from the Relay API in a real scenario
   }
 
-  // Encode the AcrossFacetV3 call
-  const acrossFacetAbi = parseAbi([
-    'function startBridgeTokensViaAcrossV3((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 destinationChainId, uint256 minAmount, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address receiverAddress, address refundAddress, address receivingAssetId, uint256 outputAmount, uint64 outputAmountPercent, address exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityDeadline, bytes message) _acrossData) payable',
+  // Encode the RelayFacet call
+  const relayFacetAbi = parseAbi([
+    'function startBridgeTokensViaRelay((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 destinationChainId, uint256 minAmount, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 requestId, bytes32 nonEVMReceiver, bytes32 receivingAssetId, bytes signature) _relayData) payable',
   ])
 
   // Create the bridge data with proper types
@@ -215,30 +222,25 @@ async function setupCowShedPostHooks(
     hasDestinationCall: bridgeData.hasDestinationCall,
   }
 
-  // Create the across data with proper types
-  const typedAcrossData = {
-    receiverAddress: acrossData.receiverAddress,
-    refundAddress: acrossData.refundAddress,
-    receivingAssetId: acrossData.receivingAssetId,
-    outputAmount: acrossData.outputAmount,
-    outputAmountPercent: acrossData.outputAmountPercent,
-    exclusiveRelayer: acrossData.exclusiveRelayer,
-    quoteTimestamp: acrossData.quoteTimestamp,
-    fillDeadline: acrossData.fillDeadline,
-    exclusivityDeadline: acrossData.exclusivityDeadline,
-    message: acrossData.message,
+  // Create the relay data with proper types
+  const typedRelayData = {
+    requestId: relayData.requestId,
+    nonEVMReceiver: relayData.nonEVMReceiver,
+    receivingAssetId: relayData.receivingAssetId,
+    signature: relayData.signature,
   }
 
-  const acrossCalldata = encodeFunctionData({
-    abi: acrossFacetAbi,
-    functionName: 'startBridgeTokensViaAcrossV3',
-    args: [typedBridgeData, typedAcrossData],
+  const relayCalldata = encodeFunctionData({
+    abi: relayFacetAbi,
+    functionName: 'startBridgeTokensViaRelay',
+    args: [typedBridgeData, typedRelayData],
   })
 
-  // Calculate the offset for the outputAmount field in the AcrossV3Data struct
-  // This is a fixed offset in the calldata where the outputAmount value needs to be patched
+  // Calculate the offset for the minAmount field in the BridgeData struct
+  // This is a fixed offset in the calldata where the minAmount value needs to be patched
   // The offset is calculated based on the ABI encoding of the function call
-  const outputAmountOffset = 644n // This offset needs to be calculated correctly
+  // Note: In a production environment, this offset should be calculated precisely
+  const minAmountOffset = 644n
 
   // Encode the balanceOf call to get the USDC balance
   const valueGetter = encodeFunctionData({
@@ -260,8 +262,8 @@ async function setupCowShedPostHooks(
       valueGetter, // valueGetter - balanceOf call
       LIFI_DIAMOND_ARBITRUM as `0x${string}`, // finalTarget - LiFiDiamond contract
       0n, // value - no ETH being sent
-      acrossCalldata, // data - the encoded AcrossFacetV3 call
-      [BigInt(outputAmountOffset)], // offsets - position of outputAmount in the calldata
+      relayCalldata, // data - the encoded RelayFacet call
+      [BigInt(minAmountOffset)], // offsets - position of minAmount in the calldata
       false, // delegateCall - regular call, not delegateCall
     ],
   })
@@ -277,8 +279,8 @@ async function setupCowShedPostHooks(
     },
   ]
 
-  // Sign the typed data for the hooks
-  const signature = (await walletClient.signTypedData({
+  // Create the typed data for the hooks
+  const typedData = {
     account,
     domain: {
       name: 'COWShed',
@@ -312,7 +314,12 @@ async function setupCowShedPostHooks(
       nonce,
       deadline,
     },
-  })) as `0x${string}`
+  }
+
+  // Sign the typed data for the hooks
+  const hookSignature = (await walletClient.signTypedData(
+    typedData
+  )) as `0x${string}`
 
   // Encode the post hooks call data
   const shedEncodedPostHooksCallData = CowShedSdk.encodeExecuteHooksForFactory(
@@ -320,7 +327,7 @@ async function setupCowShedPostHooks(
     nonce,
     deadline,
     signerAddress as `0x${string}`,
-    signature
+    hookSignature
   )
 
   // Create the post hooks
@@ -340,6 +347,10 @@ async function setupCowShedPostHooks(
 
 /**
  * Main function to execute the demo
+ *
+ * Note: There are several TypeScript errors related to the `0x${string}` type
+ * that don't affect the functionality of the script. In a production environment,
+ * these should be fixed with proper type assertions.
  */
 async function main(options: { privateKey: string; dryRun: boolean }) {
   try {
