@@ -139,7 +139,7 @@ async function setupCowShedPostHooks(
   const bridgeData = {
     transactionId: `0x${randomBytes(32).toString('hex')}` as `0x${string}`,
     bridge: 'relay',
-    integrator: 'lifi-demo',
+    integrator: 'TestIntegrator',
     referrer: '0x0000000000000000000000000000000000000000' as `0x${string}`,
     sendingAssetId: usdcAddress as `0x${string}`,
     receiver: signerAddress as `0x${string}`,
@@ -320,6 +320,8 @@ async function setupCowShedPostHooks(
   // - Then the actual BridgeData struct starts at offset 68 (4 + 64)
   // - Within BridgeData: transactionId(32) + bridge(32) + integrator(32) + referrer(32) + sendingAssetId(32) + receiver(32) + minAmount(32)
   // - So minAmount is at: 68 + 32*6 = 68 + 192 = 260
+  // Based on the corrected calldata analysis with proper struct order:
+  // minAmount is at offset 260
   const minAmountOffset = 260n
   consola.info(`Using calculated minAmount offset: ${minAmountOffset} bytes`)
 
@@ -348,18 +350,39 @@ async function setupCowShedPostHooks(
       0n, // value - no ETH being sent
       relayCalldata, // data - the encoded RelayFacet call
       [minAmountOffset], // offsets - Array with position of minAmount in the calldata
-      true, // delegateCall
+      false, // delegateCall
     ],
   })
 
-  // Define the post-swap call to the patcher
+  // Encode the USDC approval call for the DIAMOND address
+  const approvalCalldata = encodeFunctionData({
+    abi: parseAbi([
+      'function approve(address spender, uint256 amount) returns (bool)',
+    ]),
+    functionName: 'approve',
+    args: [
+      LIFI_DIAMOND_ARBITRUM as `0x${string}`, // spender - LiFi Diamond
+      BigInt(
+        '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+      ), // Max uint256 approval
+    ],
+  })
+
+  // Define the post-swap calls: first approval, then bridge
   const postSwapCalls = [
+    {
+      target: ARBITRUM_USDC as `0x${string}`,
+      callData: approvalCalldata,
+      value: 0n,
+      allowFailure: false,
+      isDelegateCall: true,
+    },
     {
       target: PATCHER_ARBITRUM as `0x${string}`,
       callData: patcherCalldata,
       value: 0n,
       allowFailure: false,
-      isDelegateCall: false,
+      isDelegateCall: true,
     },
   ]
 
