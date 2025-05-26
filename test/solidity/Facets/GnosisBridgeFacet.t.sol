@@ -38,9 +38,9 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
 
     function setUp() public {
-        customBlockNumberForForking = 22540123;
-        defaultUSDSAmount = defaultDAIAmount;
+        customBlockNumberForForking = 22566858;
         initTestBase();
+        defaultUSDSAmount = defaultDAIAmount;
 
         usds = ERC20(ADDRESS_USDS);
 
@@ -181,7 +181,6 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         bridgeData.sendingAssetId = ADDRESS_USDS;
 
-        // approval
         usds.approve(address(gnosisBridgeFacet), bridgeData.minAmount);
 
         //prepare check for events

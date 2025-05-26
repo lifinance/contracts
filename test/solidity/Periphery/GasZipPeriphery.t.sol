@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
+import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
@@ -35,15 +36,14 @@ contract TestGasZipPeriphery is GasZipPeriphery {
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
         0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762;
-    address public constant LIFI_DEX_AGGREGATOR_MAINNET =
-        0xe43ca1Dee3F0fc1e2df73A0745674545F11A59F5;
     address internal constant GNOSIS_BRIDGE_ROUTER =
         0x9a873656c19Efecbfb4f9FAb5B7acdeAb466a0B0;
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
     TestGasZipPeriphery internal gasZipPeriphery;
     IGasZip.GasZipData internal defaultGasZipData;
-    address internal liFiDEXAggregator = LIFI_DEX_AGGREGATOR_MAINNET;
+    LiFiDEXAggregator internal liFiDEXAggregator;
+    address[] internal privileged;
     bytes32 internal defaultReceiverBytes32 =
         bytes32(uint256(uint160(USER_RECEIVER)));
     uint256 internal defaultNativeDepositAmount = 1e16;
@@ -56,13 +56,23 @@ contract GasZipPeripheryTest is TestBase {
     error ETHTransferFailed();
 
     function setUp() public {
-        customBlockNumberForForking = 20931877;
+        customBlockNumberForForking = 22566858;
         initTestBase();
+
+        privileged = new address[](2);
+        privileged[0] = address(0xABC);
+        privileged[1] = address(0xEBC);
+
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0xCAFE),
+            privileged,
+            USER_DIAMOND_OWNER
+        );
 
         // deploy contracts
         gasZipPeriphery = new TestGasZipPeriphery(
             GAS_ZIP_ROUTER_MAINNET,
-            LIFI_DEX_AGGREGATOR_MAINNET,
+            address(liFiDEXAggregator),
             USER_DIAMOND_OWNER
         );
         defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
@@ -81,13 +91,13 @@ contract GasZipPeripheryTest is TestBase {
         bridgeData.destinationChainId = 100;
 
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
-        vm.label(LIFI_DEX_AGGREGATOR_MAINNET, "LiFiDEXAggregator");
+        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
     }
 
     function test_WillStoreConstructorParametersCorrectly() public {
         gasZipPeriphery = new TestGasZipPeriphery(
             GAS_ZIP_ROUTER_MAINNET,
-            LIFI_DEX_AGGREGATOR_MAINNET,
+            address(liFiDEXAggregator),
             USER_DIAMOND_OWNER
         );
 
@@ -97,7 +107,7 @@ contract GasZipPeripheryTest is TestBase {
         );
         assertEq(
             gasZipPeriphery.liFiDEXAggregator(),
-            LIFI_DEX_AGGREGATOR_MAINNET
+            address(liFiDEXAggregator)
         );
     }
 
@@ -222,6 +232,7 @@ contract GasZipPeripheryTest is TestBase {
             LibSwap.SwapData memory gasZipSwapData,
 
         ) = _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
+                address(liFiDEXAggregator),
                 ADDRESS_DAI,
                 gasZipERC20Amount
             );
@@ -399,6 +410,7 @@ contract GasZipPeripheryTest is TestBase {
             LibSwap.SwapData memory gasZipSwapData,
 
         ) = _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
+                address(liFiDEXAggregator),
                 ADDRESS_DAI,
                 gasZipERC20Amount
             );
@@ -499,6 +511,7 @@ contract GasZipPeripheryTest is TestBase {
     }
 
     function _getLiFiDEXAggregatorCalldataForERC20ToNativeSwap(
+        address liFiDEXAggregator,
         address sendingAssetId,
         uint256 fromAmount
     )
@@ -515,14 +528,21 @@ contract GasZipPeripheryTest is TestBase {
         uint256[] memory amounts = uniswap.getAmountsOut(fromAmount, path);
         amountOutMin = amounts[1];
 
+        bytes memory route = abi.encodePacked(
+            hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f00000000000000000000000000000000000000000000000002FB8E6B8F8DC700000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002f70244563dc70000000000000000000000007f2922c09dd671055c5abbc4f5657f874c18062900000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00A478c2975Ab1Ea89e8196811F51A7B7Ade33eB1101",
+            liFiDEXAggregator,
+            hex"000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02007F2922c09DD671055C5aBBC4F5657f874c18062900000000000000000000000000"
+        );
+
         swapData = LibSwap.SwapData(
-            liFiDEXAggregator,
-            liFiDEXAggregator,
+            address(liFiDEXAggregator),
+            address(liFiDEXAggregator),
             sendingAssetId,
             address(0),
             fromAmount,
             // this is calldata for the DEXAggregator to swap 2 DAI to native
-            hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f0000000000000000000000000000000000000000000000001bc16d674ec80000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002f70244563dc70000000000000000000000007f2922c09dd671055c5abbc4f5657f874c18062900000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00A478c2975Ab1Ea89e8196811F51A7B7Ade33eB1101e43ca1Dee3F0fc1e2df73A0745674545F11A59F5000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02007F2922c09DD671055C5aBBC4F5657f874c18062900000000000000000000000000",
+            route,
+            // hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f0000000000000000000000000000000000000000000000001bc16d674ec80000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002f70244563dc70000000000000000000000007f2922c09dd671055c5abbc4f5657f874c18062900000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00A478c2975Ab1Ea89e8196811F51A7B7Ade33eB1101e43ca1Dee3F0fc1e2df73A0745674545F11A59F5000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02007F2922c09DD671055C5aBBC4F5657f874c18062900000000000000000000000000",
             true
         );
     }
