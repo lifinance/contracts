@@ -44,16 +44,6 @@ contract DeployScript is DeployScriptBase {
         string memory timelockJson = vm.readFile(timelockConfigPath);
         uint256 minDelay = timelockJson.readUint(".minDelay");
 
-        // get deployerWalletAddress from global.json
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
-        string memory globalJson = vm.readFile(globalConfigPath);
-        address deployerWalletAddress = globalJson.readAddress(
-            ".deployerWallet"
-        );
-
         // get safeAddress from networks.json
         string memory networksConfigPath = string.concat(
             root,
@@ -68,10 +58,11 @@ contract DeployScript is DeployScriptBase {
         address[] memory proposers = new address[](1);
         proposers[0] = safeAddress;
 
-        // get executors (we want out multisig as well as the deployer wallet to be able to execute)
-        address[] memory executors = new address[](2);
-        executors[0] = safeAddress;
-        executors[1] = deployerWalletAddress;
+        // allow anyone to execute
+        address[] memory executors = new address[](1);
+        executors[0] = address(0);
+
+        // TODO: we need to renounce the admin role from multisig safe, otherwise it has too much rights and can bypass the
 
         return
             abi.encode(

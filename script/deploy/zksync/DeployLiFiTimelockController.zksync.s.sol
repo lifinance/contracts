@@ -43,15 +43,6 @@ contract DeployScript is DeployScriptBase {
         );
         uint256 minDelay = timelockConfigPath.readUint(".minDelay");
 
-        // get deployerWalletAddress from global.json
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
-        address deployerWalletAddress = globalConfigPath.readAddress(
-            ".deployerWallet"
-        );
-
         // get safeAddress from networks.json
         string memory networksConfigPath = string.concat(
             root,
@@ -66,10 +57,9 @@ contract DeployScript is DeployScriptBase {
         address[] memory proposers = new address[](1);
         proposers[0] = safeAddress;
 
-        // get executors (we want out multisig as well as the deployer wallet to be able to execute)
-        address[] memory executors = new address[](2);
-        executors[0] = safeAddress;
-        executors[1] = deployerWalletAddress;
+        // allow anyone to execute
+        address[] memory executors = new address[](1);
+        executors[0] = address(0);
 
         return
             abi.encode(
