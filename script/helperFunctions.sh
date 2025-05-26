@@ -2028,7 +2028,7 @@ function getCoreFacetsArray() {
 }
 
 # Function to check if NETWORKS_JSON_FILE_PATH is set and valid
-checkNetworksJsonFilePath() {
+function checkNetworksJsonFilePath() {
   if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
     error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
     return 1
@@ -2793,6 +2793,23 @@ function getRPCUrl() {
   # return RPC URL
   echo "${!RPC_KEY}"
 }
+function getRpcUrlFromNetworksJson() {
+  local NETWORK="$1"
+
+  # make sure networks.json exists
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+
+  # extract RPC URL from networks.json for given network
+  local RPC_URL=$(jq -r --arg network "$NETWORK" '.[$network].rpcUrl // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  # make sure a value was found
+  if [[ -z "$RPC_URL" ]]; then
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
+    return 1
+  fi
+
+  echo "$RPC_URL"
+}
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
     afplay ./script/deploy/resources/notification.mp3
@@ -2959,6 +2976,55 @@ function getCreate3FactoryAddress() {
 
 function convertToBcInt() {
   echo "$1" | tr -d '\n' | bc
+}
+
+function extractDeployedAddressFromRawReturnData() {
+  local RAW_DATA="$1"
+  local NETWORK="$2"
+  local ADDRESS=""
+  local CLEAN_DATA=""
+
+  # Attempt to isolate the JSON blob that starts with {"logs":
+  CLEAN_DATA=$(echo "$RAW_DATA" | grep -o '{\"logs\":.*')
+
+  # Try extracting from `.returns.deployed.value`
+  ADDRESS=$(echo "$CLEAN_DATA" | jq -r '.returns.deployed.value // empty' 2>/dev/null)
+
+  # Fallback: try to extract from Etherscan "contract_address"
+  if [[ -z "$ADDRESS" ]]; then
+    ADDRESS=$(echo "$RAW_DATA" | grep -oE '"contract_address"\s*:\s*"0x[a-fA-F0-9]{40}"' | head -n1 | grep -oE '0x[a-fA-F0-9]{40}')
+  fi
+
+  # Last resort: use first 0x-prefixed address in blob
+  if [[ -z "$ADDRESS" ]]; then
+    ADDRESS=$(echo "$RAW_DATA" | grep -oE '0x[a-fA-F0-9]{40}' | head -n1)
+  fi
+
+  # Validate the format of the extracted address
+  if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+    # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
+    local COUNT=0
+    while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
+      # check if address contains and bytecode and leave the loop if bytecode is found
+      if [[ "$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")" == "true" ]]; then
+        break
+      fi
+      echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
+      sleep 10
+      COUNT=$((COUNT + 10))
+    done
+
+    if [ $COUNT -ge "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
+      echo "❌ Extracted address does not contain bytecode" >&2
+      return 1
+    fi
+
+    echo "$ADDRESS"
+    return 0
+  else
+    echo "❌ Failed to find any deployed-to address in raw return data" >&2
+    return 1
+  fi
 }
 
 
