@@ -10,7 +10,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { NativeAssetTransferFailed, ReentrancyError } from "src/Errors/GenericErrors.sol";
+import { ReentrancyError, ETHTransferFailed } from "src/Errors/GenericErrors.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 using stdJson for string;
@@ -57,7 +57,7 @@ contract ReentrancyChecker is DSTest {
         if (!success) {
             if (
                 keccak256(data) ==
-                keccak256(abi.encodePacked(NativeAssetTransferFailed.selector))
+                keccak256(abi.encodePacked(ETHTransferFailed.selector))
             ) {
                 revert ReentrancyError();
             } else {

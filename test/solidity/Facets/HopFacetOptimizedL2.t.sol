@@ -6,6 +6,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacetOptimized {
@@ -275,7 +276,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
 
         // OptimizedFacet does have less checks, therefore tx fails at different point in code
-        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        vm.expectRevert(TransferFromFailed.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();

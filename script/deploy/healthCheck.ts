@@ -20,17 +20,14 @@ import {
   networks,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
-import { coreFacets, pauserWallet } from '../../config/global.json'
+import {
+  coreFacets,
+  corePeriphery,
+  autoWhitelistPeripheryContracts,
+  pauserWallet,
+} from '../../config/global.json'
 
 const SAFE_THRESHOLD = 3
-
-const corePeriphery = [
-  'ERC20Proxy',
-  'Executor',
-  'FeeCollector',
-  'LiFiDEXAggregator',
-  'TokenWrapper',
-]
 
 const errors: string[] = []
 const main = defineCommand({
@@ -193,7 +190,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery facets are deployed      │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking periphery contracts...')
+    consola.box('Checking deploy status of periphery contracts...')
     for (const contract of corePeriphery) {
       const isDeployed = await checkIsDeployed(
         contract,
@@ -233,7 +230,9 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking periphery contracts registered in diamond...')
+    consola.box(
+      'Checking periphery registration in diamond (PeripheryRegistry)...'
+    )
     const peripheryRegistry = getContract({
       address: deployedContracts['LiFiDiamond'],
       abi: parseAbi([
@@ -246,7 +245,10 @@ const main = defineCommand({
     )
 
     for (const periphery of corePeriphery) {
-      if (!addresses.includes(getAddress(deployedContracts[periphery]))) {
+      const peripheryAddress = deployedContracts[periphery]
+      if (!peripheryAddress)
+        logError(`Periphery contract ${periphery} not deployed `)
+      else if (!addresses.includes(getAddress(peripheryAddress))) {
         logError(`Periphery contract ${periphery} not registered in Diamond`)
       } else {
         consola.success(`Periphery contract ${periphery} registered in Diamond`)
@@ -258,6 +260,8 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     if (dexs) {
       consola.box('Checking DEXs approved in diamond...')
+
+      // connect with diamond to get whitelisted DEXs
       const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
@@ -266,32 +270,46 @@ const main = defineCommand({
         ]),
         client: publicClient,
       })
+
       const approvedDexs = await dexManager.read.approvedDexs()
 
-      // Loop through DEXs excluding the address for FeeCollector, LiFiDEXAggregator and TokenWrapper
       let numMissing = 0
-      for (const dex of dexs.filter(
-        (d) => !corePeriphery.includes(getAddress(d))
-      )) {
-        if (!approvedDexs.includes(getAddress(dex))) {
-          logError(`DEX ${dex} not approved in Diamond`)
-          numMissing++
+
+      // Check for each address in dexs.json if it is whitelisted
+      for (const dex of dexs) {
+        if (!dex) {
+          logError(`Encountered undefined DEX address.`)
+          continue
+        }
+
+        try {
+          const normalized = getAddress(dex)
+          if (!approvedDexs.includes(normalized)) {
+            logError(`DEX ${normalized} not approved in Diamond`)
+            numMissing++
+          }
+        } catch (err) {
+          logError(`Invalid DEX address in main check: ${dex}`)
         }
       }
 
-      // Check that FeeCollector, LiFiDEXAggregator and TokenWrapper are included in approvedDexs
-      const mustBeWhitelisted = corePeriphery.filter(
-        (p) =>
-          p === 'FeeCollector' ||
-          p === 'LiFiDEXAggregator' ||
-          p === 'TokenWrapper'
-      )
-      for (const f of mustBeWhitelisted) {
-        if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
-          logError(`Periphery contract ${f} not approved as a DEX`)
+      // Ensure that periphery contracts which are used like DEXs are whitelisted
+      for (const name of autoWhitelistPeripheryContracts) {
+        // get address from deploy log
+        const addr = deployedContracts[name]
+        if (!addr) {
+          logError(`Periphery contract ${name} not deployed`)
+          numMissing++
+          continue
+        }
+
+        // check if address is whitelisted
+        const normalized = getAddress(addr)
+        if (!approvedDexs.includes(normalized)) {
+          logError(`Periphery contract ${name} not approved as a DEX`)
           numMissing++
         } else {
-          consola.success(`Periphery contract ${f} approved as a DEX`)
+          consola.success(`Periphery contract ${name} approved as a DEX`)
         }
       }
 
@@ -398,33 +416,7 @@ const main = defineCommand({
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check emergency pause config             │
       //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking emergency pause config...')
-      const filePath: string = path.join(
-        '.github',
-        'workflows',
-        'diamondEmergencyPause.yml'
-      )
-
-      try {
-        const fileContent: string = fs.readFileSync(filePath, 'utf8')
-
-        const networkUpper: string = network.toUpperCase()
-        const pattern = new RegExp(
-          `ETH_NODE_URI_${networkUpper}\\s*:\\s*\\$\\{\\{\\s*secrets\\.ETH_NODE_URI_${networkUpper}\\s*\\}\\}`
-        )
-
-        const exists: boolean = pattern.test(fileContent)
-
-        if (!exists) {
-          logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        } else
-          consola.success(
-            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
-          )
-      } catch (error: any) {
-        logError(`Error checking workflow file: ${error.message}`)
-      }
-      console.log('')
+      consola.box('Checking funding of pauser wallet...')
 
       const pauserBalance = formatEther(
         await publicClient.getBalance({

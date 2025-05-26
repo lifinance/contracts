@@ -40,19 +40,27 @@ const storedResponses: Record<string, string> = {}
 /**
  * Main function to process Safe transactions for a given network
  * @param network - Network name
- * @param privateKey - Private key of the signer
+ * @param privateKey - Private key of the signer (optional if useLedger is true)
  * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
  * @param pendingTxs - Pending transactions to process
  * @param pendingTransactions - MongoDB collection
  * @param rpcUrl - Optional RPC URL override
+ * @param useLedger - Whether to use a Ledger device for signing
+ * @param ledgerOptions - Options for Ledger connection
  */
 const processTxs = async (
   network: string,
-  privateKey: string,
+  privateKey: string | undefined,
   privKeyType: privateKeyType,
   pendingTxs: SafeTxDocument[],
   pendingTransactions: any,
-  rpcUrl?: string
+  rpcUrl?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  }
 ) => {
   consola.info(' ')
   consola.info('-'.repeat(80))
@@ -61,7 +69,9 @@ const processTxs = async (
   const { safe, chain, safeAddress } = await initializeSafeClient(
     network,
     privateKey,
-    rpcUrl
+    rpcUrl,
+    useLedger,
+    ledgerOptions
   )
 
   // Get signer address
@@ -135,7 +145,7 @@ const processTxs = async (
       )
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
-      consola.info(' ')
+      consola.log(' ')
     } catch (error) {
       consola.error('❌ Error executing Safe transaction:')
       consola.error(`   ${error.message}`)
@@ -378,18 +388,65 @@ const main = defineCommand({
     },
     privateKey: {
       type: 'string',
-      description: 'Private key of the signer',
+      description: 'Private key of the signer (not needed if using --ledger)',
+      required: false,
+    },
+    ledger: {
+      type: 'boolean',
+      description: 'Use Ledger hardware wallet for signing',
+      required: false,
+    },
+    ledgerLive: {
+      type: 'boolean',
+      description: 'Use Ledger Live derivation path',
+      required: false,
+    },
+    accountIndex: {
+      type: 'number',
+      description: 'Ledger account index (default: 0)',
+      required: false,
+    },
+    derivationPath: {
+      type: 'string',
+      description: 'Custom derivation path for Ledger (overrides ledgerLive)',
       required: false,
     },
   },
   async run({ args }) {
     const networks = getNetworksToProcess(args.network)
 
-    // if no privateKey was supplied, read directly from env
-    let privateKey: string
+    // Set up signing options
+    let privateKey: string | undefined
     let keyType = privateKeyType.DEPLOYER // default value
+    const useLedger = args.ledger || false
+    const ledgerOptions = {
+      ledgerLive: args.ledgerLive || false,
+      accountIndex: args.accountIndex || 0,
+      derivationPath: args.derivationPath,
+    }
 
-    if (!args.privateKey) {
+    // Validate that incompatible Ledger options aren't provided together
+    if (args.derivationPath && args.ledgerLive) {
+      throw new Error(
+        "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+      )
+    }
+
+    // If using ledger, we don't need a private key
+    if (useLedger) {
+      consola.info('Using Ledger hardware wallet for signing')
+      if (args.ledgerLive) {
+        consola.info(
+          `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
+        )
+      } else if (args.derivationPath) {
+        consola.info(`Using custom derivation path: ${args.derivationPath}`)
+      } else {
+        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+      }
+      privateKey = undefined
+    } else if (!args.privateKey) {
+      // If no private key and not using ledger, ask for key from env
       const keyChoice = await consola.prompt(
         'Which private key do you want to use from your .env file?',
         {
@@ -399,7 +456,6 @@ const main = defineCommand({
       )
 
       privateKey = getPrivateKey(
-        undefined,
         keyChoice as 'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'
       )
       keyType =
@@ -407,7 +463,7 @@ const main = defineCommand({
           ? privateKeyType.SAFE_SIGNER
           : privateKeyType.DEPLOYER
     } else {
-      privateKey = getPrivateKey(args.privateKey)
+      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
     }
 
     // Connect to MongoDB and fetch ALL pending transactions
@@ -429,7 +485,9 @@ const main = defineCommand({
         keyType,
         networkTxs,
         pendingTransactions,
-        args.rpcUrl
+        args.rpcUrl,
+        useLedger,
+        ledgerOptions
       )
     }
 
