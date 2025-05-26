@@ -761,6 +761,9 @@ contract PatcherTest is DSTest {
         vm.prank(address(patcher));
         token.approve(address(relayFacet), expectedMinAmount);
 
+        // Check relaySolver balance before
+        uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
+
         // Encode the RelayFacet call with placeholder minAmount
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayFacet.startBridgeTokensViaRelay.selector,
@@ -795,6 +798,13 @@ contract PatcherTest is DSTest {
             originalCalldata,
             offsets,
             false
+        );
+
+        // Check relaySolver balance after
+        uint256 relaySolverBalanceAfter = token.balanceOf(relaySolver);
+        assertEq(
+            relaySolverBalanceAfter,
+            relaySolverBalanceBefore + expectedMinAmount
         );
 
         // The fact that the call succeeded means the patching worked correctly
@@ -836,6 +846,9 @@ contract PatcherTest is DSTest {
         vm.prank(address(patcher));
         token.approve(address(relayFacet), tokenBalance);
 
+        // Check relaySolver balance before
+        uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
+
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayFacet.startBridgeTokensViaRelay.selector,
             bridgeData,
@@ -868,6 +881,13 @@ contract PatcherTest is DSTest {
             false
         );
 
+        // Check relaySolver balance after
+        uint256 relaySolverBalanceAfter = token.balanceOf(relaySolver);
+        assertEq(
+            relaySolverBalanceAfter,
+            relaySolverBalanceBefore + tokenBalance
+        );
+
         // The fact that the call succeeded means the patching worked correctly
     }
 
@@ -898,6 +918,9 @@ contract PatcherTest is DSTest {
         // Sign the RelayData
         relayData.signature = signData(bridgeData, relayData);
 
+        // Check relaySolver balance before (should remain unchanged due to failure)
+        uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
+
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayFacet.startBridgeTokensViaRelay.selector,
             bridgeData,
@@ -924,6 +947,10 @@ contract PatcherTest is DSTest {
             offsets,
             false
         );
+
+        // Check relaySolver balance after (should be unchanged)
+        uint256 relaySolverBalanceAfter = token.balanceOf(relaySolver);
+        assertEq(relaySolverBalanceAfter, relaySolverBalanceBefore);
     }
 
     // Helper function to sign RelayData
