@@ -143,8 +143,8 @@ async function setupCowShedPostHooks(
     referrer: '0x0000000000000000000000000000000000000000' as `0x${string}`,
     sendingAssetId: usdcAddress as `0x${string}`,
     receiver: signerAddress as `0x${string}`,
-    destinationChainId: 8453n, // BASE chain ID
     minAmount: receivedAmount,
+    destinationChainId: 8453n, // BASE chain ID
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
@@ -281,7 +281,7 @@ async function setupCowShedPostHooks(
 
   // Encode the RelayFacet call
   const relayFacetAbi = parseAbi([
-    'function startBridgeTokensViaRelay((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 destinationChainId, uint256 minAmount, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 requestId, bytes32 nonEVMReceiver, bytes32 receivingAssetId, bytes signature) _relayData) payable',
+    'function startBridgeTokensViaRelay((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 requestId, bytes32 nonEVMReceiver, bytes32 receivingAssetId, bytes signature) _relayData) payable',
   ])
 
   // Create the bridge data with proper types
@@ -375,7 +375,7 @@ async function setupCowShedPostHooks(
       callData: approvalCalldata,
       value: 0n,
       allowFailure: false,
-      isDelegateCall: true,
+      isDelegateCall: false,
     },
     {
       target: PATCHER_ARBITRUM as `0x${string}`,
