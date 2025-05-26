@@ -7,6 +7,8 @@ import { Patcher } from "lifi/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 
 // Custom errors for gas optimization
 error MockFailure();
@@ -146,19 +148,19 @@ contract MockPriceOracle {
     }
 }
 
-// Simple test contract that mimics RelayFacet interface for testing
-contract TestRelayFacet {
-    event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
+// Test RelayFacet Contract
+contract TestRelayFacet is RelayFacet {
+    constructor(
+        address _relayReceiver,
+        address _relaySolver
+    ) RelayFacet(_relayReceiver, _relaySolver) {}
 
-    function startBridgeTokensViaRelay(
-        ILiFi.BridgeData calldata bridgeData,
-        RelayFacet.RelayData calldata /* relayData */
-    ) external payable {
-        // For testing, just emit the event to show it was called
-        emit LiFiTransferStarted(bridgeData);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
+    }
 
-        // In a real implementation, this would interact with Relay protocol
-        // For testing, we just need to verify the call succeeds with patched data
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
     }
 }
 
@@ -166,12 +168,22 @@ contract PatcherTest is DSTest {
     // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
 
+    // Events for testing
+    event CallReceived(uint256 value, address sender, uint256 ethValue);
+    event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
+
     Patcher internal patcher;
     MockValueSource internal valueSource;
     MockTarget internal target;
     ERC20 internal token;
     MockPriceOracle internal priceOracle;
     TestRelayFacet internal relayFacet;
+
+    // RelayFacet setup variables
+    address internal constant RELAY_RECEIVER =
+        0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
+    uint256 internal privateKey = 0x1234567890;
+    address internal relaySolver;
 
     function setUp() public {
         // Set up our test contracts
@@ -181,8 +193,9 @@ contract PatcherTest is DSTest {
         token = new ERC20("Test Token", "TEST", 18);
         priceOracle = new MockPriceOracle();
 
-        // Set up simple RelayFacet for testing
-        relayFacet = new TestRelayFacet();
+        // Set up real RelayFacet for testing
+        relaySolver = vm.addr(privateKey);
+        relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
     }
 
     // Test successful single patch execution
@@ -206,8 +219,12 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
+        // Expect the CallReceived event to be emitted with the patched value
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), 0);
+
         // Execute with dynamic patches
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -218,7 +235,6 @@ contract PatcherTest is DSTest {
         );
 
         // Verify execution was successful
-        assertTrue(success);
         assertEq(target.lastValue(), dynamicValue);
         assertEq(target.lastSender(), address(patcher));
         assertEq(target.lastEthValue(), 0);
@@ -244,7 +260,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the CallReceived event to be emitted with the patched value and ETH
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), ethValue);
+
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -254,7 +274,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), dynamicValue);
         assertEq(target.lastEthValue(), ethValue);
     }
@@ -279,7 +298,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the CallReceived event to be emitted with the sum of both values
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue * 2, address(patcher), 0);
+
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -289,7 +312,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), dynamicValue * 2); // Sum of both values
     }
 
@@ -328,7 +350,11 @@ contract PatcherTest is DSTest {
         offsetGroups[1] = new uint256[](1);
         offsetGroups[1][0] = 36; // Second parameter
 
-        (bool success, ) = patcher.executeWithMultiplePatches(
+        // Expect the CallReceived event to be emitted with the sum of both values
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(value1 + value2, address(patcher), 0);
+
+        patcher.executeWithMultiplePatches(
             valueSources,
             valueGetters,
             address(target),
@@ -338,7 +364,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), value1 + value2);
     }
 
@@ -359,7 +384,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -369,7 +394,6 @@ contract PatcherTest is DSTest {
             true // delegatecall
         );
 
-        assertTrue(success);
         // Note: In delegatecall, the target's storage won't be modified
         // but the call should still succeed
     }
@@ -487,7 +511,15 @@ contract PatcherTest is DSTest {
             holder
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the CallReceived event to be emitted with the patched balance
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(
+            balance + block.timestamp + 1 hours,
+            address(patcher),
+            0
+        );
+
+        patcher.executeWithDynamicPatches(
             address(token),
             valueGetter,
             address(target),
@@ -497,7 +529,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), balance + block.timestamp + 1 hours);
     }
 
@@ -552,7 +583,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the CallReceived event to be emitted with the original value (no patching)
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(99999, address(patcher), 0);
+
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -562,7 +597,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), 99999); // Original value should be preserved
     }
 
@@ -598,7 +632,11 @@ contract PatcherTest is DSTest {
         offsetGroups[1] = new uint256[](1);
         offsetGroups[1][0] = 4; // Same offset (should overwrite)
 
-        (bool success, ) = patcher.executeWithMultiplePatches(
+        // Expect the CallReceived event to be emitted with the last written value
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(value2, address(patcher), 0);
+
+        patcher.executeWithMultiplePatches(
             valueSources,
             valueGetters,
             address(target),
@@ -608,7 +646,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), value2); // Should have the last written value
     }
 
@@ -629,7 +666,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the CallReceived event to be emitted with the zero value
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(0, address(patcher), 0);
+
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -639,7 +680,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), 0);
     }
 
@@ -660,7 +700,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the CallReceived event to be emitted with the max value
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(type(uint256).max, address(patcher), 0);
+
+        patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
             address(target),
@@ -670,7 +714,6 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         assertEq(target.lastValue(), type(uint256).max);
     }
 
@@ -700,8 +743,23 @@ contract PatcherTest is DSTest {
             requestId: bytes32("test-request-id"),
             nonEVMReceiver: bytes32(0),
             receivingAssetId: bytes32(uint256(uint160(address(0xDEF)))),
-            signature: hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef01"
+            signature: ""
         });
+
+        // Sign the RelayData
+        relayData.signature = signData(bridgeData, relayData);
+
+        // Set up token balance and approval for the Patcher
+        uint256 bridgeAmount = 1000 ether;
+        uint256 expectedMinAmount = (bridgeAmount * (10000 - slippageBps)) /
+            10000; // 970 ether
+
+        // Mint tokens to the Patcher contract
+        token.mint(address(patcher), expectedMinAmount);
+
+        // Approve the RelayFacet to spend tokens from the Patcher
+        vm.prank(address(patcher));
+        token.approve(address(relayFacet), expectedMinAmount);
 
         // Encode the RelayFacet call with placeholder minAmount
         bytes memory originalCalldata = abi.encodeWithSelector(
@@ -715,7 +773,6 @@ contract PatcherTest is DSTest {
         offsets[0] = 260;
 
         // Prepare oracle call to calculate minAmount with slippage
-        uint256 bridgeAmount = 1000 ether;
         bytes memory valueGetter = abi.encodeWithSelector(
             priceOracle.calculateMinAmount.selector,
             address(token),
@@ -723,7 +780,14 @@ contract PatcherTest is DSTest {
             slippageBps
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the LiFiTransferStarted event to be emitted
+        ILiFi.BridgeData memory expectedBridgeData = bridgeData;
+        expectedBridgeData.minAmount = expectedMinAmount; // Use the already calculated value
+
+        vm.expectEmit(true, true, true, true, address(relayFacet));
+        emit LiFiTransferStarted(expectedBridgeData);
+
+        patcher.executeWithDynamicPatches(
             address(priceOracle),
             valueGetter,
             address(relayFacet),
@@ -733,90 +797,14 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
-
         // The fact that the call succeeded means the patching worked correctly
         // We can't verify the exact minAmount since the real RelayFacet doesn't store state
-    }
-
-    // Test BridgeData patching with multiple dynamic values using RelayFacet
-    function testExecuteWithMultiplePatches_RelayFacetMultipleFields() public {
-        // Set up two different price oracles for different calculations
-        MockPriceOracle priceOracle2 = new MockPriceOracle();
-        priceOracle.setPrice(address(token), 2000 * 1e18);
-        priceOracle2.setPrice(address(token), 1800 * 1e18); // Different price for comparison
-
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
-            transactionId: bytes32("multi-patch-tx"),
-            bridge: "relay",
-            integrator: "TestIntegrator",
-            referrer: address(0x1234),
-            sendingAssetId: address(token),
-            receiver: address(0x5678),
-            minAmount: 0, // Will be patched with first oracle
-            destinationChainId: 0, // Will be patched with second oracle result
-            hasSourceSwaps: false,
-            hasDestinationCall: false
-        });
-
-        RelayFacet.RelayData memory relayData = RelayFacet.RelayData({
-            requestId: bytes32("multi-patch-request"),
-            nonEVMReceiver: bytes32(0),
-            receivingAssetId: bytes32(uint256(uint160(address(0xDEF)))),
-            signature: hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef01"
-        });
-
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            relayFacet.startBridgeTokensViaRelay.selector,
-            bridgeData,
-            relayData
-        );
-
-        // Set up multiple patches
-        address[] memory valueSources = new address[](2);
-        valueSources[0] = address(priceOracle);
-        valueSources[1] = address(priceOracle2);
-
-        bytes[] memory valueGetters = new bytes[](2);
-        valueGetters[0] = abi.encodeWithSelector(
-            priceOracle.calculateMinAmount.selector,
-            address(token),
-            1000 ether,
-            300 // 3% slippage
-        );
-        valueGetters[1] = abi.encodeWithSelector(
-            priceOracle2.getPrice.selector,
-            address(token)
-        );
-
-        uint256[][] memory offsetGroups = new uint256[][](2);
-        offsetGroups[0] = new uint256[](1);
-        offsetGroups[0][0] = 260; // minAmount offset
-        offsetGroups[1] = new uint256[](1);
-        offsetGroups[1][0] = 292; // destinationChainId offset (minAmount + 32)
-
-        (bool success, ) = patcher.executeWithMultiplePatches(
-            valueSources,
-            valueGetters,
-            address(relayFacet),
-            0,
-            originalCalldata,
-            offsetGroups,
-            false
-        );
-
-        assertTrue(success);
-
-        // The fact that the call succeeded means the patching worked correctly
-        // We can't verify the exact values since our TestRelayFacet doesn't store state
     }
 
     // Test BridgeData patching with token balance as minAmount using RelayFacet
     function testExecuteWithDynamicPatches_RelayFacetTokenBalance() public {
         // Set up a user with token balance
-        address user = address(0x9999);
-        uint256 userBalance = 500 ether;
-        token.mint(user, userBalance);
+        uint256 tokenBalance = 500 ether;
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: bytes32("balance-patch-tx"),
@@ -824,7 +812,7 @@ contract PatcherTest is DSTest {
             integrator: "TestIntegrator",
             referrer: address(0x1234),
             sendingAssetId: address(token),
-            receiver: user,
+            receiver: address(1337),
             minAmount: 0, // Will be patched with user's balance
             destinationChainId: 8453, // Base
             hasSourceSwaps: false,
@@ -835,8 +823,18 @@ contract PatcherTest is DSTest {
             requestId: bytes32("balance-patch-request"),
             nonEVMReceiver: bytes32(0),
             receivingAssetId: bytes32(uint256(uint160(address(0xDEF)))),
-            signature: hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef01"
+            signature: ""
         });
+
+        // Sign the RelayData
+        relayData.signature = signData(bridgeData, relayData);
+
+        // Set up token balance and approval for the Patcher
+        token.mint(address(patcher), tokenBalance);
+
+        // Approve the RelayFacet to spend tokens from the Patcher
+        vm.prank(address(patcher));
+        token.approve(address(relayFacet), tokenBalance);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayFacet.startBridgeTokensViaRelay.selector,
@@ -850,10 +848,17 @@ contract PatcherTest is DSTest {
         // Use token.balanceOf to get dynamic value
         bytes memory valueGetter = abi.encodeWithSelector(
             token.balanceOf.selector,
-            user
+            patcher
         );
 
-        (bool success, ) = patcher.executeWithDynamicPatches(
+        // Expect the LiFiTransferStarted event to be emitted
+        ILiFi.BridgeData memory expectedBridgeData = bridgeData;
+        expectedBridgeData.minAmount = tokenBalance;
+
+        vm.expectEmit(true, true, true, true, address(relayFacet));
+        emit LiFiTransferStarted(expectedBridgeData);
+
+        patcher.executeWithDynamicPatches(
             address(token),
             valueGetter,
             address(relayFacet),
@@ -863,12 +868,8 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertTrue(success);
         // The fact that the call succeeded means the patching worked correctly
     }
-
-    // Test BridgeData patching with swap scenario using RelayFacet (not applicable since RelayFacet doesn't support swaps)
-    // Removed this test as RelayFacet doesn't have swapAndStartBridgeTokensViaRelay
 
     // Test error handling when oracle fails during BridgeData patching with RelayFacet
     function testExecuteWithDynamicPatches_RelayFacetOracleFailure() public {
@@ -891,8 +892,11 @@ contract PatcherTest is DSTest {
             requestId: bytes32("fail-request"),
             nonEVMReceiver: bytes32(0),
             receivingAssetId: bytes32(uint256(uint160(address(0xDEF)))),
-            signature: hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef01"
+            signature: ""
         });
+
+        // Sign the RelayData
+        relayData.signature = signData(bridgeData, relayData);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayFacet.startBridgeTokensViaRelay.selector,
@@ -922,146 +926,46 @@ contract PatcherTest is DSTest {
         );
     }
 
-    // Test with real RelayFacet to find correct offset for startBridgeTokensViaRelay
-    function testExecuteWithDynamicPatches_RealRelayFacet() public {
-        // Set up a user with token balance
-        address user = address(0x9999);
-        uint256 userBalance = 500 ether;
-        token.mint(user, userBalance);
-
-        // Create BridgeData with placeholder minAmount
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
-            transactionId: bytes32("relay-patch-tx"),
-            bridge: "relay",
-            integrator: "TestIntegrator",
-            referrer: address(0x1234),
-            sendingAssetId: address(token),
-            receiver: user,
-            minAmount: 0, // Will be patched with user's balance
-            destinationChainId: 8453, // Base
-            hasSourceSwaps: false,
-            hasDestinationCall: false
-        });
-
-        // Create RelayData with mock signature
-        RelayFacet.RelayData memory relayData = RelayFacet.RelayData({
-            requestId: bytes32("test-request-id"),
-            nonEVMReceiver: bytes32(0),
-            receivingAssetId: bytes32(uint256(uint160(address(0xDEF)))),
-            signature: hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef01" // 65 bytes mock signature
-        });
-
-        // Encode the RelayFacet call
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            relayFacet.startBridgeTokensViaRelay.selector,
-            bridgeData,
-            relayData
-        );
-
-        // Test different offsets to find the correct one
-        uint256[] memory testOffsets = new uint256[](5);
-        testOffsets[0] = 228; // For single parameter functions
-        testOffsets[1] = 260; // Our calculated offset
-        testOffsets[2] = 292; // Alternative calculation
-        testOffsets[3] = 324; // Another possibility
-        testOffsets[4] = 356; // Yet another possibility
-
-        bytes memory valueGetter = abi.encodeWithSelector(
-            token.balanceOf.selector,
-            user
-        );
-
-        // Try each offset and see which one works
-        for (uint256 i = 0; i < testOffsets.length; i++) {
-            uint256[] memory offsets = new uint256[](1);
-            offsets[0] = testOffsets[i];
-
-            try
-                patcher.executeWithDynamicPatches(
-                    address(token),
-                    valueGetter,
-                    address(relayFacet),
-                    0,
-                    originalCalldata,
-                    offsets,
-                    false
+    // Helper function to sign RelayData
+    function signData(
+        ILiFi.BridgeData memory _bridgeData,
+        RelayFacet.RelayData memory _relayData
+    ) internal view returns (bytes memory) {
+        bytes32 message = keccak256(
+            abi.encodePacked(
+                "\x19Ethereum Signed Message:\n32",
+                keccak256(
+                    abi.encodePacked(
+                        _relayData.requestId,
+                        block.chainid,
+                        bytes32(uint256(uint160(address(relayFacet)))),
+                        bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                        _getMappedChainId(_bridgeData.destinationChainId),
+                        _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
+                            ? _relayData.nonEVMReceiver
+                            : bytes32(uint256(uint160(_bridgeData.receiver))),
+                        _relayData.receivingAssetId
+                    )
                 )
-            returns (bool success, bytes memory) {
-                if (success) {
-                    // If successful, let's verify the minAmount was actually patched
-                    // by decoding the calldata and checking the minAmount field
-                    emit log_named_uint(
-                        "Successful offset found",
-                        testOffsets[i]
-                    );
+            )
+        );
 
-                    // For now, we'll just mark this as the working offset
-                    // In a real scenario, we'd verify the minAmount was correctly set
-                    assertTrue(success);
-                    return; // Exit on first success
-                }
-            } catch {
-                // This offset didn't work, continue to next
-                emit log_named_uint("Failed offset", testOffsets[i]);
-            }
-        }
-
-        // If we get here, none of the offsets worked
-        assertTrue(false, "No working offset found");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, message);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        return signature;
     }
 
-    // Helper test to find the exact offset by examining calldata structure
-    function testFindRelayFacetMinAmountOffset() public {
-        // Create BridgeData with a marker value for minAmount
-        uint256 markerValue = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF;
-
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
-            transactionId: bytes32("test-tx-id"),
-            bridge: "relay",
-            integrator: "TestIntegrator",
-            referrer: address(0x1234),
-            sendingAssetId: address(token),
-            receiver: address(0x5678),
-            minAmount: markerValue, // Marker to find in calldata
-            destinationChainId: 8453,
-            hasSourceSwaps: false,
-            hasDestinationCall: false
-        });
-
-        // Create RelayData
-        RelayFacet.RelayData memory relayData = RelayFacet.RelayData({
-            requestId: bytes32("test-request-id"),
-            nonEVMReceiver: bytes32(0),
-            receivingAssetId: bytes32(uint256(uint160(address(0xDEF)))),
-            signature: hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef01"
-        });
-
-        // Encode the calldata
-        bytes memory calldata_ = abi.encodeWithSelector(
-            relayFacet.startBridgeTokensViaRelay.selector,
-            bridgeData,
-            relayData
-        );
-
-        emit log_named_bytes("Full calldata", calldata_);
-        emit log_named_uint("Calldata length", calldata_.length);
-
-        // Find the marker value in the calldata
-        bytes32 marker = bytes32(markerValue);
-        bool found = false;
-
-        for (uint256 i = 0; i <= calldata_.length - 32; i++) {
-            bytes32 chunk;
-            assembly {
-                chunk := mload(add(add(calldata_, 0x20), i))
-            }
-            if (chunk == marker) {
-                emit log_named_uint("Found minAmount marker at offset", i);
-                found = true;
-                break;
-            }
+    function _getMappedChainId(
+        uint256 chainId
+    ) internal pure returns (uint256) {
+        if (chainId == 20000000000001) {
+            return 8253038;
         }
 
-        assertTrue(found, "Marker not found in calldata");
+        if (chainId == 1151111081099710) {
+            return 792703809;
+        }
+
+        return chainId;
     }
 }

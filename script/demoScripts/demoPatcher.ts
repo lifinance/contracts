@@ -11,6 +11,7 @@ import {
   recoverMessageAddress,
   keccak256,
   encodePacked,
+  pad,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
@@ -154,8 +155,9 @@ async function setupCowShedPostHooks(
 
   // Get a real signature from the Relay API
   // First, create a quote request
+  // Use LiFi Diamond as the user since it will be the final caller of RelayFacet
   const quoteParams = {
-    user: LIFI_DIAMOND_ARBITRUM,
+    user: LIFI_DIAMOND_ARBITRUM, // LiFi Diamond will be address(this) in RelayFacet
     originChainId: 42161, // Arbitrum
     destinationChainId: 8453, // BASE
     originCurrency: ARBITRUM_USDC,
@@ -242,14 +244,11 @@ async function setupCowShedPostHooks(
       [
         relayRequestId as `0x${string}`, // requestId
         42161n, // chainId (Arbitrum)
-        `0x${LIFI_DIAMOND_ARBITRUM.slice(2).padStart(
-          64,
-          '0'
-        )}` as `0x${string}`, // contract address as bytes32
-        `0x${ARBITRUM_USDC.slice(2).padStart(64, '0')}` as `0x${string}`, // sendingAssetId as bytes32
+        pad(LIFI_DIAMOND_ARBITRUM as `0x${string}`), // LiFi Diamond address as bytes32 (address(this) in RelayFacet)
+        pad(ARBITRUM_USDC as `0x${string}`), // sendingAssetId as bytes32
         8453n, // destinationChainId (Base)
-        `0x${signerAddress.slice(2).padStart(64, '0')}` as `0x${string}`, // receiver as bytes32
-        `0x${BASE_USDC.slice(2).padStart(64, '0')}` as `0x${string}`, // receivingAssetId as bytes32
+        pad(signerAddress as `0x${string}`), // receiver as bytes32
+        pad(BASE_USDC as `0x${string}`), // receivingAssetId as bytes32
       ]
     )
 
@@ -276,10 +275,7 @@ async function setupCowShedPostHooks(
     requestId: relayRequestId,
     nonEVMReceiver:
       '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // Not bridging to non-EVM chain
-    receivingAssetId: `0x${BASE_USDC.slice(2).padStart(
-      64,
-      '0'
-    )}` as `0x${string}`, // USDC on BASE as bytes32
+    receivingAssetId: pad(BASE_USDC as `0x${string}`), // Use viem's pad instead of manual padStart
     signature: relaySignature, // Real signature from the Relay API
   }
 
@@ -352,7 +348,7 @@ async function setupCowShedPostHooks(
       0n, // value - no ETH being sent
       relayCalldata, // data - the encoded RelayFacet call
       [minAmountOffset], // offsets - Array with position of minAmount in the calldata
-      false, // delegateCall - regular call, not delegateCall
+      true, // delegateCall
     ],
   })
 
