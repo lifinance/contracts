@@ -10,6 +10,7 @@ import {
   Hex,
   recoverMessageAddress,
   keccak256,
+  encodePacked,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
@@ -250,17 +251,30 @@ async function setupCowShedPostHooks(
     //     receivingAssetId
     // ))
 
-    const requestId = relayRequestId.slice(2) // Remove 0x prefix
-    const chainId = (42161).toString(16).padStart(64, '0') // Arbitrum chain ID as bytes32
-    const contractAddress = LIFI_DIAMOND_ARBITRUM.slice(2).padStart(64, '0') // LiFi Diamond as bytes32
-    const sendingAssetId = ARBITRUM_USDC.slice(2).padStart(64, '0') // USDC as bytes32
-    const destinationChainId = (8453).toString(16).padStart(64, '0') // Base chain ID as bytes32
-    const receiver = signerAddress.slice(2).padStart(64, '0') // Receiver as bytes32
-    const receivingAssetId = BASE_USDC.slice(2).padStart(64, '0') // USDC on Base as bytes32
-
-    // Concatenate all parameters (abi.encodePacked equivalent)
-    const packedData =
-      `0x${requestId}${chainId}${contractAddress}${sendingAssetId}${destinationChainId}${receiver}${receivingAssetId}` as `0x${string}`
+    // Use viem's encodePacked instead of manual concatenation
+    const packedData = encodePacked(
+      [
+        'bytes32',
+        'uint256',
+        'bytes32',
+        'bytes32',
+        'uint256',
+        'bytes32',
+        'bytes32',
+      ],
+      [
+        relayRequestId as `0x${string}`, // requestId
+        42161n, // chainId (Arbitrum)
+        `0x${LIFI_DIAMOND_ARBITRUM.slice(2).padStart(
+          64,
+          '0'
+        )}` as `0x${string}`, // contract address as bytes32
+        `0x${ARBITRUM_USDC.slice(2).padStart(64, '0')}` as `0x${string}`, // sendingAssetId as bytes32
+        8453n, // destinationChainId (Base)
+        `0x${signerAddress.slice(2).padStart(64, '0')}` as `0x${string}`, // receiver as bytes32
+        `0x${BASE_USDC.slice(2).padStart(64, '0')}` as `0x${string}`, // receivingAssetId as bytes32
+      ]
+    )
 
     // Hash the packed data
     const messageHash = keccak256(packedData)
