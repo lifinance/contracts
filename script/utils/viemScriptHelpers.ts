@@ -47,13 +47,12 @@ export type Network = {
   explorerUrl: string
   explorerApiUrl: string
   multicallAddress: string
-  safeApiUrl: string
   safeAddress: string
-  safeWebUrl: string
   deployedWithEvmVersion: string
   deployedWithSolcVersion: string
   gasZipChainId: number
   id: string
+  devNotes?: string
 }
 
 const colors = {
