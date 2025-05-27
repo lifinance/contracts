@@ -32205,6 +32205,20 @@
           }
         ]
       }
+    },
+    "viction": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xC3DA5b3F49F70CF334288C9907Ca390b5226397d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-27 11:19:38",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000549fd6fefae192defd626279d479f8f754b85fb7000000000000000000000000506aecea5a0618e5e10520b8d8b8b5632629bc7a00000000000000000000000079a368fc284c6c452d09fdde480c851ff4f4e472",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "RelayFacet": {
