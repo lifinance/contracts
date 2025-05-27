@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibSwap } from "./LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
+import { IExtcodeHelper } from "../Interfaces/IExtcodeHelper.sol";
 
 /// @title LibAsset
 /// @custom:version 2.0.0
@@ -24,6 +25,10 @@ library LibAsset {
     ///      by convention
 
     address internal constant NATIVE_ASSETID = NULL_ADDRESS;
+
+    /// @dev address of the ExtcodeHelper contract
+    address internal constant EXT_CODE_HELPER =
+        0x7000000000000000000000000000000000000000;
 
     /// @dev EIP-7702 delegation designator prefix for Account Abstraction
     bytes3 internal constant DELEGATION_DESIGNATOR = 0xef0100;
@@ -200,36 +205,38 @@ library LibAsset {
     ///         - Still returns false during construction phase of a contract
     ///         - Cannot distinguish between EOA and self-destructed contract
     /// @param account The address to be checked
+    function isContractWithHelper(
+        address account,
+        address helper
+    ) internal view returns (bool) {
+        // exactly the same body you have now, but using `helper` instead of EXT_CODE_HELPER
+        (bool ok, bytes memory ret) = helper.staticcall(
+            abi.encodeWithSelector(
+                IExtcodeHelper(helper).getDelegationInfo.selector,
+                account
+            )
+        );
+        if (ok && ret.length == 64) {
+            (bytes3 prefix, address delegate) = abi.decode(
+                ret,
+                (bytes3, address)
+            );
+            if (prefix == DELEGATION_DESIGNATOR) {
+                uint256 sz;
+                assembly {
+                    sz := extcodesize(delegate)
+                }
+                return sz > 0;
+            }
+        }
+        uint256 size;
+        assembly {
+            size := extcodesize(account)
+        }
+        return size > 0;
+    }
+
     function isContract(address account) internal view returns (bool) {
-        bytes memory code = new bytes(23); // 3 bytes prefix + 20 bytes address
-
-        assembly {
-            extcodecopy(account, add(code, 0x20), 0, 23)
-        }
-
-        // Check for delegation designator prefix
-        bytes3 prefix;
-        assembly {
-            prefix := mload(add(code, 32))
-        }
-
-        if (prefix == DELEGATION_DESIGNATOR) {
-            // Extract delegate address (next 20 bytes)
-            address delegateAddr;
-            assembly {
-                delegateAddr := mload(add(add(code, 0x20), 3))
-                delegateAddr := shr(96, delegateAddr)
-            }
-
-            // Only check first level of delegation
-            uint256 delegateSize;
-            assembly {
-                delegateSize := extcodesize(delegateAddr)
-            }
-            return delegateSize > 0;
-        }
-
-        // If not delegated, check if it's a regular contract
         uint256 size;
         assembly {
             size := extcodesize(account)

@@ -8,6 +8,9 @@ import { InvalidContract, NoSwapFromZeroBalance, InsufficientBalance } from "../
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 library LibSwap {
+    address internal constant EXT_CODE_HELPER =
+        address(uint160(uint256(keccak256("EXT_CODE_HELPER"))));
+
     struct SwapData {
         address callTo;
         address approveTo;
@@ -29,7 +32,8 @@ library LibSwap {
     );
 
     function swap(bytes32 transactionId, SwapData calldata _swap) internal {
-        if (!LibAsset.isContract(_swap.callTo)) revert InvalidContract();
+        if (!LibAsset.isContractWithHelper(_swap.callTo, EXT_CODE_HELPER))
+            revert InvalidContract();
         uint256 fromAmount = _swap.fromAmount;
         if (fromAmount == 0) revert NoSwapFromZeroBalance();
         uint256 nativeValue = LibAsset.isNativeAsset(_swap.sendingAssetId)

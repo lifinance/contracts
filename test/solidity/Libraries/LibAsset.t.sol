@@ -5,8 +5,26 @@ import { TestBase } from "../utils/TestBase.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "lifi/Errors/GenericErrors.sol";
+import { ExtcodeHelper } from "lifi/Helpers/ExtcodeHelper.sol";
+import { IExtcodeHelper } from "lifi/Interfaces/IExtcodeHelper.sol";
+
+error ExtcodecopyNotSupported();
+
+contract RevertingHelper is IExtcodeHelper {
+    function getDelegationInfo(
+        address
+    ) external pure override returns (bytes3, address) {
+        revert ExtcodecopyNotSupported();
+    }
+}
 
 contract LibAssetImplementer {
+    ExtcodeHelper public extcodeHelper;
+
+    constructor(address helper_) {
+        extcodeHelper = ExtcodeHelper(helper_);
+    }
+
     function transferAsset(
         address assetId,
         address payable recipient,
@@ -40,16 +58,18 @@ contract LibAssetImplementer {
         LibAsset.depositAsset(assetId, amount);
     }
 
-    function isContract(address _contractAddr) public view returns (bool) {
-        return LibAsset.isContract(_contractAddr);
+    function isContract(address account) public view returns (bool) {
+        return LibAsset.isContractWithHelper(account, address(extcodeHelper));
     }
 }
 
 contract LibAssetTest is TestBase {
     LibAssetImplementer internal implementer;
+    ExtcodeHelper internal extcodeHelper;
 
     function setUp() public {
-        implementer = new LibAssetImplementer();
+        extcodeHelper = new ExtcodeHelper();
+        implementer = new LibAssetImplementer(address(extcodeHelper));
         initTestBase();
     }
 
@@ -172,5 +192,61 @@ contract LibAssetTest is TestBase {
 
         result = implementer.isContract(USER_SENDER);
         assertTrue(result, "Delegation to valid delegate should return true");
+    }
+}
+
+contract LibAssetImplementerWithRevHelper {
+    /// @dev we forward into LibAsset using the injected helper
+    address public helper;
+    constructor(address _helper) {
+        helper = _helper;
+    }
+
+    function isContract(address account) public view returns (bool) {
+        return LibAsset.isContractWithHelper(account, helper);
+    }
+}
+
+contract LibAssetZkSyncFallbackTest is TestBase {
+    LibAssetImplementerWithRevHelper internal implementer;
+    RevertingHelper internal revHelper;
+
+    function setUp() public {
+        revHelper = new RevertingHelper();
+        implementer = new LibAssetImplementerWithRevHelper(address(revHelper));
+        initTestBase();
+    }
+
+    function test_fallbackForRegularContract() public {
+        bool ok = implementer.isContract(ADDRESS_USDC);
+        assertTrue(
+            ok,
+            "should fall back to extcodesize and see real contract"
+        );
+    }
+
+    function test_fallbackForEOA() public {
+        // address(0) and USER_SENDER are EOAs -> extcodesize == 0 -> false
+        assertFalse(
+            implementer.isContract(address(0)),
+            "zero addr is not a contract"
+        );
+        assertFalse(
+            implementer.isContract(USER_SENDER),
+            "EOA should not be seen as contract"
+        );
+    }
+
+    function test_delegationBranchNeverTaken() public {
+        // even if we etch delegation code, helper always reverts so fallback is extcodesize(account)
+        bytes memory aaCode = abi.encodePacked(
+            hex"ef0100",
+            bytes20(address(this))
+        );
+        vm.etch(USER_SENDER, aaCode);
+
+        // extcodesize(USER_SENDER) is still >0 because vm.etch writes code
+        bool ok = implementer.isContract(USER_SENDER);
+        assertTrue(ok, "etch wrote code so extcodesize > 0 on fallback path");
     }
 }
