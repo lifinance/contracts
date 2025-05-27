@@ -8,7 +8,6 @@ import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -231,16 +230,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
-        console2.log("tokenOut == NATIVE_ADDRESS");
-        console2.log(tokenOut == NATIVE_ADDRESS);
-        console2.log("tokenOut");
-        console2.log(tokenOut);
-        console2.log("balanceOutFinal");
-        console2.log(balanceOutFinal);
-        console2.log("balanceOutInitial");
-        console2.log(balanceOutInitial);
-        console2.log("amountOutMin");
-        console2.log(amountOutMin);
         if (balanceOutFinal < balanceOutInitial + amountOutMin)
             revert MinimalOutputBalanceViolation(
                 balanceOutFinal - balanceOutInitial

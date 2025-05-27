@@ -165,7 +165,6 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    // DAI case
     function testBase_CanBridgeToken_WithUSDS()
         public
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -173,7 +172,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         assertBalanceChange(
             ADDRESS_USDS,
             USER_SENDER,
-            -int256(defaultDAIAmount)
+            -int256(defaultUSDSAmount)
         )
         assertBalanceChange(ADDRESS_USDS, USER_RECEIVER, 0)
     {
