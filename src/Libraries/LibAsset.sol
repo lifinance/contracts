@@ -26,10 +26,6 @@ library LibAsset {
 
     address internal constant NATIVE_ASSETID = NULL_ADDRESS;
 
-    /// @dev address of the ExtcodeHelper contract
-    address internal constant EXT_CODE_HELPER =
-        0x7000000000000000000000000000000000000000;
-
     /// @dev EIP-7702 delegation designator prefix for Account Abstraction
     bytes3 internal constant DELEGATION_DESIGNATOR = 0xef0100;
 
