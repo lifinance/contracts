@@ -168,23 +168,6 @@ const main = defineCommand({
           registeredFacets = onChainFacets.map(([address]) => {
             return configFacetsByAddress[address.toLowerCase()]
           })
-
-          console.log(
-            `onChainFacetAddresses: ${JSON.stringify(
-              onChainFacetAddresses,
-              null,
-              2
-            )}`
-          )
-          console.log(``)
-          console.log(
-            `configFacetsByAddress: ${JSON.stringify(
-              configFacetsByAddress,
-              null,
-              2
-            )}`
-          )
-          console.log(``)
         }
       } else {
         throw new Error('Failed to get rpc from network config file')
@@ -193,15 +176,6 @@ const main = defineCommand({
       consola.warn('Unable to parse output - skipping facet registration check')
       consola.warn('Error:', error)
     }
-
-    console.log(`coreFacets: ${JSON.stringify(coreFacets, null, 2)}`)
-    console.log(``)
-    console.log(`nonCoreFacets: ${JSON.stringify(nonCoreFacets, null, 2)}`)
-    console.log(``)
-    console.log(
-      `registeredFacets: ${JSON.stringify(registeredFacets, null, 2)}`
-    )
-    console.log(``)
 
     for (const facet of [...coreFacets, ...nonCoreFacets]) {
       if (!registeredFacets.includes(facet)) {
@@ -628,6 +602,7 @@ const checkIsDeployed = async (
 }
 
 const finish = () => {
+  // this line ensures that all logs are actually written before the script ends
   process.stdout.write('', () => process.stdout.end())
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
