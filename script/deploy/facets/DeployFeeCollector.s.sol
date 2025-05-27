@@ -30,10 +30,10 @@ contract DeployScript is DeployScriptBase {
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address withdrawWalletAddress = globalConfigJson.readAddress(
-            ".withdrawWallet"
+        address feeCollectorOwnerAddress = globalConfigJson.readAddress(
+            ".feeCollectorOwner"
         );
 
-        return abi.encode(withdrawWalletAddress);
+        return abi.encode(feeCollectorOwnerAddress);
     }
 }
