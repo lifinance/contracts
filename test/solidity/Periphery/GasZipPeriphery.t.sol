@@ -11,7 +11,6 @@ import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {
@@ -528,22 +527,20 @@ contract GasZipPeripheryTest is TestBase {
         // Calculate USDC input amount
         uint256[] memory amounts = uniswap.getAmountsOut(fromAmount, path);
         amountOutMin = amounts[1] - 1;
-        console2.log("abi.encode(fromAmount)");
-        console2.logBytes(abi.encode(fromAmount));
-        console2.log("fromAmount");
-        console2.log(fromAmount);
-        console2.log("amountOutMin");
-        console2.log(amountOutMin);
         bytes memory route = abi.encodePacked(
             hex"2646478b",
             hex"0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f",
             abi.encode(fromAmount),
             hex"000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
             abi.encode(amountOutMin),
-            hex"0000000000000000000000007f2922c09dd671055c5abbc4f5657f874c180629",
+            abi.encodePacked(hex"000000000000000000000000", gasZipPeriphery),
             hex"00000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00A478c2975Ab1Ea89e8196811F51A7B7Ade33eB1101",
             liFiDEXAggregator,
-            hex"000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02007F2922c09DD671055C5aBBC4F5657f874c18062900000000000000000000000000"
+            abi.encodePacked(
+                hex"000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff0200",
+                gasZipPeriphery
+            ),
+            hex"00000000000000000000000000"
         );
 
         // abi-encode the real selector + parameters:

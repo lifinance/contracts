@@ -8,7 +8,6 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InvalidConfig, InvalidSendingToken } from "../Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
@@ -88,14 +87,12 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ) {
             revert InvalidSendingToken();
         }
-        console2.log("swapAndStartBridgeTokensViaGnosisBridge");
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
-        console2.log("swapAndStartBridgeTokensViaGnosisBridge 2222");
         _startBridge(_bridgeData);
     }
 
@@ -104,19 +101,12 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via BridgeRouter
     /// @param _bridgeData the core information needed for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
-        console2.log("startBridge");
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(BRIDGE_ROUTER),
             _bridgeData.minAmount
         );
-        console2.log("startBridge 2222");
-        console2.log("BRIDGE_ROUTER", address(BRIDGE_ROUTER));
-        console2.log("sendingAssetId", _bridgeData.sendingAssetId);
-        console2.log("receiver", _bridgeData.receiver);
-        console2.log("minAmount", _bridgeData.minAmount);
-        console2.log("block.chainid", block.chainid);
-        console2.log("block.number", block.number);
+
         BRIDGE_ROUTER.relayTokens(
             _bridgeData.sendingAssetId,
             _bridgeData.receiver,

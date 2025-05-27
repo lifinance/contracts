@@ -6,7 +6,7 @@ import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
-import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { TransferFromFailed, InvalidConfig, InvalidSendingToken } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GnosisBridgeFacet Contract
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
@@ -247,6 +247,36 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestGnosisBridgeFacet(IGnosisBridgeRouter(address(0)));
+    }
+
+    function testRevert_InvalidSendingToken_StartBridge() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set an invalid token (USDC) as sending asset
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidSendingToken_SwapAndStartBridge() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set an invalid token (USDC) as final sending asset
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.hasSourceSwaps = true;
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+
         vm.stopPrank();
     }
 }
