@@ -9,7 +9,6 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
@@ -19,7 +18,9 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// State ///
+    // solhint-disable-next-line immutable-vars-naming
     IGasZip public immutable gasZipRouter;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable liFiDEXAggregator;
     uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
 
@@ -45,11 +46,9 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         LibSwap.SwapData calldata _swapData,
         IGasZip.GasZipData calldata _gasZipData
     ) public {
-        console2.log("depositToGasZipERC20");
         // deposit ERC20 asset from diamond
         LibAsset.depositAsset(_swapData.sendingAssetId, _swapData.fromAmount);
 
-        console2.log("depositToGasZipERC20 2222");
         // max approve to DEX, if not already done
         LibAsset.maxApproveERC20(
             IERC20(_swapData.sendingAssetId),
@@ -68,7 +67,6 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         // extract the swap output amount from the call return value
         uint256 swapOutputAmount = abi.decode(res, (uint256));
 
-        console2.log("depositToGasZipERC20 4444");
         // deposit native tokens to Gas.zip protocol
         depositToGasZipNative(_gasZipData, swapOutputAmount);
     }
@@ -85,20 +83,15 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         if (_gasZipData.receiverAddress == bytes32(0))
             revert InvalidCallData();
 
-        console2.log("depositToGasZipERC20 5555");
-        console2.log(address(this).balance);
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _amount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );
 
-        console2.log("depositToGasZipERC20 6666");
         // return unused native value to msg.sender, if any
         // this is required due to LI.FI backend-internal requirements (money flow)
         uint256 remainingNativeBalance = address(this).balance;
-        console2.log("depositToGasZipERC20 7777");
-        console2.log("remainingNativeBalance", remainingNativeBalance);
         if (remainingNativeBalance > 0) {
             msg.sender.safeTransferETH(remainingNativeBalance);
         }
@@ -122,7 +115,5 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     }
 
     // Required to receive ETH from ERC20-to-Native swaps
-    receive() external payable {
-        console2.log("receive");
-    }
+    receive() external payable {}
 }

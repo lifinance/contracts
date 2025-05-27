@@ -111,6 +111,8 @@
       "eslint --fix"
     ],
     "*.sol": [
-      "prettier --write"]
+      "prettier --write",
+      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt --fix \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _" 
+    ]
   }
 }

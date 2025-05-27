@@ -543,16 +543,6 @@ contract GasZipPeripheryTest is TestBase {
             hex"00000000000000000000000000"
         );
 
-        // abi-encode the real selector + parameters:
-        // bytes memory callData = abi.encodeWithSelector(
-        //   LiFiDEXAggregator.processRoute.selector,
-        //   sendingAssetId,        // from token
-        //   fromAmount,            // amount in
-        //   ADDRESS_WRAPPED_NATIVE,// to token
-        //   amountOutMin,          // min out
-        //   address(this)          // refund receiver
-        // );
-
         swapData = LibSwap.SwapData(
             address(liFiDEXAggregator),
             address(liFiDEXAggregator),
@@ -561,7 +551,6 @@ contract GasZipPeripheryTest is TestBase {
             fromAmount,
             // this is calldata for the DEXAggregator to swap 2 DAI to native
             route,
-            // hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f0000000000000000000000000000000000000000000000001bc16d674ec80000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002f70244563dc70000000000000000000000007f2922c09dd671055c5abbc4f5657f874c18062900000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00A478c2975Ab1Ea89e8196811F51A7B7Ade33eB1101e43ca1Dee3F0fc1e2df73A0745674545F11A59F5000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02007F2922c09DD671055C5aBBC4F5657f874c18062900000000000000000000000000",
             true
         );
     }
