@@ -41,7 +41,7 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xFf6Fa203573Baaaa4AE375EB7ac2819d539e16FF": {
+      "0xb6Db46D685c12D73AaD521307D491e175cbFB07a": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
@@ -143,16 +143,14 @@
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "GasZipPeriphery": "",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
-      "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
       "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
-      "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
-      "LidoWrapper": "",
-      "ReceiverChainflip": ""
+      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
 }
