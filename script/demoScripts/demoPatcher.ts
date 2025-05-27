@@ -142,21 +142,30 @@ async function main(options: { privateKey: string; dryRun: boolean }) {
     if (!options.dryRun) {
       consola.info('Submitting order to CowSwap...')
       try {
-        // Add a timeout to the order submission
-        const orderPromise = cowSdk.postSwapOrder(parameters, advancedSettings)
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(
-            () =>
-              reject(new Error('Order submission timed out after 30 seconds')),
-            30000
-          )
-        })
+        // Create an AbortController for proper cancellation
+        const abortController = new AbortController()
+        const timeoutId = setTimeout(() => {
+          abortController.abort()
+        }, 30000)
 
-        const orderId = await Promise.race([orderPromise, timeoutPromise])
-        consola.success(`Order created with hash: ${orderId}`)
-        consola.info(
-          `Explorer URL: https://explorer.cow.fi/orders/${orderId}?chainId=42161`
-        )
+        try {
+          const orderId = await cowSdk.postSwapOrder(
+            parameters,
+            advancedSettings
+          )
+          clearTimeout(timeoutId)
+
+          consola.success(`Order created with hash: ${orderId}`)
+          consola.info(
+            `Explorer URL: https://explorer.cow.fi/orders/${orderId}?chainId=42161`
+          )
+        } catch (error) {
+          clearTimeout(timeoutId)
+          if (abortController.signal.aborted) {
+            throw new Error('Order submission timed out after 30 seconds')
+          }
+          throw error
+        }
       } catch (error) {
         consola.error('Error submitting order to CowSwap:', error)
         throw error
