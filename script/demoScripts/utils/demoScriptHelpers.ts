@@ -26,7 +26,7 @@ import { config } from 'dotenv'
 
 config()
 
-export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
+export const DEV_WALLET_ADDRESS = '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
@@ -822,6 +822,15 @@ export const ensureAllowance = async (
   } else {
     console.info('Sufficient allowance already exists.')
   }
+}
+
+export function parseAmountToHumanReadable(
+  amount: bigint | string,
+  decimals: number | bigint
+): number {
+  const rawAmount = typeof amount === 'bigint' ? amount : BigInt(amount)
+  const rawDecimals = typeof decimals === 'bigint' ? Number(decimals) : decimals
+  return Number(formatUnits(rawAmount, rawDecimals))
 }
 
 export const getPrivateKeyForEnvironment = (

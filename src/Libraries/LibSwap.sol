@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "./LibAsset.sol";
 import { LibUtil } from "./LibUtil.sol";
-import { InvalidContract, NoSwapFromZeroBalance, InsufficientBalance } from "../Errors/GenericErrors.sol";
+import { InvalidContract, NoSwapFromZeroBalance } from "../Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 library LibSwap {
@@ -35,9 +35,9 @@ library LibSwap {
         uint256 nativeValue = LibAsset.isNativeAsset(_swap.sendingAssetId)
             ? _swap.fromAmount
             : 0;
-        uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(
-            _swap.sendingAssetId
-        );
+        // uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(
+        //     _swap.sendingAssetId
+        // );
         uint256 initialReceivingAssetBalance = LibAsset.getOwnBalance(
             _swap.receivingAssetId
         );
@@ -50,12 +50,17 @@ library LibSwap {
             );
         }
 
-        if (initialSendingAssetBalance < _swap.fromAmount) {
-            revert InsufficientBalance(
-                _swap.fromAmount,
-                initialSendingAssetBalance
-            );
-        }
+        // we used to have a sending asset balance check here (initialSendingAssetBalance >= _swap.fromAmount)
+        // this check was removed to allow for more flexibility with rebasing/fee-taking tokens
+        // the general assumption is that if not enough tokens are available to execute the calldata, the transaction will fail anyway
+        // the error message might not be as explicit though
+
+        // if (initialSendingAssetBalance < _swap.fromAmount) {
+        //     revert InsufficientBalance(
+        //         _swap.fromAmount,
+        //         initialSendingAssetBalance
+        //     );
+        // }
 
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = _swap.callTo.call{
