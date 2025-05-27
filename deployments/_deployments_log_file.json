@@ -32907,6 +32907,20 @@
           }
         ]
       }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x433e2D04cC8c747aEe7c6Effa5bBA8399DE4b0F7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-27 18:08:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   }
 }

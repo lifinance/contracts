@@ -2,6 +2,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { randomBytes } from 'crypto'
 import {
   createWalletClient,
   createPublicClient,
@@ -11,50 +12,30 @@ import {
   type Hex,
   encodeFunctionData,
   encodeAbiParameters,
+  parseAbi,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
 import baseDeployments from '../../deployments/base.json'
+import baseStagingDeployments from '../../deployments/base.staging.json'
 import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
 
 // Contract addresses
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 const BASE_WETH = '0x4200000000000000000000000000000000000006'
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
-const BASE_LIFI_DEX_AGGREGATOR = baseDeployments.LiFiDEXAggregator as Hex
+const BASE_LIFI_DEX_AGGREGATOR = '0x9Caab1750104147c9872772b3d0bE3D4290e1e86' // LiFiDEXAggregator on Base
+const BASE_EXECUTOR = baseDeployments.Executor as Hex
+const BASE_PATCHER = baseStagingDeployments.Patcher as Hex
 const RECEIVER_ACROSS_V3_BASE = baseDeployments.ReceiverAcrossV3 as Hex
 const LIFI_DIAMOND_ARBITRUM = arbitrumStagingDeployments.LiFiDiamond as Hex
 
-// Simple ERC20 ABI
-const ERC20_ABI = [
-  {
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-    ],
-    name: 'allowance',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    name: 'approve',
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'account', type: 'address' }],
-    name: 'balanceOf',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const
+// Simple ERC20 ABI - Human readable format
+const ERC20_ABI = parseAbi([
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function balanceOf(address account) view returns (uint256)',
+])
 
 /**
  * Fetch cross-chain route with destination swap using LiFi Advanced Routes API
@@ -99,7 +80,7 @@ async function fetchCrossChainRoute(
         ],
       },
       exchanges: {
-        allow: ['lifidexaggregator'], // Only allow LiFi DEX Aggregator
+        allow: ['lifidexaggregator'],
       },
     },
   }
@@ -219,95 +200,168 @@ function extractRouteDetails(route: any) {
 }
 
 /**
- * Create LiFiDexAggregator swap calldata using route details
- */
-function createLiFiDexAggregatorSwapCallData(
-  swapFromAmount: string,
-  swapToAmountMin: string,
-  recipient: string
-): string {
-  // LiFiDexAggregator swapTokensGeneric function
-  const lifiDexAggregatorAbi = [
-    {
-      inputs: [
-        { name: '_transactionId', type: 'bytes32' },
-        { name: '_integrator', type: 'string' },
-        { name: '_referrer', type: 'address' },
-        { name: '_receiver', type: 'address' },
-        { name: '_minAmount', type: 'uint256' },
-        {
-          components: [
-            { name: 'callTo', type: 'address' },
-            { name: 'approveTo', type: 'address' },
-            { name: 'sendingAssetId', type: 'address' },
-            { name: 'receivingAssetId', type: 'address' },
-            { name: 'fromAmount', type: 'uint256' },
-            { name: 'callData', type: 'bytes' },
-            { name: 'requiresDeposit', type: 'bool' },
-          ],
-          name: '_swapData',
-          type: 'tuple[]',
-        },
-      ],
-      name: 'swapTokensGeneric',
-      outputs: [],
-      stateMutability: 'payable',
-      type: 'function',
-    },
-  ] as const
-
-  // For now, we'll create a simple direct swap calldata
-  // In a real implementation, you'd want to get the actual swap route from LiFi
-  const swapData = [
-    {
-      callTo: BASE_LIFI_DEX_AGGREGATOR as `0x${string}`,
-      approveTo: BASE_LIFI_DEX_AGGREGATOR as `0x${string}`,
-      sendingAssetId: BASE_WETH as `0x${string}`,
-      receivingAssetId: BASE_USDC as `0x${string}`,
-      fromAmount: BigInt(swapFromAmount),
-      callData: '0x' as `0x${string}`, // Simplified - in practice you'd get this from LiFi API
-      requiresDeposit: true,
-    },
-  ]
-
-  const callData = encodeFunctionData({
-    abi: lifiDexAggregatorAbi,
-    functionName: 'swapTokensGeneric',
-    args: [
-      `0x${Date.now().toString(16).padStart(64, '0')}` as `0x${string}`, // transactionId
-      'lifi-demo', // integrator
-      '0x0000000000000000000000000000000000000000' as `0x${string}`, // referrer
-      recipient as `0x${string}`, // receiver
-      BigInt(swapToAmountMin), // minAmount
-      swapData,
-    ],
-  })
-
-  consola.info(
-    'Created LiFiDexAggregator swap calldata using LiFi route parameters'
-  )
-  return callData
-}
-
-/**
- * Encode destination call message for ReceiverAcrossV3
+ * Encode destination call message for ReceiverAcrossV3 using Patcher pattern
  */
 function encodeDestinationCallMessage(
   transactionId: string,
-  swapCallData: string,
-  fromAmount: string,
+  swapFromAmount: string,
+  swapToAmountMin: string,
   receiver: string
 ): string {
-  // LibSwap.SwapData structure for the LiFiDexAggregator swap
+  // 1. First call: Patcher calls WETH::transferFrom to pull WETH from Executor (with balance patching)
+  const transferFromCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+    ]),
+    functionName: 'transferFrom',
+    args: [
+      BASE_EXECUTOR as `0x${string}`, // from - Executor contract
+      BASE_PATCHER as `0x${string}`, // to - Patcher contract
+      BigInt(swapFromAmount), // amount - This will be patched with Executor's actual balance
+    ],
+  })
+
+  // Create value getter for Executor's WETH balance
+  const executorBalanceValueGetter = encodeFunctionData({
+    abi: parseAbi([
+      'function balanceOf(address account) view returns (uint256)',
+    ]),
+    functionName: 'balanceOf',
+    args: [BASE_EXECUTOR as `0x${string}`], // Get balance of Executor contract
+  })
+
+  // Calculate offset for amount parameter in transferFrom call
+  // transferFrom(address,address,uint256) - 4 bytes selector + 32 bytes from + 32 bytes to + 32 bytes amount = 100 bytes offset
+  const transferFromAmountOffset = 100n
+
+  const patcherTransferCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
+    ]),
+    functionName: 'executeWithDynamicPatches',
+    args: [
+      BASE_WETH as `0x${string}`, // valueSource - WETH contract
+      executorBalanceValueGetter, // valueGetter - balanceOf(Executor) call
+      BASE_WETH as `0x${string}`, // finalTarget - WETH contract
+      0n, // value - no ETH being sent
+      transferFromCallData, // data - transferFrom call
+      [transferFromAmountOffset], // offsets - position of amount parameter
+      false, // delegateCall - false for regular call
+    ],
+  })
+
+  // 2. Second call: Patcher calls WETH::approve to approve LiFiDexAggregator (with balance patching)
+  const approveCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function approve(address spender, uint256 amount) returns (bool)',
+    ]),
+    functionName: 'approve',
+    args: [
+      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // spender - LiFiDEXAggregator
+      BigInt(swapFromAmount), // amount - This will be patched with Patcher's actual balance
+    ],
+  })
+
+  // Create the value getter for Patcher's WETH balance
+  const patcherBalanceValueGetter = encodeFunctionData({
+    abi: parseAbi([
+      'function balanceOf(address account) view returns (uint256)',
+    ]),
+    functionName: 'balanceOf',
+    args: [BASE_PATCHER as `0x${string}`], // Get balance of Patcher contract
+  })
+
+  // Calculate offset for amount parameter in approve call
+  // approve(address,uint256) - 4 bytes selector + 32 bytes spender + 32 bytes amount = 68 bytes offset
+  const approveAmountOffset = 68n
+
+  const patcherApproveCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
+    ]),
+    functionName: 'executeWithDynamicPatches',
+    args: [
+      BASE_WETH as `0x${string}`, // valueSource - WETH contract
+      patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
+      BASE_WETH as `0x${string}`, // finalTarget - WETH contract
+      0n, // value - no ETH being sent
+      approveCallData, // data - approve call
+      [approveAmountOffset], // offsets - position of amount parameter
+      false, // delegateCall - false for regular call
+    ],
+  })
+
+  // 3. Third call: Patcher calls LiFiDEXAggregator::processRoute with dynamic balance
+  const routeData =
+    '0x02420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d38014dac9d1769b9b304cb04741dcdeb2fc14abdf110000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
+
+  const processRouteCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function processRoute(address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOutMin, address to, bytes memory route) payable returns (uint256 amountOut)',
+    ]),
+    functionName: 'processRoute',
+    args: [
+      BASE_WETH as `0x${string}`, // tokenIn - WETH on Base
+      BigInt(swapFromAmount), // amountIn - This will be patched with Patcher's actual balance
+      BASE_USDC as `0x${string}`, // tokenOut - USDC on Base
+      BigInt(swapToAmountMin), // amountOutMin - Minimum USDC out
+      receiver as `0x${string}`, // to - Final recipient
+      routeData, // route - Route data for WETH->USDC swap
+    ],
+  })
+
+  // Calculate offset for amountIn parameter in processRoute call
+  // processRoute(address,uint256,address,uint256,address,bytes)
+  // 4 bytes selector + 32 bytes tokenIn + 32 bytes amountIn = 68 bytes offset
+  const processRouteAmountOffset = 68n
+
+  const patcherProcessRouteCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
+    ]),
+    functionName: 'executeWithDynamicPatches',
+    args: [
+      BASE_WETH as `0x${string}`, // valueSource - WETH contract
+      patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
+      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // finalTarget - LiFiDEXAggregator
+      0n, // value - no ETH being sent
+      processRouteCallData, // data - processRoute call
+      [processRouteAmountOffset], // offsets - position of amountIn parameter
+      false, // delegateCall - false for regular call
+    ],
+  })
+
+  // Create LibSwap.SwapData structure with three patcher calls
   const swapData = [
+    // Call 1: Patcher calls WETH::transferFrom to pull actual WETH balance from Executor
     {
-      callTo: BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // LiFiDexAggregator
-      approveTo: BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // Approve to the same aggregator
+      callTo: BASE_PATCHER as `0x${string}`,
+      approveTo: BASE_PATCHER as `0x${string}`,
+      sendingAssetId: BASE_WETH as `0x${string}`,
+      receivingAssetId: BASE_WETH as `0x${string}`,
+      fromAmount: BigInt(swapFromAmount),
+      callData: patcherTransferCallData as `0x${string}`,
+      requiresDeposit: true,
+    },
+    // Call 2: Patcher calls WETH::approve to approve LiFiDexAggregator with actual balance
+    {
+      callTo: BASE_PATCHER as `0x${string}`,
+      approveTo: BASE_PATCHER as `0x${string}`,
+      sendingAssetId: BASE_WETH as `0x${string}`,
+      receivingAssetId: BASE_WETH as `0x${string}`,
+      fromAmount: 0n, // No amount for approval
+      callData: patcherApproveCallData as `0x${string}`,
+      requiresDeposit: false,
+    },
+    // Call 3: Patcher calls LiFiDexAggregator::processRoute with actual balance
+    {
+      callTo: BASE_PATCHER as `0x${string}`,
+      approveTo: BASE_PATCHER as `0x${string}`,
       sendingAssetId: BASE_WETH as `0x${string}`,
       receivingAssetId: BASE_USDC as `0x${string}`,
-      fromAmount: BigInt(fromAmount),
-      callData: swapCallData as `0x${string}`,
-      requiresDeposit: true,
+      fromAmount: 0n, // No amount for patcher call
+      callData: patcherProcessRouteCallData as `0x${string}`,
+      requiresDeposit: false,
     },
   ]
 
@@ -333,7 +387,14 @@ function encodeDestinationCallMessage(
     [transactionId as `0x${string}`, swapData, receiver as `0x${string}`]
   )
 
-  consola.info('Encoded destination call message for ReceiverAcrossV3')
+  consola.info('Encoded destination call message using Patcher pattern:')
+  consola.info(
+    '1. Patcher calls WETH::transferFrom with Executor balance patching'
+  )
+  consola.info('2. Patcher calls WETH::approve with Patcher balance patching')
+  consola.info(
+    '3. Patcher calls LiFiDexAggregator::processRoute with Patcher balance patching'
+  )
   return messagePayload
 }
 
@@ -345,52 +406,13 @@ function constructBridgeCallData(
   destinationCallMessage: string,
   walletAddress: string
 ): string {
-  // ABI for startBridgeTokensViaAcrossV3 function
-  const acrossV3Abi = [
-    {
-      inputs: [
-        {
-          components: [
-            { name: 'transactionId', type: 'bytes32' },
-            { name: 'bridge', type: 'string' },
-            { name: 'integrator', type: 'string' },
-            { name: 'referrer', type: 'address' },
-            { name: 'sendingAssetId', type: 'address' },
-            { name: 'receiver', type: 'address' },
-            { name: 'minAmount', type: 'uint256' },
-            { name: 'destinationChainId', type: 'uint256' },
-            { name: 'hasSourceSwaps', type: 'bool' },
-            { name: 'hasDestinationCall', type: 'bool' },
-          ],
-          name: '_bridgeData',
-          type: 'tuple',
-        },
-        {
-          components: [
-            { name: 'receiverAddress', type: 'address' },
-            { name: 'refundAddress', type: 'address' },
-            { name: 'receivingAssetId', type: 'address' },
-            { name: 'outputAmount', type: 'uint256' },
-            { name: 'outputAmountPercent', type: 'uint64' },
-            { name: 'exclusiveRelayer', type: 'address' },
-            { name: 'quoteTimestamp', type: 'uint32' },
-            { name: 'fillDeadline', type: 'uint32' },
-            { name: 'exclusivityDeadline', type: 'uint32' },
-            { name: 'message', type: 'bytes' },
-          ],
-          name: '_acrossData',
-          type: 'tuple',
-        },
-      ],
-      name: 'startBridgeTokensViaAcrossV3',
-      outputs: [],
-      stateMutability: 'payable',
-      type: 'function',
-    },
-  ] as const
+  // ABI for startBridgeTokensViaAcrossV3 function - Human readable format
+  const acrossV3Abi = parseAbi([
+    'function startBridgeTokensViaAcrossV3((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address receiverAddress, address refundAddress, address receivingAssetId, uint256 outputAmount, uint64 outputAmountPercent, address exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityDeadline, bytes message) _acrossData) payable',
+  ])
 
   // Generate a unique transaction ID
-  const transactionId = `0x${Date.now().toString(16).padStart(64, '0')}`
+  const transactionId = `0x${randomBytes(32).toString('hex')}`
 
   // Bridge data structure
   const bridgeData = {
@@ -406,22 +428,17 @@ function constructBridgeCallData(
     hasDestinationCall: true, // Enable destination call
   }
 
-  // Calculate output amount percent based on LiFi's calculations
-  const outputAmountPercent =
-    (BigInt(routeDetails.toAmount) * BigInt('1000000000000000000')) /
-    BigInt(routeDetails.fromAmount)
-
-  // Across data structure
+  // Across data structure - match successful transaction timing
   const acrossData = {
     receiverAddress: RECEIVER_ACROSS_V3_BASE as `0x${string}`, // ReceiverAcrossV3
     refundAddress: walletAddress as `0x${string}`,
     receivingAssetId: BASE_WETH as `0x${string}`,
     outputAmount: BigInt(routeDetails.toAmount), // Use LiFi's calculated amount
-    outputAmountPercent: outputAmountPercent, // Calculated from LiFi data
+    outputAmountPercent: BigInt('960000000000000000'), // 96% (0.96e18) - optimized based on successful tx
     exclusiveRelayer:
       '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    quoteTimestamp: Math.floor(Date.now() / 1000),
-    fillDeadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+    quoteTimestamp: Math.floor(Date.now() / 1000), // Current timestamp
+    fillDeadline: Math.floor(Date.now() / 1000) + 7200, // 2 hours from now (more time)
     exclusivityDeadline: 0,
     message: destinationCallMessage as `0x${string}`, // Our encoded destination call
   }
@@ -540,20 +557,13 @@ async function executeCrossChainBridgeWithSwap(options: {
   const routeDetails = extractRouteDetails(route)
 
   // Generate a transaction ID for the bridge
-  const transactionId = `0x${Date.now().toString(16).padStart(64, '0')}`
+  const transactionId = `0x${randomBytes(32).toString('hex')}`
 
-  // Create LiFiDexAggregator swap calldata using LiFi's calculated amounts
-  const swapCallData = createLiFiDexAggregatorSwapCallData(
-    routeDetails.swapFromAmount,
-    routeDetails.swapToAmountMin,
-    walletAddress
-  )
-
-  // Encode the destination call message for ReceiverAcrossV3
+  // Encode the destination call message for ReceiverAcrossV3 using Patcher pattern
   const destinationCallMessage = encodeDestinationCallMessage(
     transactionId,
-    swapCallData,
     routeDetails.swapFromAmount,
+    routeDetails.swapToAmountMin,
     walletAddress
   )
 
@@ -567,9 +577,13 @@ async function executeCrossChainBridgeWithSwap(options: {
   // Log the route details
   consola.success('Cross-chain route with destination swap ready!')
   consola.info('✅ Bridge: AcrossV3 (WETH Arbitrum → Base)')
-  consola.info('✅ Destination swap: WETH → USDC on Base')
+  consola.info(
+    '✅ Destination swap: WETH → USDC on Base via Patcher + LiFiDEXAggregator'
+  )
   consola.info('✅ Final output: USDC to user wallet')
-  consola.info('✅ Calldata: Constructed using LiFi route optimization')
+  consola.info(
+    '✅ Calldata: Constructed using Patcher pattern with dynamic balance patching'
+  )
 
   // Log cost breakdown using LiFi's data
   consola.info('💰 Cost breakdown (from LiFi route):')
@@ -581,15 +595,27 @@ async function executeCrossChainBridgeWithSwap(options: {
   )
   consola.info(`- Estimated gas cost: $${routeDetails.gasCostUSD}`)
 
-  consola.info('🔄 Cross-chain flow:')
+  consola.info('🔄 Cross-chain flow with Patcher pattern:')
   consola.info('1. Bridge 0.001 WETH from Arbitrum → Base via AcrossV3')
   consola.info(
-    `2. ReceiverAcrossV3 receives ~${routeDetails.toAmount} wei WETH on Base`
+    `2. ReceiverAcrossV3.handleV3AcrossMessage receives ~${routeDetails.toAmount} wei WETH on Base`
   )
   consola.info(
-    '3. ReceiverAcrossV3 calls LiFiDexAggregator to swap WETH → USDC on Base'
+    '3. ReceiverAcrossV3 calls Executor.swapAndCompleteBridgeTokens with 3 patcher calls:'
   )
-  consola.info('4. Final USDC sent to user wallet')
+  consola.info(
+    '   a. Patcher calls WETH::transferFrom(Executor, Patcher, executorBalance) - Pull exact WETH amount'
+  )
+  consola.info(
+    '   b. Patcher calls WETH::approve(LiFiDexAggregator, patcherBalance) - Approve exact amount'
+  )
+  consola.info(
+    '   c. Patcher calls LiFiDexAggregator::processRoute(patcherBalance) - Swap exact amount'
+  )
+  consola.info(
+    '4. All calls use dynamic balance patching to handle exact bridge amounts'
+  )
+  consola.info('5. Final USDC sent to user wallet')
 
   // Execute the cross-chain transaction
   if (!options.dryRun) {
@@ -613,7 +639,7 @@ async function executeCrossChainBridgeWithSwap(options: {
 
       if (receipt.status === 'success') {
         consola.success(
-          `🎉 Cross-chain bridge with destination swap completed!`
+          `🎉 Cross-chain bridge with destination swap completed using Patcher pattern!`
         )
         consola.info(`Transaction hash: ${txHash}`)
         consola.info(`Block number: ${receipt.blockNumber}`)
@@ -629,7 +655,7 @@ async function executeCrossChainBridgeWithSwap(options: {
     }
   } else {
     consola.info(
-      '[DRY RUN] Would execute cross-chain bridge with destination swap'
+      '[DRY RUN] Would execute cross-chain bridge with destination swap using Patcher pattern'
     )
     consola.info(`[DRY RUN] Transaction data:`)
     consola.info(`[DRY RUN] - To: ${LIFI_DIAMOND_ARBITRUM}`)
@@ -644,7 +670,7 @@ const main = defineCommand({
   meta: {
     name: 'demoPatcherDest',
     description:
-      'Demo cross-chain bridge with destination swap using AcrossV3 and LiFi Advanced Routes API',
+      'Demo cross-chain bridge with destination swap using AcrossV3, Patcher pattern, and LiFi Advanced Routes API',
   },
   args: {
     privateKey: {
