@@ -11,6 +11,7 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract LidoWrapperTest is TestBase {
     LidoWrapper private lidoWrapper;
@@ -32,6 +33,8 @@ contract LidoWrapperTest is TestBase {
     TestRelayFacet internal relayFacet;
     RelayFacet.RelayData internal validRelayData;
     GenericSwapFacetV3 internal genericSwapFacetV3;
+
+    error ContractNotYetReadyForMainnet();
 
     function setUp() public {
         vm.label(ST_ETH_ADDRESS_OPTIMISM, "stETH");
@@ -123,6 +126,56 @@ contract LidoWrapperTest is TestBase {
         vm.stopPrank();
 
         vm.label(address(lidoWrapper), "LidoWrapper");
+    }
+
+    function test_WillStoreConstructorParametersCorrectly() public {
+        customRpcUrlForForking = "ETH_NODE_URI_MAINNET";
+        customBlockNumberForForking = 22574016;
+        fork();
+
+        vm.expectRevert(ContractNotYetReadyForMainnet.selector);
+
+        lidoWrapper = new LidoWrapper(
+            ST_ETH_ADDRESS_MAINNET,
+            WST_ETH_ADDRESS_MAINNET,
+            USER_DIAMOND_OWNER
+        );
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new LidoWrapper(
+            address(0),
+            WST_ETH_ADDRESS_OPTIMISM,
+            USER_DIAMOND_OWNER
+        );
+
+        vm.expectRevert(InvalidConfig.selector);
+        new LidoWrapper(
+            ST_ETH_ADDRESS_OPTIMISM,
+            address(0),
+            USER_DIAMOND_OWNER
+        );
+        vm.expectRevert(InvalidConfig.selector);
+        new LidoWrapper(
+            ST_ETH_ADDRESS_OPTIMISM,
+            WST_ETH_ADDRESS_OPTIMISM,
+            address(0)
+        );
+    }
+    function testRevert_CannotBeDeployedToMainnet() public {
+        lidoWrapper = new LidoWrapper(
+            ST_ETH_ADDRESS_OPTIMISM,
+            WST_ETH_ADDRESS_OPTIMISM,
+            USER_DIAMOND_OWNER
+        );
+
+        assertEq(address(lidoWrapper.ST_ETH()), ST_ETH_ADDRESS_OPTIMISM);
+        assertEq(
+            address(lidoWrapper.WST_ETH_ADDRESS()),
+            WST_ETH_ADDRESS_OPTIMISM
+        );
+        assertEq(address(lidoWrapper.owner()), USER_DIAMOND_OWNER);
     }
 
     // ######## Test cases for direct interactions with LidoWrapper #########
