@@ -86,6 +86,7 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             revert InvalidCallData();
 
         console2.log("depositToGasZipERC20 5555");
+        console2.log(address(this).balance);
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _amount }(
             _gasZipData.destinationChains,

@@ -235,6 +235,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         console2.log(tokenOut == NATIVE_ADDRESS);
         console2.log("tokenOut");
         console2.log(tokenOut);
+        console2.log("balanceOutFinal");
         console2.log(balanceOutFinal);
         console2.log("balanceOutInitial");
         console2.log(balanceOutInitial);
