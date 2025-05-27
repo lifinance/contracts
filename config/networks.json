@@ -179,6 +179,28 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "bob": {
+    "name": "bob",
+    "chainId": 60808,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.gobob.xyz",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://explorer.gobob.xyz",
+    "explorerApiUrl": "https://explorer.gobob.xyz/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "",
+    "safeAddress": "0xd28503EeE7B0bBb2437c16DC8d2a42997B2922C9",
+    "safeWebUrl": "",
+    "gasZipChainId": 150,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+  },
   "boba": {
     "name": "boba",
     "chainId": 288,
