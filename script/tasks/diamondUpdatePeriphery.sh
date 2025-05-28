@@ -189,16 +189,93 @@ register() {
       if [[ "$ENVIRONMENT" == "production" ]]; then
         # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
-          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
 
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+          
+          # Get timelock controller address if it exists
+          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+          
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            # Use timelock controller instead of diamond for proposals
+            TARGET_ADDRESS="$TIMELOCK_ADDRESS"
+            echo "[info] Using timelock controller at $TIMELOCK_ADDRESS for periphery registration"
+            
+            # Get the minimum delay from the timelock controller
+            MIN_DELAY=$(bun -e "
+              import { createPublicClient, http, parseAbi } from 'viem';
+              import { getViemChainForNetworkName } from './script/utils/viemScriptHelpers.js';
+              
+              const chain = getViemChainForNetworkName('$NETWORK');
+              const client = createPublicClient({
+                chain,
+                transport: http('$RPC_URL'),
+              });
+              
+              const timelockAbi = parseAbi([
+                'function getMinDelay() view returns (uint256)',
+              ]);
+              
+              async function getMinDelay() {
+                try {
+                  const delay = await client.readContract({
+                    address: '$TIMELOCK_ADDRESS',
+                    abi: timelockAbi,
+                    functionName: 'getMinDelay',
+                  });
+                  console.log(delay.toString());
+                } catch (error) {
+                  console.log('3600'); // Default to 1 hour if there's an error
+                }
+              }
+              
+              getMinDelay();
+            ")
+            
+            # Encode the schedule function call
+            SCHEDULE_CALLDATA=$(bun -e "
+              import { encodeFunctionData, parseAbi } from 'viem';
+              
+              const timelockAbi = parseAbi([
+                'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+              ]);
+              
+              // Create a unique salt based on the current timestamp
+              const salt = '0x' + Date.now().toString(16).padStart(64, '0');
+              
+              // Encode the schedule function call
+              const calldata = encodeFunctionData({
+                abi: timelockAbi,
+                functionName: 'schedule',
+                args: [
+                  '$DIAMOND_ADDRESS',  // target
+                  0n,                  // value
+                  '$CALLDATA',         // data
+                  '0x0000000000000000000000000000000000000000000000000000000000000000', // predecessor (empty)
+                  salt,                // salt
+                  BigInt($MIN_DELAY),  // delay
+                ],
+              });
+              
+              console.log(calldata);
+            ")
+            
+            echo "[info] Encoded schedule call with minimum delay of $MIN_DELAY seconds"
+            CALLDATA="$SCHEDULE_CALLDATA"
+          else
+            # Use diamond address directly
+            TARGET_ADDRESS="$DIAMOND_ADDRESS"
+            echo "[info] Using diamond directly at $DIAMOND_ADDRESS for periphery registration"
+          fi
 
-          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${TARGET_ADDRESS}' with calldata $CALLDATA"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)
@@ -211,7 +288,7 @@ register() {
       if [[ "$ENVIRONMENT" == "production" ]]; then
         # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
-          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
@@ -221,9 +298,86 @@ register() {
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
           echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
           echoDebug "NETWORK: $NETWORK"
+          
+          # Get timelock controller address if it exists
+          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+          
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            # Use timelock controller instead of diamond for proposals
+            TARGET_ADDRESS="$TIMELOCK_ADDRESS"
+            echoDebug "Using timelock controller at $TIMELOCK_ADDRESS for periphery registration"
+            
+            # Get the minimum delay from the timelock controller
+            MIN_DELAY=$(bun -e "
+              import { createPublicClient, http, parseAbi } from 'viem';
+              import { getViemChainForNetworkName } from './script/utils/viemScriptHelpers.js';
+              
+              const chain = getViemChainForNetworkName('$NETWORK');
+              const client = createPublicClient({
+                chain,
+                transport: http('$RPC_URL'),
+              });
+              
+              const timelockAbi = parseAbi([
+                'function getMinDelay() view returns (uint256)',
+              ]);
+              
+              async function getMinDelay() {
+                try {
+                  const delay = await client.readContract({
+                    address: '$TIMELOCK_ADDRESS',
+                    abi: timelockAbi,
+                    functionName: 'getMinDelay',
+                  });
+                  console.log(delay.toString());
+                } catch (error) {
+                  console.log('3600'); // Default to 1 hour if there's an error
+                }
+              }
+              
+              getMinDelay();
+            ")
+            
+            # Encode the schedule function call
+            SCHEDULE_CALLDATA=$(bun -e "
+              import { encodeFunctionData, parseAbi } from 'viem';
+              
+              const timelockAbi = parseAbi([
+                'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+              ]);
+              
+              // Create a unique salt based on the current timestamp
+              const salt = '0x' + Date.now().toString(16).padStart(64, '0');
+              
+              // Encode the schedule function call
+              const calldata = encodeFunctionData({
+                abi: timelockAbi,
+                functionName: 'schedule',
+                args: [
+                  '$DIAMOND_ADDRESS',  // target
+                  0n,                  // value
+                  '$CALLDATA',         // data
+                  '0x0000000000000000000000000000000000000000000000000000000000000000', // predecessor (empty)
+                  salt,                // salt
+                  BigInt($MIN_DELAY),  // delay
+                ],
+              });
+              
+              console.log(calldata);
+            ")
+            
+            echoDebug "Encoded schedule call with minimum delay of $MIN_DELAY seconds"
+            CALLDATA="$SCHEDULE_CALLDATA"
+          else
+            # Use diamond address directly
+            TARGET_ADDRESS="$DIAMOND_ADDRESS"
+            echoDebug "Using diamond directly at $DIAMOND_ADDRESS for periphery registration"
+          fi
 
-          echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${TARGET_ADDRESS}' with calldata $CALLDATA"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)
