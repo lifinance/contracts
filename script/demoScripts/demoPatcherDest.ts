@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { randomBytes } from 'crypto'
@@ -19,7 +17,12 @@ import { arbitrum } from 'viem/chains'
 import baseDeployments from '../../deployments/base.json'
 import baseStagingDeployments from '../../deployments/base.staging.json'
 import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
-import { findHexValueOccurrences } from './utils/patcher'
+import {
+  generateNeedle,
+  findNeedleOffset,
+  generateExecuteWithDynamicPatchesCalldata,
+  generateBalanceOfCalldata,
+} from './utils/patcher'
 
 // Contract addresses
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
@@ -210,16 +213,10 @@ function encodeDestinationCallMessage(
   receiver: string
 ): string {
   // Create value getter for Executor's WETH balance
-  const executorBalanceValueGetter = encodeFunctionData({
-    abi: parseAbi([
-      'function balanceOf(address account) view returns (uint256)',
-    ]),
-    functionName: 'balanceOf',
-    args: [BASE_EXECUTOR as `0x${string}`], // Get balance of Executor contract
-  })
+  const executorBalanceValueGetter = generateBalanceOfCalldata(BASE_EXECUTOR)
 
   // Generate a random bytes32 hex value as needle to find the amount position
-  const transferAmountNeedle = `0x${randomBytes(32).toString('hex')}`
+  const transferAmountNeedle = generateNeedle()
 
   // Create calldata with the needle in place of amount (will be patched by Patcher)
   const transferFromCallData = encodeFunctionData({
@@ -230,52 +227,34 @@ function encodeDestinationCallMessage(
     args: [
       BASE_EXECUTOR as `0x${string}`, // from - Executor contract
       BASE_PATCHER as `0x${string}`, // to - Patcher contract
-      transferAmountNeedle, // amount - needle value as hex string (will be patched)
+      transferAmountNeedle as any, // amount - needle value as hex string (will be patched)
     ],
   })
 
   // Find the needle position in the calldata
-  const transferAmountPositions = findHexValueOccurrences(
+  const transferFromAmountOffset = findNeedleOffset(
     transferFromCallData,
     transferAmountNeedle
   )
-
-  if (transferAmountPositions.length === 0) {
-    throw new Error('Could not find transferFrom amount position in calldata')
-  }
-
-  const transferFromAmountOffset = BigInt(transferAmountPositions[0])
   consola.info(
     `Found transferFrom amount offset: ${transferFromAmountOffset} bytes`
   )
 
-  const patcherTransferCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
-    ]),
-    functionName: 'executeWithDynamicPatches',
-    args: [
-      BASE_WETH as `0x${string}`, // valueSource - WETH contract
-      executorBalanceValueGetter, // valueGetter - balanceOf(Executor) call
-      BASE_WETH as `0x${string}`, // finalTarget - WETH contract
-      0n, // value - no ETH being sent
-      transferFromCallData, // data - transferFrom call
-      [transferFromAmountOffset], // offsets - position of amount parameter
-      false, // delegateCall - false for regular call
-    ],
-  })
+  const patcherTransferCallData = generateExecuteWithDynamicPatchesCalldata(
+    BASE_WETH as `0x${string}`, // valueSource - WETH contract
+    executorBalanceValueGetter, // valueGetter - balanceOf(Executor) call
+    BASE_WETH as `0x${string}`, // finalTarget - WETH contract
+    transferFromCallData as `0x${string}`, // data - transferFrom call
+    [transferFromAmountOffset], // offsets - position of amount parameter
+    0n, // value - no ETH being sent
+    false // delegateCall - false for regular call
+  )
 
   // Create the value getter for Patcher's WETH balance
-  const patcherBalanceValueGetter = encodeFunctionData({
-    abi: parseAbi([
-      'function balanceOf(address account) view returns (uint256)',
-    ]),
-    functionName: 'balanceOf',
-    args: [BASE_PATCHER as `0x${string}`], // Get balance of Patcher contract
-  })
+  const patcherBalanceValueGetter = generateBalanceOfCalldata(BASE_PATCHER)
 
   // Generate a random bytes32 hex value as needle to find the amount position
-  const approveAmountNeedle = `0x${randomBytes(32).toString('hex').slice(2)}`
+  const approveAmountNeedle = generateNeedle()
 
   // Create calldata with the needle in place of amount (will be patched by Patcher)
   const approveCallData = encodeFunctionData({
@@ -285,47 +264,33 @@ function encodeDestinationCallMessage(
     functionName: 'approve',
     args: [
       BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // spender - LiFiDEXAggregator
-      approveAmountNeedle, // amount - needle value as hex string (will be patched)
+      approveAmountNeedle as any, // amount - needle value as hex string (will be patched)
     ],
   })
 
   // Find the needle position in the calldata
-  const approveAmountPositions = findHexValueOccurrences(
+  const approveAmountOffset = findNeedleOffset(
     approveCallData,
     approveAmountNeedle
   )
-
-  if (approveAmountPositions.length === 0) {
-    throw new Error('Could not find approve amount position in calldata')
-  }
-
-  const approveAmountOffset = BigInt(approveAmountPositions[0])
   consola.info(`Found approve amount offset: ${approveAmountOffset} bytes`)
 
-  const patcherApproveCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
-    ]),
-    functionName: 'executeWithDynamicPatches',
-    args: [
-      BASE_WETH as `0x${string}`, // valueSource - WETH contract
-      patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
-      BASE_WETH as `0x${string}`, // finalTarget - WETH contract
-      0n, // value - no ETH being sent
-      approveCallData, // data - approve call
-      [approveAmountOffset], // offsets - position of amount parameter
-      false, // delegateCall - false for regular call
-    ],
-  })
+  const patcherApproveCallData = generateExecuteWithDynamicPatchesCalldata(
+    BASE_WETH as `0x${string}`, // valueSource - WETH contract
+    patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
+    BASE_WETH as `0x${string}`, // finalTarget - WETH contract
+    approveCallData as `0x${string}`, // data - approve call
+    [approveAmountOffset], // offsets - position of amount parameter
+    0n, // value - no ETH being sent
+    false // delegateCall - false for regular call
+  )
 
   // 3. Third call: Patcher calls LiFiDEXAggregator::processRoute with dynamic balance
   const routeData =
     '0x02420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d38014dac9d1769b9b304cb04741dcdeb2fc14abdf110000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
 
   // Generate a random bytes32 hex value as needle to find the amountIn position
-  const processRouteAmountNeedle = `0x${randomBytes(32)
-    .toString('hex')
-    .slice(2)}`
+  const processRouteAmountNeedle = generateNeedle()
 
   // Create calldata with the needle in place of amountIn (will be patched by Patcher)
   const processRouteCallData = encodeFunctionData({
@@ -335,7 +300,7 @@ function encodeDestinationCallMessage(
     functionName: 'processRoute',
     args: [
       BASE_WETH as `0x${string}`, // tokenIn - WETH on Base
-      processRouteAmountNeedle, // amountIn - needle value as hex string (will be patched)
+      processRouteAmountNeedle as any, // amountIn - needle value as hex string (will be patched)
       BASE_USDC as `0x${string}`, // tokenOut - USDC on Base
       BigInt(swapToAmountMin), // amountOutMin - Minimum USDC out
       receiver as `0x${string}`, // to - Final recipient
@@ -344,35 +309,23 @@ function encodeDestinationCallMessage(
   })
 
   // Find the needle position in the calldata
-  const processRouteAmountPositions = findHexValueOccurrences(
+  const processRouteAmountOffset = findNeedleOffset(
     processRouteCallData,
     processRouteAmountNeedle
   )
-
-  if (processRouteAmountPositions.length === 0) {
-    throw new Error('Could not find processRoute amountIn position in calldata')
-  }
-
-  const processRouteAmountOffset = BigInt(processRouteAmountPositions[0])
   consola.info(
     `Found processRoute amountIn offset: ${processRouteAmountOffset} bytes`
   )
 
-  const patcherProcessRouteCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function executeWithDynamicPatches(address valueSource, bytes valueGetter, address finalTarget, uint256 value, bytes data, uint256[] offsets, bool delegateCall) returns (bool success, bytes returnData)',
-    ]),
-    functionName: 'executeWithDynamicPatches',
-    args: [
-      BASE_WETH as `0x${string}`, // valueSource - WETH contract
-      patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
-      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // finalTarget - LiFiDEXAggregator
-      0n, // value - no ETH being sent
-      processRouteCallData, // data - processRoute call
-      [processRouteAmountOffset], // offsets - position of amountIn parameter
-      false, // delegateCall - false for regular call
-    ],
-  })
+  const patcherProcessRouteCallData = generateExecuteWithDynamicPatchesCalldata(
+    BASE_WETH as `0x${string}`, // valueSource - WETH contract
+    patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
+    BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // finalTarget - LiFiDEXAggregator
+    processRouteCallData as `0x${string}`, // data - processRoute call
+    [processRouteAmountOffset], // offsets - position of amountIn parameter
+    0n, // value - no ETH being sent
+    false // delegateCall - false for regular call
+  )
 
   // Create LibSwap.SwapData structure with three patcher calls
   const swapData = [
