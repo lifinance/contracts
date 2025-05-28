@@ -13,7 +13,6 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
 import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
-import { ILaminarV3Factory } from "lifi/Interfaces/ILaminarV3Factory.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -2038,10 +2037,6 @@ contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
 // -----------------------------------------------------------------------------
 contract LiFiDexAggregatorLaminarV3Test is LiFiDexAggregatorTest {
     using SafeERC20 for IERC20;
-
-    /// @dev Laminar V3 factory on HyperEVM
-    ILaminarV3Factory internal constant LAMINAR_FACTORY =
-        ILaminarV3Factory(0x8f45C2143A875De1E31B1C3F523b4c6529E11615);
 
     IERC20 internal constant WHYPE =
         IERC20(0x5555555555555555555555555555555555555555);
