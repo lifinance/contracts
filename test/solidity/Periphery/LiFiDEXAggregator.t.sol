@@ -13,6 +13,7 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
 import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
+import { ILaminarV3Factory } from "lifi/Interfaces/ILaminarV3Factory.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -105,36 +106,41 @@ abstract contract LiFiDexAggregatorTest is TestBase {
     error WrongPoolReserves();
     error PoolDoesNotExist();
 
+    // New helper function to initialize the aggregator
+    function _initializeDexAggregator(address owner) internal {
+        privileged = new address[](1);
+        privileged[0] = owner;
+
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0xCAFE),
+            privileged,
+            owner
+        );
+        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+    }
+
     // Setup function for Apechain tests
     function setupApechain() internal {
         customRpcUrlForForking = "ETH_NODE_URI_APECHAIN";
         customBlockNumberForForking = 12912470;
         fork();
 
-        privileged = new address[](1);
-        privileged[0] = address(USER_DIAMOND_OWNER);
+        _initializeDexAggregator(address(USER_DIAMOND_OWNER));
+    }
 
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+    function setupHyperEVM() internal {
+        customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
+        customBlockNumberForForking = 4433562;
+        fork();
+
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
     function setUp() public virtual {
         initTestBase();
-
         vm.label(USER_SENDER, "USER_SENDER");
 
-        privileged = new address[](1);
-        privileged[0] = USER_DIAMOND_OWNER;
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
     function test_ContractIsSetUpCorrectly() public {
@@ -1866,23 +1872,6 @@ contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
         bool zeroForOne; // Direction of the swap
     }
 
-    // Setup function for HyperEVM tests
-    function setupHyperEVM() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
-        customBlockNumberForForking = 4433562;
-        fork();
-
-        privileged = new address[](1);
-        privileged[0] = USER_DIAMOND_OWNER;
-
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
-    }
-
     function setUp() public override {
         setupHyperEVM();
     }
@@ -2041,5 +2030,120 @@ contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
         );
 
         return route;
+    }
+}
+
+// -----------------------------------------------------------------------------
+//  LaminarV3 on HyperEVM
+// -----------------------------------------------------------------------------
+contract LiFiDexAggregatorLaminarV3Test is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    /// @dev Laminar V3 factory on HyperEVM
+    ILaminarV3Factory internal constant LAMINAR_FACTORY =
+        ILaminarV3Factory(0x8f45C2143A875De1E31B1C3F523b4c6529E11615);
+
+    IERC20 internal constant WHYPE =
+        IERC20(0x5555555555555555555555555555555555555555);
+    IERC20 internal constant LHYPE =
+        IERC20(0x5748ae796AE46A4F1348a1693de4b50560485562);
+
+    address internal constant WHYPE_LHYPE_POOL =
+        0xdAA8a66380fb35b35CB7bc1dBC1925AbfdD0ae45;
+
+    function setUp() public override {
+        setupHyperEVM();
+    }
+
+    function test_CanSwapViaLaminarV3() public {
+        uint256 amountIn = 1_000 * 1e18;
+
+        // Fund the user with WHYPE
+        deal(address(WHYPE), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WHYPE.approve(address(liFiDEXAggregator), amountIn);
+
+        // Build a single-pool UniV3 route
+        bool zeroForOne = address(WHYPE) > address(LHYPE);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(WHYPE),
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.UniV3),
+            WHYPE_LHYPE_POOL,
+            uint8(zeroForOne ? 0 : 1),
+            address(USER_SENDER)
+        );
+
+        // Record balances
+        uint256 inBefore = WHYPE.balanceOf(USER_SENDER);
+        uint256 outBefore = LHYPE.balanceOf(USER_SENDER);
+
+        // Execute swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(WHYPE),
+            amountIn,
+            address(LHYPE),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify
+        uint256 inAfter = WHYPE.balanceOf(USER_SENDER);
+        uint256 outAfter = LHYPE.balanceOf(USER_SENDER);
+        assertEq(inBefore - inAfter, amountIn, "WHYPE spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive LHYPE");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        uint256 amountIn = 1_000 * 1e18;
+
+        // fund the aggregator directly
+        deal(address(WHYPE), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bool zeroForOne = address(WHYPE) > address(LHYPE);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            address(WHYPE),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.UniV3),
+            WHYPE_LHYPE_POOL,
+            uint8(zeroForOne ? 0 : 1),
+            address(USER_SENDER)
+        );
+
+        uint256 outBefore = LHYPE.balanceOf(USER_SENDER);
+
+        // Withdraw 1 wei to avoid slot-undrain protection
+        liFiDEXAggregator.processRoute(
+            address(WHYPE),
+            amountIn - 1,
+            address(LHYPE),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 outAfter = LHYPE.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive LHYPE");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: Laminar V3 multi-hop unsupported due to AS requirement.
+        // Laminar V3 does not support a “one-pool” second hop today, because
+        // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. Laminar V3’s swap() immediately reverts on
+        // require(amountSpecified != 0, 'AS'), so you can’t chain two V3 pools
+        // in a single processRoute invocation.
     }
 }
