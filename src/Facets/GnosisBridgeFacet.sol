@@ -16,21 +16,21 @@ import { InvalidConfig, InvalidSendingToken } from "../Errors/GenericErrors.sol"
 contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    /// @notice The DAI address on the source chain.
+    /// @notice The DAI address on the Ethereum mainnet
     address private constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    /// @notice The USDS address on the source chain.
+    /// @notice The USDS address on the Ethereum mainnet
     address private constant USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
 
     /// @notice The chain id of Gnosis.
     uint64 private constant GNOSIS_CHAIN_ID = 100;
 
-    /// @notice The contract address of the gnosis bridge router on the source chain.
+    /// @notice The contract address of the gnosis bridge router on the Ethereum mainnet
     IGnosisBridgeRouter private immutable GNOSIS_BRIDGE_ROUTER;
 
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _gnosisBridgeRouter The contract address of the gnosis bridge router on the source chain.
+    /// @param _gnosisBridgeRouter The contract address of the gnosis bridge router on the Ethereum mainnet
     constructor(IGnosisBridgeRouter _gnosisBridgeRouter) {
         if (address(_gnosisBridgeRouter) == address(0)) {
             revert InvalidConfig();
