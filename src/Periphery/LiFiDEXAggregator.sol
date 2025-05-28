@@ -723,6 +723,13 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
+    /// @notice Called to `msg.sender` after executing a swap via HyperswapV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the HyperswapV3#swap call
     function hyperswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
@@ -731,6 +738,13 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
+    /// @notice Called to `msg.sender` after executing a swap via LaminarV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the LaminarV3#swap call
     function laminarV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
