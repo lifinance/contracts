@@ -723,6 +723,22 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
+    function hyperswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function laminarV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
     /// @notice Curve pool swap. Legacy pools that don't return amountOut and have native coins are not supported
     /// @param stream [pool, poolType, fromIndex, toIndex, recipient, output token]
     /// @param from Where to take liquidity for swap
