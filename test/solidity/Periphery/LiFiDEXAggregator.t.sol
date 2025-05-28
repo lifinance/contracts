@@ -11,6 +11,8 @@ import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { IAlgebraRouter } from "lifi/Interfaces/IAlgebraRouter.sol";
 import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
+import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
+import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -109,9 +111,8 @@ abstract contract LiFiDexAggregatorTest is TestBase {
         customBlockNumberForForking = 12912470;
         fork();
 
-        privileged = new address[](2);
-        privileged[0] = address(0xABC);
-        privileged[1] = address(0xEBC);
+        privileged = new address[](1);
+        privileged[0] = address(USER_DIAMOND_OWNER);
 
         liFiDEXAggregator = new LiFiDEXAggregator(
             address(0xCAFE),
@@ -126,9 +127,8 @@ abstract contract LiFiDexAggregatorTest is TestBase {
 
         vm.label(USER_SENDER, "USER_SENDER");
 
-        privileged = new address[](2);
-        privileged[0] = address(0xABC);
-        privileged[1] = address(0xEBC);
+        privileged = new address[](1);
+        privileged[0] = USER_DIAMOND_OWNER;
         liFiDEXAggregator = new LiFiDEXAggregator(
             address(0xCAFE),
             privileged,
@@ -139,8 +139,10 @@ abstract contract LiFiDexAggregatorTest is TestBase {
 
     function test_ContractIsSetUpCorrectly() public {
         assertEq(address(liFiDEXAggregator.BENTO_BOX()), address(0xCAFE));
-        assertEq(liFiDEXAggregator.priviledgedUsers(address(0xABC)), true);
-        assertEq(liFiDEXAggregator.priviledgedUsers(address(0xEBC)), true);
+        assertEq(
+            liFiDEXAggregator.priviledgedUsers(address(USER_DIAMOND_OWNER)),
+            true
+        );
         assertEq(liFiDEXAggregator.owner(), USER_DIAMOND_OWNER);
     }
 
@@ -232,9 +234,8 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         customBlockNumberForForking = 133999121;
         initTestBase();
 
-        privileged = new address[](2);
-        privileged[0] = address(0xABC);
-        privileged[1] = address(0xEBC);
+        privileged = new address[](1);
+        privileged[0] = address(USER_DIAMOND_OWNER);
         liFiDEXAggregator = new LiFiDEXAggregator(
             address(0xCAFE),
             privileged,
@@ -1832,5 +1833,213 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 
         vm.stopPrank();
         vm.clearMockedCalls();
+    }
+}
+
+// -----------------------------------------------------------------------------
+//  HyperswapV3 on HyperEVM
+// -----------------------------------------------------------------------------
+contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    LiFiDEXAggregator internal lda;
+
+    /// @dev HyperswapV3 router on HyperEVM chain
+    IHyperswapV3Factory internal constant HYPERSWAP_FACTORY =
+        IHyperswapV3Factory(0xB1c0fa0B789320044A6F623cFe5eBda9562602E3);
+    /// @dev HyperswapV3 quoter on HyperEVM chain
+    IHyperswapV3QuoterV2 internal constant HYPERSWAP_QUOTER =
+        IHyperswapV3QuoterV2(0x03A918028f22D9E1473B7959C927AD7425A45C7C);
+
+    /// @dev a liquid USDT on HyperEVM
+    IERC20 internal constant USDT0 =
+        IERC20(0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb);
+    /// @dev WHYPE on HyperEVM
+    IERC20 internal constant WHYPE =
+        IERC20(0x5555555555555555555555555555555555555555);
+
+    struct HyperswapV3Params {
+        CommandType commandCode; // ProcessMyERC20 or ProcessUserERC20
+        address tokenIn; // Input token address
+        address recipient; // Address receiving the output tokens
+        address pool; // HyperswapV3 pool address
+        bool zeroForOne; // Direction of the swap
+    }
+
+    // Setup function for HyperEVM tests
+    function setupHyperEVM() internal {
+        customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
+        customBlockNumberForForking = 4433562;
+        fork();
+
+        privileged = new address[](1);
+        privileged[0] = USER_DIAMOND_OWNER;
+
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0xCAFE),
+            privileged,
+            USER_DIAMOND_OWNER
+        );
+        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+    }
+
+    function setUp() public override {
+        setupHyperEVM();
+    }
+
+    function test_CanSwapViaHyperswapV3() public {
+        uint256 amountIn = 1_000 * 1e6; // 1000 USDT0
+
+        deal(address(USDT0), USER_SENDER, amountIn);
+
+        // user approves
+        vm.prank(USER_SENDER);
+        USDT0.approve(address(liFiDEXAggregator), amountIn);
+
+        // fetch the real pool and quote
+        address pool = HYPERSWAP_FACTORY.getPool(
+            address(USDT0),
+            address(WHYPE),
+            3000
+        );
+
+        // Create the params struct for quoting
+        IHyperswapV3QuoterV2.QuoteExactInputSingleParams
+            memory params = IHyperswapV3QuoterV2.QuoteExactInputSingleParams({
+                tokenIn: address(USDT0),
+                tokenOut: address(WHYPE),
+                amountIn: amountIn,
+                fee: 3000,
+                sqrtPriceLimitX96: 0
+            });
+
+        // Get the quote using the struct
+        (uint256 quoted, , , ) = HYPERSWAP_QUOTER.quoteExactInputSingle(
+            params
+        );
+
+        // build the "off-chain" route
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(USDT0),
+            uint8(1), // 1 pool
+            uint16(65535), // FULL_SHARE
+            uint8(1), // POOL_TYPE_UNIV3
+            pool,
+            uint8(0), // zeroForOne = true if USDT0 < WHYPE
+            address(USER_SENDER)
+        );
+
+        // expect the Route event
+        vm.expectEmit(true, true, true, true);
+        emit Route(
+            USER_SENDER,
+            USER_SENDER,
+            address(USDT0),
+            address(WHYPE),
+            amountIn,
+            quoted,
+            quoted
+        );
+
+        // execute
+        vm.prank(USER_SENDER);
+        liFiDEXAggregator.processRoute(
+            address(USDT0),
+            amountIn,
+            address(WHYPE),
+            quoted,
+            USER_SENDER,
+            route
+        );
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        uint256 amountIn = 1_000 * 1e6; // 1000 USDT0
+
+        // Fund dex aggregator contract
+        deal(address(USDT0), address(liFiDEXAggregator), amountIn);
+
+        // fetch the real pool and quote
+        address pool = HYPERSWAP_FACTORY.getPool(
+            address(USDT0),
+            address(WHYPE),
+            3000
+        );
+
+        // Create the params struct for quoting
+        IHyperswapV3QuoterV2.QuoteExactInputSingleParams
+            memory params = IHyperswapV3QuoterV2.QuoteExactInputSingleParams({
+                tokenIn: address(USDT0),
+                tokenOut: address(WHYPE),
+                amountIn: amountIn - 1, // Subtract 1 to match slot undrain protection
+                fee: 3000,
+                sqrtPriceLimitX96: 0
+            });
+
+        // Get the quote using the struct
+        (uint256 quoted, , , ) = HYPERSWAP_QUOTER.quoteExactInputSingle(
+            params
+        );
+
+        // Build route using our helper function
+        bytes memory route = _buildHyperswapV3Route(
+            HyperswapV3Params({
+                commandCode: CommandType.ProcessMyERC20,
+                tokenIn: address(USDT0),
+                recipient: USER_SENDER,
+                pool: pool,
+                zeroForOne: true // USDT0 < WHYPE
+            })
+        );
+
+        // expect the Route event
+        vm.expectEmit(true, true, true, true);
+        emit Route(
+            USER_SENDER,
+            USER_SENDER,
+            address(USDT0),
+            address(WHYPE),
+            amountIn - 1, // Account for slot undrain protection
+            quoted,
+            quoted
+        );
+
+        // execute
+        vm.prank(USER_SENDER);
+        liFiDEXAggregator.processRoute(
+            address(USDT0),
+            amountIn - 1, // Account for slot undrain protection
+            address(WHYPE),
+            quoted,
+            USER_SENDER,
+            route
+        );
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: HyperswapV3 multi-hop unsupported due to AS requirement.
+        // HyperswapV3 does not support a “one-pool” second hop today, because
+        // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. HyperswapV3’s swap() immediately reverts on
+        // require(amountSpecified != 0, 'AS'), so you can’t chain two V3 pools
+        // in a single processRoute invocation.
+    }
+
+    function _buildHyperswapV3Route(
+        HyperswapV3Params memory params
+    ) internal pure returns (bytes memory route) {
+        route = abi.encodePacked(
+            uint8(params.commandCode),
+            params.tokenIn,
+            uint8(1), // 1 pool
+            FULL_SHARE, // 65535 - 100% share
+            uint8(PoolType.UniV3), // POOL_TYPE_UNIV3 = 1
+            params.pool,
+            uint8(params.zeroForOne ? 0 : 1), // Convert bool to uint8: 0 for true, 1 for false
+            params.recipient
+        );
+
+        return route;
     }
 }
