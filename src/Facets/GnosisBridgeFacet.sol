@@ -25,22 +25,22 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     uint64 private constant GNOSIS_CHAIN_ID = 100;
 
     /// @notice The contract address of the gnosis bridge router on the source chain.
-    IGnosisBridgeRouter private immutable BRIDGE_ROUTER;
+    IGnosisBridgeRouter private immutable GNOSIS_BRIDGE_ROUTER;
 
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _bridgeRouter The contract address of the gnosis bridge router on the source chain.
-    constructor(IGnosisBridgeRouter _bridgeRouter) {
-        if (address(_bridgeRouter) == address(0)) {
+    /// @param _gnosisBridgeRouter The contract address of the gnosis bridge router on the source chain.
+    constructor(IGnosisBridgeRouter _gnosisBridgeRouter) {
+        if (address(_gnosisBridgeRouter) == address(0)) {
             revert InvalidConfig();
         }
-        BRIDGE_ROUTER = _bridgeRouter;
+        GNOSIS_BRIDGE_ROUTER = _gnosisBridgeRouter;
     }
 
     /// External Methods ///
 
-    /// @notice Bridges tokens via BridgeRouter
+    /// @notice Bridges tokens via GnosisBridgeRouter
     /// @param _bridgeData the core information needed for bridging
     function startBridgeTokensViaGnosisBridge(
         ILiFi.BridgeData memory _bridgeData
@@ -65,7 +65,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData);
     }
 
-    /// @notice Performs a swap before bridging via BridgeRouter
+    /// @notice Performs a swap before bridging via GnosisBridgeRouter
     /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapAndStartBridgeTokensViaGnosisBridge(
@@ -98,16 +98,16 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Private Methods ///
 
-    /// @dev Contains the business logic for the bridge via BridgeRouter
+    /// @dev Contains the business logic for the bridge via GnosisBridgeRouter
     /// @param _bridgeData the core information needed for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
-            address(BRIDGE_ROUTER),
+            address(GNOSIS_BRIDGE_ROUTER),
             _bridgeData.minAmount
         );
 
-        BRIDGE_ROUTER.relayTokens(
+        GNOSIS_BRIDGE_ROUTER.relayTokens(
             _bridgeData.sendingAssetId,
             _bridgeData.receiver,
             _bridgeData.minAmount
