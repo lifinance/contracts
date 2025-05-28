@@ -19,6 +19,7 @@ import { arbitrum } from 'viem/chains'
 import baseDeployments from '../../deployments/base.json'
 import baseStagingDeployments from '../../deployments/base.staging.json'
 import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
+import { findHexValueOccurrences } from './utils/patcher'
 
 // Contract addresses
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
@@ -208,19 +209,6 @@ function encodeDestinationCallMessage(
   swapToAmountMin: string,
   receiver: string
 ): string {
-  // 1. First call: Patcher calls WETH::transferFrom to pull WETH from Executor (with balance patching)
-  const transferFromCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function transferFrom(address from, address to, uint256 amount) returns (bool)',
-    ]),
-    functionName: 'transferFrom',
-    args: [
-      BASE_EXECUTOR as `0x${string}`, // from - Executor contract
-      BASE_PATCHER as `0x${string}`, // to - Patcher contract
-      BigInt(swapFromAmount), // amount - This will be patched with Executor's actual balance
-    ],
-  })
-
   // Create value getter for Executor's WETH balance
   const executorBalanceValueGetter = encodeFunctionData({
     abi: parseAbi([
@@ -230,9 +218,36 @@ function encodeDestinationCallMessage(
     args: [BASE_EXECUTOR as `0x${string}`], // Get balance of Executor contract
   })
 
-  // Calculate offset for amount parameter in transferFrom call
-  // transferFrom(address,address,uint256) - 4 bytes selector + 32 bytes from + 32 bytes to + 32 bytes amount = 100 bytes offset
-  const transferFromAmountOffset = 100n
+  // Generate a random bytes32 hex value as needle to find the amount position
+  const transferAmountNeedle = `0x${randomBytes(32).toString('hex')}`
+
+  // Create calldata with the needle in place of amount (will be patched by Patcher)
+  const transferFromCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+    ]),
+    functionName: 'transferFrom',
+    args: [
+      BASE_EXECUTOR as `0x${string}`, // from - Executor contract
+      BASE_PATCHER as `0x${string}`, // to - Patcher contract
+      transferAmountNeedle, // amount - needle value as hex string (will be patched)
+    ],
+  })
+
+  // Find the needle position in the calldata
+  const transferAmountPositions = findHexValueOccurrences(
+    transferFromCallData,
+    transferAmountNeedle
+  )
+
+  if (transferAmountPositions.length === 0) {
+    throw new Error('Could not find transferFrom amount position in calldata')
+  }
+
+  const transferFromAmountOffset = BigInt(transferAmountPositions[0])
+  consola.info(
+    `Found transferFrom amount offset: ${transferFromAmountOffset} bytes`
+  )
 
   const patcherTransferCallData = encodeFunctionData({
     abi: parseAbi([
@@ -250,18 +265,6 @@ function encodeDestinationCallMessage(
     ],
   })
 
-  // 2. Second call: Patcher calls WETH::approve to approve LiFiDexAggregator (with balance patching)
-  const approveCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]),
-    functionName: 'approve',
-    args: [
-      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // spender - LiFiDEXAggregator
-      BigInt(swapFromAmount), // amount - This will be patched with Patcher's actual balance
-    ],
-  })
-
   // Create the value getter for Patcher's WETH balance
   const patcherBalanceValueGetter = encodeFunctionData({
     abi: parseAbi([
@@ -271,9 +274,33 @@ function encodeDestinationCallMessage(
     args: [BASE_PATCHER as `0x${string}`], // Get balance of Patcher contract
   })
 
-  // Calculate offset for amount parameter in approve call
-  // approve(address,uint256) - 4 bytes selector + 32 bytes spender + 32 bytes amount = 68 bytes offset
-  const approveAmountOffset = 68n
+  // Generate a random bytes32 hex value as needle to find the amount position
+  const approveAmountNeedle = `0x${randomBytes(32).toString('hex').slice(2)}`
+
+  // Create calldata with the needle in place of amount (will be patched by Patcher)
+  const approveCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function approve(address spender, uint256 amount) returns (bool)',
+    ]),
+    functionName: 'approve',
+    args: [
+      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // spender - LiFiDEXAggregator
+      approveAmountNeedle, // amount - needle value as hex string (will be patched)
+    ],
+  })
+
+  // Find the needle position in the calldata
+  const approveAmountPositions = findHexValueOccurrences(
+    approveCallData,
+    approveAmountNeedle
+  )
+
+  if (approveAmountPositions.length === 0) {
+    throw new Error('Could not find approve amount position in calldata')
+  }
+
+  const approveAmountOffset = BigInt(approveAmountPositions[0])
+  consola.info(`Found approve amount offset: ${approveAmountOffset} bytes`)
 
   const patcherApproveCallData = encodeFunctionData({
     abi: parseAbi([
@@ -295,6 +322,12 @@ function encodeDestinationCallMessage(
   const routeData =
     '0x02420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d38014dac9d1769b9b304cb04741dcdeb2fc14abdf110000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
 
+  // Generate a random bytes32 hex value as needle to find the amountIn position
+  const processRouteAmountNeedle = `0x${randomBytes(32)
+    .toString('hex')
+    .slice(2)}`
+
+  // Create calldata with the needle in place of amountIn (will be patched by Patcher)
   const processRouteCallData = encodeFunctionData({
     abi: parseAbi([
       'function processRoute(address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOutMin, address to, bytes memory route) payable returns (uint256 amountOut)',
@@ -302,7 +335,7 @@ function encodeDestinationCallMessage(
     functionName: 'processRoute',
     args: [
       BASE_WETH as `0x${string}`, // tokenIn - WETH on Base
-      BigInt(swapFromAmount), // amountIn - This will be patched with Patcher's actual balance
+      processRouteAmountNeedle, // amountIn - needle value as hex string (will be patched)
       BASE_USDC as `0x${string}`, // tokenOut - USDC on Base
       BigInt(swapToAmountMin), // amountOutMin - Minimum USDC out
       receiver as `0x${string}`, // to - Final recipient
@@ -310,10 +343,20 @@ function encodeDestinationCallMessage(
     ],
   })
 
-  // Calculate offset for amountIn parameter in processRoute call
-  // processRoute(address,uint256,address,uint256,address,bytes)
-  // 4 bytes selector + 32 bytes tokenIn + 32 bytes amountIn = 68 bytes offset
-  const processRouteAmountOffset = 68n
+  // Find the needle position in the calldata
+  const processRouteAmountPositions = findHexValueOccurrences(
+    processRouteCallData,
+    processRouteAmountNeedle
+  )
+
+  if (processRouteAmountPositions.length === 0) {
+    throw new Error('Could not find processRoute amountIn position in calldata')
+  }
+
+  const processRouteAmountOffset = BigInt(processRouteAmountPositions[0])
+  consola.info(
+    `Found processRoute amountIn offset: ${processRouteAmountOffset} bytes`
+  )
 
   const patcherProcessRouteCallData = encodeFunctionData({
     abi: parseAbi([
