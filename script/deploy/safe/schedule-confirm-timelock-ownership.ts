@@ -5,7 +5,7 @@
  *
  * This script schedules a transaction through the LiFiTimelockController that calls confirmOwnershipTransfer
  * on the LiFiDiamond for each network that has a safeAddress configured in networks.json.
- * It uses the PRIVATE_KEY_PRODUCTION environment variable to sign transactions.
+ * It proposes the transaction to the Safe using the propose-to-safe.ts script.
  */
 
 import 'dotenv/config'
@@ -13,15 +13,15 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import {
   createPublicClient,
-  createWalletClient,
   http,
   encodeFunctionData,
   Address,
   Chain,
 } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
 import { consola } from 'consola'
-import { parseArgs } from 'node:util'
+import { defineCommand, runMain } from 'citty'
+// @ts-ignore
+import { $ } from 'bun'
 
 // Define interfaces for network configuration
 interface NetworkConfig {
@@ -34,104 +34,111 @@ interface NetworkConfig {
 interface DeploymentData {
   LiFiDiamond?: string
   LiFiTimelockController?: string
-  [key: string]: string | undefined
 }
 
-// Parse command line arguments
-const { values } = parseArgs({
-  options: {
+/**
+ * Main command definition for scheduling timelock ownership confirmation
+ */
+const main = defineCommand({
+  meta: {
+    name: 'schedule-confirm-timelock-ownership',
+    description:
+      'Schedule confirmOwnershipTransfer through timelock for networks with Safe addresses',
+  },
+  args: {
     privateKey: {
       type: 'string',
-      short: 'k',
+      description:
+        'Private key to use for signing transactions (not needed if using --ledger)',
+      required: false,
     },
-    help: {
+    ledger: {
       type: 'boolean',
-      short: 'h',
+      description: 'Use Ledger hardware wallet for signing',
+      required: false,
+    },
+    ledgerLive: {
+      type: 'boolean',
+      description: 'Use Ledger Live derivation path',
+      required: false,
+    },
+    accountIndex: {
+      type: 'string',
+      description: 'Ledger account index (default: 0)',
+      required: false,
+    },
+    derivationPath: {
+      type: 'string',
+      description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
     },
     dryRun: {
       type: 'boolean',
-      short: 'd',
+      description: 'Simulate transactions without sending them',
+      required: false,
     },
     delay: {
       type: 'string',
-      short: 't',
+      description:
+        'Delay in seconds before the transaction can be executed (defaults to minimum delay)',
+      required: false,
     },
+  },
+  async run({ args }) {
+    const isDryRun = args.dryRun || false
+    const customDelay = args.delay ? BigInt(args.delay) : undefined
+
+    // Validate that we have either a private key or ledger
+    if (!args.privateKey && !args.ledger) {
+      throw new Error('Either --privateKey or --ledger must be provided')
+    }
+
+    // Load networks configuration
+    const networksConfigPath = join(process.cwd(), 'config', 'networks.json')
+    const networksConfig = JSON.parse(
+      readFileSync(networksConfigPath, 'utf-8')
+    ) as Record<string, NetworkConfig>
+
+    // Filter networks that have a safeAddress configured
+    const networksWithSafe = Object.values(networksConfig).filter(
+      (network) => network.safeAddress && network.safeAddress.length > 0
+    )
+
+    consola.info(
+      `Found ${networksWithSafe.length} networks with Safe addresses configured`
+    )
+
+    if (isDryRun) {
+      consola.info('Running in DRY RUN mode - no transactions will be sent')
+    }
+
+    // Ask for confirmation before proceeding
+    const confirm = await consola.prompt(
+      `Are you sure you want to schedule confirmOwnershipTransfer through the timelock controller on ${networksWithSafe.length} networks?`,
+      {
+        type: 'confirm',
+      }
+    )
+
+    if (!confirm) {
+      consola.info('Operation cancelled by user')
+      process.exit(0)
+    }
+
+    // Process each network
+    for (const network of networksWithSafe) {
+      try {
+        await processNetwork(network, args, isDryRun, customDelay)
+      } catch (error) {
+        consola.error(`Error processing network ${network.name}:`, error)
+      }
+    }
   },
 })
 
-// Show help if requested
-if (values.help) {
-  console.log(`
-Usage: bun confirm-timelock-ownership.ts [options]
-
-Options:
-  -k, --privateKey <key>  Private key to use for signing transactions (defaults to PRIVATE_KEY_PRODUCTION env var)
-  -d, --dryRun            Simulate transactions without sending them
-  -t, --delay <seconds>   Delay in seconds before the transaction can be executed (defaults to minimum delay)
-  -h, --help              Show this help message
-  `)
-  process.exit(0)
-}
-
-// Main function
-async function main() {
-  // Get private key from command line argument or environment variable
-  const privateKey = values.privateKey || process.env.PRIVATE_KEY_PRODUCTION
-  const isDryRun = values.dryRun || false
-  const customDelay = values.delay ? BigInt(values.delay) : undefined
-
-  if (!privateKey) {
-    consola.error(
-      'No private key provided. Use --privateKey or set PRIVATE_KEY_PRODUCTION environment variable.'
-    )
-    process.exit(1)
-  }
-
-  // Load networks configuration
-  const networksConfigPath = join(process.cwd(), 'config', 'networks.json')
-  const networksConfig = JSON.parse(
-    readFileSync(networksConfigPath, 'utf-8')
-  ) as Record<string, NetworkConfig>
-
-  // Filter networks that have a safeAddress configured
-  const networksWithSafe = Object.values(networksConfig).filter(
-    (network) => network.safeAddress && network.safeAddress.length > 0
-  )
-
-  consola.info(
-    `Found ${networksWithSafe.length} networks with Safe addresses configured`
-  )
-
-  if (isDryRun) {
-    consola.info('Running in DRY RUN mode - no transactions will be sent')
-  }
-
-  // Ask for confirmation before proceeding
-  const confirm = await consola.prompt(
-    `Are you sure you want to schedule confirmOwnershipTransfer through the timelock controller on ${networksWithSafe.length} networks?`,
-    {
-      type: 'confirm',
-    }
-  )
-
-  if (!confirm) {
-    consola.info('Operation cancelled by user')
-    process.exit(0)
-  }
-
-  // Process each network
-  for (const network of networksWithSafe) {
-    try {
-      await processNetwork(network, privateKey, isDryRun, customDelay)
-    } catch (error) {
-      consola.error(`Error processing network ${network.name}:`, error)
-    }
-  }
-}
-
 async function processNetwork(
   network: NetworkConfig,
-  privateKey: string,
+  args: any,
   isDryRun: boolean,
   customDelay?: bigint
 ) {
@@ -170,9 +177,6 @@ async function processNetwork(
     consola.info(`Diamond address: ${diamondAddress}`)
     consola.info(`Timelock address: ${timelockAddress}`)
 
-    // Create viem clients
-    const account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
-
     // Create a minimal chain object with required properties
     const chain = {
       id: network.chainId,
@@ -193,12 +197,6 @@ async function processNetwork(
     } as Chain
 
     const publicClient = createPublicClient({
-      chain,
-      transport: http(network.rpcUrl),
-    })
-
-    const walletClient = createWalletClient({
-      account,
       chain,
       transport: http(network.rpcUrl),
     })
@@ -281,54 +279,66 @@ async function processNetwork(
 
     try {
       if (isDryRun) {
-        // Simulate the transaction
-        consola.info(`[DRY RUN] Would schedule transaction on ${network.name}:`)
-        consola.info(`  From: ${account.address}`)
+        consola.info(
+          `[DRY RUN] Would propose transaction to Safe on ${network.name}:`
+        )
         consola.info(`  To: ${timelockAddress}`)
-        consola.info(`  Data: ${scheduleCalldata}`)
-
-        // Try to simulate the transaction
-        const gasEstimate = await publicClient.estimateGas({
-          account: account.address,
-          to: timelockAddress,
-          data: scheduleCalldata,
-          value: 0n,
-        })
-
-        consola.info(`  Estimated gas: ${gasEstimate}`)
+        consola.info(`  Calldata: ${scheduleCalldata}`)
         consola.success(
           `[DRY RUN] Transaction simulation successful for ${network.name}`
         )
       } else {
-        // Send the actual transaction
-        const hash = await walletClient.sendTransaction({
-          to: timelockAddress,
-          data: scheduleCalldata,
-          value: 0n,
-        })
+        // Build the command to call propose-to-safe.ts
+        const proposeCommand = [
+          'bun',
+          'script/deploy/safe/propose-to-safe.ts',
+          '--to',
+          timelockAddress,
+          '--calldata',
+          scheduleCalldata,
+          '--network',
+          network.name,
+          '--rpcUrl',
+          network.rpcUrl,
+        ]
 
-        consola.info(`Transaction hash: ${hash}`)
-        consola.info(`Waiting for transaction confirmation...`)
+        // Add signing method arguments
+        if (args.ledger) {
+          proposeCommand.push('--ledger')
+          if (args.ledgerLive) {
+            proposeCommand.push('--ledgerLive')
+          }
+          if (args.accountIndex) {
+            proposeCommand.push('--accountIndex', args.accountIndex)
+          }
+          if (args.derivationPath) {
+            proposeCommand.push('--derivationPath', args.derivationPath)
+          }
+        } else if (args.privateKey) {
+          proposeCommand.push('--privateKey', args.privateKey)
+        }
 
-        const receipt = await publicClient.waitForTransactionReceipt({ hash })
+        // Execute the propose-to-safe command
+        const result = await $`${proposeCommand}`.quiet()
 
-        if (receipt.status === 'success') {
+        // Check if the command was successful
+        if (result.exitCode === 0) {
           consola.success(
-            `Successfully scheduled confirmOwnershipTransfer for ${network.name}`
+            `Successfully proposed schedule transaction for ${network.name}`
           )
           consola.info(
-            `The transaction will be ready to execute after ${delay} seconds`
-          )
-          consola.info(
-            `Use the execute-pending-timelock-tx.ts script to execute it after the delay has passed`
+            `The transaction will be ready to execute after ${delay} seconds once confirmed by Safe owners`
           )
         } else {
-          consola.error(`Transaction failed for ${network.name}`)
+          consola.error(
+            `Failed to propose schedule transaction for ${network.name} with exit code ${result.exitCode}`
+          )
+          consola.error(result.stderr.toString())
         }
       }
     } catch (error) {
       consola.error(
-        `Failed to schedule confirmOwnershipTransfer for ${network.name}:`,
+        `Failed to propose schedule transaction for ${network.name}:`,
         error
       )
     }
@@ -337,8 +347,4 @@ async function processNetwork(
   }
 }
 
-// Run the main function
-main().catch((error) => {
-  consola.error('Error in main execution:', error)
-  process.exit(1)
-})
+runMain(main)
