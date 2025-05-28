@@ -701,7 +701,8 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
-        "GlacisFacet": "1.0.0"
+        "GlacisFacet": "1.0.0",
+        "RelayFacet": "1.0.0"
       }
     }
   },

@@ -32705,6 +32705,20 @@
           }
         ]
       }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xDb14E1938f226189CbB35189577Fa245D10e19B5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-27 18:42:01",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d71e5c1d217d12855b37fe60299273aad91d6cec000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
