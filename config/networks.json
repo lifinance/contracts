@@ -680,9 +680,9 @@
     "safeAddress": "",
     "gasZipChainId": 477,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
+    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
   },
   "optimism": {
     "name": "optimism",

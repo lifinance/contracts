@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.29'
-evm_version = 'cancun'
+solc_version = '0.8.17'
+evm_version = 'london'
 optimizer = true
 optimizer_runs = 1000000
 # use a known address with a balance so ZkEVM scripts work
@@ -62,6 +62,7 @@ nova = "${ETH_NODE_URI_NOVA}"
 mantle = "${ETH_NODE_URI_MANTLE}"
 metis = "${ETH_NODE_URI_METIS}"
 mode = "${ETH_NODE_URI_MODE}"
+nibiru = "${ETH_NODE_URI_NIBIRU}"
 okx = "${ETH_NODE_URI_OKX}"
 opbnb = "${ETH_NODE_URI_OPBNB}"
 optimism = "${ETH_NODE_URI_OPTIMISM}"
@@ -120,6 +121,7 @@ metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
 moonbeam = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1284", chain = "1284" }
 moonriver = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1285", chain = "1285" }
+nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }
 opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://api-opbnb.bscscan.com/api", chain = "204" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
