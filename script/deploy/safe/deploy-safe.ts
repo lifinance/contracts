@@ -490,7 +490,6 @@ const main = defineCommand({
 
 runMain(main)
 
-// Modify deployLocalContracts to accept EVM version
 async function deployLocalContracts(
   publicClient: any,
   walletClient: any,
@@ -533,7 +532,7 @@ async function deployLocalContracts(
     .object as `0x${string}`
   const PROXY_DEPLOYED = PROXY_ARTIFACT.deployedBytecode.object as `0x${string}`
 
-  // Deploy Safe implementation
+  // deploy Safe implementation
   consola.info('📦 Deploying local Safe implementation…')
   const implTx = await walletClient.deployContract({
     abi: SAFE_ABI,
@@ -553,7 +552,7 @@ async function deployLocalContracts(
     'Safe impl'
   )
 
-  // Deploy ProxyFactory
+  // deploy ProxyFactory
   consola.info('📦 Deploying local SafeProxyFactory…')
   const facTx = await walletClient.deployContract({
     abi: SAFE_PROXY_FACTORY_ABI,
@@ -576,7 +575,7 @@ async function deployLocalContracts(
   return { implAddr, facAddr, proxyBytecode: PROXY_DEPLOYED }
 }
 
-// Create the Safe proxy and run setup
+// create the Safe proxy and run setup
 async function createSafeProxy(params: {
   publicClient: any
   walletClient: any
@@ -604,7 +603,7 @@ async function createSafeProxy(params: {
     paymentReceiver,
   } = params
 
-  // Build initializer calldata
+  // build initializer calldata
   const initializer = encodeFunctionData({
     abi: SAFE_ABI,
     functionName: 'setup',
@@ -638,7 +637,7 @@ async function createSafeProxy(params: {
   })
   if (rcpt.status === 'reverted') throw new Error('Proxy creation reverted')
 
-  // Decode ProxyCreation event
+  // decode ProxyCreation event
   const proxyEvent = rcpt.logs
     .map((log: Log) => {
       try {
