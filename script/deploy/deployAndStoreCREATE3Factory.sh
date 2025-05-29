@@ -40,7 +40,7 @@ deployAndStoreCREATE3Factory() {
   echo "Trying to deploy CREATE3Factory now"
   echo ""
   local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvvv --json --legacy --broadcast --skip-simulation --gas-limit 2000000)
+	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvvv --json --legacy --broadcast --gas-limit 2000000)
   echo ""
   echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
   echo ""
