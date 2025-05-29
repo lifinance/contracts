@@ -45,11 +45,11 @@ deployAllContracts() {
   # since we only support mutable diamonds, no need to ask user to select diamond type
   local DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
-  # # add RPC URL to MongoDB
-  # echo ""
-  # echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
-  # bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
-  # bun fetch-rpcs
+  # add RPC URL to MongoDB
+  echo ""
+  echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
+  bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
+  bun fetch-rpcs
 
   # get deployer wallet balance
   BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
