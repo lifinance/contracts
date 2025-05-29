@@ -1,5 +1,5 @@
 /**
- * deploy-and-setup-safe.ts
+ * deploy-safe.ts
  *
  * Safe multisig deployment & setup script for any EVM chain.
  *
@@ -7,7 +7,11 @@
  *   1. **On chain Safe**: if @safe-global/safe-deployments provides a Safe singleton,
  *      proxy factory and fallback handler for your chain, it will reuse those.
  *   2. **Local v1.4.1 fallback**: otherwise it deploys the Safe implementation & proxy
- *      factory bytecode you ship in `safe/`, then verifies their on-chain code.
+ *      factory bytecode from either:
+ *         - safe/cancun/ (for Cancun EVM networks)
+ *         - safe/london/ (for London EVM networks)
+ *      The appropriate version is automatically selected based on the network's
+ *      deployedWithEvmVersion in networks.json.
  *
  * Workflow:
  *   • Merge owners from `config/global.json` + `--owners` CLI argument
@@ -30,6 +34,7 @@
  *   --paymentReceiver address to receive payment (default: zero)
  *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: false)
  *   --rpcUrl         custom RPC URL (uses network default if not provided)
+ *   --evmVersion     EVM version to use (london or cancun). Defaults to network setting from networks.json
  *
  * Environment variables:
  *   PRIVATE_KEY               deployer key for staging
@@ -164,11 +169,341 @@ async function compareDeployedBytecode(
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Deploy local Safe implementation & factory v1.4.1
-async function deployLocalContracts(publicClient: any, walletClient: any) {
+// At the top of the file, add new type for EVM versions
+type EVMVersion = 'london' | 'cancun'
+
+// Modify the command arguments to include EVM version
+const main = defineCommand({
+  meta: {
+    name: 'deploy-safe',
+    description: 'Deploys (or reuses) a Gnosis Safe multisig on an EVM chain',
+  },
+  args: {
+    network: {
+      type: 'string',
+      description: 'Target network name (SupportedChain)',
+      required: true,
+    },
+    threshold: {
+      type: 'string',
+      description: 'Number of required confirmations (default: 3)',
+      required: false,
+      default: '3',
+    },
+    owners: {
+      type: 'string',
+      description: 'Comma-separated extra owner addresses',
+      required: false,
+    },
+    fallbackHandler: {
+      type: 'string',
+      description: 'Override fallback handler address',
+      required: false,
+    },
+    paymentToken: {
+      type: 'string',
+      description: 'Payment token (default: 0x0 = ETH)',
+      required: false,
+    },
+    payment: {
+      type: 'string',
+      description: 'Payment amount in wei (default: 0)',
+      required: false,
+    },
+    paymentReceiver: {
+      type: 'string',
+      description: 'Where to send payment (default: 0x0)',
+      required: false,
+    },
+    allowOverride: {
+      type: 'boolean',
+      description:
+        'Whether to allow overriding existing Safe address in networks.json (default: false)',
+      required: false,
+      default: false,
+    },
+    rpcUrl: {
+      type: 'string',
+      description:
+        'Custom RPC URL (optional, uses network default if not provided)',
+      required: false,
+    },
+    evmVersion: {
+      type: 'string',
+      description:
+        'EVM version to use (london or cancun). Defaults to network setting from networks.json',
+      required: false,
+    },
+  },
+  async run({ args }) {
+    // choose env
+    const environment = (await consola.prompt(
+      'Which environment do you want to deploy to?',
+      {
+        type: 'select',
+        options: [
+          { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
+          {
+            value: 'production',
+            label: 'production (uses PRIVATE_KEY_PRODUCTION)',
+          },
+        ],
+      }
+    )) as unknown as Environment
+
+    // validate network & existing
+    const networkName = args.network as SupportedChain
+    const existing = networks[networkName]?.safeAddress
+    if (existing && existing !== zeroAddress && !args.allowOverride) {
+      throw new Error(
+        `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
+      )
+    }
+
+    // parse & validate threshold + owners
+    const isDefaultThreshold = !process.argv.includes('--threshold')
+    const threshold = Number(args.threshold)
+    if (isNaN(threshold) || threshold < 1) {
+      throw new Error('Threshold must be a positive integer')
+    }
+
+    if (isDefaultThreshold) {
+      consola.info('ℹ Using default threshold of 3 required confirmations')
+    }
+
+    const extraOwners = (args.owners || '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter((o) => o.length > 0)
+      .map((o) => {
+        if (!isAddress(o)) throw new Error(`Invalid owner address: ${o}`)
+        return getAddress(o)
+      })
+
+    const ownersFromConfig = globalConfig.safeOwners as Address[]
+    const owners = [
+      ...new Set([...ownersFromConfig, ...extraOwners]),
+    ] as Address[]
+    if (threshold > owners.length) {
+      throw new Error('Threshold cannot exceed number of owners')
+    }
+
+    // optional params
+    const fallbackHandler =
+      args.fallbackHandler && isAddress(args.fallbackHandler)
+        ? getAddress(args.fallbackHandler)
+        : zeroAddress
+    const paymentToken =
+      args.paymentToken && isAddress(args.paymentToken)
+        ? getAddress(args.paymentToken)
+        : zeroAddress
+    const payment = args.payment ? BigInt(args.payment) : 0n
+    const paymentReceiver =
+      args.paymentReceiver && isAddress(args.paymentReceiver)
+        ? getAddress(args.paymentReceiver)
+        : zeroAddress
+
+    // setup clients
+    const { publicClient, walletClient, walletAccount, chain } =
+      await setupEnvironment(networkName, null, environment, args.rpcUrl)
+    consola.info('Deployer:', walletAccount.address)
+
+    // Determine EVM version
+    const networkConfig = networks[networkName.toLowerCase()]
+    let evmVersion: EVMVersion = 'cancun' // Default to cancun
+
+    if (args.evmVersion) {
+      // If explicitly specified via CLI
+      if (!['london', 'cancun'].includes(args.evmVersion)) {
+        throw new Error(
+          'Invalid EVM version. Must be either "london" or "cancun"'
+        )
+      }
+      evmVersion = args.evmVersion as EVMVersion
+    } else if (networkConfig.deployedWithEvmVersion) {
+      // Use network-specific version if available
+      evmVersion =
+        networkConfig.deployedWithEvmVersion.toLowerCase() as EVMVersion
+    }
+
+    consola.info(`Using EVM version: ${evmVersion}`)
+
+    // attempt safe-deployments lookup
+    const chainId = String(await publicClient.getChainId())
+    const isL2 = Boolean((publicClient as any).chain?.contracts?.l2OutputOracle)
+    const singletonD = isL2
+      ? getSafeL2SingletonDeployment({ network: chainId })
+      : getSafeSingletonDeployment({ network: chainId })
+    const factoryD = getProxyFactoryDeployment({ network: chainId })
+    const fallbackD = getFallbackHandlerDeployment({ network: chainId })
+
+    let singletonAddr = singletonD?.networkAddresses?.[chainId] as `0x${string}`
+    let factoryAddr = factoryD?.networkAddresses?.[chainId] as `0x${string}`
+
+    if (!factoryAddr && factoryD) {
+      consola.warn(
+        `No factory deployment found for chain ID ${chainId}. Using latest version.`
+      )
+      const networks = Object.keys(factoryD.networkAddresses).sort(
+        (a, b) => parseInt(b) - parseInt(a)
+      )
+
+      if (networks.length > 0) {
+        factoryAddr = factoryD.networkAddresses[networks[0]] as `0x${string}`
+        consola.info(
+          `Using factory from network ${networks[0]}: ${factoryAddr}`
+        )
+      } else {
+        throw new Error(
+          'No Safe factory deployment found in @safe-global/safe-deployments'
+        )
+      }
+    }
+
+    let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`
+
+    if (!fallbackAddr && fallbackD) {
+      consola.warn(
+        `No fallback handler deployment found for chain ID ${chainId}. Using latest version.`
+      )
+      const networks = Object.keys(fallbackD.networkAddresses).sort(
+        (a, b) => parseInt(b) - parseInt(a)
+      )
+
+      if (networks.length > 0) {
+        fallbackAddr = fallbackD.networkAddresses[networks[0]] as `0x${string}`
+        consola.info(
+          `Using fallback handler from network ${networks[0]}: ${fallbackAddr}`
+        )
+      } else {
+        fallbackAddr = zeroAddress
+        consola.warn(`Using zero address for fallback handler`)
+      }
+    }
+
+    let proxyBytecode: `0x${string}` | undefined
+
+    if (singletonAddr && factoryAddr) {
+      consola.success('✅ Using @safe-global/safe-deployments contracts')
+      consola.info(`Implementation    : ${singletonAddr}`)
+      consola.info(`ProxyFactory      : ${factoryAddr}`)
+      consola.info(`FallbackHandler   : ${fallbackAddr}`)
+    } else {
+      consola.warn(
+        `⚠️  No on-chain Safe deployments found for this chain. Deploying local v1.4.1 (${evmVersion})`
+      )
+      const deployed = await deployLocalContracts(
+        publicClient,
+        walletClient,
+        evmVersion
+      )
+      singletonAddr = deployed.implAddr
+      factoryAddr = deployed.facAddr
+      fallbackAddr = fallbackHandler
+      proxyBytecode = deployed.proxyBytecode
+    }
+
+    // create Safe proxy + setup
+    const safeAddress = await createSafeProxy({
+      publicClient,
+      walletClient,
+      factoryAddress: factoryAddr!,
+      singletonAddress: singletonAddr!,
+      proxyBytecode,
+      owners,
+      threshold,
+      fallbackHandler: fallbackAddr,
+      paymentToken,
+      payment,
+      paymentReceiver,
+    })
+
+    // verify on-chain owners & threshold
+    consola.info('🔍 Verifying Safe on-chain state…')
+    const [actualOwners, actualThreshold] = await Promise.all([
+      publicClient.readContract({
+        address: safeAddress,
+        abi: SAFE_READ_ABI,
+        functionName: 'getOwners',
+      }),
+      publicClient.readContract({
+        address: safeAddress,
+        abi: SAFE_READ_ABI,
+        functionName: 'getThreshold',
+      }),
+    ])
+
+    const expected = owners.map((o) => o.toLowerCase())
+    const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
+
+    const missing = expected.filter((o) => !actual.includes(o))
+    const extra = actual.filter((o) => !expected.includes(o))
+
+    if (missing.length || extra.length) {
+      consola.error('❌ Owner mismatch detected:')
+      if (missing.length) consola.error(`  • Missing:  ${missing.join(', ')}`)
+      if (extra.length) consola.error(`  • Unexpected: ${extra.join(', ')}`)
+      throw new Error('Owner verification failed')
+    } else {
+      consola.success('✔ Owners match expected')
+    }
+
+    if (BigInt(threshold) !== BigInt(actualThreshold as bigint)) {
+      consola.error(
+        `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
+      )
+      throw new Error('Threshold verification failed')
+    } else {
+      consola.success('✔ Threshold matches expected')
+    }
+
+    // update networks.json
+    if (args.allowOverride) {
+      ;(networks as any)[networkName] = {
+        ...networks[networkName],
+        safeAddress,
+      }
+      writeFileSync(
+        join(__dirname, '../../../config/networks.json'),
+        JSON.stringify(networks, null, 2),
+        'utf8'
+      )
+      consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
+    } else {
+      consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
+    }
+
+    if (safeAddress) {
+      consola.info('-'.repeat(80))
+      consola.info('🎉 Deployment complete!')
+      consola.info(`Safe Address: \u001b[32m${safeAddress}\u001b[0m`)
+      const explorerUrl = chain.blockExplorers?.default?.url
+      if (explorerUrl) {
+        consola.info(
+          `Explorer URL: \u001b[36m${explorerUrl}/address/${safeAddress}\u001b[0m`
+        )
+      }
+      consola.info('-'.repeat(80))
+    }
+  },
+})
+
+runMain(main)
+
+// Modify deployLocalContracts to accept EVM version
+async function deployLocalContracts(
+  publicClient: any,
+  walletClient: any,
+  evmVersion: EVMVersion
+) {
+  const basePath = evmVersion === 'london' ? 'london' : 'cancun'
+
   const SAFE_ARTIFACT = JSON.parse(
     readFileSync(
-      join(__dirname, '../../../safe/out/Safe_flattened.sol/Safe.json'),
+      join(
+        __dirname,
+        `../../../safe/${basePath}/out/Safe_flattened.sol/Safe.json`
+      ),
       'utf8'
     )
   )
@@ -176,7 +511,7 @@ async function deployLocalContracts(publicClient: any, walletClient: any) {
     readFileSync(
       join(
         __dirname,
-        '../../../safe/out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json'
+        `../../../safe/${basePath}/out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json`
       ),
       'utf8'
     )
@@ -185,7 +520,7 @@ async function deployLocalContracts(publicClient: any, walletClient: any) {
     readFileSync(
       join(
         __dirname,
-        '../../../safe/out/SafeProxyFactory_flattened.sol/SafeProxy.json'
+        `../../../safe/${basePath}/out/SafeProxyFactory_flattened.sol/SafeProxy.json`
       ),
       'utf8'
     )
@@ -360,290 +695,3 @@ async function createSafeProxy(params: {
 
   return safeAddr
 }
-
-const main = defineCommand({
-  meta: {
-    name: 'deploy-safe',
-    description: 'Deploys (or reuses) a Gnosis Safe multisig on an EVM chain',
-  },
-  args: {
-    network: {
-      type: 'string',
-      description: 'Target network name (SupportedChain)',
-      required: true,
-    },
-    threshold: {
-      type: 'string',
-      description: 'Number of required confirmations (default: 3)',
-      required: false,
-      default: '3',
-    },
-    owners: {
-      type: 'string',
-      description: 'Comma-separated extra owner addresses',
-      required: false,
-    },
-    fallbackHandler: {
-      type: 'string',
-      description: 'Override fallback handler address',
-      required: false,
-    },
-    paymentToken: {
-      type: 'string',
-      description: 'Payment token (default: 0x0 = ETH)',
-      required: false,
-    },
-    payment: {
-      type: 'string',
-      description: 'Payment amount in wei (default: 0)',
-      required: false,
-    },
-    paymentReceiver: {
-      type: 'string',
-      description: 'Where to send payment (default: 0x0)',
-      required: false,
-    },
-    allowOverride: {
-      type: 'boolean',
-      description:
-        'Whether to allow overriding existing Safe address in networks.json (default: false)',
-      required: false,
-      default: false,
-    },
-    rpcUrl: {
-      type: 'string',
-      description:
-        'Custom RPC URL (optional, uses network default if not provided)',
-      required: false,
-    },
-  },
-  async run({ args }) {
-    // choose env
-    const environment = (await consola.prompt(
-      'Which environment do you want to deploy to?',
-      {
-        type: 'select',
-        options: [
-          { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
-          {
-            value: 'production',
-            label: 'production (uses PRIVATE_KEY_PRODUCTION)',
-          },
-        ],
-      }
-    )) as unknown as Environment
-
-    // validate network & existing
-    const networkName = args.network as SupportedChain
-    const existing = networks[networkName]?.safeAddress
-    if (existing && existing !== zeroAddress && !args.allowOverride) {
-      throw new Error(
-        `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
-      )
-    }
-
-    // parse & validate threshold + owners
-    const isDefaultThreshold = !process.argv.includes('--threshold')
-    const threshold = Number(args.threshold)
-    if (isNaN(threshold) || threshold < 1) {
-      throw new Error('Threshold must be a positive integer')
-    }
-
-    if (isDefaultThreshold) {
-      consola.info('ℹ Using default threshold of 3 required confirmations')
-    }
-
-    const extraOwners = (args.owners || '')
-      .split(',')
-      .map((o) => o.trim())
-      .filter((o) => o.length > 0)
-      .map((o) => {
-        if (!isAddress(o)) throw new Error(`Invalid owner address: ${o}`)
-        return getAddress(o)
-      })
-
-    const ownersFromConfig = globalConfig.safeOwners as Address[]
-    const owners = [
-      ...new Set([...ownersFromConfig, ...extraOwners]),
-    ] as Address[]
-    if (threshold > owners.length) {
-      throw new Error('Threshold cannot exceed number of owners')
-    }
-
-    // optional params
-    const fallbackHandler =
-      args.fallbackHandler && isAddress(args.fallbackHandler)
-        ? getAddress(args.fallbackHandler)
-        : zeroAddress
-    const paymentToken =
-      args.paymentToken && isAddress(args.paymentToken)
-        ? getAddress(args.paymentToken)
-        : zeroAddress
-    const payment = args.payment ? BigInt(args.payment) : 0n
-    const paymentReceiver =
-      args.paymentReceiver && isAddress(args.paymentReceiver)
-        ? getAddress(args.paymentReceiver)
-        : zeroAddress
-
-    // setup clients
-    const { publicClient, walletClient, walletAccount, chain } =
-      await setupEnvironment(networkName, null, environment, args.rpcUrl)
-    consola.info('Deployer:', walletAccount.address)
-
-    // attempt safe-deployments lookup
-    const chainId = String(await publicClient.getChainId())
-    const isL2 = Boolean((publicClient as any).chain?.contracts?.l2OutputOracle)
-    const singletonD = isL2
-      ? getSafeL2SingletonDeployment({ network: chainId })
-      : getSafeSingletonDeployment({ network: chainId })
-    const factoryD = getProxyFactoryDeployment({ network: chainId })
-    const fallbackD = getFallbackHandlerDeployment({ network: chainId })
-
-    let singletonAddr = singletonD?.networkAddresses?.[chainId] as `0x${string}`
-    let factoryAddr = factoryD?.networkAddresses?.[chainId] as `0x${string}`
-
-    if (!factoryAddr && factoryD) {
-      consola.warn(
-        `No factory deployment found for chain ID ${chainId}. Using latest version.`
-      )
-      const networks = Object.keys(factoryD.networkAddresses).sort(
-        (a, b) => parseInt(b) - parseInt(a)
-      )
-
-      if (networks.length > 0) {
-        factoryAddr = factoryD.networkAddresses[networks[0]] as `0x${string}`
-        consola.info(
-          `Using factory from network ${networks[0]}: ${factoryAddr}`
-        )
-      } else {
-        throw new Error(
-          'No Safe factory deployment found in @safe-global/safe-deployments'
-        )
-      }
-    }
-
-    let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`
-
-    if (!fallbackAddr && fallbackD) {
-      consola.warn(
-        `No fallback handler deployment found for chain ID ${chainId}. Using latest version.`
-      )
-      const networks = Object.keys(fallbackD.networkAddresses).sort(
-        (a, b) => parseInt(b) - parseInt(a)
-      )
-
-      if (networks.length > 0) {
-        fallbackAddr = fallbackD.networkAddresses[networks[0]] as `0x${string}`
-        consola.info(
-          `Using fallback handler from network ${networks[0]}: ${fallbackAddr}`
-        )
-      } else {
-        fallbackAddr = zeroAddress
-        consola.warn(`Using zero address for fallback handler`)
-      }
-    }
-
-    let proxyBytecode: `0x${string}` | undefined
-
-    if (singletonAddr && factoryAddr) {
-      consola.success('✅ Using @safe-global/safe-deployments contracts')
-      consola.info(`Implementation    : ${singletonAddr}`)
-      consola.info(`ProxyFactory      : ${factoryAddr}`)
-      consola.info(`FallbackHandler   : ${fallbackAddr}`)
-    } else {
-      consola.warn(
-        '⚠️  No on-chain Safe deployments found for this chain. Deploying local v1.4.1'
-      )
-      const deployed = await deployLocalContracts(publicClient, walletClient)
-      singletonAddr = deployed.implAddr
-      factoryAddr = deployed.facAddr
-      fallbackAddr = fallbackHandler
-      proxyBytecode = deployed.proxyBytecode
-    }
-
-    // create Safe proxy + setup
-    const safeAddress = await createSafeProxy({
-      publicClient,
-      walletClient,
-      factoryAddress: factoryAddr!,
-      singletonAddress: singletonAddr!,
-      proxyBytecode,
-      owners,
-      threshold,
-      fallbackHandler: fallbackAddr,
-      paymentToken,
-      payment,
-      paymentReceiver,
-    })
-
-    // verify on-chain owners & threshold
-    consola.info('🔍 Verifying Safe on-chain state…')
-    const [actualOwners, actualThreshold] = await Promise.all([
-      publicClient.readContract({
-        address: safeAddress,
-        abi: SAFE_READ_ABI,
-        functionName: 'getOwners',
-      }),
-      publicClient.readContract({
-        address: safeAddress,
-        abi: SAFE_READ_ABI,
-        functionName: 'getThreshold',
-      }),
-    ])
-
-    const expected = owners.map((o) => o.toLowerCase())
-    const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
-
-    const missing = expected.filter((o) => !actual.includes(o))
-    const extra = actual.filter((o) => !expected.includes(o))
-
-    if (missing.length || extra.length) {
-      consola.error('❌ Owner mismatch detected:')
-      if (missing.length) consola.error(`  • Missing:  ${missing.join(', ')}`)
-      if (extra.length) consola.error(`  • Unexpected: ${extra.join(', ')}`)
-      throw new Error('Owner verification failed')
-    } else {
-      consola.success('✔ Owners match expected')
-    }
-
-    if (BigInt(threshold) !== BigInt(actualThreshold as bigint)) {
-      consola.error(
-        `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
-      )
-      throw new Error('Threshold verification failed')
-    } else {
-      consola.success('✔ Threshold matches expected')
-    }
-
-    // update networks.json
-    if (args.allowOverride) {
-      ;(networks as any)[networkName] = {
-        ...networks[networkName],
-        safeAddress,
-      }
-      writeFileSync(
-        join(__dirname, '../../../config/networks.json'),
-        JSON.stringify(networks, null, 2),
-        'utf8'
-      )
-      consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
-    } else {
-      consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
-    }
-
-    if (safeAddress) {
-      consola.info('-'.repeat(80))
-      consola.info('🎉 Deployment complete!')
-      consola.info(`Safe Address: \u001b[32m${safeAddress}\u001b[0m`)
-      const explorerUrl = chain.blockExplorers?.default?.url
-      if (explorerUrl) {
-        consola.info(
-          `Explorer URL: \u001b[36m${explorerUrl}/address/${safeAddress}\u001b[0m`
-        )
-      }
-      consola.info('-'.repeat(80))
-    }
-  },
-})
-
-runMain(main)
