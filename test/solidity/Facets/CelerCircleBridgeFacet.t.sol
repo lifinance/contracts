@@ -13,8 +13,8 @@ contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
         address _usdc
     ) CelerCircleBridgeFacet(_circleBridgeProxy, _usdc) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -49,7 +49,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = celerCircleBridgeFacet
             .swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[2] = celerCircleBridgeFacet.addDex.selector;
+        functionSelectors[2] = celerCircleBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = celerCircleBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -58,7 +58,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
-        celerCircleBridgeFacet.addDex(address(uniswap));
+        celerCircleBridgeFacet.addToWhitelist(address(uniswap));
         celerCircleBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

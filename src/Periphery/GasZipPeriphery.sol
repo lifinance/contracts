@@ -18,7 +18,9 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// State ///
+    // solhint-disable-next-line immutable-vars-naming
     IGasZip public immutable gasZipRouter;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable liFiDEXAggregator;
     uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
 

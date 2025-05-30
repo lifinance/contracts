@@ -11,8 +11,8 @@ import { LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -49,7 +49,7 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
-        functionSelectors[4] = hopFacet.addDex.selector;
+        functionSelectors[4] = hopFacet.addToWhitelist.selector;
         functionSelectors[5] = hopFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -64,7 +64,7 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet = TestHopFacet(address(diamond));
         hopFacet.initHop(configs);
 
-        hopFacet.addDex(address(uniswap));
+        hopFacet.addToWhitelist(address(uniswap));
         hopFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
@@ -242,7 +242,7 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
-        functionSelectors[4] = hopFacet2.addDex.selector;
+        functionSelectors[4] = hopFacet2.addToWhitelist.selector;
         functionSelectors[5] = hopFacet2
             .setFunctionApprovalBySignature
             .selector;

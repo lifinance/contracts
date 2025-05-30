@@ -13,8 +13,8 @@ contract TestOmniBridgeFacet is OmniBridgeFacet {
         IOmniBridge _wethOmniBridge
     ) OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -48,7 +48,7 @@ contract OmniBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = omniBridgeFacet
             .swapAndStartBridgeTokensViaOmniBridge
             .selector;
-        functionSelectors[2] = omniBridgeFacet.addDex.selector;
+        functionSelectors[2] = omniBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = omniBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -57,7 +57,7 @@ contract OmniBridgeFacetTest is TestBaseFacet {
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
-        omniBridgeFacet.addDex(address(uniswap));
+        omniBridgeFacet.addToWhitelist(address(uniswap));
         omniBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

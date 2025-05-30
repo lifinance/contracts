@@ -12,8 +12,8 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 contract TestMayanFacet is MayanFacet {
     constructor(IMayan _bridge) MayanFacet(_bridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -110,14 +110,14 @@ contract MayanFacetTest is TestBaseFacet {
         functionSelectors[1] = mayanBridgeFacet
             .swapAndStartBridgeTokensViaMayan
             .selector;
-        functionSelectors[2] = mayanBridgeFacet.addDex.selector;
+        functionSelectors[2] = mayanBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = mayanBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
         mayanBridgeFacet = TestMayanFacet(address(diamond));
-        mayanBridgeFacet.addDex(ADDRESS_UNISWAP);
+        mayanBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
         mayanBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
