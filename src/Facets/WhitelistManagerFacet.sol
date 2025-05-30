@@ -29,11 +29,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
         uint256 length = _addresses.length;
 
-        for (uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length; ++i) {
             _addToWhitelist(_addresses[i]);
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -51,11 +48,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
             LibAccess.enforceAccessControl();
         }
         uint256 length = _addresses.length;
-        for (uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length; ++i) {
             _removeFromWhitelist(_addresses[i]);
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -81,11 +75,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
             LibAccess.enforceAccessControl();
         }
         uint256 length = _selectors.length;
-        for (uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length; ++i) {
             _setFunctionApproval(_selectors[i], _approval);
-            unchecked {
-                ++i;
-            }
         }
     }
 
