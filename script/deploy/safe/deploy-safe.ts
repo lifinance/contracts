@@ -290,12 +290,27 @@ async function createSafeProxy(params: {
     BigInt(Date.now()) ^
     BigInt.asUintN(64, BigInt(walletClient.account.address))
 
+  // This might be helpful for networks where automatic gas estimation does not work correctly
+  // // estimate gas usage
+  // const estimatedGas = await publicClient.estimateContractGas({
+  //   address: factoryAddress,
+  //   abi: SAFE_PROXY_FACTORY_ABI,
+  //   functionName: 'createProxyWithNonce',
+  //   args: [singletonAddress, initializer, salt],
+  //   account: activeAccount,
+  // })
+
+  // console.log(`Estimated Gas: ${estimatedGas}`)
+
   consola.info('⚙️  Creating Safe proxy…')
   const txHash = await walletClient.writeContract({
     address: factoryAddress,
     abi: SAFE_PROXY_FACTORY_ABI,
     functionName: 'createProxyWithNonce',
     args: [singletonAddress, initializer, salt],
+    // gas: estimatedGas,
+    // gasPrice: 5n * 10n ** 9n,
+    // value: 0n,
   })
   const rcpt = await publicClient.waitForTransactionReceipt({
     hash: txHash,
@@ -408,7 +423,7 @@ const main = defineCommand({
       description:
         'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: false,
+      default: true,
     },
     rpcUrl: {
       type: 'string',
@@ -419,19 +434,21 @@ const main = defineCommand({
   },
   async run({ args }) {
     // choose env
-    const environment = (await consola.prompt(
-      'Which environment do you want to deploy to?',
-      {
-        type: 'select',
-        options: [
-          { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
-          {
-            value: 'production',
-            label: 'production (uses PRIVATE_KEY_PRODUCTION)',
-          },
-        ],
-      }
-    )) as unknown as Environment
+    // const environment = (await consola.prompt(
+    //   'Which environment do you want to deploy to?',
+    //   {
+    //     type: 'select',
+    //     options: [
+    //       { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
+    //       {
+    //         value: 'production',
+    //         label: 'production (uses PRIVATE_KEY_PRODUCTION)',
+    //       },
+    //     ],
+    //   }
+    // )) as string
+    // since we currently only use multisig safes in production we can hardcode this value here
+    const environment: Environment = Environment.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain
