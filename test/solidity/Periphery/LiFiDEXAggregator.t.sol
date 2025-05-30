@@ -105,7 +105,7 @@ abstract contract LiFiDexAggregatorTest is TestBase {
     error WrongPoolReserves();
     error PoolDoesNotExist();
 
-    // New helper function to initialize the aggregator
+    // helper function to initialize the aggregator
     function _initializeDexAggregator(address owner) internal {
         privileged = new address[](1);
         privileged[0] = owner;
@@ -239,14 +239,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         customBlockNumberForForking = 133999121;
         initTestBase();
 
-        privileged = new address[](1);
-        privileged[0] = address(USER_DIAMOND_OWNER);
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
     function setUp() public override {
@@ -2160,14 +2153,7 @@ contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
         customBlockNumberForForking = 89279495;
         fork();
 
-        address[] memory privileged = new address[](1);
-        privileged[0] = USER_DIAMOND_OWNER;
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
     function test_CanSwapViaXSwapV3() public {
@@ -2284,15 +2270,7 @@ contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
         customBlockNumberForForking = 94490946;
         fork();
 
-        // initialize the aggregator
-        address[] memory privileged = new address[](1);
-        privileged[0] = USER_DIAMOND_OWNER;
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            USER_DIAMOND_OWNER
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
     function test_CanSwapViaRabbitSwap() public {
