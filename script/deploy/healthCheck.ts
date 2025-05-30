@@ -608,6 +608,8 @@ const checkIsDeployed = async (
 }
 
 const finish = () => {
+  // this line ensures that all logs are actually written before the script ends
+  process.stdout.write('', () => process.stdout.end())
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
     process.exit(1)
