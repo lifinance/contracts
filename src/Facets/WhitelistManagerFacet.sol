@@ -134,11 +134,15 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
     /// @dev Internal function to handle function selector approval logic
     function _setFunctionApproval(bytes4 _selector, bool _approval) internal {
-        if (_approval) {
-            LibAllowList.addAllowedSelector(_selector);
-        } else {
-            LibAllowList.removeAllowedSelector(_selector);
+        bool currentlyApproved = LibAllowList.selectorIsAllowed(_selector);
+
+        if (_approval != currentlyApproved) {
+            if (_approval) {
+                LibAllowList.addAllowedSelector(_selector);
+            } else {
+                LibAllowList.removeAllowedSelector(_selector);
+            }
+            emit FunctionSelectorApprovalChanged(_selector, _approval);
         }
-        emit FunctionSelectorApprovalChanged(_selector, _approval);
     }
 }
