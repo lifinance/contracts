@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 /// @title Whitelist Manager Facet Interface
 /// @author LI.FI (https://li.fi)
-/// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and addresses.
+/// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
 /// @custom:version 1.0.0
 interface IWhitelistManagerFacet {
     /// @notice Emitted when a new address is added to the whitelist.
