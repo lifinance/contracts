@@ -1850,8 +1850,6 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
 contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
     using SafeERC20 for IERC20;
 
-    LiFiDEXAggregator internal lda;
-
     /// @dev HyperswapV3 router on HyperEVM chain
     IHyperswapV3Factory internal constant HYPERSWAP_FACTORY =
         IHyperswapV3Factory(0xB1c0fa0B789320044A6F623cFe5eBda9562602E3);
