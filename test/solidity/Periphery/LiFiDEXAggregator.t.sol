@@ -13,6 +13,7 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
 import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
+import { IXSwapQuoterV2 } from "lifi/Interfaces/IXSwapQuoterV2.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -2007,10 +2008,10 @@ contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
 
     function test_CanSwap_MultiHop() public override {
         // SKIPPED: HyperswapV3 multi-hop unsupported due to AS requirement.
-        // HyperswapV3 does not support a “one-pool” second hop today, because
+        // HyperswapV3 does not support a "one-pool" second hop today, because
         // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
-        // the pool.swap call. HyperswapV3’s swap() immediately reverts on
-        // require(amountSpecified != 0, 'AS'), so you can’t chain two V3 pools
+        // the pool.swap call. HyperswapV3's swap() immediately reverts on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
         // in a single processRoute invocation.
     }
 
@@ -2135,10 +2136,157 @@ contract LiFiDexAggregatorLaminarV3Test is LiFiDexAggregatorTest {
 
     function test_CanSwap_MultiHop() public override {
         // SKIPPED: Laminar V3 multi-hop unsupported due to AS requirement.
-        // Laminar V3 does not support a “one-pool” second hop today, because
+        // Laminar V3 does not support a "one-pool" second hop today, because
         // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
-        // the pool.swap call. Laminar V3’s swap() immediately reverts on
-        // require(amountSpecified != 0, 'AS'), so you can’t chain two V3 pools
+        // the pool.swap call. Laminar V3's swap() immediately reverts on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
+        // in a single processRoute invocation.
+    }
+}
+
+contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    IXSwapQuoterV2 internal xQuoter;
+
+    address internal constant USDC_E_WXDC_POOL =
+        0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0;
+
+    /// @dev our two tokens: USDC.e and wrapped XDC
+    IERC20 internal constant USDC_E =
+        IERC20(0x2A8E898b6242355c290E1f4Fc966b8788729A4D4);
+    IERC20 internal constant WXDC =
+        IERC20(0x951857744785E80e2De051c32EE7b25f9c458C42);
+
+    function setUp() public override {
+        customRpcUrlForForking = "ETH_NODE_URI_XDC";
+        customBlockNumberForForking = 89279495;
+        fork();
+
+        address[] memory privileged = new address[](1);
+        privileged[0] = USER_DIAMOND_OWNER;
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0xCAFE),
+            privileged,
+            USER_DIAMOND_OWNER
+        );
+        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+
+        xQuoter = IXSwapQuoterV2(
+            address(0xeCF4ea7907e779b8A7D0F90CB95Fe06F43b610FB)
+        );
+    }
+
+    function test_CanSwapViaXSwapV3() public {
+        uint256 amountIn = 1_000 * 1e6;
+        deal(address(USDC_E), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        USDC_E.approve(address(liFiDEXAggregator), amountIn);
+
+        // Quote via the quoter
+        (uint256 quoted, , , ) = xQuoter.quoteExactInputSingle(
+            IXSwapQuoterV2.QuoteExactInputSingleParams({
+                tokenIn: address(USDC_E),
+                tokenOut: address(WXDC),
+                amountIn: amountIn,
+                fee: 10000,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        // Build a one-pool V3 route
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(USDC_E),
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.UniV3),
+            USDC_E_WXDC_POOL,
+            uint8(0), // zeroForOne (USDC.e < WXDC)
+            USER_SENDER
+        );
+
+        // expect the aggregator to emit a Route event with our quoted out
+        vm.expectEmit(true, true, true, true);
+        emit LiFiDEXAggregator.Route(
+            USER_SENDER,
+            USER_SENDER,
+            address(USDC_E),
+            address(WXDC),
+            amountIn,
+            quoted,
+            quoted
+        );
+
+        liFiDEXAggregator.processRoute(
+            address(USDC_E),
+            amountIn,
+            address(WXDC),
+            quoted,
+            USER_SENDER,
+            route
+        );
+        vm.stopPrank();
+    }
+
+    /// @notice single-pool swap: aggregator contract sends USDC.e → user receives WXDC
+    function test_CanSwap_FromDexAggregator() public override {
+        // fund the aggregator
+        deal(address(USDC_E), address(liFiDEXAggregator), 5_000 * 1e6);
+
+        vm.startPrank(USER_SENDER);
+        uint256 amountIn = USDC_E.balanceOf(address(liFiDEXAggregator)) - 1; // slot-undrain protection
+
+        (uint256 quoted, , , ) = xQuoter.quoteExactInputSingle(
+            IXSwapQuoterV2.QuoteExactInputSingleParams({
+                tokenIn: address(USDC_E),
+                tokenOut: address(WXDC),
+                amountIn: amountIn,
+                fee: 10000,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            address(USDC_E),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.UniV3),
+            USDC_E_WXDC_POOL,
+            uint8(0),
+            USER_SENDER
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit LiFiDEXAggregator.Route(
+            USER_SENDER,
+            USER_SENDER,
+            address(USDC_E),
+            address(WXDC),
+            amountIn,
+            quoted,
+            quoted
+        );
+
+        liFiDEXAggregator.processRoute(
+            address(USDC_E),
+            amountIn,
+            address(WXDC),
+            quoted,
+            USER_SENDER,
+            route
+        );
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: XSwap V3 multi-hop unsupported due to AS requirement.
+        // XSwap V3 does not support a "one-pool" second hop today, because
+        // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. XSwap V3's swap() immediately reverts on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
         // in a single processRoute invocation.
     }
 }

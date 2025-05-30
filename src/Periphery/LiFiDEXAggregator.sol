@@ -303,6 +303,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @notice Processes ERC20 token for cases when the token has only one output pool
     /// @notice In this case liquidity is already at pool balance. This is an optimization
     /// @notice Call swap for all pools that swap from this token
+    /// @dev WARNING: This function passes amountIn as 0 which may not work with some UniswapV3
+    /// @dev forks that require non-zero amounts for their pricing/slippage calculations.
+    /// @dev Use with caution for V3-style pools.
     /// @param stream Streamed program
     function processOnePool(uint256 stream) private {
         address token = stream.readAddress();
