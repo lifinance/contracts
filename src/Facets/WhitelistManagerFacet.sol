@@ -135,6 +135,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
     /// @dev Internal function to handle whitelist removal logic
     function _removeFromWhitelist(address _address) internal {
+        if (!LibAllowList.contractIsAllowed(_address)) return;
+
         LibAllowList.removeAllowedContract(_address);
         emit AddressRemoved(_address);
     }
