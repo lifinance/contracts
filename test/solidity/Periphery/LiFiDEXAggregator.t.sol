@@ -2306,12 +2306,12 @@ contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
         0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D;
 
     function setUp() public override {
-        // Setup for Viction network
+        // setup for Viction network
         customRpcUrlForForking = "ETH_NODE_URI_VICTION";
         customBlockNumberForForking = 94490946;
         fork();
 
-        // Initialize the aggregator
+        // initialize the aggregator
         address[] memory privileged = new address[](1);
         privileged[0] = USER_DIAMOND_OWNER;
         liFiDEXAggregator = new LiFiDEXAggregator(
@@ -2323,15 +2323,15 @@ contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
     }
 
     function test_CanSwapViaRabbitSwap() public {
-        uint256 amountIn = 1_000 * 1e18; // 1000 SOROS
+        uint256 amountIn = 1_000 * 1e18;
 
-        // Fund the user with SOROS
+        // fund the user with SOROS
         deal(address(SOROS), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
         SOROS.approve(address(liFiDEXAggregator), amountIn);
 
-        // Build a single-pool UniV3-style route
+        // build a single-pool UniV3-style route
         bool zeroForOne = address(SOROS) > address(C98);
         bytes memory route = abi.encodePacked(
             uint8(CommandType.ProcessUserERC20),
@@ -2344,11 +2344,11 @@ contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
             address(USER_SENDER)
         );
 
-        // Record balances before swap
+        // record balances before swap
         uint256 inBefore = SOROS.balanceOf(USER_SENDER);
         uint256 outBefore = C98.balanceOf(USER_SENDER);
 
-        // Execute swap (minOut = 0 for test)
+        // execute swap (minOut = 0 for test)
         liFiDEXAggregator.processRoute(
             address(SOROS),
             amountIn,
@@ -2358,7 +2358,7 @@ contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
             route
         );
 
-        // Verify balances after swap
+        // verify balances after swap
         uint256 inAfter = SOROS.balanceOf(USER_SENDER);
         uint256 outAfter = C98.balanceOf(USER_SENDER);
         assertEq(inBefore - inAfter, amountIn, "SOROS spent mismatch");
