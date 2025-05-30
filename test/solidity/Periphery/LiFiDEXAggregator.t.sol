@@ -162,6 +162,15 @@ abstract contract LiFiDexAggregatorTest is TestBase {
     }
 
     // ============================ Abstract DEX Tests ============================
+    /**
+     * @notice Abstract test for basic token swapping functionality
+     * Each DEX implementation should override this
+     */
+    function test_CanSwap() public virtual {
+        // Each DEX implementation must override this
+        // solhint-disable-next-line gas-custom-errors
+        revert("test_CanSwap: Not implemented");
+    }
 
     /**
      * @notice Abstract test for swapping tokens from the DEX aggregator
@@ -248,7 +257,8 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
 
     //     // ============================ Velodrome V2 Tests ============================
 
-    function test_CanSwapViaVelodromeV2_NoStable() public {
+    // no stable swap
+    function test_CanSwap() public override {
         vm.startPrank(USER_SENDER);
 
         _testSwap(
@@ -267,9 +277,9 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaVelodromeV2_NoStable_Reverse() public {
+    function test_CanSwap_NoStable_Reverse() public {
         // first perform the forward swap.
-        test_CanSwapViaVelodromeV2_NoStable();
+        test_CanSwap();
 
         vm.startPrank(USER_SENDER);
         _testSwap(
@@ -287,7 +297,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaVelodromeV2_Stable() public {
+    function test_CanSwap_Stable() public {
         vm.startPrank(USER_SENDER);
         _testSwap(
             VelodromeV2SwapTestParams({
@@ -304,9 +314,9 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaVelodromeV2_Stable_Reverse() public {
+    function test_CanSwap_Stable_Reverse() public {
         // first perform the forward stable swap.
-        test_CanSwapViaVelodromeV2_Stable();
+        test_CanSwap_Stable();
 
         vm.startPrank(USER_SENDER);
 
@@ -347,7 +357,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaVelodromeV2_FlashloanCallback() public {
+    function test_CanSwap_FlashloanCallback() public {
         mockFlashloanCallbackReceiver = new MockVelodromeV2FlashLoanCallbackReceiver();
 
         vm.startPrank(USER_SENDER);
@@ -431,7 +441,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaVelodromeV2_MultiHop_WithStable() public {
+    function test_CanSwap_MultiHop_WithStable() public {
         vm.startPrank(USER_SENDER);
 
         // Setup routes and get amounts for stable->volatile path
@@ -496,7 +506,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function testRevert_VelodromeV2InvalidPoolOrRecipient() public {
+    function testRevert_InvalidPoolOrRecipient() public {
         vm.startPrank(USER_SENDER);
 
         // Get a valid pool address first for comparison
@@ -558,7 +568,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function testRevert_VelodromeV2WrongPoolReserves() public {
+    function testRevert_WrongPoolReserves() public {
         vm.startPrank(USER_SENDER);
 
         // Setup multi-hop route: USDC -> STG -> USDC.e
@@ -1156,7 +1166,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaAlgebra() public {
+    function test_CanSwap() public override {
         vm.startPrank(APE_ETH_HOLDER_APECHAIN);
 
         // Transfer tokens from whale to USER_SENDER
@@ -1182,8 +1192,8 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapViaAlgebra_Reverse() public {
-        test_CanSwapViaAlgebra();
+    function test_CanSwap_Reverse() public {
+        test_CanSwap();
 
         vm.startPrank(USER_SENDER);
 
@@ -1225,7 +1235,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     }
 
     // Test that the proper error is thrown when algebra swap fails
-    function testRevert_AlgebraSwapUnexpected() public {
+    function testRevert_SwapUnexpected() public {
         // Transfer tokens from whale to user
         vm.prank(APE_ETH_HOLDER_APECHAIN);
         IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
@@ -1868,7 +1878,7 @@ contract LiFiDexAggregatorHyperswapV3Test is LiFiDexAggregatorTest {
         setupHyperEVM();
     }
 
-    function test_CanSwapViaHyperswapV3() public {
+    function test_CanSwap() public override {
         uint256 amountIn = 1_000 * 1e6; // 1000 USDT0
 
         deal(address(USDT0), USER_SENDER, amountIn);
@@ -2043,7 +2053,7 @@ contract LiFiDexAggregatorLaminarV3Test is LiFiDexAggregatorTest {
         setupHyperEVM();
     }
 
-    function test_CanSwapViaLaminarV3() public {
+    function test_CanSwap() public override {
         uint256 amountIn = 1_000 * 1e18;
 
         // Fund the user with WHYPE
@@ -2156,7 +2166,7 @@ contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
         _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
-    function test_CanSwapViaXSwapV3() public {
+    function test_CanSwap() public override {
         uint256 amountIn = 1_000 * 1e6;
         deal(address(USDC_E), USER_SENDER, amountIn);
 
@@ -2273,7 +2283,7 @@ contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
         _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
-    function test_CanSwapViaRabbitSwap() public {
+    function test_CanSwap() public override {
         uint256 amountIn = 1_000 * 1e18;
 
         // fund the user with SOROS
