@@ -58,6 +58,9 @@ interface IWhitelistManagerFacet {
     ) external view returns (bool approved);
 
     /// @notice Returns a list of all whitelisted addresses.
+    /// @dev WARNING: this does a full read of stored addresses.
+    ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
+    ///      the call may run out of gas. Do not rely on it for unbounded iteration.
     /// @return addresses List of whitelisted addresses.
     function getWhitelistedAddresses()
         external
@@ -72,6 +75,9 @@ interface IWhitelistManagerFacet {
     ) external view returns (bool approved);
 
     /// @notice Returns a list of all approved function selectors.
+    /// @dev WARNING: this does a full read of stored selectors.
+    ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
+    ///      the call may run out of gas. Do not rely on it for unbounded iteration.
     /// @return selectors List of approved function selectors.
     function getApprovedFunctionSelectors()
         external
