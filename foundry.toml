@@ -76,6 +76,7 @@ swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 velas = "${ETH_NODE_URI_VELAS}"
 unichain = "${ETH_NODE_URI_UNICHAIN}"
+viction = "${ETH_NODE_URI_VICTION}"
 worldchain = "${ETH_NODE_URI_WORLDCHAIN}"
 xdc = "${ETH_NODE_URI_XDC}"
 xlayer = "${ETH_NODE_URI_XLAYER}"
@@ -133,6 +134,7 @@ superposition = { key = "${SUPERPOSITION_ETHERSCAN_API_KEY}", url = "https://exp
 swellchain = { key = "${SWELLCHAIN_ETHERSCAN_API_KEY}", url = "https://api.swellchainscan.io/api", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 unichain = { key = "${UNICHAIN_ETHERSCAN_API_KEY}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
+viction = { key = "${VICTION_ETHERSCAN_API_KEY}", url = "https://vicscan.xyz/api/contract/foundry/verify", chain = "88" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
 xdc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50", chain = "50" }
 xlayer = { key = "${XLAYER_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/xlayer/api", chain = "196" }
