@@ -13,7 +13,6 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
 import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
-import { IXSwapQuoterV2 } from "lifi/Interfaces/IXSwapQuoterV2.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -2147,8 +2146,6 @@ contract LiFiDexAggregatorLaminarV3Test is LiFiDexAggregatorTest {
 contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
     using SafeERC20 for IERC20;
 
-    IXSwapQuoterV2 internal xQuoter;
-
     address internal constant USDC_E_WXDC_POOL =
         0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0;
 
@@ -2171,10 +2168,6 @@ contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
             USER_DIAMOND_OWNER
         );
         vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
-
-        xQuoter = IXSwapQuoterV2(
-            address(0xeCF4ea7907e779b8A7D0F90CB95Fe06F43b610FB)
-        );
     }
 
     function test_CanSwapViaXSwapV3() public {
