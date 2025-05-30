@@ -2290,3 +2290,191 @@ contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
         // in a single processRoute invocation.
     }
 }
+
+// -----------------------------------------------------------------------------
+//  RabbitSwap on Viction
+// -----------------------------------------------------------------------------
+contract LiFiDexAggregatorRabbitSwapTest is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    // Constants for RabbitSwap on Viction
+    IERC20 internal constant SOROS =
+        IERC20(0xB786D9c8120D311b948cF1e5Aa48D8fBacf477E2);
+    IERC20 internal constant C98 =
+        IERC20(0x0Fd0288AAAE91eaF935e2eC14b23486f86516c8C);
+    address internal constant SOROS_C98_POOL =
+        0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D;
+
+    function setUp() public override {
+        // Setup for Viction network
+        customRpcUrlForForking = "ETH_NODE_URI_VICTION";
+        customBlockNumberForForking = 94490946;
+        fork();
+
+        // Initialize the aggregator
+        address[] memory privileged = new address[](1);
+        privileged[0] = USER_DIAMOND_OWNER;
+        liFiDEXAggregator = new LiFiDEXAggregator(
+            address(0xCAFE),
+            privileged,
+            USER_DIAMOND_OWNER
+        );
+        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+    }
+
+    function test_CanSwapViaRabbitSwap() public {
+        uint256 amountIn = 1_000 * 1e18; // 1000 SOROS
+
+        // Fund the user with SOROS
+        deal(address(SOROS), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        SOROS.approve(address(liFiDEXAggregator), amountIn);
+
+        // Build a single-pool UniV3-style route
+        bool zeroForOne = address(SOROS) > address(C98);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(SOROS),
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.UniV3), // RabbitSwap uses UniV3 pool type
+            SOROS_C98_POOL,
+            uint8(zeroForOne ? 0 : 1),
+            address(USER_SENDER)
+        );
+
+        // Record balances before swap
+        uint256 inBefore = SOROS.balanceOf(USER_SENDER);
+        uint256 outBefore = C98.balanceOf(USER_SENDER);
+
+        // Execute swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(SOROS),
+            amountIn,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify balances after swap
+        uint256 inAfter = SOROS.balanceOf(USER_SENDER);
+        uint256 outAfter = C98.balanceOf(USER_SENDER);
+        assertEq(inBefore - inAfter, amountIn, "SOROS spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive C98");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        uint256 amountIn = 1_000 * 1e18;
+
+        // fund the aggregator directly
+        deal(address(SOROS), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bool zeroForOne = address(SOROS) > address(C98);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            address(SOROS),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.UniV3),
+            SOROS_C98_POOL,
+            uint8(zeroForOne ? 0 : 1),
+            address(USER_SENDER)
+        );
+
+        uint256 outBefore = C98.balanceOf(USER_SENDER);
+
+        // withdraw 1 wei less to avoid slot-undrain protection
+        liFiDEXAggregator.processRoute(
+            address(SOROS),
+            amountIn - 1,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 outAfter = C98.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive C98");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: RabbitSwap multi-hop unsupported due to AS requirement.
+        // RabbitSwap (being a UniV3 fork) does not support a "one-pool" second hop today,
+        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. UniV3-style pools immediately revert on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
+        // in a single processRoute invocation.
+    }
+
+    function testRevert_RabbitSwapInvalidPool() public {
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(SOROS), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        SOROS.approve(address(liFiDEXAggregator), amountIn);
+
+        // build route with invalid pool address
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(SOROS),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.UniV3),
+            address(0), // invalid pool address
+            uint8(0),
+            USER_SENDER
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(SOROS),
+            amountIn,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_RabbitSwapInvalidRecipient() public {
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(SOROS), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        SOROS.approve(address(liFiDEXAggregator), amountIn);
+
+        // build route with invalid recipient
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(SOROS),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.UniV3),
+            SOROS_C98_POOL,
+            uint8(0),
+            address(0) // invalid recipient
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(SOROS),
+            amountIn,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+}

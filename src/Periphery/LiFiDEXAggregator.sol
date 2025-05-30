@@ -531,6 +531,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
 
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
+
         if (from == msg.sender)
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
