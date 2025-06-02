@@ -82,8 +82,11 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
     {
         if (
-            _bridgeData.sendingAssetId != DAI &&
-            _bridgeData.sendingAssetId != USDS
+            (_bridgeData.sendingAssetId != DAI &&
+                _bridgeData.sendingAssetId != USDS) ||
+            (_swapData.length > 0 &&
+                _bridgeData.sendingAssetId !=
+                _swapData[_swapData.length - 1].receivingAssetId)
         ) {
             revert InvalidSendingToken();
         }

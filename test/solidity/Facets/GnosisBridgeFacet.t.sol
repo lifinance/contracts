@@ -278,4 +278,32 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         vm.stopPrank();
     }
+
+    function testRevert_InvalidTokenCombinations() public {
+        vm.startPrank(USER_SENDER);
+
+        // Test case 1: Invalid token type (USDC) with matching swap output
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.hasSourceSwaps = true;
+        swapData[0].receivingAssetId = ADDRESS_USDC; // Make swap output match sending asset
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // Test case 2: Valid token type (DAI) but mismatched with swap output
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        swapData[0].receivingAssetId = ADDRESS_USDC; // Make swap output different from sending asset
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // Test case 3: Both conditions invalid (USDC token and mismatched swap output)
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        swapData[0].receivingAssetId = ADDRESS_DAI;
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
 }
