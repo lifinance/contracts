@@ -6,7 +6,7 @@
  */
 
 import consola from 'consola'
-import { Abi, Hex, parseAbi, toFunctionSelector } from 'viem'
+import { Hex, toFunctionSelector } from 'viem'
 
 /**
  * Decodes a diamond cut transaction and displays its details
@@ -96,8 +96,6 @@ export async function decodeTransactionData(data: Hex): Promise<{
       responseData.result.function[selector]
     ) {
       const functionName = responseData.result.function[selector][0].name
-      const fullAbiString = `function ${functionName}`
-      const abiInterface = parseAbi([fullAbiString])
 
       try {
         const decodedData = {

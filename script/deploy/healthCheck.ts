@@ -2,8 +2,6 @@
 import { consola } from 'consola'
 import { $ } from 'zx'
 import { defineCommand, runMain } from 'citty'
-import * as path from 'path'
-import * as fs from 'fs'
 import {
   Address,
   Hex,
@@ -158,12 +156,6 @@ const main = defineCommand({
               return [address.toLowerCase(), name]
             })
           )
-
-          const onChainFacetAddresses = onChainFacets.map(([address]) =>
-            address.toLowerCase()
-          )
-
-          const configuredFacetAddresses = Object.keys(configFacetsByAddress)
 
           registeredFacets = onChainFacets.map(([address]) => {
             return configFacetsByAddress[address.toLowerCase()]
@@ -370,7 +362,6 @@ const main = defineCommand({
       consola.box('Checking ownership...')
 
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
-      const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
 
       // Check ERC20Proxy ownership

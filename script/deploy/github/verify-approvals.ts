@@ -30,7 +30,7 @@ const main = defineCommand({
     const facets = args.facets.split('\n')
 
     // Fetch PR information
-    const pr = await getOpenPRsForBranch(octokit, args.branch, args.token)
+    const pr = await getOpenPRsForBranch(octokit, args.branch)
 
     // Fetch files related to this PR
     const files = await getFilesInPR(octokit, pr[0].number)
@@ -52,7 +52,7 @@ const main = defineCommand({
     }
 
     // Get approvals
-    const approvals = await getPRApprovers(octokit, pr[0].number, args.token)
+    const approvals = await getPRApprovers(octokit, pr[0].number)
 
     if (!approvals?.length) {
       console.error('No approvals')
@@ -83,11 +83,7 @@ const main = defineCommand({
 
 runMain(main)
 
-const getOpenPRsForBranch = async (
-  octokit: Octokit,
-  branch: string,
-  token: string
-) => {
+const getOpenPRsForBranch = async (octokit: Octokit, branch: string) => {
   let pullRequests: any[] = []
   let page = 1
 
@@ -114,11 +110,7 @@ const getOpenPRsForBranch = async (
   return openPrsForBranch
 }
 
-const getPRApprovers = async (
-  octokit: Octokit,
-  pull_number: number,
-  token: string
-) => {
+const getPRApprovers = async (octokit: Octokit, pull_number: number) => {
   try {
     const { data: reviews } = await octokit.pulls.listReviews({
       owner: OWNER,

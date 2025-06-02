@@ -4,7 +4,7 @@ import {
   getSwapFromEvmTxPayload,
   Quote,
 } from '@mayanfinance/swap-sdk'
-import { BigNumber, constants } from 'ethers'
+import { constants } from 'ethers'
 import {
   MayanFacet__factory,
   ILiFi,

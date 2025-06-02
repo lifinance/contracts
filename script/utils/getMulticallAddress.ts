@@ -1,4 +1,3 @@
-import { defineCommand, runMain } from 'citty'
 const MULTICALL_DEPLOYMENTS_URL =
   'https://raw.githubusercontent.com/EthereumClassicDAO/multicall3/743c0015fac7f9331c24ca8bd8075e49f19f2ddd/deployments.json'
 

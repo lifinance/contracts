@@ -14,13 +14,6 @@ const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
 /// TYPES ///
 type HexString = `0x${string}`
 
-type GasZipChainIds = {
-  [key: string]: {
-    networkName: string
-    gasZipChainId: number
-  }
-}
-
 // this script is designed to be executed on mainnet (only)
 // it will get a list of all networks we support (minus testnets) and send an equal USD
 // amount worth of native tokens to each of these target networks using Gas.zip protocol
@@ -137,9 +130,6 @@ const main = defineCommand({
     )
     console.log(`DestinationChainsValue: ${chainsBN}`)
 
-    // Get the latest block information to get the base fee
-    const gasFees = await publicClient.estimateFeesPerGas()
-
     // @DEV: when this script was used the last time this gas estimation was required in order to get the transaction submitted to mainnet
     //       the data parameter was hardcoded, this should be improved if this code is required permanently
     //       consider using this: https://viem.sh/docs/contract/estimateContractGas#estimatecontractgas
@@ -249,10 +239,6 @@ const getGasZipSupportedActiveNetworks = () => {
   )
 
   return gasZipSupportedNetworks
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 runMain(main)

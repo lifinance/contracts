@@ -4,7 +4,6 @@ import {
   parseUnits,
   Narrow,
   zeroAddress,
-  encodeAbiParameters,
   formatEther,
   formatUnits,
 } from 'viem'

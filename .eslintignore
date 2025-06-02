@@ -1,9 +1,22 @@
-export/
-deployments/
-artifacts/
+# Dependencies
+node_modules/
+lib/
+
+# Build and cache
+dist/
+build/
 cache/
 coverage/
-node_modules/
-package.json
+artifacts/
 typechain/
-lib/
+
+# Generated files
+deployments/
+export/
+
+# Project specific
+archive/
+archive/**/*
+
+# Config files
+package.json

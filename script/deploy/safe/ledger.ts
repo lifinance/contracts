@@ -14,7 +14,6 @@ import type {
   TransactionRequest,
   SignTypedDataParameters,
 } from 'viem'
-import { serializeTypedData } from 'viem'
 import consola from 'consola'
 
 /**
@@ -185,11 +184,8 @@ function createLedgerAccount({
         )
 
         // We can use viem's serializeTransaction to create the final signed transaction
-        const {
-          parseTransaction,
-          serializeTransaction: serializeSignedTransaction,
-        } = await import('viem')
-        const parsedTx = parseTransaction(serializedTx)
+        const { serializeTransaction: serializeSignedTransaction } =
+          await import('viem')
 
         // Create a signed transaction object with the signature from Ledger
         const signedTx = {

@@ -13,7 +13,6 @@ import {
   DEFAULT_DEST_PAYLOAD_ABI,
   DEV_WALLET_ADDRESS,
   ensureBalanceAndAllowanceToDiamond,
-  getAmountsOutUniswap,
   getProvider,
   getUniswapDataERC20toExactERC20,
   getUniswapDataERC20toExactETH,
@@ -268,9 +267,6 @@ const sendingAssetIdSrc =
     : sendingAssetId
 
 // For the swap path, we need WETH when it's a native transaction
-const swapPathStartToken = isNativeTX(TRANSACTION_TYPE)
-  ? ADDRESS_WETH_OPT // Use WETH in the path for native transactions
-  : sendingAssetIdSrc
 const receivingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_ARB
   : ADDRESS_USDC_ARB

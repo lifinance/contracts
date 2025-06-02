@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es2020",
     "module": "ESNext",
+    "lib": ["es2020", "DOM"],
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -9,8 +10,22 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
     "resolveJsonModule": true,
-    "lib": ["es2020", "DOM"],
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
     "types": ["node"]
   },
-  "include": ["./script", "./deploy", "./test", "typechain/**/*", "config"]
+  "include": [
+    "./script",
+    "./deploy",
+    "./test",
+    "./tasks",
+    "typechain/**/*",
+    "config",
+    ".eslintrc.cjs"
+  ],
+  "exclude": ["node_modules", "dist"]
 }

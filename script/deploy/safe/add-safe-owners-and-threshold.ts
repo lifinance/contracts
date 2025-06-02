@@ -13,8 +13,6 @@ import {
   getNextNonce,
   initializeSafeClient,
   getPrivateKey,
-  ViemSafe,
-  SafeTransaction,
   storeTransactionInMongoDB,
   getSafeInfoFromContract,
   isAddressASafeOwner,

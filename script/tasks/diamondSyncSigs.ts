@@ -8,7 +8,6 @@ import {
   parseAbi,
   type Chain,
 } from 'viem'
-import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'

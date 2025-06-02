@@ -16,7 +16,6 @@ import {
   createWalletClient,
   encodeFunctionData,
   http,
-  parseAbi,
   toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -1062,8 +1061,6 @@ export async function decodeTransactionData(data: Hex): Promise<{
       responseData.result.function[selector]
     ) {
       const functionName = responseData.result.function[selector][0].name
-      const fullAbiString = `function ${functionName}`
-      const abiInterface = parseAbi([fullAbiString])
 
       try {
         const decodedData = {

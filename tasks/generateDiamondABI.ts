@@ -14,7 +14,7 @@ const main = defineCommand({
       'Generates ABI file for diamond, includes all ABIs of facets and libraries',
   },
 
-  async run({ args }) {
+  async run() {
     const scriptPath = path.dirname(fileURLToPath(import.meta.url))
 
     // Create an empty array to store the ABI fragments

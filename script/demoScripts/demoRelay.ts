@@ -11,7 +11,6 @@ import {
   ADDRESS_UNISWAP_ARB,
   ADDRESS_USDC_ARB,
   ADDRESS_WETH_ARB,
-  getUniswapSwapDataERC20ToERC20,
   getUniswapSwapDataERC20ToETH,
 } from './utils/demoScriptHelpers'
 import { _100 } from '@uniswap/sdk/dist/constants'

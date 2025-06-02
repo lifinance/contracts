@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "noEmit": true
+  },
+  "include": [
+    "./script",
+    "./deploy",
+    "./test",
+    "./tasks",
+    "typechain/**/*",
+    "config",
+    ".eslintrc.cjs"
+  ]
+} 

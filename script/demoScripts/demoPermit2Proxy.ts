@@ -11,11 +11,8 @@ import { privateKeyToAccount, sign } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
 import { defineCommand, runMain } from 'citty'
 
-const DIAMOND_ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const USDT_ADDRESS = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
 const PERMIT2_PROXY_ADDRESS = '0xA3C7a31a2A97b847D967e0B755921D084C46a742'
-const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
-const PRIVATE_KEY = `0x${process.env.PRIVATE_KEY}`
 
 const main = defineCommand({
   meta: {
@@ -105,7 +102,7 @@ const main = defineCommand({
     })
 
     // Execute using the Permit2 Proxy
-    const tx = await walletClient.writeContract({
+    await walletClient.writeContract({
       address: PERMIT2_PROXY_ADDRESS,
       abi: permit2ProxyAbi,
       functionName: 'callDiamondWithPermit2Witness',

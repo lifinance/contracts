@@ -7,7 +7,6 @@ import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-uti
 import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 import {
-  Chain,
   Narrow,
   createPublicClient,
   createWalletClient,
@@ -20,7 +19,7 @@ import {
 } from 'viem'
 import networks from '../../../config/networks.json'
 import { Environment } from '../../utils/viemScriptHelpers'
-import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { SupportedChain } from './demoScriptChainConfig'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import { config } from 'dotenv'
 
@@ -537,20 +536,6 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
 const getRpcUrl = (chain: SupportedChain) => {
   const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
   return getEnvVar(envKey) as string
-}
-
-/**
- * Return the `Chain` object from viem. If you request a chain that doesn't
- * exist in `viemChainMap`, this will throw an error.
- */
-const getViemChain = (chain: SupportedChain): Chain => {
-  const viemChain = viemChainMap[chain]
-  if (!viemChain) {
-    throw new Error(
-      `No viem chain object defined for chain: ${chain}. Please take a look at viemChainMap`
-    )
-  }
-  return viemChain
 }
 
 /**
