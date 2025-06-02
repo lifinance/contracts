@@ -7,7 +7,12 @@
  */
 
 import { defineCommand, runMain } from 'citty'
+import consola from 'consola'
+import * as dotenv from 'dotenv'
 import { Address, createPublicClient, http, isAddress } from 'viem'
+
+import globalConfig from '../../../config/global.json'
+
 import {
   getSafeMongoCollection,
   getNextNonce,
@@ -17,9 +22,6 @@ import {
   getSafeInfoFromContract,
   isAddressASafeOwner,
 } from './safe-utils'
-import globalConfig from '../../../config/global.json'
-import * as dotenv from 'dotenv'
-import consola from 'consola'
 dotenv.config()
 
 const main = defineCommand({

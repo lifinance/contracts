@@ -1,7 +1,10 @@
 import { utils, BigNumber, constants } from 'ethers'
-import { AcrossFacetV3, AcrossFacetV3__factory, ILiFi } from '../../typechain'
-import deploymentsOPT from '../../deployments/optimism.staging.json'
+
 import deploymentsARB from '../../deployments/arbitrum.staging.json'
+import deploymentsOPT from '../../deployments/optimism.staging.json'
+import { AcrossFacetV3, AcrossFacetV3__factory, ILiFi } from '../../typechain'
+import { LibSwap } from '../../typechain/AcrossFacetV3'
+
 import {
   ADDRESS_UNISWAP_ARB,
   ADDRESS_UNISWAP_OPT,
@@ -22,7 +25,6 @@ import {
   sendTransaction,
   TX_TYPE,
 } from './utils/demoScriptHelpers'
-import { LibSwap } from '../../typechain/AcrossFacetV3'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // OPT.USDC > ARB.USDC: https://optimistic.etherscan.io/tx/0xd3562edd97fdcead8dbb556344ad80cd3b5b19cfee9f5bf33c3f094ef7b8b456 (ERC20)

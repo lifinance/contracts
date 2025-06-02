@@ -1,5 +1,7 @@
-import { defineCommand, runMain } from 'citty'
 import fs from 'fs'
+
+import { defineCommand, runMain } from 'citty'
+
 import { isProduction } from '../../deploy/9999_utils'
 
 export interface DiamondFile {

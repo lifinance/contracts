@@ -1,4 +1,5 @@
 import { defineCommand, runMain } from 'citty'
+import consola from 'consola'
 import {
   Hex,
   createPublicClient,
@@ -8,10 +9,10 @@ import {
   parseAbi,
   type Chain,
 } from 'viem'
-import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
+import * as chains from 'viem/chains'
+
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
-import consola from 'consola'
 
 export const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',

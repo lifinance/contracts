@@ -1,10 +1,13 @@
-import deployments from '../../deployments/bsc.staging.json'
 import {
   fetchQuote,
   getSwapFromEvmTxPayload,
   Quote,
 } from '@mayanfinance/swap-sdk'
+import dotenv from 'dotenv'
 import { constants } from 'ethers'
+import { ethers, utils } from 'ethers'
+
+import deployments from '../../deployments/bsc.staging.json'
 import {
   MayanFacet__factory,
   ILiFi,
@@ -12,8 +15,7 @@ import {
   ERC20__factory,
   IMayan__factory,
 } from '../../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
+
 dotenv.config()
 
 const main = async () => {

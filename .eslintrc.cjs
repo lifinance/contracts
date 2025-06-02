@@ -39,22 +39,21 @@ module.exports = {
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_',
     }],
-    // '@typescript-eslint/no-floating-promises': 'error',
-    // '@typescript-eslint/no-misused-promises': 'error',
+    '@typescript-eslint/no-misused-promises': 'error',
     
     // Import rules
-    // 'import/order': ['error', {
-    //   'groups': [
-    //     'builtin',
-    //     'external',
-    //     'internal',
-    //     'parent',
-    //     'sibling',
-    //     'index',
-    //   ],
-    //   'newlines-between': 'always',
-    //   'alphabetize': { order: 'asc' }
-    // }],
+    'import/order': ['error', {
+      'groups': [
+        'builtin',
+        'external',
+        'internal',
+        'parent',
+        'sibling',
+        'index',
+      ],
+      'newlines-between': 'always',
+      'alphabetize': { order: 'asc' }
+    }],
   },
   settings: {
     'import/resolver': {

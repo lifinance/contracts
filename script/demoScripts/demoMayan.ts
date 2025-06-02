@@ -1,9 +1,12 @@
-import deployments from '../../deployments/arbitrum.staging.json'
 import {
   fetchQuote,
   getSwapFromEvmTxPayload,
   Quote,
 } from '@mayanfinance/swap-sdk'
+import dotenv from 'dotenv'
+import { ethers, utils, constants } from 'ethers'
+
+import deployments from '../../deployments/arbitrum.staging.json'
 import {
   MayanFacet__factory,
   ILiFi,
@@ -11,8 +14,7 @@ import {
   ERC20__factory,
   IMayan__factory,
 } from '../../typechain'
-import { ethers, utils, constants } from 'ethers'
-import dotenv from 'dotenv'
+
 dotenv.config()
 
 const main = async () => {

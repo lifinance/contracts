@@ -1,3 +1,6 @@
+import dotenv from 'dotenv'
+import { ethers, utils } from 'ethers'
+
 import deployments from '../../deployments/polygon.staging.json'
 import {
   SquidFacet__factory,
@@ -6,8 +9,6 @@ import {
   ERC20__factory,
   ISquidRouter__factory,
 } from '../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
 dotenv.config()
 
 const ROUTE_TYPES: Record<string, number> = {

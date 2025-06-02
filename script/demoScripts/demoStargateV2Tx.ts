@@ -1,4 +1,9 @@
+import { addressToBytes32, Options } from '@layerzerolabs/lz-v2-utilities'
 import { providers, Wallet, utils, Contract, BigNumber } from 'ethers'
+
+import stargateConfig from '../../config/stargateV2.json'
+import deploymentsOPT from '../../deployments/optimism.staging.json'
+import deploymentsPOL from '../../deployments/polygon.staging.json'
 import {
   ERC20__factory,
   ILiFi,
@@ -8,10 +13,6 @@ import {
   StargateFacetV2__factory,
 } from '../../typechain'
 import { node_url } from '../../utils/network'
-import deploymentsPOL from '../../deployments/polygon.staging.json'
-import deploymentsOPT from '../../deployments/optimism.staging.json'
-import stargateConfig from '../../config/stargateV2.json'
-import { addressToBytes32, Options } from '@layerzerolabs/lz-v2-utilities'
 
 // type FeeParams = {
 //   sender: string

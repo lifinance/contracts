@@ -7,8 +7,9 @@
 
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import { Address, Hex } from 'viem'
 import consola from 'consola'
+import { Address, Hex } from 'viem'
+
 import {
   getSafeMongoCollection,
   getNextNonce,

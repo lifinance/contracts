@@ -1,10 +1,11 @@
+import { Chain, Hop } from '@hop-protocol/sdk'
+import chalk from 'chalk'
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
-import { HopFacet__factory, ERC20__factory } from '../typechain'
+import { parseUnits } from 'ethers/lib/utils'
+
 import { node_url } from '../../utils/network'
 import * as deployment from '../export/deployments-staging.json'
-import { Chain, Hop } from '@hop-protocol/sdk'
-import { parseUnits } from 'ethers/lib/utils'
-import chalk from 'chalk'
+import { HopFacet__factory, ERC20__factory } from '../typechain'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

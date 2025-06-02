@@ -10,9 +10,10 @@
  * bun script/deploy/safe/test-ledger.ts
  */
 
-import { getLedgerAccount } from './ledger'
 import consola from 'consola'
 import { Hex } from 'viem'
+
+import { getLedgerAccount } from './ledger'
 
 async function main() {
   try {

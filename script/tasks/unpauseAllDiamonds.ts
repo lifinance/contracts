@@ -1,11 +1,12 @@
 import { defineCommand, runMain } from 'citty'
+import consola from 'consola'
 import { Address, encodeFunctionData, parseAbi } from 'viem'
+
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,
   networks,
 } from '../utils/viemScriptHelpers'
-import consola from 'consola'
 import 'dotenv/config'
 import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
 import {
@@ -17,6 +18,7 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
+
 import { privateKeyToAccount } from 'viem/accounts'
 
 // Define ABI

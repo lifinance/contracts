@@ -6,6 +6,8 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
+import consola from 'consola'
+import { MongoClient, Collection } from 'mongodb'
 import {
   Address,
   Chain,
@@ -19,11 +21,11 @@ import {
   toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { SAFE_SINGLETON_ABI } from './config'
-import { MongoClient, Collection } from 'mongodb'
-import consola from 'consola'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
 import data from '../../../config/networks.json'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
+import { SAFE_SINGLETON_ABI } from './config'
 
 const networks = data as any
 

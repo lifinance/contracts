@@ -1,7 +1,6 @@
 // @ts-nocheck
-import { consola } from 'consola'
-import { $ } from 'zx'
 import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
 import {
   Address,
   Hex,
@@ -13,17 +12,19 @@ import {
   http,
   parseAbi,
 } from 'viem'
-import {
-  Network,
-  networks,
-  getViemChainForNetworkName,
-} from '../utils/viemScriptHelpers'
+import { $ } from 'zx'
+
 import {
   coreFacets,
   corePeriphery,
   autoWhitelistPeripheryContracts,
   pauserWallet,
 } from '../../config/global.json'
+import {
+  Network,
+  networks,
+  getViemChainForNetworkName,
+} from '../utils/viemScriptHelpers'
 
 const SAFE_THRESHOLD = 3
 

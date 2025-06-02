@@ -1,3 +1,8 @@
+import * as fs from 'fs'
+import * as path from 'path'
+
+import consola from 'consola'
+import * as dotenv from 'dotenv'
 import {
   Chain,
   defineChain,
@@ -7,13 +12,12 @@ import {
   type Address,
   type Hex,
 } from 'viem'
-import networksConfig from '../../config/networks.json'
-import * as dotenv from 'dotenv'
-import * as path from 'path'
-import * as fs from 'fs'
-import consola from 'consola'
-import { privateKeyToAccount } from 'viem/accounts'
 import { createWalletClient, http, createPublicClient } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+
+import networksConfig from '../../config/networks.json'
+import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
+import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
 import {
   getNextNonce,
   getSafeMongoCollection,
@@ -21,8 +25,6 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
-import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
 dotenv.config()
 
 export type NetworksObject = {

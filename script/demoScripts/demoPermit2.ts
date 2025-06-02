@@ -1,3 +1,5 @@
+import { PermitTransferFrom, SignatureTransfer } from '@uniswap/Permit2-sdk'
+import { defineCommand, runMain } from 'citty'
 import {
   http,
   createPublicClient,
@@ -9,8 +11,6 @@ import {
 } from 'viem'
 import { privateKeyToAccount, sign } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
-import { defineCommand, runMain } from 'citty'
-import { PermitTransferFrom, SignatureTransfer } from '@uniswap/Permit2-sdk'
 
 // Sample Transfer:
 // sent:

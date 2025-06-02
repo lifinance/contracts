@@ -17,10 +17,12 @@
  *   bun script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --periphery '["Executor","FeeCollector"]'
  */
 
+import fs from 'fs'
+import path from 'path'
+
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
-import path from 'path'
-import fs from 'fs'
+import { Abi, createPublicClient, http, parseAbi, getAddress } from 'viem'
 
 import {
   getDeployLogFile,
@@ -31,7 +33,6 @@ import {
   sendOrPropose,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
-import { Abi, createPublicClient, http, parseAbi, getAddress } from 'viem'
 
 function castEnv(value: string): 'staging' | 'production' {
   if (value !== 'staging' && value !== 'production') {

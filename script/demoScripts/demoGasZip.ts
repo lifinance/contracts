@@ -1,8 +1,12 @@
-import { parseUnits, Narrow, zeroAddress } from 'viem'
 import { randomBytes } from 'crypto'
+
 import dotenv from 'dotenv'
+import { parseUnits, Narrow, zeroAddress } from 'viem'
+
 import gasZipFacetArtifact from '../../out/GasZipFacet.sol/GasZipFacet.json'
 import { ILiFi } from '../../typechain'
+import { IGasZip } from '../../typechain/GasZipFacet'
+
 import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
   addressToBytes32RightPadded,
@@ -10,7 +14,6 @@ import {
   executeTransaction,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
-import { IGasZip } from '../../typechain/GasZipFacet'
 
 dotenv.config()
 

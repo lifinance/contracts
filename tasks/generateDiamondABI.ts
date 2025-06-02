@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
 import { Fragment } from '@ethersproject/abi'
 import { defineCommand, runMain } from 'citty'
-import { fileURLToPath } from 'url'
 
 const basePath = 'src/Facets/'
 const libraryBasePath = 'src/Libraries/'

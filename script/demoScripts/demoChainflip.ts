@@ -1,4 +1,7 @@
 // Import required libraries and artifacts
+import { randomBytes } from 'crypto'
+
+import dotenv from 'dotenv'
 import {
   getContract,
   parseUnits,
@@ -7,11 +10,12 @@ import {
   formatEther,
   formatUnits,
 } from 'viem'
-import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
-import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+
+import deployments from '../../deployments/mainnet.staging.json'
 import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import { ChainflipFacet, ILiFi } from '../../typechain'
+
 import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
   ensureBalance,
@@ -26,7 +30,6 @@ import {
   ADDRESS_UNISWAP_ARB,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
-import deployments from '../../deployments/mainnet.staging.json'
 
 dotenv.config()
 

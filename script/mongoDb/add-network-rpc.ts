@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import { MongoClient } from 'mongodb'
 import consola from 'consola'
+import { MongoClient } from 'mongodb'
 
 const main = defineCommand({
   meta: {

@@ -1,7 +1,8 @@
+import chalk from 'chalk'
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
+
 import { PolygonBridgeFacet__factory, ERC20__factory } from '../typechain'
 import { node_url } from '../utils/network'
-import chalk from 'chalk'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

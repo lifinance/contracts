@@ -41,7 +41,18 @@
  *     --owners 0xAb…123,0xCd…456 --paymentToken 0xErc…789 --payment 1000000000000000
  */
 
+import { readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
+
+import {
+  getSafeSingletonDeployment,
+  getSafeL2SingletonDeployment,
+  getProxyFactoryDeployment,
+  getFallbackHandlerDeployment,
+} from '@safe-global/safe-deployments'
 import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import * as dotenv from 'dotenv'
 import {
   Address,
   zeroAddress,
@@ -51,20 +62,11 @@ import {
   decodeEventLog,
   Log,
 } from 'viem'
-import * as dotenv from 'dotenv'
-import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
-import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { consola } from 'consola'
-import {
-  getSafeSingletonDeployment,
-  getSafeL2SingletonDeployment,
-  getProxyFactoryDeployment,
-  getFallbackHandlerDeployment,
-} from '@safe-global/safe-deployments'
+import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
+import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { Environment } from '../../utils/viemScriptHelpers'
 
 dotenv.config()

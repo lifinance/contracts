@@ -1,3 +1,4 @@
+import { defineCommand, runMain } from 'citty'
 import {
   http,
   createPublicClient,
@@ -9,7 +10,6 @@ import {
 } from 'viem'
 import { privateKeyToAccount, sign } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
-import { defineCommand, runMain } from 'citty'
 
 const USDT_ADDRESS = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
 const PERMIT2_PROXY_ADDRESS = '0xA3C7a31a2A97b847D967e0B755921D084C46a742'

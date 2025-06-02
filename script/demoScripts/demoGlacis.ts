@@ -1,11 +1,13 @@
-import { getContract, parseUnits, Narrow, zeroAddress, parseEther } from 'viem'
 import { randomBytes } from 'crypto'
+
 import dotenv from 'dotenv'
+import { getContract, parseUnits, Narrow, zeroAddress, parseEther } from 'viem'
+
 import config from '../../config/glacis.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
-import { GlacisFacet, ILiFi } from '../../typechain'
 import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
+import { GlacisFacet, ILiFi } from '../../typechain'
 
 import { SupportedChain } from './utils/demoScriptChainConfig'
 import {

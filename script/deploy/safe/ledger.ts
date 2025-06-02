@@ -6,6 +6,7 @@
  * Requires @ledgerhq/hw-app-eth and @ledgerhq/hw-transport-node-hid packages.
  */
 
+import consola from 'consola'
 import type {
   Account,
   Address,
@@ -14,7 +15,6 @@ import type {
   TransactionRequest,
   SignTypedDataParameters,
 } from 'viem'
-import consola from 'consola'
 
 /**
  * Creates a viem-compatible account using a Ledger hardware wallet

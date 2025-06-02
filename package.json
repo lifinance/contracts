@@ -69,6 +69,7 @@
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
     "healthcheck": "bun ./script/deploy/healthCheck.ts",
     "lint:js": "eslint \"**/*.{js,ts,tsx}\"",
+    "lint:js:fix": "eslint \"**/*.{js,ts,tsx}\" --fix",
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint": "bun lint:js && bun lint:sol",
     "preinstall": "bash preinstall.sh",
@@ -108,8 +109,7 @@
   },
   "lint-staged": {
     "*.{ts,js}": [
-      "prettier --write",
-      "eslint --fix"
+      "prettier --write"
     ],
     "*.sol": [
       "prettier --write",

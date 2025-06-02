@@ -7,9 +7,10 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
+import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
+
 import {
   SafeTransaction,
   SafeTxDocument,

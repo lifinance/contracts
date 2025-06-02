@@ -1,7 +1,8 @@
-import { MongoClient } from 'mongodb'
 import fs from 'fs'
-import { config } from 'dotenv'
+
 import { consola } from 'consola'
+import { config } from 'dotenv'
+import { MongoClient } from 'mongodb'
 config()
 
 interface RpcEndpoint {

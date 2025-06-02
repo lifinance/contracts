@@ -1,11 +1,9 @@
-import { privateKeyToAccount } from 'viem/accounts'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
-import { node_url } from '../../utils/network'
+
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
-import { ERC20__factory } from '../../../typechain'
-import { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { config } from 'dotenv'
+import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
 import {
   Narrow,
   createPublicClient,
@@ -17,11 +15,16 @@ import {
   formatUnits,
   zeroAddress,
 } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+
 import networks from '../../../config/networks.json'
+import { ERC20__factory } from '../../../typechain'
+import { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { node_url } from '../../utils/network'
 import { Environment } from '../../utils/viemScriptHelpers'
-import { SupportedChain } from './demoScriptChainConfig'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
-import { config } from 'dotenv'
+
+import { SupportedChain } from './demoScriptChainConfig'
 
 config()
 
