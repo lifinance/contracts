@@ -41,32 +41,35 @@
  *     --owners 0xAb…123,0xCd…456 --paymentToken 0xErc…789 --payment 1000000000000000
  */
 
+// Node.js built-in modules first
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
+// Third-party dependencies in alphabetical order
 import {
-  getSafeSingletonDeployment,
-  getSafeL2SingletonDeployment,
-  getProxyFactoryDeployment,
   getFallbackHandlerDeployment,
+  getProxyFactoryDeployment,
+  getSafeL2SingletonDeployment,
+  getSafeSingletonDeployment,
 } from '@safe-global/safe-deployments'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import {
   Address,
-  zeroAddress,
-  isAddress,
-  getAddress,
-  encodeFunctionData,
   decodeEventLog,
+  encodeFunctionData,
+  getAddress,
+  isAddress,
   Log,
+  zeroAddress,
 } from 'viem'
 
+// Local imports last, in alphabetical order
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { SupportedChain } from '../../types/common'
 import { Environment } from '../../utils/viemScriptHelpers'
 
 dotenv.config()
@@ -330,9 +333,7 @@ async function createSafeProxy(params: {
 
     const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
       ?.url
-    if (explorerUrl) {
-      consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
-    }
+    if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
     const safeAddress = (await consola.prompt(
       'Enter the deployed Safe address:',
@@ -354,9 +355,8 @@ async function createSafeProxy(params: {
   // verify on-chain proxy bytecode
   if (proxyBytecode) {
     const code = await publicClient.getCode({ address: safeAddr })
-    if (code === proxyBytecode) {
-      consola.success('✔ Proxy bytecode verified')
-    } else {
+    if (code === proxyBytecode) consola.success('✔ Proxy bytecode verified')
+    else {
       consola.error('❌ Proxy bytecode mismatch')
       consola.debug('On-chain:', code.slice(0, 100), '…')
       consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
@@ -442,22 +442,19 @@ const main = defineCommand({
     // validate network & existing
     const networkName = args.network as SupportedChain
     const existing = networks[networkName]?.safeAddress
-    if (existing && existing !== zeroAddress && !args.allowOverride) {
+    if (existing && existing !== zeroAddress && !args.allowOverride)
       throw new Error(
         `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
       )
-    }
 
     // parse & validate threshold + owners
     const isDefaultThreshold = !process.argv.includes('--threshold')
     const threshold = Number(args.threshold)
-    if (isNaN(threshold) || threshold < 1) {
+    if (isNaN(threshold) || threshold < 1)
       throw new Error('Threshold must be a positive integer')
-    }
 
-    if (isDefaultThreshold) {
+    if (isDefaultThreshold)
       consola.info('ℹ Using default threshold of 3 required confirmations')
-    }
 
     const extraOwners = (args.owners || '')
       .split(',')
@@ -472,9 +469,8 @@ const main = defineCommand({
     const owners = [
       ...new Set([...ownersFromConfig, ...extraOwners]),
     ] as Address[]
-    if (threshold > owners.length) {
+    if (threshold > owners.length)
       throw new Error('Threshold cannot exceed number of owners')
-    }
 
     // optional params
     const fallbackHandler =
@@ -521,11 +517,10 @@ const main = defineCommand({
         consola.info(
           `Using factory from network ${networks[0]}: ${factoryAddr}`
         )
-      } else {
+      } else
         throw new Error(
           'No Safe factory deployment found in @safe-global/safe-deployments'
         )
-      }
     }
 
     let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`
@@ -608,18 +603,14 @@ const main = defineCommand({
       if (missing.length) consola.error(`  • Missing:  ${missing.join(', ')}`)
       if (extra.length) consola.error(`  • Unexpected: ${extra.join(', ')}`)
       throw new Error('Owner verification failed')
-    } else {
-      consola.success('✔ Owners match expected')
-    }
+    } else consola.success('✔ Owners match expected')
 
     if (BigInt(threshold) !== BigInt(actualThreshold as bigint)) {
       consola.error(
         `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
       )
       throw new Error('Threshold verification failed')
-    } else {
-      consola.success('✔ Threshold matches expected')
-    }
+    } else consola.success('✔ Threshold matches expected')
 
     // update networks.json
     if (args.allowOverride) {
@@ -633,20 +624,19 @@ const main = defineCommand({
         'utf8'
       )
       consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
-    } else {
+    } else
       consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
-    }
 
     if (safeAddress) {
       consola.info('-'.repeat(80))
       consola.info('🎉 Deployment complete!')
       consola.info(`Safe Address: \u001b[32m${safeAddress}\u001b[0m`)
       const explorerUrl = chain.blockExplorers?.default?.url
-      if (explorerUrl) {
+      if (explorerUrl)
         consola.info(
           `Explorer URL: \u001b[36m${explorerUrl}/address/${safeAddress}\u001b[0m`
         )
-      }
+
       consola.info('-'.repeat(80))
     }
   },

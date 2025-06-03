@@ -235,13 +235,11 @@ async function main() {
 // For this demo script we are using a hardcoded value that gives 400k gas stipend but ideally that value should be based on
 // the dst payload size/cost
 const getExtraOptions = () => {
-  if (WITH_DEST_CALL) {
+  if (WITH_DEST_CALL)
     return Options.newOptions()
       .addExecutorComposeOption(0, DEFAULT_GAS_STIPEND_FOR_DEST_CALLS, 0)
       .toHex()
-  } else {
-    return '0x'
-  }
+  else return '0x'
 }
 
 // get the amountOut at destination chain for a given amountIn based on sendParams
@@ -259,9 +257,8 @@ const getAmountOutFeeQuoteOFT = async (
       2
     )}`
 
-  if ((response.oftLimit.maxAmountLD as BigNumber).isZero()) {
+  if ((response.oftLimit.maxAmountLD as BigNumber).isZero())
     throw Error('Route has no credits and cannot be used')
-  }
 
   // console.log(`QuoteOFT response: ${JSON.stringify(response, null, 2)}`)
 

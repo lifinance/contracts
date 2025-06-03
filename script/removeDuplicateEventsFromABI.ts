@@ -79,9 +79,8 @@ async function removeDuplicateEventsFromABI() {
     const cleanedABI = abi.filter((item) => {
       if (item.type === 'event') {
         const key = `${item.name}_${JSON.stringify(item.inputs)}`
-        if (seenEvents.has(key)) {
-          return false
-        }
+        if (seenEvents.has(key)) return false
+
         seenEvents.set(key, item)
       }
       return true

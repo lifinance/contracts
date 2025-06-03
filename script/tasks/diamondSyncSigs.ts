@@ -20,10 +20,8 @@ export const chainNameMappings: Record<string, string> = {
 }
 
 const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
+// @ts-ignore
+for (const [k, v] of Object.entries(chains)) chainMap[k] = v
 
 const main = defineCommand({
   meta: {
@@ -97,14 +95,13 @@ const main = defineCommand({
     // Get list of function signatures to approve
     const sigsToApprove: Hex[] = []
     let multicallSuccess = true
-    for (let i = 0; i < results.length; i++) {
+    for (let i = 0; i < results.length; i++)
       if (results[i].status === 'success') {
         if (!results[i].result) {
           console.log('Function not approved:', sigs[i])
           sigsToApprove.push(sigs[i] as Hex)
         }
       } else multicallSuccess = false
-    }
 
     if (!multicallSuccess) {
       consola.error(

@@ -13,11 +13,11 @@ const fetchMulticallDeploymentsFromGithub = async (): Promise<
   let result
   try {
     const response = await fetch(MULTICALL_DEPLOYMENTS_URL)
-    if (!response.ok) {
+    if (!response.ok)
       throw new Error(
         `Failed to fetch ${MULTICALL_DEPLOYMENTS_URL}: ${response.statusText}`
       )
-    }
+
     result = await response.json()
   } catch (error) {
     throw new Error(`Error fetching JSON: ${error}`)
@@ -27,9 +27,8 @@ const fetchMulticallDeploymentsFromGithub = async (): Promise<
 
 const extractContractAddressFromUrl = (url: string): string => {
   const match = url.match(/0x[a-fA-F0-9]{40}/)
-  if (match) {
-    return match[0]
-  }
+  if (match) return match[0]
+
   throw new Error(`No contract address found in URL: ${url}`)
 }
 

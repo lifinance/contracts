@@ -84,23 +84,21 @@ const updateDiamond = function (
     data = JSON.parse(fs.readFileSync(diamondFile, 'utf8')) as DiamondFile
   } catch {}
 
-  if (!data[diamondContractName]) {
+  if (!data[diamondContractName])
     data[diamondContractName] = {
       Facets: {},
       Periphery: {},
     }
-  }
 
-  if (options.isPeriphery) {
-    data[diamondContractName].Periphery[name] = address
-  } else {
+  if (options.isPeriphery) data[diamondContractName].Periphery[name] = address
+  else {
     // Check if entry with name already exists
     // If so, replace it
     data[diamondContractName].Facets = Object.fromEntries(
       Object.entries(data[diamondContractName].Facets).map(([key, value]) => {
-        if (value.Name === name) {
+        if (value.Name === name)
           return [address, { Name: name, Version: options.version || '' }]
-        }
+
         return [key, value]
       })
     )

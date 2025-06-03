@@ -31,11 +31,10 @@ export async function getLedgerAccount(options?: {
   accountIndex?: number
 }): Promise<Account> {
   // Validate that incompatible options aren't provided together
-  if (options?.derivationPath && options?.ledgerLive) {
+  if (options?.derivationPath && options?.ledgerLive)
     throw new Error(
       "Cannot use both 'derivationPath' and 'ledgerLive' options together"
     )
-  }
 
   // Dynamically import Ledger packages to avoid issues if they're not installed
   const TransportNodeHid = await import('@ledgerhq/hw-transport-node-hid')
@@ -47,10 +46,9 @@ export async function getLedgerAccount(options?: {
     // Ledger Live uses a different derivation path format
     const accountIndex = options?.accountIndex ?? 0
     derivationPath = `m/44'/60'/${accountIndex}'/0/0`
-  } else {
-    // Use provided path or default
-    derivationPath = options?.derivationPath ?? "m/44'/60'/0'/0/0"
   }
+  // Use provided path or default
+  else derivationPath = options?.derivationPath ?? "m/44'/60'/0'/0/0"
 
   try {
     consola.info(`Connecting to Ledger device...`)
@@ -102,15 +100,13 @@ function createLedgerAccount({
       const eth = new Eth(transport)
 
       let messageHex: string
-      if (typeof message === 'string') {
+      if (typeof message === 'string')
         // Convert string message to hex
         messageHex = Buffer.from(message).toString('hex')
-      } else if ('raw' in message) {
+      else if ('raw' in message)
         // Use raw hex data directly
         messageHex = (message.raw as Hex).replace(/^0x/, '')
-      } else {
-        throw new Error('Unsupported message format for Ledger signing')
-      }
+      else throw new Error('Unsupported message format for Ledger signing')
 
       // Sign the message with Ledger device
       const result = await eth.signPersonalMessage(derivationPath, messageHex)

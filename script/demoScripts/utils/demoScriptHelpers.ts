@@ -20,13 +20,12 @@ import { privateKeyToAccount } from 'viem/accounts'
 import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { SupportedChain } from '../../types/common'
 import { node_url } from '../../utils/network'
 import {
   Environment,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
-
-import { SupportedChain } from './demoScriptChainConfig'
 
 config()
 
@@ -193,9 +192,8 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   console.log(`finalFromAmount  : ${fromAmount}`)
 
   let finalMinAmountOut: BigNumber
-  if (minAmountOut.toString() !== '0') {
-    finalMinAmountOut = minAmountOut
-  } else {
+  if (minAmountOut.toString() !== '0') finalMinAmountOut = minAmountOut
+  else {
     const amountsOut = await getAmountsOutUniswap(
       uniswapAddress,
       chainId,
@@ -444,9 +442,8 @@ export const getAmountsOutUniswap = async (
       amounts.map((a: any) => a.toString())
     )
 
-    if (!amounts || amounts.length < 2) {
+    if (!amounts || amounts.length < 2)
       throw new Error('Invalid amounts returned from Uniswap')
-    }
 
     return amounts
   } catch (error) {
@@ -482,9 +479,9 @@ const getProviderForChainId = (chainId: number) => {
  *
  */
 export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address))
     throw new Error('Invalid Ethereum address format')
-  }
+
   const hexAddress = address.replace(/^0x/, '')
   return `0x${hexAddress.padStart(64, '0')}`
 }
@@ -498,9 +495,9 @@ export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
  * @returns A 32-byte hexadecimal string representation of the address.
  */
 export function addressToBytes32RightPadded(address: string): `0x${string}` {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address))
     throw new Error('Invalid Ethereum address format')
-  }
+
   const hex = address.replace(/^0x/, '').toLowerCase()
   return `0x${hex.padEnd(64, '0')}`
 }
@@ -511,9 +508,9 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
  */
 export const getEnvVar = (varName: string): string => {
   const value = process.env[varName]
-  if (!value) {
+  if (!value)
     throw new Error(`Missing required environment variable: ${varName}`)
-  }
+
   return value
 }
 
@@ -525,12 +522,11 @@ export const getEnvVar = (varName: string): string => {
 const normalizePrivateKey = (pk: string): `0x${string}` => {
   // Private key should be 64 characters (32 bytes) excluding '0x'
   const cleanPk = pk.replace(/^0x/, '')
-  if (!/^[a-fA-F0-9]{64}$/.test(cleanPk)) {
+  if (!/^[a-fA-F0-9]{64}$/.test(cleanPk))
     throw new Error('Invalid private key format')
-  }
-  if (!pk.startsWith('0x')) {
-    return `0x${pk}` as `0x${string}`
-  }
+
+  if (!pk.startsWith('0x')) return `0x${pk}` as `0x${string}`
+
   return pk as `0x${string}`
 }
 
@@ -636,11 +632,11 @@ export const getConfigElement = (
   elementKey: string
 ) => {
   const chainConfig = config[chain]
-  if (!chainConfig || !chainConfig[elementKey]) {
+  if (!chainConfig || !chainConfig[elementKey])
     throw new Error(
       `Element '${elementKey}' not found for chain '${chain}' in the config.`
     )
-  }
+
   return chainConfig[elementKey]
 }
 
@@ -723,11 +719,11 @@ export const executeTransaction = async <T>(
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: result as any,
       })
-      if (receipt.status === 'success') {
+      if (receipt.status === 'success')
         console.info(
           `${transactionDescription} completed successfully, included in a block.`
         )
-      } else {
+      else {
         console.error(
           `${transactionDescription} failed. Receipt failure:`,
           receipt
@@ -754,23 +750,19 @@ export const ensureBalance = async (
 ): Promise<void> => {
   let balance: bigint
 
-  if (asset === zeroAddress) {
+  if (asset === zeroAddress)
     // Special case: asset represents the native token (e.g. ETH).
     // Retrieve the native balance using the public client.
     balance = await publicClient.getBalance({ address: walletAddress })
-  } else {
-    // Standard ERC20 balance check using the asset's balanceOf method.
-    balance = (await asset.read.balanceOf([walletAddress])) as bigint
-  }
+  // Standard ERC20 balance check using the asset's balanceOf method.
+  else balance = (await asset.read.balanceOf([walletAddress])) as bigint
 
   if (balance < requiredAmount) {
     console.error(
       `Insufficient balance. Required: ${requiredAmount}, Available: ${balance}`
     )
     process.exit(1)
-  } else {
-    console.info(`Balance: ${balance}`)
-  }
+  } else console.info(`Balance: ${balance}`)
 }
 
 /**
@@ -798,20 +790,18 @@ export const ensureAllowance = async (
     console.info(`Approval transaction broadcasted (hash): ${hash}`)
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
-    if (receipt.status === 'success') {
+    if (receipt.status === 'success')
       console.info(
         'Token allowance approved successfully, included in a block.'
       )
-    } else {
+    else {
       console.error(
         'Approval transaction failed. Receipt indicates a failure:',
         receipt
       )
       process.exit(1)
     }
-  } else {
-    console.info('Sufficient allowance already exists.')
-  }
+  } else console.info('Sufficient allowance already exists.')
 }
 
 export const getPrivateKeyForEnvironment = (

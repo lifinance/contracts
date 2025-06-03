@@ -35,9 +35,9 @@ import {
 } from '../utils/viemScriptHelpers'
 
 function castEnv(value: string): 'staging' | 'production' {
-  if (value !== 'staging' && value !== 'production') {
+  if (value !== 'staging' && value !== 'production')
     throw new Error(`Invalid environment: ${value}`)
-  }
+
   return value
 }
 
@@ -82,12 +82,12 @@ const command = defineCommand({
     }
 
     // select environment (if not provided via parameter)
-    if (!environment) {
+    if (!environment)
       environment = await consola.prompt('Select environment', {
         type: 'select',
         options: ['production', 'staging'],
       })
-    }
+
     const typedEnv = castEnv(environment)
 
     // get diamond address from deploy log
@@ -109,9 +109,8 @@ const command = defineCommand({
         if (
           !Array.isArray(facetNames) ||
           facetNames.some((n) => typeof n !== 'string')
-        ) {
+        )
           throw new Error()
-        }
       } catch {
         consola.error(
           '❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\''
@@ -221,14 +220,14 @@ const command = defineCommand({
       })
 
       // send/propose it if the user selected yes
-      if (confirm) {
+      if (confirm)
         await sendOrPropose({
           calldata,
           network,
           environment: typedEnv,
           diamondAddress,
         })
-      } else {
+      else {
         consola.info('Aborted.')
         process.exit(0)
       }
@@ -262,14 +261,13 @@ const command = defineCommand({
         })
 
         // send/propose it if the user selected yes
-        if (confirm) {
+        if (confirm)
           await sendOrPropose({
             calldata: data,
             network,
             environment: typedEnv,
             diamondAddress,
           })
-        }
       }
       return
     }
@@ -340,9 +338,9 @@ function facetAddressFromName(
   name: string
 ): string {
   const facetAddress = deployLog[name]
-  if (!facetAddress) {
+  if (!facetAddress)
     throw new Error(`No address found for facet in deploy log: ${name}`)
-  }
+
   return facetAddress
 }
 

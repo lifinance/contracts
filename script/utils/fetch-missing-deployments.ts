@@ -13,9 +13,8 @@ async function updateDeploymentLogs(network: string) {
     )
     const networkConfig = networksConfig[network]
 
-    if (!networkConfig) {
+    if (!networkConfig)
       throw new Error(`Network ${network} not found in config`)
-    }
 
     // Read deployment file
     const deploymentPath = path.join('deployments', `${network}.json`)
@@ -29,13 +28,11 @@ async function updateDeploymentLogs(network: string) {
     const apiKeyEnvVar = `${network.toUpperCase()}_ETHERSCAN_API_KEY`
     const apiKey = process.env[apiKeyEnvVar]
 
-    if (!apiKey) {
-      throw new Error(`API key not found for ${network}`)
-    }
+    if (!apiKey) throw new Error(`API key not found for ${network}`)
 
     console.log(`Fetching details for deployed contracts on ${network}...`)
     // Process each contract
-    for (const [contractName, contractAddress] of Object.entries(deployments)) {
+    for (const [contractName, contractAddress] of Object.entries(deployments))
       try {
         // Call explorer API
         const url = new URL(networkConfig.explorerApiUrl)
@@ -68,15 +65,14 @@ async function updateDeploymentLogs(network: string) {
 
         // Update master log
         console.log(`Updating ${contractName} - ${contractAddress}...`)
-        if (!masterLog[contractName]) {
-          masterLog[contractName] = {}
-        }
-        if (!masterLog[contractName][network]) {
+        if (!masterLog[contractName]) masterLog[contractName] = {}
+
+        if (!masterLog[contractName][network])
           masterLog[contractName][network] = {}
-        }
-        if (!masterLog[contractName][network].production) {
+
+        if (!masterLog[contractName][network].production)
           masterLog[contractName][network].production = {}
-        }
+
         if (!masterLog[contractName][network].production[version]) {
           masterLog[contractName][network].production[version] = [
             {
@@ -91,13 +87,10 @@ async function updateDeploymentLogs(network: string) {
             },
           ]
           console.log('Updated')
-        } else {
-          console.log('Entry already exists')
-        }
+        } else console.log('Entry already exists')
       } catch (error) {
         console.error(`Error processing ${contractName}:`, error)
       }
-    }
 
     // Write updated master log
     fs.writeFileSync(masterLogPath, JSON.stringify(masterLog, null, 2))

@@ -222,7 +222,7 @@ const getGasZipSupportedActiveNetworks = () => {
   )
 
   // print all networks that are not supported by GasZip and need to be funded manually
-  if (gasZipUnsupportedNetworks.length) {
+  if (gasZipUnsupportedNetworks.length)
     console.warn(
       `The following ${
         gasZipUnsupportedNetworks.length
@@ -232,7 +232,6 @@ const getGasZipSupportedActiveNetworks = () => {
         2
       )}\n`
     )
-  }
 
   console.log(
     `${gasZipSupportedNetworks.length} of those networks are supported by GasZip\n`

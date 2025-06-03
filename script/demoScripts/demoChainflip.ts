@@ -15,8 +15,8 @@ import deployments from '../../deployments/mainnet.staging.json'
 import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import { ChainflipFacet, ILiFi } from '../../typechain'
+import { SupportedChain } from '../types/common'
 
-import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
   ensureBalance,
   ensureAllowance,
@@ -216,7 +216,7 @@ async function main() {
   }
 
   // === Execute the appropriate transaction type ===
-  if (withDestinationCall) {
+  if (withDestinationCall)
     await executeWithDestinationCall(
       lifiDiamondContract,
       bridgeData,
@@ -224,7 +224,7 @@ async function main() {
       amount,
       publicClient
     )
-  } else if (withSwap) {
+  else if (withSwap)
     await executeWithSourceSwap(
       lifiDiamondContract,
       bridgeData,
@@ -232,14 +232,13 @@ async function main() {
       amount,
       publicClient
     )
-  } else {
+  else
     await executeDirect(
       lifiDiamondContract,
       bridgeData,
       chainflipData,
       publicClient
     )
-  }
 }
 
 main()

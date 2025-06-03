@@ -8,8 +8,8 @@ import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
 import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
 import { GlacisFacet, ILiFi } from '../../typechain'
+import { SupportedChain } from '../types/common'
 
-import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
   ensureBalance,
   ensureAllowance,
@@ -98,9 +98,8 @@ async function main() {
       ])
     ).result as any
 
-    if (!estimatedFees) {
+    if (!estimatedFees)
       throw new Error('Invalid fee estimation from quoteSend.')
-    }
   } catch (error) {
     console.error('Fee estimation failed:', error)
     process.exit(1)

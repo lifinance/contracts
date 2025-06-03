@@ -4,7 +4,6 @@ import 'dotenv/config'
 import { Address, encodeFunctionData, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
 import {
   getNextNonce,
   getPrivateKey,
@@ -14,6 +13,7 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
+import { SupportedChain } from '../types/common'
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,
@@ -120,11 +120,10 @@ const main = defineCommand({
               senderAddress
             )
 
-            if (!result.acknowledged) {
+            if (!result.acknowledged)
               throw new Error(
                 `[${network.name}] MongoDB insert was not acknowledged`
               )
-            }
 
             consola.info(
               `[${network.name}] Transaction successfully stored in MongoDB`
@@ -158,9 +157,7 @@ async function getBlacklistedFacetAddresses(
   blacklistFacets: string
 ): Promise<Address[]> {
   // if blacklist is empty we dont need to look for addresses
-  if (!blacklistFacets) {
-    return []
-  }
+  if (!blacklistFacets) return []
 
   // make sure that networkName is a valid supported chain
   if (!isValidSupportedChain(networkName))
@@ -171,7 +168,7 @@ async function getBlacklistedFacetAddresses(
 
   // Retrieve the corresponding addresses for each facet name from the deploy log
   const facetAddresses: Address[] = []
-  for (const facetName of facetNames) {
+  for (const facetName of facetNames)
     try {
       const facetAddress = await getContractAddressForNetwork(
         facetName,
@@ -185,7 +182,6 @@ async function getBlacklistedFacetAddresses(
         error
       )
     }
-  }
 
   return facetAddresses
 }

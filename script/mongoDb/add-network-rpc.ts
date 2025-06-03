@@ -100,14 +100,13 @@ const main = defineCommand({
         existingDoc &&
         Array.isArray(existingDoc.rpcs) &&
         existingDoc.rpcs.length > 0
-      ) {
+      )
         newPriority =
           Math.max(
             ...existingDoc.rpcs.map(
               (rpc: { priority: number }) => rpc.priority || 0
             )
           ) + 1
-      }
 
       // Construct the new RPC endpoint object with the new highest priority
       const newRpcEndpoint = { url: rpcUrl, priority: newPriority, environment }

@@ -18,7 +18,6 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import networksConfig from '../../config/networks.json'
-import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
 import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
 import {
   getNextNonce,
@@ -27,6 +26,7 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
+import { SupportedChain } from '../types/common'
 dotenv.config()
 
 export type NetworksObject = {
@@ -150,9 +150,8 @@ export const retry = async <T>(
       error: e,
       remainingRetries: retries - 1,
     })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
+    if (retries > 0) return retry(func, retries - 1)
+
     throw e
   }
 }
@@ -201,9 +200,8 @@ export function getFunctionSelectors(
   )
 
   // Ensure the contract file exists
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath))
     throw new Error(`Contract JSON not found at path: ${filePath}`)
-  }
 
   // Load and parse the compiled contract JSON
   const raw = fs.readFileSync(filePath, 'utf8')
@@ -211,9 +209,8 @@ export function getFunctionSelectors(
   const identifiers = json?.methodIdentifiers
 
   // Ensure methodIdentifiers are present in the JSON (these map function signatures to selectors)
-  if (!identifiers) {
+  if (!identifiers)
     throw new Error(`No methodIdentifiers found in contract: ${contractName}`)
-  }
 
   // Clean the exclusion list (remove '0x' prefix and lowercase them for consistent comparison)
   const excludesClean = excludes.map((sel) =>
@@ -242,9 +239,8 @@ export function getDeployLogFile(
   const suffix = environment === 'production' ? '' : `.${environment}`
   const filePath = path.resolve(`deployments/${network}${suffix}.json`)
 
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)
-  }
 
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 }
@@ -412,9 +408,8 @@ export async function sendOrPropose({
       safe.account
     )
 
-    if (!result.acknowledged) {
+    if (!result.acknowledged)
       throw new Error('MongoDB insert was not acknowledged')
-    }
 
     consola.success('✅ Safe transaction proposed and stored in MongoDB')
   } catch (err) {

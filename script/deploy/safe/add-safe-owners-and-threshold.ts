@@ -89,7 +89,7 @@ const main = defineCommand({
       const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
 
       // Validate each address using viem's isAddress function
-      for (const addr of cmdLineOwners) {
+      for (const addr of cmdLineOwners)
         if (!isAddress(addr)) {
           consola.error(`Invalid Ethereum address: ${addr}`)
           consola.error(
@@ -98,7 +98,6 @@ const main = defineCommand({
           await mongoClient.close()
           process.exit(1)
         }
-      }
 
       consola.info('Adding owners from command line:', cmdLineOwners)
 
@@ -189,9 +188,8 @@ const main = defineCommand({
           senderAddress
         )
 
-        if (!result.acknowledged) {
+        if (!result.acknowledged)
           throw new Error('MongoDB insert was not acknowledged')
-        }
 
         consola.success('Transaction successfully stored in MongoDB')
       } catch (error) {
@@ -244,9 +242,8 @@ const main = defineCommand({
           senderAddress
         )
 
-        if (!result.acknowledged) {
+        if (!result.acknowledged)
           throw new Error('MongoDB insert was not acknowledged')
-        }
 
         consola.success('Transaction successfully stored in MongoDB')
       } catch (error) {

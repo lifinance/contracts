@@ -84,38 +84,33 @@ const main = defineCommand({
       await getSafeMongoCollection()
 
     // Validate that we have either a private key or ledger
-    if (!args.privateKey && !args.ledger) {
+    if (!args.privateKey && !args.ledger)
       throw new Error('Either --privateKey or --ledger must be provided')
-    }
 
     // Set up signing options
     const useLedger = args.ledger || false
     let privateKey: string | undefined
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive) {
+    if (args.derivationPath && args.ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
-    }
 
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive) {
+      if (args.ledgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${
             args.accountIndex || 0
           }`
         )
-      } else if (args.derivationPath) {
+      else if (args.derivationPath)
         consola.info(`Using custom derivation path: ${args.derivationPath}`)
-      } else {
-        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
-      }
+      else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+
       privateKey = undefined
-    } else {
-      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
-    }
+    } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
@@ -188,9 +183,8 @@ const main = defineCommand({
         senderAddress
       )
 
-      if (!result.acknowledged) {
+      if (!result.acknowledged)
         throw new Error('MongoDB insert was not acknowledged')
-      }
 
       consola.success('Transaction successfully stored in MongoDB')
     } catch (error) {

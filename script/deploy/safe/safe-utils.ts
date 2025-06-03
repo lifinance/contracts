@@ -109,9 +109,8 @@ export const retry = async <T>(
       error: e,
       remainingRetries: retries - 1,
     })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
+    if (retries > 0) return retry(func, retries - 1)
+
     throw e
   }
 }
@@ -178,11 +177,11 @@ export class ViemSafe {
     let publicClient: PublicClient
     let chain: Chain | undefined = undefined
 
-    if (typeof provider === 'string') {
+    if (typeof provider === 'string')
       publicClient = createPublicClient({
         transport: http(provider),
       })
-    } else {
+    else {
       chain = provider
       publicClient = createPublicClient({
         chain: chain,
@@ -196,11 +195,9 @@ export class ViemSafe {
       // Dynamically import the Ledger module to avoid dependency issues
       const { getLedgerAccount } = await import('./ledger')
       account = await getLedgerAccount(ledgerOptions)
-    } else if (privateKey) {
+    } else if (privateKey)
       account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}` as Hex)
-    } else {
-      throw new Error('Either privateKey or useLedger must be provided')
-    }
+    else throw new Error('Either privateKey or useLedger must be provided')
 
     // Create wallet client with the account and chain
     const walletClient = createWalletClient({
@@ -393,14 +390,10 @@ export class ViemSafe {
 
       console.log('Raw signature:', ethSignSignature)
 
-      if (
-        !ethSignSignature.startsWith('0x') ||
-        ethSignSignature.length !== 132
-      ) {
+      if (!ethSignSignature.startsWith('0x') || ethSignSignature.length !== 132)
         throw new Error(
           `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${ethSignSignature}`
         )
-      }
 
       // Extract r, s, v components from the signature
       const r = ethSignSignature.slice(0, 66)
@@ -497,18 +490,14 @@ export class ViemSafe {
 
   // Validate a signature to ensure it's in the correct format for Safe contracts
   private validateSignature(signature: Hex): boolean {
-    if (!signature.startsWith('0x')) {
-      return false
-    }
+    if (!signature.startsWith('0x')) return false
 
     // Remove 0x prefix for length check
     const sigWithoutPrefix = signature.slice(2)
 
     // For Safe signatures in format r+s+v, signature should be 130 chars (65 bytes)
     // r = 32 bytes (64 chars), s = 32 bytes (64 chars), v = 1 byte (2 chars)
-    if (sigWithoutPrefix.length !== 130) {
-      return false
-    }
+    if (sigWithoutPrefix.length !== 130) return false
 
     // For eth_sign signatures (type 1), v values should be 31 or 32
     // (normal v value of 27/28 + 4 = 31/32)
@@ -522,9 +511,7 @@ export class ViemSafe {
 
   // Format signatures as bytes for contract submission
   private formatSignatures(signatures: Map<string, SafeSignature>): Hex {
-    if (!signatures.size) {
-      return '0x' as Hex
-    }
+    if (!signatures.size) return '0x' as Hex
 
     try {
       // Convert Map to array and sort by signer address
@@ -540,20 +527,18 @@ export class ViemSafe {
       let signatureBytes = '0x' as Hex
       for (const sig of sortedSigs) {
         // Ensure signature data is in correct format
-        if (!sig.data.startsWith('0x')) {
+        if (!sig.data.startsWith('0x'))
           throw new Error(
             `Invalid signature format. Expected 0x prefix but got: ${sig.data}`
           )
-        }
 
         // Validate signature format
-        if (!this.validateSignature(sig.data)) {
+        if (!this.validateSignature(sig.data))
           throw new Error(
             `Invalid signature length. Safe signatures must be 65 bytes (130 hex chars excluding 0x prefix). Got: ${
               sig.data.slice(2).length
             } chars`
           )
-        }
 
         // Remove 0x prefix before concatenating
         signatureBytes = (signatureBytes + sig.data.slice(2)) as Hex
@@ -606,9 +591,9 @@ export class ViemSafe {
 
       return { hash: txHash }
     } catch (error) {
-      if (error.message?.includes('execution reverted')) {
+      if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
-      }
+
       throw new Error(`Error executing transaction: ${error.message || error}`)
     }
   }
@@ -800,9 +785,8 @@ export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
   pendingTransactions: Collection<SafeTxDocument>
 }> {
-  if (!process.env.MONGODB_URI) {
+  if (!process.env.MONGODB_URI)
     throw new Error('MONGODB_URI environment variable is required')
-  }
 
   const client = new MongoClient(process.env.MONGODB_URI)
   const db = client.db('SAFE')
@@ -866,20 +850,18 @@ export async function getPendingTransactionsByNetwork(
   const txsByNetwork: Record<string, SafeTxDocument[]> = {}
   for (const tx of allPendingTxs) {
     const network = tx.network.toLowerCase()
-    if (!txsByNetwork[network]) {
-      txsByNetwork[network] = []
-    }
+    if (!txsByNetwork[network]) txsByNetwork[network] = []
+
     txsByNetwork[network].push(tx)
   }
 
   // Sort transactions by nonce for each network
-  for (const network in txsByNetwork) {
+  for (const network in txsByNetwork)
     txsByNetwork[network].sort((a, b) => {
       if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
       if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
       return 0
     })
-  }
 
   return txsByNetwork
 }
@@ -911,9 +893,8 @@ export async function initializeSafeClient(
   const chain = getViemChainForNetworkName(network)
   const safeAddress = networks[network.toLowerCase()].safeAddress as Address
 
-  if (!safeAddress) {
+  if (!safeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
-  }
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
 
@@ -950,11 +931,10 @@ export function getPrivateKey(
 ): string {
   const privateKey = privateKeyArg || process.env[keyType]
 
-  if (!privateKey) {
+  if (!privateKey)
     throw new Error(
       `Private key is missing, either provide it as argument or add ${keyType} to your .env`
     )
-  }
 
   return privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey
 }
@@ -1006,7 +986,7 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
           `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
         )
 
-        for (const selector of selectors) {
+        for (const selector of selectors)
           try {
             // Find matching function in ABI
             const matchingFunction = resData.abi.find((abiItem: any) => {
@@ -1015,20 +995,15 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
               return calculatedSelector === selector
             })
 
-            if (matchingFunction) {
+            if (matchingFunction)
               consola.info(
                 `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
               )
-            } else {
-              consola.warn(`Unknown function [${selector}]`)
-            }
+            else consola.warn(`Unknown function [${selector}]`)
           } catch (error) {
             consola.warn(`Failed to decode selector: ${selector}`)
           }
-        }
-      } else {
-        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
-      }
+      } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
     } catch (error) {
       consola.error(`Error fetching ABI for ${facetAddress}:`, error)
     }

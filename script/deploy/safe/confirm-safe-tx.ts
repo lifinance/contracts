@@ -197,14 +197,10 @@ const processTxs = async (
     txs.filter((tx) => {
       // If the transaction has enough signatures to execute AND the current signer has signed,
       // still show it so they can execute it
-      if (tx.canExecute) {
-        return true
-      }
+      if (tx.canExecute) return true
 
       // Otherwise, don't show transactions that have already been signed by the current signer
-      if (tx.hasSignedAlready) {
-        return false
-      }
+      if (tx.hasSignedAlready) return false
 
       // Show transactions that need more signatures
       return tx.safeTransaction.signatures.size < tx.threshold
@@ -250,16 +246,14 @@ const processTxs = async (
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
 
-    if (abi) {
-      if (decoded && decoded.functionName === 'diamondCut') {
+    if (abi)
+      if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
-      } else {
+      else {
         consola.info('Method:', abi)
-        if (decoded) {
+        if (decoded)
           consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
-        }
       }
-    }
 
     consola.info(`Safe Transaction Details:
     Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
@@ -298,14 +292,12 @@ const processTxs = async (
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
         options.push('Sign')
-        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold)) {
+        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
-        }
       }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
+      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
         options.push('Execute')
-      }
 
       action =
         storedResponse ||
@@ -315,13 +307,12 @@ const processTxs = async (
         }))
     }
 
-    if (action === 'Do Nothing') {
-      continue
-    }
+    if (action === 'Do Nothing') continue
+
     // eslint-disable-next-line require-atomic-updates
     storedResponses[tx.safeTx.data.data!] = action
 
-    if (action === 'Sign') {
+    if (action === 'Sign')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
@@ -338,9 +329,8 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error signing transaction:', error)
       }
-    }
 
-    if (action === 'Sign & Execute') {
+    if (action === 'Sign & Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
@@ -358,16 +348,14 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
-    }
 
-    if (action === 'Execute') {
+    if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         await executeTransaction(safeTransaction)
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
-    }
   }
 }
 
@@ -428,24 +416,22 @@ const main = defineCommand({
     }
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive) {
+    if (args.derivationPath && args.ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
-    }
 
     // If using ledger, we don't need a private key
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive) {
+      if (args.ledgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
         )
-      } else if (args.derivationPath) {
+      else if (args.derivationPath)
         consola.info(`Using custom derivation path: ${args.derivationPath}`)
-      } else {
-        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
-      }
+      else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+
       privateKey = undefined
     } else if (!args.privateKey) {
       // If no private key and not using ledger, ask for key from env
@@ -464,9 +450,7 @@ const main = defineCommand({
         keyChoice === 'SAFE_SIGNER_PRIVATE_KEY'
           ? privateKeyType.SAFE_SIGNER
           : privateKeyType.DEPLOYER
-    } else {
-      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
-    }
+    } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
     // Connect to MongoDB and fetch ALL pending transactions
     const { client: mongoClient, pendingTransactions } =

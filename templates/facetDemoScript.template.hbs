@@ -9,7 +9,7 @@ import dotenv from 'dotenv'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import {{camelCase name}}FacetArtifact from '../../out/{{titleCase name}}Facet.sol/{{titleCase name}}Facet.json'
 import { {{titleCase name}}Facet, ILiFi } from '../../typechain'
-import { SupportedChain } from './utils/demoScriptChainConfig'
+import { SupportedChain } from '../script/types/common'
 import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment } from './utils/demoScriptHelpers'
 
 dotenv.config()

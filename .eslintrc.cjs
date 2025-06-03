@@ -49,7 +49,7 @@ module.exports = {
     'no-async-promise-executor': 'error', // Disallows async functions as Promise executors
     'no-promise-executor-return': 'error', // Disallows returning values from Promise executors
     'require-atomic-updates': 'error', // Prevents race conditions with async/await
-    
+    'curly': ['error', 'multi'], // Allow single-line statements without braces
     // Import rules
     'import/order': ['error', {
       'groups': [
