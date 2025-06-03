@@ -99,6 +99,7 @@
     "consola": "^3.2.3",
     "defender-relay-client": "^1.26.0",
     "enquirer": "^2.4.1",
+    "eslint-import-resolver-typescript": "^4.4.2",
     "light-spinner": "^1.0.4",
     "merkletreejs": "^0.3.11",
     "mongodb": "^6.13.0",
@@ -109,7 +110,8 @@
   },
   "lint-staged": {
     "*.{ts,js}": [
-      "prettier --write"
+      "prettier --write",
+      "eslint --fix"
     ],
     "*.sol": [
       "prettier --write",

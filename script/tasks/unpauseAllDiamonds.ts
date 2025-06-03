@@ -1,13 +1,9 @@
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
-import { Address, encodeFunctionData, parseAbi } from 'viem'
-
-import {
-  getAllActiveNetworks,
-  getContractAddressForNetwork,
-  networks,
-} from '../utils/viemScriptHelpers'
 import 'dotenv/config'
+import { Address, encodeFunctionData, parseAbi } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+
 import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
 import {
   getNextNonce,
@@ -18,8 +14,11 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-
-import { privateKeyToAccount } from 'viem/accounts'
+import {
+  getAllActiveNetworks,
+  getContractAddressForNetwork,
+  networks,
+} from '../utils/viemScriptHelpers'
 
 // Define ABI
 const unpauseDiamondABI = parseAbi([
