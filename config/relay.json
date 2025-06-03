@@ -74,6 +74,11 @@
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
+  "hyperevm": {
+    "chainId": 999,
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "ink": {
     "chainId": 13371,
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
