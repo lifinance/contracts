@@ -41,6 +41,7 @@ module.exports = {
     }],
     '@typescript-eslint/no-misused-promises': 'error',
     'no-duplicate-imports': 'error',
+    'eqeqeq': ['error', 'always'],
     
     // Import rules
     'import/order': ['error', {

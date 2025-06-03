@@ -203,7 +203,7 @@ const main = defineCommand({
 
     consola.info('-'.repeat(80))
 
-    if (currentThreshold != 3) {
+    if (currentThreshold !== 3) {
       // Get the updated count of owners after all additions
       const updatedOwnerCount = (await safe.getOwners()).length
 

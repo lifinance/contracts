@@ -160,7 +160,7 @@ export const ensureBalanceAndAllowanceToDiamond = async (
 
   // check if wallet has sufficient balance
   let balance
-  if (isNative || tokenAddress == constants.AddressZero)
+  if (isNative || tokenAddress === constants.AddressZero)
     balance = await wallet.getBalance()
   else balance = await token.balanceOf(wallet.address)
   if (amount.gt(balance))
@@ -375,7 +375,7 @@ export const getUniswapSwapDataERC20ToETH = async (
   console.log(`finalFromAmount  : ${fromAmount}`)
 
   const finalMinAmountOut =
-    minAmountOut == 0
+    minAmountOut === 0
       ? await getAmountsOutUniswap(
           uniswapAddress,
           chainId,

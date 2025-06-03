@@ -61,7 +61,7 @@ const main = defineCommand({
     // Fetch list of deployed contracts
     const deployedContracts = await import(
       `../../deployments/${network.toLowerCase()}${
-        environment == 'staging' ? '.staging' : ''
+        environment === 'staging' ? '.staging' : ''
       }.json`
     )
 
@@ -98,7 +98,7 @@ const main = defineCommand({
     const sigsToApprove: Hex[] = []
     let multicallSuccess = true
     for (let i = 0; i < results.length; i++) {
-      if (results[i].status == 'success') {
+      if (results[i].status === 'success') {
         if (!results[i].result) {
           console.log('Function not approved:', sigs[i])
           sigsToApprove.push(sigs[i] as Hex)

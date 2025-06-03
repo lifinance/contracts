@@ -85,7 +85,7 @@ async function main() {
       receiver: walletAddress,
       bridge: CONFIG.bridges[l1Token] || CONFIG.bridges.standardBridge,
       l2Gas: L2_GAS,
-      isSynthetix: l1Token == CONFIG.snxToken,
+      isSynthetix: l1Token === CONFIG.snxToken,
     }
 
     // Approve ERC20 for swapping -- USDC -> DAI
