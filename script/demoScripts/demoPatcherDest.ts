@@ -333,7 +333,7 @@ function constructBridgeCallData(
     referrer: '0x0000000000000000000000000000000000000000' as `0x${string}`,
     sendingAssetId: ARBITRUM_WETH as `0x${string}`,
     receiver: RECEIVER_ACROSS_V3_BASE as `0x${string}`, // ReceiverAcrossV3
-    minAmount: BigInt(routeDetails.toAmountMin), // Use LiFi's calculated minimum
+    minAmount: BigInt(routeDetails.toAmount), // Use same amount as outputAmount for consistency
     destinationChainId: 8453n, // Base chain ID
     hasSourceSwaps: false,
     hasDestinationCall: true, // Enable destination call
@@ -345,7 +345,7 @@ function constructBridgeCallData(
     refundAddress: walletAddress as `0x${string}`,
     receivingAssetId: BASE_WETH as `0x${string}`,
     outputAmount: BigInt(routeDetails.toAmount), // Use LiFi's calculated amount
-    outputAmountPercent: BigInt('960000000000000000'), // 96% (0.96e18) - optimized based on successful tx
+    outputAmountPercent: BigInt('920000000000000000'), // 92% (0.92e18) - increased fee from 4% to 8% for higher gas costs
     exclusiveRelayer:
       '0x0000000000000000000000000000000000000000' as `0x${string}`,
     quoteTimestamp: Math.floor(Date.now() / 1000), // Current timestamp
@@ -534,7 +534,7 @@ async function executeCrossChainBridgeWithSwap(options: {
         to: LIFI_DIAMOND_ARBITRUM as `0x${string}`,
         data: bridgeCallData as `0x${string}`,
         value: 0n, // No ETH value needed for WETH bridge
-        gas: 1000000n, // Increased gas limit for complex operations
+        gas: 800000n, // Increased gas limit for complex operations
       })
 
       consola.success(`✅ Transaction sent: ${txHash}`)
