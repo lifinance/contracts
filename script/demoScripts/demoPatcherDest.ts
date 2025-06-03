@@ -220,7 +220,7 @@ function encodeDestinationCallMessage(
 
   // Create processRoute calldata with needle
   const routeData =
-    '0x02420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d38014dac9d1769b9b304cb04741dcdeb2fc14abdf110000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
+    '0x02420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d38014dac9d1769b9b304cb04741dcdeb2fc14abdf11' as `0x${string}`
 
   const processRouteCallData = encodeFunctionData({
     abi: parseAbi([
@@ -534,7 +534,7 @@ async function executeCrossChainBridgeWithSwap(options: {
         to: LIFI_DIAMOND_ARBITRUM as `0x${string}`,
         data: bridgeCallData as `0x${string}`,
         value: 0n, // No ETH value needed for WETH bridge
-        gas: 500000n, // Conservative gas limit
+        gas: 1000000n, // Increased gas limit for complex operations
       })
 
       consola.success(`✅ Transaction sent: ${txHash}`)
