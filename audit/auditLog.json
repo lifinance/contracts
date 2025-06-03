@@ -251,6 +251,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.05.10_LiFiDexAggregator(v1.9.0).pdf",
       "auditCommitHash": "eb255e62405c477f24c1bd78076c7d3677284681"
+    },
+    "audit20250603": {
+      "auditCompletedOn": "03.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.03_GnosisBridgeFacet(v2.0.0).pdf",
+      "auditCommitHash": "7197c0a237f46c83d39f5566f18bbadb5ca156ed"
     }
   },
   "auditedContracts": {
@@ -409,6 +416,9 @@
     "GnosisBridgeFacet": {
       "1.0.0": [
         "audit20250508"
+      ],
+      "2.0.0": [
+        "audit20250603"
       ]
     },
     "HopFacetOptimized": {
