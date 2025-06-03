@@ -50,6 +50,11 @@ module.exports = {
     'no-promise-executor-return': 'error', // Disallows returning values from Promise executors
     'require-atomic-updates': 'error', // Prevents race conditions with async/await
     'curly': ['error', 'multi'], // Allow single-line statements without braces
+    "import/no-self-import": 'error',
+    "import/no-useless-path-segments": 'error',
+    "import/no-unused-modules": 'error',
+    "import/no-deprecated": 'error',
+    "import/no-extraneous-dependencies": 'error',
     // Import rules
     'import/order': ['error', {
       'groups': [
@@ -63,6 +68,42 @@ module.exports = {
       'newlines-between': 'always',
       'alphabetize': { order: 'asc' }
     }],
+    
+    // Prevent potential errors
+    'no-template-curly-in-string': 'error', // Warns about `${var}` in regular strings
+    // 'no-return-await': 'error', // Prevents redundant `return await`
+    // 'no-throw-literal': 'error', // Requires throwing Error objects instead of literals
+    
+    // // TypeScript specific enhancements
+    // '@typescript-eslint/explicit-member-accessibility': ['error', { // Enforce explicit accessibility modifiers
+    //   accessibility: 'explicit',
+    //   overrides: {
+    //     constructors: 'no-public'
+    //   }
+    // }],
+    // '@typescript-eslint/consistent-type-imports': ['error', { // Enforce consistent type imports
+    //   prefer: 'type-imports'
+    // }],
+    // '@typescript-eslint/no-floating-promises': 'error', // Requires Promise handling
+    
+    // // Code style and maintainability
+    // 'max-depth': ['error', 4], // Limit nesting depth
+    // 'complexity': ['error', 15], // Limit cyclomatic complexity
+    // 'max-lines-per-function': ['error', { 
+    //   max: 50,
+    //   skipBlankLines: true,
+    //   skipComments: true
+    // }],
+    
+    // // Modern JavaScript practices
+    // 'prefer-template': 'error', // Encourage template literals over string concatenation
+    // 'prefer-nullish-coalescing': 'error', // Encourage ?? over ||
+    // 'prefer-optional-chain': 'error', // Encourage ?. over && chaining
+    
+    // // Import enhancements
+    // 'import/no-mutable-exports': 'error', // Prevents exporting let or var
+    // 'import/no-relative-parent-imports': 'error', // Prevents ../../../ style imports
+    // 'import/no-namespace': 'error', // Prevents import * as namespace
   },
   settings: {
     'import/resolver': {

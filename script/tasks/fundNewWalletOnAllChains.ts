@@ -116,7 +116,7 @@ const main = defineCommand({
       )
     else
       console.log(
-        'Funding wallet native balance is sufficient for this action: \nbalance: ${nativeBalance}, \nrequired: ${amountRequiredNative}'
+        `Funding wallet native balance is sufficient for this action: \nbalance: ${nativeBalance}, \nrequired: ${amountRequiredNative}`
       )
 
     // get an array with target chainIds
