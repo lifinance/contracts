@@ -212,87 +212,16 @@ function encodeDestinationCallMessage(
   swapToAmountMin: string,
   receiver: string
 ): string {
-  // Create value getter for Executor's WETH balance
-  const executorBalanceValueGetter = generateBalanceOfCalldata(BASE_EXECUTOR)
-
-  // Generate a random bytes32 hex value as needle to find the amount position
-  const transferAmountNeedle = generateNeedle()
-
-  // Create calldata with the needle in place of amount (will be patched by Patcher)
-  const transferFromCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function transferFrom(address from, address to, uint256 amount) returns (bool)',
-    ]),
-    functionName: 'transferFrom',
-    args: [
-      BASE_EXECUTOR as `0x${string}`, // from - Executor contract
-      BASE_PATCHER as `0x${string}`, // to - Patcher contract
-      transferAmountNeedle as any, // amount - needle value as hex string (will be patched)
-    ],
-  })
-
-  // Find the needle position in the calldata
-  const transferFromAmountOffset = findNeedleOffset(
-    transferFromCallData,
-    transferAmountNeedle
-  )
-  consola.info(
-    `Found transferFrom amount offset: ${transferFromAmountOffset} bytes`
-  )
-
-  const patcherTransferCallData = generateExecuteWithDynamicPatchesCalldata(
-    BASE_WETH as `0x${string}`, // valueSource - WETH contract
-    executorBalanceValueGetter, // valueGetter - balanceOf(Executor) call
-    BASE_WETH as `0x${string}`, // finalTarget - WETH contract
-    transferFromCallData as `0x${string}`, // data - transferFrom call
-    [transferFromAmountOffset], // offsets - position of amount parameter
-    0n, // value - no ETH being sent
-    false // delegateCall - false for regular call
-  )
-
-  // Create the value getter for Patcher's WETH balance
+  // Create the value getter for Patcher's WETH balance (after deposit)
   const patcherBalanceValueGetter = generateBalanceOfCalldata(BASE_PATCHER)
 
-  // Generate a random bytes32 hex value as needle to find the amount position
-  const approveAmountNeedle = generateNeedle()
+  // Generate needle for finding the amountIn position
+  const processRouteAmountNeedle = generateNeedle()
 
-  // Create calldata with the needle in place of amount (will be patched by Patcher)
-  const approveCallData = encodeFunctionData({
-    abi: parseAbi([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]),
-    functionName: 'approve',
-    args: [
-      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // spender - LiFiDEXAggregator
-      approveAmountNeedle as any, // amount - needle value as hex string (will be patched)
-    ],
-  })
-
-  // Find the needle position in the calldata
-  const approveAmountOffset = findNeedleOffset(
-    approveCallData,
-    approveAmountNeedle
-  )
-  consola.info(`Found approve amount offset: ${approveAmountOffset} bytes`)
-
-  const patcherApproveCallData = generateExecuteWithDynamicPatchesCalldata(
-    BASE_WETH as `0x${string}`, // valueSource - WETH contract
-    patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
-    BASE_WETH as `0x${string}`, // finalTarget - WETH contract
-    approveCallData as `0x${string}`, // data - approve call
-    [approveAmountOffset], // offsets - position of amount parameter
-    0n, // value - no ETH being sent
-    false // delegateCall - false for regular call
-  )
-
-  // 3. Third call: Patcher calls LiFiDEXAggregator::processRoute with dynamic balance
+  // Create processRoute calldata with needle
   const routeData =
     '0x02420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d38014dac9d1769b9b304cb04741dcdeb2fc14abdf110000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
 
-  // Generate a random bytes32 hex value as needle to find the amountIn position
-  const processRouteAmountNeedle = generateNeedle()
-
-  // Create calldata with the needle in place of amountIn (will be patched by Patcher)
   const processRouteCallData = encodeFunctionData({
     abi: parseAbi([
       'function processRoute(address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOutMin, address to, bytes memory route) payable returns (uint256 amountOut)',
@@ -300,15 +229,15 @@ function encodeDestinationCallMessage(
     functionName: 'processRoute',
     args: [
       BASE_WETH as `0x${string}`, // tokenIn - WETH on Base
-      processRouteAmountNeedle as any, // amountIn - needle value as hex string (will be patched)
+      processRouteAmountNeedle as any, // amountIn - needle value (will be patched)
       BASE_USDC as `0x${string}`, // tokenOut - USDC on Base
       BigInt(swapToAmountMin), // amountOutMin - Minimum USDC out
-      receiver as `0x${string}`, // to - Final recipient
+      BASE_EXECUTOR as `0x${string}`, // to - Executor contract on Base
       routeData, // route - Route data for WETH->USDC swap
     ],
   })
 
-  // Find the needle position in the calldata
+  // Find the processRoute amount offset
   const processRouteAmountOffset = findNeedleOffset(
     processRouteCallData,
     processRouteAmountNeedle
@@ -317,47 +246,35 @@ function encodeDestinationCallMessage(
     `Found processRoute amountIn offset: ${processRouteAmountOffset} bytes`
   )
 
-  const patcherProcessRouteCallData = generateExecuteWithDynamicPatchesCalldata(
-    BASE_WETH as `0x${string}`, // valueSource - WETH contract
-    patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
-    BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // finalTarget - LiFiDEXAggregator
-    processRouteCallData as `0x${string}`, // data - processRoute call
-    [processRouteAmountOffset], // offsets - position of amountIn parameter
-    0n, // value - no ETH being sent
-    false // delegateCall - false for regular call
-  )
+  // Generate calldata for depositAndExecuteWithDynamicPatches
+  const depositAndExecuteCallData = encodeFunctionData({
+    abi: parseAbi([
+      'function depositAndExecuteWithDynamicPatches(address tokenAddress, address valueSource, bytes calldata valueGetter, address finalTarget, uint256 value, bytes calldata data, uint256[] calldata offsets, bool delegateCall) returns (bool success, bytes memory returnData)',
+    ]),
+    functionName: 'depositAndExecuteWithDynamicPatches',
+    args: [
+      BASE_WETH as `0x${string}`, // tokenAddress - WETH contract
+      BASE_WETH as `0x${string}`, // valueSource - WETH contract
+      patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
+      BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // finalTarget - LiFiDEXAggregator
+      0n, // value - no ETH being sent
+      processRouteCallData as `0x${string}`, // data - processRoute call
+      [processRouteAmountOffset], // offsets - position of amountIn parameter
+      false, // delegateCall - false for regular call
+    ],
+  })
 
-  // Create LibSwap.SwapData structure with three patcher calls
+  // Create LibSwap.SwapData structure with single patcher call
   const swapData = [
-    // Call 1: Patcher calls WETH::transferFrom to pull actual WETH balance from Executor
-    {
-      callTo: BASE_PATCHER as `0x${string}`,
-      approveTo: BASE_PATCHER as `0x${string}`,
-      sendingAssetId: BASE_WETH as `0x${string}`,
-      receivingAssetId: BASE_WETH as `0x${string}`,
-      fromAmount: BigInt(swapFromAmount),
-      callData: patcherTransferCallData as `0x${string}`,
-      requiresDeposit: true,
-    },
-    // Call 2: Patcher calls WETH::approve to approve LiFiDexAggregator with actual balance
-    {
-      callTo: BASE_PATCHER as `0x${string}`,
-      approveTo: BASE_PATCHER as `0x${string}`,
-      sendingAssetId: BASE_WETH as `0x${string}`,
-      receivingAssetId: BASE_WETH as `0x${string}`,
-      fromAmount: 0n, // No amount for approval
-      callData: patcherApproveCallData as `0x${string}`,
-      requiresDeposit: false,
-    },
-    // Call 3: Patcher calls LiFiDexAggregator::processRoute with actual balance
+    // Single call: Patcher deposits WETH from Executor, approves LiFiDexAggregator, and executes swap
     {
       callTo: BASE_PATCHER as `0x${string}`,
       approveTo: BASE_PATCHER as `0x${string}`,
       sendingAssetId: BASE_WETH as `0x${string}`,
       receivingAssetId: BASE_USDC as `0x${string}`,
-      fromAmount: 0n, // No amount for patcher call
-      callData: patcherProcessRouteCallData as `0x${string}`,
-      requiresDeposit: false,
+      fromAmount: BigInt(swapFromAmount),
+      callData: depositAndExecuteCallData as `0x${string}`,
+      requiresDeposit: true,
     },
   ]
 
@@ -383,13 +300,11 @@ function encodeDestinationCallMessage(
     [transactionId as `0x${string}`, swapData, receiver as `0x${string}`]
   )
 
-  consola.info('Encoded destination call message using Patcher pattern:')
   consola.info(
-    '1. Patcher calls WETH::transferFrom with Executor balance patching'
+    'Encoded destination call message using single Patcher deposit call:'
   )
-  consola.info('2. Patcher calls WETH::approve with Patcher balance patching')
   consola.info(
-    '3. Patcher calls LiFiDexAggregator::processRoute with Patcher balance patching'
+    '1. Patcher deposits WETH from Executor, approves LiFiDexAggregator, and executes swap in one call'
   )
   return messagePayload
 }
@@ -591,22 +506,19 @@ async function executeCrossChainBridgeWithSwap(options: {
   )
   consola.info(`- Estimated gas cost: $${routeDetails.gasCostUSD}`)
 
-  consola.info('🔄 Cross-chain flow with Patcher pattern:')
+  consola.info('🔄 Cross-chain flow with Patcher deposit pattern:')
   consola.info('1. Bridge 0.001 WETH from Arbitrum → Base via AcrossV3')
   consola.info(
     `2. ReceiverAcrossV3.handleV3AcrossMessage receives ~${routeDetails.toAmount} wei WETH on Base`
   )
   consola.info(
-    '3. ReceiverAcrossV3 calls Executor.swapAndCompleteBridgeTokens with 3 patcher calls:'
+    '3. ReceiverAcrossV3 calls Executor.swapAndCompleteBridgeTokens with 2 patcher calls:'
   )
   consola.info(
-    '   a. Patcher calls WETH::transferFrom(Executor, Patcher, executorBalance) - Pull exact WETH amount'
+    '   a. Patcher deposits WETH from Executor and approves LiFiDexAggregator with balance patching'
   )
   consola.info(
-    '   b. Patcher calls WETH::approve(LiFiDexAggregator, patcherBalance) - Approve exact amount'
-  )
-  consola.info(
-    '   c. Patcher calls LiFiDexAggregator::processRoute(patcherBalance) - Swap exact amount'
+    '   b. Patcher calls LiFiDexAggregator::processRoute(patcherBalance) - Swap exact amount'
   )
   consola.info(
     '4. All calls use dynamic balance patching to handle exact bridge amounts'
@@ -635,7 +547,7 @@ async function executeCrossChainBridgeWithSwap(options: {
 
       if (receipt.status === 'success') {
         consola.success(
-          `🎉 Cross-chain bridge with destination swap completed using Patcher pattern!`
+          `🎉 Cross-chain bridge with destination swap completed using Patcher deposit pattern!`
         )
         consola.info(`Transaction hash: ${txHash}`)
         consola.info(`Block number: ${receipt.blockNumber}`)
@@ -651,7 +563,7 @@ async function executeCrossChainBridgeWithSwap(options: {
     }
   } else {
     consola.info(
-      '[DRY RUN] Would execute cross-chain bridge with destination swap using Patcher pattern'
+      '[DRY RUN] Would execute cross-chain bridge with destination swap using Patcher deposit pattern'
     )
     consola.info(`[DRY RUN] Transaction data:`)
     consola.info(`[DRY RUN] - To: ${LIFI_DIAMOND_ARBITRUM}`)

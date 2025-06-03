@@ -163,6 +163,9 @@ contract Patcher {
         // Transfer tokens from msg.sender to this contract
         IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
 
+        // Approve the finalTarget to spend the deposited tokens
+        IERC20(tokenAddress).approve(finalTarget, amount);
+
         return
             _executeWithDynamicPatches(
                 valueSource,
@@ -201,6 +204,9 @@ contract Patcher {
 
         // Transfer tokens from msg.sender to this contract
         IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+
+        // Approve the finalTarget to spend the deposited tokens
+        IERC20(tokenAddress).approve(finalTarget, amount);
 
         return
             _executeWithMultiplePatches(
