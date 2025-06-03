@@ -42,6 +42,12 @@ module.exports = {
     '@typescript-eslint/no-misused-promises': 'error',
     'no-duplicate-imports': 'error',
     'eqeqeq': ['error', 'always'],
+    'prefer-const': 'error',
+    'import/no-cycle': 'error',
+    'import/first': 'error', // Ensures all imports are at the top of the file
+    'import/no-duplicates': 'error', // Consolidates import statements from the same module
+    'no-async-promise-executor': 'error', // Disallows async functions as Promise executors
+    'no-promise-executor-return': 'error', // Disallows returning values from Promise executors
     
     // Import rules
     'import/order': ['error', {

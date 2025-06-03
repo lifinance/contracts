@@ -164,7 +164,11 @@ async function compareDeployedBytecode(
   return ok
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const sleep = (ms: number): Promise<void> => {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
 
 // Deploy local Safe implementation & factory v1.4.1
 async function deployLocalContracts(publicClient: any, walletClient: any) {
