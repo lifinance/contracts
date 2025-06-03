@@ -68,8 +68,10 @@ import {
 // Local imports last, in alphabetical order
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
-import type { SupportedChain } from '../../types/common'
+import {
+  setupEnvironment,
+  type SupportedChain,
+} from '../../demoScripts/utils/demoScriptHelpers'
 import type { Environment } from '../../utils/viemScriptHelpers'
 
 dotenv.config()
@@ -518,11 +520,10 @@ const main = defineCommand({
         consola.info(
           `Using factory from network ${latestNetwork}: ${factoryAddr}`
         )
-      } else 
+      } else
         throw new Error(
           'No Safe factory deployment found in @safe-global/safe-deployments'
         )
-      
     }
 
     let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`

@@ -4,6 +4,7 @@ import 'dotenv/config'
 import { encodeFunctionData, parseAbi, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { type SupportedChain } from '../demoScripts/utils/demoScriptHelpers'
 import {
   getNextNonce,
   getPrivateKey,
@@ -13,7 +14,6 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import type { SupportedChain } from '../types/common'
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,

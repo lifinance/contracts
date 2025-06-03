@@ -74,7 +74,7 @@ const main = defineCommand({
       })
 
       safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
-    } catch (error) {
+    } catch (error: any) {
       consola.error(`Failed to get Safe info: ${error.message}`)
       throw new Error(
         `Could not get Safe info for ${safeAddress} on ${network}`

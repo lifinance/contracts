@@ -6,12 +6,12 @@
  * Requires @ledgerhq/hw-app-eth and @ledgerhq/hw-transport-node-hid packages.
  */
 
+import type Transport from '@ledgerhq/hw-transport'
 import consola from 'consola'
 import type {
   Account,
   Address,
   Hex,
-  Transport,
   TransactionRequest,
   SignTypedDataParameters,
 } from 'viem'
@@ -68,7 +68,7 @@ export async function getLedgerAccount(options?: {
       transport,
       derivationPath,
     })
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Failed to connect to Ledger device:`, error)
     throw new Error(`Ledger connection failed: ${error.message}`)
   }
@@ -151,10 +151,14 @@ function createLedgerAccount({
         let resolution = null
         try {
           // This provides context for the transaction to be displayed on the Ledger device
-          resolution = await ledgerService.resolveTransaction(rawTxHex, null, {
-            externalPlugins: true, // Enable external plugins for better transaction information
-            erc20: true, // Enable ERC20 token resolution
-          })
+          resolution = await ledgerService.resolveTransaction(
+            rawTxHex,
+            {}, // LoadConfig - using default configuration
+            {
+              externalPlugins: true, // Enable external plugins for better transaction information
+              erc20: true, // Enable ERC20 token resolution
+            }
+          )
           consola.log('Transaction resolved successfully with Ledger service')
         } catch (resolveError) {
           consola.warn(
@@ -197,7 +201,7 @@ function createLedgerAccount({
         const serializedSignedTx = serializeSignedTransaction(signedTx)
 
         return serializedSignedTx
-      } catch (error) {
+      } catch (error: any) {
         consola.error('Error in Ledger signTransaction:', error)
         throw new Error(`Ledger transaction signing failed: ${error.message}`)
       }
@@ -211,8 +215,14 @@ function createLedgerAccount({
       // Sign the typed data with Ledger
       // Note: Some Ledger firmware versions might not support all EIP-712 features
       const result = await eth.signEIP712Message(derivationPath, {
-        domain: params.domain,
-        types: params.types,
+        domain: params.domain as Partial<{
+          name: string
+          chainId: number
+          version: string
+          verifyingContract: string
+          salt: string
+        }>,
+        types: params.types as any,
         primaryType: params.primaryType,
         message: params.message,
       })

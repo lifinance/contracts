@@ -91,7 +91,7 @@ const processTxs = async (
       consola.error('Cannot sign or execute transactions - exiting')
       return
     }
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Failed to check if signer is an owner: ${error.message}`)
     consola.error('Skipping this network and moving to the next one')
     return
@@ -108,7 +108,7 @@ const processTxs = async (
       const signedTx = await safe.signTransaction(safeTransaction)
       consola.success('Transaction signed')
       return signedTx
-    } catch (error) {
+    } catch (error: any) {
       consola.error('Error signing transaction:', error)
       throw new Error(`Failed to sign transaction: ${error.message}`)
     }
@@ -147,7 +147,7 @@ const processTxs = async (
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
       consola.log(' ')
-    } catch (error) {
+    } catch (error: any) {
       consola.error('❌ Error executing Safe transaction:')
       consola.error(`   ${error.message}`)
       if (error.message.includes('GS026')) {
@@ -166,7 +166,7 @@ const processTxs = async (
   let threshold
   try {
     threshold = Number(await safe.getThreshold())
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Failed to get threshold: ${error.message}`)
     throw new Error(
       `Could not get threshold for Safe ${safeAddress} on ${network}`
@@ -238,7 +238,7 @@ const processTxs = async (
           })
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       consola.warn(`Failed to decode transaction data: ${error.message}`)
     }
 
@@ -392,7 +392,7 @@ const main = defineCommand({
       required: false,
     },
     accountIndex: {
-      type: 'number',
+      type: 'string',
       description: 'Ledger account index (default: 0)',
       required: false,
     },
@@ -411,7 +411,7 @@ const main = defineCommand({
     const useLedger = args.ledger || false
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex || 0,
+      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
       derivationPath: args.derivationPath,
     }
 

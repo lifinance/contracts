@@ -20,7 +20,6 @@ import { privateKeyToAccount } from 'viem/accounts'
 import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
-import type { SupportedChain } from '../../types/common'
 import { node_url } from '../../utils/network'
 import {
   Environment,
@@ -36,6 +35,8 @@ export const DEFAULT_DEST_PAYLOAD_ABI = [
   'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[]', // Swap Data
   'address', // Receiver
 ]
+
+export type SupportedChain = keyof typeof networks
 
 export enum TX_TYPE {
   ERC20,

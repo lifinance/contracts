@@ -117,7 +117,9 @@ const main = defineCommand({
           { chainName },
           {
             $set: { lastUpdated: new Date() },
-            $push: { rpcs: { $each: [newRpcEndpoint] } },
+            $push: {
+              rpcs: newRpcEndpoint,
+            } as any,
           },
           { upsert: true }
         )

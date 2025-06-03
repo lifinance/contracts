@@ -306,8 +306,8 @@ async function verifySelectorsExistInDiamond({
 
   // go through all function selectors and check if they are present in the diamond
   for (let i = 0; i < facetDefs.length; i++) {
-    const facet = facetDefs[i]
-    const result = results[i]
+    const facet = facetDefs[i]!
+    const result = results[i]!
 
     if (result.status !== 'success') {
       consola.error(

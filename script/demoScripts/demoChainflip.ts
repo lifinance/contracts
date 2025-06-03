@@ -15,7 +15,6 @@ import deployments from '../../deployments/mainnet.staging.json'
 import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import type { ChainflipFacet, ILiFi } from '../../typechain'
-import type { SupportedChain } from '../types/common'
 
 import {
   ensureBalance,
@@ -29,6 +28,7 @@ import {
   getUniswapDataExactETHToERC20,
   ADDRESS_UNISWAP_ARB,
   setupEnvironment,
+  type SupportedChain,
 } from './utils/demoScriptHelpers'
 
 dotenv.config()

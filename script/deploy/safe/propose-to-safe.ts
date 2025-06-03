@@ -64,7 +64,7 @@ const main = defineCommand({
       required: false,
     },
     accountIndex: {
-      type: 'number',
+      type: 'string',
       description: 'Ledger account index (default: 0)',
       required: false,
     },
@@ -114,7 +114,7 @@ const main = defineCommand({
 
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex || 0,
+      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
       derivationPath: args.derivationPath,
     }
 

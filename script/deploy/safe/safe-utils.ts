@@ -236,11 +236,13 @@ export class ViemSafe {
   // Get owners from Safe contract (replaces getOwners from Safe SDK)
   async getOwners(): Promise<Address[]> {
     try {
-      return await this.publicClient.readContract({
-        address: this.safeAddress,
-        abi: SAFE_SINGLETON_ABI,
-        functionName: 'getOwners',
-      })
+      return [
+        ...(await this.publicClient.readContract({
+          address: this.safeAddress,
+          abi: SAFE_SINGLETON_ABI,
+          functionName: 'getOwners',
+        })),
+      ]
     } catch (error) {
       console.error('Error getting owners:', error)
       throw error
@@ -271,7 +273,9 @@ export class ViemSafe {
       nonce?: bigint
     }[]
   }): Promise<SafeTransaction> {
-    const tx = options.transactions[0] // We only handle single transactions for now
+    if (!options.transactions.length)
+      throw new Error('No transactions provided')
+    const tx = options.transactions[0]! // Add non-null assertion
     const nonce = tx.nonce !== undefined ? tx.nonce : await this.getNonce()
 
     const safeTx: SafeTransaction = {
@@ -385,6 +389,7 @@ export class ViemSafe {
       // Use eth_sign (via personal_sign) which adds the Ethereum message prefix
       // This is the most compatible method with all Safe contract versions
       const ethSignSignature = await this.walletClient.signMessage({
+        account: this.account,
         message: { raw: hash },
       })
 
@@ -417,7 +422,7 @@ export class ViemSafe {
         signer: this.account,
         data: safeSignature,
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing hash with eth_sign:', error)
       throw new Error(`Failed to sign hash: ${error.message || error}`)
     }
@@ -466,6 +471,7 @@ export class ViemSafe {
 
       // Sign typed data using walletClient
       const typedDataSignature = await this.walletClient.signTypedData({
+        account: this.account,
         domain,
         types,
         primaryType: 'SafeTx',
@@ -482,7 +488,7 @@ export class ViemSafe {
       safeTx.signatures.set(signature.signer.toLowerCase(), signature)
 
       return safeTx
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing transaction:', error)
       throw new Error(`Failed to sign transaction: ${error.message || error}`)
     }
@@ -545,7 +551,7 @@ export class ViemSafe {
       }
 
       return signatureBytes
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error formatting signatures:', error)
       throw new Error(`Failed to format signatures: ${error.message || error}`)
     }
@@ -563,6 +569,8 @@ export class ViemSafe {
 
       // First, prepare the transaction data
       const txHash = await this.walletClient.writeContract({
+        account: this.account,
+        chain: null,
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'execTransaction',
@@ -583,14 +591,14 @@ export class ViemSafe {
       // Wait for transaction receipt with better error handling
       try {
         await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-      } catch (waitError) {
+      } catch (waitError: any) {
         throw new Error(
           `Transaction submitted (${txHash}) but failed to confirm: ${waitError.message}`
         )
       }
 
       return { hash: txHash }
-    } catch (error) {
+    } catch (error: any) {
       if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
 
@@ -733,7 +741,7 @@ export async function getSafeInfoFromContract(
   ])
 
   return {
-    owners,
+    owners: [...owners],
     threshold,
     nonce,
   }
@@ -825,7 +833,7 @@ export async function getNextNonce(
     .toArray()
 
   return latestTx.length > 0
-    ? BigInt(latestTx[0].safeTx?.data?.nonce || 0) + 1n
+    ? BigInt(latestTx[0]!.safeTx?.data?.nonce || 0) + 1n
     : currentNonce
 }
 
@@ -857,7 +865,7 @@ export async function getPendingTransactionsByNetwork(
 
   // Sort transactions by nonce for each network
   for (const network in txsByNetwork)
-    txsByNetwork[network].sort((a, b) => {
+    txsByNetwork[network]!.sort((a, b) => {
       if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
       if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
       return 0
@@ -901,7 +909,7 @@ export async function initializeSafeClient(
   // Initialize Safe with Viem
   try {
     const safe = await ViemSafe.init({
-      provider: parsedRpcUrl,
+      provider: parsedRpcUrl as string,
       privateKey,
       safeAddress,
       useLedger,
@@ -909,7 +917,7 @@ export async function initializeSafeClient(
     })
 
     return { safe, chain, safeAddress }
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Error encountered while setting up Safe: ${error}`)
     throw new Error(
       `Failed to initialize Safe for ${network}: ${error.message}`
@@ -1080,8 +1088,11 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
       transport: http(chain.rpcUrls.default.http[0]),
     })
 
-    safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
-  } catch (error) {
+    safeInfo = await getSafeInfoFromContract(
+      publicClient,
+      safeAddress as Address
+    )
+  } catch (error: any) {
     consola.error(`Failed to get Safe info: ${error.message}`)
     throw new Error(`Could not get Safe info for ${safeAddress} on ${network}`)
   }

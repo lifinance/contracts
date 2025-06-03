@@ -18,7 +18,10 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import networksConfig from '../../config/networks.json'
-import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
+import {
+  getDeployments,
+  type SupportedChain,
+} from '../demoScripts/utils/demoScriptHelpers'
 import {
   getNextNonce,
   getSafeMongoCollection,
@@ -26,7 +29,7 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import type { SupportedChain } from '../types/common'
+
 dotenv.config()
 
 export type NetworksObject = {

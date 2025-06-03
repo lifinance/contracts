@@ -14,7 +14,6 @@ import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
 import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
 import type { GlacisFacet, ILiFi } from '../../typechain'
-import type { SupportedChain } from '../types/common'
 
 import {
   ensureBalance,
@@ -23,6 +22,7 @@ import {
   setupEnvironment,
   getConfigElement,
   zeroPadAddressToBytes32,
+  type SupportedChain,
 } from './utils/demoScriptHelpers'
 
 dotenv.config()
@@ -71,9 +71,9 @@ async function main() {
     client,
   })
 
-  const srcTokenName = (await srcTokenContract.read.name()) as string
-  const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
-  const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
+  const srcTokenName = await srcTokenContract.read.name()
+  const srcTokenSymbol = await srcTokenContract.read.symbol()
+  const srcTokenDecimals = await srcTokenContract.read.decimals()
   const amount = parseUnits('1', Number(srcTokenDecimals))
 
   console.info(

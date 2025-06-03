@@ -11,7 +11,7 @@
  */
 
 import consola from 'consola'
-import type { Hex } from 'viem'
+import type { Hex, Account } from 'viem'
 
 import { getLedgerAccount } from './ledger'
 
@@ -24,11 +24,16 @@ async function main() {
     )
 
     // Get Ledger account
-    const account = await getLedgerAccount({
+    const account = (await getLedgerAccount({
       // Use Ledger Live derivation path by default
       ledgerLive: true,
       accountIndex: 0,
-    })
+    })) as Account
+
+    if (!account.signMessage) {
+      consola.error('❌ Ledger account does not support signMessage!')
+      process.exit(1)
+    }
 
     consola.success(`✅ Connected to Ledger`)
     consola.success(`📍 Address: ${account.address}`)
@@ -38,7 +43,6 @@ async function main() {
     consola.info(
       'Please confirm the signature request on your Ledger device...'
     )
-
     // Sign a test message
     const testMessage = 'Hello from LiFi! ' + new Date().toISOString()
     const signature = await account.signMessage({ message: testMessage })

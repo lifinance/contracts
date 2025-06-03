@@ -2,8 +2,6 @@ import fs from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 
-import { isProduction } from '../../deploy/9999_utils'
-
 export interface DiamondFile {
   [diamond: string]: {
     Facets: {
@@ -54,7 +52,7 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const { network, name, address, periphery, version } = args
+    const { network, name, address, periphery, version, isProduction } = args
     updateDiamond(name, network, address, isProduction, {
       isPeriphery: periphery,
       version: version,

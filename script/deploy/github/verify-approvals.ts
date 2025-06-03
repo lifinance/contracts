@@ -148,5 +148,6 @@ const getTeamMembers = async (octokit: Octokit, team: string) => {
     return response.data.map((t) => t.login) || []
   } catch (error) {
     console.error(error)
+    throw Error('Failed to get team members')
   }
 }
