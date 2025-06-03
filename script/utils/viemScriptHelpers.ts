@@ -9,10 +9,12 @@ import {
   encodeFunctionData,
   getAddress,
   parseAbi,
+  createWalletClient,
+  http,
+  createPublicClient,
   type Address,
   type Hex,
 } from 'viem'
-import { createWalletClient, http, createPublicClient } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import networksConfig from '../../config/networks.json'

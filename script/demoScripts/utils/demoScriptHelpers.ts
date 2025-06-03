@@ -21,8 +21,10 @@ import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { node_url } from '../../utils/network'
-import { Environment } from '../../utils/viemScriptHelpers'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import {
+  Environment,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 
 import { SupportedChain } from './demoScriptChainConfig'
 

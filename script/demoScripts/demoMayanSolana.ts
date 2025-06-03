@@ -4,8 +4,7 @@ import {
   Quote,
 } from '@mayanfinance/swap-sdk'
 import dotenv from 'dotenv'
-import { constants } from 'ethers'
-import { ethers, utils } from 'ethers'
+import { constants, ethers, utils } from 'ethers'
 
 import deployments from '../../deployments/bsc.staging.json'
 import {

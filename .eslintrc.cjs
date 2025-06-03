@@ -40,6 +40,7 @@ module.exports = {
       varsIgnorePattern: '^_',
     }],
     '@typescript-eslint/no-misused-promises': 'error',
+    'no-duplicate-imports': 'error',
     
     // Import rules
     'import/order': ['error', {
