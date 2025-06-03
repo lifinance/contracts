@@ -48,6 +48,7 @@ module.exports = {
     'import/no-duplicates': 'error', // Consolidates import statements from the same module
     'no-async-promise-executor': 'error', // Disallows async functions as Promise executors
     'no-promise-executor-return': 'error', // Disallows returning values from Promise executors
+    'require-atomic-updates': 'error', // Prevents race conditions with async/await
     
     // Import rules
     'import/order': ['error', {
