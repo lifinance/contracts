@@ -9,7 +9,7 @@
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
-import { Address, createPublicClient, http, isAddress } from 'viem'
+import { createPublicClient, http, isAddress, type Address } from 'viem'
 
 import globalConfig from '../../../config/global.json'
 

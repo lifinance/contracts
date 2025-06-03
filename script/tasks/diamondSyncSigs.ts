@@ -1,12 +1,12 @@
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
 import {
-  Hex,
   createPublicClient,
   createWalletClient,
   getContract,
   http,
   parseAbi,
+  type Hex,
   type Chain,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'

@@ -2,9 +2,9 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  Address,
-  Hex,
-  PublicClient,
+  type Address,
+  type Hex,
+  type PublicClient,
   createPublicClient,
   getAddress,
   formatEther,
@@ -21,9 +21,9 @@ import {
   pauserWallet,
 } from '../../config/global.json'
 import {
-  Network,
   networks,
   getViemChainForNetworkName,
+  type Network,
 } from '../utils/viemScriptHelpers'
 
 const SAFE_THRESHOLD = 3

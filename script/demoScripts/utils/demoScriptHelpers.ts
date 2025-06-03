@@ -5,7 +5,6 @@ import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-uti
 import { config } from 'dotenv'
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
 import {
-  Narrow,
   createPublicClient,
   createWalletClient,
   getContract,
@@ -14,13 +13,14 @@ import {
   formatEther,
   formatUnits,
   zeroAddress,
+  type Narrow,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
-import { LibSwap } from '../../../typechain/AcrossFacetV3'
-import { SupportedChain } from '../../types/common'
+import type { LibSwap } from '../../../typechain/AcrossFacetV3'
+import type { SupportedChain } from '../../types/common'
 import { node_url } from '../../utils/network'
 import {
   Environment,

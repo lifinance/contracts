@@ -1,13 +1,16 @@
-import { PermitTransferFrom, SignatureTransfer } from '@uniswap/Permit2-sdk'
+import {
+  SignatureTransfer,
+  type PermitTransferFrom,
+} from '@uniswap/Permit2-sdk'
 import { defineCommand, runMain } from 'citty'
 import {
+  type Hex,
+  type PublicClient,
   http,
   createPublicClient,
   parseAbi,
-  Hex,
   parseUnits,
   createWalletClient,
-  PublicClient,
 } from 'viem'
 import { privateKeyToAccount, sign } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'

@@ -9,12 +9,12 @@
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
-import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
+import { parseAbi, decodeFunctionData, type Hex, type Abi } from 'viem'
 
 import {
-  SafeTransaction,
-  SafeTxDocument,
-  AugmentedSafeTxDocument,
+  type SafeTransaction,
+  type SafeTxDocument,
+  type AugmentedSafeTxDocument,
   privateKeyType,
   initializeSafeTransaction,
   hasEnoughSignatures,

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { Fragment } from '@ethersproject/abi'
+import type { Fragment } from '@ethersproject/abi'
 import { defineCommand, runMain } from 'citty'
 
 const basePath = 'src/Facets/'

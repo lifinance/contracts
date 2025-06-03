@@ -7,18 +7,18 @@
  */
 
 import consola from 'consola'
-import { MongoClient, Collection } from 'mongodb'
+import { MongoClient, type Collection } from 'mongodb'
 import {
-  Address,
-  Chain,
-  Hex,
-  PublicClient,
-  WalletClient,
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
   http,
   toFunctionSelector,
+  type Hex,
+  type Address,
+  type Chain,
+  type PublicClient,
+  type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 

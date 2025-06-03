@@ -22,7 +22,7 @@ import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
-import { Abi, createPublicClient, http, parseAbi, getAddress } from 'viem'
+import { createPublicClient, http, parseAbi, getAddress, type Abi } from 'viem'
 
 import {
   getDeployLogFile,

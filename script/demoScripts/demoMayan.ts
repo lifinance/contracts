@@ -1,7 +1,7 @@
 import {
+  type Quote,
   fetchQuote,
   getSwapFromEvmTxPayload,
-  Quote,
 } from '@mayanfinance/swap-sdk'
 import dotenv from 'dotenv'
 import { ethers, utils, constants } from 'ethers'
@@ -9,10 +9,10 @@ import { ethers, utils, constants } from 'ethers'
 import deployments from '../../deployments/arbitrum.staging.json'
 import {
   MayanFacet__factory,
-  ILiFi,
-  type MayanFacet,
   ERC20__factory,
   IMayan__factory,
+  type ILiFi,
+  type MayanFacet,
 } from '../../typechain'
 
 dotenv.config()

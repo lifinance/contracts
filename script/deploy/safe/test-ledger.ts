@@ -11,7 +11,7 @@
  */
 
 import consola from 'consola'
-import { Hex } from 'viem'
+import type { Hex } from 'viem'
 
 import { getLedgerAccount } from './ledger'
 

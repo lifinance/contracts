@@ -1,14 +1,20 @@
 import { randomBytes } from 'crypto'
 
 import dotenv from 'dotenv'
-import { getContract, parseUnits, Narrow, zeroAddress, parseEther } from 'viem'
+import {
+  getContract,
+  parseUnits,
+  zeroAddress,
+  parseEther,
+  type Narrow,
+} from 'viem'
 
 import config from '../../config/glacis.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
 import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
-import { GlacisFacet, ILiFi } from '../../typechain'
-import { SupportedChain } from '../types/common'
+import type { GlacisFacet, ILiFi } from '../../typechain'
+import type { SupportedChain } from '../types/common'
 
 import {
   ensureBalance,

@@ -4,10 +4,10 @@ import { ethers, utils } from 'ethers'
 import deployments from '../../deployments/polygon.staging.json'
 import {
   SquidFacet__factory,
-  ILiFi,
-  SquidFacet,
   ERC20__factory,
   ISquidRouter__factory,
+  type ILiFi,
+  type SquidFacet,
 } from '../typechain'
 dotenv.config()
 

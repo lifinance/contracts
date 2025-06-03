@@ -1,12 +1,12 @@
 import { randomBytes } from 'crypto'
 
 import dotenv from 'dotenv'
-import { parseUnits, Narrow, zeroAddress } from 'viem'
+import { parseUnits, zeroAddress, type Narrow } from 'viem'
 
 import gasZipFacetArtifact from '../../out/GasZipFacet.sol/GasZipFacet.json'
-import { ILiFi } from '../../typechain'
-import { IGasZip } from '../../typechain/GasZipFacet'
-import { SupportedChain } from '../types/common'
+import type { ILiFi } from '../../typechain'
+import type { IGasZip } from '../../typechain/GasZipFacet'
+import type { SupportedChain } from '../types/common'
 
 import {
   addressToBytes32RightPadded,

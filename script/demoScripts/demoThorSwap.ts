@@ -4,9 +4,9 @@ import { ethers, utils } from 'ethers'
 import deployments from '../../deployments/mainnet.staging.json'
 import {
   ThorSwapFacet__factory,
-  ILiFi,
-  ThorSwapFacet,
   ERC20__factory,
+  type ILiFi,
+  type ThorSwapFacet,
 } from '../typechain'
 dotenv.config()
 

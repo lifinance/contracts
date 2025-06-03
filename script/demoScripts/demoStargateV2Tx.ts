@@ -6,11 +6,11 @@ import deploymentsOPT from '../../deployments/optimism.staging.json'
 import deploymentsPOL from '../../deployments/polygon.staging.json'
 import {
   ERC20__factory,
-  ILiFi,
   IStargate__factory,
-  IStargate,
-  StargateFacetV2,
   StargateFacetV2__factory,
+  type ILiFi,
+  type IStargate,
+  type StargateFacetV2,
 } from '../../typechain'
 import { node_url } from '../../utils/network'
 

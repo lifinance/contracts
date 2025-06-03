@@ -4,9 +4,9 @@ import { ethers, utils } from 'ethers'
 import deployments from '../../deployments/arbitrum.staging.json'
 import {
   DeBridgeDlnFacet__factory,
-  ILiFi,
-  type DeBridgeDlnFacet,
   ERC20__factory,
+  type ILiFi,
+  type DeBridgeDlnFacet,
 } from '../../typechain'
 dotenv.config()
 

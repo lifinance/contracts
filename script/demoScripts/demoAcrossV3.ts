@@ -2,8 +2,12 @@ import { utils, BigNumber, constants } from 'ethers'
 
 import deploymentsARB from '../../deployments/arbitrum.staging.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
-import { AcrossFacetV3, AcrossFacetV3__factory, ILiFi } from '../../typechain'
-import { LibSwap } from '../../typechain/AcrossFacetV3'
+import {
+  type AcrossFacetV3,
+  type ILiFi,
+  AcrossFacetV3__factory,
+} from '../../typechain'
+import type { LibSwap } from '../../typechain/AcrossFacetV3'
 
 import {
   ADDRESS_UNISWAP_ARB,

@@ -6,7 +6,7 @@
  */
 
 import consola from 'consola'
-import { Hex, toFunctionSelector } from 'viem'
+import { toFunctionSelector, type Hex } from 'viem'
 
 /**
  * Decodes a diamond cut transaction and displays its details

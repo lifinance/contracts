@@ -1,9 +1,9 @@
 import { defineCommand, runMain } from 'citty'
 import {
+  type Hex,
   http,
   createPublicClient,
   parseAbi,
-  Hex,
   parseUnits,
   serializeSignature,
   createWalletClient,

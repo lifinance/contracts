@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { defineCommand, runMain } from 'citty'
-import { BigNumber, BigNumberish } from 'ethers'
+import { BigNumber, type BigNumberish } from 'ethers'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 

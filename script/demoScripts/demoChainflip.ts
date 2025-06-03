@@ -3,9 +3,9 @@ import { randomBytes } from 'crypto'
 
 import dotenv from 'dotenv'
 import {
+  type Narrow,
   getContract,
   parseUnits,
-  Narrow,
   zeroAddress,
   formatEther,
   formatUnits,
@@ -14,8 +14,8 @@ import {
 import deployments from '../../deployments/mainnet.staging.json'
 import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import { ChainflipFacet, ILiFi } from '../../typechain'
-import { SupportedChain } from '../types/common'
+import type { ChainflipFacet, ILiFi } from '../../typechain'
+import type { SupportedChain } from '../types/common'
 
 import {
   ensureBalance,

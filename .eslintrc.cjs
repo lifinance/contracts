@@ -74,15 +74,9 @@ module.exports = {
     'no-throw-literal': 'error', // Requires throwing Error objects instead of literals
     
     // // TypeScript specific enhancements
-    // '@typescript-eslint/explicit-member-accessibility': ['error', { // Enforce explicit accessibility modifiers
-    //   accessibility: 'explicit',
-    //   overrides: {
-    //     constructors: 'no-public'
-    //   }
-    // }],
-    // '@typescript-eslint/consistent-type-imports': ['error', { // Enforce consistent type imports
-    //   prefer: 'type-imports'
-    // }],
+    '@typescript-eslint/consistent-type-imports': ['error', { // Enforce consistent type imports
+      prefer: 'type-imports'
+    }],
     // '@typescript-eslint/no-floating-promises': 'error', // Requires Promise handling
     
     // // Code style and maintainability

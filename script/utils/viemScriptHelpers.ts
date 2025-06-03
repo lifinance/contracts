@@ -4,7 +4,6 @@ import * as path from 'path'
 import consola from 'consola'
 import * as dotenv from 'dotenv'
 import {
-  Chain,
   defineChain,
   encodeFunctionData,
   getAddress,
@@ -12,6 +11,7 @@ import {
   createWalletClient,
   http,
   createPublicClient,
+  type Chain,
   type Address,
   type Hex,
 } from 'viem'
@@ -26,7 +26,7 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import { SupportedChain } from '../types/common'
+import type { SupportedChain } from '../types/common'
 dotenv.config()
 
 export type NetworksObject = {

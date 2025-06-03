@@ -6,9 +6,9 @@ import { ethers, utils } from 'ethers'
 import deployments from '../../deployments/arbitrum.staging.json'
 import {
   RelayFacet__factory,
-  ILiFi,
-  type RelayFacet,
   ERC20__factory,
+  type ILiFi,
+  type RelayFacet,
 } from '../../typechain'
 
 import {

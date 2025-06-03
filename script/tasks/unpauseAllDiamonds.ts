@@ -1,7 +1,7 @@
 import { defineCommand, runMain } from 'citty'
 import consola from 'consola'
 import 'dotenv/config'
-import { Address, encodeFunctionData, parseAbi } from 'viem'
+import { encodeFunctionData, parseAbi, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import {
@@ -13,7 +13,7 @@ import {
   OperationType,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import { SupportedChain } from '../types/common'
+import type { SupportedChain } from '../types/common'
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,

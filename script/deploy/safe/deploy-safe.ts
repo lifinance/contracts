@@ -56,12 +56,12 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import {
-  Address,
+  type Address,
+  type Log,
   decodeEventLog,
   encodeFunctionData,
   getAddress,
   isAddress,
-  Log,
   zeroAddress,
 } from 'viem'
 
@@ -69,8 +69,8 @@ import {
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
-import { SupportedChain } from '../../types/common'
-import { Environment } from '../../utils/viemScriptHelpers'
+import type { SupportedChain } from '../../types/common'
+import type { Environment } from '../../utils/viemScriptHelpers'
 
 dotenv.config()
 
