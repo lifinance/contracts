@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Hyphen Facet works by forwarding Hyphen V2 specific calls to the [LiquidityPool Contract](https://github.com/bcnmy/hyphen-contract/blob/master/contracts/hyphen/LiquidityPool.sol). All bridging is done by calling the `depositErc20` method or `depositNative` method if you using a native token like **ETH** or **MATIC**.
+The Hyphen Facet works by forwarding Hyphen V2 specific calls to the [LiquidityPool Contract](https://github.com/bcnmy/hyphen-contract/blob/master/contracts/hyphen/LiquidityPool.sol). All bridging is done by calling the `depositErc20` method or `depositNative` method if you are using a native token like **ETH** or **MATIC**.
 
 ```mermaid
 graph LR;

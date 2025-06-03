@@ -164,7 +164,7 @@ contracts
 
 ## Contract Docs<a name="contract-docs"></a>
 
-You can read more details documentation on each facet [here](./docs/README.md).
+You can read more detailed documentation on each facet [here](./docs/README.md).
 Sample requests to fetch transactions for each facet can be found at the end of each section.
 
 ## Getting Started<a name="getting-started"></a>
