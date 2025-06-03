@@ -325,7 +325,7 @@ async function createSafeProxy(params: {
         return null
       }
     })
-    .find((e) => e && e.eventName === 'ProxyCreation')
+    .find((e: any) => e && e.eventName === 'ProxyCreation')
 
   if (!proxyEvent) {
     consola.warn('No ProxyCreation events found in transaction logs')
@@ -513,14 +513,16 @@ const main = defineCommand({
       )
 
       if (networks.length > 0) {
-        factoryAddr = factoryD.networkAddresses[networks[0]] as `0x${string}`
+        const latestNetwork = networks[0]!
+        factoryAddr = factoryD.networkAddresses[latestNetwork] as `0x${string}`
         consola.info(
-          `Using factory from network ${networks[0]}: ${factoryAddr}`
+          `Using factory from network ${latestNetwork}: ${factoryAddr}`
         )
-      } else
+      } else 
         throw new Error(
           'No Safe factory deployment found in @safe-global/safe-deployments'
         )
+      
     }
 
     let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`
@@ -534,9 +536,12 @@ const main = defineCommand({
       )
 
       if (networks.length > 0) {
-        fallbackAddr = fallbackD.networkAddresses[networks[0]] as `0x${string}`
+        const latestNetwork = networks[0]!
+        fallbackAddr = fallbackD.networkAddresses[
+          latestNetwork
+        ] as `0x${string}`
         consola.info(
-          `Using fallback handler from network ${networks[0]}: ${fallbackAddr}`
+          `Using fallback handler from network ${latestNetwork}: ${fallbackAddr}`
         )
       } else {
         fallbackAddr = zeroAddress
