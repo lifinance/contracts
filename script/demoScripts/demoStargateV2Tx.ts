@@ -251,11 +251,13 @@ const getAmountOutFeeQuoteOFT = async (
   const response = transformQuoteOFTResponse(resp)
 
   if (!response)
-    throw `Could not get quoteOFT response for params: ${JSON.stringify(
-      sendParams,
-      null,
-      2
-    )}`
+    throw new Error(
+      `Could not get quoteOFT response for params: ${JSON.stringify(
+        sendParams,
+        null,
+        2
+      )}`
+    )
 
   if ((response.oftLimit.maxAmountLD as BigNumber).isZero())
     throw Error('Route has no credits and cannot be used')

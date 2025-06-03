@@ -71,8 +71,7 @@ module.exports = {
     
     // Prevent potential errors
     'no-template-curly-in-string': 'error', // Warns about `${var}` in regular strings
-    // 'no-return-await': 'error', // Prevents redundant `return await`
-    // 'no-throw-literal': 'error', // Requires throwing Error objects instead of literals
+    'no-throw-literal': 'error', // Requires throwing Error objects instead of literals
     
     // // TypeScript specific enhancements
     // '@typescript-eslint/explicit-member-accessibility': ['error', { // Enforce explicit accessibility modifiers
