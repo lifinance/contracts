@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /// @title Patcher
 /// @author LI.FI (https://li.fi)
 /// @notice A contract that patches calldata with dynamically retrieved values before execution
@@ -132,6 +134,84 @@ contract Patcher {
 
         // Execute the call with the patched data
         return _executeCall(finalTarget, value, patchedData, delegateCall);
+    }
+
+    /// @notice Deposits tokens and retrieves a value dynamically to patch calldata before execution
+    /// @param tokenAddress The ERC20 token to transfer from msg.sender
+    /// @param valueSource The contract to query for the dynamic value
+    /// @param valueGetter The calldata to use to get the dynamic value (e.g., balanceOf call)
+    /// @param finalTarget The contract to call with the patched data
+    /// @param value The ETH value to send with the final call
+    /// @param data The original calldata to patch and execute
+    /// @param offsets Array of byte offsets in the original calldata to patch with the dynamic value
+    /// @param delegateCall If true, executes a delegatecall instead of a regular call for the final call
+    /// @return success Whether the final call was successful
+    /// @return returnData The data returned by the final call
+    function depositAndExecuteWithDynamicPatches(
+        address tokenAddress,
+        address valueSource,
+        bytes calldata valueGetter,
+        address finalTarget,
+        uint256 value,
+        bytes calldata data,
+        uint256[] calldata offsets,
+        bool delegateCall
+    ) external returns (bool success, bytes memory returnData) {
+        // Get the token balance of msg.sender
+        uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
+
+        // Transfer tokens from msg.sender to this contract
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+
+        return
+            _executeWithDynamicPatches(
+                valueSource,
+                valueGetter,
+                finalTarget,
+                value,
+                data,
+                offsets,
+                delegateCall
+            );
+    }
+
+    /// @notice Deposits tokens and retrieves multiple values dynamically to patch calldata at different offsets
+    /// @param tokenAddress The ERC20 token to transfer from msg.sender
+    /// @param valueSources Array of contracts to query for dynamic values
+    /// @param valueGetters Array of calldata to use to get each dynamic value
+    /// @param finalTarget The contract to call with the patched data
+    /// @param value The ETH value to send with the final call
+    /// @param data The original calldata to patch and execute
+    /// @param offsetGroups Array of offset arrays, each corresponding to a value source/getter pair
+    /// @param delegateCall If true, executes a delegatecall instead of a regular call for the final call
+    /// @return success Whether the final call was successful
+    /// @return returnData The data returned by the final call
+    function depositAndExecuteWithMultiplePatches(
+        address tokenAddress,
+        address[] calldata valueSources,
+        bytes[] calldata valueGetters,
+        address finalTarget,
+        uint256 value,
+        bytes calldata data,
+        uint256[][] calldata offsetGroups,
+        bool delegateCall
+    ) external returns (bool success, bytes memory returnData) {
+        // Get the token balance of msg.sender
+        uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
+
+        // Transfer tokens from msg.sender to this contract
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+
+        return
+            _executeWithMultiplePatches(
+                valueSources,
+                valueGetters,
+                finalTarget,
+                value,
+                data,
+                offsetGroups,
+                delegateCall
+            );
     }
 
     /// @notice Retrieves multiple values dynamically and uses them to patch calldata at different offsets

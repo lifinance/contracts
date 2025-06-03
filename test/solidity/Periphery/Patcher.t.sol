@@ -995,4 +995,253 @@ contract PatcherTest is DSTest {
 
         return chainId;
     }
+
+    // Test depositAndExecuteWithDynamicPatches success
+    function testDepositAndExecuteWithDynamicPatches_Success() public {
+        // Set up dynamic value
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        // Set up token balance for user
+        address user = address(0x1234);
+        uint256 tokenBalance = 1000 ether;
+        token.mint(user, tokenBalance);
+
+        // Prepare calldata with placeholder value (0)
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0) // This will be patched
+        );
+
+        // Define offset where the value should be patched
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4; // Skip 4-byte selector
+
+        // Prepare value getter calldata
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // Approve patcher to spend user's tokens
+        vm.prank(user);
+        token.approve(address(patcher), tokenBalance);
+
+        // Expect the CallReceived event to be emitted with the patched value
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), 0);
+
+        // Execute with dynamic patches as user
+        vm.prank(user);
+        patcher.depositAndExecuteWithDynamicPatches(
+            address(token),
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0, // no ETH value
+            originalCalldata,
+            offsets,
+            false // regular call, not delegatecall
+        );
+
+        // Verify execution was successful
+        assertEq(target.lastValue(), dynamicValue);
+        assertEq(target.lastSender(), address(patcher));
+        assertEq(target.lastEthValue(), 0);
+
+        // Verify tokens were transferred to patcher
+        assertEq(token.balanceOf(address(patcher)), tokenBalance);
+        assertEq(token.balanceOf(user), 0);
+    }
+
+    // Test depositAndExecuteWithMultiplePatches success
+    function testDepositAndExecuteWithMultiplePatches_Success() public {
+        uint256 value1 = 11111;
+        uint256 value2 = 22222;
+
+        // Set up two value sources
+        MockValueSource valueSource2 = new MockValueSource();
+        valueSource.setValue(value1);
+        valueSource2.setValue(value2);
+
+        // Set up token balance for user
+        address user = address(0x5678);
+        uint256 tokenBalance = 500 ether;
+        token.mint(user, tokenBalance);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processMultipleValues.selector,
+            uint256(0), // Will be patched with value1
+            uint256(0) // Will be patched with value2
+        );
+
+        // Set up arrays for multiple patches
+        address[] memory valueSources = new address[](2);
+        valueSources[0] = address(valueSource);
+        valueSources[1] = address(valueSource2);
+
+        bytes[] memory valueGetters = new bytes[](2);
+        valueGetters[0] = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+        valueGetters[1] = abi.encodeWithSelector(
+            valueSource2.getValue.selector
+        );
+
+        uint256[][] memory offsetGroups = new uint256[][](2);
+        offsetGroups[0] = new uint256[](1);
+        offsetGroups[0][0] = 4; // First parameter
+        offsetGroups[1] = new uint256[](1);
+        offsetGroups[1][0] = 36; // Second parameter
+
+        // Approve patcher to spend user's tokens
+        vm.prank(user);
+        token.approve(address(patcher), tokenBalance);
+
+        // Expect the CallReceived event to be emitted with the sum of both values
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(value1 + value2, address(patcher), 0);
+
+        // Execute with multiple patches as user
+        vm.prank(user);
+        patcher.depositAndExecuteWithMultiplePatches(
+            address(token),
+            valueSources,
+            valueGetters,
+            address(target),
+            0,
+            originalCalldata,
+            offsetGroups,
+            false
+        );
+
+        // Verify execution was successful
+        assertEq(target.lastValue(), value1 + value2);
+
+        // Verify tokens were transferred to patcher
+        assertEq(token.balanceOf(address(patcher)), tokenBalance);
+        assertEq(token.balanceOf(user), 0);
+    }
+
+    // Test depositAndExecuteWithDynamicPatches with zero balance
+    function testDepositAndExecuteWithDynamicPatches_ZeroBalance() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0x9999);
+        // User has zero token balance
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // Expect the CallReceived event to be emitted with the patched value
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), 0);
+
+        // Execute with zero balance (should still work)
+        vm.prank(user);
+        patcher.depositAndExecuteWithDynamicPatches(
+            address(token),
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+
+        // Verify execution was successful
+        assertEq(target.lastValue(), dynamicValue);
+
+        // Verify no tokens were transferred (user had zero balance)
+        assertEq(token.balanceOf(address(patcher)), 0);
+        assertEq(token.balanceOf(user), 0);
+    }
+
+    // Test depositAndExecuteWithDynamicPatches without approval should fail
+    function testDepositAndExecuteWithDynamicPatches_NoApproval() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0xABCD);
+        uint256 tokenBalance = 1000 ether;
+        token.mint(user, tokenBalance);
+        // Note: No approval given to patcher
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // Should revert due to insufficient allowance
+        vm.prank(user);
+        vm.expectRevert();
+        patcher.depositAndExecuteWithDynamicPatches(
+            address(token),
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
+    // Test depositAndExecuteWithDynamicPatches with partial approval
+    function testDepositAndExecuteWithDynamicPatches_PartialApproval() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0xEF12);
+        uint256 tokenBalance = 1000 ether;
+        uint256 approvalAmount = 500 ether; // Less than balance
+        token.mint(user, tokenBalance);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // Approve only partial amount
+        vm.prank(user);
+        token.approve(address(patcher), approvalAmount);
+
+        // Should revert because it tries to transfer full balance but only partial approval
+        vm.prank(user);
+        vm.expectRevert();
+        patcher.depositAndExecuteWithDynamicPatches(
+            address(token),
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
 }
