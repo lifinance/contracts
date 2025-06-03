@@ -31,9 +31,9 @@ contract DeployScript is DeployScriptBase {
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
+        // extract withdrawWallet address
+        address withdrawWalletAddress = globalConfigJson.readAddress(
+            ".withdrawWallet"
         );
 
         // obtain address of LayerZero's EndPointV2 contract in current network from config file
@@ -61,7 +61,7 @@ contract DeployScript is DeployScriptBase {
 
         return
             abi.encode(
-                refundWalletAddress,
+                withdrawWalletAddress,
                 executor,
                 tokenMessaging,
                 endpointV2,
