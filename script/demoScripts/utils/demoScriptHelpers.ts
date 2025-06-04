@@ -22,7 +22,7 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { node_url } from '../../utils/network'
 import {
-  Environment,
+  EnvironmentEnum,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 
@@ -545,11 +545,11 @@ const getRpcUrl = (chain: SupportedChain) => {
  */
 export const getDeployments = async (
   chain: SupportedChain,
-  environment: Environment = Environment.staging
+  environment: EnvironmentEnum = EnvironmentEnum.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === Environment.production
+    environment === EnvironmentEnum.production
       ? `${chain}.json`
       : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
@@ -573,7 +573,7 @@ export const getDeployments = async (
 export const setupEnvironment = async (
   chain: SupportedChain,
   facetAbi: Narrow<readonly any[]> | null,
-  environment: Environment = Environment.staging,
+  environment: EnvironmentEnum = EnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {
   // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
@@ -806,9 +806,9 @@ export const ensureAllowance = async (
 }
 
 export const getPrivateKeyForEnvironment = (
-  environment: Environment
+  environment: EnvironmentEnum
 ): string => {
-  return environment === Environment.production
+  return environment === EnvironmentEnum.production
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }

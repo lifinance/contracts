@@ -7,15 +7,15 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
+import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { parseAbi, decodeFunctionData, type Hex, type Abi } from 'viem'
 
 import {
-  type SafeTransaction,
-  type SafeTxDocument,
-  type AugmentedSafeTxDocument,
-  privateKeyType,
+  type ISafeTransaction,
+  type ISafeTxDocument,
+  type IAugmentedSafeTxDocument,
+  PrivateKeyTypeEnum,
   initializeSafeTransaction,
   hasEnoughSignatures,
   isSignedByCurrentSigner,
@@ -52,8 +52,8 @@ const storedResponses: Record<string, string> = {}
 const processTxs = async (
   network: string,
   privateKey: string | undefined,
-  privKeyType: privateKeyType,
-  pendingTxs: SafeTxDocument[],
+  privKeyType: PrivateKeyTypeEnum,
+  pendingTxs: ISafeTxDocument[],
   pendingTransactions: any,
   rpcUrl?: string,
   useLedger?: boolean,
@@ -102,7 +102,7 @@ const processTxs = async (
    * @param safeTransaction - The transaction to sign
    * @returns The signed transaction
    */
-  const signTransaction = async (safeTransaction: SafeTransaction) => {
+  const signTransaction = async (safeTransaction: ISafeTransaction) => {
     consola.info('Signing transaction')
     try {
       const signedTx = await safe.signTransaction(safeTransaction)
@@ -118,7 +118,7 @@ const processTxs = async (
    * Executes a SafeTransaction and updates its status in MongoDB
    * @param safeTransaction - The transaction to execute
    */
-  async function executeTransaction(safeTransaction: SafeTransaction) {
+  async function executeTransaction(safeTransaction: ISafeTransaction) {
     consola.info('Preparing to execute Safe transaction...')
     try {
       // Get the Safe transaction hash for reference
@@ -176,7 +176,7 @@ const processTxs = async (
   // Filter and augment transactions with signature status
   const txs = await Promise.all(
     pendingTxs.map(
-      async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
+      async (tx: ISafeTxDocument): Promise<IAugmentedSafeTxDocument> => {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const hasSignedAlready = isSignedByCurrentSigner(
           safeTransaction,
@@ -193,7 +193,7 @@ const processTxs = async (
         }
       }
     )
-  ).then((txs: AugmentedSafeTxDocument[]) =>
+  ).then((txs: IAugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
       // If the transaction has enough signatures to execute AND the current signer has signed,
       // still show it so they can execute it
@@ -280,7 +280,7 @@ const processTxs = async (
 
     // Determine available actions based on signature status
     let action: string
-    if (privKeyType === privateKeyType.SAFE_SIGNER) {
+    if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing', 'Sign']
       action =
         storedResponse ||
@@ -407,7 +407,7 @@ const main = defineCommand({
 
     // Set up signing options
     let privateKey: string | undefined
-    let keyType = privateKeyType.DEPLOYER // default value
+    let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
     const useLedger = args.ledger || false
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
@@ -448,8 +448,8 @@ const main = defineCommand({
       )
       keyType =
         keyChoice === 'SAFE_SIGNER_PRIVATE_KEY'
-          ? privateKeyType.SAFE_SIGNER
-          : privateKeyType.DEPLOYER
+          ? PrivateKeyTypeEnum.SAFE_SIGNER
+          : PrivateKeyTypeEnum.DEPLOYER
     } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
     // Connect to MongoDB and fetch ALL pending transactions
