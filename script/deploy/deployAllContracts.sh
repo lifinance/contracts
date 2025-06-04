@@ -34,11 +34,16 @@ deployAllContracts() {
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
 
-  # ask user which diamond type to deploy
-  echo ""
-  echo "Please select which type of diamond contract to deploy:"
-  local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
-  echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
+
+  # make sure that config is set correctly
+  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "false" ]]; then
+    echo "Please set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true in your config.sh when deploying a new network"
+    exit 1
+  fi
+
+
+  # since we only support mutable diamonds, no need to ask user to select diamond type
+  local DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
   # add RPC URL to MongoDB
   echo ""
@@ -46,10 +51,28 @@ deployAllContracts() {
   bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
   bun fetch-rpcs
 
+  # get deployer wallet balance
+  BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+  echo "Balance: $BALANCE"
+  if [[ -z "$BALANCE" || "$BALANCE" == "0" ]]; then
+    echo "Deployer wallet does not have any balance in network $NETWORK. Please fund the wallet and try again"
+    exit 1
+  fi
+
+  echo "[info] deployer wallet balance in this network: $BALANCE"
+  echo ""
+  checkRequiredVariablesInDotEnv "$NETWORK"
+
   # deploy CREATE3Factory
   deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
   checkFailure $? "deploy CREATE3Factory to network $NETWORK"
   echo ""
+
+  # deploy SAFE
+  echo ""
+  echo "Deploying SAFE Proxy instance now"
+  bun deploy-safe --network "$NETWORK"
+  checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
 
   # deploy core facets
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"

@@ -347,8 +347,8 @@ const main = defineCommand({
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking ownership...')
 
-      const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
+      const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
@@ -375,7 +375,7 @@ const main = defineCommand({
       // FeeCollector
       await checkOwnership(
         'FeeCollector',
-        withdrawWallet,
+        feeCollectorOwner,
         deployedContracts,
         publicClient
       )
