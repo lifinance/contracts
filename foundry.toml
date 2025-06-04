@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.17'
-evm_version = 'london'
+solc_version = '0.8.29'
+evm_version = 'cancun'
 optimizer = true
 optimizer_runs = 1000000
 # use a known address with a balance so ZkEVM scripts work
