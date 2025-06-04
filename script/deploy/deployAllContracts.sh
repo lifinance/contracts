@@ -6,14 +6,15 @@ deployAllContracts() {
   # load required resources
   source script/config.sh
   source script/helperFunctions.sh
-  source script/deploy/deployPeripheryContracts.sh
+  source script/deploy/deployAndStoreCREATE3Factory.sh
   source script/deploy/deployCoreFacets.sh
-  source script/tasks/diamondUpdateFacet.sh
-  source script/tasks/updateERC20Proxy.sh
+  source script/deploy/deployFacetAndAddToDiamond.sh
+  source script/deploy/deployPeripheryContracts.sh
   source script/tasks/diamondSyncDEXs.sh
   source script/tasks/diamondSyncSigs.sh
-  source script/deploy/deployFacetAndAddToDiamond.sh
+  source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
+  source script/tasks/updateERC20Proxy.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -38,6 +39,17 @@ deployAllContracts() {
   echo "Please select which type of diamond contract to deploy:"
   local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
+
+  # add RPC URL to MongoDB
+  echo ""
+  echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
+  bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
+  bun fetch-rpcs
+
+  # deploy CREATE3Factory
+  deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
+  checkFailure $? "deploy CREATE3Factory to network $NETWORK"
+  echo ""
 
   # deploy core facets
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"

@@ -1,5 +1,4 @@
 import { privateKeyToAccount } from 'viem/accounts'
-import { formatEther, formatUnits, zeroAddress } from 'viem'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
@@ -9,15 +8,23 @@ import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 import {
   Chain,
+  Narrow,
   createPublicClient,
   createWalletClient,
   getContract,
   http,
-  Narrow,
   parseAbi,
+  formatEther,
+  formatUnits,
+  zeroAddress,
 } from 'viem'
 import networks from '../../../config/networks.json'
+import { Environment } from '../../utils/viemScriptHelpers'
 import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { config } from 'dotenv'
+
+config()
 
 export const DEV_WALLET_ADDRESS = '0xb9c0dE368BECE5e76B52545a8E377a4C118f597B'
 
@@ -479,6 +486,22 @@ export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
 }
 
 /**
+ * Converts an Ethereum address to a 32-byte hexadecimal string,
+ * mimicking Solidity's `bytes32(bytes20(uint160(address)))` conversion.
+ * The address is right-padded with zeros to fit into a 32-byte value.
+ *
+ * @param address - A valid Ethereum address (20 bytes).
+ * @returns A 32-byte hexadecimal string representation of the address.
+ */
+export function addressToBytes32RightPadded(address: string): `0x${string}` {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error('Invalid Ethereum address format')
+  }
+  const hex = address.replace(/^0x/, '').toLowerCase()
+  return `0x${hex.padEnd(64, '0')}`
+}
+
+/**
  * Retrieve the value of an environment variable.
  * Throws an error if the environment variable is not defined.
  */
@@ -533,13 +556,15 @@ const getViemChain = (chain: SupportedChain): Chain => {
 /**
  * Utility function to dynamically import the deployments file for a chain.
  */
-const getDeployments = async (
+export const getDeployments = async (
   chain: SupportedChain,
-  environment: 'staging' | 'production' = 'staging'
+  environment: Environment = Environment.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === 'production' ? `${chain}.json` : `${chain}.staging.json`
+    environment === Environment.production
+      ? `${chain}.json`
+      : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
 
   try {
@@ -560,44 +585,55 @@ const getDeployments = async (
  */
 export const setupEnvironment = async (
   chain: SupportedChain,
-  facetAbi: Narrow<readonly any[]>,
-  environment: 'staging' | 'production' = 'staging'
+  facetAbi: Narrow<readonly any[]> | null,
+  environment: Environment = Environment.staging,
+  customRpcUrl?: string
 ) => {
-  const RPC_URL = getRpcUrl(chain)
-  const PRIVATE_KEY = getEnvVar('PRIVATE_KEY')
+  // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
+  const RPC_URL = customRpcUrl || getRpcUrl(chain)
+  const PRIVATE_KEY = getPrivateKeyForEnvironment(environment)
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 
+  const viemChain = getViemChainForNetworkName(chain)
+
   const publicClient = createPublicClient({
-    chain: getViemChain(chain),
+    chain: viemChain,
     transport: http(RPC_URL),
   })
 
   const walletAccount = privateKeyToAccount(typedPrivateKey)
 
   const walletClient = createWalletClient({
-    chain: getViemChain(chain),
+    chain: viemChain,
     transport: http(RPC_URL),
     account: walletAccount,
   })
 
-  const deployments = await getDeployments(chain, environment)
+  const deployments = facetAbi ? await getDeployments(chain, environment) : null
 
   const client = { public: publicClient, wallet: walletClient }
 
-  const lifiDiamondAddress = deployments.LiFiDiamond as `0x${string}`
+  const lifiDiamondAddress = deployments
+    ? (deployments.LiFiDiamond as `0x${string}`)
+    : null
 
-  const lifiDiamondContract = getContract({
-    address: lifiDiamondAddress,
-    abi: facetAbi,
-    client,
-  })
+  const lifiDiamondContract =
+    facetAbi && lifiDiamondAddress
+      ? getContract({
+          address: lifiDiamondAddress,
+          abi: facetAbi,
+          client,
+        })
+      : null
 
   return {
     walletAccount,
     lifiDiamondContract,
     lifiDiamondAddress,
     publicClient,
+    walletClient,
     client,
+    chain: viemChain,
   }
 }
 
@@ -721,13 +757,21 @@ export const executeTransaction = async <T>(
  * Ensures that the address wallet has the required token balance.
  */
 export const ensureBalance = async (
-  tokenContract: any,
+  asset: any,
   walletAddress: string,
-  requiredAmount: bigint
+  requiredAmount: bigint,
+  publicClient: any = null
 ): Promise<void> => {
-  const balance: bigint = (await tokenContract.read.balanceOf([
-    walletAddress,
-  ])) as bigint
+  let balance: bigint
+
+  if (asset === zeroAddress) {
+    // Special case: asset represents the native token (e.g. ETH).
+    // Retrieve the native balance using the public client.
+    balance = await publicClient.getBalance({ address: walletAddress })
+  } else {
+    // Standard ERC20 balance check using the asset's balanceOf method.
+    balance = (await asset.read.balanceOf([walletAddress])) as bigint
+  }
 
   if (balance < requiredAmount) {
     console.error(
@@ -778,4 +822,12 @@ export const ensureAllowance = async (
   } else {
     console.info('Sufficient allowance already exists.')
   }
+}
+
+export const getPrivateKeyForEnvironment = (
+  environment: Environment
+): string => {
+  return environment === Environment.production
+    ? getEnvVar('PRIVATE_KEY_PRODUCTION')
+    : getEnvVar('PRIVATE_KEY')
 }

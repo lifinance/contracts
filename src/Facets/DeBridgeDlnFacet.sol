@@ -23,6 +23,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     uint32 internal constant REFERRAL_CODE = 30729;
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
+    // solhint-disable-next-line immutable-vars-naming
     IDlnSource public immutable dlnSource;
 
     /// Types ///
@@ -190,6 +191,11 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 allowedTakerDst: "",
                 externalCall: "",
                 allowedCancelBeneficiarySrc: abi.encodePacked(msg.sender)
+                // NOTE: The allowedCancelBeneficiarySrc is intentionally set to msg.sender,
+                // which, when called via Permit2Proxy, becomes the proxy contract address.
+                // This ensures that if a DLN order is cancelled, funds are refunded to Permit2Proxy.
+                // The Permit2Proxy contract owner can later withdraw them via Permit2Proxy's
+                // WithdrawablePeriphery interface.
             });
 
         bytes32 orderId;

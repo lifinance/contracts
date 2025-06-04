@@ -3,6 +3,9 @@
 # defines the environment (true=production, false=staging)
 PRODUCTION=false
 
+# if true then transactions will be sent to diamond directly, if false it will propose tx to Safe address (from networks.json)
+SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false
+
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
@@ -15,6 +18,9 @@ MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
 
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
+
+# number of max jobs that scripts will do in parallel (e.g. when interacting with multiple networks)
+MAX_CONCURRENT_JOBS=100
 
 # the root directory of all contract src files
 CONTRACT_DIRECTORY="src/"
@@ -103,9 +109,6 @@ WHITELIST_PERIPHERY="FeeCollector,TokenWrapper,LiFiDEXAggregator"
 
 # if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
 COMPILE_ON_STARTUP=false
-
-# if this flag is set to true, diamondCut and registerPeriphery tx will not be proposed to SAFE but executed directly
-DEPLOY_NEW_NETWORK_MODE=true
 
 # webhook URL for sending messages to Slack 'dev-sc-general' channel
 SLACK_WEBHOOK_SC_GENERAL=

@@ -87,6 +87,8 @@
       },
       "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
         "Name": "",
+      "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
+        "Name": "",
         "Version": ""
       },
       "0xa73a8BC8d36472269138c3233e24D0Ee0c344bd8": {
@@ -149,6 +151,9 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
+      "0xa884c21873A671bD010567cf97c937b153F842Cc": {
+        "Name": "ChainflipFacet",
+        "Version": "1.0.0"
       "0xa884c21873A671bD010567cf97c937b153F842Cc": {
         "Name": "",
         "Version": ""
