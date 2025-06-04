@@ -15649,7 +15649,7 @@
             "TIMESTAMP": "2025-06-04 18:32:29",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
             "SALT": "01",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
