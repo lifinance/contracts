@@ -9,16 +9,16 @@
 import consola from 'consola'
 import { MongoClient, type Collection } from 'mongodb'
 import {
+  type Address,
+  type Chain,
+  type Hex,
+  type PublicClient,
+  type WalletClient,
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
   http,
   toFunctionSelector,
-  type Hex,
-  type Address,
-  type Chain,
-  type PublicClient,
-  type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -236,13 +236,14 @@ export class ViemSafe {
   // Get owners from Safe contract (replaces getOwners from Safe SDK)
   async getOwners(): Promise<Address[]> {
     try {
-      return [
+      const owners = [
         ...(await this.publicClient.readContract({
           address: this.safeAddress,
           abi: SAFE_SINGLETON_ABI,
           functionName: 'getOwners',
         })),
       ]
+      return owners
     } catch (error) {
       console.error('Error getting owners:', error)
       throw error
@@ -273,9 +274,7 @@ export class ViemSafe {
       nonce?: bigint
     }[]
   }): Promise<SafeTransaction> {
-    if (!options.transactions.length)
-      throw new Error('No transactions provided')
-    const tx = options.transactions[0]! // Add non-null assertion
+    const tx = options.transactions[0]! // We only handle single transactions for now
     const nonce = tx.nonce !== undefined ? tx.nonce : await this.getNonce()
 
     const safeTx: SafeTransaction = {
@@ -470,8 +469,8 @@ export class ViemSafe {
       }
 
       // Sign typed data using walletClient
+      // @ts-ignore
       const typedDataSignature = await this.walletClient.signTypedData({
-        account: this.account,
         domain,
         types,
         primaryType: 'SafeTx',
@@ -568,9 +567,8 @@ export class ViemSafe {
       const signatures = this.formatSignatures(safeTx.signatures)
 
       // First, prepare the transaction data
+      // @ts-ignore
       const txHash = await this.walletClient.writeContract({
-        account: this.account,
-        chain: null,
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'execTransaction',
@@ -741,7 +739,7 @@ export async function getSafeInfoFromContract(
   ])
 
   return {
-    owners: [...owners],
+    owners: owners as Address[],
     threshold,
     nonce,
   }

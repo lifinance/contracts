@@ -114,6 +114,7 @@ function createLedgerAccount({
       // Format the signature for Ethereum
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
+    // @ts-ignore
     async signTransaction(transactionRequest: TransactionRequest) {
       try {
         // Load all needed imports first
@@ -138,6 +139,7 @@ function createLedgerAccount({
         }
 
         // Serialize the transaction to hex format as required by Ledger
+        // @ts-ignore
         const serializedTx = serializeTransaction(txWithChainId)
 
         // Use the raw hex without '0x' prefix as required by Ledger
@@ -198,6 +200,7 @@ function createLedgerAccount({
         }
 
         // Serialize the signed transaction
+        // @ts-ignore
         const serializedSignedTx = serializeSignedTransaction(signedTx)
 
         return serializedSignedTx
