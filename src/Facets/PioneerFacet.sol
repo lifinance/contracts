@@ -15,8 +15,6 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.pioneer");
-
     address payable public immutable PIONEER_ADDRESS;
 
     /// Errors ///

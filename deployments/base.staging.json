@@ -1,3 +1,4 @@
 {
-  "StandardizedCallFacet": "0x637Ac9AddC9C38b3F52878E11620a9060DC71d8B"
+  "StandardizedCallFacet": "0x637Ac9AddC9C38b3F52878E11620a9060DC71d8B",
+  "AccessManagerFacet": "0xc7576334Fb5184B398fCC5ce0f5d237d9bb8BB22"
 }

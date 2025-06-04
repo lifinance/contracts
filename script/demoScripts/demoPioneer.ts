@@ -4,7 +4,7 @@ import dotenv from 'dotenv'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import pioneerFacetArtifact from '../../out/PioneerFacet.sol/PioneerFacet.json'
 import { PioneerFacet, ILiFi } from '../../typechain'
-import { SupportedChain } from './utils/demoScriptChainConfig'
+import { SupportedChain, viemChainMap } from './utils/demoScriptChainConfig'
 import {
   ensureBalance,
   ensureAllowance,
@@ -36,8 +36,9 @@ dotenv.config()
 
 async function main() {
   // === Set up environment ===
-  const srcChain: SupportedChain = 'mainnet' // Set source chain
-  const destinationChainId = 1 // Set destination chain id
+  const srcChain: SupportedChain = 'arbitrum' // Set source chain
+  const destinationChainId = 10 // OP Mainnet
+  const PIONEER_ENDPOINT = 'https://solver-dev.li.fi' as const
 
   const {
     client,
@@ -49,63 +50,82 @@ async function main() {
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
-  const SRC_TOKEN_ADDRESS = '' as `0x${string}` // Set the source token address here.
+  // Token is native ETH. To change it, please update add a ERC20 balance and allowance check.
+  const SRC_TOKEN_ADDRESS =
+    '0x0000000000000000000000000000000000000000' as const
 
-  // If you need to retrieve a specific address from your config file
-  // based on the chain and element name, use this helper function.
-  //
-  // First, ensure you import the relevant config file:
-  // import config from '../../config/pioneer.json'
-  //
-  // Then, retrieve the address:
-  // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
-  //
-
-  // === Instantiate contracts ===
-  const srcTokenContract = getContract({
-    address: SRC_TOKEN_ADDRESS,
-    abi: ERC20_ABI,
-    client,
-  })
-
-  // If you need to interact with a contract, use the following helper.
-  // Provide the contract address, ABI, and a client instance to initialize
-  // the contract for both read and write operations.
-  //
-  // const exampleContract = getContract({
-  //   address: EXAMPLE_ADDRESS,
-  //   abi: EXAMPLE_ABI,
-  //   client
-  // })
-  //
-
-  const srcTokenName = (await srcTokenContract.read.name()) as string
-  const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
-  const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
-  const amount = parseUnits('10', Number(srcTokenDecimals)) // 10 * 1e{source token decimals}
+  const srcTokenName = 'Ether'
+  const srcTokenSymbol = 'ETH'
+  const srcTokenDecimals = 18n
+  const amount = parseUnits('0.001', Number(srcTokenDecimals)) // 0.01 * 1e{source token decimals}
 
   console.info(
     `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> ${destinationChainId}`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureBalance(srcTokenContract, signerAddress, amount)
+  // Get the user (signerAddress)'s balance of ETH:
+  const balance = await client.public.getBalance({
+    address: signerAddress,
+    blockTag: 'latest',
+  })
 
-  await ensureAllowance(
-    srcTokenContract,
-    signerAddress,
-    lifiDiamondAddress,
-    amount,
-    publicClient
-  )
+  if (balance < amount) {
+    console.error(
+      `Insufficient balance. Required: ${amount}, Available: ${balance}`
+    )
+    process.exit(1)
+  } else {
+    console.info(`Balance: ${balance}`)
+  }
 
   // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
+
+  const query: {
+    fromChainId: string
+    fromAsset: string
+    fromAmount: string
+    toChainId: string
+    toAsset: string
+    toAddress: string
+  } = {
+    fromChainId: viemChainMap[srcChain]!.id.toString(),
+    fromAsset: SRC_TOKEN_ADDRESS,
+    fromAmount: amount.toString(),
+    toChainId: destinationChainId.toString(),
+    toAsset: SRC_TOKEN_ADDRESS,
+    toAddress: signerAddress,
+  }
+  console.log(query)
+  const resp = await fetch(`${PIONEER_ENDPOINT}/quote`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(query),
+  })
+  console.log(resp.body)
+  const quote: {
+    quoteId: 'string'
+    fromChainId: 'string'
+    fromAsset: 'string'
+    fromAmount: 'string'
+    fromAddress: 'string'
+    toChainId: 'string'
+    toAsset: 'string'
+    toAmount: 'string'
+    toAddress: 'string'
+    expiration: 0
+  } = await resp.json()
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
     // Edit fields as needed
-    transactionId: `0x${randomBytes(32).toString('hex')}`,
-    bridge: 'pioneer',
+    transactionId: `0x${quote.quoteId
+      .toString()
+      .replace(/-/g, '')
+      .padEnd(64, '0')}`,
+    bridge: 'Pioneer',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
     sendingAssetId: SRC_TOKEN_ADDRESS,
@@ -115,14 +135,14 @@ async function main() {
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
+  console.log(bridgeData)
 
   // === Start bridging ===
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.startBridgeTokensViaPioneer(
-        [bridgeData]
-        // { value: fee } optional value
-      ),
+      lifiDiamondContract.write.startBridgeTokensViaPioneer([bridgeData], {
+        value: amount,
+      }),
     'Starting bridge tokens via Pioneer',
     publicClient,
     true

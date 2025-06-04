@@ -39,9 +39,7 @@ contract DeployScript is DeployScriptBase {
         // address example = _getConfigContractAddress(json,string.concat(".", network, ".example"));
         //
         // in the address is not a supposed to be an EOA, you can use the following standard approach:
-        address pioneer = json.readAddress(
-            string.concat(".", network, ".PIONEER_ADDRESS")
-        );
+        address pioneer = json.readAddress(string.concat(".PIONEER_ADDRESS"));
 
         if (pioneer == address(0)) revert PioneerAddress0();
 
