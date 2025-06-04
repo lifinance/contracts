@@ -31199,6 +31199,20 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0xBb402e8815AAD85AA1da4fc6c627e3Fab7385Ea9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 09:19:43",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000926c22dc753e543cf9cab75ceeb46ecf865d006a000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba300000000000000000000000085178cd4719c2d89353e3e56e5b9eac5fcc5b9dc",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {

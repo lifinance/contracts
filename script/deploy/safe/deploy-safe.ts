@@ -237,19 +237,20 @@ const main = defineCommand({
   },
   async run({ args }) {
     // choose env
-    const environment = (await consola.prompt(
-      'Which environment do you want to deploy to?',
-      {
-        type: 'select',
-        options: [
-          { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
-          {
-            value: 'production',
-            label: 'production (uses PRIVATE_KEY_PRODUCTION)',
-          },
-        ],
-      }
-    )) as unknown as Environment
+    // const environment = (await consola.prompt(
+    //   'Which environment do you want to deploy to?',
+    //   {
+    //     type: 'select',
+    //     options: [
+    //       { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
+    //       {
+    //         value: 'production',
+    //         label: 'production (uses PRIVATE_KEY_PRODUCTION)',
+    //       },
+    //     ],
+    //   }
+    // )) as unknown as Environment
+    const environment = Environment.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain
