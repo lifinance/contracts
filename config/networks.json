@@ -351,7 +351,7 @@
     "type": "mainnet",
     "rpcUrl": "https://flare-api.flare.network/ext/C/rpc",
     "verificationType": "etherscan",
-    "explorerUrl": "https://flarescan.com/",
+    "explorerUrl": "https://flarescan.com",
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeAddress": "0x87a1e77C9692B846eAf84C7512Dd0B678B4Fd081",
