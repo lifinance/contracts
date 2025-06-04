@@ -339,13 +339,15 @@ function constructBridgeCallData(
     hasDestinationCall: true, // Enable destination call
   }
 
-  // Across data structure - match successful transaction timing
+  // Across data structure - ensure relayer gets meaningful fee
   const acrossData = {
     receiverAddress: RECEIVER_ACROSS_V3_BASE as `0x${string}`, // ReceiverAcrossV3
     refundAddress: walletAddress as `0x${string}`,
     receivingAssetId: BASE_WETH as `0x${string}`,
-    outputAmount: BigInt(routeDetails.toAmount), // Use LiFi's calculated amount
-    outputAmountPercent: BigInt('920000000000000000'), // 92% (0.92e18) - increased fee from 4% to 8% for higher gas costs
+    outputAmount:
+      (BigInt(routeDetails.toAmount) * BigInt('980000000000000000')) /
+      BigInt('1000000000000000000'), // 98% of input amount
+    outputAmountPercent: BigInt('980000000000000000'), // 98% (0.98e18) - 2% fee for relayer to ensure pickup
     exclusiveRelayer:
       '0x0000000000000000000000000000000000000000' as `0x${string}`,
     quoteTimestamp: Math.floor(Date.now() / 1000), // Current timestamp
@@ -470,10 +472,15 @@ async function executeCrossChainBridgeWithSwap(options: {
   // Generate a transaction ID for the bridge
   const transactionId = `0x${randomBytes(32).toString('hex')}`
 
+  // Calculate the actual amount that will be received after relayer fee
+  const actualReceivedAmount =
+    (BigInt(routeDetails.toAmount) * BigInt('980000000000000000')) /
+    BigInt('1000000000000000000')
+
   // Encode the destination call message for ReceiverAcrossV3 using Patcher pattern
   const destinationCallMessage = encodeDestinationCallMessage(
     transactionId,
-    routeDetails.swapFromAmount,
+    actualReceivedAmount.toString(), // Use actual received amount instead of original bridge amount
     routeDetails.swapToAmountMin,
     walletAddress
   )
