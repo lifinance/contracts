@@ -174,7 +174,6 @@ function diamondSyncDEXs {
   fi
 
   for NETWORK in "${NETWORKS[@]}"; do
-    echo "Network: $NETWORK"
     while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
       sleep 1
     done
