@@ -56,9 +56,7 @@ const main = defineCommand({
       doNotFundChains,
       fundAmountUSD,
     } = args
-    const fundingWallet = privateKeyToAccount(
-      `0x${privKeyFundingWallet}` as HexString
-    )
+    const fundingWallet = privateKeyToAccount(`0x${privKeyFundingWallet}`)
 
     console.log(`fundingWalletAddress: ${fundingWallet.address}`)
     console.log(`receivingWallet: ${receivingWallet}`)

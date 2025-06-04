@@ -27,7 +27,7 @@ import {
   getWalletFromPrivateKeyInDotEnv,
   isNativeTX,
   sendTransaction,
-  TX_TYPE,
+  TransactionTypeEnum,
 } from './utils/demoScriptHelpers'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
@@ -40,7 +40,7 @@ import {
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 /// TYPES
-type AcrossV3Route = {
+interface IAcrossV3Route {
   originChainId: number
   originToken: string
   destinationChainId: number
@@ -48,12 +48,12 @@ type AcrossV3Route = {
   originTokenSymbol: string
   destinationTokenSymbol: string
 }
-type FeeDetail = {
+interface IFeeDetail {
   pct: string
   total: string
 }
 
-type AcrossV3Quote = {
+interface IAcrossV3Quote {
   capitalFeePct: string
   capitalFeeTotal: string
   relayGasFeePct: string
@@ -65,12 +65,12 @@ type AcrossV3Quote = {
   isAmountTooLow: boolean
   quoteBlock: string
   spokePoolAddress: string
-  totalRelayFee: FeeDetail
-  relayerCapitalFee: FeeDetail
-  relayerGasFee: FeeDetail
-  lpFee: FeeDetail
+  totalRelayFee: IFeeDetail
+  relayerCapitalFee: IFeeDetail
+  relayerGasFee: IFeeDetail
+  lpFee: IFeeDetail
 }
-type AcrossV3Limit = {
+interface IAcrossV3Limit {
   minDeposit: string
   maxDeposit: string
   maxDepositInstant: string
@@ -87,9 +87,9 @@ const logDebug = (msg: string) => {
   if (DEBUG) console.log(msg)
 }
 
-const getAllAvailableAcrossRoutes = async (): Promise<AcrossV3Route[]> => {
+const getAllAvailableAcrossRoutes = async (): Promise<IAcrossV3Route[]> => {
   const endpointURL = '/available-routes'
-  let resp: AcrossV3Route[] | undefined = undefined
+  let resp: IAcrossV3Route[] | undefined = undefined
   try {
     resp = await fetch(`${ACROSS_API_BASE_URL}${endpointURL}`).then((resp) =>
       resp.json()
@@ -112,7 +112,7 @@ const isTransferWithinSendLimit = async (
   fromAmount: BigNumber
 ): Promise<boolean> => {
   const endpointURL = '/limits'
-  let resp: AcrossV3Limit | undefined = undefined
+  let resp: IAcrossV3Limit | undefined = undefined
 
   // For native ETH (zero address), use WETH address when checking limits
   const apiTokenAddress =
@@ -176,7 +176,7 @@ const isRouteAvailable = async (
   // try to find route with given parameters
   return Boolean(
     allRoutes.find(
-      (route: AcrossV3Route) =>
+      (route: IAcrossV3Route) =>
         route.originToken.toLowerCase() === sendingAssetId.toLowerCase() &&
         route.originChainId === fromChainId &&
         route.destinationToken.toLowerCase() ===
@@ -193,12 +193,12 @@ const getAcrossQuote = async (
   amount: string,
   receiverAddress = DEV_WALLET_ADDRESS,
   payload = '0x'
-): Promise<AcrossV3Quote> => {
+): Promise<IAcrossV3Quote> => {
   const endpointURL = '/suggested-fees'
   const fullURL = `${ACROSS_API_BASE_URL}${endpointURL}?token=${sendingAssetId}&originChainId=${fromChainId}&destinationChainId=${toChainId}&amount=${amount}&recipient=${receiverAddress}&message=${payload}`
   logDebug(`requesting quote: ${fullURL}`)
 
-  let resp: AcrossV3Quote | undefined = undefined
+  let resp: IAcrossV3Quote | undefined = undefined
   try {
     resp = await fetch(fullURL).then((response) => response.json())
   } catch (error) {
@@ -214,7 +214,7 @@ const getAcrossQuote = async (
   return resp
 }
 
-const calculateOutputAmountPercentage = (quote: AcrossV3Quote): string => {
+const calculateOutputAmountPercentage = (quote: IAcrossV3Quote): string => {
   // Convert the relay fee percentage from basis points to 18 decimal fixed point
   const totalFeePercent = BigNumber.from(quote.relayFeePct)
 
@@ -226,7 +226,7 @@ const calculateOutputAmountPercentage = (quote: AcrossV3Quote): string => {
   return outputPercent.toString()
 }
 
-const getMinAmountOut = (quote: AcrossV3Quote, fromAmount: string) => {
+const getMinAmountOut = (quote: IAcrossV3Quote, fromAmount: string) => {
   //@ BackendDev: read this to understand how to display full fee breakdown to user
   // https://docs.across.to/v/developer-docs/developers/across-api#calculating-suggested-fees
   const outputAmount = BigNumber.from(fromAmount).sub(quote.totalRelayFee.total)
@@ -253,7 +253,8 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_SRC as TX_TYPE // define which type of transaction you want to send
+const TRANSACTION_TYPE =
+  TransactionTypeEnum.ERC20_WITH_SRC as TransactionTypeEnum // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 
@@ -266,8 +267,8 @@ const sendingAssetId = isNativeTX(TRANSACTION_TYPE)
 
 // Define sendingAssetIdSrc based on transaction type
 const sendingAssetIdSrc =
-  TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
-  TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC
+  TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC ||
+  TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC
     ? ADDRESS_USDC_OPT
     : sendingAssetId
 
@@ -279,8 +280,8 @@ const fromAmount = isNativeTX(TRANSACTION_TYPE)
   ? '2000000000000000' // 0.002 (ETH)
   : '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
 const WITH_DEST_CALL =
-  TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_DEST ||
-  TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_DEST
+  TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_DEST ||
+  TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_DEST
 const WITH_EXCLUSIVE_RELAYER = false
 const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
@@ -336,8 +337,8 @@ async function main() {
     minAmount: fromAmount,
     destinationChainId: toChainId,
     hasSourceSwaps:
-      TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
-      TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC,
+      TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC ||
+      TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC,
     hasDestinationCall: WITH_DEST_CALL,
   }
   console.log('bridgeData prepared')
@@ -349,7 +350,7 @@ async function main() {
   if (bridgeData.hasSourceSwaps)
     try {
       // Different handling for ERC20 vs Native source swaps
-      if (TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC) {
+      if (TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC) {
         const srcSwap = await getUniswapDataERC20toExactERC20(
           ADDRESS_UNISWAP_OPT,
           fromChainId,
@@ -360,7 +361,7 @@ async function main() {
           true
         )
         srcSwapData.push(srcSwap)
-      } else if (TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC) {
+      } else if (TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC) {
         const srcSwap = await getUniswapDataERC20toExactETH(
           ADDRESS_UNISWAP_OPT,
           fromChainId,

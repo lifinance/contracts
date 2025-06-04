@@ -181,10 +181,10 @@ const command = defineCommand({
         .sort((a, b) => a.localeCompare(b))
 
       // select one or more facets
-      const selectedFacets = (await consola.prompt('Select facets to remove', {
+      const selectedFacets = await consola.prompt('Select facets to remove', {
         type: 'multiselect',
         options: facetNames,
-      })) as string[]
+      })
 
       if (!selectedFacets?.length) {
         consola.info('No facets selected – aborting.')

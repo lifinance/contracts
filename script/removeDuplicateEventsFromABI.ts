@@ -37,7 +37,7 @@
 
 import fs from 'fs-extra'
 
-interface Event {
+interface IEvent {
   type: string
   name: string
   inputs: any[]
@@ -75,7 +75,7 @@ async function removeDuplicateEventsFromABI() {
     }
 
     // Track seen events to remove duplicates
-    const seenEvents = new Map<string, Event>()
+    const seenEvents = new Map<string, IEvent>()
     const cleanedABI = abi.filter((item) => {
       if (item.type === 'event') {
         const key = `${item.name}_${JSON.stringify(item.inputs)}`

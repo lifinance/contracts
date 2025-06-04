@@ -7,7 +7,7 @@
 
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
+import { consola } from 'consola'
 import type { Address, Hex } from 'viem'
 
 import {
@@ -16,7 +16,7 @@ import {
   initializeSafeClient,
   getPrivateKey,
   storeTransactionInMongoDB,
-  OperationType,
+  OperationTypeEnum,
   isAddressASafeOwner,
 } from './safe-utils'
 
@@ -157,7 +157,7 @@ const main = defineCommand({
           to: args.to as Address,
           value: 0n,
           data: args.calldata as Hex,
-          operation: OperationType.Call,
+          operation: OperationTypeEnum.Call,
           nonce: nextNonce,
         },
       ],

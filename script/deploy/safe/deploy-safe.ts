@@ -333,8 +333,7 @@ async function createSafeProxy(params: {
     consola.warn('No ProxyCreation events found in transaction logs')
     consola.info(`Please check transaction ${txHash} on the explorer`)
 
-    const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
-      ?.url
+    const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
     if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
     const safeAddress = (await consola.prompt(
@@ -351,7 +350,7 @@ async function createSafeProxy(params: {
     return safeAddress
   }
 
-  const safeAddr = (proxyEvent.args as any).proxy as Address
+  const safeAddr = proxyEvent.args.proxy as Address
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
   // verify on-chain proxy bytecode
@@ -572,8 +571,8 @@ const main = defineCommand({
     const safeAddress = await createSafeProxy({
       publicClient,
       walletClient,
-      factoryAddress: factoryAddr!,
-      singletonAddress: singletonAddr!,
+      factoryAddress: factoryAddr,
+      singletonAddress: singletonAddr,
       proxyBytecode,
       owners,
       threshold,
@@ -611,7 +610,7 @@ const main = defineCommand({
       throw new Error('Owner verification failed')
     } else consola.success('✔ Owners match expected')
 
-    if (BigInt(threshold) !== BigInt(actualThreshold as bigint)) {
+    if (BigInt(threshold) !== BigInt(actualThreshold)) {
       consola.error(
         `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
       )

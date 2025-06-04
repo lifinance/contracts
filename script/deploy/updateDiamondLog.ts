@@ -2,7 +2,7 @@ import fs from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 
-export interface DiamondFile {
+export interface IDiamondFile {
   [diamond: string]: {
     Facets: {
       [contract: string]: {
@@ -70,7 +70,7 @@ const updateDiamond = function (
     version?: string
   }
 ) {
-  let data: DiamondFile = {}
+  let data: IDiamondFile = {}
 
   const diamondContractName = 'LiFiDiamond'
 
@@ -79,7 +79,7 @@ const updateDiamond = function (
     : `deployments/${network}.diamond.staging.json`
 
   try {
-    data = JSON.parse(fs.readFileSync(diamondFile, 'utf8')) as DiamondFile
+    data = JSON.parse(fs.readFileSync(diamondFile, 'utf8')) as IDiamondFile
   } catch {}
 
   if (!data[diamondContractName])

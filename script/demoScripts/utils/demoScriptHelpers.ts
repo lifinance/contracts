@@ -38,7 +38,7 @@ export const DEFAULT_DEST_PAYLOAD_ABI = [
 
 export type SupportedChain = keyof typeof networks
 
-export enum TX_TYPE {
+export enum TransactionTypeEnum {
   ERC20,
   NATIVE,
   ERC20_WITH_SRC,
@@ -47,11 +47,11 @@ export enum TX_TYPE {
   NATIVE_WITH_DEST,
 }
 
-export const isNativeTX = (type: TX_TYPE): boolean => {
+export const isNativeTX = (type: TransactionTypeEnum): boolean => {
   return (
-    type === TX_TYPE.NATIVE ||
-    type === TX_TYPE.NATIVE_WITH_DEST ||
-    type === TX_TYPE.NATIVE_WITH_SRC
+    type === TransactionTypeEnum.NATIVE ||
+    type === TransactionTypeEnum.NATIVE_WITH_DEST ||
+    type === TransactionTypeEnum.NATIVE_WITH_SRC
   )
 }
 
@@ -526,7 +526,7 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
   if (!/^[a-fA-F0-9]{64}$/.test(cleanPk))
     throw new Error('Invalid private key format')
 
-  if (!pk.startsWith('0x')) return `0x${pk}` as `0x${string}`
+  if (!pk.startsWith('0x')) return `0x${pk}`
 
   return pk as `0x${string}`
 }
@@ -537,7 +537,7 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  */
 const getRpcUrl = (chain: SupportedChain) => {
   const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
-  return getEnvVar(envKey) as string
+  return getEnvVar(envKey)
 }
 
 /**

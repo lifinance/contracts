@@ -4,7 +4,6 @@ import {
 } from '@uniswap/Permit2-sdk'
 import { defineCommand, runMain } from 'citty'
 import {
-  type Hex,
   type PublicClient,
   http,
   createPublicClient,
@@ -106,7 +105,7 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}` as Hex
+    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}`
 
     // Setup the required ABI
     const permit2ProxyAbi = parseAbi([

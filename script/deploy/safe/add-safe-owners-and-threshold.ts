@@ -180,7 +180,7 @@ const main = defineCommand({
       try {
         const result = await storeTransactionInMongoDB(
           pendingTransactions,
-          await safe.getAddress(),
+          safe.getAddress(),
           network,
           chain.id,
           signedTx,
@@ -234,7 +234,7 @@ const main = defineCommand({
       try {
         const result = await storeTransactionInMongoDB(
           pendingTransactions,
-          await safe.getAddress(),
+          safe.getAddress(),
           network,
           chain.id,
           signedThresholdTx,

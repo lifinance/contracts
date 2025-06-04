@@ -310,7 +310,7 @@ const processTxs = async (
     if (action === 'Do Nothing') continue
 
     // eslint-disable-next-line require-atomic-updates
-    storedResponses[tx.safeTx.data.data!] = action
+    storedResponses[tx.safeTx.data.data] = action
 
     if (action === 'Sign')
       try {

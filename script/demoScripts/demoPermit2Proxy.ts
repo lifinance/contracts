@@ -1,6 +1,5 @@
 import { defineCommand, runMain } from 'citty'
 import {
-  type Hex,
   http,
   createPublicClient,
   parseAbi,
@@ -32,8 +31,8 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}` as Hex
-    const EXECUTOR_PRIVATE_KEY = `0x${args.executorKey}` as Hex
+    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}`
+    const EXECUTOR_PRIVATE_KEY = `0x${args.executorKey}`
 
     // Setup the required ABI
     const permit2ProxyAbi = parseAbi([

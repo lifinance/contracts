@@ -23,7 +23,7 @@ import { node_url } from '../../utils/network'
 //   isTaxi: boolean
 // }
 
-type QuoteOFTResponse = {
+interface IQuoteOFTResponse {
   oftLimit: IStargate.OFTLimitStruct
   feeDetail: IStargate.OFTFeeDetailStruct[]
   oftReceipt: IStargate.OFTReceiptStruct
@@ -268,7 +268,7 @@ const getAmountOutFeeQuoteOFT = async (
 }
 
 // Takes a smart contract response and converts it to typed data
-function transformQuoteOFTResponse(response: any[]): QuoteOFTResponse {
+function transformQuoteOFTResponse(response: any[]): IQuoteOFTResponse {
   const oftLimit: IStargate.OFTLimitStruct = {
     minAmountLD: BigNumber.from(response[0][0]),
     maxAmountLD: BigNumber.from(response[0][1]), // if this value is 0 then the route has no credits i.e. cannot be used

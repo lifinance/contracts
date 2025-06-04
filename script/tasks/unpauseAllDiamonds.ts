@@ -1,5 +1,5 @@
 import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
+import { consola } from 'consola'
 import 'dotenv/config'
 import { encodeFunctionData, parseAbi, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -11,7 +11,7 @@ import {
   getSafeInfo,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationType,
+  OperationTypeEnum,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import {
@@ -98,7 +98,7 @@ const main = defineCommand({
                 to: diamondAddress as Address,
                 value: 0n,
                 data: calldata,
-                operation: OperationType.Call,
+                operation: OperationTypeEnum.Call,
                 nonce: nextNonce,
               },
             ],

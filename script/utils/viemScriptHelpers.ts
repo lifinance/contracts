@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-import consola from 'consola'
+import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import {
   defineChain,
@@ -13,7 +13,6 @@ import {
   createPublicClient,
   type Chain,
   type Address,
-  type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -26,22 +25,22 @@ import {
   getNextNonce,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationType,
+  OperationTypeEnum,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 
 dotenv.config()
 
-export type NetworksObject = {
-  [key: string]: Omit<Network, 'id'>
+export interface INetworksObject {
+  [key: string]: Omit<INetwork, 'id'>
 }
 
-export enum Environment {
+export enum EnvironmentEnum {
   'staging',
   'production',
 }
 
-export type Network = {
+export interface INetwork {
   name: string
   chainId: number
   nativeAddress: string
@@ -68,7 +67,7 @@ const colors = {
   green: '\x1b[32m',
 }
 
-export const networks: NetworksObject = networksConfig
+export const networks: INetworksObject = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
@@ -107,7 +106,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   return chain
 }
 
-export const getAllNetworksArray = (): Network[] => {
+export const getAllNetworksArray = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = Object.entries(networksConfig).map(([key, value]) => ({
     ...value,
@@ -118,12 +117,12 @@ export const getAllNetworksArray = (): Network[] => {
 }
 
 // removes all networks with "status='inactive'"
-export const getAllActiveNetworks = (): Network[] => {
+export const getAllActiveNetworks = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = getAllNetworksArray()
 
   // Example: Filter networks where status is 'active'
-  const activeNetworks: Network[] = networkArray.filter(
+  const activeNetworks: INetwork[] = networkArray.filter(
     (network) => network.status === 'active'
   )
 
@@ -168,7 +167,7 @@ export const retry = async <T>(
 export const getContractAddressForNetwork = async (
   contractName: string,
   network: SupportedChain,
-  environment: Environment = Environment.production
+  environment: EnvironmentEnum = EnvironmentEnum.production
 ): Promise<string> => {
   // get network deploy log file
   const deployments = await getDeployments(network, environment)
@@ -225,7 +224,7 @@ export function getFunctionSelectors(
     .filter(
       (sel) => !excludesClean.includes(sel.replace(/^0x/, '').toLowerCase())
     )
-    .map((sel) => `0x${sel.replace(/^0x/, '')}` as `0x${string}`)
+    .map((sel) => `0x${sel.replace(/^0x/, '')}`)
 }
 
 /**
@@ -387,8 +386,8 @@ export async function sendOrPropose({
       {
         to: diamondAddress as Address,
         value: 0n,
-        data: calldata as Hex,
-        operation: OperationType.Call,
+        data: calldata,
+        operation: OperationTypeEnum.Call,
         nonce: nextNonce,
       },
     ],

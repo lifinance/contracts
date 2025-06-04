@@ -41,7 +41,7 @@ const main = async () => {
     slippage: 3,
   })
 
-  const payload = await getSwapFromEvmTxPayload(
+  const payload = getSwapFromEvmTxPayload(
     quote,
     '6AUWsSCRFSCbrHKH9s84wfzJXtD6mNzAHs11x6pGEcmJ',
     deadline,

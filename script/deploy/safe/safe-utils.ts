@@ -6,8 +6,8 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
-import consola from 'consola'
-import { MongoClient, type Collection } from 'mongodb'
+import { consola } from 'consola'
+import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
 import {
   type Address,
   type Chain,
@@ -27,38 +27,38 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
 
-const networks = data as any
+const networks: Record<string, { safeAddress: string; status: string }> = data
 
 // Types for Safe transactions
-export enum OperationType {
+export enum OperationTypeEnum {
   Call = 0,
   DelegateCall = 1,
 }
 
-export enum privateKeyType {
+export enum PrivateKeyTypeEnum {
   SAFE_SIGNER,
   DEPLOYER,
 }
 
-export interface SafeTransactionData {
+export interface ISafeTransactionData {
   to: Address
   value: bigint
   data: Hex
-  operation: OperationType
+  operation: OperationTypeEnum
   nonce: bigint
 }
 
-export interface SafeTransaction {
-  data: SafeTransactionData
-  signatures: Map<string, SafeSignature>
+export interface ISafeTransaction {
+  data: ISafeTransactionData
+  signatures: Map<string, ISafeSignature>
 }
 
-export interface SafeSignature {
+export interface ISafeSignature {
   signer: Address
   data: Hex
 }
 
-export interface SafeTxDocument {
+export interface ISafeTxDocument {
   safeAddress: string
   network: string
   chainId: number
@@ -84,8 +84,8 @@ export interface SafeTxDocument {
   status: 'pending' | 'executed'
 }
 
-export interface AugmentedSafeTxDocument extends SafeTxDocument {
-  safeTransaction: SafeTransaction
+export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
+  safeTransaction: ISafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
@@ -147,7 +147,7 @@ export class ViemSafe {
    */
   public account: Address
 
-  constructor(
+  public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
@@ -159,7 +159,7 @@ export class ViemSafe {
     this.account = account
   }
 
-  static async init(options: {
+  public static async init(options: {
     provider: string | Chain
     privateKey?: string
     safeAddress: Address
@@ -196,7 +196,7 @@ export class ViemSafe {
       const { getLedgerAccount } = await import('./ledger')
       account = await getLedgerAccount(ledgerOptions)
     } else if (privateKey)
-      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}` as Hex)
+      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
     else throw new Error('Either privateKey or useLedger must be provided')
 
     // Create wallet client with the account and chain
@@ -215,12 +215,12 @@ export class ViemSafe {
   }
 
   // Get Safe address
-  async getAddress(): Promise<Address> {
+  public getAddress(): Address {
     return this.safeAddress
   }
 
   // Get nonce from Safe contract (replaces getNonce from Safe SDK)
-  async getNonce(): Promise<bigint> {
+  public async getNonce(): Promise<bigint> {
     try {
       return await this.publicClient.readContract({
         address: this.safeAddress,
@@ -234,7 +234,7 @@ export class ViemSafe {
   }
 
   // Get owners from Safe contract (replaces getOwners from Safe SDK)
-  async getOwners(): Promise<Address[]> {
+  public async getOwners(): Promise<Address[]> {
     try {
       const owners = [
         ...(await this.publicClient.readContract({
@@ -251,7 +251,7 @@ export class ViemSafe {
   }
 
   // Get threshold from Safe contract (replaces getThreshold from Safe SDK)
-  async getThreshold(): Promise<bigint> {
+  public async getThreshold(): Promise<bigint> {
     try {
       return await this.publicClient.readContract({
         address: this.safeAddress,
@@ -265,24 +265,26 @@ export class ViemSafe {
   }
 
   // Create a Safe transaction (replaces createTransaction from Safe SDK)
-  async createTransaction(options: {
+  public async createTransaction(options: {
     transactions: {
       to: Address
       value: string | bigint
       data: Hex
-      operation?: OperationType
+      operation?: OperationTypeEnum
       nonce?: bigint
     }[]
-  }): Promise<SafeTransaction> {
-    const tx = options.transactions[0]! // We only handle single transactions for now
+  }): Promise<ISafeTransaction> {
+    const tx = options.transactions[0]
+    if (!tx) throw new Error('No transaction provided')
+
     const nonce = tx.nonce !== undefined ? tx.nonce : await this.getNonce()
 
-    const safeTx: SafeTransaction = {
+    const safeTx: ISafeTransaction = {
       data: {
         to: tx.to,
         value: typeof tx.value === 'string' ? BigInt(tx.value) : tx.value,
         data: tx.data,
-        operation: tx.operation || OperationType.Call,
+        operation: tx.operation || OperationTypeEnum.Call,
         nonce: nonce,
       },
       signatures: new Map(),
@@ -292,10 +294,10 @@ export class ViemSafe {
   }
 
   // Create a Safe transaction for adding an owner (replaces createAddOwnerTx from Safe SDK)
-  async createAddOwnerTx(
+  public async createAddOwnerTx(
     options: { ownerAddress: Address; threshold: bigint },
     txOptions?: { nonce?: bigint }
-  ): Promise<SafeTransaction> {
+  ): Promise<ISafeTransaction> {
     try {
       const data = encodeFunctionData({
         abi: SAFE_SINGLETON_ABI,
@@ -303,7 +305,7 @@ export class ViemSafe {
         args: [options.ownerAddress, options.threshold],
       })
 
-      return this.createTransaction({
+      return await this.createTransaction({
         transactions: [
           {
             to: this.safeAddress,
@@ -320,10 +322,10 @@ export class ViemSafe {
   }
 
   // Create a Safe transaction for changing the threshold (replaces createChangeThresholdTx from Safe SDK)
-  async createChangeThresholdTx(
+  public async createChangeThresholdTx(
     threshold: number,
     txOptions?: { nonce?: bigint }
-  ): Promise<SafeTransaction> {
+  ): Promise<ISafeTransaction> {
     try {
       const data = encodeFunctionData({
         abi: SAFE_SINGLETON_ABI,
@@ -331,7 +333,7 @@ export class ViemSafe {
         args: [BigInt(threshold)],
       })
 
-      return this.createTransaction({
+      return await this.createTransaction({
         transactions: [
           {
             to: this.safeAddress,
@@ -348,7 +350,7 @@ export class ViemSafe {
   }
 
   // Generate transaction hash (replaces getTransactionHash from Safe SDK)
-  async getTransactionHash(safeTx: SafeTransaction): Promise<Hex> {
+  public async getTransactionHash(safeTx: ISafeTransaction): Promise<Hex> {
     try {
       // The Safe contract's getTransactionHash matches this implementation
       // GS026 error indicates invalid signature which would happen if we're not using
@@ -381,7 +383,7 @@ export class ViemSafe {
 
   // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
   // Error GS026 indicates an invalid signature issue
-  async signHash(hash: Hex): Promise<SafeSignature> {
+  public async signHash(hash: Hex): Promise<ISafeSignature> {
     try {
       console.log('Signing hash:', hash)
 
@@ -428,7 +430,9 @@ export class ViemSafe {
   }
 
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
-  async signTransaction(safeTx: SafeTransaction): Promise<SafeTransaction> {
+  public async signTransaction(
+    safeTx: ISafeTransaction
+  ): Promise<ISafeTransaction> {
     try {
       // Get chain ID for domain
       const chainId = await this.publicClient.getChainId()
@@ -515,7 +519,7 @@ export class ViemSafe {
   }
 
   // Format signatures as bytes for contract submission
-  private formatSignatures(signatures: Map<string, SafeSignature>): Hex {
+  private formatSignatures(signatures: Map<string, ISafeSignature>): Hex {
     if (!signatures.size) return '0x' as Hex
 
     try {
@@ -562,7 +566,9 @@ export class ViemSafe {
    * @returns Object containing the transaction hash
    * @throws Error if execution fails
    */
-  async executeTransaction(safeTx: SafeTransaction): Promise<{ hash: Hex }> {
+  public async executeTransaction(
+    safeTx: ISafeTransaction
+  ): Promise<{ hash: Hex }> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
@@ -612,9 +618,9 @@ export class ViemSafe {
  * @returns Initialized SafeTransaction with signatures
  */
 export const initializeSafeTransaction = async (
-  txFromMongo: SafeTxDocument,
+  txFromMongo: ISafeTxDocument,
   safe: ViemSafe
-): Promise<SafeTransaction> => {
+): Promise<ISafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
     transactions: [
@@ -622,7 +628,7 @@ export const initializeSafeTransaction = async (
         to: txFromMongo.safeTx.data.to as Address,
         value: BigInt(txFromMongo.safeTx.data.value),
         data: txFromMongo.safeTx.data.data as Hex,
-        operation: txFromMongo.safeTx.data.operation as OperationType,
+        operation: txFromMongo.safeTx.data.operation as OperationTypeEnum,
         nonce: BigInt(txFromMongo.safeTx.data.nonce),
       },
     ],
@@ -653,7 +659,7 @@ export const initializeSafeTransaction = async (
  * @returns True if the transaction has enough signatures
  */
 export const hasEnoughSignatures = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   threshold: number
 ): boolean => {
   const sigCount = safeTx?.signatures?.size || 0
@@ -667,7 +673,7 @@ export const hasEnoughSignatures = (
  * @returns True if the signer has already signed
  */
 export const isSignedByCurrentSigner = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   signerAddress: Address
 ): boolean => {
   if (!safeTx?.signatures) return false
@@ -698,7 +704,7 @@ export function isAddressASafeOwner(
  * @returns True if adding a signature would meet the threshold
  */
 export const wouldMeetThreshold = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   threshold: number
 ): boolean => {
   const currentSignatures = safeTx?.signatures?.size || 0
@@ -757,14 +763,14 @@ export async function getSafeInfoFromContract(
  * @returns Result of the MongoDB insert operation
  */
 export async function storeTransactionInMongoDB(
-  pendingTransactions: any,
+  pendingTransactions: Collection<ISafeTxDocument>,
   safeAddress: Address,
   network: string,
   chainId: number,
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address
-): Promise<any> {
+): Promise<InsertOneResult<ISafeTxDocument>> {
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -776,7 +782,7 @@ export async function storeTransactionInMongoDB(
     status: 'pending',
   }
 
-  return await retry(async () => {
+  return retry(async () => {
     const insertResult = await pendingTransactions.insertOne(txDoc)
     return insertResult
   })
@@ -789,14 +795,14 @@ export async function storeTransactionInMongoDB(
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
-  pendingTransactions: Collection<SafeTxDocument>
+  pendingTransactions: Collection<ISafeTxDocument>
 }> {
   if (!process.env.MONGODB_URI)
     throw new Error('MONGODB_URI environment variable is required')
 
   const client = new MongoClient(process.env.MONGODB_URI)
   const db = client.db('SAFE')
-  const pendingTransactions = db.collection<SafeTxDocument>(
+  const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
 
@@ -813,7 +819,7 @@ export async function getSafeMongoCollection(): Promise<{
  * @returns The next nonce to use
  */
 export async function getNextNonce(
-  pendingTransactions: Collection<SafeTxDocument>,
+  pendingTransactions: Collection<ISafeTxDocument>,
   safeAddress: string,
   network: string,
   chainId: number,
@@ -842,18 +848,18 @@ export async function getNextNonce(
  * @returns Transactions grouped by network
  */
 export async function getPendingTransactionsByNetwork(
-  pendingTransactions: Collection<SafeTxDocument>,
+  pendingTransactions: Collection<ISafeTxDocument>,
   networks: string[]
-): Promise<Record<string, SafeTxDocument[]>> {
+): Promise<Record<string, ISafeTxDocument[]>> {
   const allPendingTxs = await pendingTransactions
-    .find<SafeTxDocument>({
+    .find<ISafeTxDocument>({
       network: { $in: networks.map((n) => n.toLowerCase()) },
       status: 'pending',
     })
     .toArray()
 
   // Group transactions by network
-  const txsByNetwork: Record<string, SafeTxDocument[]> = {}
+  const txsByNetwork: Record<string, ISafeTxDocument[]> = {}
   for (const tx of allPendingTxs) {
     const network = tx.network.toLowerCase()
     if (!txsByNetwork[network]) txsByNetwork[network] = []
@@ -897,7 +903,7 @@ export async function initializeSafeClient(
   safeAddress: Address
 }> {
   const chain = getViemChainForNetworkName(network)
-  const safeAddress = networks[network.toLowerCase()].safeAddress as Address
+  const safeAddress = networks[network.toLowerCase()]?.safeAddress as Address
 
   if (!safeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
@@ -953,11 +959,10 @@ export function getPrivateKey(
 export function getNetworksToProcess(networkArg?: string): string[] {
   if (networkArg) return [networkArg]
 
-  // Default to all active networks
   return Object.keys(networks).filter(
     (network) =>
       network !== 'localanvil' &&
-      networks[network.toLowerCase()].status === 'active'
+      networks[network.toLowerCase()]?.status === 'active'
   )
 }
 

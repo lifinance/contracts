@@ -11,7 +11,7 @@
  */
 
 import consola from 'consola'
-import type { Hex, Account } from 'viem'
+import type { Hex } from 'viem'
 
 import { getLedgerAccount } from './ledger'
 
@@ -24,11 +24,11 @@ async function main() {
     )
 
     // Get Ledger account
-    const account = (await getLedgerAccount({
+    const account = await getLedgerAccount({
       // Use Ledger Live derivation path by default
       ledgerLive: true,
       accountIndex: 0,
-    })) as Account
+    })
 
     if (!account.signMessage) {
       consola.error('❌ Ledger account does not support signMessage!')

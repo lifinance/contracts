@@ -113,7 +113,7 @@ const main = defineCommand({
     }
 
     // Instantiate wallet (write enabled) client
-    const account = privateKeyToAccount(`0x${privateKey}` as Hex)
+    const account = privateKeyToAccount(`0x${privateKey}`)
     const walletClient = createWalletClient({
       chain,
       transport: http(),

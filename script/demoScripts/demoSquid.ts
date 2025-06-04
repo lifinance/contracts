@@ -58,6 +58,10 @@ const main = async () => {
         routeJson.route.transactionRequest.data
       )
       break
+    default:
+      throw new Error(
+        `Unsupported route type: ${routeJson.route.transactionRequest.routeType}`
+      )
   }
 
   const bridgeData: ILiFi.BridgeDataStruct = {
