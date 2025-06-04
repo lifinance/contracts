@@ -354,12 +354,12 @@
     "explorerUrl": "https://flarescan.com/",
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeAddress": "",
+    "safeAddress": "0x87a1e77C9692B846eAf84C7512Dd0B678B4Fd081",
     "gasZipChainId": 28,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": ""
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "fraxtal": {
     "name": "fraxtal",
