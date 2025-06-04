@@ -249,7 +249,7 @@ const main = defineCommand({
     //       },
     //     ],
     //   }
-    // )) as string
+    // )) as unknown as Environment
     // we currently use SAFEs only in production but will keep this code just in case
     const environment: Environment = Environment.production
 

@@ -149,7 +149,7 @@ function diamondSyncDEXs {
         done
 
         if [ ${#MISSING_DEXS[@]} -eq 0 ]; then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Success - All DEXs added"
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Success - All missing DEXs added"
           return
         fi
 
@@ -163,12 +163,18 @@ function diamondSyncDEXs {
         echo ""
       } >> "$FAILED_LOG_FILE"
     else
-      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] - All addresses are whitelisted"
+      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] - All addresses are whitelisted already"
     fi
   }
 
   # Run networks in parallel with concurrency control
+  if [[ -z $MAX_CONCURRENT_JOBS ]]; then
+    echo "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    exit 1
+  fi
+
   for NETWORK in "${NETWORKS[@]}"; do
+    echo "Network: $NETWORK"
     while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
       sleep 1
     done
