@@ -1,5 +1,5 @@
 /**
- * deploy-and-setup-safe.ts
+ * deploy-safe.ts
  *
  * Safe multisig deployment & setup script for any EVM chain.
  *
@@ -7,7 +7,11 @@
  *   1. **On chain Safe**: if @safe-global/safe-deployments provides a Safe singleton,
  *      proxy factory and fallback handler for your chain, it will reuse those.
  *   2. **Local v1.4.1 fallback**: otherwise it deploys the Safe implementation & proxy
- *      factory bytecode you ship in `safe/`, then verifies their on-chain code.
+ *      factory bytecode from either:
+ *         - safe/cancun/ (for Cancun EVM networks)
+ *         - safe/london/ (for London EVM networks)
+ *      The appropriate version is automatically selected based on the network's
+ *      deployedWithEvmVersion in networks.json.
  *
  * Workflow:
  *   • Merge owners from `config/global.json` + `--owners` CLI argument
@@ -30,6 +34,7 @@
  *   --paymentReceiver address to receive payment (default: zero)
  *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: false)
  *   --rpcUrl         custom RPC URL (uses network default if not provided)
+ *   --evmVersion     EVM version to use (london or cancun). Defaults to network setting from networks.json
  *
  * Environment variables:
  *   PRIVATE_KEY               deployer key for staging
@@ -164,218 +169,10 @@ async function compareDeployedBytecode(
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Deploy local Safe implementation & factory v1.4.1
-async function deployLocalContracts(publicClient: any, walletClient: any) {
-  const SAFE_ARTIFACT = JSON.parse(
-    readFileSync(
-      join(__dirname, '../../../safe/out/Safe_flattened.sol/Safe.json'),
-      'utf8'
-    )
-  )
-  const FACTORY_ARTIFACT = JSON.parse(
-    readFileSync(
-      join(
-        __dirname,
-        '../../../safe/out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json'
-      ),
-      'utf8'
-    )
-  )
-  const PROXY_ARTIFACT = JSON.parse(
-    readFileSync(
-      join(
-        __dirname,
-        '../../../safe/out/SafeProxyFactory_flattened.sol/SafeProxy.json'
-      ),
-      'utf8'
-    )
-  )
+// At the top of the file, add new type for EVM versions
+type EVMVersion = 'london' | 'cancun'
 
-  const SAFE_BYTECODE = SAFE_ARTIFACT.bytecode.object as `0x${string}`
-  const SAFE_DEPLOYED = SAFE_ARTIFACT.deployedBytecode.object as `0x${string}`
-  const FACTORY_BYTECODE = FACTORY_ARTIFACT.bytecode.object as `0x${string}`
-  const FACTORY_DEPLOYED = FACTORY_ARTIFACT.deployedBytecode
-    .object as `0x${string}`
-  const PROXY_DEPLOYED = PROXY_ARTIFACT.deployedBytecode.object as `0x${string}`
-
-  // Deploy Safe implementation
-  consola.info('📦 Deploying local Safe implementation…')
-  const implTx = await walletClient.deployContract({
-    abi: SAFE_ABI,
-    bytecode: SAFE_BYTECODE,
-  })
-  const implRcpt = await publicClient.waitForTransactionReceipt({
-    hash: implTx,
-    confirmations: 5,
-  })
-  const implAddr = implRcpt.contractAddress!
-  consola.success(`✔ Safe impl @ ${implAddr}`)
-  await sleep(5000)
-  await compareDeployedBytecode(
-    publicClient,
-    implAddr,
-    SAFE_DEPLOYED,
-    'Safe impl'
-  )
-
-  // Deploy ProxyFactory
-  consola.info('📦 Deploying local SafeProxyFactory…')
-  const facTx = await walletClient.deployContract({
-    abi: SAFE_PROXY_FACTORY_ABI,
-    bytecode: FACTORY_BYTECODE,
-  })
-  const facRcpt = await publicClient.waitForTransactionReceipt({
-    hash: facTx,
-    confirmations: 5,
-  })
-  const facAddr = facRcpt.contractAddress!
-  consola.success(`✔ SafeProxyFactory @ ${facAddr}`)
-  await sleep(5000)
-  await compareDeployedBytecode(
-    publicClient,
-    facAddr,
-    FACTORY_DEPLOYED,
-    'SafeProxyFactory'
-  )
-
-  return { implAddr, facAddr, proxyBytecode: PROXY_DEPLOYED }
-}
-
-// Create the Safe proxy and run setup
-async function createSafeProxy(params: {
-  publicClient: any
-  walletClient: any
-  factoryAddress: Address
-  singletonAddress: Address
-  proxyBytecode?: `0x${string}`
-  owners: Address[]
-  threshold: number
-  fallbackHandler: Address
-  paymentToken: Address
-  payment: bigint
-  paymentReceiver: Address
-}) {
-  const {
-    publicClient,
-    walletClient,
-    factoryAddress,
-    singletonAddress,
-    proxyBytecode,
-    owners,
-    threshold,
-    fallbackHandler,
-    paymentToken,
-    payment,
-    paymentReceiver,
-  } = params
-
-  // Build initializer calldata
-  const initializer = encodeFunctionData({
-    abi: SAFE_ABI,
-    functionName: 'setup',
-    args: [
-      owners,
-      BigInt(threshold),
-      zeroAddress,
-      '0x',
-      fallbackHandler,
-      paymentToken,
-      payment,
-      paymentReceiver,
-    ],
-  })
-
-  // Unique salt
-  const salt =
-    BigInt(Date.now()) ^
-    BigInt.asUintN(64, BigInt(walletClient.account.address))
-
-  // This might be helpful for networks where automatic gas estimation does not work correctly
-  // // estimate gas usage
-  // const estimatedGas = await publicClient.estimateContractGas({
-  //   address: factoryAddress,
-  //   abi: SAFE_PROXY_FACTORY_ABI,
-  //   functionName: 'createProxyWithNonce',
-  //   args: [singletonAddress, initializer, salt],
-  //   account: activeAccount,
-  // })
-
-  // console.log(`Estimated Gas: ${estimatedGas}`)
-
-  consola.info('⚙️  Creating Safe proxy…')
-  const txHash = await walletClient.writeContract({
-    address: factoryAddress,
-    abi: SAFE_PROXY_FACTORY_ABI,
-    functionName: 'createProxyWithNonce',
-    args: [singletonAddress, initializer, salt],
-    // gas: estimatedGas,
-    // gasPrice: 5n * 10n ** 9n,
-    // value: 0n,
-  })
-  const rcpt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-    confirmations: 5,
-  })
-  if (rcpt.status === 'reverted') throw new Error('Proxy creation reverted')
-
-  // Decode ProxyCreation event
-  const proxyEvent = rcpt.logs
-    .map((log: Log) => {
-      try {
-        return decodeEventLog({
-          abi: SAFE_PROXY_FACTORY_ABI,
-          data: log.data,
-          topics: log.topics,
-        })
-      } catch {
-        return null
-      }
-    })
-    .find((e) => e && e.eventName === 'ProxyCreation')
-
-  if (!proxyEvent) {
-    consola.warn('No ProxyCreation events found in transaction logs')
-    consola.info(`Please check transaction ${txHash} on the explorer`)
-
-    const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
-      ?.url
-    if (explorerUrl) {
-      consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
-    }
-
-    const safeAddress = (await consola.prompt(
-      'Enter the deployed Safe address:',
-      {
-        type: 'text',
-        validate: (input: string) =>
-          /^0x[a-fA-F0-9]{40}$/.test(input)
-            ? true
-            : 'Please enter a valid Ethereum address',
-      }
-    )) as Address
-
-    return safeAddress
-  }
-
-  const safeAddr = (proxyEvent.args as any).proxy as Address
-  consola.success(`🎉 Safe deployed @ ${safeAddr}`)
-
-  // verify on-chain proxy bytecode
-  if (proxyBytecode) {
-    const code = await publicClient.getCode({ address: safeAddr })
-    if (code === proxyBytecode) {
-      consola.success('✔ Proxy bytecode verified')
-    } else {
-      consola.error('❌ Proxy bytecode mismatch')
-      consola.debug('On-chain:', code.slice(0, 100), '…')
-      consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
-      throw new Error('Proxy bytecode verification failed')
-    }
-  }
-
-  return safeAddr
-}
-
+// Modify the command arguments to include EVM version
 const main = defineCommand({
   meta: {
     name: 'deploy-safe',
@@ -429,6 +226,12 @@ const main = defineCommand({
       type: 'string',
       description:
         'Custom RPC URL (optional, uses network default if not provided)',
+      required: false,
+    },
+    evmVersion: {
+      type: 'string',
+      description:
+        'EVM version to use (london or cancun). Defaults to network setting from networks.json',
       required: false,
     },
   },
@@ -507,6 +310,26 @@ const main = defineCommand({
       await setupEnvironment(networkName, null, environment, args.rpcUrl)
     consola.info('Deployer:', walletAccount.address)
 
+    // Determine EVM version
+    const networkConfig = networks[networkName.toLowerCase()]
+    let evmVersion: EVMVersion = 'cancun' // Default to cancun
+
+    if (args.evmVersion) {
+      // If explicitly specified via CLI
+      if (!['london', 'cancun'].includes(args.evmVersion)) {
+        throw new Error(
+          'Invalid EVM version. Must be either "london" or "cancun"'
+        )
+      }
+      evmVersion = args.evmVersion as EVMVersion
+    } else if (networkConfig.deployedWithEvmVersion) {
+      // Use network-specific version if available
+      evmVersion =
+        networkConfig.deployedWithEvmVersion.toLowerCase() as EVMVersion
+    }
+
+    consola.info(`Using EVM version: ${evmVersion}`)
+
     // attempt safe-deployments lookup
     const chainId = String(await publicClient.getChainId())
     const isL2 = Boolean((publicClient as any).chain?.contracts?.l2OutputOracle)
@@ -569,9 +392,13 @@ const main = defineCommand({
       consola.info(`FallbackHandler   : ${fallbackAddr}`)
     } else {
       consola.warn(
-        '⚠️  No on-chain Safe deployments found for this chain. Deploying local v1.4.1'
+        `⚠️  No on-chain Safe deployments found for this chain. Deploying local v1.4.1 (${evmVersion})`
       )
-      const deployed = await deployLocalContracts(publicClient, walletClient)
+      const deployed = await deployLocalContracts(
+        publicClient,
+        walletClient,
+        evmVersion
+      )
       singletonAddr = deployed.implAddr
       factoryAddr = deployed.facAddr
       fallbackAddr = fallbackHandler
@@ -664,3 +491,208 @@ const main = defineCommand({
 })
 
 runMain(main)
+
+async function deployLocalContracts(
+  publicClient: any,
+  walletClient: any,
+  evmVersion: EVMVersion
+) {
+  const basePath = evmVersion === 'london' ? 'london' : 'cancun'
+
+  const SAFE_ARTIFACT = JSON.parse(
+    readFileSync(
+      join(
+        __dirname,
+        `../../../safe/${basePath}/out/Safe_flattened.sol/Safe.json`
+      ),
+      'utf8'
+    )
+  )
+  const FACTORY_ARTIFACT = JSON.parse(
+    readFileSync(
+      join(
+        __dirname,
+        `../../../safe/${basePath}/out/SafeProxyFactory_flattened.sol/SafeProxyFactory.json`
+      ),
+      'utf8'
+    )
+  )
+  const PROXY_ARTIFACT = JSON.parse(
+    readFileSync(
+      join(
+        __dirname,
+        `../../../safe/${basePath}/out/SafeProxyFactory_flattened.sol/SafeProxy.json`
+      ),
+      'utf8'
+    )
+  )
+
+  const SAFE_BYTECODE = SAFE_ARTIFACT.bytecode.object as `0x${string}`
+  const SAFE_DEPLOYED = SAFE_ARTIFACT.deployedBytecode.object as `0x${string}`
+  const FACTORY_BYTECODE = FACTORY_ARTIFACT.bytecode.object as `0x${string}`
+  const FACTORY_DEPLOYED = FACTORY_ARTIFACT.deployedBytecode
+    .object as `0x${string}`
+  const PROXY_DEPLOYED = PROXY_ARTIFACT.deployedBytecode.object as `0x${string}`
+
+  // deploy Safe implementation
+  consola.info('📦 Deploying local Safe implementation…')
+  const implTx = await walletClient.deployContract({
+    abi: SAFE_ABI,
+    bytecode: SAFE_BYTECODE,
+  })
+  const implRcpt = await publicClient.waitForTransactionReceipt({
+    hash: implTx,
+    confirmations: 5,
+  })
+  const implAddr = implRcpt.contractAddress!
+  consola.success(`✔ Safe impl @ ${implAddr}`)
+  await sleep(5000)
+  await compareDeployedBytecode(
+    publicClient,
+    implAddr,
+    SAFE_DEPLOYED,
+    'Safe impl'
+  )
+
+  // deploy ProxyFactory
+  consola.info('📦 Deploying local SafeProxyFactory…')
+  const facTx = await walletClient.deployContract({
+    abi: SAFE_PROXY_FACTORY_ABI,
+    bytecode: FACTORY_BYTECODE,
+  })
+  const facRcpt = await publicClient.waitForTransactionReceipt({
+    hash: facTx,
+    confirmations: 5,
+  })
+  const facAddr = facRcpt.contractAddress!
+  consola.success(`✔ SafeProxyFactory @ ${facAddr}`)
+  await sleep(5000)
+  await compareDeployedBytecode(
+    publicClient,
+    facAddr,
+    FACTORY_DEPLOYED,
+    'SafeProxyFactory'
+  )
+
+  return { implAddr, facAddr, proxyBytecode: PROXY_DEPLOYED }
+}
+
+// create the Safe proxy and run setup
+async function createSafeProxy(params: {
+  publicClient: any
+  walletClient: any
+  factoryAddress: Address
+  singletonAddress: Address
+  proxyBytecode?: `0x${string}`
+  owners: Address[]
+  threshold: number
+  fallbackHandler: Address
+  paymentToken: Address
+  payment: bigint
+  paymentReceiver: Address
+}) {
+  const {
+    publicClient,
+    walletClient,
+    factoryAddress,
+    singletonAddress,
+    proxyBytecode,
+    owners,
+    threshold,
+    fallbackHandler,
+    paymentToken,
+    payment,
+    paymentReceiver,
+  } = params
+
+  // build initializer calldata
+  const initializer = encodeFunctionData({
+    abi: SAFE_ABI,
+    functionName: 'setup',
+    args: [
+      owners,
+      BigInt(threshold),
+      zeroAddress,
+      '0x',
+      fallbackHandler,
+      paymentToken,
+      payment,
+      paymentReceiver,
+    ],
+  })
+
+  // Unique salt
+  const salt =
+    BigInt(Date.now()) ^
+    BigInt.asUintN(64, BigInt(walletClient.account.address))
+
+  consola.info('⚙️  Creating Safe proxy…')
+  const txHash = await walletClient.writeContract({
+    address: factoryAddress,
+    abi: SAFE_PROXY_FACTORY_ABI,
+    functionName: 'createProxyWithNonce',
+    args: [singletonAddress, initializer, salt],
+  })
+  const rcpt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+    confirmations: 5,
+  })
+  if (rcpt.status === 'reverted') throw new Error('Proxy creation reverted')
+
+  // decode ProxyCreation event
+  const proxyEvent = rcpt.logs
+    .map((log: Log) => {
+      try {
+        return decodeEventLog({
+          abi: SAFE_PROXY_FACTORY_ABI,
+          data: log.data,
+          topics: log.topics,
+        })
+      } catch {
+        return null
+      }
+    })
+    .find((e) => e && e.eventName === 'ProxyCreation')
+
+  if (!proxyEvent) {
+    consola.warn('No ProxyCreation events found in transaction logs')
+    consola.info(`Please check transaction ${txHash} on the explorer`)
+
+    const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
+      ?.url
+    if (explorerUrl) {
+      consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
+    }
+
+    const safeAddress = (await consola.prompt(
+      'Enter the deployed Safe address:',
+      {
+        type: 'text',
+        validate: (input: string) =>
+          /^0x[a-fA-F0-9]{40}$/.test(input)
+            ? true
+            : 'Please enter a valid Ethereum address',
+      }
+    )) as Address
+
+    return safeAddress
+  }
+
+  const safeAddr = (proxyEvent.args as any).proxy as Address
+  consola.success(`🎉 Safe deployed @ ${safeAddr}`)
+
+  // verify on-chain proxy bytecode
+  if (proxyBytecode) {
+    const code = await publicClient.getCode({ address: safeAddr })
+    if (code === proxyBytecode) {
+      consola.success('✔ Proxy bytecode verified')
+    } else {
+      consola.error('❌ Proxy bytecode mismatch')
+      consola.debug('On-chain:', code.slice(0, 100), '…')
+      consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
+      throw new Error('Proxy bytecode verification failed')
+    }
+  }
+
+  return safeAddr
+}
