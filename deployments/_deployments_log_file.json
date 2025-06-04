@@ -32233,6 +32233,20 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xe94523E494Ad8A28BD93a39885645B8760B074E2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 09:21:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390000000000000000000000000eccc2ce02907c1c86b286fb50d1355384f55a29800000000000000000000000085178cd4719c2d89353e3e56e5b9eac5fcc5b9dc",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RelayFacet": {
