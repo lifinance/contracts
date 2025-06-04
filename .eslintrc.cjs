@@ -82,7 +82,7 @@ module.exports = {
     'import/no-default-export': 'error', // Prefer named exports
     'import/no-mutable-exports': 'error', // Prevents mutable exports
 
-    // // Code style consistency
+    // Code style consistency
     '@typescript-eslint/consistent-type-definitions': ['error', 'interface'], // Prefer interface over type
     '@typescript-eslint/method-signature-style': ['error', 'property'], // Consistent method signatures
     '@typescript-eslint/naming-convention': [
