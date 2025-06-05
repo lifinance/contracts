@@ -72,7 +72,7 @@
     "explorerUrl": "https://arbiscan.io",
     "explorerApiUrl": "https://api.arbiscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeAddress": "0xC01c21BFA9701Db3AeFdF5237c55193307c7E46E",
+    "safeAddress": "0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15",
     "gasZipChainId": 57,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
