@@ -136,7 +136,7 @@ sonic = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/
 superposition = { key = "${SUPERPOSITION_ETHERSCAN_API_KEY}", url = "https://explorer-superposition-1v9rjalnat.t.conduit.xyz/api/", chain = "55244", verifier = "blockscout" }
 swellchain = { key = "${SWELLCHAIN_ETHERSCAN_API_KEY}", url = "https://api.swellchainscan.io/api", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
-unichain = { key = "${UNICHAIN_ETHERSCAN_API_KEY}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
+unichain = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://unichain.blockscout.com/api", chain = "130" , verifier = "blockscout" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
 xdc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50", chain = "50" }
 xlayer = { key = "${XLAYER_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/xlayer/api", chain = "196" }
