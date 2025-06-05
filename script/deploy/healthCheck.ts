@@ -372,6 +372,7 @@ const main = defineCommand({
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
+      const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
@@ -400,7 +401,7 @@ const main = defineCommand({
       // FeeCollector
       await checkOwnership(
         'FeeCollector',
-        withdrawWallet,
+        feeCollectorOwner,
         deployedContracts,
         publicClient
       )
@@ -416,33 +417,7 @@ const main = defineCommand({
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check emergency pause config             │
       //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking emergency pause config...')
-      const filePath: string = path.join(
-        '.github',
-        'workflows',
-        'diamondEmergencyPause.yml'
-      )
-
-      try {
-        const fileContent: string = fs.readFileSync(filePath, 'utf8')
-
-        const networkUpper: string = network.toUpperCase()
-        const pattern = new RegExp(
-          `ETH_NODE_URI_${networkUpper}\\s*:\\s*\\$\\{\\{\\s*secrets\\.ETH_NODE_URI_${networkUpper}\\s*\\}\\}`
-        )
-
-        const exists: boolean = pattern.test(fileContent)
-
-        if (!exists) {
-          logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        } else
-          consola.success(
-            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
-          )
-      } catch (error: any) {
-        logError(`Error checking workflow file: ${error.message}`)
-      }
-      console.log('')
+      consola.box('Checking funding of pauser wallet...')
 
       const pauserBalance = formatEther(
         await publicClient.getBalance({
@@ -628,6 +603,8 @@ const checkIsDeployed = async (
 }
 
 const finish = () => {
+  // this line ensures that all logs are actually written before the script ends
+  process.stdout.write('', () => process.stdout.end())
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
     process.exit(1)

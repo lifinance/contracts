@@ -68,6 +68,10 @@
       "0x0Ed72910Cd2f801aC2048464389605ae05bb4bAB": {
         "Name": "MayanFacet",
         "Version": "1.2.0"
+      },
+      "0x5789928b75C05aC6E8B8765D6f87dAC396A656a2": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
