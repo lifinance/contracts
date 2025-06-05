@@ -5,12 +5,8 @@
     "noEmit": true
   },
   "include": [
-    "./script",
-    "./deploy",
-    "./test",
-    "./tasks",
-    "typechain/**/*",
-    "config",
+    "./script/**/*.ts",
+    "./tasks/**/*.ts",
     ".eslintrc.cjs"
   ]
 } 

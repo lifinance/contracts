@@ -6,6 +6,7 @@ import {
   parseUnits,
   serializeSignature,
   createWalletClient,
+  type Hex,
 } from 'viem'
 import { privateKeyToAccount, sign } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
@@ -31,8 +32,8 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}`
-    const EXECUTOR_PRIVATE_KEY = `0x${args.executorKey}`
+    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}` as Hex
+    const EXECUTOR_PRIVATE_KEY = `0x${args.executorKey}` as Hex
 
     // Setup the required ABI
     const permit2ProxyAbi = parseAbi([

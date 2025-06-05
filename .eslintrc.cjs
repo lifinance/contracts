@@ -2,15 +2,13 @@ module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    ecmaVersion: 2020, // Allows for the parsing of modern ECMAScript features
+    // Allows for the parsing of modern ECMAScript features
     sourceType: 'module', // Allows for the use of imports
     project: './tsconfig.eslint.json',
     tsconfigRootDir: __dirname,
   },
   env: {
     node: true,
-    commonjs: true,
-    es6: true,
   },
   plugins: [
     '@typescript-eslint',
@@ -51,7 +49,6 @@ module.exports = {
     '@typescript-eslint/explicit-member-accessibility': ['error', { 
       accessibility: 'explicit' 
     }], // Enforce explicit accessibility modifiers
-    '@typescript-eslint/no-unnecessary-type-assertion': 'error', // Prevents redundant type assertions
     '@typescript-eslint/await-thenable': 'error', // Ensures await is only used with Promises
 
     // Promise and async/await rules

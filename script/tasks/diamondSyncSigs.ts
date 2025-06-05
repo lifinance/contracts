@@ -1,5 +1,5 @@
 import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
+import { consola } from 'consola'
 import {
   createPublicClient,
   createWalletClient,

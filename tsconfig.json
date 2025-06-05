@@ -19,13 +19,9 @@
     "types": ["node"]
   },
   "include": [
-    "./script",
-    "./deploy",
-    "./test",
-    "./tasks",
-    "typechain/**/*",
-    "config",
+    "./script/**/*.ts",
+    "./tasks/**/*.ts",
     ".eslintrc.cjs"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "out"]
 }

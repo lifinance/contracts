@@ -7,7 +7,7 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
+import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { createPublicClient, http, isAddress, type Address } from 'viem'
 

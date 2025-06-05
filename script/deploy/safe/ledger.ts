@@ -7,7 +7,7 @@
  */
 
 import type Transport from '@ledgerhq/hw-transport'
-import consola from 'consola'
+import { consola } from 'consola'
 import type {
   Account,
   Address,

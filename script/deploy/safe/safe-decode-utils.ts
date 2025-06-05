@@ -5,7 +5,7 @@
  * particularly for complex transactions like diamond cuts.
  */
 
-import consola from 'consola'
+import { consola } from 'consola'
 import { toFunctionSelector, type Hex } from 'viem'
 
 /**
