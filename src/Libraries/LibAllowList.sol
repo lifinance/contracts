@@ -6,7 +6,8 @@ import { InvalidContract } from "../Errors/GenericErrors.sol";
 
 /// @title Lib Allow List
 /// @author LI.FI (https://li.fi)
-/// @notice Library for managing and accessing the conract address allow list
+/// @notice Library for managing and accessing the contract address allow list
+/// @custom:version 1.0.2
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =
