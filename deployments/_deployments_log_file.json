@@ -33507,6 +33507,20 @@
           }
         ]
       }
+    },
+    "corn": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x966bF0b793a3039707f15083A12b37E7c31C176c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-30 09:26:03",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   }
 }
