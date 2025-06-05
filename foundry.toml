@@ -99,7 +99,7 @@ base = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v
 berachain = { key = "${BERACHAIN_ETHERSCAN_API_KEY}", url = "https://api.berascan.com", chain = "80094" }
 blast = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=81457", chain = "81457" }
 bob = { key = "${BOB_ETHERSCAN_API_KEY}", url = "https://explorer.gobob.xyz/api", verifier = "blockscout", chain = "60808" }
-boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "hhttps://api.routescan.io/v2/network/mainnet/evm/288/etherscan", chain = "288" }
+boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/288/etherscan", chain = "288" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
 corn = { key = "${CORN_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan", chain = "21000000" }
