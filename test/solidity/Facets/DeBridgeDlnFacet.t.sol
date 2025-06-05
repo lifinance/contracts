@@ -12,8 +12,8 @@ import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol"
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
     constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -58,7 +58,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[1] = deBridgeDlnFacet
             .swapAndStartBridgeTokensViaDeBridgeDln
             .selector;
-        functionSelectors[2] = deBridgeDlnFacet.addToWhitelist.selector;
+        functionSelectors[2] = deBridgeDlnFacet.addDex.selector;
         functionSelectors[3] = deBridgeDlnFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -68,7 +68,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
-        deBridgeDlnFacet.addToWhitelist(ADDRESS_UNISWAP);
+        deBridgeDlnFacet.addDex(ADDRESS_UNISWAP);
         deBridgeDlnFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

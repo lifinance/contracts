@@ -6,8 +6,8 @@ import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacet is GenericSwapFacet {
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -35,7 +35,7 @@ contract GenericSwapFacetTest is TestBase {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addToWhitelist.selector;
+        functionSelectors[1] = genericSwapFacet.addDex.selector;
         functionSelectors[2] = genericSwapFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -43,7 +43,7 @@ contract GenericSwapFacetTest is TestBase {
         addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
-        genericSwapFacet.addToWhitelist(address(uniswap));
+        genericSwapFacet.addDex(address(uniswap));
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

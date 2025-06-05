@@ -13,8 +13,8 @@ import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameN
 contract TestGlacisFacet is GlacisFacet {
     constructor(IGlacisAirlift _airlift) GlacisFacet(_airlift) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -54,14 +54,14 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         functionSelectors[1] = glacisFacet
             .swapAndStartBridgeTokensViaGlacis
             .selector;
-        functionSelectors[2] = glacisFacet.addToWhitelist.selector;
+        functionSelectors[2] = glacisFacet.addDex.selector;
         functionSelectors[3] = glacisFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
-        glacisFacet.addToWhitelist(ADDRESS_UNISWAP);
+        glacisFacet.addDex(ADDRESS_UNISWAP);
         glacisFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
