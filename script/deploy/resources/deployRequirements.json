@@ -393,11 +393,6 @@
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.safeAddress",
         "allowToDeployWithZeroAddress": "false"
-      },
-      "_executors": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".deployerWallet",
-        "allowToDeployWithZeroAddress": "false"
       }
     },
     "contractAddresses": {
