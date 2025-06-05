@@ -1,14 +1,10 @@
-import { privateKeyToAccount } from 'viem/accounts'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
-import { node_url } from '../../utils/network'
+
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
-import { ERC20__factory } from '../../../typechain'
-import { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { config } from 'dotenv'
+import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
 import {
-  Chain,
-  Narrow,
   createPublicClient,
   createWalletClient,
   getContract,
@@ -17,12 +13,18 @@ import {
   formatEther,
   formatUnits,
   zeroAddress,
+  type Narrow,
 } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+
 import networks from '../../../config/networks.json'
-import { Environment } from '../../utils/viemScriptHelpers'
-import { SupportedChain, viemChainMap } from './demoScriptChainConfig'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
-import { config } from 'dotenv'
+import { ERC20__factory } from '../../../typechain'
+import type { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { node_url } from '../../utils/network'
+import {
+  EnvironmentEnum,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 
 config()
 
@@ -34,7 +36,9 @@ export const DEFAULT_DEST_PAYLOAD_ABI = [
   'address', // Receiver
 ]
 
-export enum TX_TYPE {
+export type SupportedChain = keyof typeof networks
+
+export enum TransactionTypeEnum {
   ERC20,
   NATIVE,
   ERC20_WITH_SRC,
@@ -43,11 +47,11 @@ export enum TX_TYPE {
   NATIVE_WITH_DEST,
 }
 
-export const isNativeTX = (type: TX_TYPE): boolean => {
+export const isNativeTX = (type: TransactionTypeEnum): boolean => {
   return (
-    type === TX_TYPE.NATIVE ||
-    type === TX_TYPE.NATIVE_WITH_DEST ||
-    type === TX_TYPE.NATIVE_WITH_SRC
+    type === TransactionTypeEnum.NATIVE ||
+    type === TransactionTypeEnum.NATIVE_WITH_DEST ||
+    type === TransactionTypeEnum.NATIVE_WITH_SRC
   )
 }
 
@@ -156,7 +160,7 @@ export const ensureBalanceAndAllowanceToDiamond = async (
 
   // check if wallet has sufficient balance
   let balance
-  if (isNative || tokenAddress == constants.AddressZero)
+  if (isNative || tokenAddress === constants.AddressZero)
     balance = await wallet.getBalance()
   else balance = await token.balanceOf(wallet.address)
   if (amount.gt(balance))
@@ -189,9 +193,8 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   console.log(`finalFromAmount  : ${fromAmount}`)
 
   let finalMinAmountOut: BigNumber
-  if (minAmountOut.toString() !== '0') {
-    finalMinAmountOut = minAmountOut
-  } else {
+  if (minAmountOut.toString() !== '0') finalMinAmountOut = minAmountOut
+  else {
     const amountsOut = await getAmountsOutUniswap(
       uniswapAddress,
       chainId,
@@ -371,7 +374,7 @@ export const getUniswapSwapDataERC20ToETH = async (
   console.log(`finalFromAmount  : ${fromAmount}`)
 
   const finalMinAmountOut =
-    minAmountOut == 0
+    minAmountOut === 0
       ? await getAmountsOutUniswap(
           uniswapAddress,
           chainId,
@@ -440,9 +443,8 @@ export const getAmountsOutUniswap = async (
       amounts.map((a: any) => a.toString())
     )
 
-    if (!amounts || amounts.length < 2) {
+    if (!amounts || amounts.length < 2)
       throw new Error('Invalid amounts returned from Uniswap')
-    }
 
     return amounts
   } catch (error) {
@@ -478,9 +480,9 @@ const getProviderForChainId = (chainId: number) => {
  *
  */
 export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address))
     throw new Error('Invalid Ethereum address format')
-  }
+
   const hexAddress = address.replace(/^0x/, '')
   return `0x${hexAddress.padStart(64, '0')}`
 }
@@ -494,9 +496,9 @@ export const zeroPadAddressToBytes32 = (address: string): `0x${string}` => {
  * @returns A 32-byte hexadecimal string representation of the address.
  */
 export function addressToBytes32RightPadded(address: string): `0x${string}` {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address))
     throw new Error('Invalid Ethereum address format')
-  }
+
   const hex = address.replace(/^0x/, '').toLowerCase()
   return `0x${hex.padEnd(64, '0')}`
 }
@@ -507,9 +509,9 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
  */
 export const getEnvVar = (varName: string): string => {
   const value = process.env[varName]
-  if (!value) {
+  if (!value)
     throw new Error(`Missing required environment variable: ${varName}`)
-  }
+
   return value
 }
 
@@ -521,12 +523,11 @@ export const getEnvVar = (varName: string): string => {
 const normalizePrivateKey = (pk: string): `0x${string}` => {
   // Private key should be 64 characters (32 bytes) excluding '0x'
   const cleanPk = pk.replace(/^0x/, '')
-  if (!/^[a-fA-F0-9]{64}$/.test(cleanPk)) {
+  if (!/^[a-fA-F0-9]{64}$/.test(cleanPk))
     throw new Error('Invalid private key format')
-  }
-  if (!pk.startsWith('0x')) {
-    return `0x${pk}` as `0x${string}`
-  }
+
+  if (!pk.startsWith('0x')) return `0x${pk}`
+
   return pk as `0x${string}`
 }
 
@@ -536,21 +537,7 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  */
 const getRpcUrl = (chain: SupportedChain) => {
   const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
-  return getEnvVar(envKey) as string
-}
-
-/**
- * Return the `Chain` object from viem. If you request a chain that doesn't
- * exist in `viemChainMap`, this will throw an error.
- */
-const getViemChain = (chain: SupportedChain): Chain => {
-  const viemChain = viemChainMap[chain]
-  if (!viemChain) {
-    throw new Error(
-      `No viem chain object defined for chain: ${chain}. Please take a look at viemChainMap`
-    )
-  }
-  return viemChain
+  return getEnvVar(envKey)
 }
 
 /**
@@ -558,11 +545,11 @@ const getViemChain = (chain: SupportedChain): Chain => {
  */
 export const getDeployments = async (
   chain: SupportedChain,
-  environment: Environment = Environment.staging
+  environment: EnvironmentEnum = EnvironmentEnum.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === Environment.production
+    environment === EnvironmentEnum.production
       ? `${chain}.json`
       : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
@@ -586,7 +573,7 @@ export const getDeployments = async (
 export const setupEnvironment = async (
   chain: SupportedChain,
   facetAbi: Narrow<readonly any[]> | null,
-  environment: Environment = Environment.staging,
+  environment: EnvironmentEnum = EnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {
   // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
@@ -646,11 +633,11 @@ export const getConfigElement = (
   elementKey: string
 ) => {
   const chainConfig = config[chain]
-  if (!chainConfig || !chainConfig[elementKey]) {
+  if (!chainConfig || !chainConfig[elementKey])
     throw new Error(
       `Element '${elementKey}' not found for chain '${chain}' in the config.`
     )
-  }
+
   return chainConfig[elementKey]
 }
 
@@ -733,11 +720,11 @@ export const executeTransaction = async <T>(
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: result as any,
       })
-      if (receipt.status === 'success') {
+      if (receipt.status === 'success')
         console.info(
           `${transactionDescription} completed successfully, included in a block.`
         )
-      } else {
+      else {
         console.error(
           `${transactionDescription} failed. Receipt failure:`,
           receipt
@@ -764,23 +751,19 @@ export const ensureBalance = async (
 ): Promise<void> => {
   let balance: bigint
 
-  if (asset === zeroAddress) {
+  if (asset === zeroAddress)
     // Special case: asset represents the native token (e.g. ETH).
     // Retrieve the native balance using the public client.
     balance = await publicClient.getBalance({ address: walletAddress })
-  } else {
-    // Standard ERC20 balance check using the asset's balanceOf method.
-    balance = (await asset.read.balanceOf([walletAddress])) as bigint
-  }
+  // Standard ERC20 balance check using the asset's balanceOf method.
+  else balance = (await asset.read.balanceOf([walletAddress])) as bigint
 
   if (balance < requiredAmount) {
     console.error(
       `Insufficient balance. Required: ${requiredAmount}, Available: ${balance}`
     )
     process.exit(1)
-  } else {
-    console.info(`Balance: ${balance}`)
-  }
+  } else console.info(`Balance: ${balance}`)
 }
 
 /**
@@ -808,26 +791,24 @@ export const ensureAllowance = async (
     console.info(`Approval transaction broadcasted (hash): ${hash}`)
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
-    if (receipt.status === 'success') {
+    if (receipt.status === 'success')
       console.info(
         'Token allowance approved successfully, included in a block.'
       )
-    } else {
+    else {
       console.error(
         'Approval transaction failed. Receipt indicates a failure:',
         receipt
       )
       process.exit(1)
     }
-  } else {
-    console.info('Sufficient allowance already exists.')
-  }
+  } else console.info('Sufficient allowance already exists.')
 }
 
 export const getPrivateKeyForEnvironment = (
-  environment: Environment
+  environment: EnvironmentEnum
 ): string => {
-  return environment === Environment.production
+  return environment === EnvironmentEnum.production
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }

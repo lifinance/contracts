@@ -1,21 +1,23 @@
+import { PublicKey } from '@solana/web3.js'
+import { _100 } from '@uniswap/sdk/dist/constants'
+import dotenv from 'dotenv'
+import { ethers, utils } from 'ethers'
+
 import deployments from '../../deployments/arbitrum.staging.json'
 import {
   RelayFacet__factory,
-  ILiFi,
-  type RelayFacet,
   ERC20__factory,
+  type ILiFi,
+  type RelayFacet,
 } from '../../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
+
 import {
   ADDRESS_UNISWAP_ARB,
   ADDRESS_USDC_ARB,
   ADDRESS_WETH_ARB,
-  getUniswapSwapDataERC20ToERC20,
   getUniswapSwapDataERC20ToETH,
 } from './utils/demoScriptHelpers'
-import { _100 } from '@uniswap/sdk/dist/constants'
-import { PublicKey } from '@solana/web3.js'
+
 dotenv.config()
 
 const main = async () => {

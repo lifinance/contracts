@@ -10,9 +10,10 @@
  * bun script/deploy/safe/test-ledger.ts
  */
 
+import { consola } from 'consola'
+import type { Hex } from 'viem'
+
 import { getLedgerAccount } from './ledger'
-import consola from 'consola'
-import { Hex } from 'viem'
 
 async function main() {
   try {
@@ -29,6 +30,11 @@ async function main() {
       accountIndex: 0,
     })
 
+    if (!account.signMessage) {
+      consola.error('❌ Ledger account does not support signMessage!')
+      process.exit(1)
+    }
+
     consola.success(`✅ Connected to Ledger`)
     consola.success(`📍 Address: ${account.address}`)
 
@@ -37,7 +43,6 @@ async function main() {
     consola.info(
       'Please confirm the signature request on your Ledger device...'
     )
-
     // Sign a test message
     const testMessage = 'Hello from LiFi! ' + new Date().toISOString()
     const signature = await account.signMessage({ message: testMessage })

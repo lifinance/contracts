@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { Fragment } from '@ethersproject/abi'
-import { defineCommand, runMain } from 'citty'
 import { fileURLToPath } from 'url'
+
+import type { Fragment } from '@ethersproject/abi'
+import { defineCommand, runMain } from 'citty'
 
 const basePath = 'src/Facets/'
 const libraryBasePath = 'src/Libraries/'
@@ -14,7 +15,7 @@ const main = defineCommand({
       'Generates ABI file for diamond, includes all ABIs of facets and libraries',
   },
 
-  async run({ args }) {
+  async run() {
     const scriptPath = path.dirname(fileURLToPath(import.meta.url))
 
     // Create an empty array to store the ABI fragments
@@ -51,15 +52,13 @@ const main = defineCommand({
     // Remove duplicates from the combined ABI object
     // Filters by checking if the name and type of the
     // function already exists in another ABI fragment
-    const cleanAbi = <Fragment[]>(
-      abi
-        .filter(
-          (item, index, self) =>
-            index ===
-            self.findIndex((t) => t.name === item.name && t.type === item.type)
-        )
-        .filter((item) => item.type !== 'constructor')
-    )
+    const cleanAbi = abi
+      .filter(
+        (item, index, self) =>
+          index ===
+          self.findIndex((t) => t.name === item.name && t.type === item.type)
+      )
+      .filter((item) => item.type !== 'constructor')
 
     // Write the final ABI to a file
     const finalAbi = JSON.stringify(cleanAbi)

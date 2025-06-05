@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
-import consola from 'consola'
 
 const main = defineCommand({
   meta: {
@@ -100,14 +100,13 @@ const main = defineCommand({
         existingDoc &&
         Array.isArray(existingDoc.rpcs) &&
         existingDoc.rpcs.length > 0
-      ) {
+      )
         newPriority =
           Math.max(
             ...existingDoc.rpcs.map(
               (rpc: { priority: number }) => rpc.priority || 0
             )
           ) + 1
-      }
 
       // Construct the new RPC endpoint object with the new highest priority
       const newRpcEndpoint = { url: rpcUrl, priority: newPriority, environment }
@@ -118,7 +117,9 @@ const main = defineCommand({
           { chainName },
           {
             $set: { lastUpdated: new Date() },
-            $push: { rpcs: { $each: [newRpcEndpoint] } },
+            $push: {
+              rpcs: newRpcEndpoint,
+            } as any,
           },
           { upsert: true }
         )

@@ -21,16 +21,13 @@ async function filterLcov(
   for await (const line of rl) {
     if (line.startsWith('SF:')) {
       include = true
-      for (const pattern of excludePatterns) {
+      for (const pattern of excludePatterns)
         if (line.includes(pattern)) {
           include = false
           break
         }
-      }
     }
-    if (include) {
-      output.write(line + '\n')
-    }
+    if (include) output.write(line + '\n')
   }
 
   output.close()

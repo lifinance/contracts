@@ -1,12 +1,13 @@
+import dotenv from 'dotenv'
+import { ethers, utils } from 'ethers'
+
 import deployments from '../../deployments/mainnet.staging.json'
 import {
   ThorSwapFacet__factory,
-  ILiFi,
-  ThorSwapFacet,
   ERC20__factory,
+  type ILiFi,
+  type ThorSwapFacet,
 } from '../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
 dotenv.config()
 
 const main = async () => {
