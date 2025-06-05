@@ -1149,4 +1149,98 @@ contract PatcherTest is DSTest {
             false
         );
     }
+
+    // Tests that users can send native tokens with executeWithDynamicPatches
+    function testExecuteWithDynamicPatches_WithNativeToken() public {
+        uint256 dynamicValue = 12345;
+        uint256 ethValue = 1 ether;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0xABCD);
+        VM.deal(user, ethValue);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // User sends native tokens with the call
+        VM.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), ethValue);
+
+        VM.prank(user);
+        patcher.executeWithDynamicPatches{ value: ethValue }(
+            address(valueSource),
+            valueGetter,
+            address(target),
+            ethValue,
+            originalCalldata,
+            offsets,
+            false
+        );
+
+        assertEq(target.lastValue(), dynamicValue);
+        assertEq(target.lastSender(), address(patcher));
+        assertEq(target.lastEthValue(), ethValue);
+
+        // Verify that the user's native tokens were spent
+        assertEq(user.balance, 0);
+    }
+
+    // Tests that depositAndExecuteWithDynamicPatches can handle native tokens
+    function testDepositAndExecuteWithDynamicPatches_WithNativeToken() public {
+        uint256 dynamicValue = 54321;
+        uint256 ethValue = 0.5 ether;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0x1234);
+        uint256 tokenBalance = 1000 ether;
+        token.mint(user, tokenBalance);
+        VM.deal(user, ethValue);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        VM.prank(user);
+        token.approve(address(patcher), tokenBalance);
+
+        VM.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), ethValue);
+
+        VM.prank(user);
+        patcher.depositAndExecuteWithDynamicPatches{ value: ethValue }(
+            address(token),
+            address(valueSource),
+            valueGetter,
+            address(target),
+            ethValue,
+            originalCalldata,
+            offsets,
+            false
+        );
+
+        assertEq(target.lastValue(), dynamicValue);
+        assertEq(target.lastSender(), address(patcher));
+        assertEq(target.lastEthValue(), ethValue);
+
+        assertEq(token.balanceOf(address(patcher)), tokenBalance);
+        assertEq(token.balanceOf(user), 0);
+        assertEq(user.balance, 0);
+    }
 }

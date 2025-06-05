@@ -100,7 +100,7 @@ contract Patcher {
         bytes calldata data,
         uint256[] calldata offsets,
         bool delegateCall
-    ) external returns (bool success, bytes memory returnData) {
+    ) external payable returns (bool success, bytes memory returnData) {
         return
             _executeWithDynamicPatches(
                 valueSource,
@@ -156,7 +156,7 @@ contract Patcher {
         bytes calldata data,
         uint256[] calldata offsets,
         bool delegateCall
-    ) external returns (bool success, bytes memory returnData) {
+    ) external payable returns (bool success, bytes memory returnData) {
         // Get the token balance of msg.sender
         uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
 
@@ -198,7 +198,7 @@ contract Patcher {
         bytes calldata data,
         uint256[][] calldata offsetGroups,
         bool delegateCall
-    ) external returns (bool success, bytes memory returnData) {
+    ) external payable returns (bool success, bytes memory returnData) {
         // Get the token balance of msg.sender
         uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
 
@@ -238,7 +238,7 @@ contract Patcher {
         bytes calldata data,
         uint256[][] calldata offsetGroups,
         bool delegateCall
-    ) external returns (bool success, bytes memory returnData) {
+    ) external payable returns (bool success, bytes memory returnData) {
         return
             _executeWithMultiplePatches(
                 valueSources,
