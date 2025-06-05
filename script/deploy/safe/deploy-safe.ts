@@ -172,7 +172,6 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 // At the top of the file, add new type for EVM versions
 type EVMVersion = 'london' | 'cancun'
 
-// Modify the command arguments to include EVM version
 const main = defineCommand({
   meta: {
     name: 'deploy-safe',
@@ -220,7 +219,7 @@ const main = defineCommand({
       description:
         'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: false,
+      default: true,
     },
     rpcUrl: {
       type: 'string',
@@ -249,9 +248,9 @@ const main = defineCommand({
     //       },
     //     ],
     //   }
-    // )) as unknown as Environment
-    // we currently use SAFEs only in production but will keep this code just in case
-    const environment = Environment.production
+    // )) as string
+    // since we currently only use multisig safes in production we can hardcode this value here
+    const environment: Environment = Environment.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain
@@ -487,6 +486,8 @@ const main = defineCommand({
       }
       consola.info('-'.repeat(80))
     }
+
+    process.stdout.write('', () => process.stdout.end())
   },
 })
 
