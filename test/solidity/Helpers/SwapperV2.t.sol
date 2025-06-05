@@ -26,8 +26,8 @@ contract TestSwapperV2 is SwapperV2 {
         );
     }
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -46,7 +46,7 @@ contract SwapperV2Test is TestBase {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = TestSwapperV2.doSwaps.selector;
-        functionSelectors[1] = TestSwapperV2.addDex.selector;
+        functionSelectors[1] = TestSwapperV2.addToWhitelist.selector;
         functionSelectors[2] = TestSwapperV2
             .setFunctionApprovalBySignature
             .selector;
@@ -54,7 +54,7 @@ contract SwapperV2Test is TestBase {
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
-        swapper.addDex(address(amm));
+        swapper.addToWhitelist(address(amm));
         swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
     }
 
