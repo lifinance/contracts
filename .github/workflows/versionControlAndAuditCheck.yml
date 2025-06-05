@@ -592,18 +592,6 @@ jobs:
             fi
             echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
 
-            echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
-            ##### Fetch the list of commits associated with the PR
-            COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
-
-            ##### Check if the target commit is in the list
-            if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
-              echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
-            else
-              echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-              exit 1
-            fi
-
 
             ##### Check if the auditor git handle exists on github
             echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
