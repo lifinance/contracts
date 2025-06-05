@@ -44,7 +44,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         functionSelectors[1] = symbiosisFacet
             .swapAndStartBridgeTokensViaSymbiosis
             .selector;
-        functionSelectors[2] = symbiosisFacet.addDex.selector;
+        functionSelectors[2] = symbiosisFacet.addToWhitelist.selector;
         functionSelectors[3] = symbiosisFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -53,7 +53,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
 
-        symbiosisFacet.addDex(address(uniswap));
+        symbiosisFacet.addToWhitelist(address(uniswap));
         symbiosisFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
