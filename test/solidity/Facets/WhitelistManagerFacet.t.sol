@@ -82,6 +82,9 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     function test_SucceedsIfOwnerAddsAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
+        vm.expectEmit(true, true, true, true);
+        emit AddressWhitelisted(address(c1));
+
         whitelistMgr.addToWhitelist(address(c1));
         address[] memory approved = whitelistMgr.getWhitelistedAddresses();
         assertEq(approved[0], address(c1));
@@ -91,9 +94,6 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
     function test_SucceedsIfOwnerRemovesAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true);
-        emit AddressWhitelisted(address(c1));
 
         whitelistMgr.addToWhitelist(address(c1));
 
@@ -108,6 +108,20 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         assertEq(approved.length, 0);
     }
 
+    function _batchAddAddresses(address[] memory addresses) internal {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            vm.expectEmit(true, true, true, true);
+            emit AddressWhitelisted(addresses[i]);
+        }
+        whitelistMgr.batchAddToWhitelist(addresses);
+
+        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
+        assertEq(approved.length, addresses.length);
+        for (uint256 i = 0; i < addresses.length; i++) {
+            assertEq(approved[i], addresses[i]);
+        }
+    }
+
     function test_SucceedsIfOwnerBatchAddsAddresses() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
@@ -115,12 +129,8 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         addresses[0] = address(c1);
         addresses[1] = address(c2);
         addresses[2] = address(c3);
-        whitelistMgr.batchAddToWhitelist(addresses);
-        address[] memory approved = whitelistMgr.getWhitelistedAddresses();
-        assertEq(approved[0], addresses[0]);
-        assertEq(approved[1], addresses[1]);
-        assertEq(approved[2], addresses[2]);
-        assertEq(approved.length, 3);
+
+        _batchAddAddresses(addresses);
 
         vm.stopPrank();
     }
@@ -132,7 +142,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         addresses[0] = address(c1);
         addresses[1] = address(c2);
         addresses[2] = address(c3);
-        whitelistMgr.batchAddToWhitelist(addresses);
+        _batchAddAddresses(addresses);
 
         address[] memory remove = new address[](2);
         remove[0] = address(c1);
@@ -153,6 +163,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
         vm.expectEmit(true, true, true, true);
         emit FunctionSelectorApprovalChanged(selector, true);
+
         whitelistMgr.setFunctionApprovalBySelector(selector, true);
         assertTrue(whitelistMgr.isFunctionApproved(selector));
 
