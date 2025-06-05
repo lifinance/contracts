@@ -61,7 +61,7 @@ jobs:
           echo "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
-          # --diff-filter=AM argument to only include files that were added or modified
+          # --diff-filter=AM argument to only include files that were added or modified not deleted
           FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}" HEAD)"
 
           ##### make sure that there are modified files
