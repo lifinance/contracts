@@ -248,8 +248,8 @@ const main = defineCommand({
     //       },
     //     ],
     //   }
-    // )) as string
-    // since we currently only use multisig safes in production we can hardcode this value here
+    // )) as unknown as Environment
+    // we currently use SAFEs only in production but will keep this code just in case
     const environment: Environment = Environment.production
 
     // validate network & existing
