@@ -258,6 +258,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.05.15_GasZipFacet(v2.0.4).pdf",
       "auditCommitHash": "bc3dcebfe2e6e32fab7ec9cd37db423b23139abf"
+    },
+    "audit20250603": {
+      "auditCompletedOn": "03.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.03_GnosisBridgeFacet(v2.0.0).pdf",
+      "auditCommitHash": "7197c0a237f46c83d39f5566f18bbadb5ca156ed"
     }
   },
   "auditedContracts": {
@@ -344,7 +351,12 @@
       "1.0.0": ["audit20250219"]
     },
     "GnosisBridgeFacet": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": [
+        "audit20250508"
+      ],
+      "2.0.0": [
+        "audit20250603"
+      ]
     },
     "HopFacetOptimized": {
       "2.0.0": ["audit20250508"]

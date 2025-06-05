@@ -914,6 +914,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6Ed7e36b4AdBae7A9CCBf1476449d5eD9F47fce4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:05:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9640977264aec6d4e9af381F548eee11b9e27aAe",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:12:55",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1832,6 +1860,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x11EFE8bb7AC1C7c5eCE67dA437Ea87e6E457A1BA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:06:01",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x395db83A04cC3d3F6C5eFc73896929Cf10D0F301",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:13:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -2743,6 +2799,34 @@
             "ADDRESS": "0x15e9dc50561E106824dc345d31E9E601A1B2eABc",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 18:53:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xBBf60d8679c4516aC0B81a419b6C9Cf9BD1974dE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:08:29",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC6F7b47F870024B0E2DF6DFd551E10c4A37A1cEa",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:15:03",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -3968,6 +4052,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x873482d43f3Ee35c9d0725029f247353Af8F1226",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:05:10",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x70e272A93bc8344277a1f4390Ea6153A1D5fe450",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:12:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -4886,6 +4998,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xEdFCAb7871a773aB1a4829Da11bBA4c21E864938",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:03:48",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x662BCADB7A2CBb22367b2471d8A91E5b13FCe96B",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:10:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -5784,6 +5924,34 @@
             "ADDRESS": "0x7711848FFf05C8Ac4B998F9E3035B16DE8CCe118",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 18:55:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB2d0251A4eAeFc524D62Bf87Cce0454548DA810c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:09:22",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc1f27c1f6c87e73e089Ffac23C236Fc4A9E3fccc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:15:51",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -6707,6 +6875,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4afeD2d2FE564cDBf0D195f69747cfB010524D61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:09:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x190e03D49Ce76DDabC634a98629EDa6246aB5196",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:15:18",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -7580,6 +7776,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 18:56:42",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c00000000000000000000000049c21cdb21fd8056a19f2bd28081c4d0d2b55507",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x926c22Dc753E543Cf9CaB75CeEB46ecf865d006a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:09:40",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000006ed7e36b4adbae7a9ccbf1476449d5ed9f47fce4",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x198FC70Dfe05E755C81e54bd67Bff3F729344B9b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:16:38",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000009640977264aec6d4e9af381f548eee11b9e27aae",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -9542,6 +9766,34 @@
             "ADDRESS": "0x40aFCf2ee6d025f19b3516531fFf8D313E37a7ce",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 18:51:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5aB8bc7e35ffaED8207d24D80bf958A77F7e2721",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:06:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xAF69C0E3BBBf6AdE78f1466f86DfF86d64C8dA2A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:14:04",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -13192,6 +13444,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x7C25598d46593854904ec28c22A74a5C1d7f0c2A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:18:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x82a00cB7D1FB1e1ad4ec2F344Bd1Ad2eAB338B73",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:24:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -14284,6 +14564,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x3d32d5575C7Cf67C51819AE59a1Af4856f5bF594",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:18:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007c25598d46593854904ec28c22a74a5c1d7f0c2a000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0xebd9da7A70a51120e2513c11E2Fc38B5FD1DE8DD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:25:12",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000082a00cb7d1fb1e1ad4ec2f344bd1ad2eab338b73000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -15172,6 +15480,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 19:21:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:19:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xa0acea90a4755E3C9647a2d8889bfEEb1D6C7960",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:25:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -23139,6 +23475,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.3.0": [
+          {
+            "ADDRESS": "0xac02970E1c46015e05d3649143512B1b480aBfe6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:04:36",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.3.0": [
+          {
+            "ADDRESS": "0x176f558949e2a7C5217dD9C27Bf7A43c6783ee28",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:11:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -25776,6 +26140,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x94Caf1ed23310Ef981AA60e378ab369D4875a7F7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:21:50",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000cacf669f8446beca826913a3c6b96acd4b02a97000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x0B4c7336AE02Bd3f1648dE8eb6B79a71300260a1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:27:29",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000001d80c49bbbcd1c0911346656b529df9e5c2f783d000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -26890,6 +27282,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf6Cc4ca0Ff4bea26554A8090f2cE4088A3A7EeC4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:07:40",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xD1317DA862AC5C145519E60D24372dc186EF7426",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:14:23",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -27420,6 +27840,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x51Fd4F1cCacDD1bbc92689f1D1eC419addd8529e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:17:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008c49257767c1f92634a9cdbf0663af0356a472a",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xfC913652d55a875c835f1D70915eC46f63819240",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:23:35",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000045d417612e177672958dc0537c45a8f8d754ac2e",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -27803,6 +28251,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-19 10:20:34",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000003d32d5575c7cf67c51819ae59a1af4856f5bf5940000000000000000000000002761c39102bcf7fc6365580d94cd1882f9cc2650000000000000000000000000cb566e3b6934fa77258d68ea18e931fa75e1aaaa00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x6fff376d51C4305AA42f4916fa35c3Ac03974CeB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:21:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000003d32d5575c7cf67c51819ae59a1af4856f5bf59400000000000000000000000008c49257767c1f92634a9cdbf0663af0356a472a0000000000000000000000002a5e79dee6e3544588bb3b675b1cc3354df2aefd00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x4B9CF0bAd1E3Abc3ddeE3f3F4b6AdEE46D248bf3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:27:12",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ebd9da7a70a51120e2513c11e2fc38b5fd1de8dd00000000000000000000000045d417612e177672958dc0537c45a8f8d754ac2e0000000000000000000000001a44076050125825900e736c501f859c50fe728c00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -28706,6 +29182,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.9.0": [
+          {
+            "ADDRESS": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:20:06",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.9.0": [
+          {
+            "ADDRESS": "0x506aECEA5A0618e5e10520B8d8b8b5632629bc7A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:26:18",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -29450,6 +29954,34 @@
             "ADDRESS": "0x9c367d9F13945b6bA507b697fD5203E971FEB9E0",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 18:50:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x21274e3AF3B6739218040C87c09D509e3AA746cc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:06:34",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x531d69A3fAb6CB56A77B8402E6c217cB9cC902A9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:13:45",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "true"
@@ -30933,6 +31465,34 @@
           }
         ]
       }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0xBb402e8815AAD85AA1da4fc6c627e3Fab7385Ea9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 09:19:43",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000926c22dc753e543cf9cab75ceeb46ecf865d006a000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba300000000000000000000000085178cd4719c2d89353e3e56e5b9eac5fcc5b9dc",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x7f05Fe96098cd125c614B00860D4Cc812472a6c9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:26:40",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000198fc70dfe05e755c81e54bd67bff3f729344b9b00000000000000000000000008208a5f56696e7aa3eaf7a307fa63b37bd8e8a500000000000000000000000087a1e77c9692b846eaf84c7512dd0b678b4fd081",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
@@ -31948,6 +32508,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-21 19:21:41",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000008f3736cc9b10e340937b9cff5ab5302b84933685000000000000000000000000d28503eee7b0bbb2437c16dc8d2a42997b2922c9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xe94523E494Ad8A28BD93a39885645B8760B074E2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 09:21:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390000000000000000000000000eccc2ce02907c1c86b286fb50d1355384f55a29800000000000000000000000085178cd4719c2d89353e3e56e5b9eac5fcc5b9dc",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xC3DA5b3F49F70CF334288C9907Ca390b5226397d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:33:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000431f08321d06e41cb062d370cc4ba2bac39ffef0000000000000000000000000506aecea5a0618e5e10520b8d8b8b5632629bc7a00000000000000000000000087a1e77c9692b846eaf84c7512dd0b678b4fd081",
             "SALT": "",
             "VERIFIED": "true"
           }
