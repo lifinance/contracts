@@ -372,6 +372,7 @@ const main = defineCommand({
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
+      const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
@@ -400,7 +401,7 @@ const main = defineCommand({
       // FeeCollector
       await checkOwnership(
         'FeeCollector',
-        withdrawWallet,
+        feeCollectorOwner,
         deployedContracts,
         publicClient
       )
@@ -602,6 +603,8 @@ const checkIsDeployed = async (
 }
 
 const finish = () => {
+  // this line ensures that all logs are actually written before the script ends
+  process.stdout.write('', () => process.stdout.end())
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
     process.exit(1)
