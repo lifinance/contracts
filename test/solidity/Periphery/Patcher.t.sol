@@ -3,20 +3,18 @@ pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { Patcher } from "lifi/Periphery/Patcher.sol";
+import { Patcher } from "../../../src/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
+import { RelayFacet } from "../../../src/Facets/RelayFacet.sol";
+import { LibAsset } from "../../../src/Libraries/LibAsset.sol";
+import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
 
-// Custom errors for gas optimization
 error MockFailure();
 error TargetFailure();
 error OracleFailure();
 error PriceNotSet();
 
-// Mock contract that returns dynamic values
 contract MockValueSource {
     uint256 public value;
     bool public shouldFail;
@@ -54,7 +52,6 @@ contract MockValueSource {
     }
 }
 
-// Mock target contract for testing calls
 contract MockTarget {
     uint256 public lastValue;
     address public lastSender;
@@ -109,9 +106,8 @@ contract MockTarget {
     }
 }
 
-// Mock price oracle for calculating dynamic minimum amounts
 contract MockPriceOracle {
-    mapping(address => uint256) public prices; // Price in USD with 18 decimals
+    mapping(address => uint256) public prices;
     bool public shouldFail;
 
     function setPrice(address token, uint256 price) external {
@@ -129,11 +125,10 @@ contract MockPriceOracle {
         return prices[token];
     }
 
-    // Calculate minimum amount with slippage protection
     function calculateMinAmount(
         address token,
         uint256 amount,
-        uint256 slippageBps // basis points (e.g., 300 = 3%)
+        uint256 slippageBps
     ) external view returns (uint256) {
         if (shouldFail) {
             revert OracleFailure();
@@ -143,12 +138,10 @@ contract MockPriceOracle {
             revert PriceNotSet();
         }
 
-        // Apply slippage: minAmount = amount * (10000 - slippageBps) / 10000
         return (amount * (10000 - slippageBps)) / 10000;
     }
 }
 
-// Test RelayFacet Contract
 contract TestRelayFacet is RelayFacet {
     constructor(
         address _relayReceiver,
@@ -165,10 +158,8 @@ contract TestRelayFacet is RelayFacet {
 }
 
 contract PatcherTest is DSTest {
-    // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal immutable VM = Vm(HEVM_ADDRESS);
 
-    // Events for testing
     event CallReceived(uint256 value, address sender, uint256 ethValue);
     event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
 
@@ -179,74 +170,26 @@ contract PatcherTest is DSTest {
     MockPriceOracle internal priceOracle;
     TestRelayFacet internal relayFacet;
 
-    // RelayFacet setup variables
     address internal constant RELAY_RECEIVER =
         0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
     uint256 internal privateKey = 0x1234567890;
     address internal relaySolver;
 
     function setUp() public {
-        // Set up our test contracts
         patcher = new Patcher();
         valueSource = new MockValueSource();
         target = new MockTarget();
         token = new ERC20("Test Token", "TEST", 18);
         priceOracle = new MockPriceOracle();
 
-        // Set up real RelayFacet for testing
-        relaySolver = vm.addr(privateKey);
+        relaySolver = VM.addr(privateKey);
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
     }
 
-    // Test successful single patch execution
+    // Tests basic single value patching into calldata
     function testExecuteWithDynamicPatches_Success() public {
-        // Set up dynamic value
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
-
-        // Prepare calldata with placeholder value (0)
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0) // This will be patched
-        );
-
-        // Define offset where the value should be patched (after selector, at parameter position)
-        uint256[] memory offsets = new uint256[](1);
-        offsets[0] = 4; // Skip 4-byte selector
-
-        // Prepare value getter calldata
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
-
-        // Expect the CallReceived event to be emitted with the patched value
-        vm.expectEmit(true, true, true, true, address(target));
-        emit CallReceived(dynamicValue, address(patcher), 0);
-
-        // Execute with dynamic patches
-        patcher.executeWithDynamicPatches(
-            address(valueSource),
-            valueGetter,
-            address(target),
-            0, // no ETH value
-            originalCalldata,
-            offsets,
-            false // regular call, not delegatecall
-        );
-
-        // Verify execution was successful
-        assertEq(target.lastValue(), dynamicValue);
-        assertEq(target.lastSender(), address(patcher));
-        assertEq(target.lastEthValue(), 0);
-    }
-
-    // Test successful execution with ETH value
-    function testExecuteWithDynamicPatches_WithEthValue() public {
-        uint256 dynamicValue = 54321;
-        uint256 ethValue = 1 ether;
-
-        valueSource.setValue(dynamicValue);
-        vm.deal(address(patcher), ethValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
@@ -260,8 +203,45 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        // Expect the CallReceived event to be emitted with the patched value and ETH
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(dynamicValue, address(patcher), 0);
+
+        patcher.executeWithDynamicPatches(
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+
+        assertEq(target.lastValue(), dynamicValue);
+        assertEq(target.lastSender(), address(patcher));
+        assertEq(target.lastEthValue(), 0);
+    }
+
+    // Tests patching with ETH value transfer
+    function testExecuteWithDynamicPatches_WithEthValue() public {
+        uint256 dynamicValue = 54321;
+        uint256 ethValue = 1 ether;
+
+        valueSource.setValue(dynamicValue);
+        VM.deal(address(patcher), ethValue);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), ethValue);
 
         patcher.executeWithDynamicPatches(
@@ -278,28 +258,26 @@ contract PatcherTest is DSTest {
         assertEq(target.lastEthValue(), ethValue);
     }
 
-    // Test multiple patches with same value
+    // Tests patching same value to multiple positions in calldata
     function testExecuteWithDynamicPatches_MultipleOffsets() public {
         uint256 dynamicValue = 98765;
         valueSource.setValue(dynamicValue);
 
-        // Calldata with two parameters that should both be patched with the same value
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processMultipleValues.selector,
-            uint256(0), // First parameter to patch
-            uint256(0) // Second parameter to patch
+            uint256(0),
+            uint256(0)
         );
 
         uint256[] memory offsets = new uint256[](2);
-        offsets[0] = 4; // First parameter offset
-        offsets[1] = 36; // Second parameter offset (4 + 32)
+        offsets[0] = 4;
+        offsets[1] = 36;
 
         bytes memory valueGetter = abi.encodeWithSelector(
             valueSource.getValue.selector
         );
 
-        // Expect the CallReceived event to be emitted with the sum of both values
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue * 2, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -312,26 +290,24 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertEq(target.lastValue(), dynamicValue * 2); // Sum of both values
+        assertEq(target.lastValue(), dynamicValue * 2);
     }
 
-    // Test multiple patches with different values
+    // Tests patching different values from different sources
     function testExecuteWithMultiplePatches_Success() public {
         uint256 value1 = 11111;
         uint256 value2 = 22222;
 
-        // Set up two value sources
         MockValueSource valueSource2 = new MockValueSource();
         valueSource.setValue(value1);
         valueSource2.setValue(value2);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processMultipleValues.selector,
-            uint256(0), // Will be patched with value1
-            uint256(0) // Will be patched with value2
+            uint256(0),
+            uint256(0)
         );
 
-        // Set up arrays for multiple patches
         address[] memory valueSources = new address[](2);
         valueSources[0] = address(valueSource);
         valueSources[1] = address(valueSource2);
@@ -346,12 +322,11 @@ contract PatcherTest is DSTest {
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
-        offsetGroups[0][0] = 4; // First parameter
+        offsetGroups[0][0] = 4;
         offsetGroups[1] = new uint256[](1);
-        offsetGroups[1][0] = 36; // Second parameter
+        offsetGroups[1][0] = 36;
 
-        // Expect the CallReceived event to be emitted with the sum of both values
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(value1 + value2, address(patcher), 0);
 
         patcher.executeWithMultiplePatches(
@@ -367,7 +342,7 @@ contract PatcherTest is DSTest {
         assertEq(target.lastValue(), value1 + value2);
     }
 
-    // Test delegatecall execution
+    // Tests delegatecall execution mode
     function testExecuteWithDynamicPatches_Delegatecall() public {
         uint256 dynamicValue = 77777;
         valueSource.setValue(dynamicValue);
@@ -391,14 +366,11 @@ contract PatcherTest is DSTest {
             0,
             originalCalldata,
             offsets,
-            true // delegatecall
+            true
         );
-
-        // Note: In delegatecall, the target's storage won't be modified
-        // but the call should still succeed
     }
 
-    // Test error when getting dynamic value fails
+    // Tests oracle/source failure handling
     function testExecuteWithDynamicPatches_FailedToGetDynamicValue() public {
         valueSource.setShouldFail(true);
 
@@ -414,7 +386,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        vm.expectRevert(Patcher.FailedToGetDynamicValue.selector);
+        VM.expectRevert(Patcher.FailedToGetDynamicValue.selector);
         patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
@@ -426,7 +398,7 @@ contract PatcherTest is DSTest {
         );
     }
 
-    // Test error when patch offset is invalid
+    // Tests invalid offset bounds checking
     function testExecuteWithDynamicPatches_InvalidPatchOffset() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
@@ -437,13 +409,13 @@ contract PatcherTest is DSTest {
         );
 
         uint256[] memory offsets = new uint256[](1);
-        offsets[0] = originalCalldata.length; // Invalid offset (beyond data length)
+        offsets[0] = originalCalldata.length;
 
         bytes memory valueGetter = abi.encodeWithSelector(
             valueSource.getValue.selector
         );
 
-        vm.expectRevert(Patcher.InvalidPatchOffset.selector);
+        VM.expectRevert(Patcher.InvalidPatchOffset.selector);
         patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
@@ -455,13 +427,13 @@ contract PatcherTest is DSTest {
         );
     }
 
-    // Test error when arrays have mismatched lengths
+    // Tests input validation for array length mismatches
     function testExecuteWithMultiplePatches_MismatchedArrayLengths() public {
         address[] memory valueSources = new address[](2);
         valueSources[0] = address(valueSource);
         valueSources[1] = address(valueSource);
 
-        bytes[] memory valueGetters = new bytes[](1); // Mismatched length
+        bytes[] memory valueGetters = new bytes[](1);
         valueGetters[0] = abi.encodeWithSelector(
             valueSource.getValue.selector
         );
@@ -475,7 +447,7 @@ contract PatcherTest is DSTest {
             uint256(0)
         );
 
-        vm.expectRevert(Patcher.MismatchedArrayLengths.selector);
+        VM.expectRevert(Patcher.MismatchedArrayLengths.selector);
         patcher.executeWithMultiplePatches(
             valueSources,
             valueGetters,
@@ -487,32 +459,28 @@ contract PatcherTest is DSTest {
         );
     }
 
-    // Test complex scenario with token balance patching
+    // Tests ERC20 balance patching in realistic scenario
     function testExecuteWithDynamicPatches_TokenBalance() public {
-        // Mint tokens to an account
         address holder = address(0x1234);
         uint256 balance = 1000 ether;
         token.mint(holder, balance);
 
-        // Prepare calldata that uses the token balance
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processComplexData.selector,
-            uint256(0), // amount - will be patched with balance
+            uint256(0),
             address(token),
             block.timestamp + 1 hours
         );
 
         uint256[] memory offsets = new uint256[](1);
-        offsets[0] = 4; // Patch the amount parameter
+        offsets[0] = 4;
 
-        // Use balanceOf call to get dynamic value
         bytes memory valueGetter = abi.encodeWithSelector(
             token.balanceOf.selector,
             holder
         );
 
-        // Expect the CallReceived event to be emitted with the patched balance
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(
             balance + block.timestamp + 1 hours,
             address(patcher),
@@ -532,7 +500,7 @@ contract PatcherTest is DSTest {
         assertEq(target.lastValue(), balance + block.timestamp + 1 hours);
     }
 
-    // Test that target call failure is properly handled
+    // Tests target contract failure handling
     function testExecuteWithDynamicPatches_TargetCallFailure() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
@@ -561,30 +529,27 @@ contract PatcherTest is DSTest {
                 false
             );
 
-        // The patcher should return false for failed calls, not revert
         assertTrue(!success);
-        // Return data should contain the revert reason
         assertTrue(returnData.length > 0);
     }
 
-    // Test edge case with empty offsets array
+    // Tests no-op patching with empty offsets
     function testExecuteWithDynamicPatches_EmptyOffsets() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
-            uint256(99999) // This value should remain unchanged
+            uint256(99999)
         );
 
-        uint256[] memory offsets = new uint256[](0); // Empty offsets
+        uint256[] memory offsets = new uint256[](0);
 
         bytes memory valueGetter = abi.encodeWithSelector(
             valueSource.getValue.selector
         );
 
-        // Expect the CallReceived event to be emitted with the original value (no patching)
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(99999, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -597,10 +562,10 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertEq(target.lastValue(), 99999); // Original value should be preserved
+        assertEq(target.lastValue(), 99999);
     }
 
-    // Test multiple patches on the same offset (should overwrite)
+    // Tests overwriting same position with multiple patches
     function testExecuteWithMultiplePatches_SameOffset() public {
         uint256 value1 = 11111;
         uint256 value2 = 22222;
@@ -628,12 +593,11 @@ contract PatcherTest is DSTest {
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
-        offsetGroups[0][0] = 4; // Same offset
+        offsetGroups[0][0] = 4;
         offsetGroups[1] = new uint256[](1);
-        offsetGroups[1][0] = 4; // Same offset (should overwrite)
+        offsetGroups[1][0] = 4;
 
-        // Expect the CallReceived event to be emitted with the last written value
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(value2, address(patcher), 0);
 
         patcher.executeWithMultiplePatches(
@@ -646,17 +610,17 @@ contract PatcherTest is DSTest {
             false
         );
 
-        assertEq(target.lastValue(), value2); // Should have the last written value
+        assertEq(target.lastValue(), value2);
     }
 
-    // Test with zero value
+    // Tests zero value patching edge case
     function testExecuteWithDynamicPatches_ZeroValue() public {
         uint256 dynamicValue = 0;
         valueSource.setValue(dynamicValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
-            uint256(12345) // Will be overwritten with 0
+            uint256(12345)
         );
 
         uint256[] memory offsets = new uint256[](1);
@@ -666,8 +630,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        // Expect the CallReceived event to be emitted with the zero value
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(0, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -683,7 +646,7 @@ contract PatcherTest is DSTest {
         assertEq(target.lastValue(), 0);
     }
 
-    // Test with maximum uint256 value
+    // Tests maximum uint256 value patching edge case
     function testExecuteWithDynamicPatches_MaxValue() public {
         uint256 dynamicValue = type(uint256).max;
         valueSource.setValue(dynamicValue);
@@ -700,8 +663,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        // Expect the CallReceived event to be emitted with the max value
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(type(uint256).max, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -717,14 +679,12 @@ contract PatcherTest is DSTest {
         assertEq(target.lastValue(), type(uint256).max);
     }
 
-    // Test realistic BridgeData minAmount patching with price oracle using real RelayFacet
+    // Tests price oracle integration with RelayFacet for dynamic minAmount
     function testExecuteWithDynamicPatches_RelayFacetMinAmount() public {
-        // Set up token price and slippage
-        uint256 tokenPrice = 2000 * 1e18; // $2000 per token
-        uint256 slippageBps = 300; // 3% slippage
+        uint256 tokenPrice = 2000 * 1e18;
+        uint256 slippageBps = 300;
         priceOracle.setPrice(address(token), tokenPrice);
 
-        // Create BridgeData with placeholder minAmount (0)
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: bytes32("test-tx-id"),
             bridge: "relay",
@@ -732,13 +692,12 @@ contract PatcherTest is DSTest {
             referrer: address(0x1234),
             sendingAssetId: address(token),
             receiver: address(0x5678),
-            minAmount: 0, // This will be patched
-            destinationChainId: 8453, // Base
+            minAmount: 0,
+            destinationChainId: 8453,
             hasSourceSwaps: false,
             hasDestinationCall: false
         });
 
-        // Create RelayData
         RelayFacet.RelayData memory relayData = RelayFacet.RelayData({
             requestId: bytes32("test-request-id"),
             nonEVMReceiver: bytes32(0),
@@ -746,36 +705,28 @@ contract PatcherTest is DSTest {
             signature: ""
         });
 
-        // Sign the RelayData
         relayData.signature = signData(bridgeData, relayData);
 
-        // Set up token balance and approval for the Patcher
         uint256 bridgeAmount = 1000 ether;
         uint256 expectedMinAmount = (bridgeAmount * (10000 - slippageBps)) /
-            10000; // 970 ether
+            10000;
 
-        // Mint tokens to the Patcher contract
         token.mint(address(patcher), expectedMinAmount);
 
-        // Approve the RelayFacet to spend tokens from the Patcher
-        vm.prank(address(patcher));
+        VM.prank(address(patcher));
         token.approve(address(relayFacet), expectedMinAmount);
 
-        // Check relaySolver balance before
         uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
 
-        // Encode the RelayFacet call with placeholder minAmount
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayFacet.startBridgeTokensViaRelay.selector,
             bridgeData,
             relayData
         );
 
-        // Use the offset we found: 260 bytes
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 260;
 
-        // Prepare oracle call to calculate minAmount with slippage
         bytes memory valueGetter = abi.encodeWithSelector(
             priceOracle.calculateMinAmount.selector,
             address(token),
@@ -783,11 +734,10 @@ contract PatcherTest is DSTest {
             slippageBps
         );
 
-        // Expect the LiFiTransferStarted event to be emitted
         ILiFi.BridgeData memory expectedBridgeData = bridgeData;
-        expectedBridgeData.minAmount = expectedMinAmount; // Use the already calculated value
+        expectedBridgeData.minAmount = expectedMinAmount;
 
-        vm.expectEmit(true, true, true, true, address(relayFacet));
+        VM.expectEmit(true, true, true, true, address(relayFacet));
         emit LiFiTransferStarted(expectedBridgeData);
 
         patcher.executeWithDynamicPatches(
@@ -800,20 +750,15 @@ contract PatcherTest is DSTest {
             false
         );
 
-        // Check relaySolver balance after
         uint256 relaySolverBalanceAfter = token.balanceOf(relaySolver);
         assertEq(
             relaySolverBalanceAfter,
             relaySolverBalanceBefore + expectedMinAmount
         );
-
-        // The fact that the call succeeded means the patching worked correctly
-        // We can't verify the exact minAmount since the real RelayFacet doesn't store state
     }
 
-    // Test BridgeData patching with token balance as minAmount using RelayFacet
+    // Tests balance-based bridging with RelayFacet
     function testExecuteWithDynamicPatches_RelayFacetTokenBalance() public {
-        // Set up a user with token balance
         uint256 tokenBalance = 500 ether;
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
@@ -823,8 +768,8 @@ contract PatcherTest is DSTest {
             referrer: address(0x1234),
             sendingAssetId: address(token),
             receiver: address(1337),
-            minAmount: 0, // Will be patched with user's balance
-            destinationChainId: 8453, // Base
+            minAmount: 0,
+            destinationChainId: 8453,
             hasSourceSwaps: false,
             hasDestinationCall: false
         });
@@ -836,17 +781,13 @@ contract PatcherTest is DSTest {
             signature: ""
         });
 
-        // Sign the RelayData
         relayData.signature = signData(bridgeData, relayData);
 
-        // Set up token balance and approval for the Patcher
         token.mint(address(patcher), tokenBalance);
 
-        // Approve the RelayFacet to spend tokens from the Patcher
-        vm.prank(address(patcher));
+        VM.prank(address(patcher));
         token.approve(address(relayFacet), tokenBalance);
 
-        // Check relaySolver balance before
         uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
@@ -856,19 +797,17 @@ contract PatcherTest is DSTest {
         );
 
         uint256[] memory offsets = new uint256[](1);
-        offsets[0] = 260; // minAmount offset
+        offsets[0] = 260;
 
-        // Use token.balanceOf to get dynamic value
         bytes memory valueGetter = abi.encodeWithSelector(
             token.balanceOf.selector,
             patcher
         );
 
-        // Expect the LiFiTransferStarted event to be emitted
         ILiFi.BridgeData memory expectedBridgeData = bridgeData;
         expectedBridgeData.minAmount = tokenBalance;
 
-        vm.expectEmit(true, true, true, true, address(relayFacet));
+        VM.expectEmit(true, true, true, true, address(relayFacet));
         emit LiFiTransferStarted(expectedBridgeData);
 
         patcher.executeWithDynamicPatches(
@@ -881,17 +820,14 @@ contract PatcherTest is DSTest {
             false
         );
 
-        // Check relaySolver balance after
         uint256 relaySolverBalanceAfter = token.balanceOf(relaySolver);
         assertEq(
             relaySolverBalanceAfter,
             relaySolverBalanceBefore + tokenBalance
         );
-
-        // The fact that the call succeeded means the patching worked correctly
     }
 
-    // Test error handling when oracle fails during BridgeData patching with RelayFacet
+    // Tests oracle failure in bridge context
     function testExecuteWithDynamicPatches_RelayFacetOracleFailure() public {
         priceOracle.setShouldFail(true);
 
@@ -915,10 +851,8 @@ contract PatcherTest is DSTest {
             signature: ""
         });
 
-        // Sign the RelayData
         relayData.signature = signData(bridgeData, relayData);
 
-        // Check relaySolver balance before (should remain unchanged due to failure)
         uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
@@ -937,7 +871,7 @@ contract PatcherTest is DSTest {
             300
         );
 
-        vm.expectRevert(Patcher.FailedToGetDynamicValue.selector);
+        VM.expectRevert(Patcher.FailedToGetDynamicValue.selector);
         patcher.executeWithDynamicPatches(
             address(priceOracle),
             valueGetter,
@@ -948,12 +882,10 @@ contract PatcherTest is DSTest {
             false
         );
 
-        // Check relaySolver balance after (should be unchanged)
         uint256 relaySolverBalanceAfter = token.balanceOf(relaySolver);
         assertEq(relaySolverBalanceAfter, relaySolverBalanceBefore);
     }
 
-    // Helper function to sign RelayData
     function signData(
         ILiFi.BridgeData memory _bridgeData,
         RelayFacet.RelayData memory _relayData
@@ -977,7 +909,7 @@ contract PatcherTest is DSTest {
             )
         );
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, message);
+        (uint8 v, bytes32 r, bytes32 s) = VM.sign(privateKey, message);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
     }
@@ -996,85 +928,72 @@ contract PatcherTest is DSTest {
         return chainId;
     }
 
-    // Test depositAndExecuteWithDynamicPatches success
+    // Tests token deposit + execution workflow
     function testDepositAndExecuteWithDynamicPatches_Success() public {
-        // Set up dynamic value
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
-        // Set up token balance for user
         address user = address(0x1234);
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
 
-        // Prepare calldata with placeholder value (0)
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
-            uint256(0) // This will be patched
+            uint256(0)
         );
 
-        // Define offset where the value should be patched
         uint256[] memory offsets = new uint256[](1);
-        offsets[0] = 4; // Skip 4-byte selector
+        offsets[0] = 4;
 
-        // Prepare value getter calldata
         bytes memory valueGetter = abi.encodeWithSelector(
             valueSource.getValue.selector
         );
 
-        // Approve patcher to spend user's tokens
-        vm.prank(user);
+        VM.prank(user);
         token.approve(address(patcher), tokenBalance);
 
-        // Expect the CallReceived event to be emitted with the patched value
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
 
-        // Execute with dynamic patches as user
-        vm.prank(user);
+        VM.prank(user);
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
             valueGetter,
             address(target),
-            0, // no ETH value
+            0,
             originalCalldata,
             offsets,
-            false // regular call, not delegatecall
+            false
         );
 
-        // Verify execution was successful
         assertEq(target.lastValue(), dynamicValue);
         assertEq(target.lastSender(), address(patcher));
         assertEq(target.lastEthValue(), 0);
 
-        // Verify tokens were transferred to patcher
         assertEq(token.balanceOf(address(patcher)), tokenBalance);
         assertEq(token.balanceOf(user), 0);
     }
 
-    // Test depositAndExecuteWithMultiplePatches success
+    // Tests deposit with multiple patches workflow
     function testDepositAndExecuteWithMultiplePatches_Success() public {
         uint256 value1 = 11111;
         uint256 value2 = 22222;
 
-        // Set up two value sources
         MockValueSource valueSource2 = new MockValueSource();
         valueSource.setValue(value1);
         valueSource2.setValue(value2);
 
-        // Set up token balance for user
         address user = address(0x5678);
         uint256 tokenBalance = 500 ether;
         token.mint(user, tokenBalance);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processMultipleValues.selector,
-            uint256(0), // Will be patched with value1
-            uint256(0) // Will be patched with value2
+            uint256(0),
+            uint256(0)
         );
 
-        // Set up arrays for multiple patches
         address[] memory valueSources = new address[](2);
         valueSources[0] = address(valueSource);
         valueSources[1] = address(valueSource2);
@@ -1089,20 +1008,17 @@ contract PatcherTest is DSTest {
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
-        offsetGroups[0][0] = 4; // First parameter
+        offsetGroups[0][0] = 4;
         offsetGroups[1] = new uint256[](1);
-        offsetGroups[1][0] = 36; // Second parameter
+        offsetGroups[1][0] = 36;
 
-        // Approve patcher to spend user's tokens
-        vm.prank(user);
+        VM.prank(user);
         token.approve(address(patcher), tokenBalance);
 
-        // Expect the CallReceived event to be emitted with the sum of both values
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(value1 + value2, address(patcher), 0);
 
-        // Execute with multiple patches as user
-        vm.prank(user);
+        VM.prank(user);
         patcher.depositAndExecuteWithMultiplePatches(
             address(token),
             valueSources,
@@ -1114,21 +1030,18 @@ contract PatcherTest is DSTest {
             false
         );
 
-        // Verify execution was successful
         assertEq(target.lastValue(), value1 + value2);
 
-        // Verify tokens were transferred to patcher
         assertEq(token.balanceOf(address(patcher)), tokenBalance);
         assertEq(token.balanceOf(user), 0);
     }
 
-    // Test depositAndExecuteWithDynamicPatches with zero balance
+    // Tests deposit with zero balance edge case
     function testDepositAndExecuteWithDynamicPatches_ZeroBalance() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
         address user = address(0x9999);
-        // User has zero token balance
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
@@ -1142,12 +1055,10 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        // Expect the CallReceived event to be emitted with the patched value
-        vm.expectEmit(true, true, true, true, address(target));
+        VM.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
 
-        // Execute with zero balance (should still work)
-        vm.prank(user);
+        VM.prank(user);
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
@@ -1159,15 +1070,13 @@ contract PatcherTest is DSTest {
             false
         );
 
-        // Verify execution was successful
         assertEq(target.lastValue(), dynamicValue);
 
-        // Verify no tokens were transferred (user had zero balance)
         assertEq(token.balanceOf(address(patcher)), 0);
         assertEq(token.balanceOf(user), 0);
     }
 
-    // Test depositAndExecuteWithDynamicPatches without approval should fail
+    // Tests insufficient approval handling
     function testDepositAndExecuteWithDynamicPatches_NoApproval() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
@@ -1175,7 +1084,6 @@ contract PatcherTest is DSTest {
         address user = address(0xABCD);
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
-        // Note: No approval given to patcher
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
@@ -1189,9 +1097,8 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        // Should revert due to insufficient allowance
-        vm.prank(user);
-        vm.expectRevert();
+        VM.prank(user);
+        VM.expectRevert();
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
@@ -1204,14 +1111,14 @@ contract PatcherTest is DSTest {
         );
     }
 
-    // Test depositAndExecuteWithDynamicPatches with partial approval
+    // Tests partial approval edge case
     function testDepositAndExecuteWithDynamicPatches_PartialApproval() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
         address user = address(0xEF12);
         uint256 tokenBalance = 1000 ether;
-        uint256 approvalAmount = 500 ether; // Less than balance
+        uint256 approvalAmount = 500 ether;
         token.mint(user, tokenBalance);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
@@ -1226,13 +1133,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        // Approve only partial amount
-        vm.prank(user);
+        VM.prank(user);
         token.approve(address(patcher), approvalAmount);
 
-        // Should revert because it tries to transfer full balance but only partial approval
-        vm.prank(user);
-        vm.expectRevert();
+        VM.prank(user);
+        VM.expectRevert();
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
