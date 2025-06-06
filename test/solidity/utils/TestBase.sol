@@ -18,8 +18,8 @@ using stdJson for string;
 contract TestFacet {
     constructor() {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

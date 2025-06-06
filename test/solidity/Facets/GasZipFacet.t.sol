@@ -10,12 +10,12 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfi
 contract TestGasZipFacet is GasZipFacet {
     constructor(address gasZipRouter) GasZipFacet(gasZipRouter) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
-    function removeFromWhitelist(address _address) external {
-        LibAllowList.removeAllowedContract(_address);
+    function removeDex(address _dex) external {
+        LibAllowList.removeAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -62,8 +62,8 @@ contract GasZipFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = gasZipFacet.getDestinationChainsValue.selector;
 
-        functionSelectors[3] = gasZipFacet.addToWhitelist.selector;
-        functionSelectors[4] = gasZipFacet.removeFromWhitelist.selector;
+        functionSelectors[3] = gasZipFacet.addDex.selector;
+        functionSelectors[4] = gasZipFacet.removeDex.selector;
         functionSelectors[5] = gasZipFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -72,8 +72,8 @@ contract GasZipFacetTest is TestBaseFacet {
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 
         // whitelist uniswap dex with function selectors
-        gasZipFacet.addToWhitelist(address(uniswap));
-        gasZipFacet.addToWhitelist(address(gasZipFacet));
+        gasZipFacet.addDex(address(uniswap));
+        gasZipFacet.addDex(address(gasZipFacet));
         gasZipFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

@@ -11,7 +11,7 @@
 - [Chainflip Facet](./ChainflipFacet.md)
 - [Circle Bridge Facet](./CircleBridgeFacet.md)
 - [DeBridge DLN Facet](/docs/DeBridgeDlnFacet.md)
-- [Whitelist Manager Facet](./WhitelistManagerFacet.md)
+- [DEX Manager Facet](./DexManagerFacet.md)
 - [DiamondCut Facet](./DiamondCutFacet.md)
 - [DiamondLoupe Facet](./DiamondLoupeFacet.md)
 - [Emergency Pause Facet](./EmergencyPauseFacet.md)

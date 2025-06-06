@@ -14,8 +14,8 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 contract TestEmergencyPauseFacet is EmergencyPauseFacet {
     constructor(address _pauserWallet) EmergencyPauseFacet(_pauserWallet) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {

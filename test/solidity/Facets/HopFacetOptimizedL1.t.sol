@@ -10,8 +10,8 @@ import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacetOptimized {
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -51,7 +51,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             .swapAndStartBridgeTokensViaHopL1Native
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
-        functionSelectors[5] = hopFacet.addToWhitelist.selector;
+        functionSelectors[5] = hopFacet.addDex.selector;
         functionSelectors[6] = hopFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -60,7 +60,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
 
         hopFacet = TestHopFacet(address(diamond));
 
-        hopFacet.addToWhitelist(address(uniswap));
+        hopFacet.addDex(address(uniswap));
         hopFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

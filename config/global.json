@@ -18,15 +18,15 @@
   "approvedSigsForDeployerWallet": [
     {
       "sig": "0xfcd8e49e",
-      "name": "WhitelistManagerFacet.batchAddToWhitelist"
+      "name": "DexManagerFacet.batchAddDex"
     },
     {
       "sig": "0x9afc19c7",
-      "name": "WhitelistManagerFacet.batchRemoveFromWhitelist"
+      "name": "DexManagerFacet.batchRemoveDex"
     },
     {
       "sig": "0x44e2b18c",
-      "name": "WhitelistManagerFacet.batchSetFunctionApprovalBySignature"
+      "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
     }
   ],
   "safeOwners": [
@@ -46,7 +46,7 @@
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
-    "WhitelistManagerFacet",
+    "DexManagerFacet",
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
