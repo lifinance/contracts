@@ -19,6 +19,98 @@
       "0x1ff1dc3cb9eedbc6eb2d99c03b30a05ca625fb5a"
     ]
   },
+  "arbitrum": {
+    "chainId": 42161,
+    "acrossSpokePool": "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
+    "tokensToApprove": [
+      "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+      "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
+      "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f",
+      "0xd693ec944a85eeca4247ec1c3b130dca9b0c3b22",
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+      "0x040d1edc9569d4bab2d15287dc5a4f10f56a56b8",
+      "0x53691596d1bce8cea565b84d4915e69e03d9c99d",
+      "0xcf934e2402a5e072928a39a956964eb8f2b5b79c"
+    ]
+  },
+  "base": {
+    "chainId": 8453,
+    "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+    "tokensToApprove": [
+      "0x4200000000000000000000000000000000000006",
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+      "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
+      "0x4158734d47fc9692176b5085e0f52ee0da5d47f1",
+      "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2",
+      "0xd652c5425aea2afd5fb142e120fecf79e18fafc3"
+    ]
+  },
+  "bsc": {
+    "chainId": 56,
+    "acrossSpokePool": "0x4e8E101924eDE233C13e2D8622DC8aED2872d505",
+    "tokensToApprove": [
+      "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
+      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      "0x55d398326f99059ff775485246999027b3197955"
+    ]
+  },
+  "blast": {
+    "chainId": 81457,
+    "acrossSpokePool": "0x2D509190Ed0172ba588407D4c2df918F955Cc6E1",
+    "tokensToApprove": [
+      "0x4300000000000000000000000000000000000004",
+      "0xf7bc58b8d8f97adc129cfc4c9f45ce3c0e1d2692",
+      "0x4300000000000000000000000000000000000003"
+    ]
+  },
+  "ink": {
+    "chainId": 57073,
+    "acrossSpokePool": "0xeF684C38F94F48775959ECf2012D7E864ffb9dd4",
+    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
+  },
+  "lens": {
+    "chainId": 232,
+    "acrossSpokePool": "0xd524a49274D7b55852A2195D7622457FD77BA9bD",
+    "tokensToApprove": [
+      "0xe5ecd226b3032910ceaa43ba92ee8232f8237553",
+      "0x88f08e304ec4f90d644cec3fb69b8ad414acf884",
+      "0x6bdc36e20d267ff0dd6097799f82e78907105e2f"
+    ]
+  },
+  "linea": {
+    "chainId": 59144,
+    "acrossSpokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",
+    "tokensToApprove": [
+      "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
+      "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
+      "0x3aab2285ddcddad8edf438c1bab47e1a9d05a9b4",
+      "0x4af15ec2a0bd43db75dd04e62faa3b8ef36b00d5",
+      "0xa219439258ca9da29e9cc4ce5596924745e12b93"
+    ]
+  },
+  "lisk": {
+    "chainId": 1135,
+    "acrossSpokePool": "0x9552a0a6624A23B848060AE5901659CDDa1f83f8",
+    "tokensToApprove": [
+      "0x4200000000000000000000000000000000000006",
+      "0xf242275d3a6527d877f2c927a82d9b057609cc71",
+      "0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3",
+      "0x05d032ac25d322df992303dca074ee7392c117b9",
+      "0xac485391eb2d7d88253a7f1ef18c37f4242d1a24"
+    ]
+  },
+  "mode": {
+    "chainId": 34443,
+    "acrossSpokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
+    "tokensToApprove": [
+      "0x4200000000000000000000000000000000000006",
+      "0xd988097fb8612cc24eec14542bc03424c656005f",
+      "0xcdd475325d6f564d27247d1dddbb0dac6fa0a5cf",
+      "0xf0f161fda2712db8b566946122a5af183995e2ed"
+    ]
+  },
   "optimism": {
     "chainId": 10,
     "acrossSpokePool": "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
@@ -37,20 +129,6 @@
       "0x395ae52bb17aef68c2888d941736a71dc6d4e125"
     ]
   },
-  "bsc": {
-    "chainId": 56,
-    "acrossSpokePool": "0x4e8E101924eDE233C13e2D8622DC8aED2872d505",
-    "tokensToApprove": [
-      "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-      "0x55d398326f99059ff775485246999027b3197955"
-    ]
-  },
-  "ink": {
-    "chainId": 57073,
-    "acrossSpokePool": "0xeF684C38F94F48775959ECf2012D7E864ffb9dd4",
-    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
-  },
   "polygon": {
     "chainId": 137,
     "acrossSpokePool": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
@@ -65,84 +143,6 @@
       "0xf328b73b6c685831f238c30a23fc19140cb4d8fc",
       "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
       "0x25788a1a171ec66da6502f9975a15b609ff54cf6"
-    ]
-  },
-  "lens": {
-    "chainId": 232,
-    "acrossSpokePool": "0xd524a49274D7b55852A2195D7622457FD77BA9bD",
-    "tokensToApprove": [
-      "0xe5ecd226b3032910ceaa43ba92ee8232f8237553",
-      "0x88f08e304ec4f90d644cec3fb69b8ad414acf884",
-      "0x6bdc36e20d267ff0dd6097799f82e78907105e2f"
-    ]
-  },
-  "lisk": {
-    "chainId": 1135,
-    "acrossSpokePool": "0x9552a0a6624A23B848060AE5901659CDDa1f83f8",
-    "tokensToApprove": [
-      "0x4200000000000000000000000000000000000006",
-      "0xf242275d3a6527d877f2c927a82d9b057609cc71",
-      "0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3",
-      "0x05d032ac25d322df992303dca074ee7392c117b9",
-      "0xac485391eb2d7d88253a7f1ef18c37f4242d1a24"
-    ]
-  },
-  "base": {
-    "chainId": 8453,
-    "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
-    "tokensToApprove": [
-      "0x4200000000000000000000000000000000000006",
-      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-      "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
-      "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
-      "0x4158734d47fc9692176b5085e0f52ee0da5d47f1",
-      "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2",
-      "0xd652c5425aea2afd5fb142e120fecf79e18fafc3"
-    ]
-  },
-  "mode": {
-    "chainId": 34443,
-    "acrossSpokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
-    "tokensToApprove": [
-      "0x4200000000000000000000000000000000000006",
-      "0xd988097fb8612cc24eec14542bc03424c656005f",
-      "0xcdd475325d6f564d27247d1dddbb0dac6fa0a5cf",
-      "0xf0f161fda2712db8b566946122a5af183995e2ed"
-    ]
-  },
-  "arbitrum": {
-    "chainId": 42161,
-    "acrossSpokePool": "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
-    "tokensToApprove": [
-      "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
-      "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
-      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
-      "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f",
-      "0xd693ec944a85eeca4247ec1c3b130dca9b0c3b22",
-      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
-      "0x040d1edc9569d4bab2d15287dc5a4f10f56a56b8",
-      "0x53691596d1bce8cea565b84d4915e69e03d9c99d",
-      "0xcf934e2402a5e072928a39a956964eb8f2b5b79c"
-    ]
-  },
-  "linea": {
-    "chainId": 59144,
-    "acrossSpokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",
-    "tokensToApprove": [
-      "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
-      "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
-      "0x3aab2285ddcddad8edf438c1bab47e1a9d05a9b4",
-      "0x4af15ec2a0bd43db75dd04e62faa3b8ef36b00d5",
-      "0xa219439258ca9da29e9cc4ce5596924745e12b93"
-    ]
-  },
-  "blast": {
-    "chainId": 81457,
-    "acrossSpokePool": "0x2D509190Ed0172ba588407D4c2df918F955Cc6E1",
-    "tokensToApprove": [
-      "0x4300000000000000000000000000000000000004",
-      "0xf7bc58b8d8f97adc129cfc4c9f45ce3c0e1d2692",
-      "0x4300000000000000000000000000000000000003"
     ]
   },
   "scroll": {
