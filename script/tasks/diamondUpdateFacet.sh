@@ -221,7 +221,7 @@ diamondUpdateFacet() {
           fi
           
           RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
         fi
       fi
     else

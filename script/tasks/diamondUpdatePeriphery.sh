@@ -275,7 +275,7 @@ register() {
           fi
 
           echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${TARGET_ADDRESS}' with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)
@@ -377,7 +377,7 @@ register() {
           fi
 
           echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${TARGET_ADDRESS}' with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
         fi
       else
         # just register the diamond (no multisig required)
