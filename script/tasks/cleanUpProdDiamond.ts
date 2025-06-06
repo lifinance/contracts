@@ -31,13 +31,118 @@ import {
   sendOrPropose,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
-import { Abi, createPublicClient, http, parseAbi, getAddress } from 'viem'
+import {
+  Abi,
+  createPublicClient,
+  http,
+  parseAbi,
+  getAddress,
+  encodeFunctionData,
+} from 'viem'
 
 function castEnv(value: string): 'staging' | 'production' {
   if (value !== 'staging' && value !== 'production') {
     throw new Error(`Invalid environment: ${value}`)
   }
   return value
+}
+
+/**
+ * Wraps calldata in a timelock schedule call if USE_TIMELOCK_CONTROLLER=true
+ * @param originalCalldata - The original calldata to wrap
+ * @param diamondAddress - The diamond address (target for the scheduled call)
+ * @param network - The network name
+ * @param environment - The environment (staging/production)
+ * @returns Object with target address and final calldata
+ */
+async function prepareTimelockCalldata(
+  originalCalldata: `0x${string}`,
+  diamondAddress: string,
+  network: string,
+  environment: 'staging' | 'production'
+): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
+  const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+  if (!useTimelock || environment !== 'production') {
+    // Use diamond directly
+    return {
+      targetAddress: diamondAddress,
+      calldata: originalCalldata,
+    }
+  }
+
+  // Get timelock controller address from deployment logs
+  const deployLog = getDeployLogFile(network, environment)
+  const timelockAddress = deployLog['LiFiTimelockController']
+
+  if (!timelockAddress || timelockAddress === '0x') {
+    consola.warn(
+      'USE_TIMELOCK_CONTROLLER=true but no LiFiTimelockController found in deployment logs'
+    )
+    return {
+      targetAddress: diamondAddress,
+      calldata: originalCalldata,
+    }
+  }
+
+  consola.info(`Using timelock controller at ${timelockAddress} for operation`)
+
+  // Get minimum delay from timelock controller
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({
+    chain,
+    transport: http(),
+  })
+
+  let minDelay: bigint
+  try {
+    const timelockAbi = parseAbi([
+      'function getMinDelay() view returns (uint256)',
+    ])
+
+    minDelay = await client.readContract({
+      address: getAddress(timelockAddress),
+      abi: timelockAbi,
+      functionName: 'getMinDelay',
+    })
+
+    consola.info(`Timelock minimum delay: ${minDelay} seconds`)
+  } catch (error) {
+    consola.warn(
+      'Failed to get minimum delay from timelock, using default 3600 seconds'
+    )
+    minDelay = 3600n // Default to 1 hour
+  }
+
+  // Create unique salt based on current timestamp
+  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as `0x${string}`
+
+  // Encode the schedule function call
+  const scheduleAbi = parseAbi([
+    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+  ])
+
+  const scheduleCalldata = encodeFunctionData({
+    abi: scheduleAbi,
+    functionName: 'schedule',
+    args: [
+      getAddress(diamondAddress), // target
+      0n, // value
+      originalCalldata, // data
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // predecessor (empty)
+      salt, // salt
+      minDelay, // delay
+    ],
+  })
+
+  consola.info(
+    `Encoded schedule call with minimum delay of ${minDelay} seconds`
+  )
+
+  return {
+    targetAddress: timelockAddress,
+    calldata: scheduleCalldata,
+  }
 }
 
 const command = defineCommand({
@@ -128,11 +233,20 @@ const command = defineCommand({
 
       consola.info(`📦 Built calldata to remove ${facetNames.length} facets`)
 
+      // Prepare calldata for timelock if needed
+      const { targetAddress, calldata: finalCalldata } =
+        await prepareTimelockCalldata(
+          calldata,
+          diamondAddress,
+          network,
+          typedEnv
+        )
+
       await sendOrPropose({
-        calldata,
+        calldata: finalCalldata,
         network,
         environment: typedEnv,
-        diamondAddress,
+        diamondAddress: targetAddress,
       })
       return
     }
@@ -150,12 +264,21 @@ const command = defineCommand({
 
         consola.info(`→ Removing periphery: ${name}`)
 
+        // Prepare calldata for timelock if needed
+        const { targetAddress, calldata: finalCalldata } =
+          await prepareTimelockCalldata(
+            calldata,
+            diamondAddress,
+            network,
+            typedEnv
+          )
+
         // send it
         await sendOrPropose({
-          calldata,
+          calldata: finalCalldata,
           network,
           environment: typedEnv,
-          diamondAddress,
+          diamondAddress: targetAddress,
         })
       }
       return
@@ -221,11 +344,20 @@ const command = defineCommand({
 
       // send/propose it if the user selected yes
       if (confirm) {
+        // Prepare calldata for timelock if needed
+        const { targetAddress, calldata: finalCalldata } =
+          await prepareTimelockCalldata(
+            calldata,
+            diamondAddress,
+            network,
+            typedEnv
+          )
+
         await sendOrPropose({
-          calldata,
+          calldata: finalCalldata,
           network,
           environment: typedEnv,
-          diamondAddress,
+          diamondAddress: targetAddress,
         })
       } else {
         consola.info('Aborted.')
@@ -262,11 +394,20 @@ const command = defineCommand({
 
         // send/propose it if the user selected yes
         if (confirm) {
+          // Prepare calldata for timelock if needed
+          const { targetAddress, calldata: finalCalldata } =
+            await prepareTimelockCalldata(
+              data,
+              diamondAddress,
+              network,
+              typedEnv
+            )
+
           await sendOrPropose({
-            calldata: data,
+            calldata: finalCalldata,
             network,
             environment: typedEnv,
-            diamondAddress,
+            diamondAddress: targetAddress,
           })
         }
       }
