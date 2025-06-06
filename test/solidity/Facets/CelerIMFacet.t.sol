@@ -24,8 +24,8 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
         )
     {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -119,7 +119,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         functionSelectors[1] = celerIMFacet
             .swapAndStartBridgeTokensViaCelerIM
             .selector;
-        functionSelectors[2] = celerIMFacet.addDex.selector;
+        functionSelectors[2] = celerIMFacet.addToWhitelist.selector;
         functionSelectors[3] = celerIMFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -127,7 +127,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         addFacet(diamond, address(celerIMFacet), functionSelectors);
 
         celerIMFacet = TestCelerIMFacet(address(diamond));
-        celerIMFacet.addDex(address(uniswap));
+        celerIMFacet.addToWhitelist(address(uniswap));
         celerIMFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
