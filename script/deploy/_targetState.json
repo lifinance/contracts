@@ -379,7 +379,8 @@
         "CBridgeFacet": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "RelayFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipPeriphery": "1.0.1"
       }
     }
   },

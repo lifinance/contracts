@@ -20,11 +20,11 @@ import {
   Hex,
   parseAbi,
   formatEther,
-  decodeEventLog,
+  encodeFunctionData,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import consola from 'consola'
-import { defineCommand } from 'citty'
+import { consola } from 'consola'
+import { defineCommand, runMain } from 'citty'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import data from '../../../config/networks.json'
 
@@ -51,9 +51,10 @@ const TIMELOCK_ABI = parseAbi([
   'function isOperationPending(bytes32 id) view returns (bool)',
   'function isOperationReady(bytes32 id) view returns (bool)',
   'function isOperationDone(bytes32 id) view returns (bool)',
-  'function execute(address target, uint256 value, bytes calldata data) payable returns (bytes)',
+  'function execute(address target, uint256 value, bytes calldata payload, bytes32 predecessor, bytes32 salt) payable returns (bytes)',
   'event CallScheduled(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data, bytes32 predecessor, uint256 delay)',
   'event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data)',
+  'event CallSalt(bytes32 indexed id, bytes32 salt)',
 ])
 
 // Define the command
@@ -89,9 +90,14 @@ const cmd = defineCommand({
   },
   async run({ args }) {
     // Get private key from command line argument or environment variable
-    const privateKey = args.privateKey || process.env.PRIVATE_KEY_PRODUCTION
-    const isDryRun = args.dryRun || false
-    const specificOperationId = args.operationId as Hex | undefined
+    const privateKey = args?.privateKey || process.env.PRIVATE_KEY_PRODUCTION
+    const isDryRun = Boolean(args?.dryRun)
+    const specificOperationId = args?.operationId as Hex | undefined
+
+    // Log execution mode
+    if (isDryRun) {
+      consola.info('🔍 Running in DRY RUN mode - no transactions will be sent')
+    }
 
     if (!privateKey) {
       consola.error(
@@ -105,10 +111,10 @@ const cmd = defineCommand({
 
     // Filter networks based on command line argument or use all active networks
     let networksToProcess: NetworkConfig[] = []
-    if (args.network) {
+    if (args?.network) {
       const network = networksConfig[args.network.toLowerCase()]
       if (!network) {
-        consola.error(`Network ${args.network} not found in configuration`)
+        consola.error(`❌ Network '${args.network}' not found in configuration`)
         process.exit(1)
       }
       networksToProcess = [network]
@@ -119,7 +125,11 @@ const cmd = defineCommand({
       )
     }
 
-    consola.info(`Processing ${networksToProcess.length} networks`)
+    consola.info(
+      `🔍 Processing ${networksToProcess.length} network${
+        networksToProcess.length === 1 ? '' : 's'
+      }${args?.network ? ` (${args.network})` : ''}`
+    )
 
     if (isDryRun) {
       consola.info('Running in DRY RUN mode - no transactions will be sent')
@@ -142,9 +152,7 @@ async function processNetwork(
   isDryRun: boolean,
   specificOperationId?: Hex
 ) {
-  consola.info(
-    `\nProcessing network: ${network.name} (Chain ID: ${network.chainId})`
-  )
+  consola.info(`\n📡 ${network.name} (Chain ID: ${network.chainId})`)
 
   // Load deployment data for the network
   const deploymentPath = join(
@@ -160,15 +168,12 @@ async function processNetwork(
 
     // Check if LiFiTimelockController is deployed
     if (!deploymentData.LiFiTimelockController) {
-      consola.warn(
-        `LiFiTimelockController not found in deployments for ${network.name}, skipping...`
-      )
+      consola.warn(`⚠️  No timelock controller deployed on ${network.name}`)
       return
     }
 
     const timelockAddress = deploymentData.LiFiTimelockController as Address
-
-    consola.info(`Timelock address: ${timelockAddress}`)
+    consola.info(`🔒 Timelock: ${timelockAddress}`)
 
     // Create viem clients
     const account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
@@ -194,11 +199,15 @@ async function processNetwork(
     )
 
     if (pendingOperations.length === 0) {
-      consola.info(`No pending operations found for ${network.name}`)
+      consola.info(`✅ No pending operations found`)
       return
     }
 
-    consola.info(`Found ${pendingOperations.length} pending operations`)
+    consola.info(
+      `📋 Found ${pendingOperations.length} pending operation${
+        pendingOperations.length === 1 ? '' : 's'
+      }`
+    )
 
     // Execute each ready operation
     for (const operation of pendingOperations) {
@@ -222,7 +231,7 @@ async function getPendingOperations(
 ) {
   // If a specific operation ID is provided, check only that one
   if (specificOperationId) {
-    consola.info(`Checking specific operation ID: ${specificOperationId}`)
+    consola.info(`🔍 Checking operation: ${specificOperationId}`)
 
     const isOperation = await publicClient.readContract({
       address: timelockAddress,
@@ -351,7 +360,7 @@ async function getPendingOperations(
   const readyOperations = []
 
   for (const event of pendingOperationEvents) {
-    const operationId = event.args.id
+    const operationId = event.args.id!
 
     const isReady = await publicClient.readContract({
       address: timelockAddress,
@@ -361,12 +370,15 @@ async function getPendingOperations(
     })
 
     if (isReady) {
+      consola.info(`✅ Operation ${operationId} is ready for execution`)
       readyOperations.push({
         id: operationId,
-        target: event.args.target,
-        value: event.args.value,
-        data: event.args.data,
-        index: event.args.index,
+        target: event.args.target!,
+        value: event.args.value!,
+        data: event.args.data!,
+        index: event.args.index!,
+        predecessor: event.args.predecessor!,
+        delay: event.args.delay!,
       })
     } else {
       // Get the timestamp when the operation will be ready
@@ -380,12 +392,19 @@ async function getPendingOperations(
       const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
       const remainingTime = timestamp - currentTimestamp
 
-      consola.info(`Operation ${operationId} is not ready yet`)
-      consola.info(`Remaining time: ${formatTimeRemaining(remainingTime)}`)
+      consola.info(
+        `⏰ Operation ${operationId} not ready yet (${formatTimeRemaining(
+          remainingTime
+        )} remaining)`
+      )
     }
   }
 
-  consola.info(`Found ${readyOperations.length} operations ready to execute`)
+  consola.info(
+    `🚀 Found ${readyOperations.length} operation${
+      readyOperations.length === 1 ? '' : 's'
+    } ready to execute`
+  )
 
   return readyOperations
 }
@@ -426,10 +445,12 @@ async function getOperationDetailsFromEvents(
 
   return {
     id: operationId,
-    target: event.args.target,
-    value: event.args.value,
-    data: event.args.data,
-    index: event.args.index,
+    target: event.args.target!,
+    value: event.args.value!,
+    data: event.args.data!,
+    index: event.args.index!,
+    predecessor: event.args.predecessor!,
+    delay: event.args.delay!,
   }
 }
 
@@ -443,58 +464,100 @@ async function executeOperation(
     value: bigint
     data: Hex
     index: bigint
+    predecessor: Hex
+    delay: bigint
   },
   isDryRun: boolean
 ) {
-  consola.info(`\nExecuting operation: ${operation.id}`)
-  consola.info(`Target: ${operation.target}`)
-  consola.info(`Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`Data: ${operation.data}`)
+  consola.info(`\n⚡ Executing operation: ${operation.id}`)
+  consola.info(`   Target: ${operation.target}`)
+  consola.info(`   Value: ${formatEther(operation.value)} ETH`)
+  consola.info(`   Data: ${operation.data.substring(0, 42)}...`)
 
   try {
     // Try to decode the function call
     const functionName = await decodeFunctionCall(operation.data)
     if (functionName) {
-      consola.info(`Function: ${functionName}`)
+      consola.info(`   Function: ${functionName}`)
+    }
+
+    // Get the salt from CallSalt event
+    const saltEvents = await publicClient.getLogs({
+      address: timelockAddress,
+      event: {
+        type: 'event',
+        name: 'CallSalt',
+        inputs: [
+          { indexed: true, name: 'id', type: 'bytes32' },
+          { name: 'salt', type: 'bytes32' },
+        ],
+      },
+      args: {
+        id: operation.id,
+      },
+      fromBlock: 'earliest',
+      toBlock: 'latest',
+    })
+
+    let salt: Hex
+    if (saltEvents.length > 0) {
+      salt = saltEvents[0].args.salt!
+    } else {
+      // If no CallSalt event found, the salt was likely bytes32(0)
+      salt =
+        '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
     }
 
     if (isDryRun) {
       // Simulate the transaction
-      consola.info(`[DRY RUN] Would execute operation ${operation.id}`)
+      consola.info(`🔍 [DRY RUN] Simulating execution...`)
 
       // Try to simulate the transaction
       const gasEstimate = await publicClient.estimateGas({
-        account: walletClient.account.address,
+        account: walletClient.account!.address,
         to: timelockAddress,
         data: encodeFunctionData({
           abi: TIMELOCK_ABI,
           functionName: 'execute',
-          args: [operation.target, operation.value, operation.data],
+          args: [
+            operation.target,
+            operation.value,
+            operation.data,
+            operation.predecessor,
+            salt,
+          ],
         }),
         value: 0n,
       })
 
-      consola.info(`Estimated gas: ${gasEstimate}`)
-      consola.success(`[DRY RUN] Transaction simulation successful`)
+      consola.info(`   Estimated gas: ${gasEstimate}`)
+      consola.success(`✅ [DRY RUN] Transaction simulation successful`)
     } else {
       // Send the actual transaction
+      consola.info(`📤 Submitting transaction...`)
       const hash = await walletClient.writeContract({
         address: timelockAddress,
         abi: TIMELOCK_ABI,
         functionName: 'execute',
-        args: [operation.target, operation.value, operation.data],
+        args: [
+          operation.target,
+          operation.value,
+          operation.data,
+          operation.predecessor,
+          salt,
+        ],
         value: 0n,
       })
 
-      consola.info(`Transaction hash: ${hash}`)
-      consola.info(`Waiting for transaction confirmation...`)
+      consola.info(`   Transaction hash: ${hash}`)
+      consola.info(`   Waiting for confirmation...`)
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
       if (receipt.status === 'success') {
-        consola.success(`Successfully executed operation ${operation.id}`)
+        consola.success(`✅ Operation ${operation.id} executed successfully`)
       } else {
-        consola.error(`Transaction failed for operation ${operation.id}`)
+        consola.error(`❌ Transaction failed for operation ${operation.id}`)
       }
     }
   } catch (error) {
@@ -546,36 +609,4 @@ async function decodeFunctionCall(data: Hex): Promise<string | null> {
   }
 }
 
-// Helper function to encode function data
-function encodeFunctionData({
-  abi,
-  functionName,
-  args,
-}: {
-  abi: any[]
-  functionName: string
-  args: any[]
-}): Hex {
-  const functionAbi = abi.find(
-    (item) => item.type === 'function' && item.name === functionName
-  )
-
-  if (!functionAbi) {
-    throw new Error(`Function ${functionName} not found in ABI`)
-  }
-
-  // Create the function signature
-  const inputs = functionAbi.inputs || []
-  const types = inputs.map((input: any) => input.type)
-  const signature = `${functionName}(${types.join(',')})`
-
-  // Calculate the function selector (first 4 bytes of the keccak256 hash of the signature)
-  const selector = `0x${Buffer.from(signature).toString('hex').slice(0, 8)}`
-
-  // For simplicity, we're not encoding the actual arguments
-  // In a real implementation, you would encode the arguments based on their types
-  return selector as Hex
-}
-
-// Run the command
-cmd.run()
+runMain(cmd)
