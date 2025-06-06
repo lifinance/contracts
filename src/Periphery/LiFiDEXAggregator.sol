@@ -35,6 +35,7 @@ uint8 constant POOL_TYPE_TRIDENT = 4;
 uint8 constant POOL_TYPE_CURVE = 5;
 uint8 constant POOL_TYPE_VELODROME_V2 = 6;
 uint8 constant POOL_TYPE_ALGEBRA = 7;
+uint8 constant POOL_TYPE_SUSHI = 8;
 
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
