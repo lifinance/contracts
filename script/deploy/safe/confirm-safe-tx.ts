@@ -19,6 +19,7 @@ import {
   hasEnoughSignatures,
   isSignedByCurrentSigner,
   wouldMeetThreshold,
+  isSignedByProductionWallet,
   getSafeMongoCollection,
   getPendingTransactionsByNetwork,
   getNetworksToProcess,
@@ -365,6 +366,14 @@ const processTxs = async (
         if (wouldMeetThreshold(tx.safeTransaction, tx.threshold)) {
           options.push('Sign & Execute')
         }
+
+        // Check if this would be the final signature to meet threshold AND production wallet has already signed
+        if (
+          wouldMeetThreshold(tx.safeTransaction, tx.threshold) &&
+          isSignedByProductionWallet(tx.safeTransaction)
+        ) {
+          options.push('Sign and Execute With Deployer')
+        }
       }
 
       if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
@@ -420,6 +429,98 @@ const processTxs = async (
         await executeTransaction(signedTx)
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
+      }
+    }
+
+    if (action === 'Sign and Execute With Deployer') {
+      try {
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const signedTx = await signTransaction(safeTransaction)
+        // Update MongoDB with new signature
+        await pendingTransactions.updateOne(
+          { safeTxHash: tx.safeTxHash },
+          {
+            $set: {
+              [`safeTx`]: signedTx,
+            },
+          }
+        )
+        consola.success('Transaction signed and stored in MongoDB')
+
+        // Initialize a separate Safe client with PRIVATE_KEY_PRODUCTION for execution
+        consola.info('Initializing deployer wallet for execution...')
+        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+        const { safe: deployerSafe } = await initializeSafeClient(
+          network,
+          deployerPrivateKey,
+          rpcUrl,
+          false, // Not using ledger for deployer
+          undefined
+        )
+
+        // Create executeTransaction function that uses the deployer safe
+        const executeWithDeployer = async (
+          safeTransaction: SafeTransaction
+        ) => {
+          consola.info('Executing transaction with deployer wallet...')
+          try {
+            // Get the Safe transaction hash for reference
+            const safeTxHash = await deployerSafe.getTransactionHash(
+              safeTransaction
+            )
+            consola.info(
+              `Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`
+            )
+
+            // Execute the transaction on-chain using deployer wallet
+            consola.info(
+              'Submitting execution transaction to blockchain with deployer...'
+            )
+            const exec = await deployerSafe.executeTransaction(safeTransaction)
+
+            // Log execution details with color coding
+            consola.success(
+              `Execution transaction submitted successfully with deployer!`
+            )
+            consola.info(
+              `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
+            )
+
+            // Update MongoDB transaction status
+            await pendingTransactions.updateOne(
+              { safeTxHash: safeTxHash },
+              { $set: { status: 'executed', executionHash: exec.hash } }
+            )
+
+            consola.success(
+              `✅ Safe transaction successfully executed with deployer and recorded in database`
+            )
+            consola.info(
+              `   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`
+            )
+            consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
+            consola.log(' ')
+          } catch (error) {
+            consola.error('❌ Error executing Safe transaction with deployer:')
+            consola.error(`   ${error.message}`)
+            if (error.message.includes('GS026')) {
+              consola.error(
+                '   This appears to be a signature validation error (GS026).'
+              )
+              consola.error(
+                '   Possible causes: invalid signature format or incorrect signer.'
+              )
+            }
+            throw new Error(`Transaction execution failed: ${error.message}`)
+          }
+        }
+
+        await executeWithDeployer(signedTx)
+      } catch (error) {
+        consola.error(
+          'Error signing and executing transaction with deployer:',
+          error
+        )
       }
     }
 

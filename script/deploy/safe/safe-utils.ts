@@ -715,6 +715,33 @@ export const wouldMeetThreshold = (
 }
 
 /**
+ * Checks if the PRIVATE_KEY_PRODUCTION wallet has already signed the transaction
+ * @param safeTx - The transaction to check
+ * @returns True if the PRIVATE_KEY_PRODUCTION wallet has already signed
+ */
+export const isSignedByProductionWallet = (
+  safeTx: SafeTransaction
+): boolean => {
+  if (!safeTx?.signatures) return false
+
+  try {
+    const productionPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+    const productionAccount = privateKeyToAccount(
+      `0x${productionPrivateKey}` as Hex
+    )
+    const productionAddress = productionAccount.address
+
+    const signers = Array.from(safeTx.signatures.values()).map((sig) =>
+      sig.signer.toLowerCase()
+    )
+    return signers.includes(productionAddress.toLowerCase())
+  } catch (error) {
+    // If we can't get the production key, assume it hasn't signed
+    return false
+  }
+}
+
+/**
  * Gets Safe information directly from the contract
  * @param publicClient - Viem public client
  * @param safeAddress - Address of the Safe
