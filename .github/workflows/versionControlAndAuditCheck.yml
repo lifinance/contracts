@@ -610,6 +610,7 @@ jobs:
             #   exit 1
             # fi
 
+
             ##### Check if the auditor git handle exists on github
             echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
             if gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
