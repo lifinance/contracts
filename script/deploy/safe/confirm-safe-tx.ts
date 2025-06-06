@@ -38,6 +38,69 @@ const storedResponses: Record<string, string> = {}
 }
 
 /**
+ * Decodes nested timelock schedule calls that may contain diamondCut
+ * @param decoded - The decoded schedule function data
+ * @param chainId - Chain ID for ABI fetching
+ */
+async function decodeNestedTimelockCall(decoded: any, chainId: number) {
+  if (decoded.functionName === 'schedule') {
+    consola.info('Timelock Schedule Details:')
+    consola.info('-'.repeat(80))
+
+    const [target, value, data, predecessor, salt, delay] = decoded.args
+
+    consola.info(`Target:      \u001b[32m${target}\u001b[0m`)
+    consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
+    consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
+    consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
+    consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
+    consola.info('-'.repeat(80))
+
+    // Try to decode the nested data
+    if (data && data !== '0x') {
+      try {
+        const nestedDecoded = await decodeTransactionData(data as Hex)
+        if (nestedDecoded.functionName) {
+          consola.info(
+            `Nested Function: \u001b[34m${nestedDecoded.functionName}\u001b[0m`
+          )
+
+          // If the nested call is diamondCut, decode it further
+          if (nestedDecoded.functionName.includes('diamondCut')) {
+            const fullAbiString = `function ${nestedDecoded.functionName}`
+            const abiInterface = parseAbi([fullAbiString])
+            const nestedDecodedData = decodeFunctionData({
+              abi: abiInterface,
+              data: data as Hex,
+            })
+
+            if (nestedDecodedData.functionName === 'diamondCut') {
+              consola.info('Nested Diamond Cut detected - decoding...')
+              await decodeDiamondCut(nestedDecodedData, chainId)
+            } else {
+              consola.info(
+                'Nested Data:',
+                JSON.stringify(nestedDecodedData, null, 2)
+              )
+            }
+          } else {
+            consola.info(
+              'Nested Data:',
+              JSON.stringify(nestedDecoded.decodedData, null, 2)
+            )
+          }
+        } else {
+          consola.info(`Nested Data: ${data}`)
+        }
+      } catch (error) {
+        consola.warn(`Failed to decode nested data: ${error.message}`)
+        consola.info(`Raw nested data: ${data}`)
+      }
+    }
+  }
+}
+
+/**
  * Main function to process Safe transactions for a given network
  * @param network - Network name
  * @param privateKey - Private key of the signer (optional if useLedger is true)
@@ -252,6 +315,8 @@ const processTxs = async (
     if (abi) {
       if (decoded && decoded.functionName === 'diamondCut') {
         await decodeDiamondCut(decoded, chain.id)
+      } else if (decoded && decoded.functionName === 'schedule') {
+        await decodeNestedTimelockCall(decoded, chain.id)
       } else {
         consola.info('Method:', abi)
         if (decoded) {
