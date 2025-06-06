@@ -14,8 +14,8 @@ contract TestGnosisBridgeFacet is GnosisBridgeFacet {
         IGnosisBridgeRouter _xDaiBridge
     ) GnosisBridgeFacet(_xDaiBridge) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -57,7 +57,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = gnosisBridgeFacet.addToWhitelist.selector;
+        functionSelectors[2] = gnosisBridgeFacet.addDex.selector;
         functionSelectors[3] = gnosisBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -66,7 +66,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        gnosisBridgeFacet.addToWhitelist(address(uniswap));
+        gnosisBridgeFacet.addDex(address(uniswap));
         gnosisBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

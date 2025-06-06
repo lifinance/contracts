@@ -983,7 +983,7 @@
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "devNotes": "Contract Verification does not work correctly. Deployments work only after removing --skip-simulation flag when calling forge scripts. Sometimes removing --json flag helped to push a script through"
+    "devNotes": "Contract Verification does not work correctly. It appears like it fails but it doesnt. Need to manually update deploy log (verify flag) after. Contract deployments work only after removing --skip-simulation flag when calling forge scripts. Sometimes removing --json flag helped to push a script through"
   },
   "worldchain": {
     "name": "worldchain",

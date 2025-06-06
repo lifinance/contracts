@@ -251,7 +251,7 @@ const main = defineCommand({
     //   }
     // )) as unknown as Environment
     // we currently use SAFEs only in production but will keep this code just in case
-    const environment = Environment.production
+    const environment: Environment = Environment.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain

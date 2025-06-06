@@ -1340,13 +1340,13 @@ function getBytecodeFromArtifact() {
   fi
 }
 
-function addPeripheryToWhitelistedAddressesJson() {
-  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/whitelistedAddresses.json"
+function addPeripheryToDexsJson() {
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
-  local FILEPATH_WHITELISTED_ADDRESSES="config/whitelistedAddresses.json"
+  local FILEPATH_DEXS="config/dexs.json"
   local FILEPATH_GLOBAL_CONFIG="config/global.json"
 
   WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
@@ -1359,8 +1359,8 @@ function addPeripheryToWhitelistedAddressesJson() {
   local ADD_COUNTER=${#CONTRACTS[@]}
 
 
-  # get number of existing whitelisted addresses in the file for the given network
-  local EXISTING_WHITELISTED_ADDRESSES=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_WHITELISTED_ADDRESSES")
+  # get number of existing DEX addresses in the file for the given network
+  local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
 
   # Iterate through all contracts
   for CONTRACT in "${CONTRACTS[@]}"; do
@@ -1375,35 +1375,35 @@ function addPeripheryToWhitelistedAddressesJson() {
       continue
     fi
 
-    # check if address already exists in whitelistedAddresses.json for the given network
-    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_WHITELISTED_ADDRESSES)
+    # check if address already exists in dexs.json for the given network
+    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_DEXS)
 
     if [ "$EXISTS" == "true" ]; then
-      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted addresses in network $NETWORK."
+      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted DEXs in network $NETWORK."
 
       # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
       ((ADD_COUNTER--)) # reduces by 1
     else
-      # add the address to whitelistedAddresses.json
+      # add the address to dexs.json
       local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_WHITELISTED_ADDRESSES > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_WHITELISTED_ADDRESSES
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
       rm -f "$TMP_FILE"
 
 
-      success "$CONTRACT address $CONTRACT_ADDRESS added to whitelistedAddresses.json[$NETWORK]"
+      success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
     fi
   done
 
-  # check how many whitelisted addresses are in the whitelistedAddresses.json now
+  # check how many DEX addresses are in the dexs.json now
   local ADDRESS_COUNTER=${#CONTRACTS[@]}
 
-  EXPECTED_WHITELISTED_ADDRESSES=$((EXISTING_WHITELISTED_ADDRESSES + ADD_COUNTER))
+  EXPECTED_DEXS=$((EXISTING_DEXS + ADD_COUNTER))
 
-  # make sure whitelistedAddresses.json has been updated correctly
-  if [ $EXPECTED_WHITELISTED_ADDRESSES -eq $((EXISTING_WHITELISTED_ADDRESSES + ADD_COUNTER)) ]; then
-    success "$ADD_COUNTER addresses were added to config/whitelistedAddresses.json"
+  # make sure dexs.json has been updated correctly
+  if [ $EXPECTED_DEXS -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
+    success "$ADD_COUNTER addresses were added to config/dexs.json"
   else
-    error "The array in whitelistedAddresses.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
+    error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
     exit 1
   fi
 }
@@ -1424,16 +1424,6 @@ function verifyContract() {
     API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
   fi
 
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function verifyContract"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "CONTRACT=$CONTRACT"
-  echoDebug "ADDRESS=$ADDRESS"
-  echoDebug "ARGS=$ARGS"
-  echoDebug "blockexplorer API_KEY=${API_KEY}"
-  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
-
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
     *,"$NETWORK",*)
@@ -1450,6 +1440,19 @@ function verifyContract() {
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
+
+
+  # logging for debug purposes
+  echo ""
+  echoDebug "in function verifyContract"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "ARGS=$ARGS"
+  echoDebug "blockexplorer API_KEY=${API_KEY}"
+  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
+  echoDebug "FULL_PATH=$FULL_PATH"
+  echoDebug "CHAIN_ID=$CHAIN_ID"
 
   if [ $? -ne 0 ]; then
     warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
@@ -4002,7 +4005,7 @@ function test_removeFacetFromDiamond() {
 }
 function test_getFacetFunctionSelectorsFromDiamond() {
   echo "should return '[0x23452b9c,0x7200b829,0x8da5cb5b,0xf2fde38b]': $(getFacetFunctionSelectorsFromDiamond "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "OwnershipFacet" "mainnet" "staging")"
-  echo "should return '[0x536db266,0xfbb2d381,0xfcd8e49e,0x9afc19c7,0x44e2b18c,0x2d2506a9,0x124f1ead,0xc3a6a96b]': $(getFacetFunctionSelectorsFromDiamond "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "WhitelistManagerFacet" "bsc" "production")"
+  echo "should return '[0x536db266,0xfbb2d381,0xfcd8e49e,0x9afc19c7,0x44e2b18c,0x2d2506a9,0x124f1ead,0xc3a6a96b]': $(getFacetFunctionSelectorsFromDiamond "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "DexManagerFacet" "bsc" "production")"
 }
 function test_doesDiamondHaveCoreFacetsRegistered() {
   doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mainnet" "staging"
@@ -4058,8 +4061,8 @@ function test_getPeripheryAddressFromDiamond() {
   getPeripheryAddressFromDiamond "mainnet" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "Executor"
 }
 function test_getContractVersionFromMasterLog() {
-  echo "should return '1.0.0': $(getContractVersionFromMasterLog "optimism" "production" "WhitelistManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374b")"
-  echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "WhitelistManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
+  echo "should return '1.0.0': $(getContractVersionFromMasterLog "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374b")"
+  echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
   echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "DeBridgeFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
   echo "should return '': $(getContractVersionFromMasterLog "testNetwork" "production" "LiFiDiamond" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
 }

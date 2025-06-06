@@ -10,8 +10,8 @@ contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
         address _example
     ) {{titleCase name}}Facet(_example) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -40,14 +40,14 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
         functionSelectors[1] = {{camelCase name}}Facet
             .swapAndStartBridgeTokensVia{{titleCase name}}
             .selector;
-        functionSelectors[2] = {{camelCase name}}Facet.addToWhitelist.selector;
+        functionSelectors[2] = {{camelCase name}}Facet.addDex.selector;
         functionSelectors[3] = {{camelCase name}}Facet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address({{camelCase name}}Facet), functionSelectors);
         {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
-        {{camelCase name}}Facet.addToWhitelist(ADDRESS_UNISWAP);
+        {{camelCase name}}Facet.addDex(ADDRESS_UNISWAP);
         {{camelCase name}}Facet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
