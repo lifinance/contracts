@@ -525,7 +525,7 @@
     "create3Factory": "0xC3C73FEE9Cef413880696e6C39365BDf8cD564f9"
   },
   "lens": {
-    "name": "Lens",
+    "name": "lens",
     "chainId": 232,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "GHO",
