@@ -61,7 +61,8 @@ jobs:
           echo "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
-          FILES="$(git diff --name-only "origin/${BASE_REF}" HEAD)"
+          # --diff-filter=AM argument to only include files that were added or modified not deleted
+          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}" HEAD)"
 
           ##### make sure that there are modified files
           if [[ -z "$FILES" ]]; then
@@ -592,17 +593,22 @@ jobs:
             fi
             echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
 
-            echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
-            ##### Fetch the list of commits associated with the PR
-            COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
+            # NOTE: This check is disabled because it can cause issues when reverting PRs.
+            # For example, if a PR is mistakenly merged and needs to be reverted,
+            # the revert PR would fail this check since the audit commit hash would not be
+            # part of the revert PR's commit history. This would make it impossible to
+            # revert changes through the normal PR process.
+            # echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
+            # ##### Fetch the list of commits associated with the PR
+            # COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
 
-            ##### Check if the target commit is in the list
-            if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
-              echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
-            else
-              echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-              exit 1
-            fi
+            # ##### Check if the target commit is in the list
+            # if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
+            #   echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
+            # else
+            #   echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
+            #   exit 1
+            # fi
 
 
             ##### Check if the auditor git handle exists on github
