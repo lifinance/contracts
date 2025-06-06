@@ -30642,6 +30642,20 @@
           }
         ]
       }
+    },
+    "bsc": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x5A1B851bC64f6AdaCaE8123aB52142b4A592B3aC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-06 16:51:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004e8e101924ede233c13e2d8622dc8aed2872d505000000000000000000000000bb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ReceiverAcrossV3": {
@@ -31025,6 +31039,20 @@
           }
         ]
       }
+    },
+    "bsc": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x22713FA768c255fd7A6186ad39896126EDCF7946",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-06 16:52:06",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000002dfadab8266483bed9fd9a292ce56596a2d1378d0000000000000000000000004e8e101924ede233c13e2d8622dc8aed2872d50500000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AcrossFacetPackedV3": {
@@ -31378,6 +31406,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-02-20 09:13:48",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef684c38f94f48775959ecf2012d7e864ffb9dd4000000000000000000000000420000000000000000000000000000000000000600000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0x1D2Ff501e5c4Ff066e0Fdc4aBd10e17B228E16D1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-06 16:53:40",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004e8e101924ede233c13e2d8622dc8aed2872d505000000000000000000000000bb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
           }
