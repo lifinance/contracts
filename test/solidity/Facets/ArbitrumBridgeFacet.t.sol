@@ -13,8 +13,8 @@ contract TestArbitrumBridgeFacet is ArbitrumBridgeFacet {
         IGatewayRouter _inbox
     ) ArbitrumBridgeFacet(_gatewayRouter, _inbox) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -52,7 +52,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = arbitrumBridgeFacet
             .swapAndStartBridgeTokensViaArbitrumBridge
             .selector;
-        functionSelectors[2] = arbitrumBridgeFacet.addToWhitelist.selector;
+        functionSelectors[2] = arbitrumBridgeFacet.addDex.selector;
         functionSelectors[3] = arbitrumBridgeFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -61,7 +61,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
-        arbitrumBridgeFacet.addToWhitelist(address(uniswap));
+        arbitrumBridgeFacet.addDex(address(uniswap));
         arbitrumBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
