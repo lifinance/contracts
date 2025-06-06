@@ -258,6 +258,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.05.15_GasZipFacet(v2.0.4).pdf",
       "auditCommitHash": "bc3dcebfe2e6e32fab7ec9cd37db423b23139abf"
+    },
+    "audit20250529": {
+      "auditCompletedOn": "29.05.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.05.29_WhitelistManagerFacet(v1.0.0).pdf",
+      "auditCommitHash": "de2592e93042b8ed5a03e157bfd25d651015570d"
+    },
+    "audit20250603": {
+      "auditCompletedOn": "03.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.03_GnosisBridgeFacet(v2.0.0).pdf",
+      "auditCommitHash": "7197c0a237f46c83d39f5566f18bbadb5ca156ed"
     }
   },
   "auditedContracts": {
@@ -344,7 +358,12 @@
       "1.0.0": ["audit20250219"]
     },
     "GnosisBridgeFacet": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": [
+        "audit20250508"
+      ],
+      "2.0.0": [
+        "audit20250603"
+      ]
     },
     "HopFacetOptimized": {
       "2.0.0": ["audit20250508"]
@@ -441,7 +460,8 @@
       "1.0.0": ["audit20250508"]
     },
     "LibAllowList": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.0.1": ["audit20250529"]
     },
     "LibAsset": {
       "1.0.1": ["audit20241202"],
@@ -532,6 +552,9 @@
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"]
+    },
+    "WhitelistManagerFacet": {
+      "1.0.0": ["audit20250529"]
     }
   }
 }

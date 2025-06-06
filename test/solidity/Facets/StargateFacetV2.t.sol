@@ -16,8 +16,8 @@ contract TestStargateFacetV2 is StargateFacetV2 {
         address _tokenMessagingAddress
     ) StargateFacetV2(_tokenMessagingAddress) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -69,7 +69,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         functionSelectors[1] = stargateFacetV2
             .swapAndStartBridgeTokensViaStargate
             .selector;
-        functionSelectors[2] = stargateFacetV2.addDex.selector;
+        functionSelectors[2] = stargateFacetV2.addToWhitelist.selector;
         functionSelectors[3] = stargateFacetV2
             .setFunctionApprovalBySignature
             .selector;
@@ -79,8 +79,8 @@ contract StargateFacetV2Test is TestBaseFacet {
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond
-        stargateFacetV2.addDex(address(uniswap));
-        stargateFacetV2.addDex(address(feeCollector));
+        stargateFacetV2.addToWhitelist(address(uniswap));
+        stargateFacetV2.addToWhitelist(address(feeCollector));
         stargateFacetV2.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
