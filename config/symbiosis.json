@@ -51,6 +51,10 @@
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
+  "hyperevm": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
   "linea": {
     "metaRouter": "0x9A31bAC4b3B958C835C243800B474818D04393dd",
     "gateway": "0x83f71AabdDBb9F0E3B6462Cc7635b6fFAD0f2f2e"
