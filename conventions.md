@@ -109,9 +109,8 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 - **Version Management:**
 
-  - All Solidity files must start with: `pragma solidity {version}`
-  - Version is defined in `foundry.toml`
-  - Always refer to `foundry.toml` for current version
+  - All Solidity files must start with license identifier, followed by a blank line, then pragma statement
+  - The EVM and Solidity version used for deployments (unless networks require lower versions) is defined in `foundry.toml`
 
 - **Design Patterns:**
   - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard)
@@ -121,37 +120,72 @@ We use Foundry as our primary development and testing framework. Foundry provide
     - Use reentrancy guards
     - Optimize for gas efficiency
 
-## Code Style
+## Code Style and Documentation
 
-### Blank Line Rules
+### General Rules
 
-- **Between Sections:**
+1. **Extensive Documentation**
 
-  - Single blank line between logical sections (state variables, events, constructor, functions)
-  - Single blank line between function declarations
-  - No blank lines between function signature and body
+   - All code should be thoroughly documented
+   - Comments should explain the "why" not just the "what"
+   - Complex logic must be documented with clear explanations
+   - usage of Assembly must be justified and Assembly blocks must be extensively commented
 
-- **Inside Functions:**
+2. **Blank Line Rules**
 
-  - Single blank line before new logical blocks (loops, conditions, function calls)
-  - Single blank line after setting up state variables
-  - Single blank line before emitting events
-  - No blank lines between `if` statements and their `revert()` calls
-  - No blank lines before `return` statements unless separate logical block
+   - **Between Sections:**
 
-- **Between Declarations:**
+     - Single blank line between logical sections (state variables, events, constructor, functions)
+     - Single blank line between function declarations
+     - No blank lines between function signature and body
 
-  - Single blank line between structs and enums
-  - Single blank line between mappings and other declarations
-  - No blank line between related consecutive mappings
-  - Single blank line between modifiers
-  - No blank line between events and errors
+   - **Inside Functions:**
 
-- **In Tests:**
-  - Blank line between `vm.expectRevert()` and function call
-  - Blank line before `vm.stopPrank()` if separate logical block
-  - Blank line before assertions
-  - Single blank line between test cases
+     - Single blank line before new logical blocks (loops, conditions, function calls)
+     - Single blank line after setting up state variables
+     - Single blank line before emitting events
+     - No blank lines between `if` statements and their `revert()` calls
+     - Single blank line before `return` statements
+
+   - **Between Declarations:**
+
+     - Single blank line between structs and enums
+     - Single blank line between mappings and other declarations
+     - No blank line between related consecutive mappings
+     - Single blank line between modifiers
+     - No blank line between events and errors
+
+   - **Test Files (.t.sol):**
+     - Blank line between `vm.expectRevert()` and function call
+     - Blank line before `vm.stopPrank()` if separate logical block
+     - Blank line before assertions
+     - Single blank line between test cases
+     - Single blank line after `vm.startPrank(address)`
+     - For `vm.expectEmit` blocks: no blank line between `vm.expectEmit` and its event definition, but blank lines before and after the entire block
+     - Group related test assertions together without blank lines between them
+
+### Documentation Requirements
+
+1. **Contract Documentation**
+
+   - Every contract must have a header comment containing:
+     - Title of the contract
+     - Author information
+     - Notice describing the contract's purpose
+     - Version number
+
+2. **Function Documentation**
+
+   - Every public/external function must have NatSpec comments
+   - Include description of what the function does
+   - Document parameters and return values
+   - Note if function is restricted to admin or specific addresses
+
+3. **Complex Logic Documentation**
+   - Add inline comments for complex algorithms
+   - Explain non-obvious optimizations
+   - Document gas-saving techniques
+   - Clarify mathematical operations
 
 ## Facet Contract Requirements
 
@@ -179,15 +213,13 @@ We use Foundry as our primary development and testing framework. Foundry provide
   - `SwapperV2` - Swap functionality
   - `Validatable` - Bridge data validation
 - **External:**
-  - `ECDSA` - Signature verification
+  - `ECDSA` - Signature verification (optional)
 
 ### Parameter Handling
 
 - **Sender/Refund Address:**
 
-  - Avoid using `msg.sender` for refunds
-  - Use dedicated parameters for refund addresses
-  - Pass sender/depositor as parameter for direct refunds
+  - Avoid using `msg.sender` for as refundAddress, use a dedicated parameter instead
 
 - **Parameter Ordering:**
   - `receiverAddress` should be first in `{facetName}Data` struct
@@ -221,136 +253,216 @@ We use Foundry as our primary development and testing framework. Foundry provide
    - Emit: When transaction is recovered
    - Purpose: Track recovery attempts
 
-# Development Workflow and Audit Process
+## Solidity Test Conventions (.t.sol files)
 
-## Development Process
+### File Naming and Structure
 
-1. **Repository Access**
+- Test files must have a `.t.sol` extension
+- Group and order imports with system libraries first and project files next
 
-   - All development must be done on branches within the main repository
-   - PRs from forked repositories are not accepted due to GitHub Actions workflow limitations
-   - Contributors must have write access to the main repository to create branches
+### Test Function Naming
 
-2. **Branch Management**
+- All tests that verify a successful execution must be prefixed with: `test_`
+- All tests that verify a failure case must be prefixed with: `testRevert_`
+- All negative tests must check for a specific revert reason
+- For base or inherited tests, prefix with `testBase_`
 
-   - Create feature branches from `main`
-   - Use descriptive branch names (e.g., `feature/add-new-bridge`, `fix/hop-integration`)
-   - Keep branches up to date with `main` through regular rebasing
+### Test Structure and Setup
 
-3. Implementation
+- Every test contract must include a `setUp()` function
+- The `setUp()` function must:
+  - Configure custom block numbers
+  - Initialize base contracts
+  - Set up facets
+  - Assign labels using `vm.label`
+- Any contract inheriting from `TestBase.sol` must call `initTestBase()` in `setUp()`
+- Use `vm.startPrank(address)` and `vm.stopPrank()` for user simulation
 
-   - Use `bun codegen` for new facets
-   - Write unit/fork tests with 100% line coverage
-   - Create demo scripts for new functionality
-   - Create feature PR on Github
-   - Fix issues from code reviews
+### Assertions and Event Testing
 
-4. Review Process
-   - Peer review within SC team
-   - Bridge/protocol team review
-     - Verify refund cases
-     - Check parameter updates after source chain swaps
-   - Deploy to staging diamond on 2-3 selected chains
-   - Backend (BE) team integration
-     - Label PR with `WaitForBackend`
-     - BE writes unit tests
-     - BE runs test transactions
-   - QA team conducts integration tests
-   - Frontend team review for new features
+- Use `assertEq()` for checking equality of values
+- Use custom assertion modifiers for balance changes
+- Use `vm.expectEmit(true, true, true, true, <contractAddress>)` for event testing
+- Verify expected events are emitted with correct parameters
 
-## Audit Process
+### Test Best Practices
 
-1. Initial Development
+- Include comments to explain test purpose
+- Maintain consistent order in function calls and assertions
+- Structure tests: setup → execute → assert
 
-   - Pass latest commit hash to auditor (AU)
-   - Add to Audit Pipeline
-   - AU conducts audit and creates dedicated repo with issues
+## Solidity Linter (solhint) Configuration
 
-2. Issue Resolution
+### Gas and Error Rules
 
-   - SC team responds to each issue with either:
-     - Acknowledgement & explanation (no code change)
-     - Fix with commit hash
-       - Include issue number in commit message
-       - Unit test fixes in same or final commit
+- `gas-custom-errors`: Enforce custom errors for gas efficiency
 
-3. Audit Completion
+### Security Rules
 
-   - AU reviews all fixes and acknowledgements
-   - Creates final audit report including:
-     - List of contracts in scope
-     - Audit commit hash
-     - Auditor details
-     - Date of audit
-     - List of issues with:
-       - Description
-       - Severity rating
-       - Course of action
-       - Fix commit hash
-       - Auditor verification
+- `avoid-sha3`: Use `keccak256` instead of `sha3`
+- `avoid-suicide`: Disallow `selfdestruct`
+- `avoid-throw`: Use `revert` or `require`
+- `avoid-tx-origin`: Prohibit `tx.origin` for authorization
+- `check-send-result`: Check `send` return values
+- `compiler-version`: Match `^0.8.17`
+- `func-visibility`: Enforce explicit visibility
+- `multiple-sends`: Discourage multiple `send` calls
+- `no-complex-fallback`: Prevent complex fallback logic
+- `no-inline-assembly`: Avoid inline assembly
+- `not-rely-on-block-hash`: No `blockhash` for security
+- `not-rely-on-time`: Avoid block timestamps
+- `reentrancy`: Enforce reentrancy protection
+- `state-visibility`: Require explicit state visibility
 
-4. Post-Audit
-   - Upload audit report to PR
-   - Update `auditLog.json`
-   - Inform BE team of changes
-   - BE team implements necessary changes
-   - QA team conducts additional testing if needed
+### Naming and Ordering Rules
 
-## Production Deployment
+- `use-forbidden-name`: Disallow reserved names
+- `var-name-mixedcase`: Enforce mixedCase variables
+- `imports-on-top`: Imports at file top
+- `visibility-modifier-order`: Proper modifier order
+- `immutable-vars-naming`: UPPERCASE for immutables
+- `func-name-mixedcase`: mixedCase functions
+- `event-name-capwords`: CapWords events
+- `contract-name-capwords`: CapWords contracts
+- `const-name-snakecase`: snake_case constants
+- `interface-starts-with-i`: "I" prefix for interfaces
+- `quotes`: Double quotes for strings
 
-1. Pre-Deployment
+# Github Workflows Conventions
 
-   - Get PR approval from SC core dev
-   - Get PR approval from auditor
-   - Merge feature PR to `main`
+## Sensitive Data Handling
 
-2. Deployment Process
-   - Create new PR based on `main`
-   - Deploy contracts to production
-   - Whitelist periphery contracts
-   - Propose diamondCuts to multisig SAFEs
-   - Review and sign/execute proposals
-   - Update diamond logs
-   - Peer review
-   - Merge to `main`
+- Use Github Secrets for sensitive data
+- Reference secrets using `${{ secrets.SECRET_NAME }}`
 
-## Ground Rules
+## File Structure
 
-1. Audit Logging & Reports
+- Begin with clear description (YAML comments)
+- Include descriptive comments throughout
+- Define triggers explicitly
+- Use conditional checks with `if:`
+- Name jobs and steps clearly
+- Include notification steps
+- Set explicit permissions with comments
 
-   - Audit log (JSON) in `audit/` folder
-   - Audit reports (PDF) in `audit/reports/`
-   - Only auditors can modify `audit/` folder
+# Bash Scripts
 
-2. Branch & Deployment Rules
+## General Structure
 
-   - `main` branch is always "safe" and "fully audited"
-   - Production deployment requires:
-     - Code in `main` branch, or
-     - Open PR with `AuditCompleted` label
-   - `AuditCompleted` label managed by GitHub Actions only
+- Begin with `#!/bin/bash`
+- Organize into modular functions
+- Extract common logic to helper files
+- Load environment from `.env` or `config.sh`
+- Declare global variables in config files
+- Update `.env.example` accordingly
 
-3. Versioning & Testing
+## Error Handling and Logging
 
-   - 100% unit test coverage required
-   - Version tag format: `/// @custom:version 1.0.0`
-   - Version bump required for any contract change
+- Use helper functions for logging
+- Validate inputs and environment early
+- Check function exit status with `checkFailure`
+- Add system packages to `preinstall.sh`
 
-4. PR Review & Merging
+## User Interaction
 
-   - Review required from `smart-contract-core` team
-   - Only PRs from `contracts` repo allowed
-   - `AuditNotRequired` label for non-contract changes
+- Use clear prompts with instructions
+- Document TODOs and limitations
+- Use consistent indentation and naming
+- Provide usage instructions
+- Separate core operations into functions
 
-5. Security & Compliance
-   - Security-critical changes require CTO approval
-   - Pre-commit checker for sensitive data
+# Audit Logs and Reports
 
-## Process Review
+## Audit Log Structure (`auditLog.json`)
 
-- Annual review required
-- Next review: August 2025
-- Review criteria:
-  - Security
-  - Requirements compliance
-  - Case coverage
+- **audits:** Entries with unique ID (`auditYYYYMMDD_X`)
+
+  - `auditCompletedOn`: Date (DD.MM.YYYY or YYYY-MM-DD)
+  - `auditedBy`: Name/firm
+  - `auditorGitHandle`: (if applicable)
+  - `auditReportPath`: PDF location
+  - `auditCommitHash`: Audited commit
+
+- **auditedContracts:** Maps contracts to audit IDs
+
+## Report Storage
+
+- Store PDFs in `audit/reports/`
+- Individual contract format: `YYYY.MM.DD_ContractName(version).pdf`
+- Multiple contracts format: `YYYY.MM.DD_CustomFileName.pdf`
+
+# Deployment and Update Scripts
+
+## Location and Naming
+
+- Located in `script/deploy/facets/`
+- Deployment scripts: `Deploy{ContractName}.s.sol`
+- Update scripts: `Update{ContractName}.s.sol`
+
+## Script Structure
+
+### Deployment Scripts
+
+- Inherit `DeployScriptBase`
+- Use JSON config with `stdJson`
+- Define `getConstructorArgs()` if needed
+- Encode constructor arguments
+- Call `deploy()` with `type({ContractName}).creationCode`
+
+### Update Scripts
+
+- Inherit `UpdateScriptBase`
+- Call `update("{ContractName}")`
+- Use `getExcludes()` for special cases
+- Return array of excluded function selectors
+
+## Configuration
+
+- Reference JSON configs in `/config/`
+- Use dynamic path selection:
+  ```solidity
+  string memory path = string.concat(root, "/config/{facetName}.json");
+  address configValue = _getConfigContractAddress(
+    path,
+    string.concat(".{key}.", network, ".{subkey}")
+  );
+  ```
+
+# Template-based Code Generation
+
+## Overview
+
+- Use `plop facet` to generate new facets
+- Templates stored in `templates/` folder
+
+## Template Files
+
+- **Facet:** `facet.template.hbs` (.sol)
+- **Config:** `facetConfig.template.hbs` (.json)
+- **Deploy:** `facetDeployScript.template.hbs` (.s.sol)
+- **Update:** `facetUpdateScript.template.hbs` (.s.sol)
+- **Test:** `facetTest.template.hbs` (.t.sol)
+- **Demo:** `facetDemoScript.template.hbs` (.ts)
+- **Doc:** `facetDoc.template.hbs` (.md)
+
+# Configuration Files
+
+## `deployRequirements.json`
+
+- Location: `script/deploy/resources/deployRequirements.json`
+- Purpose: Dictates deployment rules and dependencies
+- Specifies:
+  - Zero address restrictions
+  - Required external config files
+  - Network-specific parameters
+- Used in `helperFunctions.sh` for deployment validation
+
+## `targetState.json`
+
+- Location: `script/deploy/`
+- Purpose: Defines expected contract versions per network
+- Structure:
+  - Network keys (e.g., `mainnet`, `arbitrum`)
+  - Environment keys (e.g., `production`, `staging`)
+  - Contract versions for facets, periphery, and core contracts
+- Used to ensure version consistency across deployments
