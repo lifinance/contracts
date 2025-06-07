@@ -1,3 +1,5 @@
+# LI.FI Smart Contract Conventions
+
 # Repository Overview
 
 - **Project name:** LI.FI
@@ -103,9 +105,9 @@ We use Foundry as our primary development and testing framework. Foundry provide
   - Each contract should have its own test file
   - Currently only using Solidity tests (no TypeScript tests)
 
-# Smart Contract Conventions
+## Smart Contract Conventions
 
-## Solidity Standards
+### Solidity Standards
 
 - **Version Management:**
 
@@ -129,7 +131,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
    - All code should be thoroughly documented
    - Comments should explain the "why" not just the "what"
    - Complex logic must be documented with clear explanations
-   - usage of Assembly must be justified and Assembly blocks must be extensively commented
+   - Usage of Assembly must be justified and Assembly blocks must be extensively commented
 
 2. **Blank Line Rules**
 
@@ -187,7 +189,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
    - Document gas-saving techniques
    - Clarify mathematical operations
 
-## Facet Contract Requirements
+### Facet Contract Requirements
 
 ### Location and Naming
 
@@ -249,9 +251,39 @@ We use Foundry as our primary development and testing framework. Foundry provide
    - Purpose: Signal transaction finalization
 
 3. **Transaction Recovery:**
+
    - Event: `LiFiTransferRecovered`
    - Emit: When transaction is recovered
    - Purpose: Track recovery attempts
+
+4. **Same-chain Swap:**
+   - Event: `GenericSwapCompleted`
+   - Emit: After successful execution of same-chain swap
+   - Purpose: Track completion of same-chain swap operations
+
+### Fee Handling
+
+- For native fees, use the `_depositAndSwap` variant
+- Reserve required fee before execution
+
+### Non-EVM Chain Support
+
+- Use `bytes` (not `bytes32`) for `receiverAddress`
+- Validate non-EVM address is not zero:
+  ```solidity
+  if ({facetName}Data.receiverAddress == bytes(0)) {
+      revert InvalidNonEVMReceiver(
+          {facetName}Data.receiverAddress,
+          bytes(0)
+      );
+  }
+  ```
+- Use `LibAsset.NON_EVM_ADDRESS` for `bridgeData.receiver`:
+  ```solidity
+  if (bridgeData.receiver != LibAsset.NON_EVM_ADDRESS) {
+      revert InvalidCallData();
+  }
+  ```
 
 ## Solidity Test Conventions (.t.sol files)
 
@@ -293,40 +325,140 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 ## Solidity Linter (solhint) Configuration
 
-### Gas and Error Rules
+All Solidity files must follow the rules defined in `.solhint.json`. This configuration enforces our coding standards for gas optimization, security, and code style.
 
-- `gas-custom-errors`: Enforce custom errors for gas efficiency
+## Script Conventions
 
-### Security Rules
+### TypeScript Scripts
 
-- `avoid-sha3`: Use `keccak256` instead of `sha3`
-- `avoid-suicide`: Disallow `selfdestruct`
-- `avoid-throw`: Use `revert` or `require`
-- `avoid-tx-origin`: Prohibit `tx.origin` for authorization
-- `check-send-result`: Check `send` return values
-- `compiler-version`: Match `^0.8.17`
-- `func-visibility`: Enforce explicit visibility
-- `multiple-sends`: Discourage multiple `send` calls
-- `no-complex-fallback`: Prevent complex fallback logic
-- `no-inline-assembly`: Avoid inline assembly
-- `not-rely-on-block-hash`: No `blockhash` for security
-- `not-rely-on-time`: Avoid block timestamps
-- `reentrancy`: Enforce reentrancy protection
-- `state-visibility`: Require explicit state visibility
+- All scripts must follow the rules defined in `.eslintrc.js`
+- Use async/await for asynchronous operations
+- Handle errors appropriately with try/catch blocks
+- Include proper logging for debugging and monitoring
+- Use environment variables for configuration
+- Include proper type definitions
 
-### Naming and Ordering Rules
+### Bash Scripts
 
-- `use-forbidden-name`: Disallow reserved names
-- `var-name-mixedcase`: Enforce mixedCase variables
-- `imports-on-top`: Imports at file top
-- `visibility-modifier-order`: Proper modifier order
-- `immutable-vars-naming`: UPPERCASE for immutables
-- `func-name-mixedcase`: mixedCase functions
-- `event-name-capwords`: CapWords events
-- `contract-name-capwords`: CapWords contracts
-- `const-name-snakecase`: snake_case constants
-- `interface-starts-with-i`: "I" prefix for interfaces
-- `quotes`: Double quotes for strings
+- **Structure:**
+
+  - Use proper shebang: `#!/bin/bash`
+  - Organize into modular functions with clear sections:
+    - "Logging"
+    - "Error handling and logging"
+    - "Deployment functions"
+  - Follow DRY principle using helper files
+
+- **Environment:**
+
+  - Load from `.env` or `config.sh`
+  - Declare global variables in config files
+  - Update `.env.example` accordingly
+
+- **Error Handling:**
+
+  - Use helper functions for logging (e.g., `echoDebug`, `error`, `warning`, `success`)
+  - Validate inputs early
+  - Check function exit status with `checkFailure`
+  - Add system packages to `preinstall.sh`
+
+- **User Interaction:**
+  - Use clear prompts with descriptive instructions
+  - Use tools like `gum choose` for enhanced usability
+  - Document TODOs and limitations
+  - Provide usage instructions
+
+## Deployment and Configuration
+
+### Deployment Scripts
+
+- **Location:** `script/deploy/facets/`
+- **Naming:**
+
+  - Deployment: `Deploy{ContractName}.s.sol`
+  - Update: `Update{ContractName}.s.sol`
+
+- **Structure:**
+  - Inherit from base classes
+  - Use JSON config with `stdJson`
+  - Handle constructor arguments
+  - Manage function selectors
+  - Example JSON handling:
+    ```solidity
+    string memory path = string.concat(root, "/config/{facetName}.json");
+    address configValue = _getConfigContractAddress(
+      path,
+      string.concat(".{key}.", network, ".{subkey}")
+    );
+    ```
+
+### Configuration Files
+
+- **deployRequirements.json:**
+
+  - Controls deployment rules
+  - Manages contract dependencies
+  - Handles network-specific parameters
+  - Specifies zero address restrictions
+  - Defines required external config files
+
+- **targetState.json:**
+  - Defines expected contract versions
+  - Tracks deployments across networks
+  - Manages environment-specific versions
+  - Is auto-created from a Google Sheet
+
+### Template-based Code Generation
+
+- **Overview:**
+
+  - Use `plop facet` to generate new facets
+  - Templates stored in `templates/` folder
+
+- **Template Files:**
+  - All template files are stored in the `templates/` folder. These templates are used by the `plop facet` command to generate new facets and their associated files.
+
+### Audit and Documentation
+
+#### Audit Logs
+
+- **auditLog.json:**
+
+  - Unique audit IDs: `auditYYYYMMDD`
+  - Add `_x` if several audits submitted on the same day
+  - Required fields: completion date, auditor, report path, commit hash
+  - Maps contracts to audit IDs
+
+- **Report Storage:**
+  - Location: `audit/reports/`
+  - Naming: `YYYY.MM.DD_ContractName(version).pdf`
+  - Multi-contract format: `YYYY.MM.DD_CustomFileName.pdf`
+
+#### Documentation
+
+- **Primary Sources:**
+  - `README.md`: Overview and setup
+  - `/docs`: Technical documentation
+  - `Deploy.md`: Deployment instructions
+
+### GitHub Workflows
+
+- **Sensitive Data:**
+
+  - Use GitHub Secrets
+  - Reference with `${{ secrets.SECRET_NAME }}`
+
+- **Structure:**
+
+  - Clear file headers
+  - Descriptive comments
+  - Explicit triggers
+  - Clear job names
+
+- **Security:**
+  - Set explicit permissions
+  - Include notifications
+  - Document permission requirements
 
 # Github Workflows Conventions
 
@@ -376,13 +508,11 @@ We use Foundry as our primary development and testing framework. Foundry provide
 ## Audit Log Structure (`auditLog.json`)
 
 - **audits:** Entries with unique ID (`auditYYYYMMDD_X`)
-
   - `auditCompletedOn`: Date (DD.MM.YYYY or YYYY-MM-DD)
   - `auditedBy`: Name/firm
   - `auditorGitHandle`: (if applicable)
   - `auditReportPath`: PDF location
   - `auditCommitHash`: Audited commit
-
 - **auditedContracts:** Maps contracts to audit IDs
 
 ## Report Storage
@@ -437,13 +567,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 ## Template Files
 
-- **Facet:** `facet.template.hbs` (.sol)
-- **Config:** `facetConfig.template.hbs` (.json)
-- **Deploy:** `facetDeployScript.template.hbs` (.s.sol)
-- **Update:** `facetUpdateScript.template.hbs` (.s.sol)
-- **Test:** `facetTest.template.hbs` (.t.sol)
-- **Demo:** `facetDemoScript.template.hbs` (.ts)
-- **Doc:** `facetDoc.template.hbs` (.md)
+All template files are stored in the `templates/` folder. These templates are used by the `plop facet` command to generate new facets and their associated files.
 
 # Configuration Files
 
