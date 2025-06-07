@@ -258,6 +258,8 @@ Our codebase follows strict quality standards defined in [conventions.md](./conv
    - Memory usage optimization
    - Batch operations where possible
 
+For detailed guidelines and requirements, please refer to [conventions.md](./conventions.md).
+
 ## More Information<a name="more-information"></a>
 
 - [Website](https://li.fi/)
