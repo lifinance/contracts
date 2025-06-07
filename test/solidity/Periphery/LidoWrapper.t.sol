@@ -11,7 +11,14 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+
+// Custom errors from stETH contract
+error ErrorZeroSharesWrap();
+error ErrorZeroTokensUnwrap();
+error ErrorZeroSharesUnwrap();
+error ErrorNotEnoughBalance();
+error ErrorNotEnoughAllowance();
 
 contract LidoWrapperTest is TestBase {
     LidoWrapper private lidoWrapper;
@@ -128,6 +135,8 @@ contract LidoWrapperTest is TestBase {
         vm.label(address(lidoWrapper), "LidoWrapper");
     }
 
+    // ######## Constructor Tests ########
+
     function test_WillStoreConstructorParametersCorrectly() public {
         customRpcUrlForForking = "ETH_NODE_URI_MAINNET";
         customBlockNumberForForking = 22574016;
@@ -144,6 +153,7 @@ contract LidoWrapperTest is TestBase {
 
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new LidoWrapper(
             address(0),
             WST_ETH_ADDRESS_OPTIMISM,
@@ -151,19 +161,23 @@ contract LidoWrapperTest is TestBase {
         );
 
         vm.expectRevert(InvalidConfig.selector);
+
         new LidoWrapper(
             ST_ETH_ADDRESS_OPTIMISM,
             address(0),
             USER_DIAMOND_OWNER
         );
+
         vm.expectRevert(InvalidConfig.selector);
+
         new LidoWrapper(
             ST_ETH_ADDRESS_OPTIMISM,
             WST_ETH_ADDRESS_OPTIMISM,
             address(0)
         );
     }
-    function testRevert_CannotBeDeployedToMainnet() public {
+
+    function test_CanBeDeployedToNonMainnet() public {
         lidoWrapper = new LidoWrapper(
             ST_ETH_ADDRESS_OPTIMISM,
             WST_ETH_ADDRESS_OPTIMISM,
@@ -178,8 +192,9 @@ contract LidoWrapperTest is TestBase {
         assertEq(address(lidoWrapper.owner()), USER_DIAMOND_OWNER);
     }
 
-    // ######## Test cases for direct interactions with LidoWrapper #########
-    function test_canUnwrapWstEthTokens() public {
+    // ######## Direct Interaction Tests ########
+
+    function test_CanUnwrapWstEthToStEth() public {
         vm.startPrank(USER_SENDER);
 
         uint256 balanceStBefore = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
@@ -197,11 +212,14 @@ contract LidoWrapperTest is TestBase {
         uint256 balanceWstAfter = IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(
             USER_SENDER
         );
+
         assertTrue(balanceStAfter > balanceStBefore);
         assertTrue(balanceWstAfter == 0);
+
+        vm.stopPrank();
     }
 
-    function test_canWrapStEthTokens() public {
+    function test_CanWrapStEthToWstEth() public {
         vm.startPrank(USER_SENDER);
 
         uint256 stEthBalanceBefore = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
@@ -232,100 +250,110 @@ contract LidoWrapperTest is TestBase {
         vm.stopPrank();
     }
 
-    // ######## Test cases for indirect interactions with LidoWrapper through our diamond #########
+    // ######## Error Case Tests ########
 
-    function test_canWrapStEthTokensViaDiamondPreBridge() public {
+    function testRevert_WhenWrappingZeroAmount() public {
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(ErrorZeroTokensUnwrap.selector);
+
+        lidoWrapper.wrapStETHToWstETH(0);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenUnwrappingZeroAmount() public {
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(ErrorZeroSharesWrap.selector);
+
+        lidoWrapper.unwrapWstETHToStETH(0);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenWrappingMoreThanBalance() public {
+        vm.startPrank(USER_SENDER);
+
+        // Get user's stETH balance
+        uint256 balance = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
+            USER_SENDER
+        );
+
+        // Try to wrap more than balance
+        vm.expectRevert(ErrorNotEnoughAllowance.selector);
+
+        lidoWrapper.wrapStETHToWstETH(balance + 1);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenUnwrappingMoreThanBalance() public {
+        vm.startPrank(USER_SENDER);
+
+        // Get user's wstETH balance
+        uint256 balance = IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(
+            USER_SENDER
+        );
+
+        // Try to unwrap more than balance
+        vm.expectRevert(ErrorNotEnoughBalance.selector);
+
+        lidoWrapper.unwrapWstETHToStETH(balance + 1);
+
+        vm.stopPrank();
+    }
+
+    // ######## Diamond Integration Tests ########
+
+    function test_CanWrapStEthToWstEthViaDiamondPreBridge() public {
         vm.startPrank(USER_SENDER);
 
         uint256 stEthBalanceBefore = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
             USER_SENDER
         );
 
-        // set approval from user to diamond for stETH tokens
+        // Set approval from user to diamond for stETH tokens
         IERC20(ST_ETH_ADDRESS_OPTIMISM).approve(
             address(diamond),
             stEthBalanceBefore
         );
 
-        // update bridgeData
-        bridgeData.minAmount = 83152588364537669;
+        // Prepare swap data for wrapping stETH to wstETH
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(lidoWrapper),
+            approveTo: address(lidoWrapper),
+            sendingAssetId: ST_ETH_ADDRESS_OPTIMISM,
+            receivingAssetId: WST_ETH_ADDRESS_OPTIMISM,
+            fromAmount: stEthBalanceBefore,
+            callData: abi.encodeWithSelector(
+                lidoWrapper.wrapStETHToWstETH.selector,
+                stEthBalanceBefore
+            ),
+            requiresDeposit: true
+        });
 
-        // prepare LidoWrapper swapData
-        delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(lidoWrapper),
-                approveTo: address(lidoWrapper),
-                sendingAssetId: ST_ETH_ADDRESS_OPTIMISM,
-                receivingAssetId: WST_ETH_ADDRESS_OPTIMISM,
-                fromAmount: 0.1 ether - 1,
-                callData: abi.encodeWithSelector(
-                    lidoWrapper.wrapStETHToWstETH.selector,
-                    0.1 ether - 1
-                ),
-                requiresDeposit: true
-            })
-        );
-
-        // (fake-)sign relayData
+        // Sign relay data
         validRelayData.signature = _signData(bridgeData, validRelayData);
 
-        // call diamond
+        // Execute swap and bridge
         relayFacet.swapAndStartBridgeTokensViaRelay(
             bridgeData,
             swapData,
             validRelayData
         );
 
-        vm.stopPrank();
-    }
-    function test_canUnwrapWstEthTokensViaDiamondPreBridge() public {
-        vm.startPrank(USER_SENDER);
-
-        uint256 wstEthBalanceBefore = IERC20(WST_ETH_ADDRESS_OPTIMISM)
-            .balanceOf(USER_SENDER);
-
-        // set approval from user to diamond for wstETH tokens
-        IERC20(WST_ETH_ADDRESS_OPTIMISM).approve(
-            address(diamond),
-            wstEthBalanceBefore
+        // Verify balances
+        uint256 stEthBalanceAfter = IERC20(ST_ETH_ADDRESS_OPTIMISM).balanceOf(
+            USER_SENDER
+        );
+        uint256 wstEthBalance = IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(
+            USER_SENDER
         );
 
-        // update bridgeData
-        bridgeData.minAmount = 0.1 ether;
-        bridgeData.sendingAssetId = ST_ETH_ADDRESS_OPTIMISM;
-
-        // update relayData
-        validRelayData.receivingAssetId = bytes32(
-            uint256(uint160(ST_ETH_ADDRESS_MAINNET))
-        );
-
-        // prepare LidoWrapper swapData
-        delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(lidoWrapper),
-                approveTo: address(lidoWrapper),
-                sendingAssetId: WST_ETH_ADDRESS_OPTIMISM,
-                receivingAssetId: ST_ETH_ADDRESS_OPTIMISM,
-                fromAmount: wstEthBalanceBefore,
-                callData: abi.encodeWithSelector(
-                    lidoWrapper.unwrapWstETHToStETH.selector,
-                    wstEthBalanceBefore
-                ),
-                requiresDeposit: true
-            })
-        );
-
-        // (fake-)sign relayData
-        validRelayData.signature = _signData(bridgeData, validRelayData);
-
-        // call diamond
-        relayFacet.swapAndStartBridgeTokensViaRelay(
-            bridgeData,
-            swapData,
-            validRelayData
-        );
+        assertTrue(stEthBalanceAfter <= 1);
+        assertTrue(wstEthBalance > 0);
 
         vm.stopPrank();
     }
