@@ -18,13 +18,18 @@ You can find the ABI of LifiDiamond in our auto generated [lifi-contract-types r
    2. [Diamond Helper Contracts](#diamond-helper-contracts)
 5. [Repository Structure](#repository-structure)
 6. [Getting Started](#getting-started)
-   1. [INSTALL](#install)
-   2. [TEST](#test)
-   3. [TEST With Foundry/Forge](#foundry-forge)
-   4. [Adding a New Bridge](#new-bridge)
-7. [Contract Docs](#contract-docs)
-8. [DEPLOY](#deploy)
-9. [More Information](#more-information)
+   1. [Prerequisites](#prerequisites)
+   2. [Development Environment](#development-environment)
+   3. [Cursor IDE Setup](#cursor-setup)
+   4. [INSTALL](#install)
+   5. [TEST](#test)
+   6. [TEST With Foundry/Forge](#foundry-forge)
+   7. [Adding a New Bridge](#new-bridge)
+7. [Development Workflow](#development-workflow)
+8. [Code Quality & Standards](#code-quality)
+9. [Contract Docs](#contract-docs)
+10. [DEPLOY](#deploy)
+11. [More Information](#more-information)
 
 ## General<a name="general"></a>
 
@@ -169,7 +174,55 @@ Sample requests to fetch transactions for each facet can be found at the end of 
 
 ## Getting Started<a name="getting-started"></a>
 
-Make sure to copy `.env.example` to `.env` and fill out the missing values. Tests might fail with missing environment variables if some of the variables are blank.
+### Prerequisites<a name="prerequisites"></a>
+
+- Node.js (v18 or later)
+- Bun (latest version)
+- Foundry (latest version)
+- Git
+- Cursor IDE (recommended) or VSCode
+
+### Development Environment<a name="development-environment"></a>
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/lifinance/contracts.git
+cd contracts
+```
+
+2. Install dependencies:
+
+```bash
+bun i
+forge install
+```
+
+3. Set up environment variables:
+
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### Cursor IDE Setup<a name="cursor-setup"></a>
+
+For optimal AI assistance in Cursor IDE:
+
+1. Copy `.cursorrules.example` to `.cursorrules`:
+
+```bash
+cp .cursorrules.example .cursorrules
+```
+
+2. The `.cursorrules` file provides context for AI interactions with our codebase. It helps the AI understand:
+
+   - Project structure and conventions
+   - Development environment and tools
+   - Key files and their purposes
+   - Testing and deployment requirements
+
+3. You can customize `.cursorrules` based on your needs, but we recommend keeping the core context intact.
 
 ### INSTALL<a name="install"></a>
 
@@ -219,6 +272,61 @@ We try to keep up with all the latest bridges and DEXes but can't always add the
 
 Follow the deployment checklist [here](./docs/Deploy.md)
 
+## Development Workflow<a name="development-workflow"></a>
+
+1. **Branch Management**
+
+   - Create feature branches from `main`
+   - Use descriptive branch names (e.g., `feature/add-new-bridge`, `fix/hop-integration`)
+   - **Important**: PRs must be created from branches within the main repository, not from forks. This is because our GitHub Actions workflows require access to repository secrets and cannot run correctly on forked repositories.
+
+2. **Code Quality**
+
+   - Follow our [coding conventions](./conventions.md)
+   - Write comprehensive tests for new features
+   - Ensure all tests pass before submitting PRs
+
+3. **Pull Request Process**
+
+   - Create PRs against `main`
+   - Include clear descriptions and testing instructions
+   - Request reviews from team members
+   - Ensure CI checks pass
+
+4. **Testing Requirements**
+   - Unit tests for all new functionality
+   - Integration tests for bridge interactions
+   - Gas optimization tests where applicable
+   - Coverage requirements: >90% for new code
+
+## Code Quality & Standards<a name="code-quality"></a>
+
+Our codebase follows strict quality standards defined in [conventions.md](./conventions.md). Key aspects include:
+
+1. **Code Organization**
+
+   - Clear file structure and naming conventions
+   - Consistent contract organization
+   - Proper documentation and NatSpec comments
+
+2. **Error Handling**
+
+   - Custom errors for better gas efficiency
+   - Clear error messages
+   - Proper validation and checks
+
+3. **Security**
+
+   - Access control patterns
+   - Reentrancy protection
+   - Input validation
+   - Emergency functionality
+
+4. **Gas Optimization**
+   - Efficient storage patterns
+   - Memory usage optimization
+   - Batch operations where possible
+
 ## More Information<a name="more-information"></a>
 
 - [Website](https://li.fi/)
@@ -226,3 +334,9 @@ Follow the deployment checklist [here](./docs/Deploy.md)
 - [API Documentation](https://apidocs.li.fi/)
 - [SDK Documentation](https://docs.li.fi/products/integrate-li.fi-js-sdk/install-li.fi-sdk)
 - [Transfer UI](https://transferto.xyz/)
+- [Internal Documentation](./docs/README.md)
+- [Coding Conventions](./conventions.md)
+
+```
+
+```

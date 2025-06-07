@@ -223,14 +223,21 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 # Development Workflow and Audit Process
 
-## Contract Definition
-
-- Any Solidity file (.sol) in `src/**` is considered a contract
-- Excludes files in `script/**` and `test/**` folders
-
 ## Development Process
 
-1. Implementation
+1. **Repository Access**
+
+   - All development must be done on branches within the main repository
+   - PRs from forked repositories are not accepted due to GitHub Actions workflow limitations
+   - Contributors must have write access to the main repository to create branches
+
+2. **Branch Management**
+
+   - Create feature branches from `main`
+   - Use descriptive branch names (e.g., `feature/add-new-bridge`, `fix/hop-integration`)
+   - Keep branches up to date with `main` through regular rebasing
+
+3. Implementation
 
    - Use `bun codegen` for new facets
    - Write unit/fork tests with 100% line coverage
@@ -238,7 +245,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
    - Create feature PR on Github
    - Fix issues from code reviews
 
-2. Review Process
+4. Review Process
    - Peer review within SC team
    - Bridge/protocol team review
      - Verify refund cases
