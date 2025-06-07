@@ -52,8 +52,9 @@ If you only want to deploy a new diamond contract and use existing deployed face
 
 3. **Network Verification**
    - Etherscan API keys are required for contract verification
-   - Keys are stored in `foundry.toml`
-   - Each network needs its own API key
+   - Keys are stored in `.env` file with the format `<NETWORK>_ETHERSCAN_API_KEY`
+   - Networks using EtherscanV2 API (like Ethereum mainnet and its L2s) share the same API key
+   - For networks that don't require an API KEY, use `NO_ETHERSCAN_API_KEY_REQUIRED` as the value to prevent Foundry errors
 
 Scripts:
 
