@@ -141,7 +141,7 @@ const main = defineCommand({
       if (networksConfig[network.toLowerCase()].rpcUrl) {
         const rpcUrl: string = networksConfig[network.toLowerCase()].rpcUrl
         const facetsResult =
-          await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
+          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`
         const rawString = facetsResult.stdout
 
         const jsonCompatibleString = rawString
@@ -372,6 +372,7 @@ const main = defineCommand({
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
+      const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
@@ -400,7 +401,7 @@ const main = defineCommand({
       // FeeCollector
       await checkOwnership(
         'FeeCollector',
-        withdrawWallet,
+        feeCollectorOwner,
         deployedContracts,
         publicClient
       )

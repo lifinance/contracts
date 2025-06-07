@@ -48,6 +48,14 @@
       "0x7B8837786aE9A2b6DCEbcB2572B348E0bfa5dC08": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xDb14E1938f226189CbB35189577Fa245D10e19B5": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0xd1059C492eC2472220fca8Dc358a7A587500b1Ab": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
