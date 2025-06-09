@@ -10,8 +10,8 @@ import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 contract TestThorSwapFacet is ThorSwapFacet {
     constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -38,7 +38,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[1] = thorSwapFacet
             .swapAndStartBridgeTokensViaThorSwap
             .selector;
-        functionSelectors[2] = thorSwapFacet.addToWhitelist.selector;
+        functionSelectors[2] = thorSwapFacet.addDex.selector;
         functionSelectors[3] = thorSwapFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -46,7 +46,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        thorSwapFacet.addToWhitelist(ADDRESS_UNISWAP);
+        thorSwapFacet.addDex(ADDRESS_UNISWAP);
         thorSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );

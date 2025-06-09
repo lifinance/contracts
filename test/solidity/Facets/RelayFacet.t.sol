@@ -22,8 +22,8 @@ contract TestRelayFacet is RelayFacet {
         address _relaySolver
     ) RelayFacet(_relayReceiver, _relaySolver) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -60,7 +60,7 @@ contract RelayFacetTest is TestBaseFacet {
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
             .selector;
-        functionSelectors[2] = relayFacet.addToWhitelist.selector;
+        functionSelectors[2] = relayFacet.addDex.selector;
         functionSelectors[3] = relayFacet
             .setFunctionApprovalBySignature
             .selector;
@@ -69,7 +69,7 @@ contract RelayFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
-        relayFacet.addToWhitelist(ADDRESS_UNISWAP);
+        relayFacet.addDex(ADDRESS_UNISWAP);
         relayFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
