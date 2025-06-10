@@ -25157,12 +25157,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x21571D628B0bCBeb954D5933A604eCac35bAF2c7",
+            "ADDRESS": "0x75ED316dF2dCb48ef6876aEfc13d44D088BE5932",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-07-31 14:10:02",
+            "TIMESTAMP": "2025-06-10 15:50:03",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000f91052dc5b4bae53d0fea5dae561a117268f5d2000000000000000000000000200a0fe876421dc49a26508e3efd0a1008fd12b5",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -27035,11 +27035,11 @@
       "staging": {
         "1.0.1": [
           {
-            "ADDRESS": "0xFf6Fa203573Baaaa4AE375EB7ac2819d539e16FF",
+            "ADDRESS": "0xb6Db46D685c12D73AaD521307D491e175cbFB07a",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-07-31 13:50:41",
+            "TIMESTAMP": "2025-05-27 19:24:09",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            "SALT": "31072024",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -33902,6 +33902,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-30 09:26:03",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "LidoWrapper": {
+    "optimism": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xAF26a874a38115E8926D7c1414272674bc238680",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-15 19:45:47",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000076a50b8c7349ccddb7578c6627e79b5d99d241380000000000000000000000001f32b1c2345538c0c6f582fcb022739c4a194ebb000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x462A9B6879770050021823D63aE62470E65Af8D4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-23 14:33:50",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000076a50b8c7349ccddb7578c6627e79b5d99d241380000000000000000000000001f32b1c2345538c0c6f582fcb022739c4a194ebb000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "",
             "VERIFIED": "true"
           }
