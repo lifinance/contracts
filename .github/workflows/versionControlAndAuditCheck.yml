@@ -80,7 +80,7 @@ jobs:
             fi
           done <<< "${FILES}"
 
-          ##### if none found, exit here as there is nothing to do
+          ##### if nothing found, exit here as there is nothing to do
           if [[ -z "${CONTRACTS}" ]]; then
             echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"

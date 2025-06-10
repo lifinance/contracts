@@ -74,7 +74,9 @@
       "ReceiverStargateV2": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
       "RelayerCelerIM": "",
       "TokenWrapper": "0xD989E929517B0e5eD0c8EfE7607Fa167B697cBa8",
-      "GasZipPeriphery": ""
+      "GasZipPeriphery": "0x0ec6D2eEb94541C51620830D151995fCFf83Aa74",
+      "Permit2Proxy.flattened": "",
+      "ReceiverChainflip": ""
     }
   }
 }
