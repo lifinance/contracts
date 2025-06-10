@@ -34,11 +34,12 @@ contract SwapperV2 is ILiFi {
         uint256[] memory _initialBalances
     ) {
         uint256 numSwaps = _swaps.length;
+
+        _;
+
         if (numSwaps != 1) {
             address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
             uint256 curBalance;
-
-            _;
 
             for (uint256 i = 0; i < numSwaps - 1; ) {
                 address curAsset = _swaps[i].receivingAssetId;
@@ -59,8 +60,24 @@ contract SwapperV2 is ILiFi {
                     ++i;
                 }
             }
-        } else {
-            _;
+        }
+
+        // Handle leftover input tokens
+        for (uint256 i = 0; i < numSwaps; ) {
+            address inputAsset = _swaps[i].sendingAssetId;
+            uint256 currentInputBalance = LibAsset.getOwnBalance(inputAsset);
+
+            // Only transfer leftovers if there's actually a balance remaining
+            if (currentInputBalance > 0) {
+                LibAsset.transferAsset(
+                    inputAsset,
+                    _leftoverReceiver,
+                    currentInputBalance
+                );
+            }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -76,11 +93,12 @@ contract SwapperV2 is ILiFi {
         uint256 _nativeReserve
     ) {
         uint256 numSwaps = _swaps.length;
+
+        _;
+
         if (numSwaps != 1) {
             address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
             uint256 curBalance;
-
-            _;
 
             for (uint256 i = 0; i < numSwaps - 1; ) {
                 address curAsset = _swaps[i].receivingAssetId;
@@ -92,7 +110,7 @@ contract SwapperV2 is ILiFi {
                     uint256 reserve = LibAsset.isNativeAsset(curAsset)
                         ? _nativeReserve
                         : 0;
-                    if (curBalance > 0) {
+                    if (curBalance > reserve) {
                         LibAsset.transferAsset(
                             curAsset,
                             _leftoverReceiver,
@@ -104,8 +122,27 @@ contract SwapperV2 is ILiFi {
                     ++i;
                 }
             }
-        } else {
-            _;
+        }
+
+        // Handle leftover input tokens (minus reserve)
+        for (uint256 i = 0; i < numSwaps; ) {
+            address inputAsset = _swaps[i].sendingAssetId;
+            uint256 currentInputBalance = LibAsset.getOwnBalance(inputAsset);
+            uint256 reserve = LibAsset.isNativeAsset(inputAsset)
+                ? _nativeReserve
+                : 0;
+
+            // Only transfer leftovers if there's actually a balance remaining after reserve
+            if (currentInputBalance > reserve) {
+                LibAsset.transferAsset(
+                    inputAsset,
+                    _leftoverReceiver,
+                    currentInputBalance - reserve
+                );
+            }
+            unchecked {
+                ++i;
+            }
         }
     }
 
