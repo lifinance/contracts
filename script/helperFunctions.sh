@@ -1424,16 +1424,6 @@ function verifyContract() {
     API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
   fi
 
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function verifyContract"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "CONTRACT=$CONTRACT"
-  echoDebug "ADDRESS=$ADDRESS"
-  echoDebug "ARGS=$ARGS"
-  echoDebug "blockexplorer API_KEY=${API_KEY}"
-  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
-
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
     *,"$NETWORK",*)
@@ -1450,6 +1440,19 @@ function verifyContract() {
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
+
+
+  # logging for debug purposes
+  echo ""
+  echoDebug "in function verifyContract"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "ARGS=$ARGS"
+  echoDebug "blockexplorer API_KEY=${API_KEY}"
+  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
+  echoDebug "FULL_PATH=$FULL_PATH"
+  echoDebug "CHAIN_ID=$CHAIN_ID"
 
   if [ $? -ne 0 ]; then
     warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
@@ -2028,7 +2031,7 @@ function getCoreFacetsArray() {
 }
 
 # Function to check if NETWORKS_JSON_FILE_PATH is set and valid
-checkNetworksJsonFilePath() {
+function checkNetworksJsonFilePath() {
   if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
     error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
     return 1
@@ -2796,14 +2799,13 @@ function getRPCUrl() {
 function getRpcUrlFromNetworksJson() {
   local NETWORK="$1"
 
+  # make sure networks.json exists
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-  if [[ ! -f "$NETWORKS_JSON_FILE_PATH" ]]; then
-    echo "Error: JSON file '$NETWORKS_JSON_FILE_PATH' not found." >&2
-    return 1
-  fi
 
+  # extract RPC URL from networks.json for given network
   local RPC_URL=$(jq -r --arg network "$NETWORK" '.[$network].rpcUrl // empty' "$NETWORKS_JSON_FILE_PATH")
 
+  # make sure a value was found
   if [[ -z "$RPC_URL" ]]; then
     echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
     return 1
@@ -3006,7 +3008,8 @@ function extractDeployedAddressFromRawReturnData() {
     # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
     local COUNT=0
     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
-      if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
+      # check if address contains and bytecode and leave the loop if bytecode is found
+      if [[ "$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")" == "true" ]]; then
         break
       fi
       echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"

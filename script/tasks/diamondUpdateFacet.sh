@@ -153,7 +153,7 @@ diamondUpdateFacet() {
       if isZkEvmNetwork "$NETWORK"; then
         RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
       else
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --legacy)
       fi
     fi
     RETURN_CODE=$?
