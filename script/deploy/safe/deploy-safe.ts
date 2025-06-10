@@ -364,7 +364,9 @@ const main = defineCommand({
       )
 
       if (networks.length > 0) {
-        const latestNetwork = networks[0]!
+        const latestNetwork = networks[0]
+        if (!latestNetwork || !factoryD.networkAddresses[latestNetwork])
+          throw new Error('Invalid network address configuration')
         factoryAddr = factoryD.networkAddresses[latestNetwork] as `0x${string}`
         consola.info(
           `Using factory from network ${latestNetwork}: ${factoryAddr}`
@@ -386,7 +388,9 @@ const main = defineCommand({
       )
 
       if (networks.length > 0) {
-        const latestNetwork = networks[0]!
+        const latestNetwork = networks[0]
+        if (!latestNetwork || !fallbackD.networkAddresses[latestNetwork])
+          throw new Error('Invalid network address configuration')
         fallbackAddr = fallbackD.networkAddresses[
           latestNetwork
         ] as `0x${string}`
@@ -555,7 +559,9 @@ async function deployLocalContracts(
     hash: implTx,
     confirmations: 5,
   })
-  const implAddr = implRcpt.contractAddress!
+  if (!implRcpt.contractAddress)
+    throw new Error('Contract address not found in receipt')
+  const implAddr = implRcpt.contractAddress
   consola.success(`✔ Safe impl @ ${implAddr}`)
   await sleep(5000)
   await compareDeployedBytecode(
@@ -575,7 +581,9 @@ async function deployLocalContracts(
     hash: facTx,
     confirmations: 5,
   })
-  const facAddr = facRcpt.contractAddress!
+  if (!facRcpt.contractAddress)
+    throw new Error('Contract address not found in receipt')
+  const facAddr = facRcpt.contractAddress
   consola.success(`✔ SafeProxyFactory @ ${facAddr}`)
   await sleep(5000)
   await compareDeployedBytecode(

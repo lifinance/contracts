@@ -842,9 +842,12 @@ export async function getNextNonce(
     .limit(1)
     .toArray()
 
-  return latestTx.length > 0
-    ? BigInt(latestTx[0]!.safeTx?.data?.nonce || 0) + 1n
-    : currentNonce
+  if (latestTx.length > 0) {
+    const tx = latestTx[0]
+    if (!tx) throw new Error('Latest transaction not found')
+    return BigInt(tx.safeTx?.data?.nonce || 0) + 1n
+  }
+  return currentNonce
 }
 
 /**
@@ -874,12 +877,15 @@ export async function getPendingTransactionsByNetwork(
   }
 
   // Sort transactions by nonce for each network
-  for (const network in txsByNetwork)
-    txsByNetwork[network]!.sort((a, b) => {
+  for (const network in txsByNetwork) {
+    const txs = txsByNetwork[network]
+    if (!txs) throw new Error(`Missing transactions for network ${network}`)
+    txs.sort((a, b) => {
       if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
       if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
       return 0
     })
+  }
 
   return txsByNetwork
 }

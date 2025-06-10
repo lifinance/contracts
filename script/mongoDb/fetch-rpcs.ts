@@ -97,7 +97,9 @@ async function mergeEndpointsIntoEnv() {
     const sortedGroups = Object.keys(groupedEndpoints)
       .sort()
       .map((letter) => {
-        const group = groupedEndpoints[letter]!.sort(([keyA], [keyB]) => {
+        if (!groupedEndpoints[letter])
+          throw new Error(`Missing group for letter ${letter}`)
+        const group = groupedEndpoints[letter].sort(([keyA], [keyB]) => {
           const nameA = keyA.replace('ETH_NODE_URI_', '')
           const nameB = keyB.replace('ETH_NODE_URI_', '')
           return nameA.localeCompare(nameB)
