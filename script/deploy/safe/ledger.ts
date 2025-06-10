@@ -12,8 +12,9 @@ import type {
   Account,
   Address,
   Hex,
-  TransactionRequest,
-  SignTypedDataParameters,
+  TransactionSerializable,
+  TypedData,
+  TypedDataDefinition,
 } from 'viem'
 
 /**
@@ -63,7 +64,7 @@ export async function getLedgerAccount(options?: {
     consola.success(`Connected to Ledger with address: ${address}`)
 
     // Create and return a viem-compatible account
-    return createLedgerAccount({
+    return await createLedgerAccount({
       address: address as Address,
       transport,
       derivationPath,
@@ -83,7 +84,7 @@ export async function getLedgerAccount(options?: {
  * @param params.derivationPath The derivation path used
  * @returns A viem-compatible account
  */
-function createLedgerAccount({
+async function createLedgerAccount({
   address,
   transport,
   derivationPath,
@@ -91,10 +92,17 @@ function createLedgerAccount({
   address: Address
   transport: Transport
   derivationPath: string
-}): Account {
+}): Promise<Account> {
+  // Get the public key from Ledger
+  const { default: Eth } = await import('@ledgerhq/hw-app-eth')
+  const eth = new Eth(transport)
+  const { publicKey } = await eth.getAddress(derivationPath)
+
   return {
     address,
     type: 'local',
+    publicKey: `0x${publicKey}`,
+    source: 'ledger',
     async signMessage({ message }) {
       const Eth = (await import('@ledgerhq/hw-app-eth')).default
       const eth = new Eth(transport)
@@ -114,32 +122,27 @@ function createLedgerAccount({
       // Format the signature for Ethereum
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
-    // @ts-ignore
-    async signTransaction(transactionRequest: TransactionRequest) {
+    async signTransaction<
+      TTransactionSerializable extends TransactionSerializable
+    >(transaction: TTransactionSerializable) {
       try {
         // Load all needed imports first
         const { default: Eth } = await import('@ledgerhq/hw-app-eth')
         const { serializeTransaction } = await import('viem')
-        const { getChainId } = await import('viem/actions')
 
         // Create Eth instance
         const eth = new Eth(transport)
 
-        // Get the chain ID from the request or client
-        const chainId =
-          transactionRequest.chainId ??
-          (transactionRequest.client
-            ? await getChainId(transactionRequest.client)
-            : 1)
+        // Get the chain ID from the transaction or default to mainnet
+        const chainId = transaction.chainId ?? 1
 
         // Create a transaction object with chainId explicitly included
         const txWithChainId = {
-          ...transactionRequest,
+          ...transaction,
           chainId,
         }
 
         // Serialize the transaction to hex format as required by Ledger
-        // @ts-ignore
         const serializedTx = serializeTransaction(txWithChainId)
 
         // Use the raw hex without '0x' prefix as required by Ledger
@@ -200,7 +203,6 @@ function createLedgerAccount({
         }
 
         // Serialize the signed transaction
-        // @ts-ignore
         const serializedSignedTx = serializeSignedTransaction(signedTx)
 
         return serializedSignedTx
@@ -210,7 +212,10 @@ function createLedgerAccount({
       }
     },
     // Implement signTypedData method for EIP-712 support
-    async signTypedData(params: SignTypedDataParameters) {
+    async signTypedData<
+      const TTypedData extends TypedData | Record<string, unknown>,
+      TPrimaryType extends keyof TTypedData | 'EIP712Domain' = keyof TTypedData
+    >(parameters: TypedDataDefinition<TTypedData, TPrimaryType>) {
       const { default: Eth } = await import('@ledgerhq/hw-app-eth')
       const eth = new Eth(transport)
 
@@ -218,16 +223,16 @@ function createLedgerAccount({
       // Sign the typed data with Ledger
       // Note: Some Ledger firmware versions might not support all EIP-712 features
       const result = await eth.signEIP712Message(derivationPath, {
-        domain: params.domain as Partial<{
+        domain: parameters.domain as Partial<{
           name: string
           chainId: number
           version: string
           verifyingContract: string
           salt: string
         }>,
-        types: params.types as any,
-        primaryType: params.primaryType,
-        message: params.message,
+        types: parameters.types as any,
+        primaryType: parameters.primaryType,
+        message: parameters.message as Record<string, unknown>,
       })
 
       // Format the signature
