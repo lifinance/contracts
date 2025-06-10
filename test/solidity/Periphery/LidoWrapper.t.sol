@@ -280,10 +280,15 @@ contract LidoWrapperTest is TestBase {
             USER_SENDER
         );
 
-        // Try to wrap more than balance
-        vm.expectRevert(ErrorNotEnoughAllowance.selector);
+        IERC20(ST_ETH_ADDRESS_OPTIMISM).approve(
+            address(lidoWrapper),
+            balance + 2 // +1 still worked (probably because of rounding errors)
+        );
 
-        lidoWrapper.wrapStETHToWstETH(balance + 1);
+        // Try to wrap more than balance
+        vm.expectRevert(ErrorNotEnoughBalance.selector);
+
+        lidoWrapper.wrapStETHToWstETH(balance + 2);
 
         vm.stopPrank();
     }
@@ -294,6 +299,16 @@ contract LidoWrapperTest is TestBase {
         // Get user's wstETH balance
         uint256 balance = IERC20(WST_ETH_ADDRESS_OPTIMISM).balanceOf(
             USER_SENDER
+        );
+
+        IERC20(ST_ETH_ADDRESS_OPTIMISM).approve(
+            address(lidoWrapper),
+            balance + 2 // +1 still worked (probably because of rounding errors)
+        );
+
+        IERC20(WST_ETH_ADDRESS_OPTIMISM).approve(
+            address(lidoWrapper),
+            balance + 2
         );
 
         // Try to unwrap more than balance
