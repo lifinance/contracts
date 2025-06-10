@@ -9,6 +9,10 @@ module.exports = {
   },
   env: {
     commonjs: true,
+    // Added node: true to properly recognize Node.js globals like __dirname, process, etc.
+    // This is needed because the project uses Node.js features in build scripts, deployment scripts,
+    // and development tooling. Without this, ESLint would incorrectly flag Node.js globals as undefined.
+    node: true,
   },
   plugins: [
     '@typescript-eslint',
