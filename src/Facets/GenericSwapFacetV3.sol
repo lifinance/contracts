@@ -552,7 +552,7 @@ contract GenericSwapFacetV3 is ILiFi {
             );
 
             // we decided to change this value from 0 to 1 to have more flexibility with rebasing tokens that
-            // sometimes produce rounding errors. In those cases there might we 1 wei leftover at the end of a swap
+            // sometimes produce rounding errors. In those cases there might be 1 wei leftover at the end of a swap
             // but this 1 wei is not transferable, so the tx reverts. We accept that 1 wei dust gets stuck in the contract
             // with every tx as this does not represent a significant USD value in any relevant token.
             if (sendingAssetBalance > 1) {
