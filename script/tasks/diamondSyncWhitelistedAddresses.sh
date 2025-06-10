@@ -69,8 +69,8 @@ function diamondSyncWhitelistedAddresses {
     # Fetch required whitelisted addresses from configuration
     CFG_WHITELISTED_ADDRESSES=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/whitelistedAddresses.json")
 
-    # Function to get approved whitelisted addresses from the contract
-    function getApprovedWhitelistedAddresses {
+    # Function to get whitelisted addresses from the contract
+    function getWhitelistedAddresses {
       local ATTEMPT=1
       local result=""
 
@@ -93,13 +93,13 @@ function diamondSyncWhitelistedAddresses {
       return 1
     }
 
-    # Get approved whitelisted addresses
-    WHITELISTED_ADDRESSES=($(getApprovedWhitelistedAddresses))
+    # Get whitelisted addresses
+    WHITELISTED_ADDRESSES=($(getWhitelistedAddresses))
     if [[ $? -ne 0 ]]; then
       # Report failure
-      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Unable to fetch approved whitelisted addresses"
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Unable to fetch whitelisted addresses"
       {
-        echo "[$NETWORK] Error: Unable to fetch approved whitelisted addresses"
+        echo "[$NETWORK] Error: Unable to fetch whitelisted addresses"
         echo ""
       } >> "$FAILED_LOG_FILE"
       return
@@ -130,7 +130,7 @@ function diamondSyncWhitelistedAddresses {
         sleep 5
 
         # Verify updated whitelisted addresses list
-        WHITELISTED_ADDRESSES_UPDATED=($(getApprovedWhitelistedAddresses))
+        WHITELISTED_ADDRESSES_UPDATED=($(getWhitelistedAddresses))
         if [[ $? -ne 0 ]]; then
           printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Whitelisted addresses update verification failed"
 
