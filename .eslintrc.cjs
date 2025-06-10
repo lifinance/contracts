@@ -6,7 +6,6 @@ module.exports = {
     // Allows for the parsing of modern ECMAScript features
     sourceType: 'module', // Allows for the use of imports
     project: './tsconfig.eslint.json',
-    tsconfigRootDir: __dirname,
   },
   env: {
     commonjs: true,
