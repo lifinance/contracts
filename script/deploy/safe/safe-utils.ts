@@ -9,6 +9,7 @@
 import { consola } from 'consola'
 import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
 import {
+  type Account,
   type Address,
   type Chain,
   type Hex,
@@ -145,13 +146,13 @@ export class ViemSafe {
    * Address of the account used for signing
    * @public
    */
-  public account: Address
+  public account: Account
 
   public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
-    account: Address
+    account: Account
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
@@ -206,12 +207,7 @@ export class ViemSafe {
       transport: http(typeof provider === 'string' ? provider : undefined),
     })
 
-    return new ViemSafe(
-      publicClient,
-      walletClient,
-      safeAddress,
-      account.address
-    )
+    return new ViemSafe(publicClient, walletClient, safeAddress, account)
   }
 
   // Get Safe address
@@ -420,7 +416,7 @@ export class ViemSafe {
       console.log('Safe signature:', safeSignature)
 
       return {
-        signer: this.account,
+        signer: this.account.address,
         data: safeSignature,
       }
     } catch (error: any) {
@@ -473,8 +469,8 @@ export class ViemSafe {
       }
 
       // Sign typed data using walletClient
-      // @ts-ignore
       const typedDataSignature = await this.walletClient.signTypedData({
+        account: this.account,
         domain,
         types,
         primaryType: 'SafeTx',
@@ -483,7 +479,7 @@ export class ViemSafe {
 
       // Format the signature for Safe contract
       const signature = {
-        signer: this.account,
+        signer: this.account.address,
         data: typedDataSignature,
       }
 

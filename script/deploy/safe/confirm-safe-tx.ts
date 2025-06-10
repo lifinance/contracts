@@ -76,7 +76,7 @@ const processTxs = async (
   )
 
   // Get signer address
-  const signerAddress = safe.account
+  const signerAddress = safe.account.address
 
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)

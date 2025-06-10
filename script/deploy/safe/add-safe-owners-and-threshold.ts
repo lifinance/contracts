@@ -119,7 +119,7 @@ const main = defineCommand({
     const currentThreshold = Number(safeInfo.threshold)
 
     // Get signer address
-    const senderAddress = safe.account
+    const senderAddress = safe.account.address
 
     consola.info('Safe Address', safeAddress)
     consola.info('Signer Address', senderAddress)

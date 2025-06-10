@@ -128,7 +128,7 @@ const main = defineCommand({
     )
 
     // Get the account address
-    const senderAddress = safe.account
+    const senderAddress = safe.account.address
 
     // Check if the current signer is an owner
     const existingOwners = await safe.getOwners()
