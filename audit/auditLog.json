@@ -279,6 +279,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.08_LiFiDexAggregator(v1.10.0).pdf",
       "auditCommitHash": "2de27694cfdd15e73eaf1a395c683da8cbac8d6f"
+    },
+    "audit20250611": {
+      "auditCompletedOn": "11.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.11_LibAllowList(v1.0.1).pdf",
+      "auditCommitHash": "35c778e178b6a160bd351b5110ef24df26ece226"
     }
   },
   "auditedContracts": {
@@ -467,7 +474,8 @@
       "1.0.0": ["audit20250508"]
     },
     "LibAllowList": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.0.1": ["audit20250529", "audit20250611"]
     },
     "LibAsset": {
       "1.0.1": ["audit20241202"],
