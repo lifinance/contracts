@@ -1460,15 +1460,17 @@ function verifyContract() {
     fi
   fi
 
-  # Check if network requires API key
-  if grep -q "NO_ETHERSCAN_API_KEY_REQUIRED" foundry.toml; then
+  # Get API key and determine verification method
+  API_KEY=$(getEtherscanApiKey "$NETWORK")
+  if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
-  else
-    API_KEY=$(getEtherscanApiKey "$NETWORK")
+  elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+    # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
       echo "Error: Could not find API key for network $NETWORK"
       return 1
     fi
+    # add API key to verification command
     VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
   fi
 
