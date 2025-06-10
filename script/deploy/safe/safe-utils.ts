@@ -569,8 +569,9 @@ export class ViemSafe {
       const signatures = this.formatSignatures(safeTx.signatures)
 
       // First, prepare the transaction data
-      // @ts-ignore
       const txHash = await this.walletClient.writeContract({
+        account: this.account,
+        chain: null,
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'execTransaction',
