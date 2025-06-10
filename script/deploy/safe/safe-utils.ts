@@ -771,12 +771,21 @@ export async function storeTransactionInMongoDB(
     safeAddress,
     network: network.toLowerCase(),
     chainId,
-    safeTx,
+    safeTx: {
+      data: {
+        to: safeTx.data.to,
+        value: safeTx.data.value.toString(),
+        data: safeTx.data.data,
+        operation: Number(safeTx.data.operation),
+        nonce: Number(safeTx.data.nonce),
+      },
+      signatures: Object.fromEntries(safeTx.signatures),
+    },
     safeTxHash,
     proposer,
     timestamp: new Date(),
-    status: 'pending',
-  }
+    status: 'pending' as const,
+  } satisfies ISafeTxDocument
 
   return retry(async () => {
     const insertResult = await pendingTransactions.insertOne(txDoc)
