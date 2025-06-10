@@ -39,7 +39,7 @@ uint8 constant POOL_TYPE_ALGEBRA = 7;
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.9.0
+/// @custom:version 1.10.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
@@ -303,6 +303,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @notice Processes ERC20 token for cases when the token has only one output pool
     /// @notice In this case liquidity is already at pool balance. This is an optimization
     /// @notice Call swap for all pools that swap from this token
+    /// @dev WARNING: This function passes amountIn as 0 which may not work with some UniswapV3
+    /// @dev forks that require non-zero amounts for their pricing/slippage calculations.
+    /// @dev Use with caution for V3-style pools.
     /// @param stream Streamed program
     function processOnePool(uint256 stream) private {
         address token = stream.readAddress();
@@ -528,6 +531,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
 
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
+
         if (from == msg.sender)
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
@@ -716,6 +725,87 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
     /// @param data Any data passed through by the caller via the ZebraV3#swap call
     function zebraV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via HyperswapV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the HyperswapV3#swap call
+    function hyperswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via LaminarV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the LaminarV3#swap call
+    function laminarV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IXSwapPool#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be a XSwapPool deployed by the canonical XSwapFactory.
+    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the IXSwapPoolActions#swap call
+    function xswapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IRabbitSwapV3Pool#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be a RabbitSwapV3Pool deployed by the canonical RabbitSwapV3Factory.
+    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the IRabbitSwapV3PoolActions#swap call
+    function rabbitSwapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IEnosysDexV3Pool#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be a EnosysDexV3Pool deployed by the canonical EnosysDexV3Factory.
+    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the IEnosysDexV3PoolActions#swap call
+    function enosysdexV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
