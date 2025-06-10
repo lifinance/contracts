@@ -77,7 +77,7 @@ import {
   setupEnvironment,
   type SupportedChain,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { EnvironmentEnum, type INetwork } from '../../utils/viemScriptHelpers'
+import { EnvironmentEnum } from '../../utils/viemScriptHelpers'
 
 dotenv.config()
 
@@ -318,14 +318,7 @@ const main = defineCommand({
     consola.info('Deployer:', walletAccount.address)
 
     // Determine EVM version
-    const networkConfig = Object.prototype.hasOwnProperty.call(
-      networks,
-      networkName.toLowerCase()
-    )
-      ? (networks[
-          networkName.toLowerCase() as keyof typeof networks
-        ] as unknown as INetwork)
-      : undefined
+    const networkConfig = networks[networkName]
     let evmVersion: EVMVersion = 'cancun' // Default to cancun
 
     if (args.evmVersion) {
