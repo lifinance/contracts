@@ -272,6 +272,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.08_LiFiDexAggregator(v1.10.0).pdf",
       "auditCommitHash": "2de27694cfdd15e73eaf1a395c683da8cbac8d6f"
+    },
+    "audit20250610": {
+      "auditCompletedOn": "10.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
+      "auditCommitHash": "feab0709941d12efaed8be16fea96f4ff4276544"
     }
   },
   "auditedContracts": {
@@ -352,18 +359,15 @@
       "1.0.0": ["audit20250508"]
     },
     "GenericSwapFacetV3": {
-      "1.0.1": ["audit20250508"]
+      "1.0.1": ["audit20250508"],
+      "1.0.2": ["audit20250610"]
     },
     "GlacisFacet": {
       "1.0.0": ["audit20250219"]
     },
     "GnosisBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ],
-      "2.0.0": [
-        "audit20250603"
-      ]
+      "1.0.0": ["audit20250508"],
+      "2.0.0": ["audit20250603"]
     },
     "HopFacetOptimized": {
       "2.0.0": ["audit20250508"]
@@ -386,6 +390,9 @@
     },
     "IGlacisAirlift": {
       "1.0.0": ["audit20250219", "audit20250508"]
+    },
+    "LidoWrapper": {
+      "1.0.0": ["audit20250610"]
     },
     "LIFuelFacet": {
       "1.0.1": ["audit20250508"]
@@ -477,7 +484,8 @@
       "1.0.0": ["audit20250508"]
     },
     "LibSwap": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.1.0": ["audit20250610"]
     },
     "LibUtil": {
       "1.0.0": ["audit20250508"]
