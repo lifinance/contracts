@@ -3,7 +3,7 @@ import {
   fetchQuote,
   getSwapFromEvmTxPayload,
 } from '@mayanfinance/swap-sdk'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import { ethers, utils, constants } from 'ethers'
 
 import deployments from '../../deployments/arbitrum.staging.json'
@@ -15,7 +15,7 @@ import {
   type MayanFacet,
 } from '../../typechain'
 
-dotenv.config()
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM

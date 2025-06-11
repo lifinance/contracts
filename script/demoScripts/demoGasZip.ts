@@ -1,21 +1,21 @@
 import { randomBytes } from 'crypto'
 
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import { parseUnits, zeroAddress, type Narrow } from 'viem'
 
 import gasZipFacetArtifact from '../../out/GasZipFacet.sol/GasZipFacet.json'
 import type { ILiFi } from '../../typechain'
 import type { IGasZip } from '../../typechain/GasZipFacet'
-import type { SupportedChain } from '../types/common'
 
 import {
+  type SupportedChain,
   addressToBytes32RightPadded,
   ensureBalance,
   executeTransaction,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-dotenv.config()
+config()
 
 // #region ABIs
 const GAS_ZIP__FACET_ABI = gasZipFacetArtifact.abi as Narrow<

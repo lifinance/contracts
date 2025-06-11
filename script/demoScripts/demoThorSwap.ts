@@ -1,4 +1,4 @@
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import { ethers, utils } from 'ethers'
 
 import deployments from '../../deployments/mainnet.staging.json'
@@ -8,7 +8,7 @@ import {
   type ILiFi,
   type ThorSwapFacet,
 } from '../../typechain'
-dotenv.config()
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_MAINNET

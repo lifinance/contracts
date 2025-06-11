@@ -1,7 +1,7 @@
 // Import required libraries and artifacts
 import { randomBytes } from 'crypto'
 
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import {
   type Narrow,
   getContract,
@@ -31,7 +31,7 @@ import {
   type SupportedChain,
 } from './utils/demoScriptHelpers'
 
-dotenv.config()
+config()
 
 // Contract addresses and ABIs
 const RECEIVER_CHAINFLIP = deployments.ReceiverChainflip

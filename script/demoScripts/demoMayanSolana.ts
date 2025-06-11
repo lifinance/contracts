@@ -3,7 +3,7 @@ import {
   getSwapFromEvmTxPayload,
   type Quote,
 } from '@mayanfinance/swap-sdk'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import { constants, ethers, utils } from 'ethers'
 
 import deployments from '../../deployments/bsc.staging.json'
@@ -15,7 +15,7 @@ import {
   type MayanFacet,
 } from '../../typechain'
 
-dotenv.config()
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_BSC

@@ -35,7 +35,7 @@
  * ensures that the CI/CD pipeline can successfully generate and commit type bindings.
  */
 
-import fs from 'fs-extra'
+import { readJson, writeJson, existsSync } from 'fs-extra'
 
 interface IEvent {
   type: string
@@ -52,7 +52,7 @@ async function removeDuplicateEventsFromABI() {
   ]
 
   for (const file of filesToClean) {
-    if (!fs.existsSync(file)) {
+    if (!existsSync(file)) {
       console.log(`File ${file} not found, skipping...`)
       continue
     }
@@ -60,7 +60,7 @@ async function removeDuplicateEventsFromABI() {
     let content
     let abi
     try {
-      content = await fs.readJson(file)
+      content = await readJson(file)
       if (!content.abi || !Array.isArray(content.abi)) {
         console.error(`Invalid ABI format in ${file}, skipping...`)
         continue
@@ -89,7 +89,7 @@ async function removeDuplicateEventsFromABI() {
     // Update the ABI in the file
     content.abi = cleanedABI
     try {
-      await fs.writeJson(file, content, { spaces: 2 })
+      await writeJson(file, content, { spaces: 2 })
       console.log(`Cleaned duplicate events from ${file}`)
     } catch (error) {
       console.error(

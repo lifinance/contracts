@@ -1,7 +1,7 @@
 import fs from 'fs'
 
 import { keccak256, defaultAbiCoder } from 'ethers/lib/utils'
-import MerkleTree from 'merkletreejs'
+import { MerkleTree } from 'merkletreejs'
 
 import claimsFile from '../resources/gasRebates.json'
 

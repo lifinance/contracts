@@ -1,4 +1,4 @@
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import { ethers, utils } from 'ethers'
 
 import deployments from '../../deployments/polygon.staging.json'
@@ -9,7 +9,7 @@ import {
   type ILiFi,
   type SquidFacet,
 } from '../../typechain'
-dotenv.config()
+config()
 
 const ROUTE_TYPES: Record<string, number> = {
   CALL_BRIDGE: 0,

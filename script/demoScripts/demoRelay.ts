@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js'
 import { _100 } from '@uniswap/sdk/dist/constants'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import { ethers, utils } from 'ethers'
 
 import deployments from '../../deployments/arbitrum.staging.json'
@@ -18,7 +18,7 @@ import {
   getUniswapSwapDataERC20ToETH,
 } from './utils/demoScriptHelpers'
 
-dotenv.config()
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM

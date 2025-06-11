@@ -1,9 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 
-dotenv.config()
+config()
 
 async function updateDeploymentLogs(network: string) {
   try {
