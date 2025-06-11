@@ -502,20 +502,22 @@ jobs:
             if [[ -z "$AUDIT_IDS" ]]; then
               AUDIT_COUNT=0
             else
-              AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+              # Use sort and uniq to remove duplicates, then count
+              AUDIT_COUNT=$(echo "$AUDIT_IDS" | sort | uniq | wc -l)
+              
+              # Check for duplicates by comparing original and deduplicated counts
+              ORIGINAL_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+              if [[ $ORIGINAL_COUNT -ne $AUDIT_COUNT ]]; then
+                echo -e "\033[31mError: Found duplicate audit IDs for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mPlease remove duplicate entries from the audit log.\033[0m"
+                exit 1
+              fi
             fi
 
-            ##### Ensure exactly one audit is logged; handle errors if not
-            if [[ $AUDIT_COUNT -ne 1 ]]; then
-              if [[ $AUDIT_COUNT -gt 1 ]]; then
-                echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
-                echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
-              else
-                echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
-              fi
-
+            ##### Ensure at least one audit is logged; handle errors if not
+            if [[ $AUDIT_COUNT -lt 1 ]]; then
+              echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+              echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
               exit 1
             fi
 
