@@ -61,7 +61,10 @@
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x4B9CF0bAd1E3Abc3ddeE3f3F4b6AdEE46D248bf3",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x0B4c7336AE02Bd3f1648dE8eb6B79a71300260a1"
+      "TokenWrapper": "0x0B4c7336AE02Bd3f1648dE8eb6B79a71300260a1",
+      "GasZipPeriphery.flattened": "",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator.flattened": ""
     }
   }
 }
