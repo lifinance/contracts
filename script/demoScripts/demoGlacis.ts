@@ -14,6 +14,7 @@ import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
 import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
 import type { GlacisFacet, ILiFi } from '../../typechain'
+import type { SupportedChain } from '../common/types'
 
 import {
   ensureBalance,
@@ -22,7 +23,6 @@ import {
   setupEnvironment,
   getConfigElement,
   zeroPadAddressToBytes32,
-  type SupportedChain,
 } from './utils/demoScriptHelpers'
 
 dotenvConfig()

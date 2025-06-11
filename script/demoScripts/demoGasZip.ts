@@ -6,9 +6,9 @@ import { parseUnits, zeroAddress, type Narrow } from 'viem'
 import gasZipFacetArtifact from '../../out/GasZipFacet.sol/GasZipFacet.json'
 import type { ILiFi } from '../../typechain'
 import type { IGasZip } from '../../typechain/GasZipFacet'
+import type { SupportedChain } from '../common/types'
 
 import {
-  type SupportedChain,
   addressToBytes32RightPadded,
   ensureBalance,
   executeTransaction,

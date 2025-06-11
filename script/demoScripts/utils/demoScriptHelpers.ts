@@ -20,11 +20,9 @@ import { privateKeyToAccount } from 'viem/accounts'
 import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { node_url } from '../../utils/network'
-import {
-  EnvironmentEnum,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 config()
 
@@ -35,8 +33,6 @@ export const DEFAULT_DEST_PAYLOAD_ABI = [
   'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[]', // Swap Data
   'address', // Receiver
 ]
-
-export type SupportedChain = keyof typeof networks
 
 export enum TransactionTypeEnum {
   ERC20,
@@ -184,37 +180,54 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   deadline = Math.floor(Date.now() / 1000) + 60 * 60
 ) => {
   // prepare destSwap callData
-  const uniswap = new Contract(uniswapAddress, [
+  const provider = getProviderForChainId(chainId)
+  const UNISWAP_ABI = [
     'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
-  ])
+  ] as const
+
+  const uniswap = new Contract(
+    uniswapAddress,
+    UNISWAP_ABI,
+    provider
+  ) as Contract & {
+    populateTransaction: {
+      swapExactTokensForTokens: (
+        amountIn: BigNumber,
+        amountOutMin: BigNumber,
+        path: string[],
+        to: string,
+        deadline: number
+      ) => Promise<{ data: string }>
+    }
+  }
+
   const path = [sendingAssetId, receivingAssetId]
 
   // get minAmountOut from Uniswap router
   console.log(`finalFromAmount  : ${fromAmount}`)
 
-  let finalMinAmountOut: BigNumber
-  if (minAmountOut.toString() !== '0') finalMinAmountOut = minAmountOut
-  else {
-    const amountsOut = await getAmountsOutUniswap(
-      uniswapAddress,
-      chainId,
-      [sendingAssetId, receivingAssetId],
-      fromAmount
-    )
-    // Use the second element (index 1) as the estimated output
-    finalMinAmountOut = BigNumber.from(amountsOut[1]).mul(99).div(100)
-  }
+  const finalMinAmountOut = BigNumber.from(
+    minAmountOut === 0
+      ? (
+          await getAmountsOutUniswap(
+            uniswapAddress,
+            chainId,
+            [sendingAssetId, receivingAssetId],
+            fromAmount
+          )
+        )[1]
+      : minAmountOut
+  )
   console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
 
-  const uniswapCalldata = (
+  const uniswapCalldata =
     await uniswap.populateTransaction.swapExactTokensForTokens(
-      fromAmount, // amountIn
+      fromAmount,
       finalMinAmountOut,
       path,
       receiverAddress,
       deadline
     )
-  ).data
 
   if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
 
@@ -225,7 +238,7 @@ export const getUniswapSwapDataERC20ToERC20 = async (
     sendingAssetId,
     receivingAssetId,
     fromAmount,
-    callData: uniswapCalldata,
+    callData: uniswapCalldata.data,
     requiresDeposit,
   }
 
@@ -250,8 +263,18 @@ export const getUniswapDataERC20toExactETH = async (
       'function getAmountsIn(uint amountOut, address[] calldata path) external view returns (uint[] memory amounts)',
       'function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
     ],
-    provider // Connect the contract to the provider
-  )
+    provider
+  ) as Contract & {
+    populateTransaction: {
+      swapTokensForExactETH: (
+        amountOut: BigNumber,
+        amountInMax: BigNumber,
+        path: string[],
+        to: string,
+        deadline: number
+      ) => Promise<{ data: string }>
+    }
+  }
 
   const path = [sendingAssetId, ADDRESS_WETH_OPT]
 
@@ -312,7 +335,17 @@ export const getUniswapDataERC20toExactERC20 = async (
       'function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
     ],
     provider
-  )
+  ) as Contract & {
+    populateTransaction: {
+      swapTokensForExactTokens: (
+        amountOut: BigNumber,
+        amountInMax: BigNumber,
+        path: string[],
+        to: string,
+        deadline: number
+      ) => Promise<{ data: string }>
+    }
+  }
 
   const path = [sendingAssetId, receivingAssetId]
 
@@ -365,34 +398,54 @@ export const getUniswapSwapDataERC20ToETH = async (
   deadline = Math.floor(Date.now() / 1000) + 60 * 60
 ) => {
   // prepare destSwap callData
-  const uniswap = new Contract(uniswapAddress, [
+  const provider = getProviderForChainId(chainId)
+  const UNISWAP_ABI = [
     'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
-  ])
+  ] as const
+
+  const uniswap = new Contract(
+    uniswapAddress,
+    UNISWAP_ABI,
+    provider
+  ) as Contract & {
+    populateTransaction: {
+      swapExactTokensForETH: (
+        amountIn: BigNumber,
+        amountOutMin: BigNumber,
+        path: string[],
+        to: string,
+        deadline: number
+      ) => Promise<{ data: string }>
+    }
+  }
+
   const path = [sendingAssetId, receivingAssetId]
 
   // get minAmountOut from Uniswap router
   console.log(`finalFromAmount  : ${fromAmount}`)
 
-  const finalMinAmountOut =
+  const finalMinAmountOut = BigNumber.from(
     minAmountOut === 0
-      ? await getAmountsOutUniswap(
-          uniswapAddress,
-          chainId,
-          [sendingAssetId, receivingAssetId],
-          fromAmount
-        )
+      ? (
+          await getAmountsOutUniswap(
+            uniswapAddress,
+            chainId,
+            [sendingAssetId, receivingAssetId],
+            fromAmount
+          )
+        )[1]
       : minAmountOut
+  )
   console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
 
-  const uniswapCalldata = (
+  const uniswapCalldata =
     await uniswap.populateTransaction.swapExactTokensForETH(
-      fromAmount, // amountIn
+      fromAmount,
       finalMinAmountOut,
       path,
       receiverAddress,
       deadline
     )
-  ).data
 
   if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
 
@@ -403,7 +456,7 @@ export const getUniswapSwapDataERC20ToETH = async (
     sendingAssetId,
     receivingAssetId: '0x0000000000000000000000000000000000000000',
     fromAmount,
-    callData: uniswapCalldata,
+    callData: uniswapCalldata.data,
     requiresDeposit,
   }
 
@@ -429,7 +482,15 @@ export const getAmountsOutUniswap = async (
   ])
 
   // get uniswap contract
-  const uniswap = new Contract(uniswapAddress, uniswapABI, provider)
+  const uniswap = new Contract(
+    uniswapAddress,
+    uniswapABI,
+    provider
+  ) as Contract & {
+    callStatic: {
+      getAmountsOut: (amountIn: string, path: string[]) => Promise<string[]>
+    }
+  }
 
   try {
     // Call Uniswap contract to get amountsOut
@@ -447,7 +508,7 @@ export const getAmountsOutUniswap = async (
       throw new Error('Invalid amounts returned from Uniswap')
 
     return amounts
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error calling Uniswap contract:', error)
     throw new Error(`Failed to get amounts out: ${error.message}`)
   }
@@ -662,19 +723,37 @@ export const getUniswapDataExactETHToERC20 = async (
       'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
     ],
     provider
-  )
+  ) as Contract & {
+    callStatic: {
+      getAmountsOut: (amountIn: string, path: string[]) => Promise<string[]>
+    }
+    populateTransaction: {
+      swapExactETHForTokens: (
+        amountOutMin: BigNumber,
+        path: string[],
+        to: string,
+        deadline: number
+      ) => Promise<{ data: string }>
+    }
+  }
 
   const path = [ADDRESS_WETH_ETH, receivingAssetId]
 
   try {
     // Get the expected output amount for the exact ETH input
-    const amounts = await uniswap.getAmountsOut(exactETHAmount, path)
-    const expectedOutput = amounts[1]
+    const amounts = await uniswap.callStatic.getAmountsOut(
+      exactETHAmount.toString(),
+      path
+    )
+    const expectedOutput = amounts[1] as string
     const minAmountOut = BigNumber.from(expectedOutput).mul(95).div(100) // 5% slippage tolerance
 
     console.log('Exact ETH input:', formatEther(exactETHAmount))
-    console.log('Expected USDC output:', formatUnits(expectedOutput, 6))
-    console.log('Min USDC output with slippage:', formatUnits(minAmountOut, 6))
+    console.log('Expected USDC output:', formatUnits(BigInt(expectedOutput), 6))
+    console.log(
+      'Min USDC output with slippage:',
+      formatUnits(minAmountOut.toBigInt(), 6)
+    )
 
     const uniswapCalldata = (
       await uniswap.populateTransaction.swapExactETHForTokens(

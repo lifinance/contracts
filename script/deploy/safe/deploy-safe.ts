@@ -73,11 +73,8 @@ import {
 // Local imports last, in alphabetical order
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import {
-  setupEnvironment,
-  type SupportedChain,
-} from '../../demoScripts/utils/demoScriptHelpers'
-import { EnvironmentEnum } from '../../utils/viemScriptHelpers'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
 dotenv.config()
 

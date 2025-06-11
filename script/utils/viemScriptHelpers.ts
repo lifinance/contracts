@@ -8,58 +8,20 @@ import {
   encodeFunctionData,
   getAddress,
   parseAbi,
-  createWalletClient,
-  http,
-  createPublicClient,
   type Chain,
-  type Address,
 } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
 
 import networksConfig from '../../config/networks.json'
 import {
-  getDeployments,
+  EnvironmentEnum,
   type SupportedChain,
-} from '../demoScripts/utils/demoScriptHelpers'
-import {
-  getNextNonce,
-  getSafeMongoCollection,
-  initializeSafeClient,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
-} from '../deploy/safe/safe-utils'
+  type INetwork,
+  type INetworksObject,
+} from '../common/types'
+
+import { getDeployments } from './deploymentHelpers'
 
 dotenv.config()
-
-export interface INetworksObject {
-  [key: string]: Omit<INetwork, 'id'>
-}
-
-export enum EnvironmentEnum {
-  'staging',
-  'production',
-}
-
-export interface INetwork {
-  name: string
-  chainId: number
-  nativeAddress: string
-  nativeCurrency: string
-  wrappedNativeAddress: string
-  status: string
-  type: string
-  rpcUrl: string
-  verificationType: string
-  explorerUrl: string
-  explorerApiUrl: string
-  multicallAddress: string
-  safeAddress: string
-  deployedWithEvmVersion: string
-  deployedWithSolcVersion: string
-  gasZipChainId: number
-  id: string
-  devNotes?: string
-}
 
 const colors = {
   reset: '\x1b[0m',
@@ -224,7 +186,7 @@ export function getFunctionSelectors(
     .filter(
       (sel) => !excludesClean.includes(sel.replace(/^0x/, '').toLowerCase())
     )
-    .map((sel) => `0x${sel.replace(/^0x/, '')}`)
+    .map((sel) => `0x${sel.replace(/^0x/, '')}` as `0x${string}`)
 }
 
 /**
@@ -292,133 +254,4 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
     functionName: 'registerPeripheryContract',
     args: [name, '0x0000000000000000000000000000000000000000'],
   })
-}
-
-/**
- * Sends the calldata directly to the Diamond (if staging or override enabled),
- * or proposes it to the Safe (if production).
- */
-export async function sendOrPropose({
-  calldata,
-  network,
-  environment,
-  diamondAddress,
-}: {
-  calldata: `0x${string}`
-  network: string
-  environment: 'staging' | 'production'
-  diamondAddress: string
-}) {
-  const isProd = environment === 'production'
-  const sendDirectly =
-    environment === 'staging' ||
-    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-
-  // ───────────── DIRECT TX FLOW ───────────── //
-  if (sendDirectly) {
-    consola.info('📤 Sending transaction directly to the Diamond...')
-
-    const pk = process.env[isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY']
-    if (!pk) throw new Error('Missing private key in environment')
-
-    // add 0x to privKey, if not there already
-    const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`
-    const account = privateKeyToAccount(normalizedPk as `0x${string}`)
-
-    const chain = getViemChainForNetworkName(network)
-
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(),
-    })
-
-    // Use PublicClient to wait for tx
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(),
-    })
-
-    const hash = await walletClient
-      .sendTransaction({
-        to: getAddress(diamondAddress),
-        data: calldata,
-      })
-      .catch((err) => {
-        consola.error('❌ Failed to broadcast tx:', err)
-        throw err
-      })
-
-    consola.info(`⏳ Waiting for tx ${hash} to be mined...`)
-
-    const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
-    if (receipt.status !== 'success')
-      throw new Error(`Tx reverted in block ${receipt.blockNumber}`)
-
-    consola.success(`✅ Tx confirmed in block ${receipt.blockNumber}`)
-
-    return
-  }
-
-  // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.SAFE_SIGNER_PRIVATE_KEY
-  if (!pk) throw new Error('Missing SAFE_SIGNER_PRIVATE_KEY in environment')
-
-  const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
-  consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
-
-  const { client: mongoClient, pendingTransactions } =
-    await getSafeMongoCollection()
-
-  const currentSafeNonce = await safe.getNonce()
-
-  const nextNonce = await getNextNonce(
-    pendingTransactions,
-    safeAddress,
-    network,
-    chain.id,
-    currentSafeNonce
-  )
-
-  const safeTransaction = await safe.createTransaction({
-    transactions: [
-      {
-        to: diamondAddress as Address,
-        value: 0n,
-        data: calldata,
-        operation: OperationTypeEnum.Call,
-        nonce: nextNonce,
-      },
-    ],
-  })
-
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
-  consola.info('📝 Safe Address:', safeAddress)
-  consola.info('🧾 Safe Tx Hash:', safeTxHash)
-
-  try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      safe.account
-    )
-
-    if (!result.acknowledged)
-      throw new Error('MongoDB insert was not acknowledged')
-
-    consola.success('✅ Safe transaction proposed and stored in MongoDB')
-  } catch (err) {
-    consola.error('❌ Failed to store transaction in MongoDB:', err)
-    await mongoClient.close()
-    throw new Error(`Failed to store transaction in MongoDB: ${err.message}`)
-  }
-
-  await mongoClient.close()
 }

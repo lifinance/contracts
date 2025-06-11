@@ -24,13 +24,13 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { createPublicClient, http, parseAbi, getAddress, type Abi } from 'viem'
 
+import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
   getDeployLogFile,
   getFunctionSelectors,
   buildDiamondCutRemoveCalldata,
   buildUnregisterPeripheryCalldata,
   getAllActiveNetworks,
-  sendOrPropose,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
 
