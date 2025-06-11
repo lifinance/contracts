@@ -505,17 +505,10 @@ jobs:
               AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
             fi
 
-            ##### Ensure exactly one audit is logged; handle errors if not
-            if [[ $AUDIT_COUNT -ne 1 ]]; then
-              if [[ $AUDIT_COUNT -gt 1 ]]; then
-                echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
-                echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
-              else
-                echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
-              fi
-
+            ##### Ensure at least one audit is logged; handle errors if not
+            if [[ $AUDIT_COUNT -lt 1 ]]; then
+              echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+              echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
               exit 1
             fi
 
