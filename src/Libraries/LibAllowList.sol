@@ -15,6 +15,7 @@ library LibAllowList {
     struct AllowListStorage {
         mapping(address => bool) allowlist;
         mapping(bytes4 => bool) selectorAllowList;
+        mapping(bytes4 => bool) selectorAllowList2;
         address[] contracts;
     }
 
