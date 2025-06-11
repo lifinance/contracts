@@ -529,8 +529,10 @@ contract GasZipPeripheryTest is TestBase {
         amountOutMin = amounts[1] - 1;
         bytes memory route = abi.encodePacked(
             hex"2646478b",
+            //pre-commit-checker: not a secret
             hex"0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f",
             abi.encode(fromAmount),
+            //pre-commit-checker: not a secret
             hex"000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
             abi.encode(amountOutMin),
             abi.encodePacked(hex"000000000000000000000000", gasZipPeriphery),
