@@ -228,7 +228,7 @@ const main = defineCommand({
       description:
         'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: false,
+      default: true,
     },
     rpcUrl: {
       type: 'string',
@@ -257,9 +257,9 @@ const main = defineCommand({
     //       },
     //     ],
     //   }
-    // )) as unknown as Environment
+    // )) as unknown as EnvironmentEnum
     // we currently use SAFEs only in production but will keep this code just in case
-    const environment = EnvironmentEnum.production
+    const environment: EnvironmentEnum = EnvironmentEnum.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain
