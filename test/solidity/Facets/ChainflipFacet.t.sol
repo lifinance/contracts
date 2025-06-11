@@ -15,8 +15,8 @@ contract TestChainflipFacet is ChainflipFacet {
         address _chainflipVault
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
 
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes4 _signature) external {
@@ -54,14 +54,14 @@ contract ChainflipFacetTest is TestBaseFacet {
         functionSelectors[1] = chainflipFacet
             .swapAndStartBridgeTokensViaChainflip
             .selector;
-        functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
+        functionSelectors[2] = chainflipFacet.addDex.selector;
         functionSelectors[3] = chainflipFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
-        chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
+        chainflipFacet.addDex(ADDRESS_UNISWAP);
         chainflipFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
