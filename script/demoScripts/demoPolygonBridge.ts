@@ -1,7 +1,7 @@
 import chalk from 'chalk'
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 
-import { PolygonBridgeFacet__factory, ERC20__factory } from '../typechain'
+import { PolygonBridgeFacet__factory, ERC20__factory } from '../../typechain'
 import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {

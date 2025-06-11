@@ -1,12 +1,14 @@
 import chalk from 'chalk'
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 
-import config, {
-  BRIDGED_TOKEN_ADDRESS_ABI,
-  WETH_ADDRESS_ABI,
-} from '../config/omni'
-import { OmniBridgeFacet__factory, ERC20__factory } from '../typechain'
+import config from '../../config/omni.json'
+import { OmniBridgeFacet__factory, ERC20__factory } from '../../typechain'
 import { node_url } from '../utils/network'
+
+const BRIDGED_TOKEN_ADDRESS_ABI = [
+  'function bridgedTokenAddress(address) view returns (address)',
+]
+const WETH_ADDRESS_ABI = ['function WETH() view returns (address)']
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

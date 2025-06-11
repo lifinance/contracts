@@ -1,8 +1,8 @@
 import chalk from 'chalk'
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 
-import config from '../config/optimism'
-import { OptimismBridgeFacet__factory, ERC20__factory } from '../typechain'
+import config from '../../config/optimism.json'
+import { OptimismBridgeFacet__factory, ERC20__factory } from '../../typechain'
 import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {

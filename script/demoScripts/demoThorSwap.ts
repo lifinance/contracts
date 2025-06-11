@@ -7,7 +7,7 @@ import {
   ERC20__factory,
   type ILiFi,
   type ThorSwapFacet,
-} from '../typechain'
+} from '../../typechain'
 dotenv.config()
 
 const main = async () => {

@@ -10,13 +10,13 @@ import {
   BigNumber,
 } from 'ethers'
 
-import { node_url } from '../../utils/network'
-import config from '../config/arbitrum'
+import config from '../../config/arbitrumBridge.json'
 import {
   ArbitrumBridgeFacet__factory,
   ERC20__factory,
   IGatewayRouter__factory,
-} from '../typechain'
+} from '../../typechain'
+import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

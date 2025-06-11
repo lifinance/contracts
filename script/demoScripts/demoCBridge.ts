@@ -1,15 +1,15 @@
 import chalk from 'chalk'
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 
-import { node_url } from '../../utils/network'
-import * as deployment from '../export/deployments-staging.json'
-import { CBridgeFacet__factory, ERC20__factory } from '../typechain'
+import * as deployment from '../../deployments/mainnet.staging.json'
+import { CBridgeFacet__factory, ERC20__factory } from '../../typechain'
+import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))
 }
 
-const LIFI_ADDRESS = deployment[100].xdai.contracts.LiFiDiamond.address
+const LIFI_ADDRESS = deployment.LiFiDiamond
 const destinationChainId = 56
 const MAX_SLIPPAGE = 1000000
 

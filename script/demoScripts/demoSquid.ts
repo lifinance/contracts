@@ -8,7 +8,7 @@ import {
   ISquidRouter__factory,
   type ILiFi,
   type SquidFacet,
-} from '../typechain'
+} from '../../typechain'
 dotenv.config()
 
 const ROUTE_TYPES: Record<string, number> = {

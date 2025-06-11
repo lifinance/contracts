@@ -1,7 +1,7 @@
 import {
   SignatureTransfer,
   type PermitTransferFrom,
-} from '@uniswap/Permit2-sdk'
+} from '@uniswap/permit2-sdk'
 import { defineCommand, runMain } from 'citty'
 import {
   type PublicClient,

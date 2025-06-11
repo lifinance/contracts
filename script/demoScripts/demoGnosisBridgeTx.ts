@@ -1,8 +1,8 @@
 import chalk from 'chalk'
 import { providers, Wallet, utils, constants } from 'ethers'
 
-import config from '../config/gnosisBridge'
-import { GnosisBridgeFacet__factory, ERC20__factory } from '../typechain'
+import config from '../../config/gnosis.json'
+import { GnosisBridgeFacet__factory, ERC20__factory } from '../../typechain'
 import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {

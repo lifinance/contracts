@@ -12,7 +12,7 @@ import {
   type IStargate,
   type StargateFacetV2,
 } from '../../typechain'
-import { node_url } from '../../utils/network'
+import { node_url } from '../utils/network'
 
 // type FeeParams = {
 //   sender: string
