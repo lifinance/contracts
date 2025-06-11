@@ -43,6 +43,11 @@ if (args.length < 3) {
 
 const [inputFile, outputFile, ...excludePatterns] = args
 
+if (!inputFile || !outputFile || !excludePatterns.length) {
+  console.error('All arguments must be provided')
+  process.exit(1)
+}
+
 filterLcov(inputFile, outputFile, excludePatterns)
   .then(() => console.log('Filtering complete'))
   .catch((err) => console.error('Error during filtering:', err))
