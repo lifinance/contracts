@@ -17,10 +17,8 @@
 # - checks include:
 #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
 #   - ensuring that an audit report has been added at the logged path
-#   - ensuring that the commit hash that was audited is actually part of this PR
 # - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
 # - KNOWN LIMITATIONS
-#   - will only check the last 100 commits for any matches with audit commit hashes
 #   - multiple audits can be registered per contract (in a specific version)
 
 name: VersionControlAndAuditVerification
