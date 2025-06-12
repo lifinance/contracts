@@ -7,6 +7,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title Pioneer Facet
 /// @author LI.FI (https://li.fi)
@@ -24,7 +25,9 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     constructor(address payable pioneerAddress) {
-        if (pioneerAddress == address(0)) revert PioneerAddress0();
+        if (address(pioneerAddress) == address(0)) {
+            revert InvalidConfig();
+        }
 
         PIONEER_ADDRESS = pioneerAddress;
     }

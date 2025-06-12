@@ -20,16 +20,6 @@ const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
 const PIONEER_FACET_ABI = pioneerFacetArtifact.abi as Narrow<
   typeof pioneerFacetArtifact.abi
 >
-
-// If you need to import a custom ABI, follow these steps:
-//
-// First, ensure you import the relevant artifact file:
-// import exampleArtifact from '../../out/{example artifact json file}'
-//
-// Then, define the ABI using `Narrow<typeof exampleArtifact.abi>` for proper type inference:
-// const EXAMPLE_ABI = exampleArtifact.abi as Narrow<typeof exampleArtifact.abi>
-//
-
 // #endregion
 
 dotenv.config()
@@ -104,7 +94,6 @@ async function main() {
     },
     body: JSON.stringify(query),
   })
-  console.log(resp.body)
   const quote: {
     quoteId: 'string'
     fromChainId: 'string'
@@ -117,6 +106,7 @@ async function main() {
     toAddress: 'string'
     expiration: 0
   } = await resp.json()
+  console.log(quote)
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
