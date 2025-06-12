@@ -42,8 +42,8 @@
         "Version": "1.0.0"
       },
       "0xb6Db46D685c12D73AaD521307D491e175cbFB07a": {
-        "Name": "",
-        "Version": ""
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
       },
       "0xA7ffe57ee70Ac4998e9E9fC6f17341173E081A8f": {
         "Name": "StandardizedCallFacet",
@@ -109,7 +109,7 @@
         "Name": "StargateFacet",
         "Version": "2.2.0"
       },
-      "0x21571D628B0bCBeb954D5933A604eCac35bAF2c7": {
+      "0x75ED316dF2dCb48ef6876aEfc13d44D088BE5932": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
@@ -147,6 +147,7 @@
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "GasZipPeriphery": "",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
       "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",

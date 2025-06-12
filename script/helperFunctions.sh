@@ -1424,16 +1424,6 @@ function verifyContract() {
     API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
   fi
 
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function verifyContract"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "CONTRACT=$CONTRACT"
-  echoDebug "ADDRESS=$ADDRESS"
-  echoDebug "ARGS=$ARGS"
-  echoDebug "blockexplorer API_KEY=${API_KEY}"
-  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
-
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
     *,"$NETWORK",*)
@@ -1450,6 +1440,19 @@ function verifyContract() {
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
+
+
+  # logging for debug purposes
+  echo ""
+  echoDebug "in function verifyContract"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "ARGS=$ARGS"
+  echoDebug "blockexplorer API_KEY=${API_KEY}"
+  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
+  echoDebug "FULL_PATH=$FULL_PATH"
+  echoDebug "CHAIN_ID=$CHAIN_ID"
 
   if [ $? -ne 0 ]; then
     warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"

@@ -220,7 +220,7 @@ const main = defineCommand({
       description:
         'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: false,
+      default: true,
     },
     rpcUrl: {
       type: 'string',
@@ -237,19 +237,21 @@ const main = defineCommand({
   },
   async run({ args }) {
     // choose env
-    const environment = (await consola.prompt(
-      'Which environment do you want to deploy to?',
-      {
-        type: 'select',
-        options: [
-          { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
-          {
-            value: 'production',
-            label: 'production (uses PRIVATE_KEY_PRODUCTION)',
-          },
-        ],
-      }
-    )) as unknown as Environment
+    // const environment = (await consola.prompt(
+    //   'Which environment do you want to deploy to?',
+    //   {
+    //     type: 'select',
+    //     options: [
+    //       { value: 'staging', label: 'staging (uses PRIVATE_KEY)' },
+    //       {
+    //         value: 'production',
+    //         label: 'production (uses PRIVATE_KEY_PRODUCTION)',
+    //       },
+    //     ],
+    //   }
+    // )) as unknown as Environment
+    // we currently use SAFEs only in production but will keep this code just in case
+    const environment: Environment = Environment.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain

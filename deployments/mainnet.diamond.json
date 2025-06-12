@@ -37,10 +37,6 @@
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x0eF01249E2731082A078C0B3f408c2929c90Ac9c": {
-        "Name": "GnosisBridgeFacet",
-        "Version": "1.0.0"
-      },
       "0x090e074bc934c4D8B84e168cb6597e87Da0C019b": {
         "Name": "ArbitrumBridgeFacet",
         "Version": "1.0.0"
@@ -184,6 +180,10 @@
       "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
+      },
+      "0x326142e5cB17E79b87a696D545f5B81ddDA45f2e": {
+        "Name": "GnosisBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
