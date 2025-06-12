@@ -111,7 +111,8 @@ contract SwapperV2Test is TestBase {
     TestPartialAMM internal partialAmm;
 
     function setUp() public {
-        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+        initTestBase();
+
         amm = new TestAMM();
         partialAmm = new TestPartialAMM();
         swapper = new TestSwapperV2();
@@ -136,7 +137,7 @@ contract SwapperV2Test is TestBase {
         );
     }
 
-    function testSwapCleanup() public {
+    function test_SwapCleanup() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
@@ -188,7 +189,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token3.balanceOf(address(1337)), 10_200 ether);
     }
 
-    function testSwapMultiInOne() public {
+    function test_SwapMultiInOne() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
@@ -241,7 +242,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token3.balanceOf(address(1337)), 20_300 ether);
     }
 
-    function testSingleSwap() public {
+    function test_SingleSwap() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
@@ -272,7 +273,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 10_100 ether);
     }
 
-    function testInputTokenLeftovers() public {
+    function test_InputTokenLeftovers() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
@@ -305,7 +306,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 8_000 ether);
     }
 
-    function testInputTokenLeftoversWithReserve() public {
+    function test_InputTokenLeftoversWithReserve() public {
         // For now, let's test with ERC20 tokens since reserve only applies to native tokens
         // and the logic should still work (reserve = 0 for ERC20)
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
@@ -343,7 +344,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 8_000 ether);
     }
 
-    function testNativeTokenLeftoversWithReserve() public {
+    function test_NativeTokenLeftoversWithReserve() public {
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
@@ -377,7 +378,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 8_000 ether);
     }
 
-    function testMultiSwapWithInputLeftovers() public {
+    function test_MultiSwapWithInputLeftovers() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
