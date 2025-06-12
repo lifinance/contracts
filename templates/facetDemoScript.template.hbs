@@ -5,13 +5,13 @@ import {
   zeroAddress
 } from 'viem'
 import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import {{camelCase name}}FacetArtifact from '../../out/{{titleCase name}}Facet.sol/{{titleCase name}}Facet.json'
 import { {{titleCase name}}Facet, ILiFi } from '../../typechain'
 import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment, type SupportedChain } from './utils/demoScriptHelpers'
 
-dotenv.config()
+config()
 
 // #region ABIs
 
@@ -28,8 +28,6 @@ const {{constantCase name}}_FACET_ABI = {{camelCase name}}FacetArtifact.abi as N
 //
 
 // #endregion
-
-dotenv.config()
 
 async function main() {
   // === Set up environment ===
@@ -56,7 +54,7 @@ async function main() {
   const srcTokenContract = getContract({
     address: SRC_TOKEN_ADDRESS,
     abi: ERC20_ABI,
-    client
+    client: publicClient
   })
 
   // If you need to interact with a contract, use the following helper. 
