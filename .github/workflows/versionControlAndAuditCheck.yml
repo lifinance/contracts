@@ -520,7 +520,7 @@ jobs:
             fi
 
             ##### Extract audit entry details for each audit ID
-            echo "$AUDIT_IDS" | while IFS= read -r AUDIT_ID; do
+            while IFS= read -r AUDIT_ID; do
               echo "Now checking audit ID: $AUDIT_ID"
               
               ##### Extract audit entry details for the current audit ID
@@ -664,7 +664,7 @@ jobs:
             # fi
             # ##### -----------------------------------------------------------------------------
             
-            done
+            done <<< "$AUDIT_IDS"
 
             echo -e "\033[32mSuccessfully verified all audits for contract $FILE.\033[0m"
 
