@@ -572,7 +572,7 @@ jobs:
 
               ##### make sure that a file exists at the audit report path
               if [ ! -f "$AUDIT_REPORT_PATH" ]; then
-                echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
+                echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract $FILENAME.\033[0m"
                 echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
                 echo -e "\033[31mAborting now.\033[0m"
                 exit 1
