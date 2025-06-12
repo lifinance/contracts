@@ -1,8 +1,7 @@
 import { randomBytes } from 'crypto'
 
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 import {
-  type Narrow,
   type PublicClient,
   getContract,
   parseUnits,
@@ -15,9 +14,9 @@ import {
 import lidoWrapperConfig from '../../config/lidowrapper.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
 import diamondAbi from '../../diamond.json'
-import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import lidoWrapperArtifact from '../../out/LidoWrapper.sol/LidoWrapper.json'
 import type { LibSwap } from '../../typechain/GenericSwapFacetV3'
+import { ERC20__factory as ERC20 } from '../../typechain/factories/ERC20__factory'
+import { LidoWrapper__factory as LidoWrapper } from '../../typechain/factories/LidoWrapper.sol/LidoWrapper__factory'
 import type { SupportedChain } from '../common/types'
 
 import {
@@ -30,21 +29,16 @@ import {
   parseAmountToHumanReadable,
 } from './utils/demoScriptHelpers'
 
-dotenv.config()
+config()
 
 // Successful Transactions
 // wstETH > stETH (via GenericSwapFacetV3): https://optimistic.etherscan.io/tx/0x4622d4ad989b07caae12588bab5e7e9dc8cc3cfa7eae33c3fa520a256cdbcaa2
 // stETH > wstETH (via GenericSwapFacetV3): https://optimistic.etherscan.io/tx/0xabeef0c26c8492d466bef579583a35835be03ad55a79edc8f731a6bf6e4b48d0
 
-// ABIs
-const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
-const LIDO_WRAPPER_ABI = lidoWrapperArtifact.abi as Narrow<
-  typeof lidoWrapperArtifact.abi
->
 const ST_ETH_ABI = [
   'function getSharesByTokens(uint256) view returns (uint256)',
   'function getTokensByShares(uint256) view returns (uint256)',
-]
+] as const
 
 enum SwapDirectionEnum {
   ST_ETH_TO_WST_ETH,
@@ -88,23 +82,20 @@ async function main() {
 
   // === Instantiate contracts ===
 
-  // const ERC20_VIEW_ABI = parseAbi([
-  //   'function symbol() view returns (string)',
-  //   'function decimals() view returns (uint8)',
-  //   'function balanceOf(address) view returns (uint256)',
-  // ] as const)
-
   const [srcTokenContract, dstTokenContract] = [
     SRC_TOKEN_ADDRESS,
     swapDirection === SwapDirectionEnum.ST_ETH_TO_WST_ETH
       ? WST_ETH_ADDRESS_OPTIMISM
       : ST_ETH_ADDRESS_OPTIMISM,
-  ].map((address) => getContract({ address, abi: ERC20_ABI, client }))
+  ].map((address) => getContract({ address, abi: ERC20.abi, client }))
+
+  if (!srcTokenContract || !dstTokenContract)
+    throw new Error('Failed to get token contracts')
 
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
   const dstTokenSymbol = (await dstTokenContract.read.symbol()) as string
-  const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
-  const dstTokenDecimals = (await dstTokenContract.read.decimals()) as bigint
+  const srcTokenDecimals = (await srcTokenContract.read.decimals()) as number
+  const dstTokenDecimals = (await dstTokenContract.read.decimals()) as number
 
   const initialSrcTokenBalance = (await srcTokenContract.read.balanceOf([
     signerAddress,
@@ -127,6 +118,9 @@ async function main() {
   )
 
   await ensureBalance(srcTokenContract, signerAddress, amount)
+
+  if (!lifiDiamondAddress)
+    throw new Error('lifiDiamondAddress is not available')
 
   await ensureAllowance(
     srcTokenContract,
@@ -171,9 +165,12 @@ async function main() {
   }
 
   // === Start bridging ===
+  if (!lifiDiamondContract)
+    throw new Error('lifiDiamondContract is not available')
+
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.swapTokensSingleV3ERC20ToERC20([
+      (lifiDiamondContract as any).write.swapTokensSingleV3ERC20ToERC20([
         `0x${randomBytes(32).toString('hex')}`,
         'integrator',
         'referrer',
@@ -200,6 +197,8 @@ const getLidoAmountOut = async (
     client: client,
   })
 
+  if (!stETH) throw new Error('stETH contract is not available')
+
   const amountOut =
     swapDirection === SwapDirectionEnum.ST_ETH_TO_WST_ETH
       ? ((await stETH.read.getSharesByTokens([fromAmount])) as bigint)
@@ -223,7 +222,7 @@ const getLidoWrapperCallData = async (
       : 'unwrapWstETHToStETH'
 
   return encodeFunctionData({
-    abi: LIDO_WRAPPER_ABI,
+    abi: LidoWrapper.abi,
     functionName,
     args: [amount],
   })
