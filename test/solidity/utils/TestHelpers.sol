@@ -5,8 +5,8 @@ import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockUniswapDEX } from "./MockUniswapDEX.sol";
 
-interface IWhitelistManager {
-    function addToWhitelist(address _contractAddress) external;
+interface DexManager {
+    function addDex(address _dex) external;
 
     function setFunctionApprovalBySignature(bytes4 _signature) external;
 }
@@ -52,27 +52,28 @@ contract TestHelpers is Test {
             outputAmount,
             amountInActual
         );
+
         // whitelist DEX & function selector
-        IWhitelistManager(diamond).addToWhitelist(address(mockDex));
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).addDex(address(mockDex));
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapTokensForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapExactTokensForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapETHForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapExactETHForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapExactTokensForETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.swapTokensForExactETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }
