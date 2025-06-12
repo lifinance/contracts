@@ -88,6 +88,12 @@ async function main() {
 
   // === Instantiate contracts ===
 
+  // const ERC20_VIEW_ABI = parseAbi([
+  //   'function symbol() view returns (string)',
+  //   'function decimals() view returns (uint8)',
+  //   'function balanceOf(address) view returns (uint256)',
+  // ] as const)
+
   const [srcTokenContract, dstTokenContract] = [
     SRC_TOKEN_ADDRESS,
     swapDirection === SwapDirectionEnum.ST_ETH_TO_WST_ETH
