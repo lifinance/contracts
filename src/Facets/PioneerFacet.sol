@@ -18,10 +18,6 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     address payable public immutable PIONEER_ADDRESS;
 
-    /// Errors ///
-
-    error PioneerAddress0();
-
     /// Constructor ///
 
     constructor(address payable pioneerAddress) {

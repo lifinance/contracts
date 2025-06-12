@@ -87,8 +87,6 @@
       },
       "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
         "Name": "",
-      "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
-        "Name": "",
         "Version": ""
       },
       "0xa73a8BC8d36472269138c3233e24D0Ee0c344bd8": {
@@ -174,4 +172,5 @@
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
+}
 }
