@@ -242,7 +242,7 @@
       "auditCompletedOn": "08.05.2025",
       "auditedBy": "Cantina",
       "auditorGitHandle": "cantinaxyz",
-      "auditReportPath": "./audit/reports/2025.05.08_Cantina_Comp.pdf",
+      "auditReportPath": "./audit/reports/2025.05.08_Cantina_Comp_1.pdf",
       "auditCommitHash": "eb12d93c17cf93b27cba7b3a49ebdc9536d7d894"
     },
     "audit20250510": {
@@ -277,7 +277,7 @@
       "auditCompletedOn": "10.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.1).pdf",
+      "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
       "auditCommitHash": "feab0709941d12efaed8be16fea96f4ff4276544"
     },
     "audit20250612": {
