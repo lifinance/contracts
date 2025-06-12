@@ -284,7 +284,7 @@
       "auditCompletedOn": "12.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.06.12_LibAllowList(v1.0.3).pdf",
+      "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
       "auditCommitHash": "1234567890"
     }
   },
