@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { InvalidContract } from "../Errors/GenericErrors.sol";
@@ -7,6 +6,7 @@ import { InvalidContract } from "../Errors/GenericErrors.sol";
 /// @title Lib Allow List
 /// @author LI.FI (https://li.fi)
 /// @notice Library for managing and accessing the conract address allow list
+/// @custom:version 1.0.3
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =
@@ -15,6 +15,7 @@ library LibAllowList {
     struct AllowListStorage {
         mapping(address => bool) allowlist;
         mapping(bytes4 => bool) selectorAllowList;
+        mapping(bytes4 => bool) selectorAllowList2;
         address[] contracts;
     }
 
