@@ -95,16 +95,16 @@ async function main() {
     body: JSON.stringify(query),
   })
   const quote: {
-    quoteId: 'string'
-    fromChainId: 'string'
-    fromAsset: 'string'
-    fromAmount: 'string'
-    fromAddress: 'string'
-    toChainId: 'string'
-    toAsset: 'string'
-    toAmount: 'string'
-    toAddress: 'string'
-    expiration: 0
+    quoteId: string
+    fromChainId: string
+    fromAsset: string
+    fromAmount: string
+    fromAddress: string
+    toChainId: string
+    toAsset: string
+    toAmount: string
+    toAddress: string
+    expiration: number
   } = await resp.json()
   console.log(quote)
 
