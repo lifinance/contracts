@@ -93,7 +93,9 @@ async function main() {
     swapDirection === SwapDirectionEnum.ST_ETH_TO_WST_ETH
       ? WST_ETH_ADDRESS_OPTIMISM
       : ST_ETH_ADDRESS_OPTIMISM,
-  ].map((address) => getContract({ address, abi: ERC20_ABI, client }))
+  ].map((address) =>
+    getContract({ address, abi: ERC20_ABI, client: publicClient })
+  )
 
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
   const dstTokenSymbol = (await dstTokenContract.read.symbol()) as string
