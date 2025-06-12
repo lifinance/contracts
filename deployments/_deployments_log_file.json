@@ -33965,6 +33965,34 @@
           }
         ]
       }
+    },
+    "etherlink": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5240883FEB3018d33E19754380c3AE49DDdcD128",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-12 09:14:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5a627e444Ee25eB6e7E897A66483A127ECEE2578",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-12 09:15:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000905e21aef470adef9cf9dcf7922431610c875b5",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
