@@ -496,6 +496,15 @@
       }
     }
   },
+  "PioneerFacet": {
+    "configData": {
+      "pioneerAddress": {
+        "configFileName": "pioneer.json",
+        "keyInConfigFile": ".PIONEER_ADDRESS",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "Permit2Proxy": {
     "configData": {
       "permit2Address": {
