@@ -16,8 +16,8 @@ contract TestMayanFacet is MayanFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -112,19 +112,19 @@ contract MayanFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = mayanBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = mayanBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
         mayanBridgeFacet = TestMayanFacet(address(diamond));
         mayanBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

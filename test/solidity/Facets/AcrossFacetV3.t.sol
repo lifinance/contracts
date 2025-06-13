@@ -21,8 +21,8 @@ contract TestAcrossFacetV3 is AcrossFacetV3 {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -53,19 +53,19 @@ contract AcrossFacetV3Test is TestBaseFacet {
             .selector;
         functionSelectors[2] = acrossFacetV3.addToWhitelist.selector;
         functionSelectors[3] = acrossFacetV3
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
         acrossFacetV3.addToWhitelist(ADDRESS_UNISWAP);
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

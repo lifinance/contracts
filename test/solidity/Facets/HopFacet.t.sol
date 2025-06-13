@@ -15,8 +15,8 @@ contract TestHopFacet is HopFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -50,9 +50,7 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
         functionSelectors[4] = hopFacet.addToWhitelist.selector;
-        functionSelectors[5] = hopFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[5] = hopFacet.setFunctionApprovalBySelector.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
@@ -65,13 +63,13 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet.initHop(configs);
 
         hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
@@ -244,7 +242,7 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[3] = hopFacet2.registerBridge.selector;
         functionSelectors[4] = hopFacet2.addToWhitelist.selector;
         functionSelectors[5] = hopFacet2
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);

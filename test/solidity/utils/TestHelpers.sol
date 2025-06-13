@@ -8,7 +8,7 @@ import { MockUniswapDEX } from "./MockUniswapDEX.sol";
 interface IWhitelistManager {
     function addToWhitelist(address _contractAddress) external;
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external;
+    function setFunctionApprovalBySelector(bytes4 _selector) external;
 }
 
 //common utilities for forge tests
@@ -54,25 +54,25 @@ contract TestHelpers is Test {
         );
         // whitelist DEX & function selector
         IWhitelistManager(diamond).addToWhitelist(address(mockDex));
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.swapTokensForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.swapExactTokensForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.swapETHForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.swapExactETHForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.swapExactTokensForETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.swapTokensForExactETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        IWhitelistManager(diamond).setFunctionApprovalBySelector(
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }

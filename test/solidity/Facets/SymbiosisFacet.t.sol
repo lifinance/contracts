@@ -46,7 +46,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = symbiosisFacet.addToWhitelist.selector;
         functionSelectors[3] = symbiosisFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(symbiosisFacet), functionSelectors);
@@ -54,16 +54,16 @@ contract SymbiosisFacetTest is TestBaseFacet {
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
 
         symbiosisFacet.addToWhitelist(address(uniswap));
-        symbiosisFacet.setFunctionApprovalBySignature(
+        symbiosisFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        symbiosisFacet.setFunctionApprovalBySignature(
+        symbiosisFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        symbiosisFacet.setFunctionApprovalBySignature(
+        symbiosisFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        symbiosisFacet.setFunctionApprovalBySignature(
+        symbiosisFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 

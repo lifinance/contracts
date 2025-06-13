@@ -30,8 +30,8 @@ contract TestSwapperV2 is SwapperV2 {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -48,14 +48,14 @@ contract SwapperV2Test is TestBase {
         functionSelectors[0] = TestSwapperV2.doSwaps.selector;
         functionSelectors[1] = TestSwapperV2.addToWhitelist.selector;
         functionSelectors[2] = TestSwapperV2
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addToWhitelist(address(amm));
-        swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
+        swapper.setFunctionApprovalBySelector(bytes4(amm.swap.selector));
     }
 
     function testSwapCleanup() public {

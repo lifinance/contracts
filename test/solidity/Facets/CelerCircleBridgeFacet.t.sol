@@ -17,8 +17,8 @@ contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -51,7 +51,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = celerCircleBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = celerCircleBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
@@ -59,13 +59,13 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
         celerCircleBridgeFacet.addToWhitelist(address(uniswap));
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

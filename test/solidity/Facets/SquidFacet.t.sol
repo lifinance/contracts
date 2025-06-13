@@ -20,8 +20,8 @@ contract TestSquidFacet is SquidFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -55,19 +55,19 @@ contract SquidFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = squidFacet.addToWhitelist.selector;
         functionSelectors[3] = squidFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(squidFacet), functionSelectors);
         squidFacet = TestSquidFacet(address(diamond));
         squidFacet.addToWhitelist(ADDRESS_UNISWAP);
-        squidFacet.setFunctionApprovalBySignature(
+        squidFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        squidFacet.setFunctionApprovalBySignature(
+        squidFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        squidFacet.setFunctionApprovalBySignature(
+        squidFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

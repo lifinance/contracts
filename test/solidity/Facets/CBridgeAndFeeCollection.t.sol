@@ -16,8 +16,8 @@ contract TestCBridgeFacet is CBridgeFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -41,23 +41,23 @@ contract CBridgeAndFeeCollectionTest is TestBase {
             .swapAndStartBridgeTokensViaCBridge
             .selector;
         functionSelectors[2] = cBridge.addToWhitelist.selector;
-        functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = cBridge.setFunctionApprovalBySelector.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addToWhitelist(address(uniswap));
         cBridge.addToWhitelist(address(feeCollector));
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(feeCollector.collectTokenFees.selector)
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(feeCollector.collectNativeFees.selector)
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(uniswap.swapExactTokensForTokens.selector)
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(uniswap.swapETHForExactTokens.selector)
         );
     }

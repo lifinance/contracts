@@ -24,8 +24,8 @@ for (const [k, v] of Object.entries(chains)) chainMap[k] = v
 
 const main = defineCommand({
   meta: {
-    name: 'diamond-sync-sigs',
-    description: 'Sync approved function signatures',
+    name: 'diamond-sync-selectors',
+    description: 'Sync approved function selectors',
   },
   args: {
     network: {
@@ -53,7 +53,7 @@ const main = defineCommand({
 
     const chain = getViemChainForNetworkName(network)
 
-    console.log(`Checking signature for ${chain.name}`)
+    console.log(`Checking selector for ${chain.name}`)
 
     // Fetch list of deployed contracts
     const deployedContracts = await import(
@@ -80,37 +80,37 @@ const main = defineCommand({
       client: publicClient,
     })
 
-    // Check if function signatures are approved
-    const { sigs } = await import(`../../config/sigs.json`)
-    const calls = sigs.map((sig: string) => {
+    // Check if function selectors are approved
+    const { selectors } = await import(`../../config/whitelistedSelectors.json`)
+    const calls = selectors.map((selector: string) => {
       return {
         ...whitelistManagerReader,
         functionName: 'isFunctionApproved',
-        args: [sig],
+        args: [selector],
       }
     })
     const results = await publicClient.multicall({ contracts: calls })
 
-    // Get list of function signatures to approve
-    const sigsToApprove: Hex[] = []
+    // Get list of function selectors to approve
+    const selectorsToApprove: Hex[] = []
     let multicallSuccess = true
     for (let i = 0; i < results.length; i++) {
       const result = results[i]
       if (!result) throw new Error(`Missing result at index ${i}`)
       if (result.status === 'success') {
         if (!result.result) {
-          console.log('Function not approved:', sigs[i])
-          sigsToApprove.push(sigs[i] as Hex)
+          console.log('Function not approved:', selectors[i])
+          selectorsToApprove.push(selectors[i] as Hex)
         }
       } else multicallSuccess = false
     }
 
     if (!multicallSuccess) {
       consola.error(
-        `The multicall failed, could not check all currently registered signatures. Please use a different RPC for this network and try to run the script again.`
+        `The multicall failed, could not check all currently registered selectors. Please use a different RPC for this network and try to run the script again.`
       )
       // returning a success code here cause otherwise the wrapping bash script will always run the "old approach"
-      // and we still end up re-approving all signatures again and again
+      // and we still end up re-approving all selectors again and again
       process.exit(0)
     }
 
@@ -122,18 +122,18 @@ const main = defineCommand({
       account,
     })
 
-    if (sigsToApprove.length > 0) {
-      // Approve function signatures
-      console.log('Approving function signatures...')
+    if (selectorsToApprove.length > 0) {
+      // Approve function selectors
+      console.log('Approving function selectors...')
       let tx
       try {
         tx = await walletClient.writeContract({
           address: deployedContracts['LiFiDiamond'],
           abi: parseAbi([
-            'function batchSetFunctionApprovalBySignature(bytes4[],bool) external',
+            'function batchSetFunctionApprovalBySelectors(bytes4[],bool) external',
           ]),
-          functionName: 'batchSetFunctionApprovalBySignature',
-          args: [sigsToApprove, true],
+          functionName: 'batchSetFunctionApprovalBySelectors',
+          args: [selectorsToApprove, true],
           account,
         })
 
@@ -146,7 +146,7 @@ const main = defineCommand({
       console.log('Transaction:', tx)
       process.exit(0)
     } else {
-      console.log('All Signatures are already approved.')
+      console.log('All selectors are already approved.')
       process.exit(0)
     }
   },

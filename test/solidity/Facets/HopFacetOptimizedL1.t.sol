@@ -14,8 +14,8 @@ contract TestHopFacet is HopFacetOptimized {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -52,25 +52,23 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
         functionSelectors[5] = hopFacet.addToWhitelist.selector;
-        functionSelectors[6] = hopFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[6] = hopFacet.setFunctionApprovalBySelector.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
         hopFacet = TestHopFacet(address(diamond));
 
         hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapExactETHForTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");

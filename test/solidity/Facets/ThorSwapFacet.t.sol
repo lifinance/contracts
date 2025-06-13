@@ -14,8 +14,8 @@ contract TestThorSwapFacet is ThorSwapFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -40,20 +40,20 @@ contract ThorSwapFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = thorSwapFacet.addToWhitelist.selector;
         functionSelectors[3] = thorSwapFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
         thorSwapFacet.addToWhitelist(ADDRESS_UNISWAP);
-        thorSwapFacet.setFunctionApprovalBySignature(
+        thorSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        thorSwapFacet.setFunctionApprovalBySignature(
+        thorSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        thorSwapFacet.setFunctionApprovalBySignature(
+        thorSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

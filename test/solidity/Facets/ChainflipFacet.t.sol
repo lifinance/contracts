@@ -19,8 +19,8 @@ contract TestChainflipFacet is ChainflipFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -56,19 +56,19 @@ contract ChainflipFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
         functionSelectors[3] = chainflipFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
         chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

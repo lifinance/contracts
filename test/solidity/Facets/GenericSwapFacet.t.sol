@@ -10,8 +10,8 @@ contract TestGenericSwapFacet is GenericSwapFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -37,14 +37,14 @@ contract GenericSwapFacetTest is TestBase {
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
         functionSelectors[1] = genericSwapFacet.addToWhitelist.selector;
         functionSelectors[2] = genericSwapFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacet.addToWhitelist(address(uniswap));
-        genericSwapFacet.setFunctionApprovalBySignature(
+        genericSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
 

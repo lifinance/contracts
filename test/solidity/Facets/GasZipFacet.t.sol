@@ -18,8 +18,8 @@ contract TestGasZipFacet is GasZipFacet {
         LibAllowList.removeAllowedContract(_address);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -65,7 +65,7 @@ contract GasZipFacetTest is TestBaseFacet {
         functionSelectors[3] = gasZipFacet.addToWhitelist.selector;
         functionSelectors[4] = gasZipFacet.removeFromWhitelist.selector;
         functionSelectors[5] = gasZipFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         addFacet(diamond, address(gasZipFacet), functionSelectors);
 
@@ -74,16 +74,16 @@ contract GasZipFacetTest is TestBaseFacet {
         // whitelist uniswap dex with function selectors
         gasZipFacet.addToWhitelist(address(uniswap));
         gasZipFacet.addToWhitelist(address(gasZipFacet));
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

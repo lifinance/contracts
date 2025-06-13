@@ -28,8 +28,8 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -121,20 +121,20 @@ contract CelerIMFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = celerIMFacet.addToWhitelist.selector;
         functionSelectors[3] = celerIMFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(celerIMFacet), functionSelectors);
 
         celerIMFacet = TestCelerIMFacet(address(diamond));
         celerIMFacet.addToWhitelist(address(uniswap));
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(celerIMFacet), "cBridgeFacet");

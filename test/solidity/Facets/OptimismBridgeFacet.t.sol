@@ -12,8 +12,8 @@ contract TestOptimismBridgeFacet is OptimismBridgeFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -60,7 +60,7 @@ contract OptimismBridgeFacetTest is TestBase {
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
         functionSelectors[3] = optimismBridgeFacet.addToWhitelist.selector;
         functionSelectors[4] = optimismBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
@@ -76,10 +76,10 @@ contract OptimismBridgeFacetTest is TestBase {
         );
 
         optimismBridgeFacet.addToWhitelist(address(uniswap));
-        optimismBridgeFacet.setFunctionApprovalBySignature(
+        optimismBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        optimismBridgeFacet.setFunctionApprovalBySignature(
+        optimismBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

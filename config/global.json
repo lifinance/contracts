@@ -5,28 +5,28 @@
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
-  "approvedSigsForRefundWallet": [
+  "approvedSelectorsForRefundWallet": [
     {
-      "sig": "0x0d19e519",
+      "selector": "0x0d19e519",
       "name": "CBridgeFacet.triggerRefund"
     },
     {
-      "sig": "0xd9caed12",
+      "selector": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
     }
   ],
-  "approvedSigsForDeployerWallet": [
+  "approvedSelectorsForDeployerWallet": [
     {
-      "sig": "0xfcd8e49e",
+      "selector": "0x2db6fa36",
       "name": "WhitelistManagerFacet.batchAddToWhitelist"
     },
     {
-      "sig": "0x9afc19c7",
+      "selector": "0x045fb888",
       "name": "WhitelistManagerFacet.batchRemoveFromWhitelist"
     },
     {
-      "sig": "0x44e2b18c",
-      "name": "WhitelistManagerFacet.batchSetFunctionApprovalBySignature"
+      "selector": "0xecd18517",
+      "name": "WhitelistManagerFacet.batchSetFunctionApprovalBySelector"
     }
   ],
   "safeOwners": [

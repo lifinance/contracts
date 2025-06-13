@@ -17,8 +17,8 @@ contract TestArbitrumBridgeFacet is ArbitrumBridgeFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -54,7 +54,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = arbitrumBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = arbitrumBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
@@ -62,13 +62,13 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
         arbitrumBridgeFacet.addToWhitelist(address(uniswap));
-        arbitrumBridgeFacet.setFunctionApprovalBySignature(
+        arbitrumBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        arbitrumBridgeFacet.setFunctionApprovalBySignature(
+        arbitrumBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        arbitrumBridgeFacet.setFunctionApprovalBySignature(
+        arbitrumBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

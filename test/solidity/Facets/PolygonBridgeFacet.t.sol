@@ -17,8 +17,8 @@ contract TestPolygonBridgeFacet is PolygonBridgeFacet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -50,7 +50,7 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = polygonBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = polygonBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
@@ -58,10 +58,10 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
         polygonBridgeFacet.addToWhitelist(address(uniswap));
-        polygonBridgeFacet.setFunctionApprovalBySignature(
+        polygonBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        polygonBridgeFacet.setFunctionApprovalBySignature(
+        polygonBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 
