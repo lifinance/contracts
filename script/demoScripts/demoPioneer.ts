@@ -14,6 +14,10 @@ import {
 
 dotenv.config()
 
+// The following transactions show a successful transaction from Arbitrum to Optimism
+// https://arbiscan.io/tx/0x64bddd54b3b6a235a4f85c23f80f6aa26031dbb914b11db8623349cb38b0771a
+// https://optimistic.etherscan.io/tx/0x2c600f1b52916febb6f6165291d4dee0a77daba2f4132b34fb7a354a156eafc1
+
 // #region ABIs
 
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
@@ -94,6 +98,10 @@ async function main() {
     },
     body: JSON.stringify(query),
   })
+  if (!resp.ok) {
+    console.error(`Quote request failed: ${resp.status} ${resp.statusText}`)
+    process.exit(1)
+  }
   const quote: {
     quoteId: string
     fromChainId: string
