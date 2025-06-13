@@ -3,9 +3,6 @@
 # defines the environment (true=production, false=staging)
 PRODUCTION=false
 
-# if true then transactions will be sent to diamond directly, if false it will propose tx to Safe address (from networks.json)
-SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false
-
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60

@@ -139,7 +139,7 @@ const main = defineCommand({
     let registeredFacets: string[] = []
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
-        const rpcUrl: string = networksConfig[network.toLowerCase()].rpcUrl
+        const rpcUrl: string = chain.rpcUrls.default.http
         const facetsResult =
           await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`
         const rawString = facetsResult.stdout
