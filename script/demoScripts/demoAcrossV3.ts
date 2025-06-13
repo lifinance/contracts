@@ -1,7 +1,14 @@
 import { utils, BigNumber, constants } from 'ethers'
-import { AcrossFacetV3, AcrossFacetV3__factory, ILiFi } from '../../typechain'
-import deploymentsOPT from '../../deployments/optimism.staging.json'
+
 import deploymentsARB from '../../deployments/arbitrum.staging.json'
+import deploymentsOPT from '../../deployments/optimism.staging.json'
+import {
+  type AcrossFacetV3,
+  type ILiFi,
+  AcrossFacetV3__factory,
+} from '../../typechain'
+import type { LibSwap } from '../../typechain/AcrossFacetV3'
+
 import {
   ADDRESS_UNISWAP_ARB,
   ADDRESS_UNISWAP_OPT,
@@ -13,7 +20,6 @@ import {
   DEFAULT_DEST_PAYLOAD_ABI,
   DEV_WALLET_ADDRESS,
   ensureBalanceAndAllowanceToDiamond,
-  getAmountsOutUniswap,
   getProvider,
   getUniswapDataERC20toExactERC20,
   getUniswapDataERC20toExactETH,
@@ -21,9 +27,8 @@ import {
   getWalletFromPrivateKeyInDotEnv,
   isNativeTX,
   sendTransaction,
-  TX_TYPE,
+  TransactionTypeEnum,
 } from './utils/demoScriptHelpers'
-import { LibSwap } from '../../typechain/AcrossFacetV3'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // OPT.USDC > ARB.USDC: https://optimistic.etherscan.io/tx/0xd3562edd97fdcead8dbb556344ad80cd3b5b19cfee9f5bf33c3f094ef7b8b456 (ERC20)
@@ -35,7 +40,7 @@ import { LibSwap } from '../../typechain/AcrossFacetV3'
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 /// TYPES
-type AcrossV3Route = {
+interface IAcrossV3Route {
   originChainId: number
   originToken: string
   destinationChainId: number
@@ -43,12 +48,12 @@ type AcrossV3Route = {
   originTokenSymbol: string
   destinationTokenSymbol: string
 }
-type FeeDetail = {
+interface IFeeDetail {
   pct: string
   total: string
 }
 
-type AcrossV3Quote = {
+interface IAcrossV3Quote {
   capitalFeePct: string
   capitalFeeTotal: string
   relayGasFeePct: string
@@ -60,12 +65,12 @@ type AcrossV3Quote = {
   isAmountTooLow: boolean
   quoteBlock: string
   spokePoolAddress: string
-  totalRelayFee: FeeDetail
-  relayerCapitalFee: FeeDetail
-  relayerGasFee: FeeDetail
-  lpFee: FeeDetail
+  totalRelayFee: IFeeDetail
+  relayerCapitalFee: IFeeDetail
+  relayerGasFee: IFeeDetail
+  lpFee: IFeeDetail
 }
-type AcrossV3Limit = {
+interface IAcrossV3Limit {
   minDeposit: string
   maxDeposit: string
   maxDepositInstant: string
@@ -82,9 +87,9 @@ const logDebug = (msg: string) => {
   if (DEBUG) console.log(msg)
 }
 
-const getAllAvailableAcrossRoutes = async (): Promise<AcrossV3Route[]> => {
+const getAllAvailableAcrossRoutes = async (): Promise<IAcrossV3Route[]> => {
   const endpointURL = '/available-routes'
-  let resp: AcrossV3Route[] | undefined = undefined
+  let resp: IAcrossV3Route[] | undefined = undefined
   try {
     resp = await fetch(`${ACROSS_API_BASE_URL}${endpointURL}`).then((resp) =>
       resp.json()
@@ -107,7 +112,7 @@ const isTransferWithinSendLimit = async (
   fromAmount: BigNumber
 ): Promise<boolean> => {
   const endpointURL = '/limits'
-  let resp: AcrossV3Limit | undefined = undefined
+  let resp: IAcrossV3Limit | undefined = undefined
 
   // For native ETH (zero address), use WETH address when checking limits
   const apiTokenAddress =
@@ -120,14 +125,13 @@ const isTransferWithinSendLimit = async (
 
   try {
     const response = await fetch(apiUrl)
-    if (!response.ok) {
+    if (!response.ok)
       throw new Error(`API responded with status: ${response.status}`)
-    }
+
     resp = await response.json()
 
-    if (!resp || !resp.maxDeposit || !resp.minDeposit) {
+    if (!resp || !resp.maxDeposit || !resp.minDeposit)
       throw new Error('Invalid response from API: missing deposit limits')
-    }
 
     logDebug(`found send limits: ${JSON.stringify(resp, null, 2)}`)
 
@@ -172,7 +176,7 @@ const isRouteAvailable = async (
   // try to find route with given parameters
   return Boolean(
     allRoutes.find(
-      (route: AcrossV3Route) =>
+      (route: IAcrossV3Route) =>
         route.originToken.toLowerCase() === sendingAssetId.toLowerCase() &&
         route.originChainId === fromChainId &&
         route.destinationToken.toLowerCase() ===
@@ -189,12 +193,12 @@ const getAcrossQuote = async (
   amount: string,
   receiverAddress = DEV_WALLET_ADDRESS,
   payload = '0x'
-): Promise<AcrossV3Quote> => {
+): Promise<IAcrossV3Quote> => {
   const endpointURL = '/suggested-fees'
   const fullURL = `${ACROSS_API_BASE_URL}${endpointURL}?token=${sendingAssetId}&originChainId=${fromChainId}&destinationChainId=${toChainId}&amount=${amount}&recipient=${receiverAddress}&message=${payload}`
   logDebug(`requesting quote: ${fullURL}`)
 
-  let resp: AcrossV3Quote | undefined = undefined
+  let resp: IAcrossV3Quote | undefined = undefined
   try {
     resp = await fetch(fullURL).then((response) => response.json())
   } catch (error) {
@@ -210,7 +214,7 @@ const getAcrossQuote = async (
   return resp
 }
 
-const calculateOutputAmountPercentage = (quote: AcrossV3Quote): string => {
+const calculateOutputAmountPercentage = (quote: IAcrossV3Quote): string => {
   // Convert the relay fee percentage from basis points to 18 decimal fixed point
   const totalFeePercent = BigNumber.from(quote.relayFeePct)
 
@@ -222,7 +226,7 @@ const calculateOutputAmountPercentage = (quote: AcrossV3Quote): string => {
   return outputPercent.toString()
 }
 
-const getMinAmountOut = (quote: AcrossV3Quote, fromAmount: string) => {
+const getMinAmountOut = (quote: IAcrossV3Quote, fromAmount: string) => {
   //@ BackendDev: read this to understand how to display full fee breakdown to user
   // https://docs.across.to/v/developer-docs/developers/across-api#calculating-suggested-fees
   const outputAmount = BigNumber.from(fromAmount).sub(quote.totalRelayFee.total)
@@ -249,7 +253,8 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_SRC as TX_TYPE // define which type of transaction you want to send
+const TRANSACTION_TYPE =
+  TransactionTypeEnum.ERC20_WITH_SRC as TransactionTypeEnum // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 
@@ -262,15 +267,12 @@ const sendingAssetId = isNativeTX(TRANSACTION_TYPE)
 
 // Define sendingAssetIdSrc based on transaction type
 const sendingAssetIdSrc =
-  TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
-  TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC
+  TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC ||
+  TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC
     ? ADDRESS_USDC_OPT
     : sendingAssetId
 
 // For the swap path, we need WETH when it's a native transaction
-const swapPathStartToken = isNativeTX(TRANSACTION_TYPE)
-  ? ADDRESS_WETH_OPT // Use WETH in the path for native transactions
-  : sendingAssetIdSrc
 const receivingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_ARB
   : ADDRESS_USDC_ARB
@@ -278,8 +280,8 @@ const fromAmount = isNativeTX(TRANSACTION_TYPE)
   ? '2000000000000000' // 0.002 (ETH)
   : '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
 const WITH_DEST_CALL =
-  TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_DEST ||
-  TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_DEST
+  TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_DEST ||
+  TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_DEST
 const WITH_EXCLUSIVE_RELAYER = false
 const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
@@ -335,8 +337,8 @@ async function main() {
     minAmount: fromAmount,
     destinationChainId: toChainId,
     hasSourceSwaps:
-      TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC ||
-      TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC,
+      TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC ||
+      TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC,
     hasDestinationCall: WITH_DEST_CALL,
   }
   console.log('bridgeData prepared')
@@ -345,33 +347,33 @@ async function main() {
   let finalFromAmount = BigNumber.from(fromAmount)
   const srcSwapData: LibSwap.SwapDataStruct[] = []
 
-  if (bridgeData.hasSourceSwaps) {
+  if (bridgeData.hasSourceSwaps)
     try {
       // Different handling for ERC20 vs Native source swaps
-      if (TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_SRC) {
-        // For ERC20: Swap USDT to USDC
+      if (TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC) {
         const srcSwap = await getUniswapDataERC20toExactERC20(
           ADDRESS_UNISWAP_OPT,
           fromChainId,
-          ADDRESS_USDT_OPT, // From USDT
-          ADDRESS_USDC_OPT, // To USDC
+          ADDRESS_USDT_OPT,
+          ADDRESS_USDC_OPT,
           BigNumber.from(fromAmount),
           DIAMOND_ADDRESS_SRC,
           true
         )
         srcSwapData.push(srcSwap)
-      } else if (TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_SRC) {
-        // For Native: Swap USDT to exact ETH amount
+      } else if (TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC) {
         const srcSwap = await getUniswapDataERC20toExactETH(
           ADDRESS_UNISWAP_OPT,
           fromChainId,
-          ADDRESS_USDT_OPT, // From USDT
+          ADDRESS_USDT_OPT,
           BigNumber.from(fromAmount),
           DIAMOND_ADDRESS_SRC,
           true
         )
         srcSwapData.push(srcSwap)
       }
+
+      if (!srcSwapData[0]) throw new Error('No source swap data available')
 
       // Set minAmount to exactly what we want as output
       bridgeData.minAmount = fromAmount
@@ -386,7 +388,24 @@ async function main() {
       console.error('Error in source swap calculation:', error)
       throw error
     }
-  }
+
+  // Single approval of the sending asset to the Diamond contract
+  if (bridgeData.hasSourceSwaps && srcSwapData[0])
+    await ensureBalanceAndAllowanceToDiamond(
+      ADDRESS_USDT_OPT,
+      wallet,
+      DIAMOND_ADDRESS_SRC,
+      BigNumber.from(srcSwapData[0].fromAmount.toString()),
+      false
+    )
+  else
+    await ensureBalanceAndAllowanceToDiamond(
+      sendingAssetIdSrc,
+      wallet,
+      DIAMOND_ADDRESS_SRC,
+      BigNumber.from(bridgeData.minAmount),
+      isNativeTX(TRANSACTION_TYPE)
+    )
 
   // get a quote using adjusted amount
   const quote = await getAcrossQuote(
@@ -404,27 +423,6 @@ async function main() {
   // Calculate outputAmountPercent based on the relay fees from the quote
   const finalOutputAmountPercent = calculateOutputAmountPercentage(quote)
   console.log('calculated outputAmountPercent:', finalOutputAmountPercent)
-
-  // Single approval of the sending asset to the Diamond contract
-  if (bridgeData.hasSourceSwaps) {
-    // For source swaps, approve USDT since that's what we're starting with
-    await ensureBalanceAndAllowanceToDiamond(
-      ADDRESS_USDT_OPT, // Use USDT for source swaps
-      wallet,
-      DIAMOND_ADDRESS_SRC,
-      BigNumber.from(srcSwapData[0].fromAmount), // Use the calculated input amount
-      false // Not native token
-    )
-  } else {
-    // For direct bridges, approve the sending asset
-    await ensureBalanceAndAllowanceToDiamond(
-      sendingAssetIdSrc,
-      wallet,
-      DIAMOND_ADDRESS_SRC,
-      BigNumber.from(bridgeData.minAmount),
-      isNativeTX(TRANSACTION_TYPE)
-    )
-  }
 
   const swapData = []
   let payload = '0x'
@@ -503,17 +501,16 @@ async function main() {
   }
   console.log('acrossV3Data prepared')
 
-  // // execute src transaction
+  // execute src transaction
   if (SEND_TX) {
     // create calldata from facet interface
-    const executeTxData = acrossV3Facet.interface.encodeFunctionData(
-      bridgeData.hasSourceSwaps
-        ? 'swapAndStartBridgeTokensViaAcrossV3'
-        : 'startBridgeTokensViaAcrossV3',
-      bridgeData.hasSourceSwaps
-        ? [bridgeData, srcSwapData, acrossV3Data]
-        : [bridgeData, acrossV3Data]
-    )
+    const executeTxData = bridgeData.hasSourceSwaps
+      ? await acrossV3Facet.swapAndStartBridgeTokensViaAcrossV3
+          .populateTransaction(bridgeData, srcSwapData, acrossV3Data)
+          .then((tx) => tx.data)
+      : await acrossV3Facet.startBridgeTokensViaAcrossV3
+          .populateTransaction(bridgeData, acrossV3Data)
+          .then((tx) => tx.data)
 
     // determine msg.value
     const msgValue = BigNumber.from(
