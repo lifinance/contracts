@@ -1,13 +1,21 @@
-import { getContract, parseUnits, Narrow, zeroAddress, parseEther } from 'viem'
 import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
-import config from '../../config/glacis.json'
+
+import { config as dotenvConfig } from 'dotenv'
+import {
+  getContract,
+  parseUnits,
+  zeroAddress,
+  parseEther,
+  type Narrow,
+} from 'viem'
+
+import glacisConfig from '../../config/glacis.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import glacisFacetArtifact from '../../out/GlacisFacet.sol/GlacisFacet.json'
-import { GlacisFacet, ILiFi } from '../../typechain'
 import airliftArtifact from '../../out/IGlacisAirlift.sol/IGlacisAirlift.json'
+import type { GlacisFacet, ILiFi } from '../../typechain'
+import type { SupportedChain } from '../common/types'
 
-import { SupportedChain } from './utils/demoScriptChainConfig'
 import {
   ensureBalance,
   ensureAllowance,
@@ -17,7 +25,7 @@ import {
   zeroPadAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
-dotenv.config()
+dotenvConfig()
 
 // #region ABIs
 
@@ -28,8 +36,6 @@ const GLACIS_FACET_ABI = glacisFacetArtifact.abi as Narrow<
 const AIRLIFT_ABI = airliftArtifact.abi as Narrow<typeof airliftArtifact.abi>
 
 // #endregion
-
-dotenv.config()
 
 async function main() {
   // === Set up environment ===
@@ -48,7 +54,7 @@ async function main() {
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS =
     '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91' as `0x${string}`
-  const AIRLIFT_ADDRESS = getConfigElement(config, srcChain, 'airlift')
+  const AIRLIFT_ADDRESS = getConfigElement(glacisConfig, srcChain, 'airlift')
 
   // === Instantiate contracts ===
   const srcTokenContract = getContract({
@@ -63,9 +69,9 @@ async function main() {
     client,
   })
 
-  const srcTokenName = (await srcTokenContract.read.name()) as string
-  const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
-  const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
+  const srcTokenName = await srcTokenContract.read.name()
+  const srcTokenSymbol = await srcTokenContract.read.symbol()
+  const srcTokenDecimals = await srcTokenContract.read.decimals()
   const amount = parseUnits('1', Number(srcTokenDecimals))
 
   console.info(
@@ -96,9 +102,8 @@ async function main() {
       ])
     ).result as any
 
-    if (!estimatedFees) {
+    if (!estimatedFees)
       throw new Error('Invalid fee estimation from quoteSend.')
-    }
   } catch (error) {
     console.error('Fee estimation failed:', error)
     process.exit(1)

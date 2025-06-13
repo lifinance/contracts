@@ -1,16 +1,17 @@
-import { MongoClient } from 'mongodb'
 import fs from 'fs'
-import { config } from 'dotenv'
+
 import { consola } from 'consola'
+import { config } from 'dotenv'
+import { MongoClient } from 'mongodb'
 config()
 
-interface RpcEndpoint {
+interface IRpcEndpoint {
   url: string
   priority: number
 }
 
 async function fetchRpcEndpoints(): Promise<{
-  [network: string]: RpcEndpoint[]
+  [network: string]: IRpcEndpoint[]
 }> {
   const MONGODB_URI = process.env.MONGODB_URI
   if (!MONGODB_URI)
@@ -24,11 +25,11 @@ async function fetchRpcEndpoints(): Promise<{
     const collection = db.collection('RpcEndpoints')
 
     const cursor = collection.find({})
-    const endpoints: { [network: string]: RpcEndpoint[] } = {}
+    const endpoints: { [network: string]: IRpcEndpoint[] } = {}
 
     await cursor.forEach((doc) => {
       if (doc?.chainName && Array.isArray(doc?.rpcs)) {
-        const validEndpoints: RpcEndpoint[] = doc.rpcs.filter(
+        const validEndpoints: IRpcEndpoint[] = doc.rpcs.filter(
           (r: any) => !!r.url
         )
         // Sort endpoints in descending order so that the endpoint with the highest priority comes first
@@ -52,7 +53,7 @@ async function fetchRpcEndpoints(): Promise<{
 async function mergeEndpointsIntoEnv() {
   try {
     // Try to fetch from MongoDB first
-    let newEndpoints: { [network: string]: RpcEndpoint[] } = {}
+    let newEndpoints: { [network: string]: IRpcEndpoint[] } = {}
     try {
       newEndpoints = await fetchRpcEndpoints()
     } catch (error) {
@@ -73,13 +74,16 @@ async function mergeEndpointsIntoEnv() {
           ]
           return acc
         },
-        {} as { [network: string]: RpcEndpoint[] }
+        {} as { [network: string]: IRpcEndpoint[] }
       )
     }
 
     // Group endpoints by first letter after "ETH_NODE_URI_"
     const groupedEndpoints = Object.entries(newEndpoints).reduce(
-      (acc: { [key: string]: [string, RpcEndpoint[]][] }, [key, endpoints]) => {
+      (
+        acc: { [key: string]: [string, IRpcEndpoint[]][] },
+        [key, endpoints]
+      ) => {
         const networkName = key.replace('ETH_NODE_URI_', '')
         const firstLetter = networkName.charAt(0)
         if (!acc[firstLetter]) acc[firstLetter] = []
@@ -93,6 +97,8 @@ async function mergeEndpointsIntoEnv() {
     const sortedGroups = Object.keys(groupedEndpoints)
       .sort()
       .map((letter) => {
+        if (!groupedEndpoints[letter])
+          throw new Error(`Missing group for letter ${letter}`)
         const group = groupedEndpoints[letter].sort(([keyA], [keyB]) => {
           const nameA = keyA.replace('ETH_NODE_URI_', '')
           const nameB = keyB.replace('ETH_NODE_URI_', '')

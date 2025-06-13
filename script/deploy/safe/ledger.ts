@@ -6,16 +6,16 @@
  * Requires @ledgerhq/hw-app-eth and @ledgerhq/hw-transport-node-hid packages.
  */
 
+import type Transport from '@ledgerhq/hw-transport'
+import { consola } from 'consola'
 import type {
   Account,
   Address,
   Hex,
-  Transport,
-  TransactionRequest,
-  SignTypedDataParameters,
+  TransactionSerializable,
+  TypedData,
+  TypedDataDefinition,
 } from 'viem'
-import { serializeTypedData } from 'viem'
-import consola from 'consola'
 
 /**
  * Creates a viem-compatible account using a Ledger hardware wallet
@@ -32,11 +32,10 @@ export async function getLedgerAccount(options?: {
   accountIndex?: number
 }): Promise<Account> {
   // Validate that incompatible options aren't provided together
-  if (options?.derivationPath && options?.ledgerLive) {
+  if (options?.derivationPath && options?.ledgerLive)
     throw new Error(
       "Cannot use both 'derivationPath' and 'ledgerLive' options together"
     )
-  }
 
   // Dynamically import Ledger packages to avoid issues if they're not installed
   const TransportNodeHid = await import('@ledgerhq/hw-transport-node-hid')
@@ -48,10 +47,9 @@ export async function getLedgerAccount(options?: {
     // Ledger Live uses a different derivation path format
     const accountIndex = options?.accountIndex ?? 0
     derivationPath = `m/44'/60'/${accountIndex}'/0/0`
-  } else {
-    // Use provided path or default
-    derivationPath = options?.derivationPath ?? "m/44'/60'/0'/0/0"
   }
+  // Use provided path or default
+  else derivationPath = options?.derivationPath ?? "m/44'/60'/0'/0/0"
 
   try {
     consola.info(`Connecting to Ledger device...`)
@@ -66,12 +64,12 @@ export async function getLedgerAccount(options?: {
     consola.success(`Connected to Ledger with address: ${address}`)
 
     // Create and return a viem-compatible account
-    return createLedgerAccount({
+    return await createLedgerAccount({
       address: address as Address,
       transport,
       derivationPath,
     })
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Failed to connect to Ledger device:`, error)
     throw new Error(`Ledger connection failed: ${error.message}`)
   }
@@ -86,7 +84,7 @@ export async function getLedgerAccount(options?: {
  * @param params.derivationPath The derivation path used
  * @returns A viem-compatible account
  */
-function createLedgerAccount({
+async function createLedgerAccount({
   address,
   transport,
   derivationPath,
@@ -94,24 +92,29 @@ function createLedgerAccount({
   address: Address
   transport: Transport
   derivationPath: string
-}): Account {
+}): Promise<Account> {
+  // Get the public key from Ledger
+  const { default: Eth } = await import('@ledgerhq/hw-app-eth')
+  const eth = new Eth(transport)
+  const { publicKey } = await eth.getAddress(derivationPath)
+
   return {
     address,
     type: 'local',
+    publicKey: `0x${publicKey}`,
+    source: 'ledger',
     async signMessage({ message }) {
       const Eth = (await import('@ledgerhq/hw-app-eth')).default
       const eth = new Eth(transport)
 
       let messageHex: string
-      if (typeof message === 'string') {
+      if (typeof message === 'string')
         // Convert string message to hex
         messageHex = Buffer.from(message).toString('hex')
-      } else if ('raw' in message) {
+      else if ('raw' in message)
         // Use raw hex data directly
         messageHex = (message.raw as Hex).replace(/^0x/, '')
-      } else {
-        throw new Error('Unsupported message format for Ledger signing')
-      }
+      else throw new Error('Unsupported message format for Ledger signing')
 
       // Sign the message with Ledger device
       const result = await eth.signPersonalMessage(derivationPath, messageHex)
@@ -119,26 +122,23 @@ function createLedgerAccount({
       // Format the signature for Ethereum
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
-    async signTransaction(transactionRequest: TransactionRequest) {
+    async signTransaction<
+      TTransactionSerializable extends TransactionSerializable
+    >(transaction: TTransactionSerializable) {
       try {
         // Load all needed imports first
         const { default: Eth } = await import('@ledgerhq/hw-app-eth')
         const { serializeTransaction } = await import('viem')
-        const { getChainId } = await import('viem/actions')
 
         // Create Eth instance
         const eth = new Eth(transport)
 
-        // Get the chain ID from the request or client
-        const chainId =
-          transactionRequest.chainId ??
-          (transactionRequest.client
-            ? await getChainId(transactionRequest.client)
-            : 1)
+        // Get the chain ID from the transaction or default to mainnet
+        const chainId = transaction.chainId ?? 1
 
         // Create a transaction object with chainId explicitly included
         const txWithChainId = {
-          ...transactionRequest,
+          ...transaction,
           chainId,
         }
 
@@ -156,10 +156,14 @@ function createLedgerAccount({
         let resolution = null
         try {
           // This provides context for the transaction to be displayed on the Ledger device
-          resolution = await ledgerService.resolveTransaction(rawTxHex, null, {
-            externalPlugins: true, // Enable external plugins for better transaction information
-            erc20: true, // Enable ERC20 token resolution
-          })
+          resolution = await ledgerService.resolveTransaction(
+            rawTxHex,
+            {}, // LoadConfig - using default configuration
+            {
+              externalPlugins: true, // Enable external plugins for better transaction information
+              erc20: true, // Enable ERC20 token resolution
+            }
+          )
           consola.log('Transaction resolved successfully with Ledger service')
         } catch (resolveError) {
           consola.warn(
@@ -185,11 +189,8 @@ function createLedgerAccount({
         )
 
         // We can use viem's serializeTransaction to create the final signed transaction
-        const {
-          parseTransaction,
-          serializeTransaction: serializeSignedTransaction,
-        } = await import('viem')
-        const parsedTx = parseTransaction(serializedTx)
+        const { serializeTransaction: serializeSignedTransaction } =
+          await import('viem')
 
         // Create a signed transaction object with the signature from Ledger
         const signedTx = {
@@ -205,13 +206,16 @@ function createLedgerAccount({
         const serializedSignedTx = serializeSignedTransaction(signedTx)
 
         return serializedSignedTx
-      } catch (error) {
+      } catch (error: any) {
         consola.error('Error in Ledger signTransaction:', error)
         throw new Error(`Ledger transaction signing failed: ${error.message}`)
       }
     },
     // Implement signTypedData method for EIP-712 support
-    async signTypedData(params: SignTypedDataParameters) {
+    async signTypedData<
+      const TTypedData extends TypedData | Record<string, unknown>,
+      TPrimaryType extends keyof TTypedData | 'EIP712Domain' = keyof TTypedData
+    >(parameters: TypedDataDefinition<TTypedData, TPrimaryType>) {
       const { default: Eth } = await import('@ledgerhq/hw-app-eth')
       const eth = new Eth(transport)
 
@@ -219,10 +223,16 @@ function createLedgerAccount({
       // Sign the typed data with Ledger
       // Note: Some Ledger firmware versions might not support all EIP-712 features
       const result = await eth.signEIP712Message(derivationPath, {
-        domain: params.domain,
-        types: params.types,
-        primaryType: params.primaryType,
-        message: params.message,
+        domain: parameters.domain as Partial<{
+          name: string
+          chainId: number
+          version: string
+          verifyingContract: string
+          salt: string
+        }>,
+        types: parameters.types as any,
+        primaryType: parameters.primaryType,
+        message: parameters.message as Record<string, unknown>,
       })
 
       // Format the signature

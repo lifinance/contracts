@@ -1,14 +1,15 @@
+import { config } from 'dotenv'
+import { ethers, utils } from 'ethers'
+
 import deployments from '../../deployments/polygon.staging.json'
 import {
   SquidFacet__factory,
-  ILiFi,
-  SquidFacet,
   ERC20__factory,
   ISquidRouter__factory,
-} from '../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
-dotenv.config()
+  type ILiFi,
+  type SquidFacet,
+} from '../../typechain'
+config()
 
 const ROUTE_TYPES: Record<string, number> = {
   CALL_BRIDGE: 0,
@@ -57,6 +58,10 @@ const main = async () => {
         routeJson.route.transactionRequest.data
       )
       break
+    default:
+      throw new Error(
+        `Unsupported route type: ${routeJson.route.transactionRequest.routeType}`
+      )
   }
 
   const bridgeData: ILiFi.BridgeDataStruct = {
