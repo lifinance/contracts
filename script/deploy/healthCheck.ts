@@ -279,11 +279,10 @@ const main = defineCommand({
             logError(
               `Whitelisted address ${normalized} is not a contract (EOA or AA account after EIP-7702)`
             )
-          if (!onChainWhitelisted.includes(normalized)) 
+          if (!onChainWhitelisted.includes(normalized))
             logError(
               `Address ${normalized} from whitelist config (whitelistedAddresses.json) is not whitelisted on chain`
             )
-          
         } catch (err) {
           logError(`Invalid whitelisted address in config: ${cfgAddress}`)
         }
@@ -298,9 +297,9 @@ const main = defineCommand({
         }
 
         const normalized = getAddress(addr)
-        if (!onChainWhitelisted.includes(normalized)) 
+        if (!onChainWhitelisted.includes(normalized))
           logError(`Periphery contract ${name} not whitelisted`)
-         else consola.success(`Periphery contract ${name} whitelisted`)
+        else consola.success(`Periphery contract ${name} whitelisted`)
       }
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -350,41 +349,6 @@ const main = defineCommand({
 
       if (missingInContract.length === 0 && extraInContract.length === 0)
         consola.success('All selectors match between config and contract.')
-
-      // Function to split array into chunks
-      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-        const chunks: T[][] = []
-        for (let i = 0; i < array.length; i += chunkSize)
-          chunks.push(array.slice(i, i + chunkSize))
-
-        return chunks
-      }
-
-      const batchSize = 20
-      const selectorBatches = chunkArray(selectors, batchSize)
-
-      const selectorsToApprove: Hex[] = []
-
-      for (const batch of selectorBatches) {
-        const calls = batch.map((selector: string) => ({
-          address: whitelistManager.address,
-          abi: whitelistManager.abi,
-          functionName: 'isFunctionApproved',
-          args: [selector],
-        }))
-
-        const results = await publicClient.multicall({ contracts: calls })
-
-        for (let i = 0; i < results.length; i++)
-          if (results[i].status !== 'success' || !results[i].result) {
-            console.log('Selector not approved:', batch[i])
-            selectorsToApprove.push(batch[i] as Hex)
-          }
-      }
-
-      if (selectorsToApprove.length > 0)
-        logError(`Missing ${selectorsToApprove.length} selectors`)
-      else consola.success('No missing selectors.')
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check contract ownership                 │
