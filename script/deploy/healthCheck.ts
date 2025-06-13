@@ -249,7 +249,7 @@ const main = defineCommand({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
           'function getWhitelistedAddresses() external view returns (address[])',
-          'function isFunctionApproved(bytes4) external returns (bool)',
+          'function isFunctionApproved(bytes4) external view returns (bool)',
           'function getApprovedFunctionSignatures() external view returns (bytes4[])',
         ]),
         client: publicClient,
@@ -392,13 +392,12 @@ const main = defineCommand({
         const sigsToApprove: Hex[] = []
 
         for (const batch of sigBatches) {
-          const calls = batch.map((sig: string) => {
-            return {
-              ...whitelistManager,
-              functionName: 'isFunctionApproved',
-              args: [sig],
-            }
-          })
+          const calls = batch.map((sig: string) => ({
+            address: whitelistManager.address,
+            abi: whitelistManager.abi,
+            functionName: 'isFunctionApproved',
+            args: [sig],
+          }))
 
           const results = await publicClient.multicall({ contracts: calls })
 
