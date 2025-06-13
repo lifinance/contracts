@@ -250,7 +250,7 @@ const main = defineCommand({
         abi: parseAbi([
           'function getWhitelistedAddresses() external view returns (address[])',
           'function isFunctionApproved(bytes4) external view returns (bool)',
-          'function getApprovedFunctionSignatures() external view returns (bytes4[])',
+          'function getApprovedFunctionSelectors() external view returns (bytes4[])',
         ]),
         client: publicClient,
       })
@@ -264,329 +264,296 @@ const main = defineCommand({
         // Don't skip the checks - we'll still check against the config
       }
 
-      // Check if there are any expected whitelisted addresses in config
-      if (
-        expectedWhitelistedAddresses &&
-        expectedWhitelistedAddresses.length > 0
-      ) {
-        let numMissing = 0
+      // First check all whitelisted addresses
+      for (const cfgAddress of expectedWhitelistedAddresses) {
+        if (!cfgAddress) {
+          logError(`Encountered undefined whitelisted address.`)
+          continue
+        }
 
-        // If we couldn't get on-chain addresses, we can only check the config addresses
-        if (onChainWhitelisted.length === 0) {
-          logError('Cannot verify whitelist status - on-chain data unavailable')
-          for (const cfgAddress of expectedWhitelistedAddresses) {
-            if (!cfgAddress) {
-              logError(`Encountered undefined whitelisted address in config`)
-              continue
-            }
-            try {
-              const normalized = getAddress(cfgAddress)
-              consola.info(
-                `Expected whitelisted address in config: ${normalized}`
-              )
-            } catch (err) {
-              logError(`Invalid whitelisted address in config: ${cfgAddress}`)
-            }
+        try {
+          const normalized = getAddress(cfgAddress)
+          // Check if the address is a contract
+          const code = await publicClient.getCode({ address: normalized })
+          if (code === '0x')
+            logError(
+              `Whitelisted address ${normalized} is not a contract (EOA or AA account after EIP-7702)`
+            )
+          if (!onChainWhitelisted.includes(normalized)) 
+            logError(
+              `Address ${normalized} from whitelist config (whitelistedAddresses.json) is not whitelisted on chain`
+            )
+          
+        } catch (err) {
+          logError(`Invalid whitelisted address in config: ${cfgAddress}`)
+        }
+      }
+
+      // Then separately check periphery contracts once
+      for (const name of autoWhitelistPeripheryContracts) {
+        const addr = deployedContracts[name]
+        if (!addr) {
+          logError(`Periphery contract ${name} not deployed`)
+          continue
+        }
+
+        const normalized = getAddress(addr)
+        if (!onChainWhitelisted.includes(normalized)) 
+          logError(`Periphery contract ${name} not whitelisted`)
+         else consola.success(`Periphery contract ${name} whitelisted`)
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                   Check approved selectors              │
+      //          ╰─────────────────────────────────────────────────────────╯
+
+      consola.box('Checking selectors approved in diamond...')
+      // Check if selectors are approved
+      const { selectors } = await import(
+        `../../config/whitelistedSelectors.json`
+      )
+
+      // Get all approved selectors from contract
+      const approvedSelectors = await getApprovedFunctionSelectors(
+        whitelistManager
+      )
+
+      // Convert selectors to normalized format for comparison
+      const normalizedConfigSelectors = selectors.map(
+        (selector) => selector.toLowerCase() as Hex
+      )
+      const normalizedApprovedSelectors = approvedSelectors.map((selector) =>
+        selector.toLowerCase()
+      )
+
+      // Find missing selectors in both directions
+      const missingInContract = normalizedConfigSelectors.filter(
+        (selector) => !normalizedApprovedSelectors.includes(selector)
+      )
+      const extraInContract = normalizedApprovedSelectors.filter(
+        (selector) => !normalizedConfigSelectors.includes(selector)
+      )
+
+      if (missingInContract.length > 0) {
+        logError(
+          `Missing ${missingInContract.length} selectors in contract that are in config:`
+        )
+        missingInContract.forEach((selector) => consola.info(`  ${selector}`))
+      }
+
+      if (extraInContract.length > 0) {
+        logError(
+          `Found ${extraInContract.length} extra selectors in contract that are not in config:`
+        )
+        extraInContract.forEach((selector) => consola.info(`  ${selector}`))
+      }
+
+      if (missingInContract.length === 0 && extraInContract.length === 0)
+        consola.success('All selectors match between config and contract.')
+
+      // Function to split array into chunks
+      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
+        const chunks: T[][] = []
+        for (let i = 0; i < array.length; i += chunkSize)
+          chunks.push(array.slice(i, i + chunkSize))
+
+        return chunks
+      }
+
+      const batchSize = 20
+      const selectorBatches = chunkArray(selectors, batchSize)
+
+      const selectorsToApprove: Hex[] = []
+
+      for (const batch of selectorBatches) {
+        const calls = batch.map((selector: string) => ({
+          address: whitelistManager.address,
+          abi: whitelistManager.abi,
+          functionName: 'isFunctionApproved',
+          args: [selector],
+        }))
+
+        const results = await publicClient.multicall({ contracts: calls })
+
+        for (let i = 0; i < results.length; i++)
+          if (results[i].status !== 'success' || !results[i].result) {
+            console.log('Selector not approved:', batch[i])
+            selectorsToApprove.push(batch[i] as Hex)
           }
-        } else {
-          // Normal flow - check against both config and on-chain data
-          for (const cfgAddress of expectedWhitelistedAddresses) {
-            if (!cfgAddress) {
-              logError(`Encountered undefined whitelisted address.`)
-              continue
-            }
+      }
 
-            try {
-              const normalized = getAddress(cfgAddress)
-              if (!onChainWhitelisted.includes(normalized)) {
-                logError(
-                  `Whitelisted address ${normalized} not whitelisted in Diamond`
-                )
-                numMissing++
-              }
-            } catch (err) {
-              logError(`Invalid whitelisted address in config: ${cfgAddress}`)
-            }
-          }
+      if (selectorsToApprove.length > 0)
+        logError(`Missing ${selectorsToApprove.length} selectors`)
+      else consola.success('No missing selectors.')
 
-          for (const name of autoWhitelistPeripheryContracts) {
-            // get address from deploy log
-            const addr = deployedContracts[name]
-            if (!addr) {
-              logError(`Periphery contract ${name} not deployed`)
-              numMissing++
-              continue
-            }
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check contract ownership                 │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking ownership...')
 
-            // check if address is whitelisted
-            const normalized = getAddress(addr)
-            if (!onChainWhitelisted.includes(normalized)) {
-              logError(`Periphery contract ${name} not whitelisted`)
-              numMissing++
-            } else consola.success(`Periphery contract ${name} whitelisted`)
-          }
-        }
+      const refundWallet = getAddress(globalConfig.refundWallet)
+      const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
-        consola.info(
-          `Found ${numMissing} missing whitelisted address${
-            numMissing === 1 ? '' : 's'
-          }`
+      // Check ERC20Proxy ownership
+      const erc20ProxyOwner = await erc20Proxy.read.owner()
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
+        logError(
+          `ERC20Proxy owner is ${getAddress(
+            erc20ProxyOwner
+          )}, expected ${getAddress(deployerWallet)}`
         )
+      else consola.success('ERC20Proxy owner is correct')
 
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                   Check approved sigs                   │
-        //          ╰─────────────────────────────────────────────────────────╯
+      // Check that Diamond is owned by SAFE
+      if (networksConfig[network.toLowerCase()].safeAddress) {
+        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
 
-        consola.box('Checking DEX signatures approved in diamond...')
-        // Check if function signatures are approved
-        const { sigs } = await import(`../../config/sigs.json`)
-
-        // Get all approved signatures from contract
-        const approvedSigs = await getApprovedFunctionSignatures(
-          whitelistManager
-        )
-
-        // Convert sigs to normalized format for comparison
-        const normalizedConfigSigs = sigs.map((sig) => sig.toLowerCase() as Hex)
-        const normalizedApprovedSigs = approvedSigs.map((sig) =>
-          sig.toLowerCase()
-        )
-
-        // Find missing sigs in both directions
-        const missingInContract = normalizedConfigSigs.filter(
-          (sig) => !normalizedApprovedSigs.includes(sig)
-        )
-        const extraInContract = normalizedApprovedSigs.filter(
-          (sig) => !normalizedConfigSigs.includes(sig)
-        )
-
-        if (missingInContract.length > 0) {
-          logError(
-            `Missing ${missingInContract.length} signatures in contract that are in config:`
-          )
-          missingInContract.forEach((sig) => consola.info(`  ${sig}`))
-        }
-
-        if (extraInContract.length > 0) {
-          logError(
-            `Found ${extraInContract.length} extra signatures in contract that are not in config:`
-          )
-          extraInContract.forEach((sig) => consola.info(`  ${sig}`))
-        }
-
-        if (missingInContract.length === 0 && extraInContract.length === 0)
-          consola.success('All signatures match between config and contract.')
-
-        // Function to split array into chunks
-        const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-          const chunks: T[][] = []
-          for (let i = 0; i < array.length; i += chunkSize)
-            chunks.push(array.slice(i, i + chunkSize))
-
-          return chunks
-        }
-
-        const batchSize = 20
-        const sigBatches = chunkArray(sigs, batchSize)
-
-        const sigsToApprove: Hex[] = []
-
-        for (const batch of sigBatches) {
-          const calls = batch.map((sig: string) => ({
-            address: whitelistManager.address,
-            abi: whitelistManager.abi,
-            functionName: 'isFunctionApproved',
-            args: [sig],
-          }))
-
-          const results = await publicClient.multicall({ contracts: calls })
-
-          for (let i = 0; i < results.length; i++)
-            if (results[i].status !== 'success' || !results[i].result) {
-              console.log('Function not approved:', batch[i])
-              sigsToApprove.push(batch[i] as Hex)
-            }
-        }
-
-        if (sigsToApprove.length > 0)
-          logError(`Missing ${sigsToApprove.length} signatures`)
-        else consola.success('No missing signatures.')
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check contract ownership                 │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking ownership...')
-
-        const refundWallet = getAddress(globalConfig.refundWallet)
-        const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-
-        // Check ERC20Proxy ownership
-        const erc20ProxyOwner = await erc20Proxy.read.owner()
-        if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
-          logError(
-            `ERC20Proxy owner is ${getAddress(
-              erc20ProxyOwner
-            )}, expected ${getAddress(deployerWallet)}`
-          )
-        else consola.success('ERC20Proxy owner is correct')
-
-        // Check that Diamond is owned by SAFE
-        if (networksConfig[network.toLowerCase()].safeAddress) {
-          const safeAddress = networksConfig[network.toLowerCase()].safeAddress
-
-          await checkOwnership(
-            'LiFiDiamond',
-            safeAddress,
-            deployedContracts,
-            publicClient
-          )
-        }
-
-        // FeeCollector
         await checkOwnership(
-          'FeeCollector',
-          feeCollectorOwner,
+          'LiFiDiamond',
+          safeAddress,
           deployedContracts,
           publicClient
         )
+      }
 
-        // Receiver
-        await checkOwnership(
-          'Receiver',
-          refundWallet,
-          deployedContracts,
-          publicClient
-        )
+      // FeeCollector
+      await checkOwnership(
+        'FeeCollector',
+        feeCollectorOwner,
+        deployedContracts,
+        publicClient
+      )
 
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check emergency pause config             │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking funding of pauser wallet...')
+      // Receiver
+      await checkOwnership(
+        'Receiver',
+        refundWallet,
+        deployedContracts,
+        publicClient
+      )
 
-        const pauserBalance = formatEther(
-          await publicClient.getBalance({
-            address: pauserWallet,
-          })
-        )
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check emergency pause config             │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking funding of pauser wallet...')
 
-        if (!pauserBalance || pauserBalance === '0')
-          logError(`PauserWallet does not have any native balance`)
-        else consola.success(`PauserWallet is funded: ${pauserBalance}`)
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check access permissions                 │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking access permissions...')
-        const accessManager = getContract({
-          address: deployedContracts['LiFiDiamond'],
-          abi: parseAbi([
-            'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
-          ]),
-          client: publicClient,
+      const pauserBalance = formatEther(
+        await publicClient.getBalance({
+          address: pauserWallet,
         })
+      )
 
-        // Deployer wallet
-        const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
-          sig: Hex
+      if (!pauserBalance || pauserBalance === '0')
+        logError(`PauserWallet does not have any native balance`)
+      else consola.success(`PauserWallet is funded: ${pauserBalance}`)
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check access permissions                 │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking access permissions...')
+      const accessManager = getContract({
+        address: deployedContracts['LiFiDiamond'],
+        abi: parseAbi([
+          'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
+        ]),
+        client: publicClient,
+      })
+
+      // Deployer wallet
+      const approveSelectors =
+        globalConfig.approvedSelectorsForDeployerWallet as {
+          selector: Hex
           name: string
         }[]
 
-        for (const sig of approveSigs)
-          if (
-            !(await accessManager.read.addressCanExecuteMethod([
-              sig.sig,
-              deployerWallet,
-            ]))
+      for (const selector of approveSelectors)
+        if (
+          !(await accessManager.read.addressCanExecuteMethod([
+            selector.selector,
+            deployerWallet,
+          ]))
+        )
+          logError(
+            `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${selector.selector})`
           )
-            logError(
-              `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
-            )
-          else
-            consola.success(
-              `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
-            )
-
-        // Refund wallet
-        const refundSigs = globalConfig.approvedSigsForRefundWallet as {
-          sig: Hex
-          name: string
-        }[]
-
-        for (const sig of refundSigs)
-          if (
-            !(await accessManager.read.addressCanExecuteMethod([
-              sig.sig,
-              refundWallet,
-            ]))
+        else
+          consola.success(
+            `Deployer wallet ${deployerWallet} can execute ${selector.name} (${selector.selector})`
           )
-            logError(
-              `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
+
+      // Refund wallet
+      const refundSelectors = globalConfig.approvedSelectorsForRefundWallet as {
+        selector: Hex
+        name: string
+      }[]
+
+      for (const selector of refundSelectors)
+        if (
+          !(await accessManager.read.addressCanExecuteMethod([
+            selector.selector,
+            refundWallet,
+          ]))
+        )
+          logError(
+            `Refund wallet ${refundWallet} cannot execute ${selector.name} (${selector.selector})`
+          )
+        else
+          consola.success(
+            `Refund wallet ${refundWallet} can execute ${selector.name} (${selector.selector})`
+          )
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                   SAFE Configuration                    │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking SAFE configuration...')
+      const networkConfig: Network = networks[network.toLowerCase()]
+      if (!networkConfig.safeAddress)
+        consola.warn('SAFE address not configured')
+      else {
+        const safeOwners = globalConfig.safeOwners
+        const safeAddress = networkConfig.safeAddress
+
+        try {
+          // Import getSafeInfoFromContract from safe-utils.ts
+          const { getSafeInfoFromContract } = await import('./safe/safe-utils')
+
+          // Get Safe info directly from the contract
+          const safeInfo = await getSafeInfoFromContract(
+            publicClient,
+            safeAddress
+          )
+
+          // Check that each safeOwner is in the Safe
+          for (const o in safeOwners) {
+            const safeOwner = getAddress(safeOwners[o])
+            const isOwner = safeInfo.owners.some(
+              (owner) => getAddress(owner) === safeOwner
             )
-          else
-            consola.success(
-              `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
-            )
 
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                   SAFE Configuration                    │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking SAFE configuration...')
-        const networkConfig: Network = networks[network.toLowerCase()]
-        if (!networkConfig.safeAddress)
-          consola.warn('SAFE address not configured')
-        else {
-          const safeOwners = globalConfig.safeOwners
-          const safeAddress = networkConfig.safeAddress
-
-          try {
-            // Import getSafeInfoFromContract from safe-utils.ts
-            const { getSafeInfoFromContract } = await import(
-              './safe/safe-utils'
-            )
-
-            // Get Safe info directly from the contract
-            const safeInfo = await getSafeInfoFromContract(
-              publicClient,
-              safeAddress
-            )
-
-            // Check that each safeOwner is in the Safe
-            for (const o in safeOwners) {
-              const safeOwner = getAddress(safeOwners[o])
-              const isOwner = safeInfo.owners.some(
-                (owner) => getAddress(owner) === safeOwner
-              )
-
-              if (!isOwner)
-                logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-              else
-                consola.success(
-                  `SAFE owner ${safeOwner} is in SAFE configuration`
-                )
-            }
-
-            // Check that threshold is correct
-            if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
-              logError(
-                `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
-              )
+            if (!isOwner)
+              logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
             else
               consola.success(
-                `SAFE signature threshold is ${safeInfo.threshold}`
+                `SAFE owner ${safeOwner} is in SAFE configuration`
               )
-
-            // Show current nonce
-            consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
-          } catch (error) {
-            logError(`Failed to get SAFE information: ${error}`)
           }
-        }
 
-        finish()
-      } else {
-        logError('No whitelisted addresses configured')
-        finish()
+          // Check that threshold is correct
+          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
+            logError(
+              `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
+            )
+          else
+            consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
+
+          // Show current nonce
+          consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
+        } catch (error) {
+          logError(`Failed to get SAFE information: ${error}`)
+        }
       }
+
+      finish()
     } else {
       logError('No whitelisted addresses configured')
       finish()
@@ -656,15 +623,17 @@ const finish = () => {
   }
 }
 
-const getApprovedFunctionSignatures = async (
+const getApprovedFunctionSelectors = async (
   whitelistManager: any
 ): Promise<Hex[]> => {
   try {
-    const approvedSigs =
-      await whitelistManager.read.getApprovedFunctionSignatures()
-    return approvedSigs
+    const approvedSelectors =
+      await whitelistManager.read.getApprovedFunctionSelectors()
+    return approvedSelectors
   } catch (error) {
-    logError('Failed to get approved function signatures')
+    logError(
+      'Failed to get approved function selectors (call to getApprovedFunctionSelectors function)'
+    )
     return []
   }
 }
