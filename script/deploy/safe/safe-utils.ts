@@ -6,6 +6,8 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
+import { config } from 'dotenv'
+config()
 import {
   Address,
   Chain,
