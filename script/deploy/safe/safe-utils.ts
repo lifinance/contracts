@@ -7,6 +7,7 @@
  */
 
 import { consola } from 'consola'
+import { config } from 'dotenv'
 import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
 import {
   type Account,
@@ -27,6 +28,8 @@ import data from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
+
+config()
 
 const networks: Record<string, { safeAddress: string; status: string }> = data
 
