@@ -61,6 +61,7 @@
     "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
     "deploy-safe": "bun ./script/deploy/safe/deploy-safe.ts",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
+    "detect-evm-version": "bun ./script/deploy/detect-evm-version.ts",
     "execute": "node ./_scripts.js run",
     "fetch-rpcs": "bun ./script/mongoDb/fetch-rpcs.ts",
     "flatten": "forge flatten --output",
