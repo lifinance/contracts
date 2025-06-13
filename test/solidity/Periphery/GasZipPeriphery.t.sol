@@ -20,16 +20,16 @@ contract TestGasZipPeriphery is GasZipPeriphery {
         address owner
     ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator, owner) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function removeDex(address _dex) external {
-        LibAllowList.removeAllowedContract(_dex);
+    function removeFromWhitelist(address _address) external {
+        LibAllowList.removeAllowedContract(_address);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -266,12 +266,12 @@ contract GasZipPeripheryTest is TestBase {
         });
 
         // whitelist gasZipPeriphery and FeeCollector
-        gasZipPeriphery.addDex(address(gasZipPeriphery));
-        gasZipPeriphery.setFunctionApprovalBySignature(
+        gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
+        gasZipPeriphery.setFunctionApprovalBySelector(
             gasZipPeriphery.depositToGasZipERC20.selector
         );
-        gasZipPeriphery.addDex(address(feeCollector));
-        gasZipPeriphery.setFunctionApprovalBySignature(
+        gasZipPeriphery.addToWhitelist(address(feeCollector));
+        gasZipPeriphery.setFunctionApprovalBySelector(
             feeCollector.collectTokenFees.selector
         );
 
@@ -358,8 +358,8 @@ contract GasZipPeripheryTest is TestBase {
         });
 
         // whitelist gasZipPeriphery and FeeCollector
-        gasZipPeriphery.addDex(address(gasZipPeriphery));
-        gasZipPeriphery.setFunctionApprovalBySignature(
+        gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
+        gasZipPeriphery.setFunctionApprovalBySelector(
             gasZipPeriphery.depositToGasZipNative.selector
         );
 
@@ -466,9 +466,9 @@ contract GasZipPeripheryTest is TestBase {
         functionSelectors[1] = _gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = _gnosisBridgeFacet.addDex.selector;
+        functionSelectors[2] = _gnosisBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = _gnosisBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(_gnosisBridgeFacet), functionSelectors);
@@ -476,34 +476,34 @@ contract GasZipPeripheryTest is TestBase {
         _gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
         // whitelist DEXs / Periphery contracts
-        _gnosisBridgeFacet.addDex(address(uniswap));
-        _gnosisBridgeFacet.addDex(address(gasZipPeriphery));
-        _gnosisBridgeFacet.addDex(address(feeCollector));
+        _gnosisBridgeFacet.addToWhitelist(address(uniswap));
+        _gnosisBridgeFacet.addToWhitelist(address(gasZipPeriphery));
+        _gnosisBridgeFacet.addToWhitelist(address(feeCollector));
 
         // add function selectors for GasZipPeriphery
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             gasZipPeriphery.depositToGasZipERC20.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             gasZipPeriphery.depositToGasZipNative.selector
         );
 
         // add function selectors for FeeCollector
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             feeCollector.collectTokenFees.selector
         );
 
         // add function selectors for Uniswap
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySignature(
+        _gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactETHForTokens.selector
         );
 

@@ -13,9 +13,9 @@ contract UpdateScriptBase is ScriptBase {
 
     error InvalidHexDigit(uint8 d);
 
-    struct FunctionSignature {
+    struct FunctionSelector {
         string name;
-        bytes sig;
+        bytes selector;
     }
 
     struct Approval {
@@ -228,20 +228,22 @@ contract UpdateScriptBase is ScriptBase {
         json = vm.readFile(path);
         address refundWallet = json.readAddress(".refundWallet");
 
-        // get function signatures that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(".approvedSigsForRefundWallet");
-
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSignature[])
+        // get function selectors that should be approved for refundWallet
+        bytes memory rawConfig = json.parseRaw(
+            ".approvedSelectorsForRefundWallet"
         );
 
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
+        // parse raw data from config into FunctionSelector array
+        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSelector[])
+        );
+
+        // go through array with function selectors
+        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
             // Register refundWallet as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
+                bytes4(funcSelectorsToBeApproved[i].selector),
                 refundWallet,
                 true
             );
@@ -254,22 +256,22 @@ contract UpdateScriptBase is ScriptBase {
         json = vm.readFile(path);
         address refundWallet = json.readAddress(".deployerWallet");
 
-        // get function signatures that should be approved for refundWallet
+        // get function selectors that should be approved for refundWallet
         bytes memory rawConfig = json.parseRaw(
-            ".approvedSigsForDeployerWallet"
+            ".approvedSelectorsForDeployerWallet"
         );
 
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
+        // parse raw data from config into FunctionSelector array
+        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
             rawConfig,
-            (FunctionSignature[])
+            (FunctionSelector[])
         );
 
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
+        // go through array with function selectors
+        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
             // Register refundWallet as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
+                bytes4(funcSelectorsToBeApproved[i].selector),
                 refundWallet,
                 true
             );

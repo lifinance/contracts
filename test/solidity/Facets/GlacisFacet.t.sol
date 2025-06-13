@@ -13,12 +13,12 @@ import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameN
 contract TestGlacisFacet is GlacisFacet {
     constructor(IGlacisAirlift _airlift) GlacisFacet(_airlift) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -54,21 +54,21 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         functionSelectors[1] = glacisFacet
             .swapAndStartBridgeTokensViaGlacis
             .selector;
-        functionSelectors[2] = glacisFacet.addDex.selector;
+        functionSelectors[2] = glacisFacet.addToWhitelist.selector;
         functionSelectors[3] = glacisFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
-        glacisFacet.addDex(ADDRESS_UNISWAP);
-        glacisFacet.setFunctionApprovalBySignature(
+        glacisFacet.addToWhitelist(ADDRESS_UNISWAP);
+        glacisFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        glacisFacet.setFunctionApprovalBySignature(
+        glacisFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        glacisFacet.setFunctionApprovalBySignature(
+        glacisFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         _facetTestContractAddress = address(glacisFacet);

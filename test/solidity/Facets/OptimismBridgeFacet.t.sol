@@ -8,12 +8,12 @@ import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed
 
 // Stub OptimismBridgeFacet Contract
 contract TestOptimismBridgeFacet is OptimismBridgeFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -58,9 +58,9 @@ contract OptimismBridgeFacetTest is TestBase {
             .swapAndStartBridgeTokensViaOptimismBridge
             .selector;
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
-        functionSelectors[3] = optimismBridgeFacet.addDex.selector;
+        functionSelectors[3] = optimismBridgeFacet.addToWhitelist.selector;
         functionSelectors[4] = optimismBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
@@ -75,11 +75,11 @@ contract OptimismBridgeFacetTest is TestBase {
             IL1StandardBridge(STANDARD_BRIDGE)
         );
 
-        optimismBridgeFacet.addDex(address(uniswap));
-        optimismBridgeFacet.setFunctionApprovalBySignature(
+        optimismBridgeFacet.addToWhitelist(address(uniswap));
+        optimismBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        optimismBridgeFacet.setFunctionApprovalBySignature(
+        optimismBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

@@ -11,12 +11,12 @@ import { LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -49,10 +49,8 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
-        functionSelectors[4] = hopFacet.addDex.selector;
-        functionSelectors[5] = hopFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[4] = hopFacet.addToWhitelist.selector;
+        functionSelectors[5] = hopFacet.setFunctionApprovalBySelector.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
@@ -64,14 +62,14 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet = TestHopFacet(address(diamond));
         hopFacet.initHop(configs);
 
-        hopFacet.addDex(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.addToWhitelist(address(uniswap));
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
@@ -242,9 +240,9 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
-        functionSelectors[4] = hopFacet2.addDex.selector;
+        functionSelectors[4] = hopFacet2.addToWhitelist.selector;
         functionSelectors[5] = hopFacet2
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);

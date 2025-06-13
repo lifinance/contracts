@@ -12,12 +12,12 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 contract TestMayanFacet is MayanFacet {
     constructor(IMayan _bridge) MayanFacet(_bridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -110,21 +110,21 @@ contract MayanFacetTest is TestBaseFacet {
         functionSelectors[1] = mayanBridgeFacet
             .swapAndStartBridgeTokensViaMayan
             .selector;
-        functionSelectors[2] = mayanBridgeFacet.addDex.selector;
+        functionSelectors[2] = mayanBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = mayanBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
         mayanBridgeFacet = TestMayanFacet(address(diamond));
-        mayanBridgeFacet.addDex(ADDRESS_UNISWAP);
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
+        mayanBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

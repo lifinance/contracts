@@ -10,12 +10,12 @@ import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 contract TestThorSwapFacet is ThorSwapFacet {
     constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -38,22 +38,22 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[1] = thorSwapFacet
             .swapAndStartBridgeTokensViaThorSwap
             .selector;
-        functionSelectors[2] = thorSwapFacet.addDex.selector;
+        functionSelectors[2] = thorSwapFacet.addToWhitelist.selector;
         functionSelectors[3] = thorSwapFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        thorSwapFacet.addDex(ADDRESS_UNISWAP);
-        thorSwapFacet.setFunctionApprovalBySignature(
+        thorSwapFacet.addToWhitelist(ADDRESS_UNISWAP);
+        thorSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        thorSwapFacet.setFunctionApprovalBySignature(
+        thorSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        thorSwapFacet.setFunctionApprovalBySignature(
+        thorSwapFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

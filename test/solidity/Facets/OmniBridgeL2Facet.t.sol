@@ -13,12 +13,12 @@ contract TestOmniBridgeFacet is OmniBridgeFacet {
         IOmniBridge _wethOmniBridge
     ) OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -57,23 +57,23 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
         functionSelectors[1] = omniBridgeFacet
             .swapAndStartBridgeTokensViaOmniBridge
             .selector;
-        functionSelectors[2] = omniBridgeFacet.addDex.selector;
+        functionSelectors[2] = omniBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = omniBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(omniBridgeFacet), functionSelectors);
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
-        omniBridgeFacet.addDex(address(uniswap));
-        omniBridgeFacet.setFunctionApprovalBySignature(
+        omniBridgeFacet.addToWhitelist(address(uniswap));
+        omniBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        omniBridgeFacet.setFunctionApprovalBySignature(
+        omniBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        omniBridgeFacet.setFunctionApprovalBySignature(
+        omniBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 

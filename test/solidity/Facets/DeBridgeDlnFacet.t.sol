@@ -12,12 +12,12 @@ import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol"
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
     constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -58,9 +58,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[1] = deBridgeDlnFacet
             .swapAndStartBridgeTokensViaDeBridgeDln
             .selector;
-        functionSelectors[2] = deBridgeDlnFacet.addDex.selector;
+        functionSelectors[2] = deBridgeDlnFacet.addToWhitelist.selector;
         functionSelectors[3] = deBridgeDlnFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         functionSelectors[4] = deBridgeDlnFacet.setDeBridgeChainId.selector;
         functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
@@ -68,14 +68,14 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
-        deBridgeDlnFacet.addDex(ADDRESS_UNISWAP);
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
+        deBridgeDlnFacet.addToWhitelist(ADDRESS_UNISWAP);
+        deBridgeDlnFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
+        deBridgeDlnFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
+        deBridgeDlnFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

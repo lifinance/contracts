@@ -14,12 +14,12 @@ contract TestGnosisBridgeFacet is GnosisBridgeFacet {
         IGnosisBridgeRouter _xDaiBridge
     ) GnosisBridgeFacet(_xDaiBridge) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -57,23 +57,23 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = gnosisBridgeFacet.addDex.selector;
+        functionSelectors[2] = gnosisBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = gnosisBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        gnosisBridgeFacet.addDex(address(uniswap));
-        gnosisBridgeFacet.setFunctionApprovalBySignature(
+        gnosisBridgeFacet.addToWhitelist(address(uniswap));
+        gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        gnosisBridgeFacet.setFunctionApprovalBySignature(
+        gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        gnosisBridgeFacet.setFunctionApprovalBySignature(
+        gnosisBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

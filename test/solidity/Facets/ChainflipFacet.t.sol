@@ -15,12 +15,12 @@ contract TestChainflipFacet is ChainflipFacet {
         address _chainflipVault
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -54,21 +54,21 @@ contract ChainflipFacetTest is TestBaseFacet {
         functionSelectors[1] = chainflipFacet
             .swapAndStartBridgeTokensViaChainflip
             .selector;
-        functionSelectors[2] = chainflipFacet.addDex.selector;
+        functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
         functionSelectors[3] = chainflipFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
-        chainflipFacet.addDex(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
+        chainflipFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

@@ -24,12 +24,12 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
         )
     {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -119,22 +119,22 @@ contract CelerIMFacetTest is TestBaseFacet {
         functionSelectors[1] = celerIMFacet
             .swapAndStartBridgeTokensViaCelerIM
             .selector;
-        functionSelectors[2] = celerIMFacet.addDex.selector;
+        functionSelectors[2] = celerIMFacet.addToWhitelist.selector;
         functionSelectors[3] = celerIMFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(celerIMFacet), functionSelectors);
 
         celerIMFacet = TestCelerIMFacet(address(diamond));
-        celerIMFacet.addDex(address(uniswap));
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.addToWhitelist(address(uniswap));
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(celerIMFacet), "cBridgeFacet");

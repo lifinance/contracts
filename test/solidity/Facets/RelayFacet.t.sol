@@ -22,12 +22,12 @@ contract TestRelayFacet is RelayFacet {
         address _relaySolver
     ) RelayFacet(_relayReceiver, _relaySolver) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 
     function getMappedChainId(
@@ -60,23 +60,23 @@ contract RelayFacetTest is TestBaseFacet {
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
             .selector;
-        functionSelectors[2] = relayFacet.addDex.selector;
+        functionSelectors[2] = relayFacet.addToWhitelist.selector;
         functionSelectors[3] = relayFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
-        relayFacet.addDex(ADDRESS_UNISWAP);
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.addToWhitelist(ADDRESS_UNISWAP);
+        relayFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

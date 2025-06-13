@@ -13,12 +13,12 @@ contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
         address _usdc
     ) CelerCircleBridgeFacet(_circleBridgeProxy, _usdc) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -49,23 +49,23 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = celerCircleBridgeFacet
             .swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[2] = celerCircleBridgeFacet.addDex.selector;
+        functionSelectors[2] = celerCircleBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = celerCircleBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
-        celerCircleBridgeFacet.addDex(address(uniswap));
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.addToWhitelist(address(uniswap));
+        celerCircleBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

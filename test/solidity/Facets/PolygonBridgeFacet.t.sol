@@ -13,12 +13,12 @@ contract TestPolygonBridgeFacet is PolygonBridgeFacet {
         address _erc20Predicate
     ) PolygonBridgeFacet(_rootChainManager, _erc20Predicate) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -48,20 +48,20 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = polygonBridgeFacet
             .swapAndStartBridgeTokensViaPolygonBridge
             .selector;
-        functionSelectors[2] = polygonBridgeFacet.addDex.selector;
+        functionSelectors[2] = polygonBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = polygonBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
-        polygonBridgeFacet.addDex(address(uniswap));
-        polygonBridgeFacet.setFunctionApprovalBySignature(
+        polygonBridgeFacet.addToWhitelist(address(uniswap));
+        polygonBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        polygonBridgeFacet.setFunctionApprovalBySignature(
+        polygonBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 

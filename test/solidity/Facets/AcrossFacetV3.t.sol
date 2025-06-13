@@ -17,12 +17,12 @@ contract TestAcrossFacetV3 is AcrossFacetV3 {
         IAcrossSpokePool _spokePool
     ) AcrossFacetV3(_spokePool, ADDRESS_WETH) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionApprovalBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -51,21 +51,21 @@ contract AcrossFacetV3Test is TestBaseFacet {
         functionSelectors[1] = acrossFacetV3
             .swapAndStartBridgeTokensViaAcrossV3
             .selector;
-        functionSelectors[2] = acrossFacetV3.addDex.selector;
+        functionSelectors[2] = acrossFacetV3.addToWhitelist.selector;
         functionSelectors[3] = acrossFacetV3
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
-        acrossFacetV3.addDex(ADDRESS_UNISWAP);
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.addToWhitelist(ADDRESS_UNISWAP);
+        acrossFacetV3.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 
