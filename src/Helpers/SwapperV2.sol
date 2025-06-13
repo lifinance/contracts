@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -33,35 +33,8 @@ contract SwapperV2 is ILiFi {
         address payable _leftoverReceiver,
         uint256[] memory _initialBalances
     ) {
-        uint256 numSwaps = _swaps.length;
-        if (numSwaps != 1) {
-            address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
-            uint256 curBalance;
-
-            _;
-
-            for (uint256 i = 0; i < numSwaps - 1; ) {
-                address curAsset = _swaps[i].receivingAssetId;
-                // Handle multi-to-one swaps
-                if (curAsset != finalAsset) {
-                    curBalance =
-                        LibAsset.getOwnBalance(curAsset) -
-                        _initialBalances[i];
-                    if (curBalance > 0) {
-                        LibAsset.transferAsset(
-                            curAsset,
-                            _leftoverReceiver,
-                            curBalance
-                        );
-                    }
-                }
-                unchecked {
-                    ++i;
-                }
-            }
-        } else {
-            _;
-        }
+        _;
+        _handleLeftovers(_swaps, _leftoverReceiver, _initialBalances, 0);
     }
 
     /// @dev Sends any leftover balances back to the user reserving native tokens
@@ -69,44 +42,20 @@ contract SwapperV2 is ILiFi {
     /// @param _swaps Swap data array
     /// @param _leftoverReceiver Address to send leftover tokens to
     /// @param _initialBalances Array of initial token balances
+    /// @param _nativeReserve Amount of native token to prevent from being swept
     modifier noLeftoversReserve(
         LibSwap.SwapData[] calldata _swaps,
         address payable _leftoverReceiver,
         uint256[] memory _initialBalances,
         uint256 _nativeReserve
     ) {
-        uint256 numSwaps = _swaps.length;
-        if (numSwaps != 1) {
-            address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
-            uint256 curBalance;
-
-            _;
-
-            for (uint256 i = 0; i < numSwaps - 1; ) {
-                address curAsset = _swaps[i].receivingAssetId;
-                // Handle multi-to-one swaps
-                if (curAsset != finalAsset) {
-                    curBalance =
-                        LibAsset.getOwnBalance(curAsset) -
-                        _initialBalances[i];
-                    uint256 reserve = LibAsset.isNativeAsset(curAsset)
-                        ? _nativeReserve
-                        : 0;
-                    if (curBalance > 0) {
-                        LibAsset.transferAsset(
-                            curAsset,
-                            _leftoverReceiver,
-                            curBalance - reserve
-                        );
-                    }
-                }
-                unchecked {
-                    ++i;
-                }
-            }
-        } else {
-            _;
-        }
+        _;
+        _handleLeftovers(
+            _swaps,
+            _leftoverReceiver,
+            _initialBalances,
+            _nativeReserve
+        );
     }
 
     /// @dev Refunds any excess native asset sent to the contract after the main function
@@ -156,6 +105,7 @@ contract SwapperV2 is ILiFi {
         uint256[] memory initialBalances = _fetchBalances(_swaps);
 
         LibAsset.depositAssets(_swaps);
+
         _executeSwaps(
             _transactionId,
             _swaps,
@@ -202,12 +152,14 @@ contract SwapperV2 is ILiFi {
         uint256[] memory initialBalances = _fetchBalances(_swaps);
 
         LibAsset.depositAssets(_swaps);
-        ReserveData memory rd = ReserveData(
-            _transactionId,
-            _leftoverReceiver,
-            _nativeReserve
-        );
-        _executeSwaps(rd, _swaps, initialBalances);
+
+        ReserveData memory reserveData = ReserveData({
+            transactionId: _transactionId,
+            leftoverReceiver: _leftoverReceiver,
+            nativeReserve: _nativeReserve
+        });
+
+        _executeSwaps(reserveData, _swaps, initialBalances);
 
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId) -
             initialBalance;
@@ -260,6 +212,7 @@ contract SwapperV2 is ILiFi {
     /// @dev Executes swaps and checks that DEXs used are in the allowList
     /// @param _reserveData Data passed used to reserve native tokens
     /// @param _swaps Array of data used to execute swaps
+    /// @param _initialBalances Array of initial balances
     function _executeSwaps(
         ReserveData memory _reserveData,
         LibSwap.SwapData[] calldata _swaps,
@@ -299,7 +252,7 @@ contract SwapperV2 is ILiFi {
     /// @return uint256[] Array of token balances.
     function _fetchBalances(
         LibSwap.SwapData[] calldata _swaps
-    ) private view returns (uint256[] memory) {
+    ) internal view returns (uint256[] memory) {
         uint256 numSwaps = _swaps.length;
         uint256[] memory balances = new uint256[](numSwaps);
         address asset;
@@ -317,5 +270,69 @@ contract SwapperV2 is ILiFi {
         }
 
         return balances;
+    }
+
+    /// @dev Handles leftover tokens after swaps complete
+    /// @param _swaps Swap data array
+    /// @param _leftoverReceiver Address to send leftover tokens to
+    /// @param _initialBalances Array of initial token balances
+    /// @param _nativeReserve Amount of native token to prevent from being swept (0 for no reserve)
+    function _handleLeftovers(
+        LibSwap.SwapData[] calldata _swaps,
+        address payable _leftoverReceiver,
+        uint256[] memory _initialBalances,
+        uint256 _nativeReserve
+    ) private {
+        uint256 numSwaps = _swaps.length;
+        address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
+
+        if (numSwaps != 1) {
+            uint256 curBalance;
+
+            for (uint256 i = 0; i < numSwaps - 1; ) {
+                address curAsset = _swaps[i].receivingAssetId;
+                // Handle multi-to-one swaps
+                if (curAsset != finalAsset) {
+                    curBalance =
+                        LibAsset.getOwnBalance(curAsset) -
+                        _initialBalances[i];
+                    uint256 reserve = LibAsset.isNativeAsset(curAsset)
+                        ? _nativeReserve
+                        : 0;
+                    if (curBalance > reserve) {
+                        LibAsset.transferAsset(
+                            curAsset,
+                            _leftoverReceiver,
+                            curBalance - reserve
+                        );
+                    }
+                }
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // Handle leftover input tokens (but never sweep the final receiving asset)
+        for (uint256 i = 0; i < numSwaps; ) {
+            address inputAsset = _swaps[i].sendingAssetId;
+            uint256 currentInputBalance = LibAsset.getOwnBalance(inputAsset);
+            uint256 reserve = LibAsset.isNativeAsset(inputAsset)
+                ? _nativeReserve
+                : 0;
+
+            // Only transfer leftovers if there's actually a balance remaining after reserve
+            // and if it's not the final receiving asset (which should be kept for bridging)
+            if (currentInputBalance > reserve && inputAsset != finalAsset) {
+                LibAsset.transferAsset(
+                    inputAsset,
+                    _leftoverReceiver,
+                    currentInputBalance - reserve
+                );
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
