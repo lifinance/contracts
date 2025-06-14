@@ -1417,7 +1417,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Helper function to build the multi-hop route for test
     function _buildMultiHopRouteForTest(
         MultiHopTestState memory state
-    ) private returns (bytes memory) {
+    ) private view returns (bytes memory) {
         bytes memory firstHop = _buildAlgebraRoute(
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
@@ -1562,7 +1562,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Helper function to build route for Apechain Algebra swap
     function _buildAlgebraRoute(
         AlgebraRouteParams memory params
-    ) internal returns (bytes memory route) {
+    ) internal view returns (bytes memory route) {
         address token0 = IAlgebraPool(params.pool).token0();
         bool zeroForOne = (params.tokenIn == token0);
         SwapDirection direction = zeroForOne

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestToken as ERC20 } from "./TestToken.sol";
+import { ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
 
 contract TestAMM {
     function swap(
@@ -14,7 +15,10 @@ contract TestAMM {
             _fromToken.transferFrom(msg.sender, address(this), _amountIn);
             _fromToken.burn(address(this), _amountIn);
         } else {
-            payable(address(0xd34d)).call{ value: msg.value }("");
+            (bool success, ) = payable(address(0xd34d)).call{
+                value: msg.value
+            }("");
+            if (!success) revert ExternalCallFailed();
         }
 
         _toToken.mint(msg.sender, _amountOut);

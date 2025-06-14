@@ -10,6 +10,8 @@ contract DeployScript is Script {
         public
         returns (CREATE3Factory deployed, bytes memory constructorArgs)
     {
+        constructorArgs = "";
+
         uint256 deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
 
         vm.startBroadcast(deployerPrivateKey);
