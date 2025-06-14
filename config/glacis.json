@@ -26,6 +26,12 @@
   "corn": {
     "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
+  "etherlink": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "flare": {
+    "airlift": "0x0905E21AEf470adEf9Cf9dCf7922431610c875b5"
+  },
   "gnosis": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
