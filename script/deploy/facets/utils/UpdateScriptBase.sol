@@ -15,7 +15,7 @@ contract UpdateScriptBase is ScriptBase {
 
     struct FunctionSelector {
         string name;
-        bytes selector;
+        bytes4 selector;
     }
 
     struct Approval {
