@@ -1461,7 +1461,7 @@ function verifyContract() {
   fi
 
   # Get API key and determine verification method
-  API_KEY=$(getEtherscanApiKey "$NETWORK")
+  API_KEY=$(getEtherscanApiKeyName "$NETWORK")
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
@@ -1531,38 +1531,38 @@ function verifyContract() {
   fi
 }
 
-function getEtherscanApiKey() {
-  local network="$1"
-  local toml_file="foundry.toml"
+function getEtherscanApiKeyName() {
+  local NETWORK="$1"
+  local TOML_FILE="foundry.toml"
 
-  if [[ -z "$network" ]]; then
-    echo "Usage: getEtherscanApiKey <network>" >&2
+  if [[ -z "$NETWORK" ]]; then
+    echo "Usage: getEtherscanApiKeyName <network>" >&2
     return 1
   fi
 
   # Extract the line with the API key for the given network
-  local key_line
-  key_line=$(awk -v net="$network" '
+  local KEY_LINE
+  KEY_LINE=$(awk -v net="$NETWORK" '
     $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
     in_etherscan && /^\[/ { in_etherscan=0 }
     in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
-  ' "$toml_file")
+  ' "$TOML_FILE")
 
-  if [[ -z "$key_line" ]]; then
-    echo "Error: Could not find [etherscan].$network section in foundry.toml" >&2
+  if [[ -z "$KEY_LINE" ]]; then
+    echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
     return 1
   fi
 
   # extract the key for the environment variable
-  local env_var
-  env_var=$(echo "$key_line" | sed -n 's/.*key *= *"\${\([^}]*\)}.*/\1/p')
+  local ENV_VAR
+  ENV_VAR=$(echo "$KEY_LINE" | sed -n 's/.*key *= *"\${\([^}]*\)}.*/\1/p')
 
-  if [[ -z "$env_var" ]]; then
-    echo "Error: Could not extract environment variable from key line: $key_line" >&2
+  if [[ -z "$ENV_VAR" ]]; then
+    echo "Error: Could not extract environment variable from key line: $KEY_LINE" >&2
     return 1
   fi
 
-  echo "$env_var"
+  echo "$ENV_VAR"
 }
 
 function verifyAllUnverifiedContractsInLogFile() {
