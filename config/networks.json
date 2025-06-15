@@ -762,7 +762,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
   },
   "polygon": {
     "name": "polygon",
