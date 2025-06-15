@@ -44,6 +44,10 @@
       "0x7dAd7568c01d8dD014D898ab016e0C5FC0a640e6": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x5240883FEB3018d33E19754380c3AE49DDdcD128": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -51,6 +55,7 @@
       "Executor": "0x163525250f606cf36cBeE4eBAC9518F27205dE05",
       "FeeCollector": "0x4827499a632e43074A93Fd2ADa3637A76B2d2347",
       "GasZipPeriphery": "0xC565aC103BA83bdCaA02571616659991d5EF35a7",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3450fA3ffbe594e8fA6850cACB0d0fa8Da49f099",
       "Permit2Proxy": "0xd8BC720ed544eB679ddDaDE1164F71069912e343",
       "ReceiverAcrossV3": "",
