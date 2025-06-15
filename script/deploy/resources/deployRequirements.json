@@ -498,7 +498,7 @@
   },
   "PioneerFacet": {
     "configData": {
-      "pioneerAddress": {
+      "_pioneerAddress": {
         "configFileName": "pioneer.json",
         "keyInConfigFile": ".pioneerEOA",
         "allowToDeployWithZeroAddress": "false"
