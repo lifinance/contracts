@@ -1,3 +1,6 @@
+import { RetryableDataTools } from '@arbitrum/sdk'
+import { L1ToL2MessageGasEstimator } from '@arbitrum/sdk/dist/lib/message/L1ToL2MessageGasEstimator'
+import chalk from 'chalk'
 import {
   providers,
   Wallet,
@@ -6,16 +9,14 @@ import {
   Contract,
   BigNumber,
 } from 'ethers'
-import { L1ToL2MessageGasEstimator } from '@arbitrum/sdk/dist/lib/message/L1ToL2MessageGasEstimator'
-import { RetryableDataTools } from '@arbitrum/sdk'
+
+import config from '../../config/arbitrumBridge.json'
 import {
   ArbitrumBridgeFacet__factory,
   ERC20__factory,
   IGatewayRouter__factory,
-} from '../typechain'
-import { node_url } from '../../utils/network'
-import chalk from 'chalk'
-import config from '../config/arbitrum'
+} from '../../typechain'
+import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

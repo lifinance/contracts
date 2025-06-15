@@ -1,19 +1,21 @@
-import deployments from '../../deployments/arbitrum.staging.json'
 import {
+  type Quote,
   fetchQuote,
   getSwapFromEvmTxPayload,
-  Quote,
 } from '@mayanfinance/swap-sdk'
+import { config } from 'dotenv'
+import { ethers, utils, constants } from 'ethers'
+
+import deployments from '../../deployments/arbitrum.staging.json'
 import {
   MayanFacet__factory,
-  ILiFi,
-  type MayanFacet,
   ERC20__factory,
   IMayan__factory,
+  type ILiFi,
+  type MayanFacet,
 } from '../../typechain'
-import { ethers, utils, constants } from 'ethers'
-import dotenv from 'dotenv'
-dotenv.config()
+
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM
