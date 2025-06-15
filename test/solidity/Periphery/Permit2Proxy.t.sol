@@ -66,10 +66,8 @@ contract MockPermitTokenRequireRevert is BaseMockPermitToken {
 
 contract MockPermitTokenAdditionOverflow is BaseMockPermitToken {
     function _permit() internal pure override {
-        unchecked {
-            uint256 max = type(uint256).max;
-            max + 1; // runtime overflow → Panic(0x11)
-        }
+        uint256 max = type(uint256).max;
+        max + 1; // runtime overflow → Panic(0x11)
     }
 }
 
