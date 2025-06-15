@@ -54,10 +54,14 @@ deployAllContracts() {
   local DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
   # add RPC URL to MongoDB
-  echo ""
-  echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
-  bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
-  bun fetch-rpcs
+  # only add the RPC URL if no CREATE3Factory is deployed yet (if a CREATE3Factory is deployed that means we added an RPC already before)
+  CREATE3_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.create3Factory")
+  if [[ -z "$CREATE3_ADDRESS" || "$CREATE3_ADDRESS" == "null" ]]; then
+    echo ""
+    echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
+    bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
+    bun fetch-rpcs
+  fi
 
   # get deployer wallet balance
   BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
@@ -72,15 +76,23 @@ deployAllContracts() {
   checkRequiredVariablesInDotEnv "$NETWORK"
 
   # deploy CREATE3Factory
-  deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
-  checkFailure $? "deploy CREATE3Factory to network $NETWORK"
-  echo ""
+  if [[ -z "$CREATE3_ADDRESS" || "$CREATE3_ADDRESS" == "null" ]]; then
+    deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
+    checkFailure $? "deploy CREATE3Factory to network $NETWORK"
+    echo ""
+  else
+    echo "CREATE3Factory already deployed for $NETWORK (address: $CREATE3_ADDRESS), skipping CREATE3Factory deployment."
+  fi
 
   # deploy SAFE
-  echo ""
-  echo "Deploying SAFE Proxy instance now"
-  bun deploy-safe --network "$NETWORK"
-  checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAdress")
+  if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
+    bun deploy-safe --network "$NETWORK"
+    checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
+  else
+    echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
+  fi
 
   # deploy core facets
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"
