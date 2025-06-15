@@ -2,22 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub HopFacet Contract
-contract TestHopFacet is HopFacetOptimized {
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
-}
+contract TestHopFacet is HopFacetOptimized, TestWhitelistManagerBase {}
 
 contract HopFacetOptimizedL1Test is TestBaseFacet {
     // These values are for Mainnet

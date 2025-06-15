@@ -6,38 +6,19 @@ import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
-contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
+contract TestGenericSwapFacetV3 is
+    GenericSwapFacetV3,
+    GenericSwapFacet,
+    TestWhitelistManagerBase
+{
     constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function removeFromWhitelist(address _address) external {
-        LibAllowList.removeAllowedContract(_address);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
-contract TestGenericSwapFacet is GenericSwapFacet {
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function removeFromWhitelist(address _address) external {
-        LibAllowList.removeAllowedContract(_address);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
-}
+contract TestGenericSwapFacet is GenericSwapFacet, TestWhitelistManagerBase {}
 
 contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     using SafeTransferLib for ERC20;

@@ -2,26 +2,18 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacet Contract
-contract TestAcrossFacet is AcrossFacet {
+contract TestAcrossFacet is AcrossFacet, TestWhitelistManagerBase {
     address internal constant ADDRESS_WRAPPED_NATIVE =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(
         IAcrossSpokePool _spokePool
     ) AcrossFacet(_spokePool, ADDRESS_WRAPPED_NATIVE) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract AcrossFacetTest is TestBaseFacet {

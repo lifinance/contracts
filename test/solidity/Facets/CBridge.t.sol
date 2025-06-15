@@ -3,22 +3,14 @@ pragma solidity ^0.8.17;
 
 import { LibSwap, TestBaseFacet, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet {
+contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 interface Ownable {

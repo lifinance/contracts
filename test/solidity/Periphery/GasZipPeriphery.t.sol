@@ -4,33 +4,21 @@ pragma solidity ^0.8.17;
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
 import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
-contract TestGasZipPeriphery is GasZipPeriphery {
+contract TestGasZipPeriphery is GasZipPeriphery, TestWhitelistManagerBase {
     constructor(
         address gasZipRouter,
         address liFiDEXAggregator,
         address owner
     ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator, owner) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function removeFromWhitelist(address _address) external {
-        LibAllowList.removeAllowedContract(_address);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract GasZipPeripheryTest is TestBase {

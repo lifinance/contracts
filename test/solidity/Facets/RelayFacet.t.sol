@@ -2,10 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 contract Reverter {
     error AlwaysReverts();
@@ -16,19 +16,11 @@ contract Reverter {
 }
 
 // Stub RelayFacet Contract
-contract TestRelayFacet is RelayFacet {
+contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
     constructor(
         address _relayReceiver,
         address _relaySolver
     ) RelayFacet(_relayReceiver, _relaySolver) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 
     function getMappedChainId(
         uint256 chainId

@@ -5,20 +5,12 @@ import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { LibAllowList, TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet {
+contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract CBridgeAndFeeCollectionTest is TestBase {

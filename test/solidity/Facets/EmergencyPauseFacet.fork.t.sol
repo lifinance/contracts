@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { OnlyContractOwner, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
@@ -9,18 +9,14 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub EmergencyPauseFacet Contract
-contract TestEmergencyPauseFacet is EmergencyPauseFacet {
+contract TestEmergencyPauseFacet is
+    EmergencyPauseFacet,
+    TestWhitelistManagerBase
+{
     constructor(address _pauserWallet) EmergencyPauseFacet(_pauserWallet) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract EmergencyPauseFacetPRODTest is TestBase {

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InformationMismatch } from "src/Errors/GenericErrors.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
@@ -11,18 +11,10 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
 // Stub StargateFacetV2 Contract
-contract TestStargateFacetV2 is StargateFacetV2 {
+contract TestStargateFacetV2 is StargateFacetV2, TestWhitelistManagerBase {
     constructor(
         address _tokenMessagingAddress
     ) StargateFacetV2(_tokenMessagingAddress) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract StargateFacetV2Test is TestBaseFacet {

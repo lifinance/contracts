@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub PolygonBridgeFacet Contract
-contract TestPolygonBridgeFacet is PolygonBridgeFacet {
+contract TestPolygonBridgeFacet is
+    PolygonBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         IRootChainManager _rootChainManager,
         address _erc20Predicate
     ) PolygonBridgeFacet(_rootChainManager, _erc20Predicate) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract PolygonBridgeFacetTest is TestBaseFacet {

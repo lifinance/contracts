@@ -3,24 +3,16 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { TransferFromFailed, InvalidConfig, InvalidSendingToken } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GnosisBridgeFacet Contract
-contract TestGnosisBridgeFacet is GnosisBridgeFacet {
+contract TestGnosisBridgeFacet is GnosisBridgeFacet, TestWhitelistManagerBase {
     constructor(
         IGnosisBridgeRouter _xDaiBridge
     ) GnosisBridgeFacet(_xDaiBridge) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract GnosisBridgeFacetTest is TestBaseFacet {

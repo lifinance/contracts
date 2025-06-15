@@ -2,23 +2,15 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub DeBridgeDlnFacet Contract
-contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
+contract TestDeBridgeDlnFacet is DeBridgeDlnFacet, TestWhitelistManagerBase {
     constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract DeBridgeDlnFacetTest is TestBaseFacet {

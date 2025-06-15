@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
 import { ICircleBridgeProxy } from "lifi/Interfaces/ICircleBridgeProxy.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CelerCircleBridgeFacet Contract
-contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
+contract TestCelerCircleBridgeFacet is
+    CelerCircleBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         ICircleBridgeProxy _circleBridgeProxy,
         address _usdc
     ) CelerCircleBridgeFacet(_circleBridgeProxy, _usdc) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract CelerCircleBridgeFacetTest is TestBaseFacet {

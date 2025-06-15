@@ -3,19 +3,15 @@ pragma solidity ^0.8.17;
 
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
-import { LibAllowList, LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
+import { LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
 import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub OptimismBridgeFacet Contract
-contract TestOptimismBridgeFacet is OptimismBridgeFacet {
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
-}
+contract TestOptimismBridgeFacet is
+    OptimismBridgeFacet,
+    TestWhitelistManagerBase
+{}
 
 contract OptimismBridgeFacetTest is TestBase {
     // These values are for Mainnet

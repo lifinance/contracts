@@ -2,24 +2,16 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub OmniBridgeFacet Contract
-contract TestOmniBridgeFacet is OmniBridgeFacet {
+contract TestOmniBridgeFacet is OmniBridgeFacet, TestWhitelistManagerBase {
     constructor(
         IOmniBridge _foreignOmniBridge,
         IOmniBridge _wethOmniBridge
     ) OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract OmniBridgeFacetTest is TestBaseFacet {

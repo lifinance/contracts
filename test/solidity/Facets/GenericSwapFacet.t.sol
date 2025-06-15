@@ -2,18 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
-import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
-contract TestGenericSwapFacet is GenericSwapFacet {
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
-}
+contract TestGenericSwapFacet is GenericSwapFacet, TestWhitelistManagerBase {}
 
 contract GenericSwapFacetTest is TestBase {
     // These values are for Mainnet

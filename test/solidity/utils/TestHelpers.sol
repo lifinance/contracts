@@ -4,12 +4,7 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockUniswapDEX } from "./MockUniswapDEX.sol";
-
-interface IWhitelistManager {
-    function addToWhitelist(address _contractAddress) external;
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external;
-}
+import { TestWhitelistManagerBase } from "./TestWhitelistManagerBase.sol";
 
 //common utilities for forge tests
 contract TestHelpers is Test {
@@ -53,26 +48,26 @@ contract TestHelpers is Test {
             amountInActual
         );
         // whitelist DEX & function selector
-        IWhitelistManager(diamond).addToWhitelist(address(mockDex));
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).addToWhitelist(address(mockDex));
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.swapTokensForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.swapExactTokensForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.swapETHForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.swapExactETHForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.swapExactTokensForETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.swapTokensForExactETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }

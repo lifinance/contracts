@@ -3,20 +3,12 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ThorSwapFacet Contract
-contract TestThorSwapFacet is ThorSwapFacet {
+contract TestThorSwapFacet is ThorSwapFacet, TestWhitelistManagerBase {
     constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract ThorSwapFacetTest is TestBaseFacet {

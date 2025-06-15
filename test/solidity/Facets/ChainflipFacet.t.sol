@@ -2,26 +2,18 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ChainflipFacet Contract
-contract TestChainflipFacet is ChainflipFacet {
+contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
     constructor(
         address _chainflipVault
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract ChainflipFacetTest is TestBaseFacet {

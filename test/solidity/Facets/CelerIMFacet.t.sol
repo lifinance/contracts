@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CelerIMFacetMutable, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "lifi/Facets/CelerIMFacetMutable.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CelerIMFacet Contract
-contract TestCelerIMFacet is CelerIMFacetMutable {
+contract TestCelerIMFacet is CelerIMFacetMutable, TestWhitelistManagerBase {
     constructor(
         IMessageBus _messageBus,
         address _relayerOwner,
@@ -23,14 +23,6 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
             _cfUSDC
         )
     {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 interface Ownable {

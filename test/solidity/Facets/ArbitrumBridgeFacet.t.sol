@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ArbitrumBridgeFacet Contract
-contract TestArbitrumBridgeFacet is ArbitrumBridgeFacet {
+contract TestArbitrumBridgeFacet is
+    ArbitrumBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         IGatewayRouter _gatewayRouter,
         IGatewayRouter _inbox
     ) ArbitrumBridgeFacet(_gatewayRouter, _inbox) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract ArbitrumBridgeFacetTest is TestBaseFacet {

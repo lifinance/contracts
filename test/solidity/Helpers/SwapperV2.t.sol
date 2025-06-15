@@ -3,11 +3,12 @@ pragma solidity ^0.8.17;
 
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub SwapperV2 Contract
-contract TestSwapperV2 is SwapperV2 {
+contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
         _depositAndSwap(
             "",
@@ -25,14 +26,6 @@ contract TestSwapperV2 is SwapperV2 {
             finalAsset.balanceOf(address(this))
         );
     }
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract SwapperV2Test is TestBase {
@@ -46,8 +39,10 @@ contract SwapperV2Test is TestBase {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = TestSwapperV2.doSwaps.selector;
-        functionSelectors[1] = TestSwapperV2.addToWhitelist.selector;
-        functionSelectors[2] = TestSwapperV2
+        functionSelectors[1] = TestWhitelistManagerBase
+            .addToWhitelist
+            .selector;
+        functionSelectors[2] = TestWhitelistManagerBase
             .setFunctionApprovalBySelector
             .selector;
 

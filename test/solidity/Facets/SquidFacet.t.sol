@@ -2,27 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { SquidFacet } from "lifi/Facets/SquidFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { ISquidRouter } from "lifi/Interfaces/ISquidRouter.sol";
 import { ISquidMulticall } from "lifi/Interfaces/ISquidMulticall.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub SquidFacet Contract
-contract TestSquidFacet is SquidFacet {
+contract TestSquidFacet is SquidFacet, TestWhitelistManagerBase {
     address internal constant ADDRESS_WRAPPED_NATIVE =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(ISquidRouter _squidRouter) SquidFacet(_squidRouter) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
 }
 
 contract SquidFacetTest is TestBaseFacet {
