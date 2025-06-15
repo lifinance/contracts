@@ -5,32 +5,18 @@ import {
   zeroAddress
 } from 'viem'
 import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
-import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import {{camelCase name}}FacetArtifact from '../../out/{{titleCase name}}Facet.sol/{{titleCase name}}Facet.json'
-import { {{titleCase name}}Facet, ILiFi } from '../../typechain'
-import { SupportedChain } from './utils/demoScriptChainConfig'
-import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment } from './utils/demoScriptHelpers'
+import { config } from 'dotenv'
+import { ERC20__factory as ERC20 } from '../../typechain/factories/ERC20__factory'
+import { {{titleCase name}}Facet__factory as {{titleCase name}}Facet } from '../../typechain/factories/{{titleCase name}}Facet.sol/{{titleCase name}}Facet__factory'
+import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment, type SupportedChain } from './utils/demoScriptHelpers'
 
-dotenv.config()
-
-// #region ABIs
-
-const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
-const {{constantCase name}}_FACET_ABI = {{camelCase name}}FacetArtifact.abi as Narrow<typeof {{camelCase name}}FacetArtifact.abi>
+config()
 
 // If you need to import a custom ABI, follow these steps:
 // 
 // First, ensure you import the relevant artifact file:
-// import exampleArtifact from '../../out/{example artifact json file}'
+// import { exampleArtifact__factory } from '../../typechain/factories/{example artifact json file}'
 //
-// Then, define the ABI using `Narrow<typeof exampleArtifact.abi>` for proper type inference:
-// const EXAMPLE_ABI = exampleArtifact.abi as Narrow<typeof exampleArtifact.abi>
-//
-
-// #endregion
-
-dotenv.config()
 
 async function main() {
   // === Set up environment ===
@@ -56,8 +42,8 @@ async function main() {
   // === Instantiate contracts ===
   const srcTokenContract = getContract({
     address: SRC_TOKEN_ADDRESS,
-    abi: ERC20_ABI,
-    client
+    abi: ERC20.abi,
+    client: publicClient
   })
 
   // If you need to interact with a contract, use the following helper. 
