@@ -1,59 +1,27 @@
+import * as fs from 'fs'
+import * as path from 'path'
+
+import { consola } from 'consola'
+import * as dotenv from 'dotenv'
 import {
-  Chain,
   defineChain,
   encodeFunctionData,
   getAddress,
   parseAbi,
-  type Address,
-  type Hex,
+  type Chain,
 } from 'viem'
+
 import networksConfig from '../../config/networks.json'
-import * as dotenv from 'dotenv'
-import * as path from 'path'
-import * as fs from 'fs'
-import consola from 'consola'
-import { privateKeyToAccount } from 'viem/accounts'
-import { createWalletClient, http, createPublicClient } from 'viem'
 import {
-  getNextNonce,
-  getSafeMongoCollection,
-  initializeSafeClient,
-  OperationType,
-  storeTransactionInMongoDB,
-} from '../deploy/safe/safe-utils'
-import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
-import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
+  EnvironmentEnum,
+  type SupportedChain,
+  type INetwork,
+  type INetworksObject,
+} from '../common/types'
+
+import { getDeployments } from './deploymentHelpers'
+
 dotenv.config()
-
-export type NetworksObject = {
-  [key: string]: Omit<Network, 'id'>
-}
-
-export enum Environment {
-  'staging',
-  'production',
-}
-
-export type Network = {
-  name: string
-  chainId: number
-  nativeAddress: string
-  nativeCurrency: string
-  wrappedNativeAddress: string
-  status: string
-  type: string
-  rpcUrl: string
-  verificationType: string
-  explorerUrl: string
-  explorerApiUrl: string
-  multicallAddress: string
-  safeAddress: string
-  deployedWithEvmVersion: string
-  deployedWithSolcVersion: string
-  gasZipChainId: number
-  id: string
-  devNotes?: string
-}
 
 const colors = {
   reset: '\x1b[0m',
@@ -61,7 +29,7 @@ const colors = {
   green: '\x1b[32m',
 }
 
-export const networks: NetworksObject = networksConfig
+export const networks: INetworksObject = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
@@ -100,7 +68,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   return chain
 }
 
-export const getAllNetworksArray = (): Network[] => {
+export const getAllNetworksArray = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = Object.entries(networksConfig).map(([key, value]) => ({
     ...value,
@@ -111,12 +79,12 @@ export const getAllNetworksArray = (): Network[] => {
 }
 
 // removes all networks with "status='inactive'"
-export const getAllActiveNetworks = (): Network[] => {
+export const getAllActiveNetworks = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = getAllNetworksArray()
 
   // Example: Filter networks where status is 'active'
-  const activeNetworks: Network[] = networkArray.filter(
+  const activeNetworks: INetwork[] = networkArray.filter(
     (network) => network.status === 'active'
   )
 
@@ -146,9 +114,8 @@ export const retry = async <T>(
       error: e,
       remainingRetries: retries - 1,
     })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
+    if (retries > 0) return retry(func, retries - 1)
+
     throw e
   }
 }
@@ -162,7 +129,7 @@ export const retry = async <T>(
 export const getContractAddressForNetwork = async (
   contractName: string,
   network: SupportedChain,
-  environment: Environment = Environment.production
+  environment: EnvironmentEnum = EnvironmentEnum.production
 ): Promise<string> => {
   // get network deploy log file
   const deployments = await getDeployments(network, environment)
@@ -197,9 +164,8 @@ export function getFunctionSelectors(
   )
 
   // Ensure the contract file exists
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath))
     throw new Error(`Contract JSON not found at path: ${filePath}`)
-  }
 
   // Load and parse the compiled contract JSON
   const raw = fs.readFileSync(filePath, 'utf8')
@@ -207,9 +173,8 @@ export function getFunctionSelectors(
   const identifiers = json?.methodIdentifiers
 
   // Ensure methodIdentifiers are present in the JSON (these map function signatures to selectors)
-  if (!identifiers) {
+  if (!identifiers)
     throw new Error(`No methodIdentifiers found in contract: ${contractName}`)
-  }
 
   // Clean the exclusion list (remove '0x' prefix and lowercase them for consistent comparison)
   const excludesClean = excludes.map((sel) =>
@@ -238,9 +203,8 @@ export function getDeployLogFile(
   const suffix = environment === 'production' ? '' : `.${environment}`
   const filePath = path.resolve(`deployments/${network}${suffix}.json`)
 
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)
-  }
 
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 }
@@ -290,134 +254,4 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
     functionName: 'registerPeripheryContract',
     args: [name, '0x0000000000000000000000000000000000000000'],
   })
-}
-
-/**
- * Sends the calldata directly to the Diamond (if staging or override enabled),
- * or proposes it to the Safe (if production).
- */
-export async function sendOrPropose({
-  calldata,
-  network,
-  environment,
-  diamondAddress,
-}: {
-  calldata: `0x${string}`
-  network: string
-  environment: 'staging' | 'production'
-  diamondAddress: string
-}) {
-  const isProd = environment === 'production'
-  const sendDirectly =
-    environment === 'staging' ||
-    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-
-  // ───────────── DIRECT TX FLOW ───────────── //
-  if (sendDirectly) {
-    consola.info('📤 Sending transaction directly to the Diamond...')
-
-    const pk = process.env[isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY']
-    if (!pk) throw new Error('Missing private key in environment')
-
-    // add 0x to privKey, if not there already
-    const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`
-    const account = privateKeyToAccount(normalizedPk as `0x${string}`)
-
-    const chain = getViemChainForNetworkName(network)
-
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(),
-    })
-
-    // Use PublicClient to wait for tx
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(),
-    })
-
-    const hash = await walletClient
-      .sendTransaction({
-        to: getAddress(diamondAddress),
-        data: calldata,
-      })
-      .catch((err) => {
-        consola.error('❌ Failed to broadcast tx:', err)
-        throw err
-      })
-
-    consola.info(`⏳ Waiting for tx ${hash} to be mined...`)
-
-    const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
-    if (receipt.status !== 'success')
-      throw new Error(`Tx reverted in block ${receipt.blockNumber}`)
-
-    consola.success(`✅ Tx confirmed in block ${receipt.blockNumber}`)
-
-    return
-  }
-
-  // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.SAFE_SIGNER_PRIVATE_KEY
-  if (!pk) throw new Error('Missing SAFE_SIGNER_PRIVATE_KEY in environment')
-
-  const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
-  consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
-
-  const { client: mongoClient, pendingTransactions } =
-    await getSafeMongoCollection()
-
-  const currentSafeNonce = await safe.getNonce()
-
-  const nextNonce = await getNextNonce(
-    pendingTransactions,
-    safeAddress,
-    network,
-    chain.id,
-    currentSafeNonce
-  )
-
-  const safeTransaction = await safe.createTransaction({
-    transactions: [
-      {
-        to: diamondAddress as Address,
-        value: 0n,
-        data: calldata as Hex,
-        operation: OperationType.Call,
-        nonce: nextNonce,
-      },
-    ],
-  })
-
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
-  consola.info('📝 Safe Address:', safeAddress)
-  consola.info('🧾 Safe Tx Hash:', safeTxHash)
-
-  try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      safe.account
-    )
-
-    if (!result.acknowledged) {
-      throw new Error('MongoDB insert was not acknowledged')
-    }
-
-    consola.success('✅ Safe transaction proposed and stored in MongoDB')
-  } catch (err) {
-    consola.error('❌ Failed to store transaction in MongoDB:', err)
-    await mongoClient.close()
-    throw new Error(`Failed to store transaction in MongoDB: ${err.message}`)
-  }
-
-  await mongoClient.close()
 }

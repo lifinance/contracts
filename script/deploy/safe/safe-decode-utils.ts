@@ -5,8 +5,8 @@
  * particularly for complex transactions like diamond cuts.
  */
 
-import consola from 'consola'
-import { Abi, Hex, parseAbi, toFunctionSelector } from 'viem'
+import { consola } from 'consola'
+import { toFunctionSelector, type Hex } from 'viem'
 
 /**
  * Decodes a diamond cut transaction and displays its details
@@ -39,7 +39,7 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
           `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
         )
 
-        for (const selector of selectors) {
+        for (const selector of selectors)
           try {
             // Find matching function in ABI
             const matchingFunction = resData.abi.find((abiItem: any) => {
@@ -48,20 +48,15 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
               return calculatedSelector === selector
             })
 
-            if (matchingFunction) {
+            if (matchingFunction)
               consola.info(
                 `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
               )
-            } else {
-              consola.warn(`Unknown function [${selector}]`)
-            }
+            else consola.warn(`Unknown function [${selector}]`)
           } catch (error) {
             consola.warn(`Failed to decode selector: ${selector}`)
           }
-        }
-      } else {
-        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
-      }
+      } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
     } catch (error) {
       consola.error(`Error fetching ABI for ${facetAddress}:`, error)
     }
@@ -96,8 +91,6 @@ export async function decodeTransactionData(data: Hex): Promise<{
       responseData.result.function[selector]
     ) {
       const functionName = responseData.result.function[selector][0].name
-      const fullAbiString = `function ${functionName}`
-      const abiInterface = parseAbi([fullAbiString])
 
       try {
         const decodedData = {
