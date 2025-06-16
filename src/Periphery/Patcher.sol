@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
 /// @title Patcher
 /// @author LI.FI (https://li.fi)
@@ -18,26 +18,23 @@ contract Patcher {
     /// @notice Error when a patch offset is invalid
     error InvalidPatchOffset();
 
+    /// @notice Error when a call execution fails
+    error CallExecutionFailed();
+
     /// @notice Helper function to get a dynamic value from an external contract
     /// @param valueSource The contract to query for the dynamic value
     /// @param valueGetter The calldata to use to get the dynamic value
-    /// @return The uint256 value retrieved from the call
+    /// @return dynamicValue The uint256 value retrieved from the call
     function _getDynamicValue(
         address valueSource,
         bytes calldata valueGetter
-    ) internal view returns (uint256) {
+    ) internal view returns (uint256 dynamicValue) {
         (bool valueSuccess, bytes memory valueData) = valueSource.staticcall(
             valueGetter
         );
         if (!valueSuccess) revert FailedToGetDynamicValue();
 
-        uint256 dynamicValue;
-        assembly {
-            // Load the value from the return data
-            dynamicValue := mload(add(valueData, 32))
-        }
-
-        return dynamicValue;
+        dynamicValue = abi.decode(valueData, (uint256));
     }
 
     /// @notice Helper function to apply a patch at a specific offset
@@ -79,6 +76,17 @@ contract Patcher {
             (success, returnData) = finalTarget.call{ value: value }(
                 patchedData
             );
+        }
+
+        if (!success) {
+            // Revert with the returned error data if available
+            if (returnData.length > 0) {
+                assembly {
+                    revert(add(returnData, 32), mload(returnData))
+                }
+            } else {
+                revert CallExecutionFailed();
+            }
         }
     }
 
@@ -161,10 +169,15 @@ contract Patcher {
         uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
 
         // Transfer tokens from msg.sender to this contract
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
 
         // Approve the finalTarget to spend the deposited tokens
-        IERC20(tokenAddress).approve(finalTarget, amount);
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), finalTarget, amount);
 
         return
             _executeWithDynamicPatches(
@@ -203,10 +216,15 @@ contract Patcher {
         uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
 
         // Transfer tokens from msg.sender to this contract
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
 
         // Approve the finalTarget to spend the deposited tokens
-        IERC20(tokenAddress).approve(finalTarget, amount);
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), finalTarget, amount);
 
         return
             _executeWithMultiplePatches(

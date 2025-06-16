@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { Patcher } from "../../../src/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
@@ -157,11 +156,8 @@ contract TestRelayFacet is RelayFacet {
     }
 }
 
-contract PatcherTest is DSTest {
-    Vm internal immutable VM = Vm(HEVM_ADDRESS);
-
+contract PatcherTest is TestBase {
     event CallReceived(uint256 value, address sender, uint256 ethValue);
-    event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
 
     Patcher internal patcher;
     MockValueSource internal valueSource;
@@ -182,7 +178,7 @@ contract PatcherTest is DSTest {
         token = new ERC20("Test Token", "TEST", 18);
         priceOracle = new MockPriceOracle();
 
-        relaySolver = VM.addr(privateKey);
+        relaySolver = vm.addr(privateKey);
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
     }
 
@@ -203,7 +199,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -227,7 +223,7 @@ contract PatcherTest is DSTest {
         uint256 ethValue = 1 ether;
 
         valueSource.setValue(dynamicValue);
-        VM.deal(address(patcher), ethValue);
+        vm.deal(address(patcher), ethValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
@@ -241,7 +237,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), ethValue);
 
         patcher.executeWithDynamicPatches(
@@ -277,7 +273,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue * 2, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -326,7 +322,7 @@ contract PatcherTest is DSTest {
         offsetGroups[1] = new uint256[](1);
         offsetGroups[1][0] = 36;
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(value1 + value2, address(patcher), 0);
 
         patcher.executeWithMultiplePatches(
@@ -386,7 +382,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectRevert(Patcher.FailedToGetDynamicValue.selector);
+        vm.expectRevert(Patcher.FailedToGetDynamicValue.selector);
         patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
@@ -415,7 +411,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectRevert(Patcher.InvalidPatchOffset.selector);
+        vm.expectRevert(Patcher.InvalidPatchOffset.selector);
         patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
@@ -447,7 +443,7 @@ contract PatcherTest is DSTest {
             uint256(0)
         );
 
-        VM.expectRevert(Patcher.MismatchedArrayLengths.selector);
+        vm.expectRevert(Patcher.MismatchedArrayLengths.selector);
         patcher.executeWithMultiplePatches(
             valueSources,
             valueGetters,
@@ -480,7 +476,7 @@ contract PatcherTest is DSTest {
             holder
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(
             balance + block.timestamp + 1 hours,
             address(patcher),
@@ -518,19 +514,16 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        (bool success, bytes memory returnData) = patcher
-            .executeWithDynamicPatches(
-                address(valueSource),
-                valueGetter,
-                address(target),
-                0,
-                originalCalldata,
-                offsets,
-                false
-            );
-
-        assertTrue(!success);
-        assertTrue(returnData.length > 0);
+        vm.expectRevert();
+        patcher.executeWithDynamicPatches(
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
     }
 
     // Tests no-op patching with empty offsets
@@ -549,7 +542,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(99999, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -597,7 +590,7 @@ contract PatcherTest is DSTest {
         offsetGroups[1] = new uint256[](1);
         offsetGroups[1][0] = 4;
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(value2, address(patcher), 0);
 
         patcher.executeWithMultiplePatches(
@@ -630,7 +623,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(0, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -663,7 +656,7 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(type(uint256).max, address(patcher), 0);
 
         patcher.executeWithDynamicPatches(
@@ -713,7 +706,7 @@ contract PatcherTest is DSTest {
 
         token.mint(address(patcher), expectedMinAmount);
 
-        VM.prank(address(patcher));
+        vm.prank(address(patcher));
         token.approve(address(relayFacet), expectedMinAmount);
 
         uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
@@ -737,7 +730,7 @@ contract PatcherTest is DSTest {
         ILiFi.BridgeData memory expectedBridgeData = bridgeData;
         expectedBridgeData.minAmount = expectedMinAmount;
 
-        VM.expectEmit(true, true, true, true, address(relayFacet));
+        vm.expectEmit(true, true, true, true, address(relayFacet));
         emit LiFiTransferStarted(expectedBridgeData);
 
         patcher.executeWithDynamicPatches(
@@ -785,7 +778,7 @@ contract PatcherTest is DSTest {
 
         token.mint(address(patcher), tokenBalance);
 
-        VM.prank(address(patcher));
+        vm.prank(address(patcher));
         token.approve(address(relayFacet), tokenBalance);
 
         uint256 relaySolverBalanceBefore = token.balanceOf(relaySolver);
@@ -807,7 +800,7 @@ contract PatcherTest is DSTest {
         ILiFi.BridgeData memory expectedBridgeData = bridgeData;
         expectedBridgeData.minAmount = tokenBalance;
 
-        VM.expectEmit(true, true, true, true, address(relayFacet));
+        vm.expectEmit(true, true, true, true, address(relayFacet));
         emit LiFiTransferStarted(expectedBridgeData);
 
         patcher.executeWithDynamicPatches(
@@ -871,7 +864,7 @@ contract PatcherTest is DSTest {
             300
         );
 
-        VM.expectRevert(Patcher.FailedToGetDynamicValue.selector);
+        vm.expectRevert(Patcher.FailedToGetDynamicValue.selector);
         patcher.executeWithDynamicPatches(
             address(priceOracle),
             valueGetter,
@@ -909,7 +902,7 @@ contract PatcherTest is DSTest {
             )
         );
 
-        (uint8 v, bytes32 r, bytes32 s) = VM.sign(privateKey, message);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, message);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
     }
@@ -949,13 +942,13 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.prank(user);
+        vm.prank(user);
         token.approve(address(patcher), tokenBalance);
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
 
-        VM.prank(user);
+        vm.prank(user);
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
@@ -1012,13 +1005,13 @@ contract PatcherTest is DSTest {
         offsetGroups[1] = new uint256[](1);
         offsetGroups[1][0] = 36;
 
-        VM.prank(user);
+        vm.prank(user);
         token.approve(address(patcher), tokenBalance);
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(value1 + value2, address(patcher), 0);
 
-        VM.prank(user);
+        vm.prank(user);
         patcher.depositAndExecuteWithMultiplePatches(
             address(token),
             valueSources,
@@ -1055,10 +1048,10 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
 
-        VM.prank(user);
+        vm.prank(user);
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
@@ -1097,8 +1090,8 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.prank(user);
-        VM.expectRevert();
+        vm.prank(user);
+        vm.expectRevert();
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
@@ -1133,11 +1126,11 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.prank(user);
+        vm.prank(user);
         token.approve(address(patcher), approvalAmount);
 
-        VM.prank(user);
-        VM.expectRevert();
+        vm.prank(user);
+        vm.expectRevert();
         patcher.depositAndExecuteWithDynamicPatches(
             address(token),
             address(valueSource),
@@ -1157,7 +1150,7 @@ contract PatcherTest is DSTest {
         valueSource.setValue(dynamicValue);
 
         address user = address(0xABCD);
-        VM.deal(user, ethValue);
+        vm.deal(user, ethValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
@@ -1172,10 +1165,10 @@ contract PatcherTest is DSTest {
         );
 
         // User sends native tokens with the call
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), ethValue);
 
-        VM.prank(user);
+        vm.prank(user);
         patcher.executeWithDynamicPatches{ value: ethValue }(
             address(valueSource),
             valueGetter,
@@ -1203,7 +1196,7 @@ contract PatcherTest is DSTest {
         address user = address(0x1234);
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
-        VM.deal(user, ethValue);
+        vm.deal(user, ethValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             target.processValue.selector,
@@ -1217,13 +1210,13 @@ contract PatcherTest is DSTest {
             valueSource.getValue.selector
         );
 
-        VM.prank(user);
+        vm.prank(user);
         token.approve(address(patcher), tokenBalance);
 
-        VM.expectEmit(true, true, true, true, address(target));
+        vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), ethValue);
 
-        VM.prank(user);
+        vm.prank(user);
         patcher.depositAndExecuteWithDynamicPatches{ value: ethValue }(
             address(token),
             address(valueSource),
