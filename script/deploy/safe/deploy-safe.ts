@@ -46,31 +46,35 @@
  *     --owners 0xAb…123,0xCd…456 --paymentToken 0xErc…789 --payment 1000000000000000
  */
 
-import { defineCommand, runMain } from 'citty'
-import {
-  Address,
-  zeroAddress,
-  isAddress,
-  getAddress,
-  encodeFunctionData,
-  decodeEventLog,
-  Log,
-} from 'viem'
-import * as dotenv from 'dotenv'
-import { SupportedChain } from '../../demoScripts/utils/demoScriptChainConfig'
-import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
-import globalConfig from '../../../config/global.json'
-import networks from '../../../config/networks.json'
+// Node.js built-in modules first
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { consola } from 'consola'
+
+// Third-party dependencies in alphabetical order
 import {
-  getSafeSingletonDeployment,
-  getSafeL2SingletonDeployment,
-  getProxyFactoryDeployment,
   getFallbackHandlerDeployment,
+  getProxyFactoryDeployment,
+  getSafeL2SingletonDeployment,
+  getSafeSingletonDeployment,
 } from '@safe-global/safe-deployments'
-import { Environment } from '../../utils/viemScriptHelpers'
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import * as dotenv from 'dotenv'
+import {
+  type Address,
+  type Log,
+  decodeEventLog,
+  encodeFunctionData,
+  getAddress,
+  isAddress,
+  zeroAddress,
+} from 'viem'
+
+// Local imports last, in alphabetical order
+import globalConfig from '../../../config/global.json'
+import networks from '../../../config/networks.json'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
 dotenv.config()
 
@@ -167,7 +171,11 @@ async function compareDeployedBytecode(
   return ok
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const sleep = (ms: number): Promise<void> => {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
 
 // At the top of the file, add new type for EVM versions
 type EVMVersion = 'london' | 'cancun'
@@ -248,29 +256,26 @@ const main = defineCommand({
     //       },
     //     ],
     //   }
-    // )) as unknown as Environment
+    // )) as unknown as EnvironmentEnum
     // we currently use SAFEs only in production but will keep this code just in case
-    const environment: Environment = Environment.production
+    const environment: EnvironmentEnum = EnvironmentEnum.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain
     const existing = networks[networkName]?.safeAddress
-    if (existing && existing !== zeroAddress && !args.allowOverride) {
+    if (existing && existing !== zeroAddress && !args.allowOverride)
       throw new Error(
         `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
       )
-    }
 
     // parse & validate threshold + owners
     const isDefaultThreshold = !process.argv.includes('--threshold')
     const threshold = Number(args.threshold)
-    if (isNaN(threshold) || threshold < 1) {
+    if (isNaN(threshold) || threshold < 1)
       throw new Error('Threshold must be a positive integer')
-    }
 
-    if (isDefaultThreshold) {
+    if (isDefaultThreshold)
       consola.info('ℹ Using default threshold of 3 required confirmations')
-    }
 
     const extraOwners = (args.owners || '')
       .split(',')
@@ -285,9 +290,8 @@ const main = defineCommand({
     const owners = [
       ...new Set([...ownersFromConfig, ...extraOwners]),
     ] as Address[]
-    if (threshold > owners.length) {
+    if (threshold > owners.length)
       throw new Error('Threshold cannot exceed number of owners')
-    }
 
     // optional params
     const fallbackHandler =
@@ -310,22 +314,21 @@ const main = defineCommand({
     consola.info('Deployer:', walletAccount.address)
 
     // Determine EVM version
-    const networkConfig = networks[networkName.toLowerCase()]
+    const networkConfig = networks[networkName]
     let evmVersion: EVMVersion = 'cancun' // Default to cancun
 
     if (args.evmVersion) {
       // If explicitly specified via CLI
-      if (!['london', 'cancun'].includes(args.evmVersion)) {
+      if (!['london', 'cancun'].includes(args.evmVersion))
         throw new Error(
           'Invalid EVM version. Must be either "london" or "cancun"'
         )
-      }
+
       evmVersion = args.evmVersion as EVMVersion
-    } else if (networkConfig.deployedWithEvmVersion) {
+    } else if (networkConfig?.deployedWithEvmVersion)
       // Use network-specific version if available
       evmVersion =
         networkConfig.deployedWithEvmVersion.toLowerCase() as EVMVersion
-    }
 
     consola.info(`Using EVM version: ${evmVersion}`)
 
@@ -350,15 +353,17 @@ const main = defineCommand({
       )
 
       if (networks.length > 0) {
-        factoryAddr = factoryD.networkAddresses[networks[0]] as `0x${string}`
+        const latestNetwork = networks[0]
+        if (!latestNetwork || !factoryD.networkAddresses[latestNetwork])
+          throw new Error('Invalid network address configuration')
+        factoryAddr = factoryD.networkAddresses[latestNetwork] as `0x${string}`
         consola.info(
-          `Using factory from network ${networks[0]}: ${factoryAddr}`
+          `Using factory from network ${latestNetwork}: ${factoryAddr}`
         )
-      } else {
+      } else
         throw new Error(
           'No Safe factory deployment found in @safe-global/safe-deployments'
         )
-      }
     }
 
     let fallbackAddr = fallbackD?.networkAddresses?.[chainId] as `0x${string}`
@@ -372,9 +377,14 @@ const main = defineCommand({
       )
 
       if (networks.length > 0) {
-        fallbackAddr = fallbackD.networkAddresses[networks[0]] as `0x${string}`
+        const latestNetwork = networks[0]
+        if (!latestNetwork || !fallbackD.networkAddresses[latestNetwork])
+          throw new Error('Invalid network address configuration')
+        fallbackAddr = fallbackD.networkAddresses[
+          latestNetwork
+        ] as `0x${string}`
         consola.info(
-          `Using fallback handler from network ${networks[0]}: ${fallbackAddr}`
+          `Using fallback handler from network ${latestNetwork}: ${fallbackAddr}`
         )
       } else {
         fallbackAddr = zeroAddress
@@ -408,8 +418,8 @@ const main = defineCommand({
     const safeAddress = await createSafeProxy({
       publicClient,
       walletClient,
-      factoryAddress: factoryAddr!,
-      singletonAddress: singletonAddr!,
+      factoryAddress: factoryAddr,
+      singletonAddress: singletonAddr,
       proxyBytecode,
       owners,
       threshold,
@@ -445,18 +455,14 @@ const main = defineCommand({
       if (missing.length) consola.error(`  • Missing:  ${missing.join(', ')}`)
       if (extra.length) consola.error(`  • Unexpected: ${extra.join(', ')}`)
       throw new Error('Owner verification failed')
-    } else {
-      consola.success('✔ Owners match expected')
-    }
+    } else consola.success('✔ Owners match expected')
 
-    if (BigInt(threshold) !== BigInt(actualThreshold as bigint)) {
+    if (BigInt(threshold) !== BigInt(actualThreshold)) {
       consola.error(
         `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
       )
       throw new Error('Threshold verification failed')
-    } else {
-      consola.success('✔ Threshold matches expected')
-    }
+    } else consola.success('✔ Threshold matches expected')
 
     // update networks.json
     if (args.allowOverride) {
@@ -470,20 +476,19 @@ const main = defineCommand({
         'utf8'
       )
       consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
-    } else {
+    } else
       consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
-    }
 
     if (safeAddress) {
       consola.info('-'.repeat(80))
       consola.info('🎉 Deployment complete!')
       consola.info(`Safe Address: \u001b[32m${safeAddress}\u001b[0m`)
       const explorerUrl = chain.blockExplorers?.default?.url
-      if (explorerUrl) {
+      if (explorerUrl)
         consola.info(
           `Explorer URL: \u001b[36m${explorerUrl}/address/${safeAddress}\u001b[0m`
         )
-      }
+
       consola.info('-'.repeat(80))
     }
 
@@ -545,7 +550,9 @@ async function deployLocalContracts(
     hash: implTx,
     confirmations: 5,
   })
-  const implAddr = implRcpt.contractAddress!
+  if (!implRcpt.contractAddress)
+    throw new Error('Contract address not found in receipt')
+  const implAddr = implRcpt.contractAddress
   consola.success(`✔ Safe impl @ ${implAddr}`)
   await sleep(5000)
   await compareDeployedBytecode(
@@ -565,7 +572,9 @@ async function deployLocalContracts(
     hash: facTx,
     confirmations: 5,
   })
-  const facAddr = facRcpt.contractAddress!
+  if (!facRcpt.contractAddress)
+    throw new Error('Contract address not found in receipt')
+  const facAddr = facRcpt.contractAddress
   consola.success(`✔ SafeProxyFactory @ ${facAddr}`)
   await sleep(5000)
   await compareDeployedBytecode(
@@ -653,17 +662,14 @@ async function createSafeProxy(params: {
         return null
       }
     })
-    .find((e) => e && e.eventName === 'ProxyCreation')
+    .find((e: any) => e && e.eventName === 'ProxyCreation')
 
   if (!proxyEvent) {
     consola.warn('No ProxyCreation events found in transaction logs')
     consola.info(`Please check transaction ${txHash} on the explorer`)
 
-    const explorerUrl = (publicClient as any).chain?.blockExplorers?.default
-      ?.url
-    if (explorerUrl) {
-      consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
-    }
+    const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
+    if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
     const safeAddress = (await consola.prompt(
       'Enter the deployed Safe address:',
@@ -679,15 +685,14 @@ async function createSafeProxy(params: {
     return safeAddress
   }
 
-  const safeAddr = (proxyEvent.args as any).proxy as Address
+  const safeAddr = proxyEvent.args.proxy as Address
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
   // verify on-chain proxy bytecode
   if (proxyBytecode) {
     const code = await publicClient.getCode({ address: safeAddr })
-    if (code === proxyBytecode) {
-      consola.success('✔ Proxy bytecode verified')
-    } else {
+    if (code === proxyBytecode) consola.success('✔ Proxy bytecode verified')
+    else {
       consola.error('❌ Proxy bytecode mismatch')
       consola.debug('On-chain:', code.slice(0, 100), '…')
       consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
