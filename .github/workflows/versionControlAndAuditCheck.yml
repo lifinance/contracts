@@ -17,11 +17,9 @@
 # - checks include:
 #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
 #   - ensuring that an audit report has been added at the logged path
-#   - ensuring that the commit hash that was audited is actually part of this PR
 # - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
 # - KNOWN LIMITATIONS
-#   - will only check the last 100 commits for any matches with audit commit hashes
-#   - only one audit can be registered per contract (in a specific version)
+#   - multiple audits can be registered per contract (in a specific version)
 
 name: VersionControlAndAuditVerification
 
@@ -61,7 +59,8 @@ jobs:
           echo "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
-          FILES="$(git diff --name-only "origin/${BASE_REF}" HEAD)"
+          # --diff-filter=AM argument to only include files that were added or modified not deleted
+          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}" HEAD)"
 
           ##### make sure that there are modified files
           if [[ -z "$FILES" ]]; then
@@ -79,7 +78,7 @@ jobs:
             fi
           done <<< "${FILES}"
 
-          ##### if none found, exit here as there is nothing to do
+          ##### if nothing found, exit here as there is nothing to do
           if [[ -z "${CONTRACTS}" ]]; then
             echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
@@ -501,109 +500,117 @@ jobs:
             if [[ -z "$AUDIT_IDS" ]]; then
               AUDIT_COUNT=0
             else
-              AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+              # Use sort and uniq to remove duplicates, then count
+              AUDIT_COUNT=$(echo "$AUDIT_IDS" | sort | uniq | wc -l)
+              
+              # Check for duplicates by comparing original and deduplicated counts
+              ORIGINAL_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+              if [[ $ORIGINAL_COUNT -ne $AUDIT_COUNT ]]; then
+                echo -e "\033[31mError: Found duplicate audit IDs for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mPlease remove duplicate entries from the audit log.\033[0m"
+                exit 1
+              fi
             fi
 
-            ##### Ensure exactly one audit is logged; handle errors if not
-            if [[ $AUDIT_COUNT -ne 1 ]]; then
-              if [[ $AUDIT_COUNT -gt 1 ]]; then
-                echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
-                echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
-              else
-                echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
+            ##### Ensure at least one audit is logged; handle errors if not
+            if [[ $AUDIT_COUNT -lt 1 ]]; then
+              echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+              echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
+              exit 1
+            fi
+
+            ##### Extract audit entry details for each audit ID
+            while IFS= read -r AUDIT_ID; do
+              echo "Now checking audit ID: $AUDIT_ID"
+              
+              ##### Extract audit entry details for the current audit ID
+              AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
+
+              ##### Check if AUDIT_ENTRY is valid JSON
+              if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
+                echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILE seems to be invalid.\033[0m"
+                exit 1
               fi
 
-              exit 1
-            fi
+              echo "Validating audit $AUDIT_ID for file $FILE"
+              echo "Now checking if all required information is logged for this audit..."
 
+              ##### Extract log entry values into variables
+              AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
+              AUDITED_BY=$(echo "$AUDIT_ENTRY" | jq -r '.auditedBy')
+              AUDITOR_GIT_HANDLE=$(echo "$AUDIT_ENTRY" | jq -r '.auditorGitHandle')
+              AUDIT_REPORT_PATH=$(echo "$AUDIT_ENTRY" | jq -r '.auditReportPath')
+              AUDIT_COMMIT_HASH=$(echo "$AUDIT_ENTRY" | jq -r '.auditCommitHash')
 
-            ##### Extract the single audit ID
-            AUDIT_ID=$(echo "$AUDIT_IDS" | head -n 1)
-
-            ##### Extract audit entry details for the single audit ID
-            AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
-
-            ##### Check if AUDIT_ENTRY is valid JSON
-            if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
-              echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILE seems to be invalid.\033[0m"
-              exit 1
-            fi
-
-            echo "File $FILE was audited in $AUDIT_ID"
-            echo "Now checking if all required information is logged for this audit..."
-
-            ##### Extract log entry values into variables
-            AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
-            AUDITED_BY=$(echo "$AUDIT_ENTRY" | jq -r '.auditedBy')
-            AUDITOR_GIT_HANDLE=$(echo "$AUDIT_ENTRY" | jq -r '.auditorGitHandle')
-            AUDIT_REPORT_PATH=$(echo "$AUDIT_ENTRY" | jq -r '.auditReportPath')
-            AUDIT_COMMIT_HASH=$(echo "$AUDIT_ENTRY" | jq -r '.auditCommitHash')
-
-            ##### make sure that audit log entry contains date
-            if [ -z "$AUDIT_COMPLETED_ON" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains date
+              if [ -z "$AUDIT_COMPLETED_ON" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains a date for $AUDIT_ID: $AUDIT_COMPLETED_ON"
-            fi
 
-            ##### make sure that audit log entry contains auditor's (company) name
-            if [ -z "$AUDITED_BY" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains auditor's (company) name
+              if [ -z "$AUDITED_BY" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains the auditor's name for $AUDIT_ID: $AUDITED_BY"
-            fi
 
-            ##### make sure that audit log entry contains auditor's git handle
-            if [ -z "$AUDITOR_GIT_HANDLE" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains auditor's git handle
+              if [ -z "$AUDITOR_GIT_HANDLE" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains the auditor's github handle for $AUDIT_ID: $AUDITOR_GIT_HANDLE"
-            fi
 
-            ##### make sure that a file exists at the audit report path
-            if [ ! -f "$AUDIT_REPORT_PATH" ]; then
-              echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that a file exists at the audit report path
+              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+                echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract $FILENAME.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit report for $AUDIT_ID was found in path $AUDIT_REPORT_PATH"
-            fi
 
-            ##### make sure that audit log entry contains audit commit hash
-            if [ -z "$AUDIT_COMMIT_HASH" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains audit commit hash
+              if [ -z "$AUDIT_COMMIT_HASH" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains the commit hash that was audited in $AUDIT_ID: $AUDIT_COMMIT_HASH"
-            fi
-            echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
 
-            echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
-            ##### Fetch the list of commits associated with the PR
-            COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
+              ##### Check if the auditor git handle exists on github
+              echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
+              if ! gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
+                echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
+                echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
+                exit 1
+              fi
+              echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
 
-            ##### Check if the target commit is in the list
-            if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
-              echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
-            else
-              echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-              exit 1
-            fi
+            # NOTE: This check is disabled because it can cause issues when reverting PRs.
+            # For example, if a PR is mistakenly merged and needs to be reverted,
+            # the revert PR would fail this check since the audit commit hash would not be
+            # part of the revert PR's commit history. This would make it impossible to
+            # revert changes through the normal PR process. - WAS USED FOR SINGLE AUDIT CHECK
+            # echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
+            # ##### Fetch the list of commits associated with the PR
+            # COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
 
+            # ##### Check if the target commit is in the list
+            # if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
+            #   echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
+            # else
+            #   echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
+            #   exit 1
+            # fi
 
             ##### Check if the auditor git handle exists on github
             echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
@@ -617,7 +624,7 @@ jobs:
             fi
 
             # ##### -----------------------------------------------------------------------------
-            # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW)
+            # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW) - WAS USED FOR SINGLE AUDIT CHECK
             # ##### Fetch PR reviews using the GitHub API via gh cli
             # echo "now checking if the auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
             # REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state == "APPROVED") | @json')
@@ -645,8 +652,7 @@ jobs:
             #     exit 0
             #   fi
             # done
-
-            # ##### If no matching review was found, exit with an error
+            # ##### If no matching review was found, exit with an error - WAS USED FOR SINGLE AUDIT CHECK
             # if [ "$FOUND_REVIEW" == true ]; then
             #   echo -e "\033[32mPR $PR_NUMBER has an approving review by $AUDITOR_GIT_HANDLE\033[0m"
             #   echo -e "\033[32mCheck passed\033[0m"
@@ -657,7 +663,10 @@ jobs:
             #   exit 1
             # fi
             # ##### -----------------------------------------------------------------------------
+            
+            done <<< "$AUDIT_IDS"
 
+            echo -e "\033[32mSuccessfully verified all audits for contract $FILE.\033[0m"
 
           done <<< "$PROTECTED_CONTRACTS"
 

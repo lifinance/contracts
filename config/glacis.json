@@ -11,22 +11,61 @@
   "base": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "berachain": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "blast": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
   "bsc": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "celo": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "corn": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "gnosis": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "hyperevm": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "ink": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
   "linea": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "lisk": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "mode": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "optimism": {
-    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+    "airlift": "0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663"
   },
   "polygon": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "polygonzkevm": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "rootstock": {
+    "airlift": "0xB303FEb7c38B7fbee5Bcb0dba2aCC1171478E6D5"
+  },
   "scroll": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "sonic": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "swellchain": {
+    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "unichain": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   }
 }

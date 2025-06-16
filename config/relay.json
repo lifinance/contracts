@@ -49,6 +49,11 @@
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
+  "bob": {
+    "chainId": 60808,
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "bsc": {
     "chainId": 56,
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
@@ -67,6 +72,11 @@
   "gravity": {
     "chainId": 1625,
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
+  "hyperevm": {
+    "chainId": 999,
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
   "ink": {

@@ -116,10 +116,9 @@
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Permit2Proxy": "",
-      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x0dC56076590CdF0efc37114273f02f45A96B5500",
       "RelayerCelerIM": "",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"

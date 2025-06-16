@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestBase, LibSwap, ReentrancyChecker } from "./TestBase.sol";
-import { NoSwapDataProvided, InformationMismatch, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { TransferFromFailed, NoSwapDataProvided, InformationMismatch, ReentrancyError, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
 
 // contains default test cases that can and should be used by
 abstract contract TestBaseFacet is TestBase {
@@ -348,13 +348,7 @@ abstract contract TestBaseFacet is TestBase {
         // send all available USDC balance to different account to ensure sending wallet has no USDC funds
         usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientBalance.selector,
-                bridgeData.minAmount,
-                0
-            )
-        );
+        vm.expectRevert(TransferFromFailed.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();

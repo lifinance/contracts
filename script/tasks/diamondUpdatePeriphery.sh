@@ -154,7 +154,7 @@ register() {
   local DIAMOND=$2
   local CONTRACT_NAME=$3
   local ADDR=$4
-  local RPC_URL=$(getRPCUrl $NETWORK)
+  local RPC_URL=$(getRPCUrl $NETWORK) || checkFailure $? "get rpc url"
   local ENVIRONMENT=$5
 
   # register periphery contract
