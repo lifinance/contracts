@@ -17,4 +17,8 @@ interface IAlgebraFactory {
         address tokenA,
         address tokenB
     ) external returns (address pool);
+    function createTestPool(
+        address tokenA,
+        address tokenB
+    ) external returns (address pool);
 }
