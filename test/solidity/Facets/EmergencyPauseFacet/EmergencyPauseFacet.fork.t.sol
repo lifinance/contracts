@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBase } from "../../../utils/TestBase.sol";
+import { LibAllowList, TestBase } from "../../utils/TestBase.sol";
 import { OnlyContractOwner, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";

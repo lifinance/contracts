@@ -6,7 +6,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { LibAllowList, TestBase } from "../../../utils/TestBase.sol";
+import { LibAllowList, TestBase } from "../../utils/TestBase.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
