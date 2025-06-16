@@ -29,7 +29,13 @@ DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
 ETH_PRIVATE_KEY_PATTERN="\b[a-fA-F0-9]{64}\b"
 
 # List of known false positive values that should not be flagged as secrets
-KNOWN_FALSE_POSITIVES="true false \"none\" \"\" \"verifyContract\""
+KNOWN_FALSE_POSITIVES=(
+  "true"
+  "false"
+  "none"
+  ""
+  "verifyContract"
+)
 
 # List of paths to exclude from secret checks
 EXCLUDED_PATHS=(
@@ -111,7 +117,15 @@ doesFileContainDotEnvSecret() {
     local KEY=$(echo "$SECRET" | cut -d '=' -f 1)
 
     # skip empty values and known false positives
-    if [ -z "$VALUE" ] || echo "$KNOWN_FALSE_POSITIVES" | grep -q -w "$VALUE"; then
+    local IS_FALSE_POSITIVE=false
+    for FALSE_POSITIVE in "${KNOWN_FALSE_POSITIVES[@]}"; do
+      if [ "$VALUE" = "$FALSE_POSITIVE" ]; then
+        IS_FALSE_POSITIVE=true
+        break
+      fi
+    done
+
+    if [ -z "$VALUE" ] || [ "$IS_FALSE_POSITIVE" = true ]; then
       continue
     fi
 
