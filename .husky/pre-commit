@@ -28,6 +28,9 @@ DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
 # Regex pattern to identify potential Ethereum private keys (64 hexadecimal characters)
 ETH_PRIVATE_KEY_PATTERN="\b[a-fA-F0-9]{64}\b"
 
+# List of known false positive values that should not be flagged as secrets
+KNOWN_FALSE_POSITIVES="true false \"none\" \"\" \"verifyContract\""
+
 # Load secrets from .env file
 if [ -f ".env" ]; then
   ENV_SECRETS=$(grep -v '^#' .env | sed 's/#.*//' | grep -v '^\s*$' | sed 's/ *$//')
@@ -96,8 +99,8 @@ doesFileContainDotEnvSecret() {
     local VALUE=$(echo "$SECRET" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
     local KEY=$(echo "$SECRET" | cut -d '=' -f 1)
 
-    # skip empty values
-    if [ -z "$VALUE" ]; then
+    # skip empty values and known false positives
+    if [ -z "$VALUE" ] || echo "$KNOWN_FALSE_POSITIVES" | grep -q -w "$VALUE"; then
       continue
     fi
 
