@@ -216,16 +216,6 @@ export async function setupCowShedPostHooks(config: CowShedPostHooksConfig) {
   // Recover the actual signer using the same message format as the contract
   try {
     // Construct the message exactly as the contract does:
-    // keccak256(abi.encodePacked(
-    //     requestId,
-    //     block.chainid,
-    //     bytes32(uint256(uint160(address(this)))),
-    //     bytes32(uint256(uint160(sendingAssetId))),
-    //     _getMappedChainId(destinationChainId),
-    //     bytes32(uint256(uint160(receiver))),
-    //     receivingAssetId
-    // ))
-
     // Use viem's encodePacked instead of manual concatenation
     const packedData = encodePacked(
       [
