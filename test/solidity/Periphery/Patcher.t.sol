@@ -183,7 +183,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests basic single value patching into calldata
-    function testExecuteWithDynamicPatches_Success() public {
+    function test_ExecuteWithDynamicPatches_Success() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -218,7 +218,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests patching with ETH value transfer
-    function testExecuteWithDynamicPatches_WithEthValue() public {
+    function test_ExecuteWithDynamicPatches_WithEthValue() public {
         uint256 dynamicValue = 54321;
         uint256 ethValue = 1 ether;
 
@@ -255,7 +255,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests patching same value to multiple positions in calldata
-    function testExecuteWithDynamicPatches_MultipleOffsets() public {
+    function test_ExecuteWithDynamicPatches_MultipleOffsets() public {
         uint256 dynamicValue = 98765;
         valueSource.setValue(dynamicValue);
 
@@ -290,7 +290,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests patching different values from different sources
-    function testExecuteWithMultiplePatches_Success() public {
+    function test_ExecuteWithMultiplePatches_Success() public {
         uint256 value1 = 11111;
         uint256 value2 = 22222;
 
@@ -339,7 +339,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests delegatecall execution mode
-    function testExecuteWithDynamicPatches_Delegatecall() public {
+    function test_ExecuteWithDynamicPatches_Delegatecall() public {
         uint256 dynamicValue = 77777;
         valueSource.setValue(dynamicValue);
 
@@ -367,7 +367,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests oracle/source failure handling
-    function testExecuteWithDynamicPatches_FailedToGetDynamicValue() public {
+    function testRevert_ExecuteWithDynamicPatches_FailedToGetDynamicValue()
+        public
+    {
         valueSource.setShouldFail(true);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
@@ -395,7 +397,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests invalid offset bounds checking
-    function testExecuteWithDynamicPatches_InvalidPatchOffset() public {
+    function testRevert_ExecuteWithDynamicPatches_InvalidPatchOffset() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -424,7 +426,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests input validation for array length mismatches
-    function testExecuteWithMultiplePatches_MismatchedArrayLengths() public {
+    function testRevert_ExecuteWithMultiplePatches_MismatchedArrayLengths()
+        public
+    {
         address[] memory valueSources = new address[](2);
         valueSources[0] = address(valueSource);
         valueSources[1] = address(valueSource);
@@ -456,7 +460,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests ERC20 balance patching in realistic scenario
-    function testExecuteWithDynamicPatches_TokenBalance() public {
+    function test_ExecuteWithDynamicPatches_TokenBalance() public {
         address holder = address(0x1234);
         uint256 balance = 1000 ether;
         token.mint(holder, balance);
@@ -497,7 +501,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests target contract failure handling
-    function testExecuteWithDynamicPatches_TargetCallFailure() public {
+    function testRevert_ExecuteWithDynamicPatches_TargetCallFailure() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
         target.setShouldFail(true);
@@ -527,7 +531,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests no-op patching with empty offsets
-    function testExecuteWithDynamicPatches_EmptyOffsets() public {
+    function test_ExecuteWithDynamicPatches_EmptyOffsets() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -559,7 +563,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests overwriting same position with multiple patches
-    function testExecuteWithMultiplePatches_SameOffset() public {
+    function test_ExecuteWithMultiplePatches_SameOffset() public {
         uint256 value1 = 11111;
         uint256 value2 = 22222;
 
@@ -607,7 +611,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests zero value patching edge case
-    function testExecuteWithDynamicPatches_ZeroValue() public {
+    function test_ExecuteWithDynamicPatches_ZeroValue() public {
         uint256 dynamicValue = 0;
         valueSource.setValue(dynamicValue);
 
@@ -640,7 +644,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests maximum uint256 value patching edge case
-    function testExecuteWithDynamicPatches_MaxValue() public {
+    function test_ExecuteWithDynamicPatches_MaxValue() public {
         uint256 dynamicValue = type(uint256).max;
         valueSource.setValue(dynamicValue);
 
@@ -673,7 +677,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests price oracle integration with RelayFacet for dynamic minAmount
-    function testExecuteWithDynamicPatches_RelayFacetMinAmount() public {
+    function test_ExecuteWithDynamicPatches_RelayFacetMinAmount() public {
         uint256 tokenPrice = 2000 * 1e18;
         uint256 slippageBps = 300;
         priceOracle.setPrice(address(token), tokenPrice);
@@ -751,7 +755,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests balance-based bridging with RelayFacet
-    function testExecuteWithDynamicPatches_RelayFacetTokenBalance() public {
+    function test_ExecuteWithDynamicPatches_RelayFacetTokenBalance() public {
         uint256 tokenBalance = 500 ether;
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
@@ -821,7 +825,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests oracle failure in bridge context
-    function testExecuteWithDynamicPatches_RelayFacetOracleFailure() public {
+    function testRevert_ExecuteWithDynamicPatches_RelayFacetOracleFailure()
+        public
+    {
         priceOracle.setShouldFail(true);
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
@@ -922,7 +928,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests token deposit + execution workflow
-    function testDepositAndExecuteWithDynamicPatches_Success() public {
+    function test_DepositAndExecuteWithDynamicPatches_Success() public {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -969,7 +975,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests deposit with multiple patches workflow
-    function testDepositAndExecuteWithMultiplePatches_Success() public {
+    function test_DepositAndExecuteWithMultiplePatches_Success() public {
         uint256 value1 = 11111;
         uint256 value2 = 22222;
 
@@ -1030,7 +1036,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests deposit with zero balance edge case
-    function testDepositAndExecuteWithDynamicPatches_ZeroBalance() public {
+    function testRevert_DepositAndExecuteWithDynamicPatches_ZeroBalance()
+        public
+    {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -1070,7 +1078,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests insufficient approval handling
-    function testDepositAndExecuteWithDynamicPatches_NoApproval() public {
+    function testRevert_DepositAndExecuteWithDynamicPatches_NoApproval()
+        public
+    {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -1105,7 +1115,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests partial approval edge case
-    function testDepositAndExecuteWithDynamicPatches_PartialApproval() public {
+    function testRevert_DepositAndExecuteWithDynamicPatches_PartialApproval()
+        public
+    {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
@@ -1144,7 +1156,7 @@ contract PatcherTest is TestBase {
     }
 
     // Tests that users can send native tokens with executeWithDynamicPatches
-    function testExecuteWithDynamicPatches_WithNativeToken() public {
+    function test_ExecuteWithDynamicPatches_WithNativeToken() public {
         uint256 dynamicValue = 12345;
         uint256 ethValue = 1 ether;
         valueSource.setValue(dynamicValue);
@@ -1188,7 +1200,9 @@ contract PatcherTest is TestBase {
     }
 
     // Tests that depositAndExecuteWithDynamicPatches can handle native tokens
-    function testDepositAndExecuteWithDynamicPatches_WithNativeToken() public {
+    function test_DepositAndExecuteWithDynamicPatches_WithNativeToken()
+        public
+    {
         uint256 dynamicValue = 54321;
         uint256 ethValue = 0.5 ether;
         valueSource.setValue(dynamicValue);

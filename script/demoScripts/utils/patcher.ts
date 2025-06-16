@@ -12,6 +12,9 @@ export const normalizeCalldata = (calldata: string): string => {
 
 /**
  * Find hex value positions
+ * @param haystack The larger hex string (calldata) to search within
+ * @param needle The hex pattern/value to search for within the haystack
+ * @returns Array of byte offsets where the needle pattern is found in the haystack
  */
 export const findHexValueOccurrences = (
   haystack: string,
