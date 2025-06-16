@@ -172,6 +172,16 @@ processGitDiff() {
       continue
     fi
 
+    #skip safe/cancun/out
+    if [[ "$FILE" == "safe/cancun/out/"* ]]; then
+      continue
+    fi
+
+    #skip safe/london/out
+    if [[ "$FILE" == "safe/london/out/"* ]]; then
+      continue
+    fi
+
     #skip bun.lock
     if [[ $FILE == "bun.lock" ]]; then
       continue
