@@ -6,7 +6,7 @@ import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { TestBase, ILiFi } from "../utils/TestBase.sol";
+import { TestBase, ILiFi } from "../../../utils/TestBase.sol";
 
 contract CallForwarder {
     error DiamondCallFailed();

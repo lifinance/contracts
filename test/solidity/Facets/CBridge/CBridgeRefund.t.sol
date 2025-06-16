@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { DiamondTest, LiFiDiamond } from "../../../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { UnAuthorized, NotAContract } from "lifi/Errors/GenericErrors.sol";
