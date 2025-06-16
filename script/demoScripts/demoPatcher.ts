@@ -1,6 +1,13 @@
 #!/usr/bin/env bun
 
-import { parseUnits, createWalletClient, http, getContract, Hex } from 'viem'
+import {
+  parseUnits,
+  createWalletClient,
+  http,
+  getContract,
+  Hex,
+  getAddress,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
 import { ethers } from 'ethers'
@@ -22,6 +29,9 @@ const ERC20_ABI = erc20Artifact.abi
 
 /**
  * Execute CowSwap demo with Patcher contract
+ *
+ * Example successful transaction:
+ * - Arbitrum: https://arbiscan.io/tx/0x7536cd0d5175a6a985f6a0c5cbfaf63b573fe2300301c57e12cca4c8995fe891
  */
 async function executeCowSwapDemo(options: {
   privateKey: string
@@ -109,12 +119,12 @@ async function executeCowSwapDemo(options: {
   // Create the order parameters
   const parameters = {
     kind: OrderKind.SELL,
-    sellToken: ARBITRUM_WETH as `0x${string}`,
+    sellToken: getAddress(ARBITRUM_WETH),
     sellTokenDecimals: 18,
-    buyToken: ARBITRUM_USDC as `0x${string}`,
+    buyToken: getAddress(ARBITRUM_USDC),
     buyTokenDecimals: 6,
     amount: swapAmount.toString(),
-    receiver: shedDeterministicAddress as `0x${string}`, // Important: Set the receiver to the CowShed proxy
+    receiver: getAddress(shedDeterministicAddress), // Important: Set the receiver to the CowShed proxy
     validFor: 30 * 60, // 30 minutes in seconds
     slippageBps: 50, // 0.5% slippage
   }

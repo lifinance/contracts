@@ -11,6 +11,7 @@ import {
   encodeFunctionData,
   encodeAbiParameters,
   parseAbi,
+  getAddress,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
@@ -22,7 +23,13 @@ import {
   findNeedleOffset,
   generateExecuteWithDynamicPatchesCalldata,
   generateBalanceOfCalldata,
-} from './utils/patcher'
+} from './utils/patcherHelpers'
+
+/**
+ * Example successful transactions:
+ * - Source (Arbitrum): https://arbiscan.io/tx/0xf14f9897c01ac30a1b8c13fb7b3e6f840f312a9212f651f730e999940871db56
+ * - Destination (Base): https://basescan.org/tx/0x6835a3bd73051870bb8f100c2267b7143905011b6e4028d80e7154ff6d307fdc
+ */
 
 // Contract addresses
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
@@ -268,10 +275,10 @@ function encodeDestinationCallMessage(
   const swapData = [
     // Single call: Patcher deposits WETH from Executor, approves LiFiDexAggregator, and executes swap
     {
-      callTo: BASE_PATCHER as `0x${string}`,
-      approveTo: BASE_PATCHER as `0x${string}`,
-      sendingAssetId: BASE_WETH as `0x${string}`,
-      receivingAssetId: BASE_USDC as `0x${string}`,
+      callTo: getAddress(BASE_PATCHER),
+      approveTo: getAddress(BASE_PATCHER),
+      sendingAssetId: getAddress(BASE_WETH),
+      receivingAssetId: getAddress(BASE_USDC),
       fromAmount: BigInt(swapFromAmount),
       callData: depositAndExecuteCallData as `0x${string}`,
       requiresDeposit: true,

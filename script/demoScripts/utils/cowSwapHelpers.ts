@@ -5,6 +5,7 @@ import {
   keccak256,
   encodePacked,
   pad,
+  getAddress,
 } from 'viem'
 import { randomBytes } from 'crypto'
 import { ethers } from 'ethers'
@@ -15,7 +16,7 @@ import {
   findNeedleOffset,
   generateExecuteWithDynamicPatchesCalldata,
   generateBalanceOfCalldata,
-} from './patcher'
+} from './patcherHelpers'
 
 // EIP-1967 transparent proxy creation bytecode for CowShed user proxies
 // This bytecode creates a minimal proxy that delegates calls to the CowShed implementation
@@ -68,7 +69,7 @@ export function encodeCowShedExecuteHooks(
     functionName: 'executeHooks',
     args: [
       calls.map((call) => ({
-        target: call.target as `0x${string}`,
+        target: getAddress(call.target),
         value: call.value,
         callData: call.callData,
         allowFailure: call.allowFailure,
