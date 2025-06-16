@@ -8,6 +8,8 @@ import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
+import { ISyncSwapV2Vault } from "lifi/Interfaces/ISyncSwapV2Vault.sol";
+import { ISyncSwapV2Pool } from "lifi/Interfaces/ISyncSwapV2Pool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -41,6 +43,7 @@ uint8 constant POOL_TYPE_CURVE = 5;
 uint8 constant POOL_TYPE_VELODROME_V2 = 6;
 uint8 constant POOL_TYPE_ALGEBRA = 7;
 uint8 constant POOL_TYPE_IZUMI_V3 = 8;
+uint8 constant POOL_TYPE_SYNCSWAP_V2 = 9;
 
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
@@ -386,6 +389,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             swapAlgebra(stream, from, tokenIn, amountIn);
         else if (poolType == POOL_TYPE_IZUMI_V3)
             swapIzumiV3(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_SYNCSWAP_V2)
+            swapSyncSwapV2(stream, from, tokenIn, amountIn);
         else revert UnknownPoolType();
     }
 
@@ -790,6 +795,37 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS) {
             revert IzumiV3SwapUnexpected();
         }
+    }
+
+    function swapSyncSwapV2(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        address to = stream.readAddress();
+        if (pool == address(0) || to == address(0)) revert InvalidCallData();
+        uint8 withdrawMode = stream.readUint8(); // only mode 2 works, if hardcode on the contract??
+        bool isV1Pool = stream.readUint8() == 1;
+        if (isV1Pool) {
+            address vault = stream.readAddress();
+            if (vault == address(0)) revert InvalidCallData();
+            if (from == address(this)) {
+                IERC20(tokenIn).safeTransfer(vault, amountIn);
+            } else if (from == msg.sender) {
+                IERC20(tokenIn).safeTransferFrom(msg.sender, vault, amountIn);
+            }
+            ISyncSwapV2Vault(vault).deposit(tokenIn, pool);
+        } else {
+            if (from == address(this)) {
+                IERC20(tokenIn).safeTransfer(pool, amountIn);
+            } else if (from == msg.sender) {
+                IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+            }
+        }
+        bytes memory data = abi.encode(tokenIn, to, withdrawMode);
+        ISyncSwapV2Pool(pool).swap(data, from, address(0), new bytes(0));
     }
 
     /// @dev Common logic for iZiSwap callbacks

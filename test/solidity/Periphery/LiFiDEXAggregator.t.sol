@@ -40,7 +40,8 @@ enum PoolType {
     Curve, // 5
     VelodromeV2, // 6
     Algebra, // 7
-    iZiSwap // 8
+    iZiSwap, // 8
+    SyncSwapV2 // 9
 }
 
 // Direction constants
@@ -1418,7 +1419,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Helper function to build the multi-hop route for test
     function _buildMultiHopRouteForTest(
         MultiHopTestState memory state
-    ) private returns (bytes memory) {
+    ) private view returns (bytes memory) {
         bytes memory firstHop = _buildAlgebraRoute(
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
@@ -1563,7 +1564,7 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     // Helper function to build route for Apechain Algebra swap
     function _buildAlgebraRoute(
         AlgebraRouteParams memory params
-    ) internal returns (bytes memory route) {
+    ) internal view returns (bytes memory route) {
         address token0 = IAlgebraPool(params.pool).token0();
         bool zeroForOne = (params.tokenIn == token0);
         SwapDirection direction = zeroForOne
@@ -2964,6 +2965,123 @@ contract LiFiDexAggregatorEnosysDexV3Test is LiFiDexAggregatorTest {
     function test_CanSwap_MultiHop() public override {
         // SKIPPED: EnosysDexV3 multi-hop unsupported due to AS requirement.
         // EnosysDexV3 (being a UniV3 fork) does not support a "one-pool" second hop today,
+        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. UniV3-style pools immediately revert on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
+        // in a single processRoute invocation.
+    }
+}
+
+// ----------------------------------------------
+// SyncSwapV2 on Linea
+// ----------------------------------------------
+contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    // address internal constant SYNC_SWAP_V3_ROUTER = address(0x2c81dF4F11A1C7E43Acb972e73767B1f5d0d9edc);
+    IERC20 internal constant USDC =
+        IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff);
+    IERC20 internal constant WETH =
+        IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f);
+    address internal constant USDC_WETH_POOL =
+        address(0x5f46260c486b1C1F769966c468D080d250319f80);
+
+    /// @notice Set up a fork of Linea at block 20077881 and initialize the aggregator
+    function setUp() public override {
+        customRpcUrlForForking = "ETH_NODE_URI_LINEA";
+        customBlockNumberForForking = 20077881;
+        fork();
+
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
+    }
+
+    /// @notice Single‐pool swap: USER sends WETH → receives USDC
+    function test_CanSwap() public override {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(0) // isV1Pool
+        );
+
+        // Record balances before swap
+        uint256 inBefore = WETH.balanceOf(USER_SENDER);
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that WETH was spent and some USDC_C was received
+        uint256 inAfter = WETH.balanceOf(USER_SENDER);
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Single‐pool swap: aggregator holds WETH → user receives USDC
+    function test_CanSwap_FromDexAggregator() public override {
+        // Fund the aggregator with 1 000 WETH
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(0) // isV1Pool
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            swapAmount,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDC was received
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: SyncSwapV2 multi-hop unsupported due to AS requirement.
+        // SyncSwapV2 (being a UniV3 fork) does not support a "one-pool" second hop today,
         // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
         // the pool.swap call. UniV3-style pools immediately revert on
         // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
