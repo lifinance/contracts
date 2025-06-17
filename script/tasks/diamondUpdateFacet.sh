@@ -143,85 +143,18 @@ diamondUpdateFacet() {
           echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
           
-          # Get timelock controller address if it exists
-          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+          RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
           
           # Check if timelock is enabled and available
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            # Use timelock controller instead of diamond for proposals
-            TARGET_ADDRESS="$TIMELOCK_ADDRESS"
-            echo "[info] Using timelock controller at $TIMELOCK_ADDRESS for facet update"
-            
-            # Get the minimum delay from the timelock controller
-            MIN_DELAY=$(bun -e "
-              import { createPublicClient, http, parseAbi } from 'viem';
-              import { getViemChainForNetworkName } from './script/utils/viemScriptHelpers.js';
-              
-              const chain = getViemChainForNetworkName('$NETWORK');
-              const client = createPublicClient({
-                chain,
-                transport: http('$RPC_URL'),
-              });
-              
-              const timelockAbi = parseAbi([
-                'function getMinDelay() view returns (uint256)',
-              ]);
-              
-              async function getMinDelay() {
-                try {
-                  const delay = await client.readContract({
-                    address: '$TIMELOCK_ADDRESS',
-                    abi: timelockAbi,
-                    functionName: 'getMinDelay',
-                  });
-                  console.log(delay.toString());
-                } catch (error) {
-                  console.log('3600'); // Default to 1 hour if there's an error
-                }
-              }
-              
-              getMinDelay();
-            ")
-            
-            # Encode the schedule function call
-            SCHEDULE_CALLDATA=$(bun -e "
-              import { encodeFunctionData, parseAbi } from 'viem';
-              
-              const timelockAbi = parseAbi([
-                'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
-              ]);
-              
-              // Create a unique salt based on the current timestamp
-              const salt = '0x' + Date.now().toString(16).padStart(64, '0');
-              
-              // Encode the schedule function call
-              const calldata = encodeFunctionData({
-                abi: timelockAbi,
-                functionName: 'schedule',
-                args: [
-                  '$DIAMOND_ADDRESS',  // target
-                  0n,                  // value
-                  '$FACET_CUT',        // data
-                  '0x0000000000000000000000000000000000000000000000000000000000000000', // predecessor (empty)
-                  salt,                // salt
-                  BigInt($MIN_DELAY),  // delay
-                ],
-              });
-              
-              console.log(calldata);
-            ")
-            
-            echo "[info] Encoded schedule call with minimum delay of $MIN_DELAY seconds"
-            CALLDATA="$SCHEDULE_CALLDATA"
-          else
-            # Use diamond address directly
-            TARGET_ADDRESS="$DIAMOND_ADDRESS"
-            echo "[info] Using diamond directly at $DIAMOND_ADDRESS for facet update"
-            CALLDATA="$FACET_CUT"
-          fi
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
           
-          RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-          bun script/deploy/safe/propose-to-safe.ts --to "$TARGET_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            echo "[info] Using timelock controller for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+          else
+            echo "[info] Using diamond directly for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+          fi
         fi
       fi
     else
