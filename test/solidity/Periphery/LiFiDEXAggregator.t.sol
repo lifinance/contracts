@@ -2984,7 +2984,9 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
     IERC20 internal constant WETH =
         IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f);
     address internal constant USDC_WETH_POOL =
-        address(0x5f46260c486b1C1F769966c468D080d250319f80);
+        address(0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308); // v1 vault
+    address internal constant USDC_WETH_POOL_VAULT =
+        address(0x7160570BB153Edd0Ea1775EC2b2Ac9b65F1aB61B);
 
     /// @notice Set up a fork of Linea at block 20077881 and initialize the aggregator
     function setUp() public override {
@@ -3040,7 +3042,7 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    /// @notice Single‐pool swap: aggregator holds WETH → user receives USDC
+    /// @notice Single-pool swap: aggregator holds WETH → user receives USDC
     function test_CanSwap_FromDexAggregator() public override {
         // Fund the aggregator with 1 000 WETH
         uint256 amountIn = 1_000 * 1e18;
@@ -3056,7 +3058,8 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
             USDC_WETH_POOL, // pool address
             address(USER_SENDER), // recipient
             uint8(2), // withdrawMode
-            uint8(0) // isV1Pool
+            uint8(1), // isV1Pool
+            address(0) // vault
         );
 
         // Subtract 1 to protect against slot‐undrain
