@@ -214,7 +214,7 @@
     "explorerUrl": "https://bobascan.com",
     "explorerApiUrl": "https://api.bobascan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeAddress": "0x05d34Bd70E0CBf8b82423d0C2ee8b2a8f02E4128",
+    "safeAddress": "0x9276717Fd35b958922058B9B8A6DCe8679158950",
     "gasZipChainId": 140,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",

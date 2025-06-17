@@ -375,11 +375,12 @@
         "FeeCollector": "1.0.1",
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.3",
+
         "CBridgeFacet": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "RelayFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "Permit2Proxy": "1.0.0"
       }
     }
   },
