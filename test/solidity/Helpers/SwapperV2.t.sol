@@ -6,34 +6,6 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
 
-// Test AMM that simulates returning tokens due to better pricing
-contract TestPartialAMM {
-    function partialSwap(
-        ERC20 _fromToken,
-        uint256 _amountIn,
-        ERC20 _toToken,
-        uint256 _amountOut
-    ) public payable {
-        // Simulate AMM behavior: take the full amount but return some due to better pricing
-        if (address(_fromToken) != address(0)) {
-            // Take the full amount from the user
-            _fromToken.transferFrom(msg.sender, address(this), _amountIn);
-            // Burn only 80% (simulate using 80% for the swap)
-            _fromToken.burn(address(this), (_amountIn * 80) / 100);
-            // Return 20% back to the caller (simulating better pricing)
-            _fromToken.transfer(msg.sender, (_amountIn * 20) / 100);
-        } else {
-            // For native tokens, we receive the full amount via msg.value
-            // Send away 80% and return 20% back to the caller
-            payable(address(0xd34d)).call{ value: (msg.value * 80) / 100 }("");
-            // Return 20% back to the caller (simulating better pricing)
-            payable(msg.sender).transfer((msg.value * 20) / 100);
-        }
-
-        _toToken.mint(msg.sender, _amountOut);
-    }
-}
-
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
@@ -108,13 +80,10 @@ contract TestSwapperV2 is SwapperV2 {
 contract SwapperV2Test is TestBase {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
-    TestPartialAMM internal partialAmm;
-
     function setUp() public {
         initTestBase();
 
         amm = new TestAMM();
-        partialAmm = new TestPartialAMM();
         swapper = new TestSwapperV2();
 
         bytes4[] memory functionSelectors = new bytes4[](5);
@@ -130,10 +99,9 @@ contract SwapperV2Test is TestBase {
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addDex(address(amm));
-        swapper.addDex(address(partialAmm));
         swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
         swapper.setFunctionApprovalBySignature(
-            bytes4(partialAmm.partialSwap.selector)
+            bytes4(amm.partialSwap.selector)
         );
     }
 
@@ -273,20 +241,20 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 10_100 ether);
     }
 
-    function test_InputTokenLeftovers() public {
+    function test_refundsLeftoverSingleInputToken() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
 
         swapData[0] = LibSwap.SwapData(
-            address(partialAmm),
-            address(partialAmm),
+            address(amm),
+            address(amm),
             address(token1),
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                partialAmm.partialSwap.selector,
+                amm.partialSwap.selector,
                 token1,
                 10_000 ether,
                 token2,
@@ -306,7 +274,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 8_000 ether);
     }
 
-    function test_InputTokenLeftoversWithReserve() public {
+    function test_refundsLeftoverSingleInputTokenWithReserve() public {
         // For now, let's test with ERC20 tokens since reserve only applies to native tokens
         // and the logic should still work (reserve = 0 for ERC20)
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
@@ -315,13 +283,13 @@ contract SwapperV2Test is TestBase {
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
 
         swapData[0] = LibSwap.SwapData(
-            address(partialAmm),
-            address(partialAmm),
+            address(amm),
+            address(amm),
             address(token1),
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                partialAmm.partialSwap.selector,
+                amm.partialSwap.selector,
                 token1,
                 10_000 ether,
                 token2,
@@ -344,20 +312,20 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 8_000 ether);
     }
 
-    function test_NativeTokenLeftoversWithReserve() public {
+    function test_refundsLeftoverNativeTokenWithReserve() public {
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
 
         // Use native token (address(0)) as input to test reserve functionality
         swapData[0] = LibSwap.SwapData(
-            address(partialAmm),
-            address(partialAmm),
+            address(amm),
+            address(amm),
             address(0), // Native token
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                partialAmm.partialSwap.selector,
+                amm.partialSwap.selector,
                 ERC20(address(0)),
                 10_000 ether,
                 token2,
@@ -378,7 +346,7 @@ contract SwapperV2Test is TestBase {
         assertEq(token2.balanceOf(address(1337)), 8_000 ether);
     }
 
-    function test_MultiSwapWithInputLeftovers() public {
+    function test_refundsLeftoverMultipleInputTokens() public {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
@@ -387,13 +355,13 @@ contract SwapperV2Test is TestBase {
 
         // First swap: partial swap leaving leftovers
         swapData[0] = LibSwap.SwapData(
-            address(partialAmm),
-            address(partialAmm),
+            address(amm),
+            address(amm),
             address(token1),
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                partialAmm.partialSwap.selector,
+                amm.partialSwap.selector,
                 token1,
                 10_000 ether,
                 token2,
