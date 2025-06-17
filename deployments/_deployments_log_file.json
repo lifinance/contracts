@@ -31638,6 +31638,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-17 18:20:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d3b2b0ac0afdd0d166a495f5e9fca4ecc715a782000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000a8892ea3fddef2aa8afb1e3643a3284f978a5114",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "mainnet": {
