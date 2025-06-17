@@ -14,20 +14,13 @@ abstract contract BaseMockPermitToken is ERC20, ERC20Permit {
     constructor() ERC20("Mock", "MCK") ERC20Permit("Mock") {}
 
     function permit(
-        // solhint-disable-next-line no-unused-vars
-        address owner,
-        // solhint-disable-next-line no-unused-vars
-        address spender,
-        // solhint-disable-next-line no-unused-vars
-        uint256 value,
-        // solhint-disable-next-line no-unused-vars
-        uint256 deadline,
-        // solhint-disable-next-line no-unused-vars
-        uint8 v,
-        // solhint-disable-next-line no-unused-vars
-        bytes32 r,
-        // solhint-disable-next-line no-unused-vars
-        bytes32 s
+        address,
+        address,
+        uint256,
+        uint256,
+        uint8,
+        bytes32,
+        bytes32
     ) public pure override {
         _permit();
     }
@@ -73,17 +66,16 @@ contract MockPermitTokenRequireRevert is BaseMockPermitToken {
 
 contract MockPermitTokenAdditionOverflow is BaseMockPermitToken {
     function _permit() internal pure override {
-        // solhint-disable-next-line no-unused-vars
-        uint256 test = type(uint256).max + 1;
+        uint256 max = type(uint256).max;
+        max + 1; // runtime overflow → Panic(0x11)
     }
 }
 
 contract MockPermitTokenDivisionByZero is BaseMockPermitToken {
     function _permit() internal pure override {
-        // solhint-disable-next-line no-unused-vars
         uint256 x = 0;
-        // solhint-disable-next-line no-unused-vars
         uint256 y = 1 / x; // This will cause a division by zero at runtime
+        x + y; // to silence unused variable warning
     }
 }
 
