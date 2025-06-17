@@ -19,6 +19,7 @@ import {
   hasEnoughSignatures,
   isSignedByCurrentSigner,
   wouldMeetThreshold,
+  isSignedByProductionWallet,
   getSafeMongoCollection,
   getPendingTransactionsByNetwork,
   getNetworksToProcess,
@@ -35,6 +36,69 @@ const storedResponses: Record<string, string> = {}
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as any).toJSON = function () {
   return this.toString()
+}
+
+/**
+ * Decodes nested timelock schedule calls that may contain diamondCut
+ * @param decoded - The decoded schedule function data
+ * @param chainId - Chain ID for ABI fetching
+ */
+async function decodeNestedTimelockCall(decoded: any, chainId: number) {
+  if (decoded.functionName === 'schedule') {
+    consola.info('Timelock Schedule Details:')
+    consola.info('-'.repeat(80))
+
+    const [target, value, data, predecessor, salt, delay] = decoded.args
+
+    consola.info(`Target:      \u001b[32m${target}\u001b[0m`)
+    consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
+    consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
+    consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
+    consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
+    consola.info('-'.repeat(80))
+
+    // Try to decode the nested data
+    if (data && data !== '0x') {
+      try {
+        const nestedDecoded = await decodeTransactionData(data as Hex)
+        if (nestedDecoded.functionName) {
+          consola.info(
+            `Nested Function: \u001b[34m${nestedDecoded.functionName}\u001b[0m`
+          )
+
+          // If the nested call is diamondCut, decode it further
+          if (nestedDecoded.functionName.includes('diamondCut')) {
+            const fullAbiString = `function ${nestedDecoded.functionName}`
+            const abiInterface = parseAbi([fullAbiString])
+            const nestedDecodedData = decodeFunctionData({
+              abi: abiInterface,
+              data: data as Hex,
+            })
+
+            if (nestedDecodedData.functionName === 'diamondCut') {
+              consola.info('Nested Diamond Cut detected - decoding...')
+              await decodeDiamondCut(nestedDecodedData, chainId)
+            } else {
+              consola.info(
+                'Nested Data:',
+                JSON.stringify(nestedDecodedData, null, 2)
+              )
+            }
+          } else {
+            consola.info(
+              'Nested Data:',
+              JSON.stringify(nestedDecoded.decodedData, null, 2)
+            )
+          }
+        } else {
+          consola.info(`Nested Data: ${data}`)
+        }
+      } catch (error) {
+        consola.warn(`Failed to decode nested data: ${error.message}`)
+        consola.info(`Raw nested data: ${data}`)
+      }
+    }
+  }
 }
 
 /**
@@ -252,6 +316,8 @@ const processTxs = async (
     if (abi) {
       if (decoded && decoded.functionName === 'diamondCut') {
         await decodeDiamondCut(decoded, chain.id)
+      } else if (decoded && decoded.functionName === 'schedule') {
+        await decodeNestedTimelockCall(decoded, chain.id)
       } else {
         consola.info('Method:', abi)
         if (decoded) {
@@ -299,6 +365,14 @@ const processTxs = async (
         options.push('Sign')
         if (wouldMeetThreshold(tx.safeTransaction, tx.threshold)) {
           options.push('Sign & Execute')
+        }
+
+        // Check if this would be the final signature to meet threshold AND production wallet has already signed
+        if (
+          wouldMeetThreshold(tx.safeTransaction, tx.threshold) &&
+          isSignedByProductionWallet(tx.safeTransaction)
+        ) {
+          options.push('Sign and Execute With Deployer')
         }
       }
 
@@ -355,6 +429,98 @@ const processTxs = async (
         await executeTransaction(signedTx)
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
+      }
+    }
+
+    if (action === 'Sign and Execute With Deployer') {
+      try {
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const signedTx = await signTransaction(safeTransaction)
+        // Update MongoDB with new signature
+        await pendingTransactions.updateOne(
+          { safeTxHash: tx.safeTxHash },
+          {
+            $set: {
+              [`safeTx`]: signedTx,
+            },
+          }
+        )
+        consola.success('Transaction signed and stored in MongoDB')
+
+        // Initialize a separate Safe client with PRIVATE_KEY_PRODUCTION for execution
+        consola.info('Initializing deployer wallet for execution...')
+        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+        const { safe: deployerSafe } = await initializeSafeClient(
+          network,
+          deployerPrivateKey,
+          rpcUrl,
+          false, // Not using ledger for deployer
+          undefined
+        )
+
+        // Create executeTransaction function that uses the deployer safe
+        const executeWithDeployer = async (
+          safeTransaction: SafeTransaction
+        ) => {
+          consola.info('Executing transaction with deployer wallet...')
+          try {
+            // Get the Safe transaction hash for reference
+            const safeTxHash = await deployerSafe.getTransactionHash(
+              safeTransaction
+            )
+            consola.info(
+              `Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`
+            )
+
+            // Execute the transaction on-chain using deployer wallet
+            consola.info(
+              'Submitting execution transaction to blockchain with deployer...'
+            )
+            const exec = await deployerSafe.executeTransaction(safeTransaction)
+
+            // Log execution details with color coding
+            consola.success(
+              `Execution transaction submitted successfully with deployer!`
+            )
+            consola.info(
+              `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
+            )
+
+            // Update MongoDB transaction status
+            await pendingTransactions.updateOne(
+              { safeTxHash: safeTxHash },
+              { $set: { status: 'executed', executionHash: exec.hash } }
+            )
+
+            consola.success(
+              `✅ Safe transaction successfully executed with deployer and recorded in database`
+            )
+            consola.info(
+              `   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`
+            )
+            consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
+            consola.log(' ')
+          } catch (error) {
+            consola.error('❌ Error executing Safe transaction with deployer:')
+            consola.error(`   ${error.message}`)
+            if (error.message.includes('GS026')) {
+              consola.error(
+                '   This appears to be a signature validation error (GS026).'
+              )
+              consola.error(
+                '   Possible causes: invalid signature format or incorrect signer.'
+              )
+            }
+            throw new Error(`Transaction execution failed: ${error.message}`)
+          }
+        }
+
+        await executeWithDeployer(signedTx)
+      } catch (error) {
+        consola.error(
+          'Error signing and executing transaction with deployer:',
+          error
+        )
       }
     }
 
