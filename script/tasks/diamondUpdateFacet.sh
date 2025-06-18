@@ -192,7 +192,7 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # save facet addresses (only if deploying to PROD, otherwise we update the logs before the diamondCut tx gets signed in the SAFE)
+  # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
   if [[ "$ENVIRONMENT" != "production" ]]; then
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
   fi
