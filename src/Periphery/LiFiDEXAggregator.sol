@@ -764,20 +764,16 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8(); // 0 = Y2X, 1 = X2Y
         address to = stream.readAddress();
 
-        // Handle token transfer
         if (from == msg.sender) {
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
                 address(this),
                 amountIn
             );
-        } else if (from == address(this)) {
-            IERC20(tokenIn).safeTransfer(address(this), amountIn);
         }
 
         lastCalledPool = pool;
 
-        // Execute swap - we need both amounts for the Swap event
         if (direction == DIRECTION_TOKEN0_TO_TOKEN1) {
             IiZiSwapPool(pool).swapX2Y(
                 to,
