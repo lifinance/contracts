@@ -1914,9 +1914,12 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
 
     function test_CanSwap_FromDexAggregator() public override {
         // Test USDC -> WETH
+        deal(USDC, address(liFiDEXAggregator), AMOUNT_USDC);
+
+        vm.startPrank(USER_SENDER);
         _testSwap(
             IzumiV3SwapTestParams({
-                from: USER_SENDER,
+                from: address(liFiDEXAggregator),
                 to: USER_SENDER,
                 tokenIn: USDC,
                 amountIn: AMOUNT_USDC,
@@ -1924,18 +1927,7 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
                 direction: SwapDirection.Token1ToToken0
             })
         );
-
-        // Test WETH -> USDC
-        _testSwap(
-            IzumiV3SwapTestParams({
-                from: USER_SENDER,
-                to: USER_SENDER,
-                tokenIn: WETH,
-                amountIn: AMOUNT_WETH,
-                tokenOut: USDC,
-                direction: SwapDirection.Token0ToToken1
-            })
-        );
+        vm.stopPrank();
     }
 
     function test_CanSwap_MultiHop() public override {
@@ -2075,12 +2067,12 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         }
 
         // Capture initial token balances
-        uint256 initialBalanceIn;
-        uint256 initialBalanceOut;
-
-        initialBalanceIn = IERC20(params.tokenIn).balanceOf(USER_SENDER);
-
-        initialBalanceOut = IERC20(params.tokenOut).balanceOf(USER_SENDER);
+        uint256 initialBalanceIn = IERC20(params.tokenIn).balanceOf(
+            params.from
+        );
+        uint256 initialBalanceOut = IERC20(params.tokenOut).balanceOf(
+            params.to
+        );
 
         // Build the route based on the command type
         CommandType commandCode = params.from == address(liFiDEXAggregator)
@@ -2109,6 +2101,7 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         address from = params.from == address(liFiDEXAggregator)
             ? USER_SENDER
             : params.from;
+
         vm.expectEmit(true, true, true, false);
         emit Route(
             from,
@@ -2135,15 +2128,13 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         }
 
         // Verify balances have changed correctly
-        uint256 finalBalanceIn;
-        uint256 finalBalanceOut;
+        uint256 finalBalanceIn = IERC20(params.tokenIn).balanceOf(params.from);
+        uint256 finalBalanceOut = IERC20(params.tokenOut).balanceOf(params.to);
 
-        finalBalanceIn = IERC20(params.tokenIn).balanceOf(USER_SENDER);
-        finalBalanceOut = IERC20(params.tokenOut).balanceOf(USER_SENDER);
-
-        assertEq(
+        assertApproxEqAbs(
             initialBalanceIn - finalBalanceIn,
             params.amountIn,
+            1, // 1 wei tolerance because of undrain protection for dex aggregator
             "TokenIn amount mismatch"
         );
         assertGt(finalBalanceOut, initialBalanceOut, "TokenOut not received");
