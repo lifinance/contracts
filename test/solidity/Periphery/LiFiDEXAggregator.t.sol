@@ -2983,10 +2983,18 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
         IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff);
     IERC20 internal constant WETH =
         IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f);
-    address internal constant USDC_WETH_POOL =
-        address(0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308); // v1 vault
-    address internal constant USDC_WETH_POOL_VAULT =
+    address internal constant USDC_WETH_POOL_V1 =
+        address(0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308);
+    address internal constant SYNC_SWAP_VAULT =
         address(0x7160570BB153Edd0Ea1775EC2b2Ac9b65F1aB61B);
+
+    address internal constant USDC_WETH_POOL_V2 =
+        address(0xDDed227D71A096c6B5D87807C1B5C456771aAA94);
+
+    IERC20 internal constant USDT =
+        IERC20(0xA219439258ca9da29E9Cc4cE5596924745e12B93);
+    address internal constant USDC_USDT_POOL_V1 =
+        address(0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2);
 
     /// @notice Set up a fork of Linea at block 20077881 and initialize the aggregator
     function setUp() public override {
@@ -3012,7 +3020,52 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
             uint8(1), // one pool
             FULL_SHARE, // 100%
             uint8(PoolType.SyncSwapV2), // SyncSwapV2
-            USDC_WETH_POOL, // pool address
+            USDC_WETH_POOL_V1, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Record balances before swap
+        uint256 inBefore = WETH.balanceOf(USER_SENDER);
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that WETH was spent and some USDC_C was received
+        uint256 inAfter = WETH.balanceOf(USER_SENDER);
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_PoolV2() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V2, // pool address
             address(USER_SENDER), // recipient
             uint8(2), // withdrawMode
             uint8(0) // isV1Pool
@@ -3055,11 +3108,11 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
             uint8(1), // one pool
             FULL_SHARE, // 100%
             uint8(PoolType.SyncSwapV2), // SyncSwapV2
-            USDC_WETH_POOL, // pool address
+            USDC_WETH_POOL_V1, // pool address
             address(USER_SENDER), // recipient
             uint8(2), // withdrawMode
             uint8(1), // isV1Pool
-            address(0) // vault
+            address(SYNC_SWAP_VAULT) // vault
         );
 
         // Subtract 1 to protect against slot‐undrain
@@ -3083,11 +3136,69 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
     }
 
     function test_CanSwap_MultiHop() public override {
-        // SKIPPED: SyncSwapV2 multi-hop unsupported due to AS requirement.
-        // SyncSwapV2 (being a UniV3 fork) does not support a "one-pool" second hop today,
-        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
-        // the pool.swap call. UniV3-style pools immediately revert on
-        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
-        // in a single processRoute invocation.
+        uint256 amountIn = 1_000e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        uint256 initialBalanceIn = WETH.balanceOf(USER_SENDER);
+        uint256 initialBalanceOut = USDT.balanceOf(USER_SENDER);
+
+        //
+        // 1) PROCESS_USER_ERC20:  WETH → USDC   (SyncSwap V1 → withdrawMode=2 → vault)
+        //
+        bytes memory hop1 = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(WETH),
+            uint8(1), // one pool
+            FULL_SHARE, // 100% of the WETH
+            uint8(PoolType.SyncSwapV2),
+            USDC_WETH_POOL_V1, // the V1 pool
+            SYNC_SWAP_VAULT, // “to” = the vault address
+            uint8(2), // withdrawMode = 2
+            uint8(1), // isV1Pool = true
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        //
+        // 2) PROCESS_ONE_POOL: now swap that USDC → USDT via SyncSwap V1
+        //
+        bytes memory hop2 = abi.encodePacked(
+            uint8(CommandType.ProcessOnePool),
+            address(USDC),
+            uint8(PoolType.SyncSwapV2),
+            USDC_USDT_POOL_V1, // V1 USDC⟶USDT pool
+            address(USER_SENDER), // send the USDT home
+            uint8(2), // withdrawMode = 2
+            uint8(1), // isV1Pool = true
+            SYNC_SWAP_VAULT // vault
+        );
+
+        bytes memory route = bytes.concat(hop1, hop2);
+
+        uint256 amountOut = liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDT),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 afterBalanceIn = WETH.balanceOf(USER_SENDER);
+        uint256 afterBalanceOut = USDT.balanceOf(USER_SENDER);
+
+        assertEq(
+            initialBalanceIn - afterBalanceIn,
+            amountIn,
+            "WETH spent mismatch"
+        );
+        assertEq(
+            amountOut,
+            afterBalanceOut - initialBalanceOut,
+            "USDT amountOut mismatch"
+        );
+        vm.stopPrank();
     }
 }

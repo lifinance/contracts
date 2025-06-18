@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 /// @notice This interface is used to interact with the SyncSwapV2 Vault
-interface ISyncSwapV2Pool {
+interface ISyncSwapPool {
     struct TokenAmount {
         address token;
         uint256 amount;

@@ -8,8 +8,8 @@ import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
-import { ISyncSwapV2Vault } from "lifi/Interfaces/ISyncSwapV2Vault.sol";
-import { ISyncSwapV2Pool } from "lifi/Interfaces/ISyncSwapV2Pool.sol";
+import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
+import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -390,7 +390,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         else if (poolType == POOL_TYPE_IZUMI_V3)
             swapIzumiV3(stream, from, tokenIn, amountIn);
         else if (poolType == POOL_TYPE_SYNCSWAP_V2)
-            swapSyncSwapV2(stream, from, tokenIn, amountIn);
+            swapSyncSwap(stream, from, tokenIn, amountIn);
         else revert UnknownPoolType();
     }
 
@@ -797,7 +797,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         }
     }
 
-    function swapSyncSwapV2(
+    /// @notice Performs a swap through SyncSwap pools
+    /// @dev This function handles both X to Y and Y to X swaps through SyncSwap pools.
+    ///      See [SyncSwap API documentation](https://docs.syncswap.xyz/api-documentation) for protocol details.
+    /// @param stream [pool, to, withdrawMode, isV1Pool, vault]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    function swapSyncSwap(
         uint256 stream,
         address from,
         address tokenIn,
@@ -806,26 +813,33 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address pool = stream.readAddress();
         address to = stream.readAddress();
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
-        uint8 withdrawMode = stream.readUint8(); // only mode 2 works, if hardcode on the contract??
+
+        // withdrawMode meaning for SyncSwap via vault:
+        //   1: Withdraw raw ETH (native)
+        //   2: Withdraw WETH (wrapped)
+        //   0: Let the vault decide (ETH for native, WETH for wrapped)
+        // For ERC-20 tokens the vault just withdraws the ERC-20
+        // and this mode byte is read and ignored by the ERC-20 branch.
+        uint8 withdrawMode = stream.readUint8();
         bool isV1Pool = stream.readUint8() == 1;
         if (isV1Pool) {
             address vault = stream.readAddress();
             if (vault == address(0)) revert InvalidCallData();
-            if (from == address(this)) {
-                IERC20(tokenIn).safeTransfer(vault, amountIn);
-            } else if (from == msg.sender) {
+            if (from == msg.sender) {
                 IERC20(tokenIn).safeTransferFrom(msg.sender, vault, amountIn);
+            } else if (from == address(this)) {
+                IERC20(tokenIn).safeTransfer(vault, amountIn);
             }
-            ISyncSwapV2Vault(vault).deposit(tokenIn, pool);
+            ISyncSwapVault(vault).deposit(tokenIn, pool);
         } else {
-            if (from == address(this)) {
-                IERC20(tokenIn).safeTransfer(pool, amountIn);
-            } else if (from == msg.sender) {
+            if (from == msg.sender) {
                 IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+            } else if (from == address(this)) {
+                IERC20(tokenIn).safeTransfer(pool, amountIn);
             }
         }
         bytes memory data = abi.encode(tokenIn, to, withdrawMode);
-        ISyncSwapV2Pool(pool).swap(data, from, address(0), new bytes(0));
+        ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
     }
 
     /// @dev Common logic for iZiSwap callbacks
