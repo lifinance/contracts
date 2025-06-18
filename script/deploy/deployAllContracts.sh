@@ -10,8 +10,8 @@ deployAllContracts() {
   source script/deploy/deployCoreFacets.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/tasks/diamondSyncDEXs.sh
-  source script/tasks/diamondSyncSigs.sh
+  source script/tasks/diamondSyncWhitelistedAddresses.sh
+  source script/tasks/diamondSyncSelectors.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
   source script/tasks/updateERC20Proxy.sh
@@ -147,16 +147,16 @@ deployAllContracts() {
   # update periphery registry
   diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
-  # add core periphery addresses to dexs.json for whitelisting in subsequent steps
-  addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
+  # add core periphery addresses to whitelistedAddresses.json for whitelisting in subsequent steps
+  addPeripheryToWhitelistedAddressesJson "$NETWORK" "$ENVIRONMENT"
 
-  # run sync dexs script
+  # run sync whitelisted addresses script
   echo ""
-  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  diamondSyncWhitelistedAddresses "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
-  # run sync sigs script
+  # run sync selectors script
   echo ""
-  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  diamondSyncSelectors "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # register Executor as authorized caller in ERC20Proxy
   echo ""

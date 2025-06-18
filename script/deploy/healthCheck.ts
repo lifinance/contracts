@@ -59,9 +59,9 @@ const main = defineCommand({
         k.includes('Facet')
       )
     })
-    const dexs = (await import(`../../config/dexs.json`))[
-      network.toLowerCase()
-    ] as Address[]
+    const expectedWhitelistedAddresses = (
+      await import(`../../config/whitelistedAddresses.json`)
+    )[network.toLowerCase()] as Address[]
 
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
@@ -239,108 +239,116 @@ const main = defineCommand({
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │                   Check approved DEXs                   │
+    //          │                   Check whitelisted addresses           │
     //          ╰─────────────────────────────────────────────────────────╯
-    if (dexs) {
-      consola.box('Checking DEXs approved in diamond...')
+    if (expectedWhitelistedAddresses) {
+      consola.box('Checking whitelisted addresses in diamond...')
 
-      // connect with diamond to get whitelisted DEXs
-      const dexManager = getContract({
+      // connect with diamond to get whitelisted addresses
+      const whitelistManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
-          'function approvedDexs() external view returns (address[])',
-          'function isFunctionApproved(bytes4) external returns (bool)',
+          'function getWhitelistedAddresses() external view returns (address[])',
+          'function isFunctionApproved(bytes4) external view returns (bool)',
+          'function getApprovedFunctionSelectors() external view returns (bytes4[])',
         ]),
         client: publicClient,
       })
 
-      const approvedDexs = await dexManager.read.approvedDexs()
+      let onChainWhitelisted: Address[] = []
+      try {
+        onChainWhitelisted =
+          await whitelistManager.read.getWhitelistedAddresses()
+      } catch (error) {
+        logError('Failed to get whitelisted addresses from chain')
+        // Don't skip the checks - we'll still check against the config
+      }
 
-      let numMissing = 0
-
-      // Check for each address in dexs.json if it is whitelisted
-      for (const dex of dexs) {
-        if (!dex) {
-          logError(`Encountered undefined DEX address.`)
+      // First check all whitelisted addresses
+      for (const cfgAddress of expectedWhitelistedAddresses) {
+        if (!cfgAddress) {
+          logError(`Encountered undefined whitelisted address.`)
           continue
         }
 
         try {
-          const normalized = getAddress(dex)
-          if (!approvedDexs.includes(normalized)) {
-            logError(`DEX ${normalized} not approved in Diamond`)
-            numMissing++
-          }
+          const normalized = getAddress(cfgAddress)
+          // Check if the address is a contract
+          const code = await publicClient.getCode({ address: normalized })
+          if (code === '0x')
+            logError(
+              `Whitelisted address ${normalized} is not a contract (EOA or AA account after EIP-7702)`
+            )
+          if (!onChainWhitelisted.includes(normalized))
+            logError(
+              `Address ${normalized} from whitelist config (whitelistedAddresses.json) is not whitelisted on chain`
+            )
         } catch (err) {
-          logError(`Invalid DEX address in main check: ${dex}`)
+          logError(`Invalid whitelisted address in config: ${cfgAddress}`)
         }
       }
 
-      // Ensure that periphery contracts which are used like DEXs are whitelisted
+      // Then separately check periphery contracts once
       for (const name of autoWhitelistPeripheryContracts) {
-        // get address from deploy log
         const addr = deployedContracts[name]
         if (!addr) {
           logError(`Periphery contract ${name} not deployed`)
-          numMissing++
           continue
         }
 
-        // check if address is whitelisted
         const normalized = getAddress(addr)
-        if (!approvedDexs.includes(normalized)) {
-          logError(`Periphery contract ${name} not approved as a DEX`)
-          numMissing++
-        } else consola.success(`Periphery contract ${name} approved as a DEX`)
+        if (!onChainWhitelisted.includes(normalized))
+          logError(`Periphery contract ${name} not whitelisted`)
+        else consola.success(`Periphery contract ${name} whitelisted`)
       }
-
-      consola.info(
-        `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
-      )
 
       //          ╭─────────────────────────────────────────────────────────╮
-      //          │                   Check approved sigs                   │
+      //          │                   Check approved selectors              │
       //          ╰─────────────────────────────────────────────────────────╯
 
-      consola.box('Checking DEX signatures approved in diamond...')
-      // Check if function signatures are approved
-      const { sigs } = await import(`../../config/sigs.json`)
+      consola.box('Checking selectors approved in diamond...')
+      // Check if selectors are approved
+      const { selectors } = await import(
+        `../../config/whitelistedSelectors.json`
+      )
 
-      // Function to split array into chunks
-      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-        const chunks: T[][] = []
-        for (let i = 0; i < array.length; i += chunkSize)
-          chunks.push(array.slice(i, i + chunkSize))
+      // Get all approved selectors from contract
+      const approvedSelectors = await getApprovedFunctionSelectors(
+        whitelistManager
+      )
 
-        return chunks
+      // Convert selectors to normalized format for comparison
+      const normalizedConfigSelectors = selectors.map(
+        (selector) => selector.toLowerCase() as Hex
+      )
+      const normalizedApprovedSelectors = approvedSelectors.map((selector) =>
+        selector.toLowerCase()
+      )
+
+      // Find missing selectors in both directions
+      const missingInContract = normalizedConfigSelectors.filter(
+        (selector) => !normalizedApprovedSelectors.includes(selector)
+      )
+      const extraInContract = normalizedApprovedSelectors.filter(
+        (selector) => !normalizedConfigSelectors.includes(selector)
+      )
+
+      if (missingInContract.length > 0) {
+        logError(
+          `Missing ${missingInContract.length} selectors in contract that are in config:`
+        )
+        missingInContract.forEach((selector) => consola.info(`  ${selector}`))
       }
 
-      const batchSize = 20
-      const sigBatches = chunkArray(sigs, batchSize)
-
-      const sigsToApprove: Hex[] = []
-
-      for (const batch of sigBatches) {
-        const calls = batch.map((sig: string) => {
-          return {
-            ...dexManager,
-            functionName: 'isFunctionApproved',
-            args: [sig],
-          }
-        })
-
-        const results = await publicClient.multicall({ contracts: calls })
-
-        for (let i = 0; i < results.length; i++)
-          if (results[i].status !== 'success' || !results[i].result) {
-            console.log('Function not approved:', batch[i])
-            sigsToApprove.push(batch[i] as Hex)
-          }
+      if (extraInContract.length > 0) {
+        logError(
+          `Found ${extraInContract.length} extra selectors in contract that are not in config:`
+        )
+        extraInContract.forEach((selector) => consola.info(`  ${selector}`))
       }
 
-      if (sigsToApprove.length > 0)
-        logError(`Missing ${sigsToApprove.length} DEX signatures`)
-      else consola.success('No missing signatures.')
+      if (missingInContract.length === 0 && extraInContract.length === 0)
+        consola.success('All selectors match between config and contract.')
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check contract ownership                 │
@@ -416,45 +424,46 @@ const main = defineCommand({
       })
 
       // Deployer wallet
-      const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
-        sig: Hex
-        name: string
-      }[]
+      const approveSelectors =
+        globalConfig.approvedSelectorsForDeployerWallet as {
+          selector: Hex
+          name: string
+        }[]
 
-      for (const sig of approveSigs)
+      for (const selector of approveSelectors)
         if (
           !(await accessManager.read.addressCanExecuteMethod([
-            sig.sig,
+            selector.selector,
             deployerWallet,
           ]))
         )
           logError(
-            `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
+            `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${selector.selector})`
           )
         else
           consola.success(
-            `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
+            `Deployer wallet ${deployerWallet} can execute ${selector.name} (${selector.selector})`
           )
 
       // Refund wallet
-      const refundSigs = globalConfig.approvedSigsForRefundWallet as {
-        sig: Hex
+      const refundSelectors = globalConfig.approvedSelectorsForRefundWallet as {
+        selector: Hex
         name: string
       }[]
 
-      for (const sig of refundSigs)
+      for (const selector of refundSelectors)
         if (
           !(await accessManager.read.addressCanExecuteMethod([
-            sig.sig,
+            selector.selector,
             refundWallet,
           ]))
         )
           logError(
-            `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
+            `Refund wallet ${refundWallet} cannot execute ${selector.name} (${selector.selector})`
           )
         else
           consola.success(
-            `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
+            `Refund wallet ${refundWallet} can execute ${selector.name} (${selector.selector})`
           )
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -510,7 +519,7 @@ const main = defineCommand({
 
       finish()
     } else {
-      logError('No dexs configured')
+      logError('No whitelisted addresses configured')
       finish()
     }
   },
@@ -575,6 +584,21 @@ const finish = () => {
   } else {
     consola.success('Deployment checks passed')
     process.exit(0)
+  }
+}
+
+const getApprovedFunctionSelectors = async (
+  whitelistManager: any
+): Promise<Hex[]> => {
+  try {
+    const approvedSelectors =
+      await whitelistManager.read.getApprovedFunctionSelectors()
+    return approvedSelectors
+  } catch (error) {
+    logError(
+      'Failed to get approved function selectors (call to getApprovedFunctionSelectors function)'
+    )
+    return []
   }
 }
 
