@@ -3095,7 +3095,6 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
-    /// @notice Single-pool swap: aggregator holds WETH → user receives USDC
     function test_CanSwap_FromDexAggregator() public override {
         // Fund the aggregator with 1 000 WETH
         uint256 amountIn = 1_000 * 1e18;
@@ -3135,6 +3134,43 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
         vm.stopPrank();
     }
 
+    function test_CanSwap_FromDexAggregator_PoolV2() public {
+        // Fund the aggregator with 1 000 WETH
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V2, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2) // withdrawMode
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            swapAmount,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDC was received
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
     function test_CanSwap_MultiHop() public override {
         uint256 amountIn = 1_000e18;
         deal(address(WETH), USER_SENDER, amountIn);
@@ -3146,7 +3182,7 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
         uint256 initialBalanceOut = USDT.balanceOf(USER_SENDER);
 
         //
-        // 1) PROCESS_USER_ERC20:  WETH → USDC   (SyncSwap V1 → withdrawMode=2 → vault)
+        // 1) PROCESS_USER_ERC20:  WETH → USDC   (SyncSwap V1 → withdrawMode=2 → vault that still holds USDC)
         //
         bytes memory hop1 = abi.encodePacked(
             uint8(CommandType.ProcessUserERC20),
@@ -3162,7 +3198,7 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
         );
 
         //
-        // 2) PROCESS_ONE_POOL: now swap that USDC → USDT via SyncSwap V1
+        // 2) PROCESS_ONE_POOL: now swap that USDC → USDT via SyncSwap pool V1
         //
         bytes memory hop2 = abi.encodePacked(
             uint8(CommandType.ProcessOnePool),
@@ -3199,6 +3235,100 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
             afterBalanceOut - initialBalanceOut,
             "USDT amountOut mismatch"
         );
+        vm.stopPrank();
+    }
+
+    function testRevert_V1PoolMissingVaultAddress() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(0) // vault (invalid address)
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidPoolOrRecipient() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory routeWithInvalidPool = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            address(0), // pool address (invalid address)
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidPool
+        );
+
+        bytes memory routeWithInvalidRecipient = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address
+            address(0), // recipient (invalid address)
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidRecipient
+        );
+
         vm.stopPrank();
     }
 }
