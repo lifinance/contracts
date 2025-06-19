@@ -272,7 +272,7 @@ contract SwapperV2 is ILiFi {
         return balances;
     }
 
-    /// @dev Handles leftover tokens after swaps complete
+    /// @dev Refunds leftover tokens to a specified receiver after swaps complete
     /// @param _swaps Swap data array
     /// @param _leftoverReceiver Address to send leftover tokens to
     /// @param _initialBalances Array of initial token balances
