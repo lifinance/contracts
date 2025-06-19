@@ -24,5 +24,6 @@
   "EmergencyPauseFacet": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
   "StargateFacetV2": "0x6Ab7503bbE2dF1ACA8F3ba9099649EB2E2c0B363",
   "ReceiverStargateV2": "0x60f7fc4F9191e49582851C86C3f1E0493E6BE622",
-  "GlacisFacet": "0xf41dace6f5b5b95dE104949C8aD5d07186c0cd2D"
+  "GlacisFacet": "0xf41dace6f5b5b95dE104949C8aD5d07186c0cd2D",
+  "LiFiTimelockController": "0x68b47a7F2aC9722173092dB92B849f8008aBba48"
 }
