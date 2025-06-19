@@ -287,7 +287,7 @@ contract SwapperV2 is ILiFi {
         address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
 
         // Handle both intermediate receiving assets and leftover input tokens in a single loop
-        uint256 curBalance;
+        uint256 leftoverAmount;
         address curAsset;
         address inputAsset;
         uint256 curAssetReserve;
@@ -300,17 +300,17 @@ contract SwapperV2 is ILiFi {
                 curAsset = _swaps[i].receivingAssetId;
                 // Handle multiple swap steps
                 if (curAsset != finalAsset) {
-                    curBalance =
+                    leftoverAmount =
                         LibAsset.getOwnBalance(curAsset) -
                         _initialBalances[i];
                     curAssetReserve = LibAsset.isNativeAsset(curAsset)
                         ? _nativeReserve
                         : 0;
-                    if (curBalance > curAssetReserve) {
+                    if (leftoverAmount > curAssetReserve) {
                         LibAsset.transferAsset(
                             curAsset,
                             _leftoverReceiver,
-                            curBalance - curAssetReserve
+                            leftoverAmount - curAssetReserve
                         );
                     }
                 }
