@@ -50,8 +50,8 @@
         "Version": "1.0.1"
       },
       "0x5a627e444Ee25eB6e7E897A66483A127ECEE2578": {
-        "Name": "",
-        "Version": ""
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

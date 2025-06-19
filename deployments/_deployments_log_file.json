@@ -19962,10 +19962,10 @@
         ],
         "2.0.0": [
           {
-            "ADDRESS": "0x326142e5cB17E79b87a696D545f5B81ddDA45f2e",
+            "ADDRESS": "0x9a82bB477c30D92dAB74875027E14D1De3510ef9",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-10 14:03:03",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004aa42145aa6ebf72e164c9bbc74fbd3788045016",
+            "TIMESTAMP": "2025-06-12 23:45:40",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009a873656c19efecbfb4f9fab5b7acdeab466a0b0",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -28147,9 +28147,9 @@
       "production": {
         "1.0.1": [
           {
-            "ADDRESS": "0x2158B25CF47B2810Ce94d2937ac18955b7b9202d",
+            "ADDRESS": "0x62804857bAF590fB271c1F77435a492A6fa64DBa",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-05 19:39:25",
+            "TIMESTAMP": "2025-06-12 20:58:00",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b1eead6959cb5bb9b20417d6689922523b2b86c3",
             "SALT": "",
             "VERIFIED": "true"
@@ -31678,6 +31678,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-17 18:20:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d3b2b0ac0afdd0d166a495f5e9fca4ecc715a782000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000a8892ea3fddef2aa8afb1e3643a3284f978a5114",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "mainnet": {
@@ -34010,6 +34022,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-05-30 09:26:03",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "etherlink": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5240883FEB3018d33E19754380c3AE49DDdcD128",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-12 09:14:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5a627e444Ee25eB6e7E897A66483A127ECEE2578",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-12 09:15:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000905e21aef470adef9cf9dcf7922431610c875b5",
             "SALT": "",
             "VERIFIED": "true"
           }
