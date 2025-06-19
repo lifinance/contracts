@@ -10,7 +10,7 @@ import { ContractCallNotAllowed, NoSwapDataProvided, CumulativeSlippageTooHigh }
 /// @title Swapper V2
 /// @author LI.FI (https://li.fi)
 /// @notice Abstract contract to provide swap functionality with leftover token handling
-/// @custom:version 1.0.1
+/// @custom:version 1.1.0
 contract SwapperV2 is ILiFi {
     /// Types ///
 
