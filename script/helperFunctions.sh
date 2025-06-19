@@ -1462,10 +1462,10 @@ function verifyContract() {
 
   # Get API key and determine verification method
   API_KEY=$(getEtherscanApiKeyName "$NETWORK")
-  if [ $? -eq 0 ]; then
+  if [ $? -eq 1 ]; then
     error "Could not extract Etherscan API key name for $NETWORK from foundry.toml"
     return 1
-  else
+  fi
 
   # determine verification method based on API key
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
