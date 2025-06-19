@@ -8,6 +8,13 @@ import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    struct HopApproval {
+        address aTokenAddress;
+        address bContractAddress;
+        string cTokenName;
+        string dContractName;
+    }
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -21,7 +28,10 @@ contract DeployScript is UpdateScriptBase {
         bytes memory rawApprovals = json.parseRaw(
             string.concat(".", network, ".approvals")
         );
-        Approval[] memory approvals = abi.decode(rawApprovals, (Approval[]));
+        HopApproval[] memory approvals = abi.decode(
+            rawApprovals,
+            (HopApproval[])
+        );
 
         address[] memory contractAddresses = new address[](approvals.length);
         address[] memory tokenAddresses = new address[](approvals.length);
