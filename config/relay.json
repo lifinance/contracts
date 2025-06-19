@@ -119,6 +119,11 @@
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
+  "ronin": {
+    "chainId": 2020,
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+  },
   "scroll": {
     "chainId": 534352,
     "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
