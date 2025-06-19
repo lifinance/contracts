@@ -31,9 +31,10 @@ contract TestAMM {
             // Take the full amount from the user
             _fromToken.transferFrom(msg.sender, address(this), _amountIn);
             // Burn only 80% (simulate using 80% for the swap)
-            _fromToken.burn(address(this), (_amountIn * 80) / 100);
-            // Return 20% back to the caller (simulating better pricing)
-            _fromToken.transfer(msg.sender, (_amountIn * 20) / 100);
+            uint256 toBurn = (_amountIn * 80) / 100;
+            _fromToken.burn(address(this), toBurn);
+            // Return exact remainder to avoid dust (test code precision)
+            _fromToken.transfer(msg.sender, _amountIn - toBurn);
         } else {
             // For native tokens, we receive the full amount via msg.value
             // Send away 80% and return 20% back to the caller
