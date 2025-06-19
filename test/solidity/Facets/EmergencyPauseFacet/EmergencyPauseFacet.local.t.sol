@@ -454,17 +454,19 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         randomValues = new bytes4[](3);
 
         for (uint256 i = 0; i < 3; i++) {
-            counter++; // Increment the counter for additional randomness
+            counter++;
             randomValues[i] = bytes4(
                 keccak256(
                     abi.encodePacked(
                         block.timestamp,
-                        block.difficulty,
+                        block.number,
+                        msg.sender,
                         counter
                     )
                 )
             );
         }
+
         return randomValues;
     }
 }
