@@ -34055,6 +34055,20 @@
           }
         ]
       }
+    },
+    "viction": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4b67f2bB8855c5d222dF8159B57C54b795403452",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-19 20:53:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002aeec3ad32b39fc67a1284ea23a59ed986c3c47b",
+            "SALT": "20250619",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
