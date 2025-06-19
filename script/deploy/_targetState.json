@@ -4,7 +4,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -57,7 +57,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -86,7 +86,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -133,7 +133,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -162,7 +162,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -201,7 +201,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -227,7 +227,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -269,7 +269,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -299,7 +299,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -333,7 +333,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -360,7 +360,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -388,7 +388,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -430,7 +430,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -457,7 +457,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -482,7 +482,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -506,7 +506,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -531,7 +531,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -560,7 +560,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -586,7 +586,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -612,7 +612,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -647,7 +647,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -679,7 +679,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -707,7 +707,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -731,7 +731,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -763,7 +763,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -793,7 +793,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -830,7 +830,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -857,7 +857,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -886,7 +886,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -914,7 +914,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -943,7 +943,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -974,7 +974,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1000,7 +1000,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1027,7 +1027,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1071,7 +1071,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1095,7 +1095,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1140,7 +1140,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1172,7 +1172,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1200,7 +1200,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1235,7 +1235,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1263,7 +1263,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1296,7 +1296,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1325,7 +1325,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1352,7 +1352,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1380,7 +1380,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1408,7 +1408,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1442,7 +1442,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1471,7 +1471,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1498,7 +1498,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1525,7 +1525,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1558,7 +1558,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1584,34 +1584,7 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.1.0",
-        "Executor": "2.1.0",
-        "FeeCollector": "1.0.1",
-        "LiFiDEXAggregator": "1.9.0",
-        "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.3",
-        "GasZipPeriphery": "1.0.1",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
-      }
-    }
-  },
-  "flare": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.0",
-        "WhitelistManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -1657,6 +1630,89 @@
         "GasZipPeriphery": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "katana": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1"
+      }
+    }
+  },
+  "plume": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "AcrossFacetV3": "1.1.0",
+        "AcrossFacetPackedV3": "1.2.0",
+        "ReceiverAcrossV3": "1.1.0",
+        "ArbitrumBridgeFacet": "1.0.0",
+        "RelayFacet": "1.0.0",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "ronin": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "RelayFacet": "1.0.0"
       }
     }
   }
