@@ -1533,10 +1533,14 @@ function verifyContract() {
 
 function getEtherscanApiKeyName() {
   local NETWORK="$1"
-  local TOML_FILE="foundry.toml"
 
   if [[ -z "$NETWORK" ]]; then
     echo "Usage: getEtherscanApiKeyName <network>" >&2
+    return 1
+  fi
+
+  if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
+    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
     return 1
   fi
 
@@ -1546,7 +1550,7 @@ function getEtherscanApiKeyName() {
     $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
     in_etherscan && /^\[/ { in_etherscan=0 }
     in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
-  ' "$TOML_FILE")
+  ' "$FOUNDRY_TOML_FILE_PATH")
 
   if [[ -z "$KEY_LINE" ]]; then
     echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
