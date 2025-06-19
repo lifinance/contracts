@@ -37,6 +37,7 @@ contract TestAMM {
         } else {
             // For native tokens, we receive the full amount via msg.value
             // Send away 80% and return 20% back to the caller
+            // solhint-disable-next-line avoid-low-level-calls
             payable(address(0xd34d)).call{ value: (msg.value * 80) / 100 }("");
             // Return 20% back to the caller (simulating better pricing)
             payable(msg.sender).transfer((msg.value * 20) / 100);
