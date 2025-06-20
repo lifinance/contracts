@@ -1,3 +1,13 @@
+#!/usr/bin/env bun
+
+/**
+ * Update Deployment Logs
+ *
+ * This script manages deployment logs stored in MongoDB for contract deployments.
+ * It can sync deployment data from JSON files, add new records, or update existing ones.
+ * Supports both production and staging environments with separate collections.
+ */
+
 import { readFileSync } from 'fs'
 import path from 'path'
 

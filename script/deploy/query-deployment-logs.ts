@@ -1,4 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+
+/**
+ * Query Deployment Logs
+ *
+ * This script provides various query operations for deployment logs stored in MongoDB.
+ * It supports listing, filtering, searching, and retrieving deployment records from
+ * both production and staging environments with comprehensive CLI commands.
+ */
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
