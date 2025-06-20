@@ -810,6 +810,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     ) private {
         address pool = stream.readAddress();
         address to = stream.readAddress();
+
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
 
         // withdrawMode meaning for SyncSwap via vault:
@@ -820,23 +821,38 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // and this mode byte is read and ignored by the ERC-20 branch.
         uint8 withdrawMode = stream.readUint8();
         bool isV1Pool = stream.readUint8() == 1;
+
         if (isV1Pool) {
             address vault = stream.readAddress();
             if (vault == address(0)) revert InvalidCallData();
+
+            // transfer tokens to vault
             if (from == msg.sender) {
                 IERC20(tokenIn).safeTransferFrom(msg.sender, vault, amountIn);
             } else if (from == address(this)) {
                 IERC20(tokenIn).safeTransfer(vault, amountIn);
+            } else if (from == INTERNAL_INPUT_SOURCE) {
+                // For INTERNAL_INPUT_SOURCE, tokens are already in the vault/pool
+                // No transfer needed, just proceed with the swap
+            } else {
+                revert InvalidCallData();
             }
+
             ISyncSwapVault(vault).deposit(tokenIn, pool);
         } else {
+            // transfer tokens to pool
             if (from == msg.sender) {
                 IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
             } else if (from == address(this)) {
                 IERC20(tokenIn).safeTransfer(pool, amountIn);
             }
+            // if 'from' is neither msg.sender nor address(this) then it must be INTERNAL_INPUT_SOURCE
+            // which that tokens are already in the pool
+            // No transfer needed, just proceed with the swap
         }
+
         bytes memory data = abi.encode(tokenIn, to, withdrawMode);
+
         ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
     }
 
@@ -853,11 +869,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         address tokenIn = abi.decode(data, (address));
 
-        if (amountToPay <= 0) {
+        if (amountToPay == 0) {
             revert IzumiV3SwapCallbackNotPositiveAmount();
         }
 
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
+
         IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
     }
 
