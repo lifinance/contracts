@@ -4,28 +4,19 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    error InvalidBridgeContractAddress(address);
+    error InvalidContractAddress(address);
+
     struct HopApproval {
--        address aTokenAddress;
--        address bContractAddress;
--        string cTokenName;
--        string dContractName;
-+        address tokenAddress;
-+        address bridgeContractAddress;
-+        string tokenName;
-+        string contractName;
-    }
-
-    // …
-
-    for (uint256 i = 0; i < approvals.length; i++) {
--        contractAddresses[i] = approvals[i].bContractAddress;
--        tokenAddresses[i] = approvals[i].aTokenAddress;
-+        contractAddresses[i] = approvals[i].bridgeContractAddress;
-+        tokenAddresses[i] = approvals[i].tokenAddress;
+        address tokenAddress;
+        address bridgeContractAddress;
+        string tokenName;
+        string contractName;
     }
 
     function run()
@@ -38,6 +29,7 @@ contract DeployScript is UpdateScriptBase {
     function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
+
         bytes memory rawApprovals = json.parseRaw(
             string.concat(".", network, ".approvals")
         );
@@ -51,8 +43,15 @@ contract DeployScript is UpdateScriptBase {
 
         // Loop through all items and split them in arrays
         for (uint256 i = 0; i < approvals.length; i++) {
-            contractAddresses[i] = approvals[i].bContractAddress;
-            tokenAddresses[i] = approvals[i].aTokenAddress;
+            if (!LibAsset.isContract(approvals[i].bridgeContractAddress))
+                revert InvalidBridgeContractAddress(
+                    approvals[i].bridgeContractAddress
+                );
+            contractAddresses[i] = approvals[i].bridgeContractAddress;
+
+            if (!LibAsset.isContract(approvals[i].tokenAddress))
+                revert InvalidContractAddress(approvals[i].tokenAddress);
+            tokenAddresses[i] = approvals[i].tokenAddress;
         }
 
         bytes memory callData = abi.encodeWithSelector(

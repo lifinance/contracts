@@ -34286,21 +34286,5 @@
         ]
       }
     }
-  },
-  "CREATE3Factory": {
-    "optimism": {
-      "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CREATE3Factory\u001b[0m\u001b[0m": [
-          {
-            "ADDRESS": "0xC0D270aca083d0113F1FC4DCb1fEe283679A88F1",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-18 09:34:17",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "20250618",
-            "VERIFIED": "true"
-          }
-        ]
-      }
-    }
   }
 }
