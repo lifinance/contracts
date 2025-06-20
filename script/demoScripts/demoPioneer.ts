@@ -2,7 +2,7 @@ import { config } from 'dotenv'
 import { parseUnits, zeroAddress, type Narrow } from 'viem'
 
 import pioneerFacetArtifact from '../../out/PioneerFacet.sol/PioneerFacet.json'
-import type { ILiFi } from '../../typechain'
+import type { ILiFi, PioneerFacet } from '../../typechain'
 import type { SupportedChain } from '../common/types'
 
 import { executeTransaction, setupEnvironment } from './utils/demoScriptHelpers'
@@ -118,7 +118,12 @@ async function main() {
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
-  console.log(bridgeData)
+
+  const pioneerData: PioneerFacet.PioneerDataStruct = {
+    refundAddress: signerAddress,
+  }
+
+  console.log(bridgeData, pioneerData)
 
   // === Start bridging ===
   if (!lifiDiamondContract) throw new Error('LiFi Diamond contract not found')
@@ -126,7 +131,7 @@ async function main() {
   await executeTransaction(
     () =>
       (lifiDiamondContract as any).write.startBridgeTokensViaPioneer(
-        [bridgeData],
+        [bridgeData, pioneerData],
         {
           value: amount,
         }
