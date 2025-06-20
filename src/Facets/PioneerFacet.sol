@@ -14,9 +14,18 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @notice Main entry point to send bridge requests to Pioneer
 /// @custom:version 1.0.0
 contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// @notice Describes a refund address. Emitted after LiFiTransferStarted.
+    /// @param refundTo If transaction failed, send inputs to this address.
+    event RefundAddress(address refundTo);
+
     /// Storage ///
 
     address payable public immutable PIONEER_ADDRESS;
+
+    /// @param refundAddress the address that is used for potential refunds
+    struct PioneerData {
+        address payable refundAddress;
+    }
 
     /// Constructor ///
 
@@ -31,7 +40,8 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Pioneer
     /// @param _bridgeData The core information needed for bridging
     function startBridgeTokensViaPioneer(
-        ILiFi.BridgeData memory _bridgeData
+        ILiFi.BridgeData memory _bridgeData,
+        PioneerData calldata _pioneerData
     )
         external
         payable
@@ -45,7 +55,7 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData);
+        _startBridge(_bridgeData, _pioneerData);
     }
 
     /// @notice Performs a swap before bridging via Pioneer
@@ -53,7 +63,8 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _swapData An array of swap related data for performing swaps before bridging
     function swapAndStartBridgeTokensViaPioneer(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData
+        LibSwap.SwapData[] calldata _swapData,
+        PioneerData calldata _pioneerData
     )
         external
         payable
@@ -69,14 +80,17 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData);
+        _startBridge(_bridgeData, _pioneerData);
     }
 
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via Pioneer
     /// @param _bridgeData The core information needed for bridging
-    function _startBridge(ILiFi.BridgeData memory _bridgeData) internal {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        PioneerData calldata _pioneerData
+    ) internal {
         LibAsset.transferAsset(
             _bridgeData.sendingAssetId,
             PIONEER_ADDRESS,
@@ -84,5 +98,6 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
+        emit RefundAddress(_pioneerData.refundAddress);
     }
 }
