@@ -797,12 +797,13 @@
     "explorerUrl": "https://app.roninchain.com/explorer",
     "explorerApiUrl": "https://sourcify.roninchain.com/server",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeAddress": "",
+    "safeAddress": "0xd8383fd32CCa007Ec8e51290ee3b5Dd196EcC0DF",
     "gasZipChainId": 413,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "devNotes": "Contract verification is not working, but it is deployed. Only supports Sourcify verification but couldnt get it work. Details in helperFunctions.sh"
   },
   "rootstock": {
     "name": "rootstock",
