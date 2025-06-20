@@ -194,46 +194,20 @@ library LibAsset {
         return assetId == NATIVE_ASSETID;
     }
 
-    /// @notice Checks if the given address is a contract (including EIP‑7702 AA‑wallets)
-    ///         Returns true for any account with runtime code or with the 0xef0100 prefix (EIP‑7702).
+    /// @notice Checks if the given address is a contract
+    ///         Returns true for any account with runtime code (excluding EIP-7702 accounts).
+    ///         For EIP-7702 accounts, checks if code size is exactly 23 bytes (delegation format).
     ///         Limitations:
-    ///         - Still returns false during construction phase of a contract
     ///         - Cannot distinguish between EOA and self-destructed contract
     /// @param account The address to be checked
     function isContract(address account) internal view returns (bool) {
-        bytes memory code = new bytes(23); // 3 bytes prefix + 20 bytes address
-
-        assembly {
-            extcodecopy(account, add(code, 0x20), 0, 23)
-        }
-
-        // Check for delegation designator prefix
-        bytes3 prefix;
-        assembly {
-            prefix := mload(add(code, 32))
-        }
-
-        if (prefix == DELEGATION_DESIGNATOR) {
-            // Extract delegate address (next 20 bytes)
-            address delegateAddr;
-            assembly {
-                delegateAddr := mload(add(add(code, 0x20), 3))
-                delegateAddr := shr(96, delegateAddr)
-            }
-
-            // Only check first level of delegation
-            uint256 delegateSize;
-            assembly {
-                delegateSize := extcodesize(delegateAddr)
-            }
-            return delegateSize > 0;
-        }
-
-        // If not delegated, check if it's a regular contract
         uint256 size;
         assembly {
             size := extcodesize(account)
         }
-        return size > 0;
+
+        // Return true only for regular contracts (size > 23)
+        // EIP-7702 delegated accounts (size == 23) are still EOAs, not contracts
+        return size > 23;
     }
 }
