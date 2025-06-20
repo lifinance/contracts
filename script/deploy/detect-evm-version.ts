@@ -1,15 +1,15 @@
-// @ts-nocheck
 import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
+import { consola } from 'consola'
 import { createPublicClient, createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-import networksConfig from '../../config/networks.json'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 import { getPrivateKey } from './safe/safe-utils'
 
 const PUSH0_BYTECODE = '0x5f60005260006000f3' // PUSH0 + MSTORE + RETURN
+
+// This script is used to guess/detect the EVM version of a given network by checking the block fields and PUSH0 opcode
 
 enum EVMVersionEnum {
   Berlin = 0,
@@ -45,12 +45,10 @@ const main = defineCommand({
   async run({ args }) {
     const { network } = args
 
-    console.log(`network: ${network}`)
-
     const chain = getViemChainForNetworkName(network.toLowerCase())
     const publicClient = createPublicClient({
       chain,
-      transport: http(chain.rpcUrls.default.http),
+      transport: http(chain.rpcUrls.default.http[0]),
     })
 
     consola.info(`Connected to ${network} via ${chain.rpcUrls.default.http}`)
@@ -61,12 +59,12 @@ const main = defineCommand({
       `Timestamp: ${new Date(Number(block.timestamp) * 1000).toISOString()}`
     )
 
-    let inferredVersion: EVMVersion = EVMVersion.Berlin
+    let inferredVersion: EVMVersionEnum = EVMVersionEnum.Berlin
 
-    if ('baseFeePerGas' in block) inferredVersion = EVMVersion.London
-    if ('withdrawalsRoot' in block) inferredVersion = EVMVersion.Shanghai
+    if ('baseFeePerGas' in block) inferredVersion = EVMVersionEnum.London
+    if ('withdrawalsRoot' in block) inferredVersion = EVMVersionEnum.Shanghai
     if ('blobGasUsed' in block || 'excessBlobGas' in block)
-      inferredVersion = EVMVersion.Cancun
+      inferredVersion = EVMVersionEnum.Cancun
 
     consola.box(
       'Attempting PUSH0 opcode deployment to verify Shanghai support...'
@@ -83,7 +81,7 @@ const main = defineCommand({
         console.log('account: ', account)
         const walletClient = createWalletClient({
           chain,
-          transport: http(networksConfig[network].rpcUrl),
+          transport: http(chain.rpcUrls.default.http[0]),
 
           account,
         })
@@ -111,9 +109,9 @@ const main = defineCommand({
     }
 
     // Adjust inferred version if PUSH0 failed
-    if (!push0Supported && inferredVersion >= EVMVersion.Shanghai) {
+    if (!push0Supported && inferredVersion >= EVMVersionEnum.Shanghai) {
       consola.info('Cancun/Shanghai features ignored due to failed PUSH0 test.')
-      inferredVersion = EVMVersion.London
+      inferredVersion = EVMVersionEnum.London
     }
 
     consola.success(`Likely EVM version: ${evmVersionLabels[inferredVersion]}`)
