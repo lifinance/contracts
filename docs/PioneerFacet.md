@@ -14,14 +14,21 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaPioneer(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaPioneer(BridgeData calldata _bridgeData, PioneerData calldata _pioneerData)`
   - Simply bridges tokens using pioneer
-- `swapAndStartBridgeTokensViaPioneer(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `swapAndStartBridgeTokensViaPioneer(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, PioneerData calldata _pioneerData)`
   - Performs swap(s) before bridging tokens using pioneer
 
 ## pioneer Specific Parameters
 
-Pioneer does not take specific parameters. The transaction ID is used to index information about the destinaton.
+The Pioneer takes a PioneerData struct to provide context on the transaction originator; If the transaction fails and a refund has to be issued, the refund will be sent to `PioneerData.refundAddress`.
+```solidity
+struct PioneerData {
+  address payable refundAddress;
+}
+```
+
+Additionally, it is expected that the transaction ID of matches the quoteId from the Pioneer api.
 
 ## Swap Data
 

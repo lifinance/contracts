@@ -26,6 +26,8 @@ contract PioneerFacetTest is TestBaseFacet {
 
     address payable internal destination;
 
+    PioneerFacet.PioneerData internal pioneerData;
+
     function setUp() public {
         customBlockNumberForForking = 17130542;
         initTestBase();
@@ -63,6 +65,9 @@ contract PioneerFacetTest is TestBaseFacet {
         // adjust bridgeData
         bridgeData.bridge = "pioneer";
         bridgeData.destinationChainId = 137;
+
+        // Set a refund address.
+        pioneerData.refundAddress = payable(address(0xdeaddeadff77));
     }
 
     function test_transfer_to_pioneer() external {
@@ -70,7 +75,9 @@ contract PioneerFacetTest is TestBaseFacet {
 
         usdc.approve(address(basePioneerFacet), bridgeData.minAmount);
 
-        basePioneerFacet.startBridgeTokensViaPioneer(bridgeData);
+        vm.expectEmit();
+        emit PioneerFacet.RefundAddress(pioneerData.refundAddress);
+        basePioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
 
         assertEq(
             IERC20(bridgeData.sendingAssetId).balanceOf(destination),
@@ -83,9 +90,11 @@ contract PioneerFacetTest is TestBaseFacet {
 
         bridgeData.sendingAssetId = address(0);
 
+        vm.expectEmit();
+        emit PioneerFacet.RefundAddress(pioneerData.refundAddress);
         basePioneerFacet.startBridgeTokensViaPioneer{
             value: bridgeData.minAmount
-        }(bridgeData);
+        }(bridgeData, pioneerData);
 
         assertEq(destination.balance, bridgeData.minAmount);
     }
@@ -94,9 +103,9 @@ contract PioneerFacetTest is TestBaseFacet {
         if (isNative) {
             pioneerFacet.startBridgeTokensViaPioneer{
                 value: bridgeData.minAmount
-            }(bridgeData);
+            }(bridgeData, pioneerData);
         } else {
-            pioneerFacet.startBridgeTokensViaPioneer(bridgeData);
+            pioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
         }
     }
 
@@ -106,11 +115,12 @@ contract PioneerFacetTest is TestBaseFacet {
         if (isNative) {
             pioneerFacet.swapAndStartBridgeTokensViaPioneer{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData);
+            }(bridgeData, swapData, pioneerData);
         } else {
             pioneerFacet.swapAndStartBridgeTokensViaPioneer(
                 bridgeData,
-                swapData
+                swapData,
+                pioneerData
             );
         }
     }
