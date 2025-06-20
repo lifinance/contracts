@@ -6,15 +6,11 @@ import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
-import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
-import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
-
-import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
@@ -516,52 +512,6 @@ contract CalldataVerificationFacetTest is TestBase {
         );
     }
 
-    function test_CanValidateCelerIMDestinationCalldata() public {
-        CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
-            maxSlippage: 1,
-            nonce: 2,
-            callTo: abi.encode(USER_RECEIVER),
-            callData: bytes("foobarbytes"),
-            messageBusFee: 3,
-            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
-        });
-
-        bytes memory callData = abi.encodeWithSelector(
-            CelerIMFacetBase.startBridgeTokensViaCelerIM.selector,
-            bridgeData,
-            cimData
-        );
-
-        bytes memory callDataWithSwap = abi.encodeWithSelector(
-            CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector,
-            bridgeData,
-            swapData,
-            cimData
-        );
-
-        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                callDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
-
-        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
-    }
-
     function test_CanValidateAcrossV3DestinationCalldata() public {
         AcrossFacetV3.AcrossV3Data memory acrossData = AcrossFacetV3
             .AcrossV3Data({
@@ -611,31 +561,6 @@ contract CalldataVerificationFacetTest is TestBase {
         assertTrue(validCall);
         assertTrue(validCallWithSwap);
         assertFalse(badCall);
-    }
-
-    function test_RevertsOnDestinationCalldataWithInvalidSelector() public {
-        CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
-            maxSlippage: 1,
-            nonce: 2,
-            callTo: abi.encode(USER_RECEIVER),
-            callData: bytes("foobarbytes"),
-            messageBusFee: 3,
-            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
-        });
-
-        bytes memory callData = abi.encodeWithSelector(
-            GenericSwapFacet.swapTokensGeneric.selector, // wrong selector, does not support destination calls
-            bridgeData,
-            cimData
-        );
-
-        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-
-        assertFalse(validCall);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {
