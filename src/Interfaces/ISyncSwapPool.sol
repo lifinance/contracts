@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-/// @title Interface for SyncSwapV2 Vault
+/// @title Interface for SyncSwapV2 Pool
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
-/// @notice This interface is used to interact with the SyncSwapV2 Vault
+/// @notice This interface is used to interact with the SyncSwapV2 Pool
 interface ISyncSwapPool {
     struct TokenAmount {
         address token;

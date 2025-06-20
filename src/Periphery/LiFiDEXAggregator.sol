@@ -865,12 +865,11 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @dev In the implementation you must pay the pool tokens owed for the swap
     /// @dev The caller of this method must be checked to be an iZiSwap pool deployed by the canonical iZiSwap factory
     /// @param amountX The amount of tokenX that must be sent to the pool by the end of the swap
-    /// @param amountY The amount of tokenY that was sent by the pool in the swap
+    /// @param {unused} The amount of tokenY that was sent by the pool in the swap
     /// @param data Any data passed through by the caller via the IiZiSwapPool#swapX2Y call
     function swapX2YCallback(
         uint256 amountX,
-        // solhint-disable-next-line no-unused-vars
-        uint256 amountY,
+        uint256,
         bytes calldata data
     ) external {
         _handleIzumiV3SwapCallback(amountX, data);
@@ -879,12 +878,11 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapY2X
     /// @dev In the implementation you must pay the pool tokens owed for the swap
     /// @dev The caller of this method must be checked to be an iZiSwap pool deployed by the canonical iZiSwap factory
-    /// @param amountX The amount of tokenX that was sent by the pool in the swap
+    /// @param {unused} The amount of tokenX that was sent by the pool in the swap
     /// @param amountY The amount of tokenY that must be sent to the pool by the end of the swap
     /// @param data Any data passed through by the caller via the IiZiSwapPool#swapY2X call
     function swapY2XCallback(
-        // solhint-disable-next-line no-unused-vars
-        uint256 amountX,
+        uint256,
         uint256 amountY,
         bytes calldata data
     ) external {

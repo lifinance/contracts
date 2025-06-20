@@ -12,7 +12,7 @@ interface IiZiSwapPool {
     /// @param amount the max amount of tokenY user willing to pay
     /// @param highPt the highest point(price) of x/y during swap
     /// @param data any data to be passed through to the callback
-    /// @return amountX amount of tokenX payed
+    /// @return amountX amount of tokenX paid
     /// @return amountY amount of tokenY acquired
     function swapY2X(
         address recipient,
@@ -27,7 +27,7 @@ interface IiZiSwapPool {
     /// @param lowPt the lowest point(price) of x/y during swap
     /// @param data any data to be passed through to the callback
     /// @return amountX amount of tokenX acquired
-    /// @return amountY amount of tokenY payed
+    /// @return amountY amount of tokenY paid
     function swapX2Y(
         address recipient,
         uint128 amount,

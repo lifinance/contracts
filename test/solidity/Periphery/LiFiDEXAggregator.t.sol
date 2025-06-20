@@ -2969,7 +2969,6 @@ contract LiFiDexAggregatorEnosysDexV3Test is LiFiDexAggregatorTest {
 contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
     using SafeERC20 for IERC20;
 
-    // address internal constant SYNC_SWAP_V3_ROUTER = address(0x2c81dF4F11A1C7E43Acb972e73767B1f5d0d9edc);
     IERC20 internal constant USDC =
         IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff);
     IERC20 internal constant WETH =
