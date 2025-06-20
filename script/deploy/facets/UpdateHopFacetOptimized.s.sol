@@ -9,10 +9,23 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     struct HopApproval {
-        address aTokenAddress;
-        address bContractAddress;
-        string cTokenName;
-        string dContractName;
+-        address aTokenAddress;
+-        address bContractAddress;
+-        string cTokenName;
+-        string dContractName;
++        address tokenAddress;
++        address bridgeContractAddress;
++        string tokenName;
++        string contractName;
+    }
+
+    // …
+
+    for (uint256 i = 0; i < approvals.length; i++) {
+-        contractAddresses[i] = approvals[i].bContractAddress;
+-        tokenAddresses[i] = approvals[i].aTokenAddress;
++        contractAddresses[i] = approvals[i].bridgeContractAddress;
++        tokenAddresses[i] = approvals[i].tokenAddress;
     }
 
     function run()
