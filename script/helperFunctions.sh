@@ -1445,7 +1445,7 @@ function verifyContract() {
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
   # Build base verification command
-  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH"
 
   # Add constructor args if present
   if [ "$ARGS" != "0x" ]; then
@@ -1480,23 +1480,28 @@ function verifyContract() {
     VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
   fi
 
-  # Attempt verification with retries
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # execute verification command
-    eval "$VERIFY_CMD"
-    COMMAND_STATUS=$?
 
-    # increase retry counter
-    RETRY_COUNT=$((RETRY_COUNT + 1))
+  # skip this part if API key is SOURCIFY_API_KEY
+  if [[ "$API_KEY" != "SOURCIFY_API_KEY" ]]; then
+    # Attempt verification with retries
+    echo "Trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS using command: $VERIFY_CMD"
+    while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+      # execute verification command
+      eval "$VERIFY_CMD"
+      COMMAND_STATUS=$?
 
-    # sleep for 2 seconds before trying again
-    [ $COMMAND_STATUS -ne 0 ] && sleep 2
-  done
+      # increase retry counter
+      RETRY_COUNT=$((RETRY_COUNT + 1))
 
-  # Check verification status
-  if [ $COMMAND_STATUS -eq 0 ]; then
-    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-    return 0
+      # sleep for 2 seconds before trying again
+      [ $COMMAND_STATUS -ne 0 ] && sleep 2
+    done
+
+    # Check verification status
+    if [ $COMMAND_STATUS -eq 0 ]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+      return 0
+    fi
   fi
 
   # Fallback to Sourcify if primary verification fails
@@ -1509,11 +1514,37 @@ function verifyContract() {
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   else
-    forge verify-contract \
-      "$ADDRESS" \
-      "$CONTRACT" \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify
+    echo "here"
+    # forge verify-contract \
+    #   "$ADDRESS" \
+    #   "$CONTRACT" \
+    #   --chain-id "$CHAIN_ID" \
+    #   --verifier sourcify \
+
+    # if forge verify-contract --verifier sourcify --verifier-url https://sourcify.roninchain.com/server/ --chain-id "$CHAIN_ID" "$ADDRESS" "$CONTRACT"; then
+    #   echo "Success"
+    # else
+    #   echo "Failed"
+    # fi
+
+  forge verify-contract --verifier sourcify --verifier-url https://sourcify.roninchain.com/server/ --chain-id "$CHAIN_ID" "$ADDRESS" "$CONTRACT"
+
+  # FROM DOCS:
+  #forge verify-contract --verifier sourcify --verifier-url https://sourcify.roninchain.com/server/ --chain-id <CHAIN> <ADDRESS> <CONTRACT>
+
+  # tried with URLS:
+  # https://sourcify.roninchain.com/server/
+  # https://sourcify.dev/server/
+  # https://sourcify.roninchain.com/server/verify
+  # https://sourcify.roninchain.com/server/verify/create2
+
+  # tried with Foundry versions:
+  # 1.0.0
+  # 1.2.3
+
+  SOURCIFY_RETURN_CODE=$?
+  echo "SOURCIFY_RETURN_CODE: $SOURCIFY_RETURN_CODE"
+
   fi
 
   # Check Sourcify verification
@@ -1528,7 +1559,7 @@ function verifyContract() {
       --verifier sourcify
   fi
 
-  if [ $? -eq 0 ]; then
+  if [ $SOURCIFY_RETURN_CODE -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
   else
