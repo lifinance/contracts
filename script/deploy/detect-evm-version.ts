@@ -1,15 +1,17 @@
 // @ts-nocheck
 import { defineCommand, runMain } from 'citty'
+import consola from 'consola'
 import { createPublicClient, createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
-import { getPrivateKey } from './safe/safe-utils'
-import consola from 'consola'
+
 import networksConfig from '../../config/networks.json'
+import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+
+import { getPrivateKey } from './safe/safe-utils'
 
 const PUSH0_BYTECODE = '0x5f60005260006000f3' // PUSH0 + MSTORE + RETURN
 
-enum EVMVersion {
+enum EVMVersionEnum {
   Berlin = 0,
   London = 1,
   Shanghai = 2,
@@ -17,10 +19,10 @@ enum EVMVersion {
 }
 
 const evmVersionLabels = {
-  [EVMVersion.Berlin]: 'Berlin or earlier',
-  [EVMVersion.London]: 'London or later',
-  [EVMVersion.Shanghai]: 'Shanghai or later',
-  [EVMVersion.Cancun]: 'Cancun',
+  [EVMVersionEnum.Berlin]: 'Berlin or earlier',
+  [EVMVersionEnum.London]: 'London or later',
+  [EVMVersionEnum.Shanghai]: 'Shanghai or later',
+  [EVMVersionEnum.Cancun]: 'Cancun',
 }
 
 const main = defineCommand({
@@ -37,6 +39,7 @@ const main = defineCommand({
     privateKey: {
       type: 'string',
       description: 'Optional override for deployer private key',
+      required: false,
     },
   },
   async run({ args }) {
@@ -71,10 +74,11 @@ const main = defineCommand({
     let push0Supported = false
 
     try {
-      const privateKey = getPrivateKey(`PRIVATE_KEY_PRODUCTION`)
-      if (!privateKey) {
+      const privateKey =
+        args.privateKey || getPrivateKey(`PRIVATE_KEY_PRODUCTION`)
+      if (!privateKey)
         consola.warn('No deployer private key found — skipping PUSH0 check.')
-      } else {
+      else {
         const account = privateKeyToAccount(`0x${privateKey}`)
         console.log('account: ', account)
         const walletClient = createWalletClient({
@@ -90,9 +94,9 @@ const main = defineCommand({
         consola.info(`Sent PUSH0 test tx: ${hash}`)
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash })
-        if (receipt.status === 'reverted') {
+        if (receipt.status === 'reverted')
           consola.warn('PUSH0 tx reverted — PUSH0 likely not supported')
-        } else {
+        else {
           consola.success('PUSH0 opcode supported — confirms Shanghai+')
           push0Supported = true
         }
@@ -101,11 +105,9 @@ const main = defineCommand({
       if (
         err.message?.includes('invalid opcode') ||
         err.message?.includes('execution reverted')
-      ) {
+      )
         consola.warn('PUSH0 caused invalid opcode — not supported')
-      } else {
-        consola.error('Unexpected error testing PUSH0:', err)
-      }
+      else consola.error('Unexpected error testing PUSH0:', err)
     }
 
     // Adjust inferred version if PUSH0 failed
