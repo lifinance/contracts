@@ -5,7 +5,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { StargateFacetV2 } from "./StargateFacetV2.sol";
-import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
@@ -13,7 +12,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.3.0
+/// @custom:version 1.3.1
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -291,31 +290,6 @@ contract CalldataVerificationFacet {
                 );
         }
 
-        // ---------------------------------------
-        // Case: Celer
-        if (
-            selector == CelerIMFacetBase.startBridgeTokensViaCelerIM.selector
-        ) {
-            (, CelerIM.CelerIMData memory celerIMData) = abi.decode(
-                data[4:],
-                (ILiFi.BridgeData, CelerIM.CelerIMData)
-            );
-            return
-                keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
-                keccak256(callTo) == keccak256(celerIMData.callTo);
-        }
-        if (
-            selector ==
-            CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector
-        ) {
-            (, , CelerIM.CelerIMData memory celerIMData) = abi.decode(
-                data[4:],
-                (ILiFi.BridgeData, LibSwap.SwapData[], CelerIM.CelerIMData)
-            );
-            return
-                keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
-                keccak256(callTo) == keccak256((celerIMData.callTo));
-        }
         // Case: AcrossV3
         if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
             (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
