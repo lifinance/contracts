@@ -7,8 +7,15 @@
 
 import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
-import { Address, Hex } from 'viem'
-import consola from 'consola'
+import {
+  Address,
+  Hex,
+  createPublicClient,
+  http,
+  parseAbi,
+  encodeFunctionData,
+} from 'viem'
+import { consola } from 'consola'
 import {
   getSafeMongoCollection,
   getNextNonce,
@@ -18,6 +25,75 @@ import {
   OperationType,
   isAddressASafeOwner,
 } from './safe-utils'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import * as fs from 'fs'
+import * as path from 'path'
+
+/**
+ * Helper function to wrap calldata in a timelock schedule call
+ */
+async function wrapWithTimelockSchedule(
+  network: string,
+  rpcUrl: string,
+  timelockAddress: Address,
+  targetAddress: Address,
+  originalCalldata: Hex
+): Promise<{ calldata: Hex; targetAddress: Address }> {
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  })
+
+  // Get the minimum delay from the timelock controller
+  const timelockAbi = parseAbi([
+    'function getMinDelay() view returns (uint256)',
+  ])
+
+  let minDelay: bigint
+  try {
+    minDelay = await client.readContract({
+      address: timelockAddress,
+      abi: timelockAbi,
+      functionName: 'getMinDelay',
+    })
+  } catch (error) {
+    consola.warn(
+      'Failed to get minimum delay from timelock, using default 1 hour'
+    )
+    minDelay = 3600n // Default to 1 hour
+  }
+
+  // Create a unique salt based on the current timestamp
+  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+
+  // Encode the schedule function call
+  const scheduleAbi = parseAbi([
+    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+  ])
+
+  const scheduleCalldata = encodeFunctionData({
+    abi: scheduleAbi,
+    functionName: 'schedule',
+    args: [
+      targetAddress, // target
+      0n, // value
+      originalCalldata, // data
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
+      salt, // salt
+      minDelay, // delay
+    ],
+  })
+
+  consola.info(
+    `Wrapped transaction in timelock schedule call with minimum delay of ${minDelay} seconds`
+  )
+
+  return {
+    calldata: scheduleCalldata,
+    targetAddress: timelockAddress,
+  }
+}
 
 /**
  * Main command definition for proposing transactions to a Safe
@@ -70,6 +146,11 @@ const main = defineCommand({
     derivationPath: {
       type: 'string',
       description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
+    timelock: {
+      type: 'boolean',
+      description: 'Wrap the transaction in a timelock schedule call',
       required: false,
     },
   },
@@ -145,6 +226,45 @@ const main = defineCommand({
       process.exit(1)
     }
 
+    // Handle timelock wrapping if requested
+    let finalTo = args.to as Address
+    let finalCalldata = args.calldata as Hex
+
+    if (args.timelock) {
+      // Look for timelock controller address in deployments (always use production)
+      const deploymentPath = path.join(
+        process.cwd(),
+        'deployments',
+        `${args.network}.json`
+      )
+
+      if (!fs.existsSync(deploymentPath)) {
+        throw new Error(`Deployment file not found: ${deploymentPath}`)
+      }
+
+      const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
+      const timelockAddress = deployments.LiFiTimelockController
+
+      if (!timelockAddress || timelockAddress === '0x') {
+        throw new Error(
+          `LiFiTimelockController not found in deployments for network ${args.network}`
+        )
+      }
+
+      consola.info(`Using timelock controller at ${timelockAddress}`)
+
+      const wrappedTransaction = await wrapWithTimelockSchedule(
+        args.network,
+        args.rpcUrl || '',
+        timelockAddress as Address,
+        finalTo,
+        finalCalldata
+      )
+
+      finalTo = wrappedTransaction.targetAddress
+      finalCalldata = wrappedTransaction.calldata
+    }
+
     // Get the next nonce
     const nextNonce = await getNextNonce(
       pendingTransactions,
@@ -158,9 +278,9 @@ const main = defineCommand({
     const safeTransaction = await safe.createTransaction({
       transactions: [
         {
-          to: args.to as Address,
+          to: finalTo,
           value: 0n,
-          data: args.calldata as Hex,
+          data: finalCalldata,
           operation: OperationType.Call,
           nonce: nextNonce,
         },
@@ -173,7 +293,11 @@ const main = defineCommand({
     consola.info('Signer Address', senderAddress)
     consola.info('Safe Address', safeAddress)
     consola.info('Network', chain.name)
-    consola.info('Proposing transaction to', args.to)
+    consola.info('Proposing transaction to', finalTo)
+    if (args.timelock) {
+      consola.info('Original target was', args.to)
+      consola.info('Transaction wrapped in timelock schedule call')
+    }
 
     // Store transaction in MongoDB using the utility function
     try {
