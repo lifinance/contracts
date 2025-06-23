@@ -78,17 +78,45 @@ class DeploymentLogQuerier {
   public async listDeployments(
     contractName?: string,
     network?: string,
-    limit = 50
-  ): Promise<IDeploymentRecord[]> {
+    limit = 50,
+    page = 1
+  ): Promise<{
+    data: IDeploymentRecord[]
+    pagination: {
+      page: number
+      limit: number
+      total: number
+      totalPages: number
+      hasNext: boolean
+      hasPrev: boolean
+    }
+  }> {
     const filter: Record<string, unknown> = {}
     if (contractName) filter.contractName = contractName
     if (network) filter.network = network
 
-    return this.collection
+    const skip = (page - 1) * limit
+    const total = await this.collection.countDocuments(filter)
+    const totalPages = Math.ceil(total / limit)
+
+    const data = await this.collection
       .find(filter)
       .sort({ timestamp: -1 })
+      .skip(skip)
       .limit(limit)
       .toArray()
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    }
   }
 
   public async findByAddress(
@@ -232,6 +260,11 @@ const listCommand = defineCommand({
       description: 'Maximum number of results (default: 50)',
       required: false,
     },
+    page: {
+      type: 'string',
+      description: 'Page number (default: 1)',
+      required: false,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -245,20 +278,29 @@ const listCommand = defineCommand({
       args.env as 'staging' | 'production'
     )
     const limit = args.limit ? parseInt(args.limit) : 50
+    const page = args.page ? parseInt(args.page) : 1
 
     try {
       await querier.connect()
-      const deployments = await querier.listDeployments(
+      const result = await querier.listDeployments(
         args.contract,
         args.network,
-        limit
+        limit,
+        page
       )
 
-      if (deployments.length > 0) {
-        consola.success(`Found ${deployments.length} deployment(s):`)
-        deployments.forEach((deployment) => {
+      if (result.data.length > 0) {
+        consola.success(
+          `Found ${result.data.length} deployment(s) (Page ${result.pagination.page} of ${result.pagination.totalPages}, Total: ${result.pagination.total}):`
+        )
+        result.data.forEach((deployment) => {
           console.log(formatDeployment(deployment))
         })
+
+        if (result.pagination.hasNext)
+          consola.info(
+            `Use --page ${result.pagination.page + 1} to see more results`
+          )
       } else consola.warn('No deployments found matching criteria')
     } catch (error) {
       consola.error('Query failed:', error)

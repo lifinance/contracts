@@ -115,26 +115,63 @@ class DeploymentLogManager {
   }
 
   private async createIndexes(): Promise<void> {
-    const indexes = [
-      { contractName: 1, network: 1, version: 1 },
-      { contractNetworkKey: 1, version: 1 },
-      { timestamp: -1 },
-      { address: 1 },
+    const indexSpecs = [
+      {
+        key: { contractName: 1, network: 1, version: 1 },
+        name: 'contract_network_version',
+      },
+      {
+        key: { contractNetworkKey: 1, version: 1 },
+        name: 'contract_network_key_version',
+      },
+      { key: { timestamp: -1 }, name: 'timestamp_desc' },
+      { key: { address: 1 }, name: 'address' },
     ]
 
-    for (const index of indexes)
-      try {
-        await this.collection.createIndex(index)
-      } catch (error) {
-        consola.warn('Index creation failed (may already exist):', error)
-      }
+    try {
+      const existingIndexes = await this.collection.listIndexes().toArray()
+      const existingIndexNames = new Set(existingIndexes.map((idx) => idx.name))
+
+      for (const indexSpec of indexSpecs)
+        if (!existingIndexNames.has(indexSpec.name))
+          try {
+            await this.collection.createIndex(indexSpec.key, {
+              name: indexSpec.name,
+            })
+            consola.info(`Created index: ${indexSpec.name}`)
+          } catch (error) {
+            consola.warn(`Failed to create index ${indexSpec.name}:`, error)
+          }
+        else consola.debug(`Index ${indexSpec.name} already exists`)
+    } catch (error) {
+      consola.warn('Failed to list existing indexes:', error)
+    }
+  }
+
+  // Enhanced timestamp validation
+  private isValidTimestamp(timestamp: string): boolean {
+    if (!timestamp || typeof timestamp !== 'string') return false
+
+    // Check for common invalid formats that Date.parse() might accept
+    if (timestamp.trim() === '' || timestamp === 'Invalid Date') return false
+
+    // Try to parse the date
+    const parsedDate = new Date(timestamp)
+
+    // Check if the date is valid and not NaN
+    if (isNaN(parsedDate.getTime())) return false
+
+    // Check if the date is reasonable (not too far in past/future)
+    const now = new Date()
+    const minDate = new Date('2020-01-01') // Reasonable minimum for blockchain deployments
+    const maxDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000) // 1 year in future
+
+    return parsedDate >= minDate && parsedDate <= maxDate
   }
 
   // Type guard for validating raw deployment data
   private isValidDeploymentData(data: unknown): data is IRawDeploymentData {
-    if (typeof data !== 'object' || data === null) 
-      return false
-    
+    if (typeof data !== 'object' || data === null) return false
 
     const deployment = data as Record<string, unknown>
 
@@ -146,37 +183,28 @@ class DeploymentLogManager {
       'CONSTRUCTOR_ARGS',
       'VERIFIED',
     ]
-    for (const field of requiredStringFields) 
-      if (typeof deployment[field] !== 'string' || !deployment[field]) 
+    for (const field of requiredStringFields)
+      if (typeof deployment[field] !== 'string' || !deployment[field])
         return false
-      
-    
 
     // SALT is optional but must be string if present
-    if (deployment.SALT !== undefined && typeof deployment.SALT !== 'string') 
+    if (deployment.SALT !== undefined && typeof deployment.SALT !== 'string')
       return false
-    
 
-    // Validate timestamp format
+    // Validate timestamp format with stricter validation
     const timestamp = deployment.TIMESTAMP as string
-    if (isNaN(Date.parse(timestamp))) 
-      return false
-    
+    if (!this.isValidTimestamp(timestamp)) return false
 
     // Validate verified field
     const verified = deployment.VERIFIED as string
-    if (verified !== 'true' && verified !== 'false') 
-      return false
-    
+    if (verified !== 'true' && verified !== 'false') return false
 
     return true
   }
 
   // Type guard for validating JSON data structure
   private isValidJsonStructure(data: unknown): data is IJsonDataStructure {
-    if (typeof data !== 'object' || data === null) 
-      return false
-    
+    if (typeof data !== 'object' || data === null) return false
 
     // Basic structure validation - we'll do deeper validation during iteration
     return true
@@ -266,13 +294,11 @@ class DeploymentLogManager {
                   contractVersionKey: `${contractName}-${version}`,
                 }
 
-                if (this.validateRecord(record)) 
-                  records.push(record)
-                 else 
+                if (this.validateRecord(record)) records.push(record)
+                else
                   consola.warn(
                     `Skipping record that failed final validation: ${contractName} on ${network} (${environment})`
                   )
-                
               } catch (error) {
                 consola.warn(
                   `Error processing deployment record for ${contractName} on ${network} (${environment}): ${error}`
@@ -354,7 +380,32 @@ class DeploymentLogManager {
       },
     }))
 
-    await this.collection.bulkWrite(operations)
+    try {
+      const result = await this.collection.bulkWrite(operations, {
+        ordered: false,
+      })
+
+      if (result.hasWriteErrors()) {
+        const writeErrors = result.getWriteErrors()
+        consola.warn(
+          `Batch operation completed with ${writeErrors.length} errors:`
+        )
+        writeErrors.forEach((error) => {
+          const record = records[error.index]
+          if (record)
+            consola.warn(
+              `Failed to upsert ${record.contractName} on ${record.network}: ${error.errmsg}`
+            )
+        })
+      }
+
+      consola.info(
+        `Batch upsert completed: ${result.upsertedCount} inserted, ${result.modifiedCount} modified`
+      )
+    } catch (error) {
+      consola.error('Batch upsert operation failed:', error)
+      throw error
+    }
   }
 
   public async syncDeployments(): Promise<void> {
@@ -367,44 +418,79 @@ class DeploymentLogManager {
 
       consola.info(`Found ${records.length} deployment records in JSON file`)
 
-      // Get existing records from MongoDB for comparison
-      consola.info('Fetching existing records from MongoDB...')
-      const existingRecords = await this.collection.find({}).toArray()
-      consola.info(
-        `Found ${existingRecords.length} existing records in MongoDB`
-      )
+      // Use aggregation pipeline to get only the keys we need for comparison
+      consola.info('Fetching existing record keys from MongoDB...')
+      const existingKeys = await this.collection
+        .aggregate([
+          {
+            $project: {
+              _id: 0,
+              key: {
+                $concat: [
+                  '$contractName',
+                  '-',
+                  '$network',
+                  '-',
+                  '$version',
+                  '-',
+                  '$address',
+                ],
+              },
+              contractName: 1,
+              network: 1,
+              version: 1,
+              address: 1,
+            },
+          },
+        ])
+        .toArray()
 
-      // Create maps for efficient comparison
-      const jsonRecordsMap = new Map<string, IDeploymentRecord>()
-      const mongoRecordsMap = new Map<string, IDeploymentRecord>()
+      consola.info(`Found ${existingKeys.length} existing records in MongoDB`)
 
-      // Create unique keys for comparison (contract-network-version-address)
+      // Create sets for efficient comparison
+      const jsonKeysSet = new Set<string>()
+      const mongoKeysSet = new Set<string>()
+      const mongoKeysMap = new Map<
+        string,
+        {
+          contractName: string
+          network: string
+          version: string
+          address: string
+        }
+      >()
+
+      // Create unique keys for comparison
       records.forEach((record) => {
         const key = `${record.contractName}-${record.network}-${record.version}-${record.address}`
-        jsonRecordsMap.set(key, record)
+        jsonKeysSet.add(key)
       })
 
-      existingRecords.forEach((record) => {
-        const key = `${record.contractName}-${record.network}-${record.version}-${record.address}`
-        mongoRecordsMap.set(key, record)
+      existingKeys.forEach((item) => {
+        mongoKeysSet.add(item.key)
+        mongoKeysMap.set(item.key, {
+          contractName: item.contractName,
+          network: item.network,
+          version: item.version,
+          address: item.address,
+        })
       })
 
       // Find records to add (in JSON but not in MongoDB)
       const recordsToAdd = records.filter((record) => {
         const key = `${record.contractName}-${record.network}-${record.version}-${record.address}`
-        return !mongoRecordsMap.has(key)
+        return !mongoKeysSet.has(key)
       })
 
-      // Find records to remove (in MongoDB but not in JSON) - for complete sync
-      const recordsToRemove = existingRecords.filter((record) => {
-        const key = `${record.contractName}-${record.network}-${record.version}-${record.address}`
-        return !jsonRecordsMap.has(key)
-      })
+      // Find keys to remove (in MongoDB but not in JSON)
+      const keysToRemove = Array.from(mongoKeysSet).filter(
+        (key) => !jsonKeysSet.has(key)
+      )
 
       consola.info(`Records to add: ${recordsToAdd.length}`)
-      consola.info(`Records to remove: ${recordsToRemove.length}`)
+      consola.info(`Records to remove: ${keysToRemove.length}`)
 
-      // Add new records
+      // Add new records in batches
       if (recordsToAdd.length > 0) {
         consola.info('Adding new records...')
         for (let i = 0; i < recordsToAdd.length; i += this.config.batchSize) {
@@ -418,18 +504,38 @@ class DeploymentLogManager {
         }
       }
 
-      // Remove records not in JSON (to ensure MongoDB matches JSON exactly)
-      if (recordsToRemove.length > 0) {
+      // Remove records not in JSON using bulk operations
+      if (keysToRemove.length > 0) {
         consola.warn(
-          `Removing ${recordsToRemove.length} records that are not in JSON file...`
+          `Removing ${keysToRemove.length} records that are not in JSON file...`
         )
-        for (const record of recordsToRemove)
-          await this.collection.deleteOne({
-            contractName: record.contractName,
-            network: record.network,
-            version: record.version,
-            address: record.address,
-          })
+
+        const deleteOperations = keysToRemove.map((key) => {
+          const record = mongoKeysMap.get(key)
+          if (!record) 
+            throw new Error(`Record not found for key: ${key}`)
+          
+          return {
+            deleteOne: {
+              filter: {
+                contractName: record.contractName,
+                network: record.network,
+                version: record.version,
+                address: record.address,
+              },
+            },
+          }
+        })
+
+        // Process deletions in batches
+        for (
+          let i = 0;
+          i < deleteOperations.length;
+          i += this.config.batchSize
+        ) {
+          const batch = deleteOperations.slice(i, i + this.config.batchSize)
+          await this.collection.bulkWrite(batch)
+        }
 
         consola.info('Removed obsolete records')
       }
@@ -437,7 +543,6 @@ class DeploymentLogManager {
       consola.success('Sync completed - MongoDB now matches JSON file exactly')
     } catch (error) {
       consola.error('Sync failed, but deployment can continue:', error)
-      // Don't throw - allow deployment process to continue
     }
   }
 
