@@ -396,12 +396,18 @@ deploySingleContract() {
 
           # update VERIFIED info in log file
           logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED" "$SALT"
+          
+          # log to MongoDB as well
+          logContractDeploymentInfoToMongoDB "$RELAYER_NAME" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED" "$SALT"
         fi
       else
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
 
         # overwrite existing log entry with new deployment info
         logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$SALT"
+        
+        # log to MongoDB as well
+        logContractDeploymentInfoToMongoDB "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$SALT"
       fi
     fi
 
@@ -456,6 +462,9 @@ deploySingleContract() {
 
         # update VERIFIED info in log file
         logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+        
+        # log to MongoDB as well
+        logContractDeploymentInfoToMongoDB "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -464,12 +473,18 @@ deploySingleContract() {
 
       # overwrite existing log entry with new deployment info
       logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+      
+      # log to MongoDB as well
+      logContractDeploymentInfoToMongoDB "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
     fi
   else
     echoDebug "log entry does not exist or contract was re-deployed. Log entry will be (over-)written now."
 
     # write to logfile
     logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+    
+    # log to MongoDB as well
+    logContractDeploymentInfoToMongoDB "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
   fi
 
   # save contract in network-specific deployment files

@@ -400,6 +400,250 @@ function getHighestDeployedContractVersionFromMasterLog() {
   return 1
 
 }
+# >>>>> MongoDB logging integration
+function isMongoLoggingEnabled() {
+  # Check if MongoDB logging is enabled via environment variable
+  if [[ "$ENABLE_MONGODB_LOGGING" == "true" && -n "$MONGODB_URI" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function logContractDeploymentInfoToMongoDB() {
+  # Only proceed if MongoDB logging is enabled
+  if ! isMongoLoggingEnabled; then
+    echoDebug "MongoDB logging is disabled, skipping"
+    return 0
+  fi
+
+  # Read function arguments (same as existing logContractDeploymentInfo)
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local TIMESTAMP="$3"
+  local VERSION="$4"
+  local OPTIMIZER_RUNS="$5"
+  local CONSTRUCTOR_ARGS="$6"
+  local ENVIRONMENT="$7"
+  local ADDRESS="$8"
+  local VERIFIED="$9"
+  local SALT="${10}"
+
+  echoDebug "Logging deployment to MongoDB: $CONTRACT on $NETWORK"
+
+  # Call the MongoDB update script
+  local MONGO_CMD="bun script/deploy/update-deployment-logs.ts add"
+  MONGO_CMD="$MONGO_CMD --env=\"$ENVIRONMENT\""
+  MONGO_CMD="$MONGO_CMD --contract=\"$CONTRACT\""
+  MONGO_CMD="$MONGO_CMD --network=\"$NETWORK\""
+  MONGO_CMD="$MONGO_CMD --version=\"$VERSION\""
+  MONGO_CMD="$MONGO_CMD --address=\"$ADDRESS\""
+  MONGO_CMD="$MONGO_CMD --optimizer-runs=\"$OPTIMIZER_RUNS\""
+  MONGO_CMD="$MONGO_CMD --timestamp=\"$TIMESTAMP\""
+  MONGO_CMD="$MONGO_CMD --constructor-args=\"$CONSTRUCTOR_ARGS\""
+  MONGO_CMD="$MONGO_CMD --verified=\"$VERIFIED\""
+  
+  if [[ -n "$SALT" ]]; then
+    MONGO_CMD="$MONGO_CMD --salt=\"$SALT\""
+  fi
+
+  # Execute MongoDB logging with error handling
+  if [[ "$DEBUG" == "true" ]]; then
+    eval "$MONGO_CMD"
+  else
+    eval "$MONGO_CMD" 2>/dev/null
+  fi
+
+  local MONGO_RESULT=$?
+  if [[ $MONGO_RESULT -eq 0 ]]; then
+    echoDebug "Successfully logged to MongoDB: $CONTRACT on $NETWORK"
+  else
+    warning "Failed to log to MongoDB: $CONTRACT on $NETWORK (deployment will continue)"
+  fi
+
+  return 0  # Always return success to not block deployment
+}
+
+function queryMongoDeployment() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+
+  if ! isMongoLoggingEnabled; then
+    return 1
+  fi
+
+  bun script/deploy/query-deployment-logs.ts get \
+    --env="$ENVIRONMENT" \
+    --contract="$CONTRACT" \
+    --network="$NETWORK" \
+    --version="$VERSION" 2>/dev/null
+}
+
+function checkMongoDeploymentExists() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+
+  if ! isMongoLoggingEnabled; then
+    return 1
+  fi
+
+  bun script/deploy/query-deployment-logs.ts exists \
+    --env="$ENVIRONMENT" \
+    --contract="$CONTRACT" \
+    --network="$NETWORK" \
+    --version="$VERSION" 2>/dev/null
+}
+
+function getLatestMongoDeployment() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+
+  if ! isMongoLoggingEnabled; then
+    return 1
+  fi
+
+  bun script/deploy/query-deployment-logs.ts latest \
+    --env="$ENVIRONMENT" \
+    --contract="$CONTRACT" \
+    --network="$NETWORK" 2>/dev/null
+}
+
+# Enhanced versions of existing functions with MongoDB fallback/primary support
+function findContractInMasterLogEnhanced() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
+    local MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+      echo "$MONGO_RESULT"
+      return 0
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
+  findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+}
+
+function findContractInMasterLogByAddressEnhanced() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET_ADDRESS="$3"
+
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
+    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env="$ENVIRONMENT" \
+      --address="$TARGET_ADDRESS" 2>/dev/null)
+    
+    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Convert MongoDB result to expected format
+      local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+      local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+      local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+      
+      if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+        local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+        echo "$JSON_ENTRY"
+        return 0
+      fi
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
+  findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$TARGET_ADDRESS"
+}
+
+function getContractVersionFromMasterLogEnhanced() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT="$3"
+  local TARGET_ADDRESS="$4"
+
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
+    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env="$ENVIRONMENT" \
+      --address="$TARGET_ADDRESS" 2>/dev/null)
+    
+    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+      local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+      local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+      
+      # Handle special case for CelerIMFacet
+      if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
+        CONTRACT="CelerIMFacet"
+      fi
+      
+      if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
+        echo "$VERSION"
+        return 0
+      fi
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
+  getContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$TARGET_ADDRESS"
+}
+
+function getHighestDeployedContractVersionFromMasterLogEnhanced() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT="$3"
+
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT"
+    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+      --env="$ENVIRONMENT" \
+      --contract="$CONTRACT" \
+      --network="$NETWORK" \
+      --limit=50 2>/dev/null)
+    
+    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Extract all versions and find the highest one
+      local VERSIONS=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
+      if [[ -n "$VERSIONS" && "$VERSIONS" != "null" ]]; then
+        echo "$VERSIONS"
+        return 0
+      fi
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
+  getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+}
+
+function getUnverifiedContractsFromMongo() {
+  local ENVIRONMENT="$1"
+
+  if ! isMongoLoggingEnabled; then
+    return 1
+  fi
+
+  echoDebug "Getting unverified contracts from MongoDB"
+  bun script/deploy/query-deployment-logs.ts filter \
+    --env="$ENVIRONMENT" \
+    --verified=false \
+    --limit=1000 2>/dev/null
+}
+# <<<<< MongoDB logging integration
+
 # <<<<< logging
 
 # >>>>> reading and manipulation of deployment log files
