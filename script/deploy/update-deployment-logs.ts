@@ -37,6 +37,26 @@ interface IDeploymentRecord {
   contractVersionKey: string // `${contractName}-${version}`
 }
 
+// Type definitions for the expected JSON data structure
+interface IRawDeploymentData {
+  ADDRESS: string
+  OPTIMIZER_RUNS: string
+  TIMESTAMP: string
+  CONSTRUCTOR_ARGS: string
+  SALT?: string
+  VERIFIED: string
+}
+
+interface IJsonDataStructure {
+  [contractName: string]: {
+    [network: string]: {
+      [environment: string]: {
+        [version: string]: IRawDeploymentData[]
+      }
+    }
+  }
+}
+
 // Configuration interface
 interface IConfig {
   mongoUri: string
@@ -110,7 +130,59 @@ class DeploymentLogManager {
       }
   }
 
-  // Data validation
+  // Type guard for validating raw deployment data
+  private isValidDeploymentData(data: unknown): data is IRawDeploymentData {
+    if (typeof data !== 'object' || data === null) 
+      return false
+    
+
+    const deployment = data as Record<string, unknown>
+
+    // Check required fields exist and are strings
+    const requiredStringFields = [
+      'ADDRESS',
+      'OPTIMIZER_RUNS',
+      'TIMESTAMP',
+      'CONSTRUCTOR_ARGS',
+      'VERIFIED',
+    ]
+    for (const field of requiredStringFields) 
+      if (typeof deployment[field] !== 'string' || !deployment[field]) 
+        return false
+      
+    
+
+    // SALT is optional but must be string if present
+    if (deployment.SALT !== undefined && typeof deployment.SALT !== 'string') 
+      return false
+    
+
+    // Validate timestamp format
+    const timestamp = deployment.TIMESTAMP as string
+    if (isNaN(Date.parse(timestamp))) 
+      return false
+    
+
+    // Validate verified field
+    const verified = deployment.VERIFIED as string
+    if (verified !== 'true' && verified !== 'false') 
+      return false
+    
+
+    return true
+  }
+
+  // Type guard for validating JSON data structure
+  private isValidJsonStructure(data: unknown): data is IJsonDataStructure {
+    if (typeof data !== 'object' || data === null) 
+      return false
+    
+
+    // Basic structure validation - we'll do deeper validation during iteration
+    return true
+  }
+
+  // Data validation for final deployment record
   private validateRecord(record: IDeploymentRecord): boolean {
     const required = ['contractName', 'network', 'version', 'address']
     return required.every((field) => record[field as keyof IDeploymentRecord])
@@ -119,48 +191,98 @@ class DeploymentLogManager {
   public transformLogData(jsonData: unknown): IDeploymentRecord[] {
     const records: IDeploymentRecord[] = []
 
+    // Validate the overall structure
+    if (!this.isValidJsonStructure(jsonData)) {
+      consola.error('Invalid JSON data structure provided')
+      return records
+    }
+
+    const typedJsonData = jsonData as IJsonDataStructure
+
     // Iterate through contracts
     // Iterate through networks
     // Iterate through environments - only process the target environment
-    for (const [contractName, contractData] of Object.entries(jsonData))
-      for (const [network, networkData] of Object.entries(
-        contractData as Record<string, unknown>
-      ))
-        for (const [environment, envData] of Object.entries(
-          networkData as Record<string, unknown>
-        )) {
+    for (const [contractName, contractData] of Object.entries(typedJsonData)) {
+      if (typeof contractData !== 'object' || contractData === null) {
+        consola.warn(`Skipping invalid contract data for: ${contractName}`)
+        continue
+      }
+
+      for (const [network, networkData] of Object.entries(contractData)) {
+        if (typeof networkData !== 'object' || networkData === null) {
+          consola.warn(
+            `Skipping invalid network data for: ${contractName}.${network}`
+          )
+          continue
+        }
+
+        for (const [environment, envData] of Object.entries(networkData)) {
           // Skip environments that don't match our target environment
           if (environment !== this.environment) continue
 
+          if (typeof envData !== 'object' || envData === null) {
+            consola.warn(
+              `Skipping invalid environment data for: ${contractName}.${network}.${environment}`
+            )
+            continue
+          }
+
           // Iterate through versions
           // Each version contains an array of deployments
-          for (const [version, deployments] of Object.entries(
-            envData as Record<string, unknown>
-          ))
-            for (const deployment of deployments as unknown[]) {
-              const record: IDeploymentRecord = {
-                contractName,
-                network,
-                version,
-                address: deployment.ADDRESS,
-                optimizerRuns: deployment.OPTIMIZER_RUNS,
-                timestamp: new Date(deployment.TIMESTAMP),
-                constructorArgs: deployment.CONSTRUCTOR_ARGS,
-                salt: deployment.SALT || undefined,
-                verified: deployment.VERIFIED === 'true',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                contractNetworkKey: `${contractName}-${network}`,
-                contractVersionKey: `${contractName}-${version}`,
+          for (const [version, deployments] of Object.entries(envData)) {
+            if (!Array.isArray(deployments)) {
+              consola.warn(
+                `Skipping invalid deployments array for: ${contractName}.${network}.${environment}.${version}`
+              )
+              continue
+            }
+
+            for (const deployment of deployments) {
+              // Validate each deployment object before processing
+              if (!this.isValidDeploymentData(deployment)) {
+                consola.warn(
+                  `Skipping invalid deployment data: ${contractName} on ${network} (${environment}) v${version}`
+                )
+                continue
               }
 
-              if (this.validateRecord(record)) records.push(record)
-              else
+              // Now we can safely access properties with type safety
+              const typedDeployment = deployment as IRawDeploymentData
+
+              try {
+                const record: IDeploymentRecord = {
+                  contractName,
+                  network,
+                  version,
+                  address: typedDeployment.ADDRESS,
+                  optimizerRuns: typedDeployment.OPTIMIZER_RUNS,
+                  timestamp: new Date(typedDeployment.TIMESTAMP),
+                  constructorArgs: typedDeployment.CONSTRUCTOR_ARGS,
+                  salt: typedDeployment.SALT || undefined,
+                  verified: typedDeployment.VERIFIED === 'true',
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  contractNetworkKey: `${contractName}-${network}`,
+                  contractVersionKey: `${contractName}-${version}`,
+                }
+
+                if (this.validateRecord(record)) 
+                  records.push(record)
+                 else 
+                  consola.warn(
+                    `Skipping record that failed final validation: ${contractName} on ${network} (${environment})`
+                  )
+                
+              } catch (error) {
                 consola.warn(
-                  `Skipping invalid record: ${contractName} on ${network} (${environment})`
+                  `Error processing deployment record for ${contractName} on ${network} (${environment}): ${error}`
                 )
+              }
             }
+          }
         }
+      }
+    }
 
     return records
   }
