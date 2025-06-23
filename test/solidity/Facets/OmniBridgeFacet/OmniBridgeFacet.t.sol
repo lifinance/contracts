@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
@@ -22,27 +22,18 @@ contract TestOmniBridgeFacet is OmniBridgeFacet {
     }
 }
 
-contract OmniBridgeL2FacetTest is TestBaseFacet {
-    // These values are for Gnosis Chain
+contract OmniBridgeFacetTest is TestBaseFacet {
+    // These values are for Mainnet
     address internal constant FOREIGN_BRIDGE =
-        0xf6A78083ca3e2a662D6dd1703c939c8aCE2e268d;
+        0x88ad09518695c6c3712AC10a214bE5109a655671;
     address internal constant WETH_BRIDGE =
-        0x0000000000000000000000000000000000000000;
+        0xa6439Ca0FCbA1d0F80df0bE6A17220feD9c9038a;
 
     // -----
 
     TestOmniBridgeFacet internal omniBridgeFacet;
 
     function setUp() public {
-        // Fork Gnosis chain
-        customRpcUrlForForking = "ETH_NODE_URI_GNOSIS";
-        customBlockNumberForForking = 26862566;
-        ADDRESS_USDC = 0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83;
-        ADDRESS_USDT = 0x4ECaBa5870353805a9F068101A40E0f32ed605C6;
-        ADDRESS_DAI = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d; // WXDAI
-        ADDRESS_WRAPPED_NATIVE = 0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1;
-        ADDRESS_UNISWAP = 0x1C232F01118CB8B424793ae03F870aa7D0ac7f77;
-
         initTestBase();
 
         omniBridgeFacet = new TestOmniBridgeFacet(
@@ -105,13 +96,5 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
                 swapData
             );
         }
-    }
-
-    function testBase_CanBridgeNativeTokens() public override {
-        // facet does not support native bridging
-    }
-
-    function testBase_CanSwapAndBridgeNativeTokens() public override {
-        // facet does not support native bridging
     }
 }
