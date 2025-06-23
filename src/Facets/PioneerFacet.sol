@@ -12,7 +12,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title Pioneer Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Main entry point to send bridge requests to Pioneer
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Emits an address that is used for potential refunds. Will be emitted in any case (also in successful transactions).
     /// @param refundTo If transaction failed, send inputs to this address.
