@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../../utils/TestBase.sol";
 import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
@@ -454,17 +454,19 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         randomValues = new bytes4[](3);
 
         for (uint256 i = 0; i < 3; i++) {
-            counter++; // Increment the counter for additional randomness
+            counter++;
             randomValues[i] = bytes4(
                 keccak256(
                     abi.encodePacked(
                         block.timestamp,
-                        block.difficulty,
+                        block.number,
+                        msg.sender,
                         counter
                     )
                 )
             );
         }
+
         return randomValues;
     }
 }

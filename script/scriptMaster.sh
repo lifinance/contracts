@@ -33,13 +33,15 @@ scriptMaster() {
   # load env variables
   source .env
 
+  # load config first
+  source script/config.sh
+
   # load deploy script & helper functions
   source script/deploy/deploySingleContract.sh
   source script/deploy/deployAllContracts.sh
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/config.sh
   source script/deploy/deployUpgradesToSAFE.sh
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
 
