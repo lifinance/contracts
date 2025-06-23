@@ -171,6 +171,44 @@ export class ValidationUtils {
 
     return true
   }
+
+  public static safeParseInt(
+    value: string | undefined,
+    defaultValue: number,
+    min?: number,
+    max?: number
+  ): number {
+    if (!value || typeof value !== 'string') 
+      return defaultValue
+    
+
+    const trimmed = value.trim()
+    if (trimmed === '') 
+      return defaultValue
+    
+
+    // Check if the string contains only digits (and optional leading minus for negative numbers)
+    if (!/^-?\d+$/.test(trimmed)) 
+      return defaultValue
+    
+
+    const parsed = parseInt(trimmed, 10)
+
+    // Check for NaN (shouldn't happen with our regex, but safety first)
+    if (isNaN(parsed)) 
+      return defaultValue
+    
+
+    // Apply min/max constraints if provided
+    if (min !== undefined && parsed < min) 
+      return min
+    
+    if (max !== undefined && parsed > max) 
+      return max
+    
+
+    return parsed
+  }
 }
 
 export class IndexManager {

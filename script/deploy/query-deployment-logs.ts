@@ -12,6 +12,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient, type Db, type Collection, type ObjectId } from 'mongodb'
 
+import { ValidationUtils } from './shared/deployment-utils'
+
 // Reuse the same DeploymentRecord interface
 interface IDeploymentRecord {
   _id?: ObjectId
@@ -277,8 +279,8 @@ const listCommand = defineCommand({
       config,
       args.env as 'staging' | 'production'
     )
-    const limit = args.limit ? parseInt(args.limit) : 50
-    const page = args.page ? parseInt(args.page) : 1
+    const limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
+    const page = ValidationUtils.safeParseInt(args.page, 1, 1)
 
     try {
       await querier.connect()
@@ -412,7 +414,8 @@ const filterCommand = defineCommand({
     if (args.network) filters.network = args.network
     if (args.version) filters.version = args.version
     if (args.verified) filters.verified = args.verified === 'true'
-    if (args.limit) filters.limit = parseInt(args.limit)
+    if (args.limit)
+      filters.limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
 
     try {
       await querier.connect()

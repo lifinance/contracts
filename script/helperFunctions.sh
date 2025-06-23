@@ -431,27 +431,32 @@ function logContractDeploymentInfoToMongoDB() {
 
   echoDebug "Logging deployment to MongoDB: $CONTRACT on $NETWORK"
 
-  # Call the MongoDB update script
-  local MONGO_CMD="bun script/deploy/update-deployment-logs.ts add"
-  MONGO_CMD="$MONGO_CMD --env=\"$ENVIRONMENT\""
-  MONGO_CMD="$MONGO_CMD --contract=\"$CONTRACT\""
-  MONGO_CMD="$MONGO_CMD --network=\"$NETWORK\""
-  MONGO_CMD="$MONGO_CMD --version=\"$VERSION\""
-  MONGO_CMD="$MONGO_CMD --address=\"$ADDRESS\""
-  MONGO_CMD="$MONGO_CMD --optimizer-runs=\"$OPTIMIZER_RUNS\""
-  MONGO_CMD="$MONGO_CMD --timestamp=\"$TIMESTAMP\""
-  MONGO_CMD="$MONGO_CMD --constructor-args=\"$CONSTRUCTOR_ARGS\""
-  MONGO_CMD="$MONGO_CMD --verified=\"$VERIFIED\""
+  # Build MongoDB command as array for safe execution
+  local MONGO_CMD=(
+    "bun"
+    "script/deploy/update-deployment-logs.ts"
+    "add"
+    "--env=$ENVIRONMENT"
+    "--contract=$CONTRACT"
+    "--network=$NETWORK"
+    "--version=$VERSION"
+    "--address=$ADDRESS"
+    "--optimizer-runs=$OPTIMIZER_RUNS"
+    "--timestamp=$TIMESTAMP"
+    "--constructor-args=$CONSTRUCTOR_ARGS"
+    "--verified=$VERIFIED"
+  )
   
+  # Add optional salt parameter if provided
   if [[ -n "$SALT" ]]; then
-    MONGO_CMD="$MONGO_CMD --salt=\"$SALT\""
+    MONGO_CMD+=("--salt=$SALT")
   fi
 
   # Execute MongoDB logging with error handling
   if [[ "$DEBUG" == "true" ]]; then
-    eval "$MONGO_CMD"
+    "${MONGO_CMD[@]}"
   else
-    eval "$MONGO_CMD" 2>/dev/null
+    "${MONGO_CMD[@]}" 2>/dev/null
   fi
 
   local MONGO_RESULT=$?
@@ -1688,20 +1693,38 @@ function verifyContract() {
   echoDebug "FULL_PATH=$FULL_PATH"
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
-  # Build base verification command
-  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+  # Build verification command as array for safe execution
+  local VERIFY_CMD=()
+  
+  # Handle zkEVM networks vs regular networks
+  if isZkEvmNetwork "$NETWORK"; then
+    # Set environment variable for zkEVM
+    export FOUNDRY_PROFILE=zksync
+    VERIFY_CMD=(
+      "./foundry-zksync/forge"
+      "verify-contract"
+      "--zksync"
+      "--watch"
+      "--chain" "$CHAIN_ID"
+      "$ADDRESS"
+      "$FULL_PATH"
+      "--skip-is-verified-check"
+    )
+  else
+    VERIFY_CMD=(
+      "forge"
+      "verify-contract"
+      "--watch"
+      "--chain" "$CHAIN_ID"
+      "$ADDRESS"
+      "$FULL_PATH"
+      "--skip-is-verified-check"
+    )
+  fi
 
   # Add constructor args if present
   if [ "$ARGS" != "0x" ]; then
-    VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-  fi
-
-  # Handle zkEVM networks
-  if isZkEvmNetwork "$NETWORK"; then
-    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-    if [ "$ARGS" != "0x" ]; then
-      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-    fi
+    VERIFY_CMD+=("--constructor-args" "$ARGS")
   fi
 
   # Get API key and determine verification method
@@ -1711,9 +1734,9 @@ function verifyContract() {
     return 1
   fi
 
-  # determine verification method based on API key
+  # Add verification method based on API key
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
-    VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
+    VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
@@ -1721,13 +1744,13 @@ function verifyContract() {
       return 1
     fi
     # add API key to verification command
-    VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
+    VERIFY_CMD+=("-e" "${!API_KEY}")
   fi
 
   # Attempt verification with retries
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # execute verification command
-    eval "$VERIFY_CMD"
+    # execute verification command safely
+    "${VERIFY_CMD[@]}"
     COMMAND_STATUS=$?
 
     # increase retry counter
