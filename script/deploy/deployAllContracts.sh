@@ -35,10 +35,18 @@ deployAllContracts() {
   echo ""
 
 
-  # make sure that config is set correctly
+  # make sure that proposals are sent to diamond directly (for production deployments)
   if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "false" ]]; then
-    echo "Please set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true in your config.sh when deploying a new network"
-    exit 1
+    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to false in your .env file"
+    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
+    echo "Would you like to set it to true for this execution? (y/n)"
+    read -r response
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
+    else
+      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
+    fi
   fi
 
 
@@ -161,6 +169,11 @@ deployAllContracts() {
   # register Executor as authorized caller in ERC20Proxy
   echo ""
   updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+
+  # run healthcheck script
+  echo ""
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now running healthcheck script"
+  bun script/deploy/healthCheck.ts --network "$NETWORK"
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"

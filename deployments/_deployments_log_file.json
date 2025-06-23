@@ -956,6 +956,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0e4BA99C5410Eaf0C006760B68e78C126ea2aAB4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:10:14",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1916,6 +1930,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6a196c72470fef25B6CFE4E94568440Bf845cb84",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:10:48",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -2869,6 +2897,20 @@
             "ADDRESS": "0xC6F7b47F870024B0E2DF6DFd551E10c4A37A1cEa",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:15:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbCF012C2B668F1b26d00cbF9938ABb22e8F37f45",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:13:13",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -4136,6 +4178,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xdEb77eE63B5371eA04489aC02691b998A36C20AE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:09:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -5096,6 +5152,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe6280bE781f7D02A8aE756849aec1118683A93B0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:08:26",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -6036,6 +6106,20 @@
             "ADDRESS": "0xc1f27c1f6c87e73e089Ffac23C236Fc4A9E3fccc",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:15:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x12df64Bd8a45ECDa18EB47da4c4565A13C3A9E19",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:14:24",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -7001,6 +7085,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xEcdBf25CAEbdEe6Fed2dB2dd4A206a1197618247",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:13:48",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -7916,6 +8014,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:16:38",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000009640977264aec6d4e9af381f548eee11b9e27aae",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC59fe32C9549e3E8B5dCcdAbC45BD287Bd5bA2bc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:14:59",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000000e4ba99c5410eaf0c006760b68e78c126ea2aab4",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -9920,6 +10032,20 @@
             "ADDRESS": "0xAF69C0E3BBBf6AdE78f1466f86DfF86d64C8dA2A",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:14:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x44105f5168597BF1F08530aA05fBC920727964BE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:11:59",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -13612,6 +13738,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xd45f6CaE2838A06D99C0Aceec201E7bd2003d567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:25:57",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -14746,6 +14886,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x7Cceda1C526d2048AFD1C941326fb23d17b3a591",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:26:34",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d45f6cae2838a06d99c0aceec201e7bd2003d567000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -15675,6 +15829,20 @@
             "ADDRESS": "0xa0acea90a4755E3C9647a2d8889bfEEb1D6C7960",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:25:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:27:11",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
             "SALT": "",
             "VERIFIED": "true"
@@ -23695,6 +23863,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.3.0": [
+          {
+            "ADDRESS": "0x9dd3d4261f6783ec930b99a20b76b92d37149E7F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:09:02",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -26388,6 +26570,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xF4841e27093bdE680962e5f4541e22d86AC4F538",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:28:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ee7d8bcfb72bc1880d0cf19822eb0a2e6577ab62000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -27578,6 +27774,20 @@
             "ADDRESS": "0xD1317DA862AC5C145519E60D24372dc186EF7426",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:14:23",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xF3FA0BEaC43108B1C164d4D7aCb039F61B79cCC3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:12:36",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"
@@ -29634,6 +29844,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.10.0": [
+          {
+            "ADDRESS": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:31:19",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -30420,6 +30644,20 @@
             "ADDRESS": "0x531d69A3fAb6CB56A77B8402E6c217cB9cC902A9",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-04 08:13:45",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xc089A7b1D0B7e5fcBE962f9Be07e2465Fb878966",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:11:24",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "true"
@@ -31999,6 +32237,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x1220570A1270b85517D2f9A1Ee81bbB05B4D73F1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:27:51",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c59fe32c9549e3e8b5dccdabc45bd287bd5ba2bc000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba30000000000000000000000002cb94df0092a573c8ff32176a3e4c6f3b66cf47b",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
@@ -33056,6 +33308,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-06-11 17:53:23",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000431f08321d06e41cb062d370cc4ba2bac39ffef000000000000000000000000084963b51a16b49e09e827614d07a7aa4b477b93600000000000000000000000087a1e77c9692b846eaf84c7512dd0b678b4fd081",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6BCAF079647788ceC14f10D6601Ecb34d0b79c6E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:33:29",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d83900000000000000000000000003ba2a1091b94ce230f05ac622ec9288b45ca49d40000000000000000000000002cb94df0092a573c8ff32176a3e4c6f3b66cf47b",
             "SALT": "",
             "VERIFIED": "true"
           }
