@@ -2,9 +2,11 @@
 
 ## How it works
 
-The Pioneer Facet takes in LIFI bridge data with a LIFI transactionID which is linked to an off-chain quote. This lets Pioneer get additonal context for the executed transaction.
+The Pioneer Facet takes in a LI.FI bridgeData parameter which contains a unique transactionID. This transactionId is linked to a specific off-chain quote. The LI.FI solver will pick up this information and transfer the funds to destination based on the information associated with the quote. If the quote cannot be executed
 
 Payments made to Pioneer are sent directly to its EOA.
+
+For potential refunds a refund address can be provided. This address will be emitted in an event that appears in all transactions, meaning also successful transactions will contain this event.
 
 ```mermaid
 graph LR;
@@ -22,6 +24,7 @@ graph LR;
 ## pioneer Specific Parameters
 
 The Pioneer takes a PioneerData struct to provide context on the transaction originator; If the transaction fails and a refund has to be issued, the refund will be sent to `PioneerData.refundAddress`.
+
 ```solidity
 struct PioneerData {
   address payable refundAddress;

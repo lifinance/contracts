@@ -14,9 +14,9 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @notice Main entry point to send bridge requests to Pioneer
 /// @custom:version 1.1.0
 contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// @notice Describes a refund address. Emitted after LiFiTransferStarted.
+    /// @notice Emits an address that is used for potential refunds. Will be emitted in any case (also in successful transactions).
     /// @param refundTo If transaction failed, send inputs to this address.
-    event RefundAddress(address refundTo);
+    event RefundAddressRegistered(address refundTo);
 
     /// Storage ///
 
@@ -98,6 +98,6 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
-        emit RefundAddress(_pioneerData.refundAddress);
+        emit RefundAddressRegistered(_pioneerData.refundAddress);
     }
 }
