@@ -6,8 +6,8 @@ import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { TestBase } from "../utils/TestBase.sol";
-import { MockLiquidityBridge } from "../utils/MockLiquidityBridge.sol";
+import { TestBase } from "../../utils/TestBase.sol";
+import { MockLiquidityBridge } from "../../utils/MockLiquidityBridge.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract CBridgeFacetPackedTest is TestBase {
