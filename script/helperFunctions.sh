@@ -491,24 +491,6 @@ function isMongoLoggingEnabled() {
   fi
 }
 
-  # Build MongoDB command as array for safe execution
-  local MONGO_CMD=(
-    bun script/deploy/update-deployment-logs.ts add
-    --env "$ENVIRONMENT"
-    --contract "$CONTRACT"
-    --network "$NETWORK"
-    --version "$VERSION"
-    --address "$ADDRESS"
-    --optimizer-runs "$OPTIMIZER_RUNS"
-    --timestamp "$TIMESTAMP"
-    --constructor-args "$CONSTRUCTOR_ARGS"
-    --verified "$VERIFIED"
-  )
-
-  # Add optional salt parameter if provided
-  if [[ -n "$SALT" ]]; then
-    MONGO_CMD+=("--salt=$SALT")
-  fi
 
 function queryMongoDeployment() {
   local CONTRACT="$1"
