@@ -301,15 +301,21 @@ function findContractInMasterLogByAddress() {
       --address="$TARGET_ADDRESS" 2>/dev/null)
     
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
-      # Convert MongoDB result to expected format
-      local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-      local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-      local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
-      
-      if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
-        local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
-        echo "$JSON_ENTRY"
-        return 0
+      # Validate that MONGO_RESULT is valid JSON
+      if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+        echoDebug "MongoDB returned invalid JSON, skipping: $MONGO_RESULT"
+        echoDebug "MongoDB query failed, falling back to JSON file"
+      else
+        # Convert MongoDB result to expected format
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+        
+        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+          echo "$JSON_ENTRY"
+          return 0
+        fi
       fi
     fi
     echoDebug "MongoDB query failed, falling back to JSON file"
