@@ -241,7 +241,6 @@ function findContractInMasterLog() {
 
   # Try MongoDB first if enabled
   if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
     local MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
       echo "$MONGO_RESULT"
@@ -369,16 +368,12 @@ function getContractVersionFromMasterLog() {
     echoDebug "Trying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
     local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
       --env="$ENVIRONMENT" \
+      --network="$NETWORK" \
       --address="$TARGET_ADDRESS" 2>/dev/null)
     
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
       local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
       local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-      
-      # Handle special case for CelerIMFacet
-      if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-        CONTRACT="CelerIMFacet"
-      fi
       
       if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
         echo "$VERSION"
@@ -507,6 +502,7 @@ function queryMongoDeployment() {
     --contract="$CONTRACT" \
     --network="$NETWORK" \
     --version="$VERSION" 2>/dev/null
+  return $?
 }
 
 function checkMongoDeploymentExists() {
@@ -524,6 +520,7 @@ function checkMongoDeploymentExists() {
     --contract="$CONTRACT" \
     --network="$NETWORK" \
     --version="$VERSION" 2>/dev/null
+  return $?
 }
 
 function getLatestMongoDeployment() {
@@ -539,6 +536,7 @@ function getLatestMongoDeployment() {
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" 2>/dev/null
+  return $?
 }
 
 
@@ -561,6 +559,7 @@ function getUnverifiedContractsFromMongo() {
     --env="$ENVIRONMENT" \
     --verified=false \
     --limit=1000 2>/dev/null
+  return $?
 }
 # <<<<< MongoDB logging integration
 
