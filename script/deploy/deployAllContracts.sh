@@ -85,7 +85,7 @@ deployAllContracts() {
   fi
 
   # deploy SAFE
-  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAdress")
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
   if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
     echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
     bun deploy-safe --network "$NETWORK"
