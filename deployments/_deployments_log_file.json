@@ -33827,6 +33827,20 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB7107e2C31fBc7bCBe2CAB6906E5075Bf7cBf393",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-24 14:29:31",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009ff28846cd0640ba4aac04d3ebbe651cac5fe609000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
