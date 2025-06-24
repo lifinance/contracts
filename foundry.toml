@@ -54,6 +54,7 @@ etherlink = "${ETH_NODE_URI_ETHERLINK}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
 ink = "${ETH_NODE_URI_INK}"
 kaia = "${ETH_NODE_URI_KAIA}"
+katana = "${ETH_NODE_URI_KATANA}"
 lens = "${ETH_NODE_URI_LENS}"
 linea = "${ETH_NODE_URI_LINEA}"
 lisk = "${ETH_NODE_URI_LISK}"
@@ -78,6 +79,7 @@ swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 velas = "${ETH_NODE_URI_VELAS}"
 unichain = "${ETH_NODE_URI_UNICHAIN}"
+vana = "${ETH_NODE_URI_VANA}"
 viction = "${ETH_NODE_URI_VICTION}"
 worldchain = "${ETH_NODE_URI_WORLDCHAIN}"
 xdc = "${ETH_NODE_URI_XDC}"
@@ -116,6 +118,7 @@ etherlink = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.etherlink.c
 ink = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
 immutablezkevm = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 kaia = { key = "${BLOCKSCOUT_API_KEY}", url = "https://api-cypress.klaytnscope.com/api", chain = "8217", verifier = "blockscout" }
+katana = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-katana.t.conduit.xyz/api", chain = "747474", verifier = "blockscout" }
 lens = { key = "${LENS_ETHERSCAN_API_KEY}", url = "https://api-explorer-verify.lens.matterhosted.dev/contract_verification", chain = "232", verifier = "zksync" }
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }
 lisk = { key = "${BLOCKSCOUT_API_KEY}", url = "https://blockscout.lisk.com/api", chain = "1135", verifier = "blockscout" }
@@ -138,6 +141,7 @@ superposition = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-superpo
 swellchain = { key = "${SWELLCHAIN_ETHERSCAN_API_KEY}", url = "https://api.swellchainscan.io/api", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 unichain = { key = "${BLOCKSCOUT_API_KEY}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
+vana = { key = "${BLOCKSCOUT_API_KEY}", url = "https://vanascan.io/api", chain = "1480", verifier = "blockscout" }
 viction = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.vicscan.xyz/api/contract/foundry/verify", chain = "88" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
 xdc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50", chain = "50" }
