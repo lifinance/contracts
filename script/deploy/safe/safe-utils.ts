@@ -742,6 +742,44 @@ export const isSignedByProductionWallet = (
 }
 
 /**
+ * Determines if the "Sign and Execute With Deployer" option should be shown
+ * @param safeTx - The Safe transaction
+ * @param threshold - The signature threshold required
+ * @param currentSignerAddress - Address of the current signer
+ * @returns True if the option should be shown
+ */
+export const shouldShowSignAndExecuteWithDeployer = (
+  safeTx: SafeTransaction,
+  threshold: number,
+  currentSignerAddress: string
+): boolean => {
+  const currentSignatures = safeTx?.signatures?.size || 0
+  const isCurrentSignerAlreadySigned = isSignedByCurrentSigner(
+    safeTx,
+    currentSignerAddress
+  )
+  const isDeployerAlreadySigned = isSignedByProductionWallet(safeTx)
+
+  // Don't show if current signer has already signed
+  if (isCurrentSignerAlreadySigned) return false
+
+  // Calculate signatures after current signer signs
+  const signaturesAfterCurrentSigner = currentSignatures + 1
+
+  // Two scenarios:
+  // 1. If deployer already signed: check if current user's signature would meet threshold
+  // 2. If deployer hasn't signed: check if current user + deployer would meet threshold
+  if (isDeployerAlreadySigned) {
+    // Deployer already signed, just need current user to potentially meet threshold
+    return signaturesAfterCurrentSigner >= threshold
+  } else {
+    // Deployer hasn't signed, need both current user + deployer to meet threshold
+    const signaturesAfterBoth = signaturesAfterCurrentSigner + 1
+    return signaturesAfterBoth >= threshold
+  }
+}
+
+/**
  * Gets Safe information directly from the contract
  * @param publicClient - Viem public client
  * @param safeAddress - Address of the Safe

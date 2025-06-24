@@ -20,6 +20,7 @@ import {
   isSignedByCurrentSigner,
   wouldMeetThreshold,
   isSignedByProductionWallet,
+  shouldShowSignAndExecuteWithDeployer,
   getSafeMongoCollection,
   getPendingTransactionsByNetwork,
   getNetworksToProcess,
@@ -352,7 +353,22 @@ const processTxs = async (
     // Determine available actions based on signature status
     let action: string
     if (privKeyType === privateKeyType.SAFE_SIGNER) {
-      const options = ['Do Nothing', 'Sign']
+      const options = ['Do Nothing']
+      if (!tx.hasSignedAlready) {
+        options.push('Sign')
+
+        // Check if signing with current user + deployer (if needed) would meet threshold
+        if (
+          shouldShowSignAndExecuteWithDeployer(
+            tx.safeTransaction,
+            tx.threshold,
+            signerAddress
+          )
+        ) {
+          options.push('Sign and Execute With Deployer')
+        }
+      }
+
       action =
         storedResponse ||
         (await consola.prompt('Select action:', {
@@ -367,10 +383,13 @@ const processTxs = async (
           options.push('Sign & Execute')
         }
 
-        // Check if this would be the final signature to meet threshold AND production wallet has already signed
+        // Check if signing with current user + deployer (if needed) would meet threshold
         if (
-          wouldMeetThreshold(tx.safeTransaction, tx.threshold) &&
-          isSignedByProductionWallet(tx.safeTransaction)
+          shouldShowSignAndExecuteWithDeployer(
+            tx.safeTransaction,
+            tx.threshold,
+            signerAddress
+          )
         ) {
           options.push('Sign and Execute With Deployer')
         }
@@ -434,9 +453,11 @@ const processTxs = async (
 
     if (action === 'Sign and Execute With Deployer') {
       try {
+        // Step 1: Sign with current user
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
-        // Update MongoDB with new signature
+
+        // Step 2: Update MongoDB with current user's signature
         await pendingTransactions.updateOne(
           { safeTxHash: tx.safeTxHash },
           {
@@ -447,8 +468,8 @@ const processTxs = async (
         )
         consola.success('Transaction signed and stored in MongoDB')
 
-        // Initialize a separate Safe client with PRIVATE_KEY_PRODUCTION for execution
-        consola.info('Initializing deployer wallet for execution...')
+        // Step 3: Initialize deployer Safe client
+        consola.info('Initializing deployer wallet...')
         const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
         const { safe: deployerSafe } = await initializeSafeClient(
           network,
@@ -458,7 +479,35 @@ const processTxs = async (
           undefined
         )
 
-        // Create executeTransaction function that uses the deployer safe
+        // Step 4: Check if deployer needs to sign
+        const needsDeployerSignature = !isSignedByProductionWallet(signedTx)
+        let finalTx = signedTx
+
+        if (needsDeployerSignature) {
+          consola.info('Deployer signature needed - signing with deployer...')
+          // Sign with deployer
+          const deployerSignedTx = await deployerSafe.signTransaction(signedTx)
+
+          // Update MongoDB with deployer's signature
+          await pendingTransactions.updateOne(
+            { safeTxHash: tx.safeTxHash },
+            {
+              $set: {
+                [`safeTx`]: deployerSignedTx,
+              },
+            }
+          )
+          consola.success(
+            'Transaction signed with deployer and stored in MongoDB'
+          )
+          finalTx = deployerSignedTx
+        } else {
+          consola.info(
+            'Deployer has already signed - proceeding to execution...'
+          )
+        }
+
+        // Step 5: Execute with deployer
         const executeWithDeployer = async (
           safeTransaction: SafeTransaction
         ) => {
@@ -515,7 +564,7 @@ const processTxs = async (
           }
         }
 
-        await executeWithDeployer(signedTx)
+        await executeWithDeployer(finalTx)
       } catch (error) {
         consola.error(
           'Error signing and executing transaction with deployer:',
