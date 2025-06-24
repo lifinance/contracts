@@ -23,6 +23,15 @@
   "celo": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "corn": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "etherlink": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "flare": {
+    "airlift": "0x0905E21AEf470adEf9Cf9dCf7922431610c875b5"
+  },
   "gnosis": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
@@ -42,7 +51,7 @@
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "optimism": {
-    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+    "airlift": "0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663"
   },
   "polygon": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
@@ -64,5 +73,8 @@
   },
   "unichain": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "viction": {
+    "airlift": "0x2aEEC3AD32B39Fc67a1284Ea23a59eD986c3C47b"
   }
 }

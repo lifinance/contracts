@@ -81,9 +81,9 @@
         "Name": "CelerIMFacetMutable",
         "Version": "2.0.0"
       },
-      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+      "0x8dFDaeBB42655a4A4e2b89687dd117074AE8c665": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "1.0.2"
       },
       "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
         "Name": "MayanFacet",
@@ -153,7 +153,7 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
+      "0xcbA452a313b916D1f387fF462de6Cef75aBAa871": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       }
@@ -163,6 +163,7 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "GasZipPeriphery": "0xCBe2f01682BE0a12Fc5e6E8B86a834e4AdbB16c4",
+      "LidoWrapper": "0x481bFC45711117a23306Ca5d26D271dA9DF38141",
       "LiFiDEXAggregator": "0x9Caab1750104147c9872772b3d0bE3D4290e1e86",
       "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",

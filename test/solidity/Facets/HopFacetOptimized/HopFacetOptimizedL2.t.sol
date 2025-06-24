@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { TestBaseFacet } from "../../utils/TestBaseFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
@@ -19,15 +19,15 @@ contract TestHopFacet is HopFacetOptimized {
     }
 }
 
-contract HopFacetOptimizedL1Test is TestBaseFacet {
+contract HopFacetOptimizedL2Test is TestBaseFacet {
     // These values are for Mainnet
     address internal constant USDC_BRIDGE =
-        0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
+        0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
     address internal constant DAI_BRIDGE =
-        0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
+        0x28529fec439cfF6d7D1D5917e956dEE62Cd3BE5c;
     address internal constant NATIVE_BRIDGE =
-        0xb8901acB165ed027E32754E0FFe830802919727f;
-    uint256 internal constant DSTCHAIN_ID = 137;
+        0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3;
+    uint256 internal constant DSTCHAIN_ID = 1;
     // -----
 
     TestHopFacet internal hopFacet;
@@ -35,20 +35,24 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
     HopFacetOptimized.HopData internal validHopData;
 
     function setUp() public {
+        // Custom Config
+        customRpcUrlForForking = "ETH_NODE_URI_POLYGON";
+        customBlockNumberForForking = 59534582;
         initTestBase();
+
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = hopFacet
-            .startBridgeTokensViaHopL1ERC20
+            .startBridgeTokensViaHopL2ERC20
             .selector;
         functionSelectors[1] = hopFacet
-            .startBridgeTokensViaHopL1Native
+            .startBridgeTokensViaHopL2Native
             .selector;
         functionSelectors[2] = hopFacet
-            .swapAndStartBridgeTokensViaHopL1ERC20
+            .swapAndStartBridgeTokensViaHopL2ERC20
             .selector;
         functionSelectors[3] = hopFacet
-            .swapAndStartBridgeTokensViaHopL1Native
+            .swapAndStartBridgeTokensViaHopL2Native
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
         functionSelectors[5] = hopFacet.addDex.selector;
@@ -88,7 +92,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "hop";
-        bridgeData.destinationChainId = 137;
+        bridgeData.destinationChainId = 1;
 
         // produce valid HopData
         validHopData = HopFacetOptimized.HopData({
@@ -105,27 +109,29 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
+        validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
         if (isNative) {
-            hopFacet.startBridgeTokensViaHopL1Native{
+            hopFacet.startBridgeTokensViaHopL2Native{
                 value: bridgeData.minAmount
             }(bridgeData, validHopData);
         } else {
             validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
-            hopFacet.startBridgeTokensViaHopL1ERC20(bridgeData, validHopData);
+            hopFacet.startBridgeTokensViaHopL2ERC20(bridgeData, validHopData);
         }
     }
 
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
+        validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
         if (isNative || bridgeData.sendingAssetId == address(0)) {
             validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
-            hopFacet.swapAndStartBridgeTokensViaHopL1Native{
+            hopFacet.swapAndStartBridgeTokensViaHopL2Native{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData, validHopData);
         } else {
             validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
-            hopFacet.swapAndStartBridgeTokensViaHopL1ERC20(
+            hopFacet.swapAndStartBridgeTokensViaHopL2ERC20(
                 bridgeData,
                 swapData,
                 validHopData
@@ -143,7 +149,8 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         setDefaultSwapDataSingleETHtoUSDC();
 
         // update HopData
-        validHopData.amountOutMin = defaultUSDCAmount;
+        validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
+        validHopData.amountOutMin = 999999;
         validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
 
         //prepare check for events
@@ -161,7 +168,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         // execute call in child contract
-        hopFacet.swapAndStartBridgeTokensViaHopL1ERC20{
+        hopFacet.swapAndStartBridgeTokensViaHopL2ERC20{
             value: swapData[0].fromAmount
         }(bridgeData, swapData, validHopData);
     }
@@ -171,7 +178,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         view
         override
     {
-        // Not applicable for HopFacetOptimized
+        //Not applicable for HopFacetOptimized
     }
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
@@ -179,7 +186,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         view
         override
     {
-        // Not applicable for HopFacetOptimized
+        //Not applicable for HopFacetOptimized
     }
 
     function testBase_Revert_BridgeWithInvalidAmount()
@@ -192,18 +199,10 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         bridgeData.minAmount = 0;
 
         // OptimizedFacet does have less checks, therefore tx fails at different point in code
-        vm.expectRevert("L1_BRG: Must transfer a non-zero amount");
+        vm.expectRevert("L2_BRG: Must transfer a non-zero amount");
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
-    }
-
-    function testBase_Revert_SwapAndBridgeWithInvalidAmount()
-        public
-        virtual
-        override
-    {
-        // OptimizedFacet does have less checks, therefore it is possible to send a tx with minAmount == 0
     }
 
     function testBase_Revert_BridgeToSameChainId() public virtual override {
@@ -214,7 +213,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // OptimizedFacet does have less checks, therefore tx fails at different point in code
-        vm.expectRevert("L1_BRG: chainId not supported");
+        vm.expectRevert("L2_BRG: chainId is not supported");
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -234,7 +233,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         // OptimizedFacet does have less checks, therefore tx fails at different point in code
-        vm.expectRevert("L1_BRG: chainId not supported");
+        vm.expectRevert("L2_BRG: chainId is not supported");
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -246,6 +245,14 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         override
     {
         // OptimizedFacet does have less checks, therefore it is possible to send a tx with invalid receiver address
+    }
+
+    function testBase_Revert_SwapAndBridgeWithInvalidAmount()
+        public
+        virtual
+        override
+    {
+        // OptimizedFacet does have less checks, therefore it is possible to send a tx with invalid amount
     }
 
     function testBase_Revert_BridgeWithInvalidReceiverAddress()

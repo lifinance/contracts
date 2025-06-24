@@ -185,7 +185,7 @@ deploySingleContract() {
   fi
 
   # check if address already contains code (=> are we deploying or re-running the script again?)
-  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")
+  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
 
   # check if all required data (e.g. config data / contract addresses) is available
   checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
@@ -230,7 +230,7 @@ deploySingleContract() {
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --legacy --slow)
     fi
 
     RETURN_CODE=$?
@@ -401,7 +401,7 @@ deploySingleContract() {
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
 
         # overwrite existing log entry with new deployment info
-        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$SALT"
+        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$VERIFIED" "$SALT"
       fi
     fi
 
@@ -434,9 +434,7 @@ deploySingleContract() {
   fi
 
   # check if log entry was found
-  if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 && $NEW_DEPLOYMENT == "false" ]]; then
-    echoDebug "log entry already exists:"
-    echoDebug "$LOG_ENTRY"
+  if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     echoDebug "Now checking if $CONTRACT was verified just now and update log, if so"
 
     # check if redeployment
@@ -455,7 +453,7 @@ deploySingleContract() {
         TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
 
         # update VERIFIED info in log file
-        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -463,13 +461,13 @@ deploySingleContract() {
       echoDebug "address of existing log entry does not match with current deployed-to address (=re-deployment)"
 
       # overwrite existing log entry with new deployment info
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
     fi
   else
-    echoDebug "log entry does not exist or contract was re-deployed. Log entry will be (over-)written now."
+    echoDebug "log entry does not exist. Log entry will be written now."
 
     # write to logfile
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
   fi
 
   # save contract in network-specific deployment files
