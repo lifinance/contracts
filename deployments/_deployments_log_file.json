@@ -27995,12 +27995,12 @@
       "production": {
         "1.0.2": [
           {
-            "ADDRESS": "0xAFDC3F2e39571E9EFeF3E079d12dAFD066662288",
+            "ADDRESS": "0xeeDb1De1455911ED49C9C28A8a2Df22401079Ea4",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-24 14:57:19",
+            "TIMESTAMP": "2025-06-24 16:32:21",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            "SALT": "",
-            "VERIFIED": "true"
+            "SALT": "20250624",
+            "VERIFIED": true
           }
         ]
       }
