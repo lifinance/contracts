@@ -150,6 +150,37 @@ function logContractDeploymentInfo {
   fi
 
   echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+
+  # Also log to MongoDB if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "logging to MongoDB as well"
+    
+    # Build MongoDB command as array for safe execution
+    local MONGO_CMD=(
+      bun script/deploy/update-deployment-logs.ts add
+      --env "$ENVIRONMENT"
+      --contract "$CONTRACT"
+      --network "$NETWORK"
+      --version "$VERSION"
+      --address "$ADDRESS"
+      --optimizer-runs "$OPTIMIZER_RUNS"
+      --timestamp "$TIMESTAMP"
+      --constructor-args "$CONSTRUCTOR_ARGS"
+      --verified "$VERIFIED"
+    )
+
+    # Add optional salt parameter if provided
+    if [[ -n "$SALT" ]]; then
+      MONGO_CMD+=(--salt "$SALT")
+    fi
+
+    # Execute MongoDB logging command
+    if "${MONGO_CMD[@]}" 2>/dev/null; then
+      echoDebug "contract deployment info added to MongoDB (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+    else
+      echoDebug "MongoDB logging failed but continuing deployment (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+    fi
+  fi
 } # will replace, if entry exists already
 function getBytecodeFromLog() {
 
