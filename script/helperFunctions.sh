@@ -485,64 +485,24 @@ function isMongoLoggingEnabled() {
   fi
 }
 
-function logContractDeploymentInfoToMongoDB() {
-  # Only proceed if MongoDB logging is enabled
-  if ! isMongoLoggingEnabled; then
-    echoDebug "MongoDB logging is disabled, skipping"
-    return 0
-  fi
-
-  # Read function arguments (same as existing logContractDeploymentInfo)
-  local CONTRACT="$1"
-  local NETWORK="$2"
-  local TIMESTAMP="$3"
-  local VERSION="$4"
-  local OPTIMIZER_RUNS="$5"
-  local CONSTRUCTOR_ARGS="$6"
-  local ENVIRONMENT="$7"
-  local ADDRESS="$8"
-  local VERIFIED="$9"
-  local SALT="${10}"
-
-  echoDebug "Logging deployment to MongoDB: $CONTRACT on $NETWORK"
-
   # Build MongoDB command as array for safe execution
   local MONGO_CMD=(
-    "bun"
-    "script/deploy/update-deployment-logs.ts"
-    "add"
-    "--env=$ENVIRONMENT"
-    "--contract=$CONTRACT"
-    "--network=$NETWORK"
-    "--version=$VERSION"
-    "--address=$ADDRESS"
-    "--optimizer-runs=$OPTIMIZER_RUNS"
-    "--timestamp=$TIMESTAMP"
-    "--constructor-args=$CONSTRUCTOR_ARGS"
-    "--verified=$VERIFIED"
+    bun script/deploy/update-deployment-logs.ts add
+    --env "$ENVIRONMENT"
+    --contract "$CONTRACT"
+    --network "$NETWORK"
+    --version "$VERSION"
+    --address "$ADDRESS"
+    --optimizer-runs "$OPTIMIZER_RUNS"
+    --timestamp "$TIMESTAMP"
+    --constructor-args "$CONSTRUCTOR_ARGS"
+    --verified "$VERIFIED"
   )
-  
+
   # Add optional salt parameter if provided
   if [[ -n "$SALT" ]]; then
     MONGO_CMD+=("--salt=$SALT")
   fi
-
-  # Execute MongoDB logging with error handling
-  if [[ "$DEBUG" == "true" ]]; then
-    "${MONGO_CMD[@]}"
-  else
-    "${MONGO_CMD[@]}" 2>/dev/null
-  fi
-
-  local MONGO_RESULT=$?
-  if [[ $MONGO_RESULT -eq 0 ]]; then
-    echoDebug "Successfully logged to MongoDB: $CONTRACT on $NETWORK"
-  else
-    warning "Failed to log to MongoDB: $CONTRACT on $NETWORK (deployment will continue)"
-  fi
-
-  return 0  # Always return success to not block deployment
-}
 
 function queryMongoDeployment() {
   local CONTRACT="$1"
