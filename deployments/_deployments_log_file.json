@@ -26890,6 +26890,76 @@
           }
         ]
       }
+    },
+    "viction": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xD1317DA862AC5C145519E60D24372dc186EF7426",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-27 09:04:33",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "nibiru": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf6Cc4ca0Ff4bea26554A8090f2cE4088A3A7EeC4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-29 10:07:40",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "flare": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xD1317DA862AC5C145519E60D24372dc186EF7426",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 08:14:23",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xF3FA0BEaC43108B1C164d4D7aCb039F61B79cCC3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-13 14:12:36",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xAFDC3F2e39571E9EFeF3E079d12dAFD066662288",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-24 14:57:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
