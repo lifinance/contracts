@@ -512,8 +512,10 @@ class DeploymentLogManager {
 
         const deleteOperations = keysToRemove.map((key) => {
           const record = mongoKeysMap.get(key)
-          if (!record) 
-            throw new Error(`Record not found for key: ${key}`)
+          if (!record) {
+            consola.warn(`Skipping deletion - record not found for key: ${key}`)
+            return null
+          }
           
           return {
             deleteOne: {
@@ -525,7 +527,7 @@ class DeploymentLogManager {
               },
             },
           }
-        })
+        }).filter(op => op !== null)
 
         // Process deletions in batches
         for (
