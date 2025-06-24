@@ -297,8 +297,8 @@ function findContractInMasterLogByAddress() {
   if isMongoLoggingEnabled; then
     echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
     local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-      --env="$ENVIRONMENT" \
-      --address="$TARGET_ADDRESS" 2>/dev/null)
+      --env "$ENVIRONMENT" \
+      --address "$TARGET_ADDRESS" 2>/dev/null)
     
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Validate that MONGO_RESULT is valid JSON
