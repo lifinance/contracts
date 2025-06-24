@@ -12,7 +12,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient, type Db, type Collection, type ObjectId } from 'mongodb'
 
-import { ValidationUtils } from './shared/deployment-utils'
+import { ValidationUtils } from './shared/mongo-log-utils'
 
 // Reuse the same DeploymentRecord interface
 interface IDeploymentRecord {
