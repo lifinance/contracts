@@ -109,7 +109,7 @@ deployAllContracts() {
 
     # get deployer wallet balance
     BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-    echo "Balance: $BALANCE"
+    echo "Deployer Wallet Balance: $BALANCE"
     if [[ -z "$BALANCE" || "$BALANCE" == "0" ]]; then
       echo "Deployer wallet does not have any balance in network $NETWORK. Please fund the wallet and try again"
       exit 1
