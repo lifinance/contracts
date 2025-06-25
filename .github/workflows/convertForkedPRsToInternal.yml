@@ -41,7 +41,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }}
-          persist-credentials: false
 
       - name: Fetch forked branch content
         run: |
@@ -52,24 +51,24 @@ jobs:
           FORK_REF="${{ github.event.pull_request.head.ref }}"
           NEW_BRANCH="fork-pr-${{ github.event.pull_request.number }}"
 
-          git remote add fork https://github.com/$FORK_REPO.git
-          git fetch fork $FORK_REF
-          git checkout -b $NEW_BRANCH FETCH_HEAD
-          git push origin $NEW_BRANCH
+          git remote add fork "https://github.com/$FORK_REPO.git"
+          git fetch fork "$FORK_REF"
+          git checkout -b "$NEW_BRANCH" FETCH_HEAD
+          git push origin "$NEW_BRANCH"
 
       - name: Create internal PR
         id: create_internal_pr
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
-          ORIGINAL_PR_NUMBER=${{ github.event.pull_request.number }}
-          ORIGINAL_PR_URL="https://github.com/${{ github.repository }}/pull/${ORIGINAL_PR_NUMBER}"
+          ORIGINAL_PR_NUMBER="${{ github.event.pull_request.number }}"
+          ORIGINAL_PR_URL="https://github.com/${{ github.repository }}/pull/$ORIGINAL_PR_NUMBER"
           PR_BODY="> 🔄 This PR was created automatically from external PR [#$ORIGINAL_PR_NUMBER]($ORIGINAL_PR_URL) for CI/security purposes.
 
 Original PR by @${{ github.event.pull_request.user.login }}: $ORIGINAL_PR_URL
 
 ---
 
-${{ github.event.pull_request.body || 'No original PR description.' }}"
+${PR_BODY:-'No original PR description.'}"
 
           NEW_PR_URL=$(gh pr create \
             --base ${{ github.event.pull_request.base.ref }} \
