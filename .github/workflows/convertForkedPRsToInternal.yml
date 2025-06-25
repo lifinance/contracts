@@ -53,9 +53,9 @@ jobs:
           NEW_BRANCH="fork-pr-${{ github.event.pull_request.number }}"
 
           git remote add fork https://github.com/$FORK_REPO.git
-          git fetch fork $FORK_REF
-          git checkout -b $NEW_BRANCH FETCH_HEAD
-          git push origin $NEW_BRANCH
+          git fetch fork "${FORK_REF}"
+          git checkout -b "${NEW_BRANCH}" FETCH_HEAD
+          git push origin "${NEW_BRANCH}"
 
       - name: Create internal PR
         id: create_internal_pr
