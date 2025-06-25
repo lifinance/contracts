@@ -120,6 +120,12 @@ function logContractDeploymentInfo {
     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
     "$LOG_FILE_PATH")
 
+  # Convert VERIFIED string to boolean for jq
+  local VERIFIED_BOOL="false"
+  if [[ "$VERIFIED" == "true" ]]; then
+    VERIFIED_BOOL="true"
+  fi
+
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
     jq --arg CONTRACT "$CONTRACT" \
@@ -130,9 +136,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
+      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -143,9 +149,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
+      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -793,6 +799,11 @@ function saveDiamondPeriphery() {
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
+  # create an empty json if it does not exist
+  if [[ ! -e $DIAMOND_FILE ]]; then
+    echo "{}" >"$DIAMOND_FILE"
+  fi
+
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
 
@@ -1417,13 +1428,6 @@ function verifyContract() {
   local ADDRESS=$3
   local ARGS=$4
 
-  # get API key for blockchain explorer
-  if [[ "$NETWORK" == "bsc-testnet" ]]; then
-    API_KEY="BSC_ETHERSCAN_API_KEY"
-  else
-    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
-  fi
-
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
     *,"$NETWORK",*)
@@ -1441,7 +1445,6 @@ function verifyContract() {
   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
 
-
   # logging for debug purposes
   echo ""
   echoDebug "in function verifyContract"
@@ -1449,66 +1452,65 @@ function verifyContract() {
   echoDebug "CONTRACT=$CONTRACT"
   echoDebug "ADDRESS=$ADDRESS"
   echoDebug "ARGS=$ARGS"
-  echoDebug "blockexplorer API_KEY=${API_KEY}"
-  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
   echoDebug "FULL_PATH=$FULL_PATH"
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
-  if [ $? -ne 0 ]; then
-    warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
+  # Build base verification command
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+
+  # Add constructor args if present
+  if [ "$ARGS" != "0x" ]; then
+    VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
   fi
 
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if [ "$ARGS" = "0x" ]; then
-      # only show output if DEBUG flag is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        if isZkEvmNetwork "$NETWORK"; then
-          # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
-        fi
-
-        # TODO: add code that automatically identifies blockscout verification
-      else
-        if isZkEvmNetwork "$NETWORK"; then
-          # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        fi
-      fi
-    else
-      # case: verify with constructor arguments
-      # only show output if DEBUG flag is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        if isZkEvmNetwork "$NETWORK"; then
-          # Verify using foundry-zksync
-         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
-        fi
-      else
-        if isZkEvmNetwork "$NETWORK"; then
-          # Verify using foundry-zksync
-         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        fi
-      fi
+  # Handle zkEVM networks
+  if isZkEvmNetwork "$NETWORK"; then
+    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+    if [ "$ARGS" != "0x" ]; then
+      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
     fi
+  fi
+
+  # Get API key and determine verification method
+  API_KEY=$(getEtherscanApiKeyName "$NETWORK")
+  if [ $? -eq 1 ]; then
+    error "Could not extract Etherscan API key name for $NETWORK from foundry.toml"
+    return 1
+  fi
+
+  # determine verification method based on API key
+  if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
+    VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
+  elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+    # make sure API key is not empty
+    if [ -z "$API_KEY" ]; then
+      echo "Error: Could not find API key for network $NETWORK"
+      return 1
+    fi
+    # add API key to verification command
+    VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
+  fi
+
+  # Attempt verification with retries
+  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # execute verification command
+    eval "$VERIFY_CMD"
     COMMAND_STATUS=$?
+
+    # increase retry counter
     RETRY_COUNT=$((RETRY_COUNT + 1))
+
+    # sleep for 2 seconds before trying again
+    [ $COMMAND_STATUS -ne 0 ] && sleep 2
   done
 
-  # check the return status of the contract verification call
-  if [ $COMMAND_STATUS -ne 0 ]; then
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
-  else
+  # Check verification status
+  if [ $COMMAND_STATUS -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
     return 0
   fi
 
+  # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
   if isZkEvmNetwork "$NETWORK"; then
     FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
@@ -1525,7 +1527,7 @@ function verifyContract() {
       --verifier sourcify
   fi
 
-  echo "[info] checking Sourcify verification now"
+  # Check Sourcify verification
   if isZkEvmNetwork "$NETWORK"; then
     FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
       --zksync \
@@ -1537,16 +1539,53 @@ function verifyContract() {
       --verifier sourcify
   fi
 
-  if [ $? -ne 0 ]; then
-    # verification apparently failed
-    warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
-    return 1
-  else
-    # verification successful
+  if [ $? -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
+  else
+    warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
+    return 1
   fi
 }
+
+function getEtherscanApiKeyName() {
+  local NETWORK="$1"
+
+  if [[ -z "$NETWORK" ]]; then
+    echo "Usage: getEtherscanApiKeyName <network>" >&2
+    return 1
+  fi
+
+  if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
+    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    return 1
+  fi
+
+  # Extract the line with the API key for the given network
+  local KEY_LINE
+  KEY_LINE=$(awk -v net="$NETWORK" '
+    $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
+    in_etherscan && /^\[/ { in_etherscan=0 }
+    in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
+  ' "$FOUNDRY_TOML_FILE_PATH")
+
+  if [[ -z "$KEY_LINE" ]]; then
+    echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
+    return 1
+  fi
+
+  # extract the key for the environment variable
+  local ENV_VAR
+  ENV_VAR=$(echo "$KEY_LINE" | sed -n 's/.*key *= *"\${\([^}]*\)}.*/\1/p')
+
+  if [[ -z "$ENV_VAR" ]]; then
+    echo "Error: Could not extract environment variable from key line: $KEY_LINE" >&2
+    return 1
+  fi
+
+  echo "$ENV_VAR"
+}
+
 function verifyAllUnverifiedContractsInLogFile() {
   # Check if target state FILE exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
@@ -2245,7 +2284,7 @@ function echoDebug() {
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
-    printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
+    printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
 function error() {

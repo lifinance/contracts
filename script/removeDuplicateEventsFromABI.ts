@@ -35,9 +35,9 @@
  * ensures that the CI/CD pipeline can successfully generate and commit type bindings.
  */
 
-import fs from 'fs-extra'
+import { readJson, writeJson, existsSync } from 'fs-extra'
 
-interface Event {
+interface IEvent {
   type: string
   name: string
   inputs: any[]
@@ -52,7 +52,7 @@ async function removeDuplicateEventsFromABI() {
   ]
 
   for (const file of filesToClean) {
-    if (!fs.existsSync(file)) {
+    if (!existsSync(file)) {
       console.log(`File ${file} not found, skipping...`)
       continue
     }
@@ -60,7 +60,7 @@ async function removeDuplicateEventsFromABI() {
     let content
     let abi
     try {
-      content = await fs.readJson(file)
+      content = await readJson(file)
       if (!content.abi || !Array.isArray(content.abi)) {
         console.error(`Invalid ABI format in ${file}, skipping...`)
         continue
@@ -75,13 +75,12 @@ async function removeDuplicateEventsFromABI() {
     }
 
     // Track seen events to remove duplicates
-    const seenEvents = new Map<string, Event>()
+    const seenEvents = new Map<string, IEvent>()
     const cleanedABI = abi.filter((item) => {
       if (item.type === 'event') {
         const key = `${item.name}_${JSON.stringify(item.inputs)}`
-        if (seenEvents.has(key)) {
-          return false
-        }
+        if (seenEvents.has(key)) return false
+
         seenEvents.set(key, item)
       }
       return true
@@ -90,7 +89,7 @@ async function removeDuplicateEventsFromABI() {
     // Update the ABI in the file
     content.abi = cleanedABI
     try {
-      await fs.writeJson(file, content, { spaces: 2 })
+      await writeJson(file, content, { spaces: 2 })
       console.log(`Cleaned duplicate events from ${file}`)
     } catch (error) {
       console.error(
