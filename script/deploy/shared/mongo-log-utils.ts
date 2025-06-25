@@ -51,6 +51,8 @@ export interface IConfig {
   mongoUri: string
   /** Number of records to process in each batch operation */
   batchSize: number
+  /** MongoDB database name */
+  databaseName: string
 }
 
 /**
@@ -135,7 +137,7 @@ export class DatabaseConnectionManager {
       try {
         this.client = new MongoClient(this.config.mongoUri)
         await this.client.connect()
-        this.db = this.client.db('contract-deployments')
+        this.db = this.client.db(this.config.databaseName)
         this.isConnected = true
         consola.info('Connected to MongoDB (shared connection)')
         return
@@ -289,34 +291,23 @@ export class ValidationUtils {
     min?: number,
     max?: number
   ): number {
-    if (!value || typeof value !== 'string') 
-      return defaultValue
-    
+    if (!value || typeof value !== 'string') return defaultValue
 
     const trimmed = value.trim()
-    if (trimmed === '') 
-      return defaultValue
-    
+    if (trimmed === '') return defaultValue
 
     // Check if the string contains only digits (and optional leading minus for negative numbers)
-    if (!/^-?\d+$/.test(trimmed)) 
-      return defaultValue
-    
+    if (!/^-?\d+$/.test(trimmed)) return defaultValue
 
     const parsed = parseInt(trimmed, 10)
 
     // Check for NaN (shouldn't happen with our regex, but safety first)
-    if (isNaN(parsed)) 
-      return defaultValue
-    
+    if (isNaN(parsed)) return defaultValue
 
     // Apply min/max constraints if provided
-    if (min !== undefined && parsed < min) 
-      return min
-    
-    if (max !== undefined && parsed > max) 
-      return max
-    
+    if (min !== undefined && parsed < min) return min
+
+    if (max !== undefined && parsed > max) return max
 
     return parsed
   }
@@ -335,7 +326,7 @@ export class IndexManager {
    * - contract_network_key_version: For composite key lookups
    * - timestamp_desc: For chronological queries (latest first)
    * - address: For address-based lookups
-   * 
+   *
    * @param collection - MongoDB collection to create indexes on
    */
   public static async ensureIndexes(

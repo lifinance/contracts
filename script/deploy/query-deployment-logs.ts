@@ -35,11 +35,13 @@ interface IDeploymentRecord {
 interface IConfig {
   mongoUri: string
   batchSize: number
+  databaseName: string
 }
 
 const config: IConfig = {
   mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
   batchSize: 100,
+  databaseName: 'contract-deployments',
 }
 
 class DeploymentLogQuerier {
@@ -57,7 +59,7 @@ class DeploymentLogQuerier {
   public async connect(): Promise<void> {
     try {
       await this.client.connect()
-      this.db = this.client.db('contract-deployments')
+      this.db = this.client.db(config.databaseName)
       const collectionName = this.environment
       this.collection = this.db.collection<IDeploymentRecord>(collectionName)
       consola.info(`Connected to MongoDB collection: ${collectionName}`)

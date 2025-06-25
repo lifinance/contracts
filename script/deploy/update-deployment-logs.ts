@@ -62,6 +62,7 @@ interface IConfig {
   mongoUri: string
   logFilePath: string
   batchSize: number
+  databaseName: string
 }
 
 // Configuration setup
@@ -72,6 +73,7 @@ const config: IConfig = {
     'deployments/_deployments_log_file.json'
   ),
   batchSize: 100,
+  databaseName: 'contract-deployments',
 }
 
 class DeploymentLogManager {
@@ -93,7 +95,7 @@ class DeploymentLogManager {
     while (retryCount < maxRetries)
       try {
         await this.client.connect()
-        this.db = this.client.db('contract-deployments')
+        this.db = this.client.db(config.databaseName)
         const collectionName = this.environment
         this.collection = this.db.collection<IDeploymentRecord>(collectionName)
 
@@ -510,24 +512,28 @@ class DeploymentLogManager {
           `Removing ${keysToRemove.length} records that are not in JSON file...`
         )
 
-        const deleteOperations = keysToRemove.map((key) => {
-          const record = mongoKeysMap.get(key)
-          if (!record) {
-            consola.warn(`Skipping deletion - record not found for key: ${key}`)
-            return null
-          }
-          
-          return {
-            deleteOne: {
-              filter: {
-                contractName: record.contractName,
-                network: record.network,
-                version: record.version,
-                address: record.address,
+        const deleteOperations = keysToRemove
+          .map((key) => {
+            const record = mongoKeysMap.get(key)
+            if (!record) {
+              consola.warn(
+                `Skipping deletion - record not found for key: ${key}`
+              )
+              return null
+            }
+
+            return {
+              deleteOne: {
+                filter: {
+                  contractName: record.contractName,
+                  network: record.network,
+                  version: record.version,
+                  address: record.address,
+                },
               },
-            },
-          }
-        }).filter(op => op !== null)
+            }
+          })
+          .filter((op) => op !== null)
 
         // Process deletions in batches
         for (
