@@ -355,6 +355,9 @@ contract PatcherTest is TestBase {
             valueSource.getValue.selector
         );
 
+        vm.expectEmit(true, true, true, true, address(patcher));
+        emit CallReceived(dynamicValue, address(this), 0);
+
         patcher.executeWithDynamicPatches(
             address(valueSource),
             valueGetter,
