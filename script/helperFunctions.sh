@@ -274,10 +274,16 @@ function findContractInMasterLog() {
   if isMongoLoggingEnabled; then
     local MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
-      echo "$MONGO_RESULT"
-      return 0
+      # Validate that the result is valid JSON before returning it
+      if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
+        echo "$MONGO_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB result is not valid JSON, falling back to JSON file"
+      fi
+    else
+      echoDebug "MongoDB query failed, falling back to JSON file"
     fi
-    echoDebug "MongoDB query failed, falling back to JSON file"
   fi
 
   # Fallback to original JSON file method
