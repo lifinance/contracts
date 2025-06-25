@@ -174,8 +174,14 @@ function logContractDeploymentInfo {
       MONGO_CMD+=(--salt "$SALT")
     fi
 
-    # Execute MongoDB logging command
-    if "${MONGO_CMD[@]}" 2>/dev/null; then
+    # Execute MongoDB logging command – keep stderr in debug mode
+    if [[ "$DEBUG" == "true" ]]; then
+      "${MONGO_CMD[@]}"
+    else
+      "${MONGO_CMD[@]}" 2>/dev/null
+    fi
+
+    if [[ $? -eq 0 ]]; then
       echoDebug "contract deployment info added to MongoDB (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
     else
       echoDebug "MongoDB logging failed but continuing deployment (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
