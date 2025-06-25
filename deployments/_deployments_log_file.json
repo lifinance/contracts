@@ -33017,6 +33017,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.4": [
+          {
+            "ADDRESS": "0x7C27b0FD92dbC5a1cA268255A649320E8C649e70",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-24 06:50:06",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -33151,6 +33161,18 @@
             "TIMESTAMP": "2025-06-18 09:27:50",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "20250618",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "staging": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xfEeCe7B3e68B9cBeADB60598973704a776ac3ca1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-24 06:43:10",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "20250620",
             "VERIFIED": "true"
           }
         ]
