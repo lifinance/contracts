@@ -3,10 +3,10 @@
 pragma solidity ^0.8.17;
 
 import { LidoWrapper, IStETH } from "lifi/Periphery/LidoWrapper.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../../utils/TestBase.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
-import { TestRelayFacet } from "../Facets/RelayFacet.t.sol";
+import { TestRelayFacet } from "../../Facets/RelayFacet.t.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";

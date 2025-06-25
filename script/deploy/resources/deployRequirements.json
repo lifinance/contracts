@@ -202,7 +202,7 @@
     "configData": {
       "_xDaiBridge": {
         "configFileName": "gnosis.json",
-        "keyInConfigFile": ".<NETWORK>.xDaiBridge",
+        "keyInConfigFile": ".<NETWORK>.bridgeRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -491,7 +491,7 @@
       },
       "_relaySolver": {
         "configFileName": "relay.json",
-        "keyInConfigFile": ".<NETWORK>.relaySolver",
+        "keyInConfigFile": ".relaySolver",
         "allowToDeployWithZeroAddress": "false"
       }
     }
