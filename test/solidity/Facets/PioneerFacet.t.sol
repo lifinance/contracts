@@ -77,7 +77,9 @@ contract PioneerFacetTest is TestBaseFacet {
         usdc.approve(address(basePioneerFacet), bridgeData.minAmount);
 
         vm.expectEmit();
-        emit PioneerFacet.RefundAddressRegistered(pioneerData.refundAddress);
+        emit PioneerFacet.PioneerRefundAddressRegistered(
+            pioneerData.refundAddress
+        );
 
         basePioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
 
@@ -93,7 +95,9 @@ contract PioneerFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
 
         vm.expectEmit();
-        emit PioneerFacet.RefundAddressRegistered(pioneerData.refundAddress);
+        emit PioneerFacet.PioneerRefundAddressRegistered(
+            pioneerData.refundAddress
+        );
 
         basePioneerFacet.startBridgeTokensViaPioneer{
             value: bridgeData.minAmount

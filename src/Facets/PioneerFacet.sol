@@ -16,7 +16,7 @@ import { InvalidConfig, InvalidCallData } from "../Errors/GenericErrors.sol";
 contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Emits an address that is used for potential refunds. Will be emitted in any case (also in successful transactions).
     /// @param refundTo If transaction failed, send inputs to this address.
-    event RefundAddressRegistered(address indexed refundTo);
+    event PioneerRefundAddressRegistered(address indexed refundTo);
 
     /// Storage ///
 
@@ -104,6 +104,6 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
-        emit RefundAddressRegistered(_pioneerData.refundAddress);
+        emit PioneerRefundAddressRegistered(_pioneerData.refundAddress);
     }
 }
