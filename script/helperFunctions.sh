@@ -339,11 +339,13 @@ function findContractInMasterLogByAddress() {
   # Try MongoDB first if enabled
   if isMongoLoggingEnabled; then
     echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
-    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+    local MONGO_RESULT
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
       --env "$ENVIRONMENT" \
       --address "$TARGET_ADDRESS" 2>/dev/null)
-    
-    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+    local MONGO_EXIT=$?
+
+    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Validate that MONGO_RESULT is valid JSON
       if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
         echoDebug "MongoDB returned invalid JSON, skipping: $MONGO_RESULT"
