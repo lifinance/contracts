@@ -700,7 +700,7 @@
             "TIMESTAMP": "2024-12-02T07:45:28.756Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -714,7 +714,7 @@
             "TIMESTAMP": "2024-12-02T08:02:23.651Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -728,7 +728,7 @@
             "TIMESTAMP": "2025-01-21T10:38:46.548Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -742,7 +742,7 @@
             "TIMESTAMP": "2025-01-09T03:31:26.203Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -756,7 +756,7 @@
             "TIMESTAMP": "2025-01-28T14:20:24.363Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1688,7 +1688,7 @@
             "TIMESTAMP": "2024-12-02T07:45:28.954Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1702,7 +1702,7 @@
             "TIMESTAMP": "2024-12-02T08:02:24.128Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1716,7 +1716,7 @@
             "TIMESTAMP": "2025-01-21T10:38:46.752Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1730,7 +1730,7 @@
             "TIMESTAMP": "2025-01-09T03:31:26.428Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1744,7 +1744,7 @@
             "TIMESTAMP": "2025-01-28T14:20:24.574Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2689,7 +2689,7 @@
             "TIMESTAMP": "2024-12-02T07:45:29.159Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2703,7 +2703,7 @@
             "TIMESTAMP": "2024-12-02T08:02:24.830Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2731,7 +2731,7 @@
             "TIMESTAMP": "2025-01-21T10:38:47.099Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2745,7 +2745,7 @@
             "TIMESTAMP": "2025-01-09T03:31:26.657Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3978,7 +3978,7 @@
             "TIMESTAMP": "2024-12-02T07:45:29.361Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3992,7 +3992,7 @@
             "TIMESTAMP": "2024-12-02T08:02:25.125Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4006,7 +4006,7 @@
             "TIMESTAMP": "2025-01-09T03:31:26.912Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4020,7 +4020,7 @@
             "TIMESTAMP": "2024-12-17T10:31:56.698Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4048,7 +4048,7 @@
             "TIMESTAMP": "2025-01-21T10:38:47.305Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4994,7 +4994,7 @@
             "TIMESTAMP": "2024-12-02T07:45:29.567Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5008,7 +5008,7 @@
             "TIMESTAMP": "2024-12-02T08:02:25.519Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5036,7 +5036,7 @@
             "TIMESTAMP": "2025-01-21T10:38:47.508Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5050,7 +5050,7 @@
             "TIMESTAMP": "2025-01-09T03:31:27.221Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5982,7 +5982,7 @@
             "TIMESTAMP": "2024-12-02T07:45:29.774Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5996,7 +5996,7 @@
             "TIMESTAMP": "2024-12-02T08:02:25.844Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6024,7 +6024,7 @@
             "TIMESTAMP": "2025-01-21T10:38:47.711Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6038,7 +6038,7 @@
             "TIMESTAMP": "2025-01-09T03:31:27.528Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6983,7 +6983,7 @@
             "TIMESTAMP": "2024-12-02T07:45:29.981Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6997,7 +6997,7 @@
             "TIMESTAMP": "2024-12-02T08:02:26.132Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7025,7 +7025,7 @@
             "TIMESTAMP": "2025-01-21T10:38:47.916Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7039,7 +7039,7 @@
             "TIMESTAMP": "2025-01-09T03:31:27.835Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7959,7 +7959,7 @@
             "TIMESTAMP": "2024-12-02T07:45:31.204Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000057fdff2e36de6c8a8cde297b150ae291132eae8d",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7973,7 +7973,7 @@
             "TIMESTAMP": "2024-12-02T08:02:27.951Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000057fdff2e36de6c8a8cde297b150ae291132eae8d",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8001,7 +8001,7 @@
             "TIMESTAMP": "2025-01-21T10:38:49.395Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000038799a3cf7cf9d7c5f7c35cfd4fe96f3a28f03d",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8015,7 +8015,7 @@
             "TIMESTAMP": "2025-01-09T03:31:29.476Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000007052d07d749cb8446e32098b7ba64ad12cf638be",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -9992,7 +9992,7 @@
             "TIMESTAMP": "2024-12-02T07:45:30.182Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10006,7 +10006,7 @@
             "TIMESTAMP": "2024-12-02T08:02:26.451Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10034,7 +10034,7 @@
             "TIMESTAMP": "2025-01-21T10:38:48.124Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10048,7 +10048,7 @@
             "TIMESTAMP": "2025-01-09T03:31:28.063Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11780,7 +11780,7 @@
             "TIMESTAMP": "2024-12-02T07:45:30.592Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11794,7 +11794,7 @@
             "TIMESTAMP": "2024-12-02T08:02:26.777Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11822,7 +11822,7 @@
             "TIMESTAMP": "2025-01-21T10:38:48.541Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11836,7 +11836,7 @@
             "TIMESTAMP": "2025-01-09T03:31:28.347Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13740,7 +13740,7 @@
             "TIMESTAMP": "2024-12-02T07:45:32.025Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13754,7 +13754,7 @@
             "TIMESTAMP": "2024-12-02T08:02:29.375Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13782,7 +13782,7 @@
             "TIMESTAMP": "2025-01-21T10:38:50.016Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13796,7 +13796,7 @@
             "TIMESTAMP": "2025-01-09T03:31:30.721Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14926,7 +14926,7 @@
             "TIMESTAMP": "2024-12-02T07:45:32.229Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000098750e70cf1313d9702f0f57d399dd0ba05d16e0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14940,7 +14940,7 @@
             "TIMESTAMP": "2024-12-02T08:02:29.736Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000098750e70cf1313d9702f0f57d399dd0ba05d16e0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14968,7 +14968,7 @@
             "TIMESTAMP": "2025-01-21T10:38:50.222Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000df28e193b15a366308feda4da0d52855dc1fb5df000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14982,7 +14982,7 @@
             "TIMESTAMP": "2025-01-09T03:31:30.948Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000055a5ce71307ec425f0e533400a0bceb136e6e800",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15913,7 +15913,7 @@
             "TIMESTAMP": "2024-12-02T07:45:32.433Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15927,7 +15927,7 @@
             "TIMESTAMP": "2024-12-02T08:02:30.068Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15955,7 +15955,7 @@
             "TIMESTAMP": "2025-01-21T10:38:50.429Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15969,7 +15969,7 @@
             "TIMESTAMP": "2025-01-09T03:31:31.316Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -17445,7 +17445,7 @@
             "TIMESTAMP": "2024-12-02T07:45:32.639Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d9318ffe1ebbfa71049a443e623be566067c9d6b00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -17459,7 +17459,7 @@
             "TIMESTAMP": "2024-12-02T08:02:30.366Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d9318ffe1ebbfa71049a443e623be566067c9d6b00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -17487,7 +17487,7 @@
             "TIMESTAMP": "2025-01-21T10:38:50.681Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001b5e83c306a5e79a1bc784356405e2e1636a929100000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -17501,7 +17501,7 @@
             "TIMESTAMP": "2025-01-09T03:31:31.537Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001b874aae59d738079fe3e4f7d90b5793d3a5148100000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19992,7 +19992,7 @@
             "TIMESTAMP": "2025-01-09T03:52:49.204Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000054069e96c4247b37c2fbd9559ca99f08cd1cd66c00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23167,7 +23167,7 @@
             "TIMESTAMP": "2024-12-02T07:45:31.003Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23181,7 +23181,7 @@
             "TIMESTAMP": "2024-12-02T08:02:27.568Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23209,7 +23209,7 @@
             "TIMESTAMP": "2025-01-21T10:38:49.192Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23223,7 +23223,7 @@
             "TIMESTAMP": "2025-01-09T03:31:29.166Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23969,7 +23969,7 @@
             "TIMESTAMP": "2024-12-02T07:45:30.799Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23983,7 +23983,7 @@
             "TIMESTAMP": "2024-12-02T08:02:27.218Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -24011,7 +24011,7 @@
             "TIMESTAMP": "2025-01-21T10:38:48.894Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -24025,7 +24025,7 @@
             "TIMESTAMP": "2025-01-09T03:31:28.837Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -25130,7 +25130,7 @@
             "TIMESTAMP": "2024-12-02T07:45:32.845Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -25144,7 +25144,7 @@
             "TIMESTAMP": "2024-12-02T08:02:30.746Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -25158,7 +25158,7 @@
             "TIMESTAMP": "2025-01-21T10:38:50.896Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -25172,7 +25172,7 @@
             "TIMESTAMP": "2025-01-09T03:31:31.761Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -26714,7 +26714,7 @@
             "TIMESTAMP": "2024-12-02T07:45:33.048Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -26728,7 +26728,7 @@
             "TIMESTAMP": "2024-12-02T08:02:31.141Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -26756,7 +26756,7 @@
             "TIMESTAMP": "2025-01-21T10:38:51.100Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000048b62137edfa95a428d35c09e44256a739f6b557000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -26770,7 +26770,7 @@
             "TIMESTAMP": "2025-01-09T03:31:31.991Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000039e2fb66102314ce7b64ce5ce3e5183bc94ad38",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -27974,7 +27974,7 @@
             "TIMESTAMP": "2025-01-21T10:38:48.327Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -28232,6 +28232,20 @@
             "TIMESTAMP": "2025-06-13 14:12:36",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xeeDb1De1455911ED49C9C28A8a2Df22401079Ea4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-24 16:32:21",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "20250624",
             "VERIFIED": "true"
           }
         ]
@@ -29922,7 +29936,7 @@
             "TIMESTAMP": "2024-12-02T07:45:33.459Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -29936,7 +29950,7 @@
             "TIMESTAMP": "2024-12-02T08:02:31.571Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ],
         "1.8.0": [
@@ -29974,7 +29988,7 @@
             "TIMESTAMP": "2025-01-21T10:38:51.316Z",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ],
         "1.8.0": [
@@ -30020,7 +30034,7 @@
             "TIMESTAMP": "2025-01-09T03:31:32.214Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ],
         "1.8.0": [
@@ -30974,7 +30988,7 @@
             "TIMESTAMP": "2024-12-02T07:45:31.409Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -30988,7 +31002,7 @@
             "TIMESTAMP": "2024-12-02T08:02:28.266Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -31002,7 +31016,7 @@
             "TIMESTAMP": "2025-01-21T10:38:49.602Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -31016,7 +31030,7 @@
             "TIMESTAMP": "2025-01-09T03:31:30.069Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -31030,7 +31044,7 @@
             "TIMESTAMP": "2025-01-28T14:20:29.530Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -31058,7 +31072,7 @@
             "TIMESTAMP": "2025-02-12 08:31:51",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -31618,7 +31632,7 @@
             "TIMESTAMP": "2024-12-02T08:02:28.661Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009552a0a6624a23b848060ae5901659cdda1f83f80000000000000000000000004200000000000000000000000000000000000006",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ],
         "1.1.0": [
@@ -32035,7 +32049,7 @@
             "TIMESTAMP": "2024-12-02T08:02:32.000Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000d9318ffe1ebbfa71049a443e623be566067c9d6b0000000000000000000000009552a0a6624a23b848060ae5901659cdda1f83f800000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -32421,7 +32435,7 @@
             "TIMESTAMP": "2024-12-02T08:02:29.037Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009552a0a6624a23b848060ae5901659cdda1f83f8000000000000000000000000420000000000000000000000000000000000000600000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -32679,7 +32693,7 @@
             "TIMESTAMP": "2025-01-21T10:38:51.524Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002dea447e7dc6cd2f10b31bf10dcb30f87e838417000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000a89a87986e8ee1ac8fdacc5ac91627010ec9f772",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -33285,7 +33299,7 @@
             "TIMESTAMP": "2024-12-04T12:47:31.763Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a60768b03eb14d940f6c9a8553329b7f9037c91b",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -33327,7 +33341,7 @@
             "TIMESTAMP": "2025-01-21T10:38:49.809Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -33341,7 +33355,7 @@
             "TIMESTAMP": "2025-01-09T03:31:30.500Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -33779,7 +33793,7 @@
             "TIMESTAMP": "2024-12-04T12:47:32.171Z",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a60768b03eb14d940f6c9a8553329b7f9037c91b0000000000000000000000002321f1a63a683a1f3634dbe1cba0d657d5f56d5400000000000000000000000086e02d7383d6a045848b0a1a842996ac9e943113",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ],
         "1.0.1": [
@@ -33845,7 +33859,7 @@
             "TIMESTAMP": "2025-01-09T03:31:32.547Z",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762000000000000000000000000adf8d87723ec7f011ae56ddd6dc10fa8b2c3863a00000000000000000000000037dc6c2c8db8b027e818592cbae6b5acdc1381be",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ],
         "1.0.1": [
@@ -34651,7 +34665,7 @@
             "TIMESTAMP": "2025-01-09T03:50:02.092Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -34667,7 +34681,7 @@
             "TIMESTAMP": "2025-01-09T03:50:33.623Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
@@ -34681,7 +34695,7 @@
             "TIMESTAMP": "2025-01-09T03:52:11.725Z",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
