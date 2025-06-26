@@ -334,11 +334,7 @@ const processTxs = async (
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
     }\u001b[0m
-    Data:            \u001b[32m${
-      tx.safeTx.data.data?.length > 66
-        ? tx.safeTx.data.data.substring(0, 66) + '...'
-        : tx.safeTx.data.data
-    }\u001b[0m
+    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
     Proposer:        \u001b[32m${tx.proposer}\u001b[0m
     Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
     Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
