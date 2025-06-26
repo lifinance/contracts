@@ -491,7 +491,7 @@
       },
       "_relaySolver": {
         "configFileName": "relay.json",
-        "keyInConfigFile": ".<NETWORK>.relaySolver",
+        "keyInConfigFile": ".relaySolver",
         "allowToDeployWithZeroAddress": "false"
       }
     }

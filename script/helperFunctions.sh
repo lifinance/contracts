@@ -120,6 +120,12 @@ function logContractDeploymentInfo {
     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
     "$LOG_FILE_PATH")
 
+  # Convert VERIFIED string to boolean for jq
+  local VERIFIED_BOOL="false"
+  if [[ "$VERIFIED" == "true" ]]; then
+    VERIFIED_BOOL="true"
+  fi
+
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
     jq --arg CONTRACT "$CONTRACT" \
@@ -130,9 +136,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
+      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -143,9 +149,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
+      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -792,6 +798,11 @@ function saveDiamondPeriphery() {
   echoDebug "RPC_URL=$RPC_URL"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
+
+  # create an empty json if it does not exist
+  if [[ ! -e $DIAMOND_FILE ]]; then
+    echo "{}" >"$DIAMOND_FILE"
+  fi
 
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
@@ -2273,7 +2284,7 @@ function echoDebug() {
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
-    printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
+    printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
 function error() {
@@ -3623,7 +3634,8 @@ function cleanupBackgroundJobs() {
 # >>>>>> helpers to set/update deployment files/logs/etc
 function updateDiamondLogs() {
   # read function arguments into variable
-  local NETWORK=$1
+  local ENVIRONMENT=$1
+  local NETWORK=$2
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -3638,7 +3650,12 @@ function updateDiamondLogs() {
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
-  ENVIRONMENTS=("production")
+  if [[ "$ENVIRONMENT" == "production" || -z "$ENVIRONMENT" ]]; then
+    ENVIRONMENTS=("production")
+  else
+    ENVIRONMENTS=("staging")
+  fi
+
   # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
   DIAMONDS=("LiFiDiamond")
 
@@ -3647,10 +3664,6 @@ function updateDiamondLogs() {
     echo ""
     echo "current Network: $NETWORK"
 
-    # >>>>  limit here to a certain network, if needed
-    #    if [[ $NETWORK == "optimism" ]]; then
-    #      continue
-    #    fi
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -3661,19 +3674,11 @@ function updateDiamondLogs() {
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-      # >>>>  limit here to a certain environment, if needed
-      #      if [[ $ENVIRONMENT == "staging" ]]; then
-      #        continue
-      #      fi
 
       for DIAMOND in "${DIAMONDS[@]}"; do
         echo "  -----------------------"
         echo "  current DIAMOND: $DIAMOND"
 
-        # >>>>  limit here to a certain diamond type, if needed
-        #        if [[ $DIAMOND == "LiFiDiamond" ]]; then
-        #          continue
-        #        fi
 
         # define diamond type flag
         if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then

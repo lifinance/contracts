@@ -497,7 +497,7 @@ scriptMaster() {
 
     if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
       # call update diamond log function
-      updateDiamondLogs
+      updateDiamondLogs "$ENVIRONMENT"
     else
       checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
       # get user-selected network from list
@@ -514,7 +514,7 @@ scriptMaster() {
       checkRequiredVariablesInDotEnv $NETWORK
 
       # call update diamond log function
-      updateDiamondLogs "$NETWORK"
+      updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
   # use case 12: Propose upgrade TX to Gnosis SAFE
