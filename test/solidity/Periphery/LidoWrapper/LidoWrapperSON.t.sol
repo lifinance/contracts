@@ -2,27 +2,25 @@
 pragma solidity ^0.8.17;
 
 import { LidoWrapper, IStETH } from "lifi/Periphery/LidoWrapper.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../../utils/TestBase.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract LidoWrapperTestUNI is TestBase {
+contract LidoWrapperTestSON is TestBase {
     LidoWrapper private lidoWrapper;
     address private constant ST_ETH_ADDRESS =
-        0x81f2508AAC59757EF7425DDc9717AB5c2AA0A84F;
+        0x0Ce031AEd457C870D74914eCAA7971dd3176cDAF;
     address private constant WST_ETH_ADDRESS =
-        0xc02fE7317D4eb8753a02c35fe019786854A92001;
+        0xaA9BD8c957D803466FA92504BDd728cC140f8941;
     address private constant ST_ETH_WHALE =
-        0x5A61F541B6dE4EB3BDb2967754412618A8292d98;
-
-    uint256 private whaleBalance;
+        0xB67FB1422ACa6F017BFdF1c40b372dA9eEdD03BF;
 
     function setUp() public {
         vm.label(ST_ETH_ADDRESS, "stETH");
         vm.label(WST_ETH_ADDRESS, "wstETH");
 
         // fork Optimism
-        customRpcUrlForForking = "ETH_NODE_URI_UNICHAIN";
-        customBlockNumberForForking = 16538525;
+        customRpcUrlForForking = "ETH_NODE_URI_SONEIUM";
+        customBlockNumberForForking = 7075948;
         fork();
 
         // deploy lido wrapper
@@ -34,8 +32,7 @@ contract LidoWrapperTestUNI is TestBase {
 
         // transfer stETH from whale to USER_SENDER
         vm.startPrank(ST_ETH_WHALE);
-        whaleBalance = IERC20(ST_ETH_ADDRESS).balanceOf(ST_ETH_WHALE);
-        IERC20(ST_ETH_ADDRESS).transfer(USER_SENDER, whaleBalance);
+        IERC20(ST_ETH_ADDRESS).transfer(USER_SENDER, 50 ether);
         vm.stopPrank();
 
         // set max approvals from USER_SENDER to this contract
@@ -44,7 +41,7 @@ contract LidoWrapperTestUNI is TestBase {
         IERC20(ST_ETH_ADDRESS).approve(ST_ETH_ADDRESS, type(uint256).max);
 
         // deal wstETH to USER_SENDER by wrapping stETH
-        IStETH(ST_ETH_ADDRESS).unwrap(whaleBalance / 2);
+        IStETH(ST_ETH_ADDRESS).unwrap(10 ether);
 
         // IERC20(ST_ETH_ADDRESS).approve(address(this), type(uint256).max);
         IERC20(WST_ETH_ADDRESS).approve(

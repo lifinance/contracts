@@ -115,7 +115,7 @@ diamondUpdateFacet() {
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
     # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "false" ]]; then
+    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
 
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
@@ -192,7 +192,7 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # save facet addresses (only if deploying to PROD, otherwise we update the logs before the diamondCut tx gets signed in the SAFE)
+  # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
   if [[ "$ENVIRONMENT" != "production" ]]; then
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
   fi

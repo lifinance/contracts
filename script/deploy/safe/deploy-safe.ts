@@ -541,10 +541,18 @@ async function deployLocalContracts(
   const PROXY_DEPLOYED = PROXY_ARTIFACT.deployedBytecode.object as `0x${string}`
 
   // deploy Safe implementation
+  consola.info('📦 Estimating gas for Safe implementation deployment...')
+  const safeGasEstimate = await publicClient.estimateGas({
+    account: walletClient.account.address,
+    data: SAFE_BYTECODE,
+  })
+  consola.info(`Estimated gas for Safe implementation: ${safeGasEstimate}`)
+
   consola.info('📦 Deploying local Safe implementation…')
   const implTx = await walletClient.deployContract({
     abi: SAFE_ABI,
     bytecode: SAFE_BYTECODE,
+    gas: safeGasEstimate,
   })
   const implRcpt = await publicClient.waitForTransactionReceipt({
     hash: implTx,
@@ -563,10 +571,18 @@ async function deployLocalContracts(
   )
 
   // deploy ProxyFactory
+  consola.info('📦 Estimating gas for ProxyFactory deployment...')
+  const factoryGasEstimate = await publicClient.estimateGas({
+    account: walletClient.account.address,
+    data: FACTORY_BYTECODE,
+  })
+  consola.info(`Estimated gas for ProxyFactory: ${factoryGasEstimate}`)
+
   consola.info('📦 Deploying local SafeProxyFactory…')
   const facTx = await walletClient.deployContract({
     abi: SAFE_PROXY_FACTORY_ABI,
     bytecode: FACTORY_BYTECODE,
+    gas: factoryGasEstimate,
   })
   const facRcpt = await publicClient.waitForTransactionReceipt({
     hash: facTx,
