@@ -1018,7 +1018,7 @@
     "explorerUrl": "https://vanascan.io",
     "explorerApiUrl": "https://vanascan.io/api",
     "multicallAddress": "0xD8d2dFca27E8797fd779F8547166A2d3B29d360E",
-    "safeAddress": "0xBF1e29C7E4Ae76eF58f13dBE89D246312560D127",
+    "safeAddress": "0x56161929c47dc6112Ad77FB39d88Fd55FC4fb25c",
     "gasZipChainId": 488,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
