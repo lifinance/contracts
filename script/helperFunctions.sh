@@ -278,8 +278,9 @@ function findContractInMasterLog() {
 
   # Try MongoDB first if enabled
   if isMongoLoggingEnabled; then
-    local MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
-    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+    MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    local MONGO_EXIT_CODE=$?
+    if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Validate that the result is valid JSON before returning it
       if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
         echo "$MONGO_RESULT"
@@ -1900,10 +1901,11 @@ function removeFacetFromDiamond() {
   # go through list of facet selectors and find out which of those is known by the diamond
   for SELECTOR in $FUNCTION_SELECTORS; do
     # get address of facet in diamond
-    local FACET_ADDRESS=$(getFacetAddressFromSelector "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$SELECTOR")
+    FACET_ADDRESS=$(getFacetAddressFromSelector "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$SELECTOR")
+    local FACET_EXIT_CODE=$?
 
     # check if facet address could be obtained
-    if [[ $? -ne 0 ]]; then
+    if [[ $FACET_EXIT_CODE -ne 0 ]]; then
       # display error message
       echo "$FACET_ADDRESS"
       # exit script
@@ -2732,8 +2734,9 @@ function doesDiamondHaveCoreFacetsRegistered() {
 
 
   # get a list of all facets that the diamond knows
-  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
-  if [ $? -ne 0 ]; then
+  KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
+  local CAST_EXIT_CODE=$?
+  if [ $CAST_EXIT_CODE -ne 0 ]; then
     echoDebug "not all core facets are registered in the diamond"
     return 1
   fi
@@ -2958,10 +2961,11 @@ function getContractOwner() {
   rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
-  local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  local ADDRESS_EXIT_CODE=$?
 
   # check if address was found
-  if [[ $? -ne 0 || -z $address ]]; then
+  if [[ $ADDRESS_EXIT_CODE -ne 0 || -z $address ]]; then
     echoDebug "could not find address of '$contract' in network-specific deploy log"
     return 1
   fi
@@ -2987,10 +2991,11 @@ function getPendingContractOwner() {
   rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
-  local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  local ADDRESS_EXIT_CODE=$?
 
   # check if address was found
-  if [[ $? -ne 0 || -z $address ]]; then
+  if [[ $ADDRESS_EXIT_CODE -ne 0 || -z $address ]]; then
     echoDebug "could not find address of '$contract' in network-specific deploy log"
     return 1
   fi
