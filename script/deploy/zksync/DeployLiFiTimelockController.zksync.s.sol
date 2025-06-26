@@ -41,7 +41,8 @@ contract DeployScript is DeployScriptBase {
             root,
             "/config/timelockcontroller.json"
         );
-        uint256 minDelay = timelockConfigPath.readUint(".minDelay");
+        string memory timelockJson = vm.readFile(timelockConfigPath);
+        uint256 minDelay = timelockJson.readUint(".minDelay");
 
         // get safeAddress from networks.json
         string memory networksConfigPath = string.concat(
