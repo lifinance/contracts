@@ -7,7 +7,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title Pioneer Facet
 /// @author LI.FI (https://li.fi)
@@ -91,6 +91,8 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         PioneerData calldata _pioneerData
     ) internal {
+        if (_bridgeData.transactionId == bytes32(0)) revert InvalidCallData();
+
         LibAsset.transferAsset(
             _bridgeData.sendingAssetId,
             PIONEER_ADDRESS,

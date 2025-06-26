@@ -6,6 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { PioneerFacet } from "lifi/Facets/PioneerFacet.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub PioneerFacet Contract
 contract TestPioneerFacet is PioneerFacet {
@@ -70,13 +71,14 @@ contract PioneerFacetTest is TestBaseFacet {
         pioneerData.refundAddress = payable(address(0xdeaddeadff77));
     }
 
-    function test_transfer_to_pioneer() external {
+    function test_ERC20TransferToPioneer() external {
         vm.startPrank(USER_SENDER);
 
         usdc.approve(address(basePioneerFacet), bridgeData.minAmount);
 
         vm.expectEmit();
         emit PioneerFacet.RefundAddressRegistered(pioneerData.refundAddress);
+
         basePioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
 
         assertEq(
@@ -85,18 +87,31 @@ contract PioneerFacetTest is TestBaseFacet {
         );
     }
 
-    function test_native_transfer_to_pioneer() external {
+    function test_nativeTransferToPioneer() external {
         vm.startPrank(USER_SENDER);
 
         bridgeData.sendingAssetId = address(0);
 
         vm.expectEmit();
         emit PioneerFacet.RefundAddressRegistered(pioneerData.refundAddress);
+
         basePioneerFacet.startBridgeTokensViaPioneer{
             value: bridgeData.minAmount
         }(bridgeData, pioneerData);
 
         assertEq(destination.balance, bridgeData.minAmount);
+    }
+
+    function testRevert_invalidTransactionId() external {
+        vm.startPrank(USER_SENDER);
+
+        // Set transactionId to bytes32(0) to trigger the revert
+        bridgeData.transactionId = bytes32(0);
+
+        usdc.approve(address(basePioneerFacet), bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        basePioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
