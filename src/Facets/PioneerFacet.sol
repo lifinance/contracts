@@ -91,7 +91,9 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         PioneerData calldata _pioneerData
     ) internal {
+        // validate important parameters
         if (_bridgeData.transactionId == bytes32(0)) revert InvalidCallData();
+        if (_pioneerData.refundAddress == address(0)) revert InvalidCallData();
 
         LibAsset.transferAsset(
             _bridgeData.sendingAssetId,

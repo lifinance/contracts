@@ -114,6 +114,23 @@ contract PioneerFacetTest is TestBaseFacet {
         basePioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
     }
 
+    function testRevert_invalidRefundAddress() external {
+        vm.startPrank(USER_SENDER);
+
+        // Create PioneerData with address(0) refund address to trigger the revert
+        PioneerFacet.PioneerData memory invalidPioneerData = PioneerFacet
+            .PioneerData({ refundAddress: payable(address(0)) });
+
+        usdc.approve(address(basePioneerFacet), bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        basePioneerFacet.startBridgeTokensViaPioneer(
+            bridgeData,
+            invalidPioneerData
+        );
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             pioneerFacet.startBridgeTokensViaPioneer{
