@@ -39,6 +39,7 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Pioneer
     /// @param _bridgeData The core information needed for bridging
+    /// @param _pioneerData Data specific to Pioneer
     function startBridgeTokensViaPioneer(
         ILiFi.BridgeData memory _bridgeData,
         PioneerData calldata _pioneerData
@@ -61,6 +62,7 @@ contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Performs a swap before bridging via Pioneer
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _pioneerData Data specific to Pioneer
     function swapAndStartBridgeTokensViaPioneer(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
