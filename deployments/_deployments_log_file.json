@@ -34653,6 +34653,20 @@
           }
         ]
       }
+    },
+    "cronos": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x044aB39e85f5b5Ea44a8936B04307722Cc351F4d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-26 17:22:11",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c56043daac3a26ad451abc7610f04f53cc4412e5000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "20250626",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
