@@ -10,8 +10,8 @@ import { executeTransaction, setupEnvironment } from './utils/demoScriptHelpers'
 config()
 
 // The following transactions show a successful transaction from Arbitrum to Optimism
-// https://arbiscan.io/tx/0x64bddd54b3b6a235a4f85c23f80f6aa26031dbb914b11db8623349cb38b0771a
-// https://optimistic.etherscan.io/tx/0x2c600f1b52916febb6f6165291d4dee0a77daba2f4132b34fb7a354a156eafc1
+// https://arbiscan.io/tx/0x347fd537add54bd1cedf1f719d36f19cefa130a2f3a084db0c2379c409f80248
+// https://optimistic.etherscan.io/tx/0xb2f77e53c1f1df8c449372e4e835736813e577d5de8ce9f1318a079a176314b7
 
 // #region ABIs
 
@@ -61,43 +61,60 @@ async function main() {
   // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
 
   const query: {
-    fromChainId: string
-    fromAsset: string
-    fromAmount: string
-    toChainId: string
-    toAsset: string
+    fromChain: string
+    toChain: string
+    fromToken: string
+    toToken: string
     toAddress: string
+    fromAmount: string
+    slippage: string
   } = {
-    fromChainId: chain.id.toString(),
-    fromAsset: SRC_TOKEN_ADDRESS,
-    fromAmount: amount.toString(),
-    toChainId: destinationChainId.toString(),
-    toAsset: SRC_TOKEN_ADDRESS,
+    fromChain: chain.id.toString(),
+    toChain: destinationChainId.toString(),
+    fromToken: SRC_TOKEN_ADDRESS,
+    toToken: SRC_TOKEN_ADDRESS,
     toAddress: signerAddress,
+    fromAmount: amount.toString(),
+    slippage: 0n.toString(),
   }
-  console.log(query)
-  const resp = await fetch(`${PIONEER_ENDPOINT}/quote`, {
-    method: 'POST',
+  const queryParams = new URLSearchParams(
+    query as Record<string, string>
+  ).toString()
+  console.log(query, `${PIONEER_ENDPOINT}/quote?${queryParams}`)
+
+  const resp = await fetch(`${PIONEER_ENDPOINT}/quote?${queryParams}`, {
+    method: 'GET',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(query),
   })
   if (!resp.ok) {
     console.error(`Quote request failed: ${resp.status} ${resp.statusText}`)
     process.exit(1)
   }
   const quote: {
-    quoteId: string
-    fromChainId: string
-    fromAsset: string
-    fromAmount: string
-    fromAddress: string
-    toChainId: string
-    toAsset: string
-    toAmount: string
-    toAddress: string
-    expiration: number
+    quoteId: 'string'
+    fromChainId: 'string'
+    fromToken: 'string'
+    fromAmount: 'string'
+    fromAddress: 'string'
+    toChainId: 'string'
+    toToken: 'string'
+    toAmount: 'string'
+    toAmountMin: 'string'
+    executionDuration: 0
+    toAddress: 'string'
+    deadline: 0
+    feeCosts: [
+      {
+        name: 'string'
+        description: 'string'
+        chainId: 'string'
+        tokenAddress: 'string'
+        amount: 'string'
+        included: true
+      }
+    ]
   } = await resp.json()
   console.log(quote)
 
