@@ -286,6 +286,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.20_LibAsset(v2.1.0).pdf",
       "auditCommitHash": "8a3e150513c066311252acc95b72a46ee51776a1"
+    },
+    "audit20250626": {
+      "auditCompletedOn": "26.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.26_LiFiDEXAggregator(v1.11.0).pdf",
+      "auditCommitHash": "af8cfaf1bbd80a1c98449f8115fa8f34c9b78ee9"
     }
   },
   "auditedContracts": {
@@ -420,6 +427,9 @@
     },
     "PeripheryRegistryFacet": {
       "1.0.0": ["audit20250508"]
+    },
+    "PioneerFacet": {
+      "1.0.0": ["audit20250626"]
     },
     "PolygonBridgeFacet": {
       "1.0.0": ["audit20250508"]
