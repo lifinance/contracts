@@ -189,7 +189,7 @@ contract SwapperV2 is ILiFi {
         uint256[] memory _initialBalances
     ) internal noLeftovers(_swaps, _leftoverReceiver, _initialBalances) {
         uint256 numSwaps = _swaps.length;
-        for (uint256 i = 0; i < numSwaps; ) {
+        for (uint256 i; i < numSwaps; ++i) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
 
             if (
@@ -202,10 +202,6 @@ contract SwapperV2 is ILiFi {
             ) revert ContractCallNotAllowed();
 
             LibSwap.swap(_transactionId, currentSwap);
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -227,7 +223,7 @@ contract SwapperV2 is ILiFi {
         )
     {
         uint256 numSwaps = _swaps.length;
-        for (uint256 i = 0; i < numSwaps; ) {
+        for (uint256 i; i < numSwaps; ++i) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
 
             if (
@@ -240,10 +236,6 @@ contract SwapperV2 is ILiFi {
             ) revert ContractCallNotAllowed();
 
             LibSwap.swap(_reserveData.transactionId, currentSwap);
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -256,16 +248,12 @@ contract SwapperV2 is ILiFi {
         uint256 numSwaps = _swaps.length;
         uint256[] memory balances = new uint256[](numSwaps);
         address asset;
-        for (uint256 i = 0; i < numSwaps; ) {
+        for (uint256 i; i < numSwaps; ++i) {
             asset = _swaps[i].receivingAssetId;
             balances[i] = LibAsset.getOwnBalance(asset);
 
             if (LibAsset.isNativeAsset(asset)) {
                 balances[i] -= msg.value;
-            }
-
-            unchecked {
-                ++i;
             }
         }
 
@@ -294,7 +282,7 @@ contract SwapperV2 is ILiFi {
         uint256 currentInputBalance;
         uint256 inputAssetReserve;
 
-        for (uint256 i = 0; i < numSwaps; ) {
+        for (uint256 i; i < numSwaps; ++i) {
             // Handle intermediate receiving assets (only for non-final swaps when numSwaps > 1)
             if (i < numSwaps - 1 && numSwaps != 1) {
                 curAsset = _swaps[i].receivingAssetId;
@@ -334,9 +322,6 @@ contract SwapperV2 is ILiFi {
                     _leftoverReceiver,
                     currentInputBalance - inputAssetReserve
                 );
-            }
-            unchecked {
-                ++i;
             }
         }
     }
