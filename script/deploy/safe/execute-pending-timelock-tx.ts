@@ -266,14 +266,23 @@ async function processNetwork(
           isDryRun
         )
       } else {
-        await executeOperation(
+        // Determine if we should use interactive mode
+        const isInteractive = !executeAll && !rejectAll
+
+        const result = await executeOperation(
           publicClient,
           walletClient,
           timelockAddress,
           operation,
           isDryRun,
-          executeAll
+          executeAll,
+          isInteractive
         )
+
+        // Log the result for interactive mode
+        if (isInteractive) {
+          consola.info(`Operation ${operation.id}: ${result}`)
+        }
       }
     }
   } catch (error) {
@@ -551,12 +560,40 @@ async function executeOperation(
     delay: bigint
   },
   isDryRun: boolean,
-  autoExecute?: boolean
-) {
-  consola.info(`\n⚡ Executing operation: ${operation.id}`)
+  autoExecute?: boolean,
+  interactive?: boolean
+): Promise<'executed' | 'rejected' | 'skipped'> {
+  consola.info(`\n⚡ Processing operation: ${operation.id}`)
   consola.info(`   Target: ${operation.target}`)
   consola.info(`   Value: ${formatEther(operation.value)} ETH`)
   consola.info(`   Data: ${operation.data.substring(0, 42)}...`)
+
+  // If interactive mode, show choice prompt
+  if (interactive && !autoExecute) {
+    const action = await consola.prompt('Select action:', {
+      type: 'select',
+      options: ['Execute', 'Reject', 'Skip'],
+    })
+
+    if (action === 'Skip') {
+      consola.info('⏭️  Operation skipped')
+      return 'skipped'
+    }
+
+    if (action === 'Reject') {
+      // Call rejectOperation and return
+      await rejectOperation(
+        publicClient,
+        walletClient,
+        timelockAddress,
+        operation,
+        isDryRun
+      )
+      return 'rejected'
+    }
+
+    // If action === 'Execute', continue with execution below
+  }
 
   try {
     // Try to decode the function call
@@ -643,8 +680,11 @@ async function executeOperation(
         consola.error(`❌ Transaction failed for operation ${operation.id}`)
       }
     }
+
+    return 'executed'
   } catch (error) {
     consola.error(`Failed to execute operation ${operation.id}:`, error)
+    return 'executed' // Return executed even on error since we attempted execution
   }
 }
 
