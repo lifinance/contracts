@@ -122,7 +122,7 @@ diamondUpdateFacet() {
       echoDebug "Calculating facet cuts for $SCRIPT..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync)
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         echoDebug $SCRIPT_PATH
@@ -131,7 +131,7 @@ diamondUpdateFacet() {
         echoDebug "Calculating facet cuts for $SCRIPT..."
 
         if isZkEvmNetwork "$NETWORK"; then
-          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
+          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync)
         else
           RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --legacy)
         fi
@@ -151,7 +151,7 @@ diamondUpdateFacet() {
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
       else
         RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --legacy)
       fi
