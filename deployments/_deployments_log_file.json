@@ -34653,6 +34653,34 @@
           }
         ]
       }
+    },
+    "celo": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x66dAAa672cdB57F1F00CeD0408D6B7ca8ddb3399",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-26 17:36:53",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007f4babd2c7d35221e72ab67ea72cba99573a0089000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4b3dc2d875E778479A42C467e05a6140ef3966b9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-26 17:37:44",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c56043daac3a26ad451abc7610f04f53cc4412e5000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {

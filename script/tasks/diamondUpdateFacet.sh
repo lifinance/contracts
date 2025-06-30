@@ -133,17 +133,22 @@ diamondUpdateFacet() {
         if isZkEvmNetwork "$NETWORK"; then
           RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync)
         else
+          echo "executing script $SCRIPT_PATH"
           RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --legacy)
         fi
 
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
         FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
 
+        echo "FACET_CUT: $FACET_CUT"
+
         if [ "$FACET_CUT" != "0x" ]; then
           echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
           RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
           bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        else
+          error "FACET_CUT is empty"
         fi
       fi
     else
