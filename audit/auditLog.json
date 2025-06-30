@@ -279,6 +279,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
       "auditCommitHash": "feab0709941d12efaed8be16fea96f4ff4276544"
+    },
+    "audit20250629": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_SwapperV2(v1.1.0).pdf",
+      "auditCommitHash": "4af7030dd8676d892c0bd63cdb2f43cbb7aae4cd"
     }
   },
   "auditedContracts": {
@@ -452,7 +459,8 @@
       "1.0.0": ["audit20250508"]
     },
     "SwapperV2": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.1.0": ["audit20250629"]
     },
     "TransferrableOwnership": {
       "1.0.0": ["audit20250508"]
