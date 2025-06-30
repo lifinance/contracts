@@ -33297,6 +33297,20 @@
           }
         ]
       }
+    },
+    "kaia": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x7FB65045175c847C075054CCf91b64B406822766",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-30 07:46:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000001255d17c1bc2f764d087536410879f2d0d8772fd000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000a89a87986e8ee1ac8fdacc5ac91627010ec9f772",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
