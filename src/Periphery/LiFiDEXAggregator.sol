@@ -873,11 +873,11 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             revert IzumiV3SwapCallbackUnknownSource();
         }
 
-        address tokenIn = abi.decode(data, (address));
-
         if (amountToPay == 0) {
             revert IzumiV3SwapCallbackNotPositiveAmount();
         }
+
+        address tokenIn = abi.decode(data, (address));
 
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
