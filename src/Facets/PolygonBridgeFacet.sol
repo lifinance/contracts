@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -16,9 +16,11 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the RootChainManager on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IRootChainManager private immutable rootChainManager;
 
     /// @notice The contract address of the ERC20Predicate on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable erc20Predicate;
 
     /// Constructor ///

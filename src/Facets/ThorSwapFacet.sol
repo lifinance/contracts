@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
+// solhint-disable-next-line no-unused-import
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IThorSwap } from "../Interfaces/IThorSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
@@ -8,6 +9,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+// solhint-disable-next-line no-unused-import
 import { ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 
 /// @title ThorSwap Facet
@@ -15,6 +17,7 @@ import { ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for bridging through ThorSwap
 /// @custom:version 1.2.1
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable thorchainRouter;
 
     address private constant DEPRECATED_RUNE =

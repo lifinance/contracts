@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -15,6 +15,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @custom:version 2.0.0
 contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the AllBridge router on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IAllBridge private immutable allBridge;
 
     /// @notice The struct for the AllBridge data.
