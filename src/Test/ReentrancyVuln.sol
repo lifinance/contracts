@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 error NothingToWithdraw();
 error WithdrawFailed();
 
-contract ReentrancyVuln {
+contract TestContractOne {
     mapping(address => uint256) public balances;
 
     function deposit() external payable {
