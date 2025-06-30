@@ -886,7 +886,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapX2Y
     /// @dev In the implementation you must pay the pool tokens owed for the swap
-    /// @dev The caller of this method must be checked to be an iZiSwap pool deployed by the canonical iZiSwap factory
+    /// @dev The caller of this method is checked against the `lastCalledPool` variable set during the swap call
+    ///      This protects against unauthorized callbacks
     /// @param amountX The amount of tokenX that must be sent to the pool by the end of the swap
     /// @param {unused} The amount of tokenY that was sent by the pool in the swap
     /// @param data Any data passed through by the caller via the IiZiSwapPool#swapX2Y call
@@ -900,7 +901,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     /// @notice Called to `msg.sender` after executing a swap via IiZiSwapPool#swapY2X
     /// @dev In the implementation you must pay the pool tokens owed for the swap
-    /// @dev The caller of this method must be checked to be an iZiSwap pool deployed by the canonical iZiSwap factory
+    /// @dev The caller of this method is checked against the `lastCalledPool` variable set during the swap call
+    ///      This protects against unauthorized callbacks
     /// @param {unused} The amount of tokenX that was sent by the pool in the swap
     /// @param amountY The amount of tokenY that must be sent to the pool by the end of the swap
     /// @param data Any data passed through by the caller via the IiZiSwapPool#swapY2X call
