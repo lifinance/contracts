@@ -5,10 +5,23 @@
  * particularly for complex transactions like diamond cuts.
  */
 
-import consola from 'consola'
-import { Abi, Hex, parseAbi, toFunctionSelector } from 'viem'
+import { consola } from 'consola'
+import { Hex, toFunctionSelector } from 'viem'
 import * as fs from 'fs'
 import * as path from 'path'
+import networksConfig from '../../../config/networks.json'
+
+/**
+ * Maps chainId to network name
+ * @param chainId - Chain ID number
+ * @returns Network name if found, null otherwise
+ */
+function getNetworkNameForChainId(chainId: number): string | null {
+  const network = Object.entries(networksConfig).find(
+    ([, info]) => info.chainId === chainId
+  )
+  return network ? network[0] : null
+}
 
 /**
  * Attempts to find and load a local ABI file for a given contract name
@@ -44,55 +57,100 @@ async function tryLoadLocalAbi(
 }
 
 /**
- * Attempts to find a local ABI by searching through all contract files
+ * Finds contract name by address from deployment files for a specific network
  * @param address - Contract address to search for
- * @returns ABI object if found, null otherwise
+ * @param network - Network name (e.g., 'mainnet', 'arbitrum', 'optimism')
+ * @returns Contract name if found, null otherwise
  */
-async function findLocalAbiByAddress(
-  address: string
-): Promise<{ abi: any[]; name?: string } | null> {
+async function findContractNameByAddress(
+  address: string,
+  network: string
+): Promise<string | null> {
   try {
     // Go up three levels from script/deploy/safe to project root
     const projectRoot = path.join(process.cwd(), '..', '..', '..')
-    const outDir = path.join(projectRoot, 'out')
-    if (!fs.existsSync(outDir)) {
+    const deploymentsDir = path.join(projectRoot, 'deployments')
+
+    if (!fs.existsSync(deploymentsDir)) {
       return null
     }
 
-    // Get all .sol directories
-    const solDirs = fs
-      .readdirSync(outDir, { withFileTypes: true })
-      .filter((dirent) => dirent.isDirectory() && dirent.name.endsWith('.sol'))
-      .map((dirent) => dirent.name)
+    // Normalize address for comparison
+    const normalizedAddress = address.toLowerCase()
 
-    for (const solDir of solDirs) {
-      const contractName = solDir.replace('.sol', '')
-      const jsonFiles = fs
-        .readdirSync(path.join(outDir, solDir), { withFileTypes: true })
-        .filter((dirent) => dirent.isFile() && dirent.name.endsWith('.json'))
-        .map((dirent) => dirent.name)
+    // Look for the specific network deployment file
+    const deploymentFile = `${network}.json`
+    const deploymentPath = path.join(deploymentsDir, deploymentFile)
 
-      for (const jsonFile of jsonFiles) {
-        const jsonPath = path.join(outDir, solDir, jsonFile)
-        try {
-          const abiData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
-          if (abiData.abi) {
-            // For now, we'll return the first valid ABI we find
-            // In a more sophisticated implementation, we could try to match by bytecode or other means
-            const contractNameFromFile = jsonFile.replace('.json', '')
-            consola.info(`Found potential local ABI: ${contractNameFromFile}`)
-            return { abi: abiData.abi, name: contractNameFromFile }
-          }
-        } catch (error) {
-          // Skip invalid JSON files
-          continue
+    if (!fs.existsSync(deploymentPath)) {
+      consola.warn(`Deployment file not found: ${deploymentFile}`)
+      return null
+    }
+
+    try {
+      const deploymentData = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
+
+      // Search through all contract entries
+      for (const [contractName, contractAddress] of Object.entries(
+        deploymentData
+      )) {
+        if (
+          typeof contractAddress === 'string' &&
+          contractAddress.toLowerCase() === normalizedAddress
+        ) {
+          consola.info(
+            `Found contract ${contractName} at address ${address} in ${deploymentFile}`
+          )
+          return contractName
         }
       }
+    } catch (error) {
+      consola.warn(`Error reading deployment file ${deploymentFile}: ${error}`)
+      return null
     }
 
     return null
   } catch (error) {
-    consola.warn(`Error searching for local ABI: ${error}`)
+    consola.warn(`Error searching for contract name by address: ${error}`)
+    return null
+  }
+}
+
+/**
+ * Attempts to find a local ABI by contract address for a specific network
+ * @param address - Contract address to search for
+ * @param network - Network name (e.g., 'mainnet', 'arbitrum', 'optimism')
+ * @returns ABI object if found, null otherwise
+ */
+async function findLocalAbiByAddress(
+  address: string,
+  network: string
+): Promise<{ abi: any[]; name?: string } | null> {
+  try {
+    // First, find the contract name from deployment files
+    const contractName = await findContractNameByAddress(address, network)
+    if (!contractName) {
+      consola.info(
+        `No contract name found for address ${address} in ${network} deployment file`
+      )
+      return null
+    }
+
+    // Now try to load the ABI for this contract
+    const abiResult = await tryLoadLocalAbi(contractName)
+    if (abiResult) {
+      consola.info(
+        `Found local ABI for ${contractName} at address ${address} on ${network}`
+      )
+      return abiResult
+    }
+
+    consola.warn(
+      `Contract ${contractName} found for address ${address} on ${network}, but no local ABI available`
+    )
+    return null
+  } catch (error) {
+    consola.warn(`Error finding local ABI by address: ${error}`)
     return null
   }
 }
@@ -190,7 +248,14 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
       )
 
       // First try to find local ABI
-      let resData = await findLocalAbiByAddress(facetAddress)
+      const networkName = getNetworkNameForChainId(chainId)
+      let resData = null
+
+      if (networkName) {
+        resData = await findLocalAbiByAddress(facetAddress, networkName)
+      } else {
+        consola.warn(`Unknown chainId: ${chainId}, skipping local ABI lookup`)
+      }
 
       // If no local ABI found, fallback to external API
       if (!resData) {
@@ -279,8 +344,6 @@ export async function decodeTransactionData(data: Hex): Promise<{
       responseData.result.function[selector]
     ) {
       const functionName = responseData.result.function[selector][0].name
-      const fullAbiString = `function ${functionName}`
-      const abiInterface = parseAbi([fullAbiString])
 
       try {
         const decodedData = {
