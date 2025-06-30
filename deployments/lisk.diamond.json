@@ -85,7 +85,8 @@
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a"
+      "TokenWrapper": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a",
+      "Permit2Proxy.flattened": ""
     }
   }
 }
