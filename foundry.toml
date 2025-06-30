@@ -1,7 +1,8 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.29'
-evm_version = 'cancun'
+solc_version = '0.8.17'
+auto_detect_solc = false
+evm_version = 'london'
 optimizer = true
 optimizer_runs = 1000000
 # use a known address with a balance so ZkEVM scripts work
@@ -111,7 +112,7 @@ cronos = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io
 fantom = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=250", chain = "250" }
 flare = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan", chain = "14" }
 fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=252", chain = "252" }
-fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
+fuse = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" , verifier = "blockscout"}
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
 hyperevm = { key = "${BLOCKSCOUT_API_KEY}", url = "https://www.hyperscan.com/api", chain = "999", verifier = "blockscout" }
