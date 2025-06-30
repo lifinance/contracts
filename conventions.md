@@ -32,6 +32,25 @@ Follow the folder structure to locate resources and generate or modify code in a
 - **Solidity version:**
   All Solidity files must start with: pragma solidity `{version}`. The Solidity version is defined in foundry.toml. This ensures that the version declaration in the source files remains in sync with the configuration. Always refer to `foundry.toml` for the current version rather than storing duplicate information.
 
+- **License requirements:**
+  All our own Solidity files must use the LGPL-3.0 license identifier. This applies to:
+
+  - All contracts in `src/` directory (except external dependencies)
+  - All test files in `test/solidity/` directory
+  - All deployment and task scripts in `script/` directory
+
+  **License identifier format:**
+
+  ```solidity
+  // SPDX-License-Identifier: LGPL-3.0
+  ```
+
+  **Exceptions:**
+
+  - External dependencies (libraries, etc.)
+  - External contracts copied from other projects
+  - Contracts with a license that require the same license to be used when copying/modifying the contract
+
 - **Design patterns:**
   - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard for facet-based architectures).
   - Favor modular design to enhance reusability and security.

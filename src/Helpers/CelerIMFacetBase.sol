@@ -1,15 +1,17 @@
-// SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
+// solhint-disable-next-line no-global-import
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+// solhint-disable-next-line no-unused-import
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+// solhint-disable-next-line no-unused-import
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 
@@ -51,13 +53,16 @@ abstract contract CelerIMFacetBase is
 {
     /// Storage ///
 
-    /// @dev The contract address of the cBridge Message Bus
+    /// @notice The contract address of the celer bridge on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IMessageBus private immutable cBridgeMessageBus;
 
     /// @dev The contract address of the RelayerCelerIM
+    // solhint-disable-next-line immutable-vars-naming
     RelayerCelerIM public immutable relayer;
 
     /// @dev The contract address of the Celer Flow USDC
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable cfUSDC;
 
     /// Constructor ///

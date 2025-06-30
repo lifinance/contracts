@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -10,7 +10,9 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
+// solhint-disable-next-line no-unused-import
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
+// solhint-disable-next-line no-unused-import
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title Squid Facet
@@ -60,6 +62,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// State ///
 
+    /// @notice The contract address of the squid router on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     ISquidRouter private immutable squidRouter;
 
     /// Constructor ///

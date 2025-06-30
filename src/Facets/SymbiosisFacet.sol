@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -16,7 +16,9 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the Symbiosis router on the source chain
+    // solhint-disable-next-line immutable-vars-naming
     ISymbiosisMetaRouter private immutable symbiosisMetaRouter;
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable symbiosisGateway;
 
     /// Types ///

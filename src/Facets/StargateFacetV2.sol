@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -19,6 +19,7 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
     /// STORAGE ///
+    // solhint-disable-next-line immutable-vars-naming
     ITokenMessaging public immutable tokenMessaging;
 
     /// @param assetId The Stargate-specific assetId for the token that should be bridged

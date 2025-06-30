@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { IAcrossSpokePool } from "../Interfaces/IAcrossSpokePool.sol";
@@ -18,9 +18,11 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IAcrossSpokePool public immutable spokePool;
 
     /// @notice The WETH address on the current chain.
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable wrappedNative;
 
     /// Events ///
@@ -225,6 +227,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     ) external pure returns (bytes memory) {
         // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
         // we feel comfortable using this approach to save further gas
+        // solhint-disable-next-line gas-custom-errors
         require(
             _parameters.destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
@@ -260,11 +263,13 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     ) external pure returns (bytes memory) {
         // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
         // we feel comfortable using this approach to save further gas
+        // solhint-disable-next-line gas-custom-errors
         require(
             _parameters.destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
 
+        // solhint-disable-next-line gas-custom-errors
         require(
             inputAmount <= type(uint128).max,
             "inputAmount value passed too big to fit in uint128"
@@ -311,6 +316,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             AcrossFacetV3.AcrossV3Data memory acrossData
         )
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             data.length >= 140,
             "invalid calldata (must have length >= 140)"
@@ -346,6 +352,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             AcrossFacetV3.AcrossV3Data memory acrossData
         )
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             data.length >= 176,
             "invalid calldata (must have length >= 176)"

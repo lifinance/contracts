@@ -1,11 +1,13 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { LibSwap } from "../Libraries/LibSwap.sol";
+// solhint-disable-next-line no-unused-import
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+// solhint-disable-next-line no-unused-import
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
@@ -17,7 +19,9 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// Storage ///
+    // solhint-disable-next-line immutable-vars-naming
     IExecutor public immutable executor;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable spokepool;
 
     /// Modifiers ///
