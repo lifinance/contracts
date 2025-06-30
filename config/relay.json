@@ -44,6 +44,9 @@
   "corn": {
     "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec"
   },
+  "cronos": {
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
+  },
   "gnosis": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
