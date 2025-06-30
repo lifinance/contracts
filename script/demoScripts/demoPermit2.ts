@@ -1,16 +1,18 @@
 import {
+  SignatureTransfer,
+  type PermitTransferFrom,
+} from '@uniswap/permit2-sdk'
+import { defineCommand, runMain } from 'citty'
+import {
+  type PublicClient,
   http,
   createPublicClient,
   parseAbi,
-  Hex,
   parseUnits,
   createWalletClient,
-  PublicClient,
 } from 'viem'
 import { privateKeyToAccount, sign } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
-import { defineCommand, runMain } from 'citty'
-import { PermitTransferFrom, SignatureTransfer } from '@uniswap/Permit2-sdk'
 
 // Sample Transfer:
 // sent:
@@ -103,7 +105,7 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}` as Hex
+    const SIGNER_PRIVATE_KEY = `0x${args.signerKey}`
 
     // Setup the required ABI
     const permit2ProxyAbi = parseAbi([

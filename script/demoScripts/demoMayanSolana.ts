@@ -1,20 +1,21 @@
-import deployments from '../../deployments/bsc.staging.json'
 import {
   fetchQuote,
   getSwapFromEvmTxPayload,
-  Quote,
+  type Quote,
 } from '@mayanfinance/swap-sdk'
-import { BigNumber, constants } from 'ethers'
+import { config } from 'dotenv'
+import { constants, ethers, utils } from 'ethers'
+
+import deployments from '../../deployments/bsc.staging.json'
 import {
   MayanFacet__factory,
-  ILiFi,
-  type MayanFacet,
   ERC20__factory,
   IMayan__factory,
+  type ILiFi,
+  type MayanFacet,
 } from '../../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
-dotenv.config()
+
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_BSC
@@ -40,7 +41,7 @@ const main = async () => {
     slippage: 3,
   })
 
-  const payload = await getSwapFromEvmTxPayload(
+  const payload = getSwapFromEvmTxPayload(
     quote,
     '6AUWsSCRFSCbrHKH9s84wfzJXtD6mNzAHs11x6pGEcmJ',
     deadline,

@@ -259,19 +259,33 @@
       "auditReportPath": "./audit/reports/2025.05.15_GasZipFacet(v2.0.4).pdf",
       "auditCommitHash": "bc3dcebfe2e6e32fab7ec9cd37db423b23139abf"
     },
-    "audit20250529": {
-      "auditCompletedOn": "29.05.2025",
-      "auditedBy": "Sujith Somraaj (individual security researcher)",
-      "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.05.29_WhitelistManagerFacet(v1.0.0).pdf",
-      "auditCommitHash": "de2592e93042b8ed5a03e157bfd25d651015570d"
-    },
     "audit20250603": {
       "auditCompletedOn": "03.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.03_GnosisBridgeFacet(v2.0.0).pdf",
       "auditCommitHash": "7197c0a237f46c83d39f5566f18bbadb5ca156ed"
+    },
+    "audit20250608": {
+      "auditCompletedOn": "08.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.08_LiFiDexAggregator(v1.10.0).pdf",
+      "auditCommitHash": "2de27694cfdd15e73eaf1a395c683da8cbac8d6f"
+    },
+    "audit20250610": {
+      "auditCompletedOn": "10.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
+      "auditCommitHash": "feab0709941d12efaed8be16fea96f4ff4276544"
+    },
+    "audit20250620": {
+      "auditCompletedOn": "20.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.20_LibAsset(v2.1.0).pdf",
+      "auditCommitHash": "8a3e150513c066311252acc95b72a46ee51776a1"
     }
   },
   "auditedContracts": {
@@ -352,18 +366,15 @@
       "1.0.0": ["audit20250508"]
     },
     "GenericSwapFacetV3": {
-      "1.0.1": ["audit20250508"]
+      "1.0.1": ["audit20250508"],
+      "1.0.2": ["audit20250610"]
     },
     "GlacisFacet": {
       "1.0.0": ["audit20250219"]
     },
     "GnosisBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ],
-      "2.0.0": [
-        "audit20250603"
-      ]
+      "1.0.0": ["audit20250508"],
+      "2.0.0": ["audit20250603"]
     },
     "HopFacetOptimized": {
       "2.0.0": ["audit20250508"]
@@ -386,6 +397,9 @@
     },
     "IGlacisAirlift": {
       "1.0.0": ["audit20250219", "audit20250508"]
+    },
+    "LidoWrapper": {
+      "1.0.0": ["audit20250610"]
     },
     "LIFuelFacet": {
       "1.0.1": ["audit20250508"]
@@ -460,13 +474,13 @@
       "1.0.0": ["audit20250508"]
     },
     "LibAllowList": {
-      "1.0.0": ["audit20250508"],
-      "1.0.1": ["audit20250529"]
+      "1.0.0": ["audit20250508"]
     },
     "LibAsset": {
       "1.0.1": ["audit20241202"],
       "1.0.2": ["audit20250110_1", "audit20250508"],
-      "2.0.0": ["audit20250506"]
+      "2.0.0": ["audit20250506"],
+      "2.1.0": ["audit20250620"]
     },
     "LibBytes": {
       "1.0.0": ["audit20250508"]
@@ -478,7 +492,8 @@
       "1.0.0": ["audit20250508"]
     },
     "LibSwap": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.1.0": ["audit20250610"]
     },
     "LibUtil": {
       "1.0.0": ["audit20250508"]
@@ -513,7 +528,8 @@
       "1.6.0": ["audit20250109_2", "audit20250508"],
       "1.7.0": ["audit20250411"],
       "1.8.0": ["audit20250422"],
-      "1.9.0": ["audit20250510"]
+      "1.9.0": ["audit20250510"],
+      "1.10.0": ["audit20250608"]
     },
     "LiFuelFeeCollector": {
       "1.0.2": ["audit20250109_3", "audit20250508"]
@@ -552,9 +568,6 @@
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"]
-    },
-    "WhitelistManagerFacet": {
-      "1.0.0": ["audit20250529"]
     }
   }
 }

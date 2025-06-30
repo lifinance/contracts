@@ -17,33 +17,34 @@
  *   bun script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --periphery '["Executor","FeeCollector"]'
  */
 
-import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
 
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import {
+  createPublicClient,
+  http,
+  parseAbi,
+  getAddress,
+  encodeFunctionData,
+  type Abi,
+} from 'viem'
+
+import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
   getDeployLogFile,
   getFunctionSelectors,
   buildDiamondCutRemoveCalldata,
   buildUnregisterPeripheryCalldata,
   getAllActiveNetworks,
-  sendOrPropose,
   getViemChainForNetworkName,
 } from '../utils/viemScriptHelpers'
-import {
-  Abi,
-  createPublicClient,
-  http,
-  parseAbi,
-  getAddress,
-  encodeFunctionData,
-} from 'viem'
 
 function castEnv(value: string): 'staging' | 'production' {
-  if (value !== 'staging' && value !== 'production') {
+  if (value !== 'staging' && value !== 'production')
     throw new Error(`Invalid environment: ${value}`)
-  }
+
   return value
 }
 
@@ -186,12 +187,12 @@ const command = defineCommand({
     }
 
     // select environment (if not provided via parameter)
-    if (!environment) {
+    if (!environment)
       environment = await consola.prompt('Select environment', {
         type: 'select',
         options: ['production', 'staging'],
       })
-    }
+
     const typedEnv = castEnv(environment)
 
     // get diamond address from deploy log
@@ -213,9 +214,8 @@ const command = defineCommand({
         if (
           !Array.isArray(facetNames) ||
           facetNames.some((n) => typeof n !== 'string')
-        ) {
+        )
           throw new Error()
-        }
       } catch {
         consola.error(
           '❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\''
@@ -304,10 +304,10 @@ const command = defineCommand({
         .sort((a, b) => a.localeCompare(b))
 
       // select one or more facets
-      const selectedFacets = (await consola.prompt('Select facets to remove', {
+      const selectedFacets = await consola.prompt('Select facets to remove', {
         type: 'multiselect',
         options: facetNames,
-      })) as string[]
+      })
 
       if (!selectedFacets?.length) {
         consola.info('No facets selected – aborting.')
@@ -449,7 +449,9 @@ async function verifySelectorsExistInDiamond({
   // go through all function selectors and check if they are present in the diamond
   for (let i = 0; i < facetDefs.length; i++) {
     const facet = facetDefs[i]
+    if (!facet) throw new Error(`Missing facet at index ${i}`)
     const result = results[i]
+    if (!result) throw new Error(`Missing result for facet ${facet.name}`)
 
     if (result.status !== 'success') {
       consola.error(
@@ -480,9 +482,9 @@ function facetAddressFromName(
   name: string
 ): string {
   const facetAddress = deployLog[name]
-  if (!facetAddress) {
+  if (!facetAddress)
     throw new Error(`No address found for facet in deploy log: ${name}`)
-  }
+
   return facetAddress
 }
 

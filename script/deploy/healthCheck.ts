@@ -1,13 +1,10 @@
 // @ts-nocheck
-import { consola } from 'consola'
-import { $ } from 'zx'
 import { defineCommand, runMain } from 'citty'
-import * as path from 'path'
-import * as fs from 'fs'
+import { consola } from 'consola'
 import {
-  Address,
-  Hex,
-  PublicClient,
+  type Address,
+  type Hex,
+  type PublicClient,
   createPublicClient,
   getAddress,
   formatEther,
@@ -15,17 +12,19 @@ import {
   http,
   parseAbi,
 } from 'viem'
-import {
-  Network,
-  networks,
-  getViemChainForNetworkName,
-} from '../utils/viemScriptHelpers'
+import { $ } from 'zx'
+
 import {
   coreFacets,
   corePeriphery,
   autoWhitelistPeripheryContracts,
   pauserWallet,
 } from '../../config/global.json'
+import {
+  networks,
+  getViemChainForNetworkName,
+  type Network,
+} from '../utils/viemScriptHelpers'
 
 const SAFE_THRESHOLD = 3
 
@@ -60,9 +59,9 @@ const main = defineCommand({
         k.includes('Facet')
       )
     })
-    const expectedWhitelistedAddresses = (
-      await import(`../../config/whitelistedAddresses.json`)
-    )[network.toLowerCase()] as Address[]
+    const dexs = (await import(`../../config/dexs.json`))[
+      network.toLowerCase()
+    ] as Address[]
 
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
@@ -89,9 +88,7 @@ const main = defineCommand({
     if (!diamondDeployed) {
       logError(`LiFiDiamond not deployed`)
       finish()
-    } else {
-      consola.success('LiFiDiamond deployed')
-    }
+    } else consola.success('LiFiDiamond deployed')
 
     const diamondAddress = deployedContracts['LiFiDiamond']
 
@@ -139,9 +136,9 @@ const main = defineCommand({
     let registeredFacets: string[] = []
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
-        const rpcUrl: string = networksConfig[network.toLowerCase()].rpcUrl
+        const rpcUrl: string = chain.rpcUrls.default.http
         const facetsResult =
-          await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
+          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`
         const rawString = facetsResult.stdout
 
         const jsonCompatibleString = rawString
@@ -159,33 +156,22 @@ const main = defineCommand({
             })
           )
 
-          const onChainFacetAddresses = onChainFacets.map(([address]) =>
-            address.toLowerCase()
-          )
-
-          const configuredFacetAddresses = Object.keys(configFacetsByAddress)
-
           registeredFacets = onChainFacets.map(([address]) => {
             return configFacetsByAddress[address.toLowerCase()]
           })
         }
-      } else {
-        throw new Error('Failed to get rpc from network config file')
-      }
+      } else throw new Error('Failed to get rpc from network config file')
     } catch (error) {
       consola.warn('Unable to parse output - skipping facet registration check')
       consola.warn('Error:', error)
     }
 
-    for (const facet of [...coreFacets, ...nonCoreFacets]) {
-      if (!registeredFacets.includes(facet)) {
+    for (const facet of [...coreFacets, ...nonCoreFacets])
+      if (!registeredFacets.includes(facet))
         logError(
           `Facet ${facet} not registered in Diamond or possibly unverified`
         )
-      } else {
-        consola.success(`Facet ${facet} registered in Diamond`)
-      }
-    }
+      else consola.success(`Facet ${facet} registered in Diamond`)
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery facets are deployed      │
@@ -221,11 +207,9 @@ const main = defineCommand({
       executorAddress,
     ])
 
-    if (!isExecutorAuthorized) {
+    if (!isExecutorAuthorized)
       logError('Executor is not authorized in ERC20Proxy')
-    } else {
-      consola.success('Executor is authorized in ERC20Proxy')
-    }
+    else consola.success('Executor is authorized in ERC20Proxy')
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
@@ -248,60 +232,51 @@ const main = defineCommand({
       const peripheryAddress = deployedContracts[periphery]
       if (!peripheryAddress)
         logError(`Periphery contract ${periphery} not deployed `)
-      else if (!addresses.includes(getAddress(peripheryAddress))) {
+      else if (!addresses.includes(getAddress(peripheryAddress)))
         logError(`Periphery contract ${periphery} not registered in Diamond`)
-      } else {
+      else
         consola.success(`Periphery contract ${periphery} registered in Diamond`)
-      }
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │                   Check whitelisted addresses           │
+    //          │                   Check approved DEXs                   │
     //          ╰─────────────────────────────────────────────────────────╯
-    if (expectedWhitelistedAddresses) {
-      consola.box('Checking whitelisted addresses in diamond...')
+    if (dexs) {
+      consola.box('Checking DEXs approved in diamond...')
 
-      // connect with diamond to get whitelisted addresses
-      const whitelistManager = getContract({
+      // connect with diamond to get whitelisted DEXs
+      const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
-          'function getWhitelistedAddresses() external view returns (address[])',
+          'function approvedDexs() external view returns (address[])',
           'function isFunctionApproved(bytes4) external returns (bool)',
-          'function getApprovedFunctionSignatures() external view returns (bytes4[])',
         ]),
         client: publicClient,
       })
 
-      let onChainWhitelisted: Address[] = []
-      try {
-        onChainWhitelisted =
-          await whitelistManager.read.getWhitelistedAddresses()
-      } catch (error) {
-        logError('Failed to get whitelisted addresses')
-        finish()
-        return
-      }
+      const approvedDexs = await dexManager.read.approvedDexs()
 
       let numMissing = 0
-      for (const cfgAddress of expectedWhitelistedAddresses) {
-        if (!cfgAddress) {
-          logError(`Encountered undefined whitelisted address.`)
+
+      // Check for each address in dexs.json if it is whitelisted
+      for (const dex of dexs) {
+        if (!dex) {
+          logError(`Encountered undefined DEX address.`)
           continue
         }
 
         try {
-          const normalized = getAddress(cfgAddress)
-          if (!onChainWhitelisted.includes(normalized)) {
-            logError(
-              `Whitelisted address ${normalized} not whitelisted in Diamond`
-            )
+          const normalized = getAddress(dex)
+          if (!approvedDexs.includes(normalized)) {
+            logError(`DEX ${normalized} not approved in Diamond`)
             numMissing++
           }
         } catch (err) {
-          logError(`Invalid whitelisted address in config: ${cfgAddress}`)
+          logError(`Invalid DEX address in main check: ${dex}`)
         }
       }
 
+      // Ensure that periphery contracts which are used like DEXs are whitelisted
       for (const name of autoWhitelistPeripheryContracts) {
         // get address from deploy log
         const addr = deployedContracts[name]
@@ -313,18 +288,14 @@ const main = defineCommand({
 
         // check if address is whitelisted
         const normalized = getAddress(addr)
-        if (!onChainWhitelisted.includes(normalized)) {
-          logError(`Periphery contract ${name} not whitelisted`)
+        if (!approvedDexs.includes(normalized)) {
+          logError(`Periphery contract ${name} not approved as a DEX`)
           numMissing++
-        } else {
-          consola.success(`Periphery contract ${name} whitelisted`)
-        }
+        } else consola.success(`Periphery contract ${name} approved as a DEX`)
       }
 
       consola.info(
-        `Found ${numMissing} missing whitelisted address${
-          numMissing === 1 ? '' : 's'
-        }`
+        `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
       )
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -335,62 +306,59 @@ const main = defineCommand({
       // Check if function signatures are approved
       const { sigs } = await import(`../../config/sigs.json`)
 
-      // Get all approved signatures from contract
-      const approvedSigs = await getApprovedFunctionSignatures(whitelistManager)
+      // Function to split array into chunks
+      const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
+        const chunks: T[][] = []
+        for (let i = 0; i < array.length; i += chunkSize)
+          chunks.push(array.slice(i, i + chunkSize))
 
-      // Convert sigs to normalized format for comparison
-      const normalizedConfigSigs = sigs.map((sig) => sig.toLowerCase() as Hex)
-      const normalizedApprovedSigs = approvedSigs.map((sig) =>
-        sig.toLowerCase()
-      )
-
-      // Find missing sigs in both directions
-      const missingInContract = normalizedConfigSigs.filter(
-        (sig) => !normalizedApprovedSigs.includes(sig)
-      )
-      const extraInContract = normalizedApprovedSigs.filter(
-        (sig) => !normalizedConfigSigs.includes(sig)
-      )
-
-      if (missingInContract.length > 0) {
-        logError(
-          `Missing ${missingInContract.length} signatures in contract that are in config:`
-        )
-        missingInContract.forEach((sig) => consola.info(`  ${sig}`))
+        return chunks
       }
 
-      if (extraInContract.length > 0) {
-        logError(
-          `Found ${extraInContract.length} extra signatures in contract that are not in config:`
-        )
-        extraInContract.forEach((sig) => consola.info(`  ${sig}`))
+      const batchSize = 20
+      const sigBatches = chunkArray(sigs, batchSize)
+
+      const sigsToApprove: Hex[] = []
+
+      for (const batch of sigBatches) {
+        const calls = batch.map((sig: string) => {
+          return {
+            ...dexManager,
+            functionName: 'isFunctionApproved',
+            args: [sig],
+          }
+        })
+
+        const results = await publicClient.multicall({ contracts: calls })
+
+        for (let i = 0; i < results.length; i++)
+          if (results[i].status !== 'success' || !results[i].result) {
+            console.log('Function not approved:', batch[i])
+            sigsToApprove.push(batch[i] as Hex)
+          }
       }
 
-      if (missingInContract.length === 0 && extraInContract.length === 0) {
-        consola.success('All signatures match between config and contract.')
-      }
+      if (sigsToApprove.length > 0)
+        logError(`Missing ${sigsToApprove.length} DEX signatures`)
+      else consola.success('No missing signatures.')
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check contract ownership                 │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking ownership...')
 
-      const withdrawWallet = getAddress(globalConfig.withdrawWallet)
-      const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
       const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
-      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
         logError(
           `ERC20Proxy owner is ${getAddress(
             erc20ProxyOwner
           )}, expected ${getAddress(deployerWallet)}`
         )
-      } else {
-        consola.success('ERC20Proxy owner is correct')
-      }
+      else consola.success('ERC20Proxy owner is correct')
 
       // Check that Diamond is owned by SAFE
       if (networksConfig[network.toLowerCase()].safeAddress) {
@@ -453,22 +421,20 @@ const main = defineCommand({
         name: string
       }[]
 
-      for (const sig of approveSigs) {
+      for (const sig of approveSigs)
         if (
           !(await accessManager.read.addressCanExecuteMethod([
             sig.sig,
             deployerWallet,
           ]))
-        ) {
+        )
           logError(
             `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
           )
-        } else {
+        else
           consola.success(
             `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
           )
-        }
-      }
 
       // Refund wallet
       const refundSigs = globalConfig.approvedSigsForRefundWallet as {
@@ -476,31 +442,29 @@ const main = defineCommand({
         name: string
       }[]
 
-      for (const sig of refundSigs) {
+      for (const sig of refundSigs)
         if (
           !(await accessManager.read.addressCanExecuteMethod([
             sig.sig,
             refundWallet,
           ]))
-        ) {
+        )
           logError(
             `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
           )
-        } else {
+        else
           consola.success(
             `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
           )
-        }
-      }
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                   SAFE Configuration                    │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking SAFE configuration...')
       const networkConfig: Network = networks[network.toLowerCase()]
-      if (!networkConfig.safeAddress) {
+      if (!networkConfig.safeAddress)
         consola.warn('SAFE address not configured')
-      } else {
+      else {
         const safeOwners = globalConfig.safeOwners
         const safeAddress = networkConfig.safeAddress
 
@@ -521,23 +485,21 @@ const main = defineCommand({
               (owner) => getAddress(owner) === safeOwner
             )
 
-            if (!isOwner) {
+            if (!isOwner)
               logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-            } else {
+            else
               consola.success(
                 `SAFE owner ${safeOwner} is in SAFE configuration`
               )
-            }
           }
 
           // Check that threshold is correct
-          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD)) {
+          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
             logError(
               `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
             )
-          } else {
+          else
             consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
-          }
 
           // Show current nonce
           consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
@@ -548,7 +510,7 @@ const main = defineCommand({
 
       finish()
     } else {
-      logError('No whitelisted addresses configured')
+      logError('No dexs configured')
       finish()
     }
   },
@@ -579,15 +541,13 @@ const checkOwnership = async (
       contractAddress,
       publicClient
     ).read.owner()
-    if (getAddress(owner) !== getAddress(expectedOwner)) {
+    if (getAddress(owner) !== getAddress(expectedOwner))
       logError(
         `${name} owner is ${getAddress(owner)}, expected ${getAddress(
           expectedOwner
         )}`
       )
-    } else {
-      consola.success(`${name} owner is correct`)
-    }
+    else consola.success(`${name} owner is correct`)
   }
 }
 
@@ -596,15 +556,13 @@ const checkIsDeployed = async (
   deployedContracts: Record<string, Address>,
   publicClient: PublicClient
 ): Promise<boolean> => {
-  if (!deployedContracts[contract]) {
-    return false
-  }
+  if (!deployedContracts[contract]) return false
+
   const code = await publicClient.getCode({
     address: deployedContracts[contract],
   })
-  if (code === '0x') {
-    return false
-  }
+  if (code === '0x') return false
+
   return true
 }
 
@@ -617,19 +575,6 @@ const finish = () => {
   } else {
     consola.success('Deployment checks passed')
     process.exit(0)
-  }
-}
-
-const getApprovedFunctionSignatures = async (
-  whitelistManager: any
-): Promise<Hex[]> => {
-  try {
-    const approvedSigs =
-      await whitelistManager.read.getApprovedFunctionSignatures()
-    return approvedSigs
-  } catch (error) {
-    logError('Failed to get approved function signatures')
-    return []
   }
 }
 

@@ -3,9 +3,6 @@
 # defines the environment (true=production, false=staging)
 PRODUCTION=false
 
-# if true then transactions will be sent to diamond directly, if false it will propose tx to Safe address (from networks.json)
-SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false
-
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
@@ -104,9 +101,6 @@ PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2
 START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
 
-# all the periphery contracts listed here will automatically be whitelisted as DEX when deploying "all contracts"
-WHITELIST_PERIPHERY="FeeCollector,TokenWrapper,LiFiDEXAggregator"
-
 # if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
 COMPILE_ON_STARTUP=false
 
@@ -115,3 +109,6 @@ SLACK_WEBHOOK_SC_GENERAL=
 
 # Flag to enable/disable timelock controller
 USE_TIMELOCK_CONTROLLER=true
+
+# the path to the foundry.toml file
+FOUNDRY_TOML_FILE_PATH="foundry.toml"

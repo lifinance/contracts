@@ -29,13 +29,11 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "ChainflipFacet": "1.0.0",
         "ReceiverChainflip": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
-        "GnosisBridgeFacet": "1.0.0",
+        "GnosisBridgeFacet": "2.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
@@ -110,8 +108,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "ChainflipFacet": "1.0.0",
         "ReceiverChainflip": "1.0.0",
         "DeBridgeDlnFacet": "1.0.0",
@@ -149,9 +145,8 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -183,8 +178,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "GlacisFacet": "1.0.0",
         "MayanFacet": "1.2.0",
         "RelayFacet": "1.0.0",
@@ -374,9 +367,10 @@
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
         "LiFiDEXAggregator": "1.9.0",
-        "TokenWrapper": "1.1.0",
-
-        "CBridgeFacet": "1.0.0",
+        \"TokenWrapper\": \"1.1.0\",
+        \"Permit2Proxy\": \"1.0.3\",
+        \"GasZipPeriphery\": \"1.0.1\",
+        \"CBridgeFacet\": \"1.0.0\",
         "DeBridgeDlnFacet": "1.0.0",
         "RelayFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0",
@@ -407,11 +401,12 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
+        "AcrossFacetV3": "1.1.0",
+        "AcrossFacetPackedV3": "1.2.0",
+        "ReceiverAcrossV3": "1.1.0",
         "AllBridgeFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "MayanFacet": "1.2.0",
@@ -445,6 +440,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "AllBridgeFacet": "2.0.0",
         "GlacisFacet": "1.0.0",
         "SquidFacet": "1.0.0"
@@ -496,7 +492,8 @@
         "FeeCollector": "1.0.1",
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.3"
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1"
       }
     }
   },
@@ -548,8 +545,6 @@
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "SquidFacet": "1.0.0"
       }
     }
@@ -575,6 +570,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -601,6 +597,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -665,7 +662,6 @@
         "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "RelayerCelerIM": "2.1.1",
         "RelayFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -721,7 +717,8 @@
         "FeeCollector": "1.0.1",
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.3"
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1"
       }
     }
   },
@@ -778,10 +775,9 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -901,6 +897,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -989,6 +986,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0"
       }
@@ -1015,9 +1013,8 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0"
+        "GasZipPeriphery": "1.0.1",
+        "CBridgeFacet": "1.0.0"
       }
     }
   },
@@ -1031,7 +1028,7 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
+        "GenericSwapFacetV3": "1.0.2",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
@@ -1043,6 +1040,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
+        "LidoWrapper": "1.0.0",
         "AcrossFacetV3": "1.1.0",
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
@@ -1050,8 +1048,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
@@ -1084,7 +1080,8 @@
         "FeeCollector": "1.0.1",
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.3"
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1"
       }
     }
   },
@@ -1117,8 +1114,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "DeBridgeDlnFacet": "1.0.0",
         "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
@@ -1154,9 +1149,8 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.1.1",
-        "CelerIMFacetMutable": "2.0.0",
         "GlacisFacet": "1.0.0",
         "HopFacet": "2.0.1",
         "HopFacetPacked": "1.0.6",
@@ -1186,6 +1180,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "GlacisFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -1249,6 +1244,7 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -1266,7 +1262,7 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
+        "GenericSwapFacetV3": "1.0.2",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
@@ -1278,6 +1274,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
+        "LidoWrapper": "1.0.0",
         "AcrossFacetV3": "1.1.0",
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
@@ -1410,7 +1407,7 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
+        "GenericSwapFacetV3": "1.0.2",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
@@ -1422,11 +1419,14 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
         "GasZipPeriphery": "1.0.1",
+        "LidoWrapper": "1.0.0",
         "AcrossFacetV3": "1.1.0",
         "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "GlacisFacet": "1.0.0",
         "RelayFacet": "1.0.0",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1524,7 +1524,7 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
+        "GenericSwapFacetV3": "1.0.2",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
@@ -1541,7 +1541,6 @@
         "ReceiverAcrossV3": "1.1.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "CelerIMFacetMutable": "2.0.0",
         "RelayFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1568,7 +1567,8 @@
         "LiFiDEXAggregator": "1.9.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.3",
-        "GasZipPeriphery": "1.0.1"
+        "GasZipPeriphery": "1.0.1",
+        "GlacisFacet": "1.0.0"
       }
     }
   },
@@ -1596,6 +1596,198 @@
         "GasZipPeriphery": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "flare": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "katana": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "RelayFacet": "1.0.0"
+      }
+    }
+  },
+  "plume": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "AcrossFacetV3": "1.1.0",
+        "AcrossFacetPackedV3": "1.2.0",
+        "ReceiverAcrossV3": "1.1.0",
+        "ArbitrumBridgeFacet": "1.0.0",
+        "RelayFacet": "1.0.0",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "ronin": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "RelayFacet": "1.0.0"
+      }
+    }
+  },
+  "vana": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "plume": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "RelayFacet": "1.0.0",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0"
+      }
+    }
+  },
+  "ronin": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.0",
+        "DexManagerFacet": "1.0.2",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "LiFiDEXAggregator": "1.9.0",
+        "TokenWrapper": "1.1.0",
+        "Permit2Proxy": "1.0.3",
+        "GasZipPeriphery": "1.0.1",
+        "RelayFacet": "1.0.0"
       }
     }
   }

@@ -28,6 +28,26 @@ DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
 # Regex pattern to identify potential Ethereum private keys (64 hexadecimal characters)
 ETH_PRIVATE_KEY_PATTERN="\b[a-fA-F0-9]{64}\b"
 
+# List of known false positive values that should not be flagged as secrets
+KNOWN_FALSE_POSITIVES=(
+  "true"
+  "false"
+  "none"
+  ""
+  "verifyContract"
+)
+
+# List of paths to exclude from secret checks
+EXCLUDED_PATHS=(
+  "deployments/_deployments_log_file.json"
+  "config/networks.json"
+  "lib/"
+  "safe/cancun/out/"
+  "safe/london/out/"
+  "bun.lock"
+  ".bun/"
+)
+
 # Load secrets from .env file
 if [ -f ".env" ]; then
   ENV_SECRETS=$(grep -v '^#' .env | sed 's/#.*//' | grep -v '^\s*$' | sed 's/ *$//')
@@ -96,8 +116,16 @@ doesFileContainDotEnvSecret() {
     local VALUE=$(echo "$SECRET" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
     local KEY=$(echo "$SECRET" | cut -d '=' -f 1)
 
-    # skip empty values
-    if [ -z "$VALUE" ]; then
+    # skip empty values and known false positives
+    local IS_FALSE_POSITIVE=false
+    for FALSE_POSITIVE in "${KNOWN_FALSE_POSITIVES[@]}"; do
+      if [ "$VALUE" = "$FALSE_POSITIVE" ]; then
+        IS_FALSE_POSITIVE=true
+        break
+      fi
+    done
+
+    if [ -z "$VALUE" ] || [ "$IS_FALSE_POSITIVE" = true ]; then
       continue
     fi
 
@@ -155,29 +183,12 @@ processGitDiff() {
 
   # Check for private keys and secrets in all added or modified FILES
   git diff --cached --name-only --diff-filter=ACM | while IFS= read -r FILE; do
-    # Skip the deploy log file as this is auto generated and contains tons of false positives
-    if [ "$FILE" = "deployments/_deployments_log_file.json" ]; then
-      continue
-    fi
-    # Skip networks.json as it contains RPC URLs that are also in .env
-    if [ "$FILE" = "config/networks.json" ]; then
-      continue
-    fi
-
-    #skip libraries
-    if [[ "$FILE" == "lib/"* ]]; then
-      continue
-    fi
-
-    #skip bun.lock
-    if [[ $FILE == "bun.lock" ]]; then
-      continue
-    fi
-
-    #skip .bun files (bins, cache, versions etc.)
-    if [[ $FILE == ".bun/"* ]]; then
-      continue
-    fi
+    # Skip excluded paths
+    for EXCLUDED_PATH in "${EXCLUDED_PATHS[@]}"; do
+      if [[ "$FILE" == "$EXCLUDED_PATH"* ]]; then
+        continue 2
+      fi
+    done
 
     # Check for secrets from .env file
     RESULT_SECRET=$(doesFileContainDotEnvSecret "$FILE")

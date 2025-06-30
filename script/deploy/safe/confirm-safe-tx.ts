@@ -7,14 +7,15 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import { Hex, parseAbi, Abi, decodeFunctionData } from 'viem'
-import consola from 'consola'
+import { consola } from 'consola'
 import * as dotenv from 'dotenv'
+import { parseAbi, decodeFunctionData, type Hex, type Abi } from 'viem'
+
 import {
-  SafeTransaction,
-  SafeTxDocument,
-  AugmentedSafeTxDocument,
-  privateKeyType,
+  type ISafeTransaction,
+  type ISafeTxDocument,
+  type IAugmentedSafeTxDocument,
+  PrivateKeyTypeEnum,
   initializeSafeTransaction,
   hasEnoughSignatures,
   isSignedByCurrentSigner,
@@ -116,8 +117,8 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
 const processTxs = async (
   network: string,
   privateKey: string | undefined,
-  privKeyType: privateKeyType,
-  pendingTxs: SafeTxDocument[],
+  privKeyType: PrivateKeyTypeEnum,
+  pendingTxs: ISafeTxDocument[],
   pendingTransactions: any,
   rpcUrl?: string,
   useLedger?: boolean,
@@ -140,7 +141,7 @@ const processTxs = async (
   )
 
   // Get signer address
-  const signerAddress = safe.account
+  const signerAddress = safe.account.address
 
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
@@ -155,7 +156,7 @@ const processTxs = async (
       consola.error('Cannot sign or execute transactions - exiting')
       return
     }
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Failed to check if signer is an owner: ${error.message}`)
     consola.error('Skipping this network and moving to the next one')
     return
@@ -166,13 +167,13 @@ const processTxs = async (
    * @param safeTransaction - The transaction to sign
    * @returns The signed transaction
    */
-  const signTransaction = async (safeTransaction: SafeTransaction) => {
+  const signTransaction = async (safeTransaction: ISafeTransaction) => {
     consola.info('Signing transaction')
     try {
       const signedTx = await safe.signTransaction(safeTransaction)
       consola.success('Transaction signed')
       return signedTx
-    } catch (error) {
+    } catch (error: any) {
       consola.error('Error signing transaction:', error)
       throw new Error(`Failed to sign transaction: ${error.message}`)
     }
@@ -182,7 +183,7 @@ const processTxs = async (
    * Executes a SafeTransaction and updates its status in MongoDB
    * @param safeTransaction - The transaction to execute
    */
-  async function executeTransaction(safeTransaction: SafeTransaction) {
+  async function executeTransaction(safeTransaction: ISafeTransaction) {
     consola.info('Preparing to execute Safe transaction...')
     try {
       // Get the Safe transaction hash for reference
@@ -211,7 +212,7 @@ const processTxs = async (
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
       consola.log(' ')
-    } catch (error) {
+    } catch (error: any) {
       consola.error('❌ Error executing Safe transaction:')
       consola.error(`   ${error.message}`)
       if (error.message.includes('GS026')) {
@@ -230,7 +231,7 @@ const processTxs = async (
   let threshold
   try {
     threshold = Number(await safe.getThreshold())
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Failed to get threshold: ${error.message}`)
     throw new Error(
       `Could not get threshold for Safe ${safeAddress} on ${network}`
@@ -240,7 +241,7 @@ const processTxs = async (
   // Filter and augment transactions with signature status
   const txs = await Promise.all(
     pendingTxs.map(
-      async (tx: SafeTxDocument): Promise<AugmentedSafeTxDocument> => {
+      async (tx: ISafeTxDocument): Promise<IAugmentedSafeTxDocument> => {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const hasSignedAlready = isSignedByCurrentSigner(
           safeTransaction,
@@ -257,18 +258,14 @@ const processTxs = async (
         }
       }
     )
-  ).then((txs: AugmentedSafeTxDocument[]) =>
+  ).then((txs: IAugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
       // If the transaction has enough signatures to execute AND the current signer has signed,
       // still show it so they can execute it
-      if (tx.canExecute) {
-        return true
-      }
+      if (tx.canExecute) return true
 
       // Otherwise, don't show transactions that have already been signed by the current signer
-      if (tx.hasSignedAlready) {
-        return false
-      }
+      if (tx.hasSignedAlready) return false
 
       // Show transactions that need more signatures
       return tx.safeTransaction.signatures.size < tx.threshold
@@ -306,7 +303,7 @@ const processTxs = async (
           })
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       consola.warn(`Failed to decode transaction data: ${error.message}`)
     }
 
@@ -314,18 +311,16 @@ const processTxs = async (
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
 
-    if (abi) {
-      if (decoded && decoded.functionName === 'diamondCut') {
+    if (abi)
+      if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
-      } else if (decoded && decoded.functionName === 'schedule') {
+      else if (decoded && decoded.functionName === 'schedule') {
         await decodeNestedTimelockCall(decoded, chain.id)
       } else {
         consola.info('Method:', abi)
-        if (decoded) {
+        if (decoded)
           consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
-        }
       }
-    }
 
     consola.info(`Safe Transaction Details:
     Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
@@ -348,7 +343,7 @@ const processTxs = async (
 
     // Determine available actions based on signature status
     let action: string
-    if (privKeyType === privateKeyType.SAFE_SIGNER) {
+    if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
         options.push('Sign')
@@ -375,9 +370,8 @@ const processTxs = async (
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
         options.push('Sign')
-        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold)) {
+        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
-        }
 
         // Check if signing with current user + deployer (if needed) would meet threshold
         if (
@@ -391,9 +385,8 @@ const processTxs = async (
         }
       }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
+      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
         options.push('Execute')
-      }
 
       action =
         storedResponse ||
@@ -403,12 +396,12 @@ const processTxs = async (
         }))
     }
 
-    if (action === 'Do Nothing') {
-      continue
-    }
-    storedResponses[tx.safeTx.data.data!] = action
+    if (action === 'Do Nothing') continue
 
-    if (action === 'Sign') {
+    // eslint-disable-next-line require-atomic-updates
+    storedResponses[tx.safeTx.data.data] = action
+
+    if (action === 'Sign')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
@@ -425,9 +418,8 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error signing transaction:', error)
       }
-    }
 
-    if (action === 'Sign & Execute') {
+    if (action === 'Sign & Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
@@ -445,7 +437,6 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
-    }
 
     if (action === 'Sign and Execute With Deployer') {
       try {
@@ -505,7 +496,7 @@ const processTxs = async (
 
         // Step 5: Execute with deployer
         const executeWithDeployer = async (
-          safeTransaction: SafeTransaction
+          safeTransaction: ISafeTransaction
         ) => {
           consola.info('Executing transaction with deployer wallet...')
           try {
@@ -545,7 +536,7 @@ const processTxs = async (
             )
             consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
             consola.log(' ')
-          } catch (error) {
+          } catch (error: any) {
             consola.error('❌ Error executing Safe transaction with deployer:')
             consola.error(`   ${error.message}`)
             if (error.message.includes('GS026')) {
@@ -569,14 +560,13 @@ const processTxs = async (
       }
     }
 
-    if (action === 'Execute') {
+    if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         await executeTransaction(safeTransaction)
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
-    }
   }
 }
 
@@ -613,7 +603,7 @@ const main = defineCommand({
       required: false,
     },
     accountIndex: {
-      type: 'number',
+      type: 'string',
       description: 'Ledger account index (default: 0)',
       required: false,
     },
@@ -628,33 +618,31 @@ const main = defineCommand({
 
     // Set up signing options
     let privateKey: string | undefined
-    let keyType = privateKeyType.DEPLOYER // default value
+    let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
     const useLedger = args.ledger || false
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex || 0,
+      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
       derivationPath: args.derivationPath,
     }
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive) {
+    if (args.derivationPath && args.ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
-    }
 
     // If using ledger, we don't need a private key
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive) {
+      if (args.ledgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
         )
-      } else if (args.derivationPath) {
+      else if (args.derivationPath)
         consola.info(`Using custom derivation path: ${args.derivationPath}`)
-      } else {
-        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
-      }
+      else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+
       privateKey = undefined
     } else if (!args.privateKey) {
       // If no private key and not using ledger, ask for key from env
@@ -671,11 +659,9 @@ const main = defineCommand({
       )
       keyType =
         keyChoice === 'SAFE_SIGNER_PRIVATE_KEY'
-          ? privateKeyType.SAFE_SIGNER
-          : privateKeyType.DEPLOYER
-    } else {
-      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
-    }
+          ? PrivateKeyTypeEnum.SAFE_SIGNER
+          : PrivateKeyTypeEnum.DEPLOYER
+    } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
     // Connect to MongoDB and fetch ALL pending transactions
     const { client: mongoClient, pendingTransactions } =

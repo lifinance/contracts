@@ -33,13 +33,15 @@ scriptMaster() {
   # load env variables
   source .env
 
+  # load config first
+  source script/config.sh
+
   # load deploy script & helper functions
   source script/deploy/deploySingleContract.sh
   source script/deploy/deployAllContracts.sh
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/config.sh
   source script/deploy/deployUpgradesToSAFE.sh
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
 
@@ -252,13 +254,7 @@ scriptMaster() {
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
     local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-
     echo "[info] selected network: $NETWORK"
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-    checkRequiredVariablesInDotEnv "$NETWORK"
 
     # call deploy script
     deployAllContracts "$NETWORK" "$ENVIRONMENT"
@@ -503,7 +499,7 @@ scriptMaster() {
 
     if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
       # call update diamond log function
-      updateDiamondLogs
+      updateDiamondLogs "$ENVIRONMENT"
     else
       checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
       # get user-selected network from list
@@ -520,7 +516,7 @@ scriptMaster() {
       checkRequiredVariablesInDotEnv $NETWORK
 
       # call update diamond log function
-      updateDiamondLogs "$NETWORK"
+      updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
   # use case 12: Propose upgrade TX to Gnosis SAFE
