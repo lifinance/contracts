@@ -828,33 +828,21 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 withdrawMode = stream.readUint8();
         bool isV1Pool = stream.readUint8() == 1;
 
-        if (isV1Pool) {
-            address vault = stream.readAddress();
-            if (vault == address(0)) revert InvalidCallData();
+        address target = isV1Pool ? stream.readAddress() : pool; // target is the vault for V1 pools, the pool for V2 pools
+        if (isV1Pool && target == address(0)) revert InvalidCallData();
 
-            // transfer tokens to vault
-            if (from == msg.sender) {
-                IERC20(tokenIn).safeTransferFrom(msg.sender, vault, amountIn);
-            } else if (from == address(this)) {
-                IERC20(tokenIn).safeTransfer(vault, amountIn);
-            } else if (from == INTERNAL_INPUT_SOURCE) {
-                // For INTERNAL_INPUT_SOURCE, tokens are already in the vault/pool
-                // No transfer needed, just proceed with the swap
-            } else {
-                revert InvalidCallData();
-            }
-
-            ISyncSwapVault(vault).deposit(tokenIn, pool);
+        if (from == msg.sender) {
+            IERC20(tokenIn).safeTransferFrom(msg.sender, target, amountIn);
+        } else if (from == address(this)) {
+            IERC20(tokenIn).safeTransfer(target, amountIn);
+        } else if (from == INTERNAL_INPUT_SOURCE) {
+            // tokens already in the vault/pool, no transfer needed
         } else {
-            // transfer tokens to pool
-            if (from == msg.sender) {
-                IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
-            } else if (from == address(this)) {
-                IERC20(tokenIn).safeTransfer(pool, amountIn);
-            }
-            // if 'from' is neither msg.sender nor address(this) then it must be INTERNAL_INPUT_SOURCE
-            // which that tokens are already in the pool
-            // No transfer needed, just proceed with the swap
+            revert InvalidCallData();
+        }
+
+        if (isV1Pool) {
+            ISyncSwapVault(target).deposit(tokenIn, pool);
         }
 
         bytes memory data = abi.encode(tokenIn, to, withdrawMode);
