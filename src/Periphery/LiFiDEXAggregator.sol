@@ -826,6 +826,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // For ERC-20 tokens the vault just withdraws the ERC-20
         // and this mode byte is read and ignored by the ERC-20 branch.
         uint8 withdrawMode = stream.readUint8();
+
+        if (withdrawMode > 2) revert InvalidCallData();
+
         bool isV1Pool = stream.readUint8() == 1;
 
         address target = isV1Pool ? stream.readAddress() : pool; // target is the vault for V1 pools, the pool for V2 pools
@@ -835,11 +838,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             IERC20(tokenIn).safeTransferFrom(msg.sender, target, amountIn);
         } else if (from == address(this)) {
             IERC20(tokenIn).safeTransfer(target, amountIn);
-        } else if (from == INTERNAL_INPUT_SOURCE) {
-            // tokens already in the vault/pool, no transfer needed
-        } else {
-            revert InvalidCallData();
         }
+        // if from is not msg.sender or address(this), it must be INTERNAL_INPUT_SOURCE
+        // which means tokens are already in the vault/pool, no transfer needed
 
         if (isV1Pool) {
             ISyncSwapVault(target).deposit(tokenIn, pool);

@@ -3349,4 +3349,34 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
 
         vm.stopPrank();
     }
+
+    function testRevert_InvalidWithdrawMode() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory routeWithInvalidWithdrawMode = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address (invalid address)
+            address(USER_SENDER), // recipient
+            uint8(3), // withdrawMode (invalid)
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Expect revert with InvalidCallData because withdrawMode is invalid
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            1,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidWithdrawMode
+        );
+
+        vm.stopPrank();
+    }
 }
