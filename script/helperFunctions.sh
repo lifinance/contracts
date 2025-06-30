@@ -3634,7 +3634,8 @@ function cleanupBackgroundJobs() {
 # >>>>>> helpers to set/update deployment files/logs/etc
 function updateDiamondLogs() {
   # read function arguments into variable
-  local NETWORK=$1
+  local ENVIRONMENT=$1
+  local NETWORK=$2
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -3649,7 +3650,12 @@ function updateDiamondLogs() {
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
-  ENVIRONMENTS=("production")
+  if [[ "$ENVIRONMENT" == "production" || -z "$ENVIRONMENT" ]]; then
+    ENVIRONMENTS=("production")
+  else
+    ENVIRONMENTS=("staging")
+  fi
+
   # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
   DIAMONDS=("LiFiDiamond")
 
@@ -3658,10 +3664,6 @@ function updateDiamondLogs() {
     echo ""
     echo "current Network: $NETWORK"
 
-    # >>>>  limit here to a certain network, if needed
-    #    if [[ $NETWORK == "optimism" ]]; then
-    #      continue
-    #    fi
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -3672,19 +3674,11 @@ function updateDiamondLogs() {
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-      # >>>>  limit here to a certain environment, if needed
-      #      if [[ $ENVIRONMENT == "staging" ]]; then
-      #        continue
-      #      fi
 
       for DIAMOND in "${DIAMONDS[@]}"; do
         echo "  -----------------------"
         echo "  current DIAMOND: $DIAMOND"
 
-        # >>>>  limit here to a certain diamond type, if needed
-        #        if [[ $DIAMOND == "LiFiDiamond" ]]; then
-        #          continue
-        #        fi
 
         # define diamond type flag
         if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then

@@ -139,11 +139,13 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  # update diamond log file
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
-  else
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+  # update diamond log file (only for staging environment since in PROD we need to execute proposals first)
+  if [[ "$ENVIRONMENT" == "staging"  ]]; then
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+    else
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+    fi
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
