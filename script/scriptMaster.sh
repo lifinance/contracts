@@ -103,7 +103,9 @@ scriptMaster() {
       "3) Deploy all contracts to one selected network (=new network)" \
       "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
       "5) Execute a script" \
+      "------" \
       "6) EMERGENCY >> Remove a facet or pause the whole diamond" \
+      "------" \
       "7) Batch update _targetState.json file" \
       "8) Verify all unverified contracts" \
       "9) Review deploy status (vs. target state)" \
