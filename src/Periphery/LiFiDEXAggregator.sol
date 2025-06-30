@@ -766,7 +766,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         if (
             pool == address(0) ||
             pool == IMPOSSIBLE_POOL_ADDRESS ||
-            recipient == address(0)
+            recipient == address(0) ||
+            amountIn > type(uint128).max
         ) revert InvalidCallData();
 
         if (from == msg.sender) {

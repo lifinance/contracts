@@ -2060,6 +2060,34 @@ contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
         );
     }
 
+    function testRevert_FailsIfAmountInIsTooLarge() public {
+        deal(address(WETH), USER_SENDER, type(uint256).max);
+
+        vm.startPrank(USER_SENDER);
+        IERC20(WETH).approve(address(liFiDEXAggregator), type(uint256).max);
+
+        // fix the swap data encoding
+        bytes memory swapData = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            WETH,
+            uint8(SwapDirection.Token0ToToken1),
+            IZUMI_WETH_USDC_POOL,
+            USER_RECEIVER
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            WETH,
+            type(uint216).max,
+            USDC,
+            0,
+            USER_RECEIVER,
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
     function _testSwap(IzumiV3SwapTestParams memory params) internal {
         // Fund the sender with tokens if not the contract itself
         if (params.from != address(liFiDEXAggregator)) {
