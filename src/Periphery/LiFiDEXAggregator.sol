@@ -750,7 +750,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     /// @notice Performs a swap through iZiSwap V3 pools
     /// @dev This function handles both X to Y and Y to X swaps through iZiSwap V3 pools
-    /// @param stream [pool, direction, to]
+    /// @param stream [pool, direction, recipient]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
@@ -762,7 +762,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     ) private {
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8(); // 0 = Y2X, 1 = X2Y
-        address to = stream.readAddress();
+        address recipient = stream.readAddress();
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
 
         if (from == msg.sender) {
             IERC20(tokenIn).safeTransferFrom(
@@ -776,16 +781,16 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         if (direction == DIRECTION_TOKEN0_TO_TOKEN1) {
             IiZiSwapPool(pool).swapX2Y(
-                to,
+                recipient,
                 uint128(amountIn),
-                IZUMI_LEFT_MOST_PT,
+                IZUMI_LEFT_MOST_PT + 1,
                 abi.encode(tokenIn)
             );
         } else {
             IiZiSwapPool(pool).swapY2X(
-                to,
+                recipient,
                 uint128(amountIn),
-                IZUMI_RIGHT_MOST_PT,
+                IZUMI_RIGHT_MOST_PT - 1,
                 abi.encode(tokenIn)
             );
         }
