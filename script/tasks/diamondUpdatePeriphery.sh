@@ -88,8 +88,8 @@ function diamondUpdatePeriphery() {
     # check if contract is in target state, otherwise skip iteration
     TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
 
-    # only continue if contract was found in target state
-    if [[ "$?" -eq 0 ]]; then
+    # only continue if contract was found in target state (only required for production environment)
+    if [[ "$?" -eq 0 || "$ENVIRONMENT" == "staging" ]]; then
       # get contract address from deploy log
       if [[ "$CONTRACT" == "RelayerCelerIM" ]]; then
         # special handling for RelayerCelerIM
@@ -139,11 +139,13 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  # update diamond log file
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
-  else
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+  # update diamond log file (only for staging environment since in PROD we need to execute proposals first)
+  if [[ "$ENVIRONMENT" == "staging"  ]]; then
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+    else
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+    fi
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"

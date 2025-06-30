@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
 
         address xDaiBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".xDaiBridge")
+            string.concat(".", network, ".bridgeRouter")
         );
 
         return abi.encode(xDaiBridge);

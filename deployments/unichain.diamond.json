@@ -45,52 +45,52 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xE6b06df46a7bde3973DBa0876d9fB319177abAe6": {
+      "0xcBF3F53186B858C9Fe508a77dCD71Cb564510C45": {
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0x2010a7848E26D3B83038269953305075D65F7141": {
+      "0x20F6BcAdd0e285816b6FF301e6cBe1601fc2e4Fd": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0xd28932aB46626CdB224Ff95BaA42ed1dc75712f0": {
+      "0xC15121CdbC053D94F27D67459f307Ec1cdd71453": {
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
-      "0x2B7D697018626E32c2E3252eCB47488A3a694166": {
+      "0x1979d6F1f8cd75f90F091a174d1F6556884aEEFE": {
         "Name": "GasZipFacet",
-        "Version": "2.0.2"
+        "Version": "2.0.4"
       },
-      "0x62F6fE8B47CBC58Ce4c7D21C2ae897EAB0132773": {
+      "0xCc7395b6F5172aE1A65Cb8c1cd979709679Dae94": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x0Ed72910Cd2f801aC2048464389605ae05bb4bAB": {
+      "0x85a622d69CF1e1B2Be7963A77fb2E717c687845e": {
         "Name": "MayanFacet",
         "Version": "1.2.0"
       },
-      "0x5789928b75C05aC6E8B8765D6f87dAC396A656a2": {
+      "0xc222572289a6bB7e03D448F05Ac4EBf31D7FBf32": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0x2158B25CF47B2810Ce94d2937ac18955b7b9202d": {
+      "0x62804857bAF590fB271c1F77435a492A6fa64DBa": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
-      "Executor": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
-      "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
-      "GasZipPeriphery": "0x7859570b2196f7c764f400b41C6A0080512219b3",
+      "ERC20Proxy": "0x1f4613847c9F7Bd053c5229c65834c9231A83bF9",
+      "Executor": "0xa6aca2704C6c53F076a90FbB19A69cd62c4c5Fe4",
+      "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
+      "GasZipPeriphery": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
       "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
-      "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
-      "Permit2Proxy": "0x4BDB8cb372AeF4047626869dD5580536DBA9b053",
-      "ReceiverAcrossV3": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
+      "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
+      "Permit2Proxy": "0xA3681352316c030B06a83b04394a860a49b47706",
+      "ReceiverAcrossV3": "0xd62d7C4Bb23f65EF3d312C74Cd77a367285CA8fc",
       "ReceiverChainflip": "",
-      "ReceiverStargateV2": "0xd4b85B559b728EDFABaff37D1022C990a23452cf",
+      "ReceiverStargateV2": "0x058f63F483053280246A1c5Db4DAFbE917c13295",
       "RelayerCelerIM": "",
-      "TokenWrapper": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b"
+      "TokenWrapper": "0xc0c12F5F1D8E49D80755c736A5083696488342A6"
     }
   }
 }
