@@ -1487,8 +1487,13 @@ function verifyContract() {
       echo "Error: Could not find API key for network $NETWORK"
       return 1
     fi
-    # add API key to verification command
-    VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
+
+    # some block explorers require to pass a string "verifyContract" instead of an API key (e.g. https://explorer.metis.io/documentation/recipes/foundry-verification)
+    if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
+      # add API key to verification command
+      echo "yes"
+      VERIFY_CMD="$VERIFY_CMD -e 'verifyContract'"
+    fi
   fi
 
   # Attempt verification with retries
