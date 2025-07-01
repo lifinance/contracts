@@ -66,22 +66,7 @@ export interface ISafeTxDocument {
   safeAddress: string
   network: string
   chainId: number
-  safeTx: {
-    data: {
-      to: string
-      value: string
-      data: string
-      operation: number
-      nonce: number
-    }
-    signatures?: Record<
-      string,
-      {
-        signer: string
-        data: string
-      }
-    >
-  }
+  safeTx: ISafeTransaction
   safeTxHash: string
   proposer: string
   timestamp: Date
@@ -718,7 +703,7 @@ export const wouldMeetThreshold = (
  * @returns True if the PRIVATE_KEY_PRODUCTION wallet has already signed
  */
 export const isSignedByProductionWallet = (
-  safeTx: SafeTransaction
+  safeTx: ISafeTransaction
 ): boolean => {
   if (!safeTx?.signatures) return false
 
@@ -747,9 +732,9 @@ export const isSignedByProductionWallet = (
  * @returns True if the option should be shown
  */
 export const shouldShowSignAndExecuteWithDeployer = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   threshold: number,
-  currentSignerAddress: string
+  currentSignerAddress: Address
 ): boolean => {
   const currentSignatures = safeTx?.signatures?.size || 0
   const isCurrentSignerAlreadySigned = isSignedByCurrentSigner(
@@ -767,10 +752,10 @@ export const shouldShowSignAndExecuteWithDeployer = (
   // Two scenarios:
   // 1. If deployer already signed: check if current user's signature would meet threshold
   // 2. If deployer hasn't signed: check if current user + deployer would meet threshold
-  if (isDeployerAlreadySigned) {
+  if (isDeployerAlreadySigned) 
     // Deployer already signed, just need current user to potentially meet threshold
     return signaturesAfterCurrentSigner >= threshold
-  } else {
+   else {
     // Deployer hasn't signed, need both current user + deployer to meet threshold
     const signaturesAfterBoth = signaturesAfterCurrentSigner + 1
     return signaturesAfterBoth >= threshold
@@ -840,16 +825,7 @@ export async function storeTransactionInMongoDB(
     safeAddress,
     network: network.toLowerCase(),
     chainId,
-    safeTx: {
-      data: {
-        to: safeTx.data.to,
-        value: safeTx.data.value.toString(),
-        data: safeTx.data.data,
-        operation: Number(safeTx.data.operation),
-        nonce: Number(safeTx.data.nonce),
-      },
-      signatures: Object.fromEntries(safeTx.signatures),
-    },
+    safeTx,
     safeTxHash,
     proposer,
     timestamp: new Date(),
