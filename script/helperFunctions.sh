@@ -544,10 +544,10 @@ function queryMongoDeployment() {
   fi
 
   bun script/deploy/query-deployment-logs.ts get \
-    --env="$ENVIRONMENT" \
-    --contract="$CONTRACT" \
-    --network="$NETWORK" \
-    --version="$VERSION" 2>/dev/null
+    --env "$ENVIRONMENT" \
+    --contract "$CONTRACT" \
+    --network "$NETWORK" \
+    --version "$VERSION" 2>/dev/null
   return $?
 }
 
