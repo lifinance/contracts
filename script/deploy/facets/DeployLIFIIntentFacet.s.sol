@@ -3,25 +3,25 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { CatalystFacet } from "lifi/Facets/CatalystFacet.sol";
+import { LIFIIntentFacet } from "lifi/Facets/LIFIIntentFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("CatalystFacet") {}
+    constructor() DeployScriptBase("LIFIIntentFacet") {}
 
     function run()
         public
-        returns (CatalystFacet deployed, bytes memory constructorArgs)
+        returns (LIFIIntentFacet deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = CatalystFacet(deploy(type(CatalystFacet).creationCode));
+        deployed = LIFIIntentFacet(deploy(type(LIFIIntentFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // If you don't have a constructor or it doesn't take any arguments, you can remove this function
-        string memory path = string.concat(root, "/config/catalyst.json");
+        string memory path = string.concat(root, "/config/lifiintent.json");
         string memory json = vm.readFile(path);
 
         // If you need to read an address from your config file or from a network deploy log that is supposed to be a contract, use the
@@ -31,10 +31,10 @@ contract DeployScript is DeployScriptBase {
         //
         // in the address is not a supposed to be an EOA, you can use the following standard approach:
         address compact = json.readAddress(".COMPACT");
-        address catalystCompactSettler = json.readAddress(
-            ".CATALYST_COMPACT_SETTLER"
+        address lifiIntentCompactSettler = json.readAddress(
+            ".LIFI_COMPACT_INPUT_SETTLER"
         );
 
-        return abi.encode(compact, catalystCompactSettler);
+        return abi.encode(compact, lifiIntentCompactSettler);
     }
 }

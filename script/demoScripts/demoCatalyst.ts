@@ -1,38 +1,28 @@
-import { getContract, parseUnits, Narrow, zeroAddress } from 'viem'
 import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
+
+import { config } from 'dotenv'
+import { getContract, parseUnits, zeroAddress, type Narrow } from 'viem'
+
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import catalystFacetArtifact from '../../out/CatalystFacet.sol/CatalystFacet.json'
-import { CatalystFacet, ILiFi } from '../../typechain'
-import { SupportedChain } from './utils/demoScriptChainConfig'
+import LIFIIntentFacetArtifact from '../../out/LIFIIntentFacet.sol/LIFIIntentFacet.json'
+import type { ILiFi, LIFIIntentFacet } from '../../typechain'
+import type { SupportedChain } from '../common/types'
+
 import {
-  ensureBalance,
   ensureAllowance,
+  ensureBalance,
   executeTransaction,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-dotenv.config()
+config()
 
 // #region ABIs
 
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
-const CATALYST_FACET_ABI = catalystFacetArtifact.abi as Narrow<
-  typeof catalystFacetArtifact.abi
+const LIFIIntent_FACET_ABI = LIFIIntentFacetArtifact.abi as Narrow<
+  typeof LIFIIntentFacetArtifact.abi
 >
-
-// If you need to import a custom ABI, follow these steps:
-//
-// First, ensure you import the relevant artifact file:
-// import exampleArtifact from '../../out/{example artifact json file}'
-//
-// Then, define the ABI using `Narrow<typeof exampleArtifact.abi>` for proper type inference:
-// const EXAMPLE_ABI = exampleArtifact.abi as Narrow<typeof exampleArtifact.abi>
-//
-
-// #endregion
-
-dotenv.config()
 
 async function main() {
   // === Set up environment ===
@@ -45,7 +35,7 @@ async function main() {
     walletAccount,
     lifiDiamondAddress,
     lifiDiamondContract,
-  } = await setupEnvironment(srcChain, CATALYST_FACET_ABI)
+  } = await setupEnvironment(srcChain, LIFIIntent_FACET_ABI)
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
@@ -53,13 +43,13 @@ async function main() {
   const DST_TOKEN_ADDRESS = '' as `0x${string}` // Set the destination token address here.
 
   const LOCKTAG = '' as `0x${string}` // Set the locktag here.
-  if (LOCKTAG.length != 24 + 2) throw new Error('Invalid Locktag')
+  if (LOCKTAG.length !== 24 + 2) throw new Error('Invalid Locktag')
 
   // If you need to retrieve a specific address from your config file
   // based on the chain and element name, use this helper function.
   //
   // First, ensure you import the relevant config file:
-  // import config from '../../config/catalyst.json'
+  // import config from '../../config/LIFIIntent.json'
   //
   // Then, retrieve the address:
   // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
@@ -109,7 +99,7 @@ async function main() {
   const bridgeData: ILiFi.BridgeDataStruct = {
     // Edit fields as needed
     transactionId: `0x${randomBytes(32).toString('hex')}`,
-    bridge: 'catalyst',
+    bridge: 'LIFIIntent',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
     sendingAssetId: SRC_TOKEN_ADDRESS,
@@ -124,7 +114,7 @@ async function main() {
 
   // TODO: implement quote call to order server. Lets emulate it for now.
 
-  const catalystData: CatalystFacet.CatalystDataStruct = {
+  const LIFIIntentData: LIFIIntentFacet.LIFIIntentDataStruct = {
     /// And calldata.
     receiverAddress: '0x' + signerAddress.replace('0x', '').padStart(64, '0'),
     assetId: LOCKTAG + SRC_TOKEN_ADDRESS.replace('0x', ''),
@@ -132,26 +122,26 @@ async function main() {
     user: signerAddress,
     nonce: Math.round(Math.random() * Number.MAX_SAFE_INTEGER),
     expiry: 2 ** 32, // max expiry time. TODO: Should probably be changed.
-    // Catalyst Witness //
+    // LIFIIntent Witness //
     fillDeadline: 2 ** 32, // max fill deadline time. TODO: Should probably be changed.
     localOracle: '0x', // TODO:
-    // Catalyst Output //
-    remoteOracle: '0x', // TODO:
-    remoteFiller: '0x', // TODO:
+    // LIFIIntent Output //
+    outputOracle: '0x', // TODO:
+    outputSettler: '0x', // TODO:
     outputToken: '0x' + DST_TOKEN_ADDRESS.replace('0x', '').padStart(64, '0'),
     outputAmount: amount, // TODO: Minus fee
-    remoteCall: '0x',
-    fulfillmentContext: '0x', // Limit order.
+    outputCall: '0x',
+    outputContext: '0x', // Limit order.
   }
 
   // === Start bridging ===
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.startBridgeTokensViaCatalyst(
-        [bridgeData, catalystData]
+      lifiDiamondContract.write.startBridgeTokensViaLIFIIntent(
+        [bridgeData, LIFIIntentData]
         // { value: fee } optional value
       ),
-    'Starting bridge tokens via Catalyst',
+    'Starting bridge tokens via LIFIIntent',
     publicClient,
     true
   )

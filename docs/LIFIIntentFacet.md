@@ -1,38 +1,38 @@
-# Catalyst Facet
+# LIFIIntent Facet
 
 ## How it works
 
 Catlayst uses The Compact as a deposit mechanism for its intents. The Compact contains interfaces to deposit and register intents on behalf of someone else.
 
-The Catalyst Faucet constructs the Catalyst witness and then sends the witness along with the typings to The Compact which will derive the assocaited claim and register it.
+The LIFIIntent Faucet constructs the LIFIIntent witness and then sends the witness along with the typings to The Compact which will derive the assocaited claim and register it.
 
 Once signed by an allocator (off-chain action), solvers can solve the order and take the proof to the chain of the deposit to claim the deposit.
 TODO: fix mermaid
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL --> CatalystFacet;
-    CatalystFacet -- CALL --> C(COMPACT);
+    D{LiFiDiamond}-- DELEGATECALL --> LIFIIntentFacet;
+    LIFIIntentFacet -- CALL --> C(COMPACT);
 
-    Solver -- CALL -> C(RemoteFiller)
-    C(RemoteFiller) -- Tokens -> User
+    Solver -- CALL -> C(outputSettler)
+    C(outputSettler) -- Tokens -> User
 
-    C(RemoteOracle) -- Static Call -> C(RemoteFiller)
+    C(outputOracle) -- Static Call -> C(outputSettler)
 
-    C(RemoteOracle) -- Validation -> C(LocalOracle)
-    C(CATALYST_COMPACT_SETTLER) -- Static Call -> C(LocalOracle)
-    C(CATALYST_COMPACT_SETTLER) -- claim -> C(COMPACT)
+    C(outputOracle) -- Validation -> C(LocalOracle)
+    C(LIFI_INTENT_COMPACT_SETTLER) -- Static Call -> C(LocalOracle)
+    C(LIFI_INTENT_COMPACT_SETTLER) -- claim -> C(COMPACT)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaCatalyst(BridgeData calldata _bridgeData, CatalystData calldata _catalystData)`
-  - Simply bridges tokens using catalyst
-- `swapAndStartBridgeTokensViaCatalyst(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, catalystData memory _catalystData)`
-  - Performs swap(s) before bridging tokens using catalyst
+- `function startBridgeTokensViaLIFIIntent(BridgeData calldata _bridgeData, LIFIIntentData calldata _lifiIntentData)`
+  - Simply bridges tokens using LIFIIntent
+- `swapAndStartBridgeTokensViaLIFIIntent(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LIFIIntentData memory _lifiIntentData)`
+  - Performs swap(s) before bridging tokens using LIFIIntent
 
-## catalyst Specific Parameters
+## LIFIIntent Specific Parameters
 
-The methods listed above take a variable labeled `_catalystData`. This data is specific to catalyst and is represented as the following struct type:
+The methods listed above take a variable labeled `_lifiIntentData`. This data is specific to LIFIIntent and is represented as the following struct type:
 
 ```solidity
 /// @param receiverAddress The destination account for the delivered assets and calldata.
@@ -45,14 +45,14 @@ The methods listed above take a variable labeled `_catalystData`. This data is s
 /// @param expiry If the proof for the fill does not arrive before this time, the claim expires.
 /// @param fillDeadline The fill has to happen before this time.
 /// @param localOracle Address of the validation layer used on the sending chain.
-/// @param remoteOracle Address of the validation layer used on the remote chain.
-/// @param remoteFiller Address of the output settlement contract containing the fill logic.
+/// @param outputOracle Address of the validation layer used on the remote chain.
+/// @param outputSettler Address of the output settlement contract containing the fill logic.
 /// @param outputToken The desires destination token.
 /// @param outputAmount The amount of the destired token.
-/// @param remoteCall Calldata to be executed after the token has been delivered. Is called on receiverAddress.
+/// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress.
 /// if set to 0x / hex"" no call is made.
-/// @param fulfillmentContext Context for the remoteFiller to identify the order type.
-struct CatalystData {
+/// @param outputContext Context for the outputSettler to identify the order type.
+struct LIFIIntentData {
     /// And calldata.
     bytes32 receiverAddress;
     uint256 assetId;
@@ -61,17 +61,17 @@ struct CatalystData {
     address user;
     uint32 expiry;
 
-    // Catalyst Witness //
+    // LIFIIntent Witness //
     uint32 fillDeadline;
     address localOracle;
 
-    // Catalyst Output //
-    bytes32 remoteOracle;
-    bytes32 remoteFiller;
+    // LIFIIntent Output //
+    bytes32 outputOracle;
+    bytes32 outputSettler;
     bytes32 outputToken;
     uint256 outputAmount;
-    bytes remoteCall;
-    bytes fulfillmentContext;
+    bytes outputCall;
+    bytes outputContext;
 }
 ```
 
@@ -101,7 +101,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'catalyst', // the bridge tool used for the transaction
+  tool: 'LIFIIntent', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -127,7 +127,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=catalyst&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=LIFIIntent&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -135,5 +135,5 @@ curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC
 To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=catalyst&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=LIFIIntent&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

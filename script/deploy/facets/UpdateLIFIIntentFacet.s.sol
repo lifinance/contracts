@@ -8,6 +8,6 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("CatalystFacet");
+        return update("LIFIIntentFacet");
     }
 }
