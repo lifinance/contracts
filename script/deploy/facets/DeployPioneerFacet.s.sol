@@ -30,8 +30,17 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/pioneer.json");
         string memory json = vm.readFile(path);
 
-        // Load the Pioneer EOA address.
-        address pioneer = json.readAddress(string.concat(".pioneerEOA"));
+        // Load the Pioneer EOA address
+        // check if production or staging
+        address pioneer;
+        if (
+            keccak256(abi.encodePacked(fileSuffix)) ==
+            keccak256(abi.encodePacked("staging."))
+        ) {
+            pioneer = json.readAddress(string.concat(".pioneerEOAStaging"));
+        } else {
+            pioneer = json.readAddress(string.concat(".pioneerEOAProduction"));
+        }
 
         return abi.encode(pioneer);
     }

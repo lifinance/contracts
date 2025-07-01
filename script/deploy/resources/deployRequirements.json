@@ -500,7 +500,7 @@
     "configData": {
       "_pioneerAddress": {
         "configFileName": "pioneer.json",
-        "keyInConfigFile": ".pioneerEOA",
+        "keyInConfigFile": ".pioneerEOAProduction",
         "allowToDeployWithZeroAddress": "false"
       }
     }
