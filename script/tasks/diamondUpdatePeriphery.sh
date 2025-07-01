@@ -88,8 +88,8 @@ function diamondUpdatePeriphery() {
     # check if contract is in target state, otherwise skip iteration
     TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
 
-    # only continue if contract was found in target state
-    if [[ "$?" -eq 0 ]]; then
+    # only continue if contract was found in target state (only required for production environment)
+    if [[ "$?" -eq 0 || "$ENVIRONMENT" == "staging" ]]; then
       # get contract address from deploy log
       if [[ "$CONTRACT" == "RelayerCelerIM" ]]; then
         # special handling for RelayerCelerIM
@@ -139,11 +139,13 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  # update diamond log file
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
-  else
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+  # update diamond log file (only for staging environment since in PROD we need to execute proposals first)
+  if [[ "$ENVIRONMENT" == "staging"  ]]; then
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+    else
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+    fi
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
@@ -154,7 +156,7 @@ register() {
   local DIAMOND=$2
   local CONTRACT_NAME=$3
   local ADDR=$4
-  local RPC_URL=$(getRPCUrl $NETWORK)
+  local RPC_URL=$(getRPCUrl $NETWORK) || checkFailure $? "get rpc url"
   local ENVIRONMENT=$5
 
   # register periphery contract
@@ -187,9 +189,9 @@ register() {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
-        if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-          echo "DEPLOY_NEW_NETWORK_MODE is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe
@@ -209,9 +211,9 @@ register() {
     else
       # do not print output to console
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set DEPLOY_NEW_NETWORK_MODE to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
-        if [ "$DEPLOY_NEW_NETWORK_MODE" == "true" ]; then
-          echo "DEPLOY_NEW_NETWORK_MODE is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
+        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering "$CONTRACT_NAME" as periphery on diamond "$DIAMOND_ADDRESS" in network $NETWORK now..."
           cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
         else
           # propose registerPeripheryContract transaction to multisig safe

@@ -20,9 +20,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -34,9 +34,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -48,9 +48,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -62,9 +62,9 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
-      "_wrappedNative": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.weth",
+      "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -99,12 +99,12 @@
   "ArbitrumBridgeFacet": {
     "configData": {
       "_gatewayRouter": {
-        "configFileName": "arbitrum.json",
+        "configFileName": "arbitrumBridge.json",
         "keyInConfigFile": ".<NETWORK>.gatewayRouter",
         "allowToDeployWithZeroAddress": "false"
       },
       "_inbox": {
-        "configFileName": "arbitrum.json",
+        "configFileName": "arbitrumBridge.json",
         "keyInConfigFile": ".<NETWORK>.inbox",
         "allowToDeployWithZeroAddress": "false"
       }
@@ -198,11 +198,20 @@
       }
     }
   },
+  "GenericSwapFacetV3": {
+    "configData": {
+      "_nativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.nativeAddress",
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
+  },
   "GnosisBridgeFacet": {
     "configData": {
       "_xDaiBridge": {
         "configFileName": "gnosis.json",
-        "keyInConfigFile": ".<NETWORK>.xDaiBridge",
+        "keyInConfigFile": ".<NETWORK>.bridgeRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -491,7 +500,7 @@
       },
       "_relaySolver": {
         "configFileName": "relay.json",
-        "keyInConfigFile": ".<NETWORK>.relaySolver",
+        "keyInConfigFile": ".relaySolver",
         "allowToDeployWithZeroAddress": "false"
       }
     }

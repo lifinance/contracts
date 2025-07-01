@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 pragma solidity ^0.8.17;
 
 error AlreadyInitialized();
@@ -8,6 +8,7 @@ error CannotBridgeToSameNetwork();
 error ContractCallNotAllowed();
 error CumulativeSlippageTooHigh(uint256 minAmount, uint256 receivedAmount);
 error DiamondIsPaused();
+error ETHTransferFailed();
 error ExternalCallFailed();
 error FunctionDoesNotExist();
 error InformationMismatch();
@@ -33,6 +34,7 @@ error OnlyContractOwner();
 error RecoveryAddressCannotBeZero();
 error ReentrancyError();
 error TokenNotSupported();
+error TransferFromFailed();
 error UnAuthorized();
 error UnsupportedChainId(uint256 chainId);
 error WithdrawFailed();

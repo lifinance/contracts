@@ -1,5 +1,6 @@
 {
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
+  "feeCollectorOwner": "0xAB483D44705Af49a83553821A1F7aAd8BBc70576",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
@@ -54,5 +55,14 @@
     "OwnershipFacet",
     "PeripheryRegistryFacet",
     "WithdrawFacet"
+  ],
+  "corePeriphery": [
+    "ERC20Proxy",
+    "Executor",
+    "FeeCollector",
+    "GasZipPeriphery",
+    "LiFiDEXAggregator",
+    "Permit2Proxy",
+    "TokenWrapper"
   ]
 }

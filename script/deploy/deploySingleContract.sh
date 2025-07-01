@@ -92,10 +92,9 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkSync and Abstract
+  # Handle ZkEVM Chains
   # We need to use zksync specific scripts that are able to be compiled for
   # the zkvm
-  #
   if isZkEvmNetwork "$NETWORK"; then
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     FILE_EXTENSION=".zksync.s.sol"
@@ -139,6 +138,10 @@ deploySingleContract() {
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
+  fi
+
   # logging for debug purposes
   echo ""
   echoDebug "in function deploySingleContract"
@@ -150,6 +153,7 @@ deploySingleContract() {
   echoDebug "VERSION=$VERSION"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echoDebug "DIAMOND_TYPE=$DIAMOND_TYPE"
+  echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
   echo ""
 
   # prepare bytecode
@@ -186,7 +190,7 @@ deploySingleContract() {
   fi
 
   # check if address already contains code (=> are we deploying or re-running the script again?)
-  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")
+  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
 
   # check if all required data (e.g. config data / contract addresses) is available
   checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
@@ -228,10 +232,10 @@ deploySingleContract() {
 
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync)
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     fi
 
     RETURN_CODE=$?
@@ -251,35 +255,15 @@ deploySingleContract() {
 
     # check the return code the last call
     elif [ $RETURN_CODE -eq 0 ]; then
-      # clean tx return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-      checkFailure $? "clean return data (original data: $RAW_RETURN_DATA)"
-
-      # extract the "returns" field and its contents from the return data (+hide errors)
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
-
       # extract deployed-to address from return data
-      ADDRESS=$(echo $RETURN_DATA | jq -r '.deployed.value')
-
-      # check every ten seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC if code is deployed
-      local COUNT=0
-      while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
-        # check if bytecode is deployed at address
-        if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
-          echo "[info] bytecode deployment at address $ADDRESS verified through block explorer"
-          break 2 # exit both loops if the operation was successful
+        ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+        if [[ $? -ne 0 ]]; then
+          error "❌ Could not extract deployed address from raw return data"
+          return 1
+        elif [[ -n "$ADDRESS" ]]; then
+          # address successfully extracted
+          break
         fi
-        # wait for 10 seconds to allow blockchain to sync
-        echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
-        sleep 10
-
-        COUNT=$((COUNT + 10))
-      done
-
-      if [ $COUNT -gt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
-        warning "contract deployment tx successful but doesAddressContainBytecode returned false. Please check if contract was actually deployed (NETWORK=$NETWORK, ADDRESS:$ADDRESS)"
-      fi
-
     fi
 
     attempts=$((attempts + 1)) # increment attempts
@@ -313,7 +297,7 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
+  CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
@@ -371,7 +355,7 @@ deploySingleContract() {
       RELAYER_CONSTR_ARGS=$(cast abi-encode "someFunction(address,address,address)" "$CBRIDGE_MESSAGE_BUS_ADDRESS" "$REFUND_WALLET" "$DIAMOND_ADDRESS")
 
       # get RPC URL for given network
-      RPC_URL=$(getRPCUrl "$NETWORK")
+      RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
       # get address of RelayerCelerIM
       RELAYER_ADDRESS=$(cast call $ADDRESS "relayer() returns (address)" --rpc-url "$RPC_URL")
@@ -422,7 +406,7 @@ deploySingleContract() {
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
 
         # overwrite existing log entry with new deployment info
-        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$SALT"
+        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$VERIFIED" "$SALT"
       fi
     fi
 
@@ -455,9 +439,7 @@ deploySingleContract() {
   fi
 
   # check if log entry was found
-  if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 && $NEW_DEPLOYMENT == "false" ]]; then
-    echoDebug "log entry already exists:"
-    echoDebug "$LOG_ENTRY"
+  if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     echoDebug "Now checking if $CONTRACT was verified just now and update log, if so"
 
     # check if redeployment
@@ -476,7 +458,7 @@ deploySingleContract() {
         TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
 
         # update VERIFIED info in log file
-        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -484,13 +466,13 @@ deploySingleContract() {
       echoDebug "address of existing log entry does not match with current deployed-to address (=re-deployment)"
 
       # overwrite existing log entry with new deployment info
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
     fi
   else
-    echoDebug "log entry does not exist or contract was re-deployed. Log entry will be (over-)written now."
+    echoDebug "log entry does not exist. Log entry will be written now."
 
     # write to logfile
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
   fi
 
   # save contract in network-specific deployment files

@@ -9,12 +9,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the gas.zip protocol (https://www.gas.zip/)
-/// @custom:version 2.0.2
+/// @custom:version 2.0.4
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
@@ -24,12 +24,15 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// State ///
     address public constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
-    IGasZip public immutable gasZipRouter;
-    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 32;
+    IGasZip public immutable GAS_ZIP_ROUTER;
+    uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 16;
 
     /// Constructor ///
     constructor(address _gasZipRouter) {
-        gasZipRouter = IGasZip(_gasZipRouter);
+        if (address(_gasZipRouter) == address(0)) {
+            revert InvalidConfig();
+        }
+        GAS_ZIP_ROUTER = IGasZip(_gasZipRouter);
     }
 
     /// @notice Bridges tokens using the gas.zip protocol
@@ -107,7 +110,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _gasZipData.receiverAddress !=
-            bytes32(uint256(uint160(_bridgeData.receiver)))
+            bytes32(bytes20(uint160(_bridgeData.receiver))) // GasZip expects the receiver address as a right-padded bytes32 value. That's why we use bytes20 instead of uint256 to ensure proper formatting
         ) revert InvalidCallData();
 
         // validate bridgeData
@@ -116,7 +119,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert CannotBridgeToSameNetwork();
 
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
-        gasZipRouter.deposit{ value: _bridgeData.minAmount }(
+        GAS_ZIP_ROUTER.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
         );
@@ -134,9 +137,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (length > MAX_CHAINID_LENGTH_ALLOWED) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
-            // Shift destinationChains left by 8 bits and add the next chainID
+            // Shift destinationChains left by 16 bits and add the next chainID
             destinationChains =
-                (destinationChains << 8) |
+                (destinationChains << 16) |
                 uint256(_chainIds[i]);
         }
     }

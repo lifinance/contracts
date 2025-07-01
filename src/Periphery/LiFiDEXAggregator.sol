@@ -3,8 +3,11 @@
 pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20, IERC20Permit } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
+import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
+import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -20,10 +23,23 @@ uint160 constant MIN_SQRT_RATIO = 4295128739;
 /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
 uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
+uint8 constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+uint8 constant CALLBACK_ENABLED = 1;
+
+/// @dev Pool type identifiers used to determine which DEX protocol to interact with during swaps
+uint8 constant POOL_TYPE_UNIV2 = 0;
+uint8 constant POOL_TYPE_UNIV3 = 1;
+uint8 constant POOL_TYPE_WRAP_NATIVE = 2;
+uint8 constant POOL_TYPE_BENTO_BRIDGE = 3;
+uint8 constant POOL_TYPE_TRIDENT = 4;
+uint8 constant POOL_TYPE_CURVE = 5;
+uint8 constant POOL_TYPE_VELODROME_V2 = 6;
+uint8 constant POOL_TYPE_ALGEBRA = 7;
+
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.6.0
+/// @custom:version 1.10.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
@@ -41,26 +57,35 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     );
 
     error MinimalOutputBalanceViolation(uint256 amountOut);
+    error RouteProcessorLocked();
+    error RouteProcessorPaused();
+    error CallerNotOwnerOrPriviledged();
+    error UnknownCommandCode();
+    error UnknownPoolType();
+    error MinimalInputBalanceViolation(uint256 available, uint256 required);
+    error UniswapV3SwapUnexpected();
+    error UniswapV3SwapCallbackUnknownSource();
+    error UniswapV3SwapCallbackNotPositiveAmount();
+    error WrongPoolReserves();
+    error AlgebraSwapUnexpected();
 
-    IBentoBoxMinimal public immutable bentoBox;
+    IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
     address private lastCalledPool;
 
     uint8 private unlocked = NOT_LOCKED;
     uint8 private paused = NOT_PAUSED;
     modifier lock() {
-        require(unlocked == NOT_LOCKED, "RouteProcessor is locked");
-        require(paused == NOT_PAUSED, "RouteProcessor is paused");
+        if (unlocked != NOT_LOCKED) revert RouteProcessorLocked();
+        if (paused != NOT_PAUSED) revert RouteProcessorPaused();
         unlocked = LOCKED;
         _;
         unlocked = NOT_LOCKED;
     }
 
     modifier onlyOwnerOrPriviledgedUser() {
-        require(
-            msg.sender == owner || priviledgedUsers[msg.sender],
-            "RP: caller is not the owner or a privileged user"
-        );
+        if (!(msg.sender == owner || priviledgedUsers[msg.sender]))
+            revert CallerNotOwnerOrPriviledged();
         _;
     }
 
@@ -69,7 +94,10 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address[] memory priviledgedUserList,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        bentoBox = IBentoBoxMinimal(_bentoBox);
+        if (_owner == address(0)) {
+            revert InvalidConfig();
+        }
+        BENTO_BOX = IBentoBoxMinimal(_bentoBox);
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
         for (uint256 i = 0; i < priviledgedUserList.length; i++) {
@@ -185,7 +213,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                 } else if (commandCode == 4) processOnePool(stream);
                 else if (commandCode == 5) processInsideBento(stream);
                 else if (commandCode == 6) applyPermit(tokenIn, stream);
-                else revert("RouteProcessor: Unknown command code");
+                else revert UnknownCommandCode();
                 ++step;
             }
         }
@@ -193,10 +221,11 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 balanceInFinal = tokenIn == NATIVE_ADDRESS
             ? 0
             : IERC20(tokenIn).balanceOf(msg.sender);
-        require(
-            balanceInFinal + amountIn >= balanceInInitial,
-            "RouteProcessor: Minimal input balance violation"
-        );
+        if (balanceInFinal + amountIn < balanceInInitial)
+            revert MinimalInputBalanceViolation(
+                balanceInFinal + amountIn,
+                balanceInInitial
+            );
 
         uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
             ? address(to).balance
@@ -274,6 +303,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @notice Processes ERC20 token for cases when the token has only one output pool
     /// @notice In this case liquidity is already at pool balance. This is an optimization
     /// @notice Call swap for all pools that swap from this token
+    /// @dev WARNING: This function passes amountIn as 0 which may not work with some UniswapV3
+    /// @dev forks that require non-zero amounts for their pricing/slippage calculations.
+    /// @dev Use with caution for V3-style pools.
     /// @param stream Streamed program
     function processOnePool(uint256 stream) private {
         address token = stream.readAddress();
@@ -285,7 +317,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     /// @param stream Streamed program
     function processInsideBento(uint256 stream) private {
         address token = stream.readAddress();
-        uint256 amountTotal = bentoBox.balanceOf(token, address(this));
+        uint256 amountTotal = BENTO_BOX.balanceOf(token, address(this));
         unchecked {
             if (amountTotal > 0) amountTotal -= 1; // slot undrain protection
         }
@@ -327,13 +359,23 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         uint8 poolType = stream.readUint8();
-        if (poolType == 0) swapUniV2(stream, from, tokenIn, amountIn);
-        else if (poolType == 1) swapUniV3(stream, from, tokenIn, amountIn);
-        else if (poolType == 2) wrapNative(stream, from, tokenIn, amountIn);
-        else if (poolType == 3) bentoBridge(stream, from, tokenIn, amountIn);
-        else if (poolType == 4) swapTrident(stream, from, tokenIn, amountIn);
-        else if (poolType == 5) swapCurve(stream, from, tokenIn, amountIn);
-        else revert("RouteProcessor: Unknown pool type");
+        if (poolType == POOL_TYPE_UNIV2)
+            swapUniV2(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_UNIV3)
+            swapUniV3(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_WRAP_NATIVE)
+            wrapNative(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_BENTO_BRIDGE)
+            bentoBridge(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_TRIDENT)
+            swapTrident(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_CURVE)
+            swapCurve(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_VELODROME_V2)
+            swapVelodromeV2(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_ALGEBRA)
+            swapAlgebra(stream, from, tokenIn, amountIn);
+        else revert UnknownPoolType();
     }
 
     /// @notice Wraps/unwraps native token
@@ -388,29 +430,29 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         if (direction > 0) {
             // outside to Bento
-            // deposit to arbitrary recipient is possible only from address(bentoBox)
+            // deposit to arbitrary recipient is possible only from address(BENTO_BOX)
             if (from == address(this))
-                IERC20(tokenIn).safeTransfer(address(bentoBox), amountIn);
+                IERC20(tokenIn).safeTransfer(address(BENTO_BOX), amountIn);
             else if (from == msg.sender)
                 IERC20(tokenIn).safeTransferFrom(
                     msg.sender,
-                    address(bentoBox),
+                    address(BENTO_BOX),
                     amountIn
                 );
             else {
-                // tokens already are at address(bentoBox)
+                // tokens already are at address(BENTO_BOX)
                 amountIn =
-                    IERC20(tokenIn).balanceOf(address(bentoBox)) +
-                    bentoBox.strategyData(tokenIn).balance -
-                    bentoBox.totals(tokenIn).elastic;
+                    IERC20(tokenIn).balanceOf(address(BENTO_BOX)) +
+                    BENTO_BOX.strategyData(tokenIn).balance -
+                    BENTO_BOX.totals(tokenIn).elastic;
             }
-            bentoBox.deposit(tokenIn, address(bentoBox), to, amountIn, 0);
+            BENTO_BOX.deposit(tokenIn, address(BENTO_BOX), to, amountIn, 0);
         } else {
             // Bento to outside
             if (from != INTERNAL_INPUT_SOURCE) {
-                bentoBox.transfer(tokenIn, from, address(this), amountIn);
-            } else amountIn = bentoBox.balanceOf(tokenIn, address(this));
-            bentoBox.withdraw(tokenIn, address(this), to, 0, amountIn);
+                BENTO_BOX.transfer(tokenIn, from, address(this), amountIn);
+            } else amountIn = BENTO_BOX.balanceOf(tokenIn, address(this));
+            BENTO_BOX.withdraw(tokenIn, address(this), to, 0, amountIn);
         }
     }
 
@@ -436,8 +478,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
 
         (uint256 r0, uint256 r1, ) = IUniswapV2Pair(pool).getReserves();
-        require(r0 > 0 && r1 > 0, "Wrong pool reserves");
-        (uint256 reserveIn, uint256 reserveOut) = direction == 1
+        if (r0 == 0 || r1 == 0) revert WrongPoolReserves();
+        (uint256 reserveIn, uint256 reserveOut) = direction ==
+            DIRECTION_TOKEN0_TO_TOKEN1
             ? (r0, r1)
             : (r1, r0);
         amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn; // tokens already were transferred
@@ -445,7 +488,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountInWithFee = amountIn * (1_000_000 - fee);
         uint256 amountOut = (amountInWithFee * reserveOut) /
             (reserveIn * 1_000_000 + amountInWithFee);
-        (uint256 amount0Out, uint256 amount1Out) = direction == 1
+        (uint256 amount0Out, uint256 amount1Out) = direction ==
+            DIRECTION_TOKEN0_TO_TOKEN1
             ? (uint256(0), amountOut)
             : (amountOut, uint256(0));
         IUniswapV2Pair(pool).swap(amount0Out, amount1Out, to, new bytes(0));
@@ -466,7 +510,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes memory swapData = stream.readBytes();
 
         if (from != INTERNAL_INPUT_SOURCE) {
-            bentoBox.transfer(tokenIn, from, pool, amountIn);
+            BENTO_BOX.transfer(tokenIn, from, pool, amountIn);
         }
 
         IPool(pool).swap(swapData);
@@ -484,8 +528,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
-        bool zeroForOne = stream.readUint8() > 0;
+        bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
+
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
 
         if (from == msg.sender)
             IERC20(tokenIn).safeTransferFrom(
@@ -497,15 +547,13 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         lastCalledPool = pool;
         IUniswapV3Pool(pool).swap(
             recipient,
-            zeroForOne,
+            direction,
             int256(amountIn),
-            zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+            direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
             abi.encode(tokenIn)
         );
-        require(
-            lastCalledPool == IMPOSSIBLE_POOL_ADDRESS,
-            "RouteProcessor.swapUniV3: unexpected"
-        ); // Just to be sure
+        if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS)
+            revert UniswapV3SwapUnexpected(); // Just to be sure
     }
 
     /// @notice Called to `msg.sender` after executing a swap via IUniswapV3Pool#swap.
@@ -522,15 +570,10 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         int256 amount1Delta,
         bytes calldata data
     ) public {
-        require(
-            msg.sender == lastCalledPool,
-            "RouteProcessor.uniswapV3SwapCallback: call from unknown source"
-        );
+        if (msg.sender != lastCalledPool)
+            revert UniswapV3SwapCallbackUnknownSource();
         int256 amount = amount0Delta > 0 ? amount0Delta : amount1Delta;
-        require(
-            amount > 0,
-            "RouteProcessor.uniswapV3SwapCallback: not positive amount"
-        );
+        if (amount <= 0) revert UniswapV3SwapCallbackNotPositiveAmount();
 
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
         address tokenIn = abi.decode(data, (address));
@@ -689,6 +732,87 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
+    /// @notice Called to `msg.sender` after executing a swap via HyperswapV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the HyperswapV3#swap call
+    function hyperswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via LaminarV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the LaminarV3#swap call
+    function laminarV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IXSwapPool#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be a XSwapPool deployed by the canonical XSwapFactory.
+    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the IXSwapPoolActions#swap call
+    function xswapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IRabbitSwapV3Pool#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be a RabbitSwapV3Pool deployed by the canonical RabbitSwapV3Factory.
+    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the IRabbitSwapV3PoolActions#swap call
+    function rabbitSwapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via IEnosysDexV3Pool#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be a EnosysDexV3Pool deployed by the canonical EnosysDexV3Factory.
+    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the IEnosysDexV3PoolActions#swap call
+    function enosysdexV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
     /// @notice Curve pool swap. Legacy pools that don't return amountOut and have native coins are not supported
     /// @param stream [pool, poolType, fromIndex, toIndex, recipient, output token]
     /// @param from Where to take liquidity for swap
@@ -749,6 +873,141 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
                 IERC20(tokenOut).safeTransfer(to, amountOut);
             }
         }
+    }
+
+    /// @notice Performs a swap through VelodromeV2 pools
+    /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
+    /// @param stream [pool, direction, to, callback]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    function swapVelodromeV2(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        uint8 direction = stream.readUint8();
+        address to = stream.readAddress();
+        if (pool == address(0) || to == address(0)) revert InvalidCallData();
+        bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
+
+        if (from == INTERNAL_INPUT_SOURCE) {
+            (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
+                .getReserves();
+            if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
+            uint256 reserveIn = direction == DIRECTION_TOKEN0_TO_TOKEN1
+                ? reserve0
+                : reserve1;
+
+            amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
+        } else {
+            if (from == address(this))
+                IERC20(tokenIn).safeTransfer(pool, amountIn);
+            else if (from == msg.sender)
+                IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+        }
+
+        // calculate the expected output amount using the pool's getAmountOut function
+        uint256 amountOut = IVelodromeV2Pool(pool).getAmountOut(
+            amountIn,
+            tokenIn
+        );
+
+        // set the appropriate output amount based on which token is being swapped
+        // determine output amounts based on direction
+        uint256 amount0Out = direction == DIRECTION_TOKEN0_TO_TOKEN1
+            ? 0
+            : amountOut;
+        uint256 amount1Out = direction == DIRECTION_TOKEN0_TO_TOKEN1
+            ? amountOut
+            : 0;
+
+        // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
+        // Safety Checks Covered:
+        // - Reentrancy: LDA has a custom lock() modifier
+        // - Token transfer safety: SafeERC20 is used to ensure token transfers revert on failure
+        // - Expected output verification: The contract calls getAmountOut (including fees) before executing the swap
+        // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
+        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut and that the sender's final balance is not less than the initial balance
+        // - Immutable interaction: Velodrome V2 pools and the router are not upgradable, so we can rely on the behavior of getAmountOut and swap
+
+        // ATTENTION FOR CALLBACKS / HOOKS:
+        // - recipient contracts should validate that msg.sender is the Velodrome pool contract who is calling the hook
+        // - recipient contracts must not manipulate their own tokenOut balance (as this may bypass/invalidate the built-in slippage protection)
+        // - @developers: never trust balance-based slippage protection for callback recipients
+        // - @integrators: do not use slippage guarantees when recipient is a contract with side-effects
+        IVelodromeV2Pool(pool).swap(
+            amount0Out,
+            amount1Out,
+            to,
+            callback ? abi.encode(tokenIn) : bytes("")
+        );
+    }
+
+    /// @notice Algebra pool swap
+    /// @param stream [pool, direction, recipient, supportsFeeOnTransfer]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    /// @dev The supportsFeeOnTransfer flag accepts any non-zero value (1-255) to enable fee-on-transfer handling.
+    /// When enabled, the swap will first attempt to use swapSupportingFeeOnInputTokens(), and if that fails,
+    /// it will fall back to the regular swap() function. A value of 0 disables fee-on-transfer handling.
+    function swapAlgebra(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
+        address recipient = stream.readAddress();
+        bool supportsFeeOnTransfer = stream.readUint8() > 0; // Any non-zero value enables fee-on-transfer handling
+
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
+
+        if (from == msg.sender)
+            IERC20(tokenIn).safeTransferFrom(
+                msg.sender,
+                address(this),
+                uint256(amountIn)
+            );
+
+        lastCalledPool = pool;
+
+        // Handle fee-on-transfer tokens with special care:
+        // - These tokens modify balances during transfer (fees, rebasing, etc.)
+        // - newest pool of Algebra versions has built-in support via swapSupportingFeeOnInputTokens()
+        // - Unlike UniswapV3, Algebra can safely handle these non-standard tokens.
+        if (supportsFeeOnTransfer) {
+            // If the pool is not using a version of Algebra that supports this feature, the swap will revert
+            // when attempting to use swapSupportingFeeOnInputTokens(), indicating the token was incorrectly
+            // flagged as fee-on-transfer or the pool doesn't support such tokens.
+            IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
+                address(this),
+                recipient,
+                direction,
+                int256(amountIn),
+                direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
+        } else {
+            IAlgebraPool(pool).swap(
+                recipient,
+                direction,
+                int256(amountIn),
+                direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+                abi.encode(tokenIn)
+            );
+        }
+
+        if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS)
+            revert AlgebraSwapUnexpected();
     }
 }
 
@@ -854,6 +1113,7 @@ interface ICurve {
         int128 i,
         int128 j,
         uint256 dx,
+        // solhint-disable-next-line var-name-mixedcase
         uint256 min_dy
     ) external payable returns (uint256);
 }
@@ -863,6 +1123,7 @@ interface ICurveLegacy {
         int128 i,
         int128 j,
         uint256 dx,
+        // solhint-disable-next-line var-name-mixedcase
         uint256 min_dy
     ) external payable;
 }
@@ -960,8 +1221,12 @@ interface ITridentCLPool {
 }
 
 interface IUniswapV2Pair {
-    event Approval(address indexed owner, address indexed spender, uint value);
-    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
     function name() external pure returns (string memory);
 
@@ -969,59 +1234,59 @@ interface IUniswapV2Pair {
 
     function decimals() external pure returns (uint8);
 
-    function totalSupply() external view returns (uint);
+    function totalSupply() external view returns (uint256);
 
-    function balanceOf(address owner) external view returns (uint);
+    function balanceOf(address owner) external view returns (uint256);
 
     function allowance(
         address owner,
         address spender
-    ) external view returns (uint);
+    ) external view returns (uint256);
 
-    function approve(address spender, uint value) external returns (bool);
+    function approve(address spender, uint256 value) external returns (bool);
 
-    function transfer(address to, uint value) external returns (bool);
+    function transfer(address to, uint256 value) external returns (bool);
 
     function transferFrom(
         address from,
         address to,
-        uint value
+        uint256 value
     ) external returns (bool);
 
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     function PERMIT_TYPEHASH() external pure returns (bytes32);
 
-    function nonces(address owner) external view returns (uint);
+    function nonces(address owner) external view returns (uint256);
 
     function permit(
         address owner,
         address spender,
-        uint value,
-        uint deadline,
+        uint256 value,
+        uint256 deadline,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) external;
 
-    event Mint(address indexed sender, uint amount0, uint amount1);
+    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(
         address indexed sender,
-        uint amount0,
-        uint amount1,
+        uint256 amount0,
+        uint256 amount1,
         address indexed to
     );
     event Swap(
         address indexed sender,
-        uint amount0In,
-        uint amount1In,
-        uint amount0Out,
-        uint amount1Out,
+        uint256 amount0In,
+        uint256 amount1In,
+        uint256 amount0Out,
+        uint256 amount1Out,
         address indexed to
     );
     event Sync(uint112 reserve0, uint112 reserve1);
 
-    function MINIMUM_LIQUIDITY() external pure returns (uint);
+    function MINIMUM_LIQUIDITY() external pure returns (uint256);
 
     function factory() external view returns (address);
 
@@ -1038,19 +1303,21 @@ interface IUniswapV2Pair {
             uint32 blockTimestampLast
         );
 
-    function price0CumulativeLast() external view returns (uint);
+    function price0CumulativeLast() external view returns (uint256);
 
-    function price1CumulativeLast() external view returns (uint);
+    function price1CumulativeLast() external view returns (uint256);
 
-    function kLast() external view returns (uint);
+    function kLast() external view returns (uint256);
 
-    function mint(address to) external returns (uint liquidity);
+    function mint(address to) external returns (uint256 liquidity);
 
-    function burn(address to) external returns (uint amount0, uint amount1);
+    function burn(
+        address to
+    ) external returns (uint256 amount0, uint256 amount1);
 
     function swap(
-        uint amount0Out,
-        uint amount1Out,
+        uint256 amount0Out,
+        uint256 amount1Out,
         address to,
         bytes calldata data
     ) external;

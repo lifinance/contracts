@@ -120,6 +120,12 @@ function logContractDeploymentInfo {
     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
     "$LOG_FILE_PATH")
 
+  # Convert VERIFIED string to boolean for jq
+  local VERIFIED_BOOL="false"
+  if [[ "$VERIFIED" == "true" ]]; then
+    VERIFIED_BOOL="true"
+  fi
+
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
     jq --arg CONTRACT "$CONTRACT" \
@@ -130,9 +136,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
+      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -143,9 +149,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
+      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -725,7 +731,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute multicall now - attempt ${attempts}"
     # try to execute call
-    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
+    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy) # [pre-commit-checker: not a secret]
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -764,7 +770,7 @@ function saveDiamondPeriphery() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # get RPC URL
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -792,6 +798,11 @@ function saveDiamondPeriphery() {
   echoDebug "RPC_URL=$RPC_URL"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
+
+  # create an empty json if it does not exist
+  if [[ ! -e $DIAMOND_FILE ]]; then
+    echo "{}" >"$DIAMOND_FILE"
+  fi
 
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
@@ -905,7 +916,7 @@ function checkRequiredVariablesInDotEnv() {
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # Check if it's using MAINNET_ETHERSCAN_API_KEY
   if [[ "$KEY_VAR" == "MAINNET_ETHERSCAN_API_KEY" ]]; then
@@ -1341,7 +1352,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1417,23 +1428,6 @@ function verifyContract() {
   local ADDRESS=$3
   local ARGS=$4
 
-  # get API key for blockchain explorer
-  if [[ "$NETWORK" == "bsc-testnet" ]]; then
-    API_KEY="BSC_ETHERSCAN_API_KEY"
-  else
-    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
-  fi
-
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function verifyContract"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "CONTRACT=$CONTRACT"
-  echoDebug "ADDRESS=$ADDRESS"
-  echoDebug "ARGS=$ARGS"
-  echoDebug "blockexplorer API_KEY=${API_KEY}"
-  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
-
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
     *,"$NETWORK",*)
@@ -1451,83 +1445,147 @@ function verifyContract() {
   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
 
-  if [ $? -ne 0 ]; then
-    warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
+  # logging for debug purposes
+  echo ""
+  echoDebug "in function verifyContract"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "ARGS=$ARGS"
+  echoDebug "FULL_PATH=$FULL_PATH"
+  echoDebug "CHAIN_ID=$CHAIN_ID"
+
+  # Build base verification command
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+
+  # Add constructor args if present
+  if [ "$ARGS" != "0x" ]; then
+    VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
   fi
 
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if [ "$ARGS" = "0x" ]; then
-      # only show output if DEBUG flag is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
-        fi
-
-        # TODO: add code that automatically identifies blockscout verification
-      else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-          FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        fi
-      fi
-    else
-      # case: verify with constructor arguments
-      # only show output if DEBUG flag is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" --force
-        fi
-      else
-        if [[ $NETWORK == "zksync" || $NETWORK == "abstract" ]]; then
-          # Verify using foundry-zksync
-         FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        else
-          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
-        fi
-      fi
+  # Handle zkEVM networks
+  if isZkEvmNetwork "$NETWORK"; then
+    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+    if [ "$ARGS" != "0x" ]; then
+      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
     fi
+  fi
+
+  # Get API key and determine verification method
+  API_KEY=$(getEtherscanApiKeyName "$NETWORK")
+  if [ $? -eq 1 ]; then
+    error "Could not extract Etherscan API key name for $NETWORK from foundry.toml"
+    return 1
+  fi
+
+  # determine verification method based on API key
+  if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
+    VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
+  elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+    # make sure API key is not empty
+    if [ -z "$API_KEY" ]; then
+      echo "Error: Could not find API key for network $NETWORK"
+      return 1
+    fi
+    # add API key to verification command
+    VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
+  fi
+
+  # Attempt verification with retries
+  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # execute verification command
+    eval "$VERIFY_CMD"
     COMMAND_STATUS=$?
+
+    # increase retry counter
     RETRY_COUNT=$((RETRY_COUNT + 1))
+
+    # sleep for 2 seconds before trying again
+    [ $COMMAND_STATUS -ne 0 ] && sleep 2
   done
 
-  # check the return status of the contract verification call
-  if [ $COMMAND_STATUS -ne 0 ]; then
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
-  else
+  # Check verification status
+  if [ $COMMAND_STATUS -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
     return 0
   fi
 
+  # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract \
-    "$ADDRESS" \
-    "$CONTRACT" \
-    --chain-id "$CHAIN_ID" \
-    --verifier  sourcify
-
-  echo "[info] checking Sourcify verification now"
-  forge verify-check $ADDRESS \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
-
-  if [ $? -ne 0 ]; then
-    # verification apparently failed
-    warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
-    return 1
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
   else
-    # verification successful
+    forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
+
+  # Check Sourcify verification
+  if isZkEvmNetwork "$NETWORK"; then
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+      --zksync \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  else
+    forge verify-check $ADDRESS \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
+  fi
+
+  if [ $? -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
+  else
+    warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
+    return 1
   fi
 }
+
+function getEtherscanApiKeyName() {
+  local NETWORK="$1"
+
+  if [[ -z "$NETWORK" ]]; then
+    echo "Usage: getEtherscanApiKeyName <network>" >&2
+    return 1
+  fi
+
+  if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
+    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    return 1
+  fi
+
+  # Extract the line with the API key for the given network
+  local KEY_LINE
+  KEY_LINE=$(awk -v net="$NETWORK" '
+    $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
+    in_etherscan && /^\[/ { in_etherscan=0 }
+    in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
+  ' "$FOUNDRY_TOML_FILE_PATH")
+
+  if [[ -z "$KEY_LINE" ]]; then
+    echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
+    return 1
+  fi
+
+  # extract the key for the environment variable
+  local ENV_VAR
+  ENV_VAR=$(echo "$KEY_LINE" | sed -n 's/.*key *= *"\${\([^}]*\)}.*/\1/p')
+
+  if [[ -z "$ENV_VAR" ]]; then
+    echo "Error: Could not extract environment variable from key line: $KEY_LINE" >&2
+    return 1
+  fi
+
+  echo "$ENV_VAR"
+}
+
 function verifyAllUnverifiedContractsInLogFile() {
   # Check if target state FILE exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
@@ -1704,7 +1762,7 @@ function confirmOwnershipTransfer() {
   attempts=1 # initialize attempts to 0
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
@@ -2012,7 +2070,7 @@ function getCoreFacetsArray() {
 }
 
 # Function to check if NETWORKS_JSON_FILE_PATH is set and valid
-checkNetworksJsonFilePath() {
+function checkNetworksJsonFilePath() {
   if [[ -z "$NETWORKS_JSON_FILE_PATH" ]]; then
     error "NETWORKS_JSON_FILE_PATH is not set. Please check your configuration."
     return 1
@@ -2226,7 +2284,7 @@ function echoDebug() {
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
-    printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
+    printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
 function error() {
@@ -2432,7 +2490,7 @@ function getDeployerBalance() {
   local ENVIRONMENT=$2
 
   # get RPC URL
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get deployer address
   ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -2453,7 +2511,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # get list of all core facet contracts from global.json
   FACETS_NAMES=($(getCoreFacetsArray))
@@ -2500,7 +2558,7 @@ function getPeripheryAddressFromDiamond() {
   local PERIPHERY_CONTRACT_NAME="$3"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # call diamond to check for periphery address
   PERIPHERY_CONTRACT_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME" --rpc-url "${RPC_URL}")
@@ -2603,7 +2661,7 @@ function doesFacetExistInDiamond() {
   local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # loop through facet selectors and see if this selector is known by the diamond
   for SELECTOR in $SELECTORS; do
@@ -2632,7 +2690,7 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # check if NODE_URL is available
   if [ -z "$RPC_URL" ]; then
@@ -2660,7 +2718,7 @@ function getFacetAddressFromDiamond() {
   local SELECTOR="$3"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
 
@@ -2671,7 +2729,7 @@ function getCurrentGasPrice() {
   local NETWORK=$1
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL")
 
@@ -2684,7 +2742,7 @@ function getContractOwner() {
   local contract=$3
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
   local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
@@ -2713,7 +2771,7 @@ function getPendingContractOwner() {
   local contract=$3
 
   # get RPC URL
-  rpc_url=$(getRPCUrl "$network")
+  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
   local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
@@ -2776,6 +2834,23 @@ function getRPCUrl() {
 
   # return RPC URL
   echo "${!RPC_KEY}"
+}
+function getRpcUrlFromNetworksJson() {
+  local NETWORK="$1"
+
+  # make sure networks.json exists
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+
+  # extract RPC URL from networks.json for given network
+  local RPC_URL=$(jq -r --arg network "$NETWORK" '.[$network].rpcUrl // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  # make sure a value was found
+  if [[ -z "$RPC_URL" ]]; then
+    echo "Error: Network '$NETWORK' not found in '$NETWORKS_JSON_FILE_PATH'." >&2
+    return 1
+  fi
+
+  echo "$RPC_URL"
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
@@ -2888,6 +2963,27 @@ function isZkEvmNetwork() {
   fi
 }
 
+function isActiveMainnet() {
+  # read function arguments into variables
+  local NETWORK="$1"
+
+  # Check if the network exists in the JSON
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1  # false
+  fi
+
+  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
+  local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  # Check if both values are present and match required conditions
+  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+    return 0  # true
+  else
+    return 1  # false
+  fi
+}
+
 function getChainId() {
   local NETWORK="$1"
 
@@ -2924,6 +3020,55 @@ function convertToBcInt() {
   echo "$1" | tr -d '\n' | bc
 }
 
+function extractDeployedAddressFromRawReturnData() {
+  local RAW_DATA="$1"
+  local NETWORK="$2"
+  local ADDRESS=""
+  local CLEAN_DATA=""
+
+  # Attempt to isolate the JSON blob that starts with {"logs":
+  CLEAN_DATA=$(echo "$RAW_DATA" | grep -o '{\"logs\":.*')
+
+  # Try extracting from `.returns.deployed.value`
+  ADDRESS=$(echo "$CLEAN_DATA" | jq -r '.returns.deployed.value // empty' 2>/dev/null)
+
+  # Fallback: try to extract from Etherscan "contract_address"
+  if [[ -z "$ADDRESS" ]]; then
+    ADDRESS=$(echo "$RAW_DATA" | grep -oE '"contract_address"\s*:\s*"0x[a-fA-F0-9]{40}"' | head -n1 | grep -oE '0x[a-fA-F0-9]{40}')
+  fi
+
+  # Last resort: use first 0x-prefixed address in blob
+  if [[ -z "$ADDRESS" ]]; then
+    ADDRESS=$(echo "$RAW_DATA" | grep -oE '0x[a-fA-F0-9]{40}' | head -n1)
+  fi
+
+  # Validate the format of the extracted address
+  if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+    # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
+    local COUNT=0
+    while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
+      # check if address contains and bytecode and leave the loop if bytecode is found
+      if [[ "$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")" == "true" ]]; then
+        break
+      fi
+      echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
+      sleep 10
+      COUNT=$((COUNT + 10))
+    done
+
+    if [ $COUNT -ge "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
+      echo "❌ Extracted address does not contain bytecode" >&2
+      return 1
+    fi
+
+    echo "$ADDRESS"
+    return 0
+  else
+    echo "❌ Failed to find any deployed-to address in raw return data" >&2
+    return 1
+  fi
+}
+
 
 # transfers ownership of the given contract from old wallet to new wallet (e.g. new tester wallet)
 # will fail if old wallet is not owner
@@ -2940,7 +3085,7 @@ transferContractOwnership() {
     local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
     local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
 
-    local RPC_URL=$(getRPCUrl "$NETWORK")
+    local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
     # Get address of old and new owner
     local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
@@ -3489,7 +3634,8 @@ function cleanupBackgroundJobs() {
 # >>>>>> helpers to set/update deployment files/logs/etc
 function updateDiamondLogs() {
   # read function arguments into variable
-  local NETWORK=$1
+  local ENVIRONMENT=$1
+  local NETWORK=$2
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -3504,7 +3650,12 @@ function updateDiamondLogs() {
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
-  ENVIRONMENTS=("production")
+  if [[ "$ENVIRONMENT" == "production" || -z "$ENVIRONMENT" ]]; then
+    ENVIRONMENTS=("production")
+  else
+    ENVIRONMENTS=("staging")
+  fi
+
   # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
   DIAMONDS=("LiFiDiamond")
 
@@ -3513,10 +3664,6 @@ function updateDiamondLogs() {
     echo ""
     echo "current Network: $NETWORK"
 
-    # >>>>  limit here to a certain network, if needed
-    #    if [[ $NETWORK == "optimism" ]]; then
-    #      continue
-    #    fi
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -3527,19 +3674,11 @@ function updateDiamondLogs() {
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-      # >>>>  limit here to a certain environment, if needed
-      #      if [[ $ENVIRONMENT == "staging" ]]; then
-      #        continue
-      #      fi
 
       for DIAMOND in "${DIAMONDS[@]}"; do
         echo "  -----------------------"
         echo "  current DIAMOND: $DIAMOND"
 
-        # >>>>  limit here to a certain diamond type, if needed
-        #        if [[ $DIAMOND == "LiFiDiamond" ]]; then
-        #          continue
-        #        fi
 
         # define diamond type flag
         if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then

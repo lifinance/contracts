@@ -18,8 +18,8 @@
         "Version": "1.0.0"
       },
       "0xeADAc9502b083625bF76Ce606Bde7d94AD8BD7aB": {
-        "Name": "",
-        "Version": ""
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
       },
       "0x0C449F799010287c8ee51d7E89324dA8a1EBCB47": {
         "Name": "AccessManagerFacet",
@@ -30,7 +30,7 @@
         "Version": "1.0.0"
       },
       "0x587B5B33D935F06a41D9fb7197C36c4411D05a96": {
-        "Name": "",
+        "Name": "GenericSwapFacet",
         "Version": ""
       },
       "0xa95309dF9256D52f9B61379963701fF1BA5939E4": {
@@ -38,19 +38,19 @@
         "Version": ""
       },
       "0xF7366b604a5529e2903FAEB989DCF3395C8F23CF": {
-        "Name": "",
+        "Name": "StandardizedCallFacet",
         "Version": ""
       },
       "0x79e05dDE041E64cc13C3280B7d083F3AE976fe70": {
         "Name": "",
         "Version": ""
       },
-      "0xa7aC6d44cC52B134b92Dd20015641138ba6A3C16": {
-        "Name": "CelerIMFacetMutable",
-        "Version": "2.0.0"
+      "0xC020779Bd2618584d77a47Ad54A8C5305b83A4d6": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       },
       "0x2044596daE662582178C37977826032513B32327": {
-        "Name": "",
+        "Name": "WithdrawFacet",
         "Version": ""
       },
       "0xC10CF1C23e20e3FE6f0b224Bc2E16C9ACabfEBB9": {
@@ -61,9 +61,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x2e47355B70D6935C6A69d5F67e0aFe437791138e": {
+      "0x026a9BD42D7e2d4aBdBcE12E8506F486AD12333D": {
         "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x45C83B209878601d21604301dfE25bD6D0BBC218": {
         "Name": "AcrossFacetPackedV3",
@@ -77,13 +77,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.0"
       },
-      "0xC020779Bd2618584d77a47Ad54A8C5305b83A4d6": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0x026a9BD42D7e2d4aBdBcE12E8506F486AD12333D": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0xeeDb1De1455911ED49C9C28A8a2Df22401079Ea4": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.2"
       }
     },
     "Periphery": {
@@ -92,12 +88,11 @@
       "FeeCollector": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
       "GasZipPeriphery": "0x4000f76450d9d40558fd60F66863F583B7A5BCCb",
       "LiFiDEXAggregator": "0x1F683faf1E2a770aa75f7B2e92117A5c11183E9C",
-      "LiFuelFeeCollector": "0xB87C536E048Cfc082187E559fCFeFc3f1c89aEc7",
       "Permit2Proxy": "0x6275f6631c955DC5dA9fBe8Dc7f24a3A5919443A",
       "ReceiverAcrossV3": "0x68cb042aD93608e819b699427726e5c5E1A5F2dC",
-      "Receiver": "0xdeDB2DAe4a9BC63910a722a3b7DC930C7E6f6421",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "0xFf9565e1C4f01C368444D2bE4B9ef36ce7E95541",
+      "RelayerCelerIM": "",
       "TokenWrapper": "0xf15485ada1a1826fA46225032b13F6A972eC73C1"
     }
   }

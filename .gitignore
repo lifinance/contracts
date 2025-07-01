@@ -2,7 +2,7 @@ cache/
 zkcache/
 artifacts/
 artifacts-zk/
-out/
+/out/
 zkout/
 broadcast/
 foundry-zksync/*.tar.gz
@@ -49,3 +49,6 @@ script/config.sh
 script/playground.sh
 test/solidity/TestPlayground.t.sol
 .aider*
+.claude*
+.direnv/
+.cursorrules

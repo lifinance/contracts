@@ -22,7 +22,7 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
+        // get path of networks config file
         string memory path = string.concat(root, "/config/networks.json");
         string memory json = vm.readFile(path);
 

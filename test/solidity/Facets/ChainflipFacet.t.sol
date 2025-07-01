@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
@@ -42,7 +42,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // Read chainflip vault address from config using the new helper
         chainflipVault = getConfigAddressFromPath(
             "chainflip.json",
-            ".mainnet.chainflipVault"
+            ".chainflipVault.mainnet"
         );
         vm.label(chainflipVault, "Chainflip Vault");
 

@@ -6,58 +6,63 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
+import { consola } from 'consola'
+import { config } from 'dotenv'
+import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
 import {
-  Address,
-  Chain,
-  Hex,
-  PublicClient,
-  WalletClient,
+  type Account,
+  type Address,
+  type Chain,
+  type Hex,
+  type PublicClient,
+  type WalletClient,
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
   http,
-  parseAbi,
   toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { SAFE_SINGLETON_ABI } from './config'
-import { MongoClient, Collection } from 'mongodb'
-import consola from 'consola'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
-import data from '../../../config/networks.json'
 
-const networks = data as any
+import data from '../../../config/networks.json'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
+import { SAFE_SINGLETON_ABI } from './config'
+
+config()
+
+const networks: Record<string, { safeAddress: string; status: string }> = data
 
 // Types for Safe transactions
-export enum OperationType {
+export enum OperationTypeEnum {
   Call = 0,
   DelegateCall = 1,
 }
 
-export enum privateKeyType {
+export enum PrivateKeyTypeEnum {
   SAFE_SIGNER,
   DEPLOYER,
 }
 
-export interface SafeTransactionData {
+export interface ISafeTransactionData {
   to: Address
   value: bigint
   data: Hex
-  operation: OperationType
+  operation: OperationTypeEnum
   nonce: bigint
 }
 
-export interface SafeTransaction {
-  data: SafeTransactionData
-  signatures: Map<string, SafeSignature>
+export interface ISafeTransaction {
+  data: ISafeTransactionData
+  signatures: Map<string, ISafeSignature>
 }
 
-export interface SafeSignature {
+export interface ISafeSignature {
   signer: Address
   data: Hex
 }
 
-export interface SafeTxDocument {
+export interface ISafeTxDocument {
   safeAddress: string
   network: string
   chainId: number
@@ -83,8 +88,8 @@ export interface SafeTxDocument {
   status: 'pending' | 'executed'
 }
 
-export interface AugmentedSafeTxDocument extends SafeTxDocument {
-  safeTransaction: SafeTransaction
+export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
+  safeTransaction: ISafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
@@ -108,9 +113,8 @@ export const retry = async <T>(
       error: e,
       remainingRetries: retries - 1,
     })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
+    if (retries > 0) return retry(func, retries - 1)
+
     throw e
   }
 }
@@ -145,13 +149,13 @@ export class ViemSafe {
    * Address of the account used for signing
    * @public
    */
-  public account: Address
+  public account: Account
 
-  constructor(
+  public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
-    account: Address
+    account: Account
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
@@ -159,49 +163,63 @@ export class ViemSafe {
     this.account = account
   }
 
-  static async init(options: {
+  public static async init(options: {
     provider: string | Chain
-    privateKey: string
+    privateKey?: string
     safeAddress: Address
+    useLedger?: boolean
+    ledgerOptions?: {
+      derivationPath?: string
+      ledgerLive?: boolean
+      accountIndex?: number
+    }
   }): Promise<ViemSafe> {
-    const { privateKey, safeAddress, provider } = options
+    const { privateKey, safeAddress, provider, useLedger, ledgerOptions } =
+      options
 
-    // Create provider and signer with Viem
+    // Create provider with Viem
     let publicClient: PublicClient
-    if (typeof provider === 'string') {
+    let chain: Chain | undefined = undefined
+
+    if (typeof provider === 'string')
       publicClient = createPublicClient({
         transport: http(provider),
       })
-    } else {
+    else {
+      chain = provider
       publicClient = createPublicClient({
-        chain: provider,
+        chain: chain,
         transport: http(),
       })
     }
 
-    const account = privateKeyToAccount(
-      `0x${privateKey.replace(/^0x/, '')}` as Hex
-    )
+    // Get account - either from private key or Ledger
+    let account
+    if (useLedger) {
+      // Dynamically import the Ledger module to avoid dependency issues
+      const { getLedgerAccount } = await import('./ledger')
+      account = await getLedgerAccount(ledgerOptions)
+    } else if (privateKey)
+      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
+    else throw new Error('Either privateKey or useLedger must be provided')
+
+    // Create wallet client with the account and chain
     const walletClient = createWalletClient({
       account,
+      chain,
       transport: http(typeof provider === 'string' ? provider : undefined),
     })
 
-    return new ViemSafe(
-      publicClient,
-      walletClient,
-      safeAddress,
-      account.address
-    )
+    return new ViemSafe(publicClient, walletClient, safeAddress, account)
   }
 
   // Get Safe address
-  async getAddress(): Promise<Address> {
+  public getAddress(): Address {
     return this.safeAddress
   }
 
   // Get nonce from Safe contract (replaces getNonce from Safe SDK)
-  async getNonce(): Promise<bigint> {
+  public async getNonce(): Promise<bigint> {
     try {
       return await this.publicClient.readContract({
         address: this.safeAddress,
@@ -215,13 +233,16 @@ export class ViemSafe {
   }
 
   // Get owners from Safe contract (replaces getOwners from Safe SDK)
-  async getOwners(): Promise<Address[]> {
+  public async getOwners(): Promise<Address[]> {
     try {
-      return await this.publicClient.readContract({
-        address: this.safeAddress,
-        abi: SAFE_SINGLETON_ABI,
-        functionName: 'getOwners',
-      })
+      const owners = [
+        ...(await this.publicClient.readContract({
+          address: this.safeAddress,
+          abi: SAFE_SINGLETON_ABI,
+          functionName: 'getOwners',
+        })),
+      ]
+      return owners
     } catch (error) {
       console.error('Error getting owners:', error)
       throw error
@@ -229,7 +250,7 @@ export class ViemSafe {
   }
 
   // Get threshold from Safe contract (replaces getThreshold from Safe SDK)
-  async getThreshold(): Promise<bigint> {
+  public async getThreshold(): Promise<bigint> {
     try {
       return await this.publicClient.readContract({
         address: this.safeAddress,
@@ -243,24 +264,26 @@ export class ViemSafe {
   }
 
   // Create a Safe transaction (replaces createTransaction from Safe SDK)
-  async createTransaction(options: {
+  public async createTransaction(options: {
     transactions: {
       to: Address
       value: string | bigint
       data: Hex
-      operation?: OperationType
+      operation?: OperationTypeEnum
       nonce?: bigint
     }[]
-  }): Promise<SafeTransaction> {
-    const tx = options.transactions[0] // We only handle single transactions for now
+  }): Promise<ISafeTransaction> {
+    const tx = options.transactions[0]
+    if (!tx) throw new Error('No transaction provided')
+
     const nonce = tx.nonce !== undefined ? tx.nonce : await this.getNonce()
 
-    const safeTx: SafeTransaction = {
+    const safeTx: ISafeTransaction = {
       data: {
         to: tx.to,
         value: typeof tx.value === 'string' ? BigInt(tx.value) : tx.value,
         data: tx.data,
-        operation: tx.operation || OperationType.Call,
+        operation: tx.operation || OperationTypeEnum.Call,
         nonce: nonce,
       },
       signatures: new Map(),
@@ -270,10 +293,10 @@ export class ViemSafe {
   }
 
   // Create a Safe transaction for adding an owner (replaces createAddOwnerTx from Safe SDK)
-  async createAddOwnerTx(
+  public async createAddOwnerTx(
     options: { ownerAddress: Address; threshold: bigint },
     txOptions?: { nonce?: bigint }
-  ): Promise<SafeTransaction> {
+  ): Promise<ISafeTransaction> {
     try {
       const data = encodeFunctionData({
         abi: SAFE_SINGLETON_ABI,
@@ -281,7 +304,7 @@ export class ViemSafe {
         args: [options.ownerAddress, options.threshold],
       })
 
-      return this.createTransaction({
+      return await this.createTransaction({
         transactions: [
           {
             to: this.safeAddress,
@@ -298,10 +321,10 @@ export class ViemSafe {
   }
 
   // Create a Safe transaction for changing the threshold (replaces createChangeThresholdTx from Safe SDK)
-  async createChangeThresholdTx(
+  public async createChangeThresholdTx(
     threshold: number,
     txOptions?: { nonce?: bigint }
-  ): Promise<SafeTransaction> {
+  ): Promise<ISafeTransaction> {
     try {
       const data = encodeFunctionData({
         abi: SAFE_SINGLETON_ABI,
@@ -309,7 +332,7 @@ export class ViemSafe {
         args: [BigInt(threshold)],
       })
 
-      return this.createTransaction({
+      return await this.createTransaction({
         transactions: [
           {
             to: this.safeAddress,
@@ -326,7 +349,7 @@ export class ViemSafe {
   }
 
   // Generate transaction hash (replaces getTransactionHash from Safe SDK)
-  async getTransactionHash(safeTx: SafeTransaction): Promise<Hex> {
+  public async getTransactionHash(safeTx: ISafeTransaction): Promise<Hex> {
     try {
       // The Safe contract's getTransactionHash matches this implementation
       // GS026 error indicates invalid signature which would happen if we're not using
@@ -359,26 +382,23 @@ export class ViemSafe {
 
   // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
   // Error GS026 indicates an invalid signature issue
-  async signHash(hash: Hex): Promise<SafeSignature> {
+  public async signHash(hash: Hex): Promise<ISafeSignature> {
     try {
       console.log('Signing hash:', hash)
 
       // Use eth_sign (via personal_sign) which adds the Ethereum message prefix
       // This is the most compatible method with all Safe contract versions
       const ethSignSignature = await this.walletClient.signMessage({
+        account: this.account,
         message: { raw: hash },
       })
 
       console.log('Raw signature:', ethSignSignature)
 
-      if (
-        !ethSignSignature.startsWith('0x') ||
-        ethSignSignature.length !== 132
-      ) {
+      if (!ethSignSignature.startsWith('0x') || ethSignSignature.length !== 132)
         throw new Error(
           `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${ethSignSignature}`
         )
-      }
 
       // Extract r, s, v components from the signature
       const r = ethSignSignature.slice(0, 66)
@@ -399,26 +419,78 @@ export class ViemSafe {
       console.log('Safe signature:', safeSignature)
 
       return {
-        signer: this.account,
+        signer: this.account.address,
         data: safeSignature,
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing hash with eth_sign:', error)
       throw new Error(`Failed to sign hash: ${error.message || error}`)
     }
   }
 
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
-  async signTransaction(safeTx: SafeTransaction): Promise<SafeTransaction> {
+  public async signTransaction(
+    safeTx: ISafeTransaction
+  ): Promise<ISafeTransaction> {
     try {
-      const hash = await this.getTransactionHash(safeTx)
-      const signature = await this.signHash(hash)
+      // Get chain ID for domain
+      const chainId = await this.publicClient.getChainId()
+
+      // Define EIP-712 domain and types
+      const domain = {
+        chainId,
+        verifyingContract: this.safeAddress,
+      }
+
+      const types = {
+        SafeTx: [
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'data', type: 'bytes' },
+          { name: 'operation', type: 'uint8' },
+          { name: 'safeTxGas', type: 'uint256' },
+          { name: 'baseGas', type: 'uint256' },
+          { name: 'gasPrice', type: 'uint256' },
+          { name: 'gasToken', type: 'address' },
+          { name: 'refundReceiver', type: 'address' },
+          { name: 'nonce', type: 'uint256' },
+        ],
+      }
+
+      // Message to sign following EIP-712 structure
+      const message = {
+        to: safeTx.data.to,
+        value: safeTx.data.value,
+        data: safeTx.data.data,
+        operation: safeTx.data.operation,
+        safeTxGas: 0n,
+        baseGas: 0n,
+        gasPrice: 0n,
+        gasToken: '0x0000000000000000000000000000000000000000' as Address,
+        refundReceiver: '0x0000000000000000000000000000000000000000' as Address,
+        nonce: safeTx.data.nonce,
+      }
+
+      // Sign typed data using walletClient
+      const typedDataSignature = await this.walletClient.signTypedData({
+        account: this.account,
+        domain,
+        types,
+        primaryType: 'SafeTx',
+        message,
+      })
+
+      // Format the signature for Safe contract
+      const signature = {
+        signer: this.account.address,
+        data: typedDataSignature,
+      }
 
       // Add signature to transaction
       safeTx.signatures.set(signature.signer.toLowerCase(), signature)
 
       return safeTx
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing transaction:', error)
       throw new Error(`Failed to sign transaction: ${error.message || error}`)
     }
@@ -426,32 +498,28 @@ export class ViemSafe {
 
   // Validate a signature to ensure it's in the correct format for Safe contracts
   private validateSignature(signature: Hex): boolean {
-    if (!signature.startsWith('0x')) {
-      return false
-    }
+    if (!signature.startsWith('0x')) return false
 
     // Remove 0x prefix for length check
     const sigWithoutPrefix = signature.slice(2)
 
     // For Safe signatures in format r+s+v, signature should be 130 chars (65 bytes)
     // r = 32 bytes (64 chars), s = 32 bytes (64 chars), v = 1 byte (2 chars)
-    if (sigWithoutPrefix.length !== 130) {
-      return false
-    }
+    if (sigWithoutPrefix.length !== 130) return false
 
-    // We're now using eth_sign signatures with the Safe, which means v values of 31 or 32
+    // For eth_sign signatures (type 1), v values should be 31 or 32
     // (normal v value of 27/28 + 4 = 31/32)
     const vValue = parseInt(sigWithoutPrefix.slice(128, 130), 16)
 
-    // We expect eth_sign (type 1) signatures with v values 31 or 32
-    return vValue === 31 || vValue === 32
+    // Check for eth_sign signatures or standard EIP-712 signatures
+    // EIP-712 signatures typically have v values of 27 or 28
+    // eth_sign signatures have v values of 31 or 32
+    return vValue === 27 || vValue === 28 || vValue === 31 || vValue === 32
   }
 
   // Format signatures as bytes for contract submission
-  private formatSignatures(signatures: Map<string, SafeSignature>): Hex {
-    if (!signatures.size) {
-      return '0x' as Hex
-    }
+  private formatSignatures(signatures: Map<string, ISafeSignature>): Hex {
+    if (!signatures.size) return '0x' as Hex
 
     try {
       // Convert Map to array and sort by signer address
@@ -467,27 +535,25 @@ export class ViemSafe {
       let signatureBytes = '0x' as Hex
       for (const sig of sortedSigs) {
         // Ensure signature data is in correct format
-        if (!sig.data.startsWith('0x')) {
+        if (!sig.data.startsWith('0x'))
           throw new Error(
             `Invalid signature format. Expected 0x prefix but got: ${sig.data}`
           )
-        }
 
         // Validate signature format
-        if (!this.validateSignature(sig.data)) {
+        if (!this.validateSignature(sig.data))
           throw new Error(
             `Invalid signature length. Safe signatures must be 65 bytes (130 hex chars excluding 0x prefix). Got: ${
               sig.data.slice(2).length
             } chars`
           )
-        }
 
         // Remove 0x prefix before concatenating
         signatureBytes = (signatureBytes + sig.data.slice(2)) as Hex
       }
 
       return signatureBytes
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error formatting signatures:', error)
       throw new Error(`Failed to format signatures: ${error.message || error}`)
     }
@@ -499,12 +565,16 @@ export class ViemSafe {
    * @returns Object containing the transaction hash
    * @throws Error if execution fails
    */
-  async executeTransaction(safeTx: SafeTransaction): Promise<{ hash: Hex }> {
+  public async executeTransaction(
+    safeTx: ISafeTransaction
+  ): Promise<{ hash: Hex }> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      // Build transaction for execution
+      // First, prepare the transaction data
       const txHash = await this.walletClient.writeContract({
+        account: this.account,
+        chain: null,
         address: this.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'execTransaction',
@@ -525,17 +595,17 @@ export class ViemSafe {
       // Wait for transaction receipt with better error handling
       try {
         await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-      } catch (waitError) {
+      } catch (waitError: any) {
         throw new Error(
           `Transaction submitted (${txHash}) but failed to confirm: ${waitError.message}`
         )
       }
 
       return { hash: txHash }
-    } catch (error) {
-      if (error.message?.includes('execution reverted')) {
+    } catch (error: any) {
+      if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
-      }
+
       throw new Error(`Error executing transaction: ${error.message || error}`)
     }
   }
@@ -548,9 +618,9 @@ export class ViemSafe {
  * @returns Initialized SafeTransaction with signatures
  */
 export const initializeSafeTransaction = async (
-  txFromMongo: SafeTxDocument,
+  txFromMongo: ISafeTxDocument,
   safe: ViemSafe
-): Promise<SafeTransaction> => {
+): Promise<ISafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
     transactions: [
@@ -558,7 +628,7 @@ export const initializeSafeTransaction = async (
         to: txFromMongo.safeTx.data.to as Address,
         value: BigInt(txFromMongo.safeTx.data.value),
         data: txFromMongo.safeTx.data.data as Hex,
-        operation: txFromMongo.safeTx.data.operation as OperationType,
+        operation: txFromMongo.safeTx.data.operation as OperationTypeEnum,
         nonce: BigInt(txFromMongo.safeTx.data.nonce),
       },
     ],
@@ -589,7 +659,7 @@ export const initializeSafeTransaction = async (
  * @returns True if the transaction has enough signatures
  */
 export const hasEnoughSignatures = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   threshold: number
 ): boolean => {
   const sigCount = safeTx?.signatures?.size || 0
@@ -603,7 +673,7 @@ export const hasEnoughSignatures = (
  * @returns True if the signer has already signed
  */
 export const isSignedByCurrentSigner = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   signerAddress: Address
 ): boolean => {
   if (!safeTx?.signatures) return false
@@ -634,7 +704,7 @@ export function isAddressASafeOwner(
  * @returns True if adding a signature would meet the threshold
  */
 export const wouldMeetThreshold = (
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   threshold: number
 ): boolean => {
   const currentSignatures = safeTx?.signatures?.size || 0
@@ -675,7 +745,7 @@ export async function getSafeInfoFromContract(
   ])
 
   return {
-    owners,
+    owners: owners as Address[],
     threshold,
     nonce,
   }
@@ -693,26 +763,35 @@ export async function getSafeInfoFromContract(
  * @returns Result of the MongoDB insert operation
  */
 export async function storeTransactionInMongoDB(
-  pendingTransactions: any,
+  pendingTransactions: Collection<ISafeTxDocument>,
   safeAddress: Address,
   network: string,
   chainId: number,
-  safeTx: SafeTransaction,
+  safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address
-): Promise<any> {
+): Promise<InsertOneResult<ISafeTxDocument>> {
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
     chainId,
-    safeTx,
+    safeTx: {
+      data: {
+        to: safeTx.data.to,
+        value: safeTx.data.value.toString(),
+        data: safeTx.data.data,
+        operation: Number(safeTx.data.operation),
+        nonce: Number(safeTx.data.nonce),
+      },
+      signatures: Object.fromEntries(safeTx.signatures),
+    },
     safeTxHash,
     proposer,
     timestamp: new Date(),
-    status: 'pending',
-  }
+    status: 'pending' as const,
+  } satisfies ISafeTxDocument
 
-  return await retry(async () => {
+  return retry(async () => {
     const insertResult = await pendingTransactions.insertOne(txDoc)
     return insertResult
   })
@@ -725,15 +804,14 @@ export async function storeTransactionInMongoDB(
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
-  pendingTransactions: Collection<SafeTxDocument>
+  pendingTransactions: Collection<ISafeTxDocument>
 }> {
-  if (!process.env.MONGODB_URI) {
+  if (!process.env.MONGODB_URI)
     throw new Error('MONGODB_URI environment variable is required')
-  }
 
   const client = new MongoClient(process.env.MONGODB_URI)
   const db = client.db('SAFE')
-  const pendingTransactions = db.collection<SafeTxDocument>(
+  const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
 
@@ -750,7 +828,7 @@ export async function getSafeMongoCollection(): Promise<{
  * @returns The next nonce to use
  */
 export async function getNextNonce(
-  pendingTransactions: Collection<SafeTxDocument>,
+  pendingTransactions: Collection<ISafeTxDocument>,
   safeAddress: string,
   network: string,
   chainId: number,
@@ -767,9 +845,12 @@ export async function getNextNonce(
     .limit(1)
     .toArray()
 
-  return latestTx.length > 0
-    ? BigInt(latestTx[0].safeTx?.data?.nonce || 0) + 1n
-    : currentNonce
+  if (latestTx.length > 0) {
+    const tx = latestTx[0]
+    if (!tx) throw new Error('Latest transaction not found')
+    return BigInt(tx.safeTx?.data?.nonce || 0) + 1n
+  }
+  return currentNonce
 }
 
 /**
@@ -779,29 +860,30 @@ export async function getNextNonce(
  * @returns Transactions grouped by network
  */
 export async function getPendingTransactionsByNetwork(
-  pendingTransactions: Collection<SafeTxDocument>,
+  pendingTransactions: Collection<ISafeTxDocument>,
   networks: string[]
-): Promise<Record<string, SafeTxDocument[]>> {
+): Promise<Record<string, ISafeTxDocument[]>> {
   const allPendingTxs = await pendingTransactions
-    .find<SafeTxDocument>({
+    .find<ISafeTxDocument>({
       network: { $in: networks.map((n) => n.toLowerCase()) },
       status: 'pending',
     })
     .toArray()
 
   // Group transactions by network
-  const txsByNetwork: Record<string, SafeTxDocument[]> = {}
+  const txsByNetwork: Record<string, ISafeTxDocument[]> = {}
   for (const tx of allPendingTxs) {
     const network = tx.network.toLowerCase()
-    if (!txsByNetwork[network]) {
-      txsByNetwork[network] = []
-    }
+    if (!txsByNetwork[network]) txsByNetwork[network] = []
+
     txsByNetwork[network].push(tx)
   }
 
   // Sort transactions by nonce for each network
   for (const network in txsByNetwork) {
-    txsByNetwork[network].sort((a, b) => {
+    const txs = txsByNetwork[network]
+    if (!txs) throw new Error(`Missing transactions for network ${network}`)
+    txs.sort((a, b) => {
       if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
       if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
       return 0
@@ -814,38 +896,47 @@ export async function getPendingTransactionsByNetwork(
 /**
  * Initializes a Safe client for a specific network
  * @param network - Network name
- * @param privateKey - Private key for signing
+ * @param privateKey - Private key for signing (optional if useLedger is true)
  * @param rpcUrl - Optional RPC URL override
+ * @param useLedger - Whether to use a Ledger device for signing
+ * @param ledgerOptions - Options for Ledger connection
  * @returns Initialized ViemSafe instance and chain information
  */
 export async function initializeSafeClient(
   network: string,
-  privateKey: string,
-  rpcUrl?: string
+  privateKey?: string,
+  rpcUrl?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  }
 ): Promise<{
   safe: ViemSafe
   chain: Chain
   safeAddress: Address
 }> {
   const chain = getViemChainForNetworkName(network)
-  const safeAddress = networks[network.toLowerCase()].safeAddress as Address
+  const safeAddress = networks[network.toLowerCase()]?.safeAddress as Address
 
-  if (!safeAddress) {
+  if (!safeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
-  }
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
 
   // Initialize Safe with Viem
   try {
     const safe = await ViemSafe.init({
-      provider: parsedRpcUrl,
+      provider: parsedRpcUrl as string,
       privateKey,
       safeAddress,
+      useLedger,
+      ledgerOptions,
     })
 
     return { safe, chain, safeAddress }
-  } catch (error) {
+  } catch (error: any) {
     consola.error(`Error encountered while setting up Safe: ${error}`)
     throw new Error(
       `Failed to initialize Safe for ${network}: ${error.message}`
@@ -860,18 +951,17 @@ export async function initializeSafeClient(
  * @returns The private key
  */
 export function getPrivateKey(
-  privateKeyArg?: string,
   keyType:
     | 'PRIVATE_KEY_PRODUCTION'
-    | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION'
+    | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION',
+  privateKeyArg?: string
 ): string {
   const privateKey = privateKeyArg || process.env[keyType]
 
-  if (!privateKey) {
+  if (!privateKey)
     throw new Error(
       `Private key is missing, either provide it as argument or add ${keyType} to your .env`
     )
-  }
 
   return privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey
 }
@@ -884,11 +974,10 @@ export function getPrivateKey(
 export function getNetworksToProcess(networkArg?: string): string[] {
   if (networkArg) return [networkArg]
 
-  // Default to all active networks
   return Object.keys(networks).filter(
     (network) =>
       network !== 'localanvil' &&
-      networks[network.toLowerCase()].status === 'active'
+      networks[network.toLowerCase()]?.status === 'active'
   )
 }
 
@@ -923,7 +1012,7 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
           `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
         )
 
-        for (const selector of selectors) {
+        for (const selector of selectors)
           try {
             // Find matching function in ABI
             const matchingFunction = resData.abi.find((abiItem: any) => {
@@ -932,20 +1021,15 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
               return calculatedSelector === selector
             })
 
-            if (matchingFunction) {
+            if (matchingFunction)
               consola.info(
                 `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
               )
-            } else {
-              consola.warn(`Unknown function [${selector}]`)
-            }
+            else consola.warn(`Unknown function [${selector}]`)
           } catch (error) {
             consola.warn(`Failed to decode selector: ${selector}`)
           }
-        }
-      } else {
-        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
-      }
+      } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
     } catch (error) {
       consola.error(`Error fetching ABI for ${facetAddress}:`, error)
     }
@@ -980,8 +1064,6 @@ export async function decodeTransactionData(data: Hex): Promise<{
       responseData.result.function[selector]
     ) {
       const functionName = responseData.result.function[selector][0].name
-      const fullAbiString = `function ${functionName}`
-      const abiInterface = parseAbi([fullAbiString])
 
       try {
         const decodedData = {
@@ -1004,4 +1086,34 @@ export async function decodeTransactionData(data: Hex): Promise<{
     consola.warn(`Error decoding transaction data: ${error}`)
     return {}
   }
+}
+
+/**
+ * Obtains a safe
+ * @param data - Transaction data
+ * @returns Decoded function name and data if available
+ */
+export const getSafeInfo = async (safeAddress: string, network: string) => {
+  const chain = getViemChainForNetworkName(network)
+
+  // Get Safe information directly from the contract
+  consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
+  let safeInfo
+  try {
+    // Create a public client for read operations
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0]),
+    })
+
+    safeInfo = await getSafeInfoFromContract(
+      publicClient,
+      safeAddress as Address
+    )
+  } catch (error: any) {
+    consola.error(`Failed to get Safe info: ${error.message}`)
+    throw new Error(`Could not get Safe info for ${safeAddress} on ${network}`)
+  }
+
+  return safeInfo
 }
