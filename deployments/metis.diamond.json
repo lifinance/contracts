@@ -81,9 +81,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0x4b3dc2d875E778479A42C467e05a6140ef3966b9": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
+      "0x44a1f8744c85665553eFb8C24fd4428B1D3D8e1B": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
