@@ -60,7 +60,7 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
     consola.info('-'.repeat(80))
 
     // Try to decode the nested data
-    if (data && data !== '0x') {
+    if (data && data !== '0x') 
       try {
         const nestedDecoded = await decodeTransactionData(data as Hex)
         if (nestedDecoded.functionName) {
@@ -80,26 +80,26 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
             if (nestedDecodedData.functionName === 'diamondCut') {
               consola.info('Nested Diamond Cut detected - decoding...')
               await decodeDiamondCut(nestedDecodedData, chainId)
-            } else {
+            } else 
               consola.info(
                 'Nested Data:',
                 JSON.stringify(nestedDecodedData, null, 2)
               )
-            }
-          } else {
+            
+          } else 
             consola.info(
               'Nested Data:',
               JSON.stringify(nestedDecoded.decodedData, null, 2)
             )
-          }
-        } else {
+          
+        } else 
           consola.info(`Nested Data: ${data}`)
-        }
+        
       } catch (error) {
         consola.warn(`Failed to decode nested data: ${error.message}`)
         consola.info(`Raw nested data: ${data}`)
       }
-    }
+    
   }
 }
 
@@ -182,36 +182,131 @@ const processTxs = async (
   /**
    * Executes a SafeTransaction and updates its status in MongoDB
    * @param safeTransaction - The transaction to execute
+   * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
-  async function executeTransaction(safeTransaction: ISafeTransaction) {
+  async function executeTransaction(
+    safeTransaction: ISafeTransaction,
+    safeClient: any = safe
+  ) {
     consola.info('Preparing to execute Safe transaction...')
     try {
       // Get the Safe transaction hash for reference
-      const safeTxHash = await safe.getTransactionHash(safeTransaction)
+      const safeTxHash = await safeClient.getTransactionHash(safeTransaction)
       consola.info(`Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`)
 
       // Execute the transaction on-chain
       consola.info('Submitting execution transaction to blockchain...')
-      const exec = await safe.executeTransaction(safeTransaction)
 
-      // Log execution details with color coding
+      // Step 1: Submit transaction and grab hash immediately
+      const exec = await safeClient.executeTransaction(safeTransaction)
+      const executionHash = exec.hash
+
       consola.success(`Execution transaction submitted successfully!`)
       consola.info(
-        `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
+        `Blockchain Transaction Hash: \u001b[33m${executionHash}\u001b[0m`
       )
 
-      // Update MongoDB transaction status
-      await pendingTransactions.updateOne(
-        { safeTxHash: safeTxHash },
-        { $set: { status: 'executed', executionHash: exec.hash } }
-      )
+      // Step 2: Wait for confirmation with 30 second timeout
+      consola.info('Waiting for transaction confirmation (30s timeout)...')
+      let receipt = null
 
-      consola.success(
-        `✅ Safe transaction successfully executed and recorded in database`
-      )
-      consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-      consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
-      consola.log(' ')
+      try {
+        // Wait for receipt with 30 second timeout
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
+        )
+
+        const receiptPromise =
+          safeClient.account.client.waitForTransactionReceipt({
+            hash: executionHash as `0x${string}`,
+          })
+
+        receipt = await Promise.race([receiptPromise, timeoutPromise])
+        consola.success('Transaction confirmed within 30 seconds')
+      } catch (timeoutError: any) {
+        if (timeoutError.message.includes('timeout')) {
+          consola.warn(
+            '⚠️  Transaction confirmation timed out after 30 seconds'
+          )
+
+          // Step 3: Poll for result for up to 1 minute
+          consola.info('Polling for transaction confirmation (60s max)...')
+          const maxAttempts = 12 // 12 attempts * 5s = 60s
+          const intervalMs = 5000
+
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              receipt = await safeClient.account.client.getTransactionReceipt({
+                hash: executionHash as `0x${string}`,
+              })
+
+              if (receipt) {
+                consola.success(
+                  `Transaction confirmed after ${attempt} polling attempts`
+                )
+                break
+              }
+            } catch (receiptError: any) {
+              // Transaction not found yet, continue polling
+              if (!receiptError.message.includes('not found')) 
+                consola.warn(
+                  `Error checking transaction status: ${receiptError.message}`
+                )
+              
+            }
+
+            if (attempt < maxAttempts) {
+              consola.info(
+                `Poll attempt ${attempt}/${maxAttempts} - waiting ${
+                  intervalMs / 1000
+                }s...`
+              )
+              await new Promise((resolve) => setTimeout(resolve, intervalMs))
+            }
+          }
+        } else 
+          throw timeoutError
+        
+      }
+
+      // Step 4: Process result or error
+      if (receipt) 
+        if (receipt.status === 'success') {
+          consola.success('✅ Transaction confirmed as successful on-chain')
+
+          // Update MongoDB transaction status
+          await pendingTransactions.updateOne(
+            { safeTxHash: safeTxHash },
+            { $set: { status: 'executed', executionHash: executionHash } }
+          )
+
+          consola.success(
+            `✅ Safe transaction successfully executed and recorded in database`
+          )
+          consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
+          consola.info(
+            `   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`
+          )
+          consola.log(' ')
+        } else {
+          consola.error('❌ Transaction failed on-chain')
+          throw new Error(`Transaction failed with status: ${receipt.status}`)
+        }
+       else {
+        // Step 4: Error if we can't get anything
+        consola.error(
+          '❌ Could not confirm transaction status after 90 seconds total'
+        )
+        consola.error(
+          `   Transaction was submitted with hash: ${executionHash}`
+        )
+        consola.error(
+          '   Please manually verify the transaction status on the blockchain'
+        )
+        throw new Error(
+          `Transaction confirmation failed - hash: ${executionHash}`
+        )
+      }
     } catch (error: any) {
       consola.error('❌ Error executing Safe transaction:')
       consola.error(`   ${error.message}`)
@@ -314,9 +409,9 @@ const processTxs = async (
     if (abi)
       if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
-      else if (decoded && decoded.functionName === 'schedule') {
+      else if (decoded && decoded.functionName === 'schedule') 
         await decodeNestedTimelockCall(decoded, chain.id)
-      } else {
+       else {
         consola.info('Method:', abi)
         if (decoded)
           consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
@@ -355,9 +450,9 @@ const processTxs = async (
             tx.threshold,
             signerAddress
           )
-        ) {
+        ) 
           options.push('Sign and Execute With Deployer')
-        }
+        
       }
 
       action =
@@ -380,9 +475,9 @@ const processTxs = async (
             tx.threshold,
             signerAddress
           )
-        ) {
+        ) 
           options.push('Sign and Execute With Deployer')
-        }
+        
       }
 
       if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
@@ -438,7 +533,7 @@ const processTxs = async (
         consola.error('Error signing and executing transaction:', error)
       }
 
-    if (action === 'Sign and Execute With Deployer') {
+    if (action === 'Sign and Execute With Deployer') 
       try {
         // Step 1: Sign with current user
         const safeTransaction = await initializeSafeTransaction(tx, safe)
@@ -488,67 +583,18 @@ const processTxs = async (
             'Transaction signed with deployer and stored in MongoDB'
           )
           finalTx = deployerSignedTx
-        } else {
+        } else 
           consola.info(
             'Deployer has already signed - proceeding to execution...'
           )
-        }
+        
 
-        // Step 5: Execute with deployer
+        // Step 5: Execute with deployer using shared executeTransaction function
         const executeWithDeployer = async (
           safeTransaction: ISafeTransaction
         ) => {
           consola.info('Executing transaction with deployer wallet...')
-          try {
-            // Get the Safe transaction hash for reference
-            const safeTxHash = await deployerSafe.getTransactionHash(
-              safeTransaction
-            )
-            consola.info(
-              `Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`
-            )
-
-            // Execute the transaction on-chain using deployer wallet
-            consola.info(
-              'Submitting execution transaction to blockchain with deployer...'
-            )
-            const exec = await deployerSafe.executeTransaction(safeTransaction)
-
-            // Log execution details with color coding
-            consola.success(
-              `Execution transaction submitted successfully with deployer!`
-            )
-            consola.info(
-              `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
-            )
-
-            // Update MongoDB transaction status
-            await pendingTransactions.updateOne(
-              { safeTxHash: safeTxHash },
-              { $set: { status: 'executed', executionHash: exec.hash } }
-            )
-
-            consola.success(
-              `✅ Safe transaction successfully executed with deployer and recorded in database`
-            )
-            consola.info(
-              `   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`
-            )
-            consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
-            consola.log(' ')
-          } catch (error: any) {
-            consola.error('❌ Error executing Safe transaction with deployer:')
-            consola.error(`   ${error.message}`)
-            if (error.message.includes('GS026')) {
-              consola.error(
-                '   This appears to be a signature validation error (GS026).'
-              )
-              consola.error(
-                '   Possible causes: invalid signature format or incorrect signer.'
-              )
-            }
-            throw new Error(`Transaction execution failed: ${error.message}`)
-          }
+          await executeTransaction(safeTransaction, deployerSafe)
         }
 
         await executeWithDeployer(finalTx)
@@ -558,7 +604,7 @@ const processTxs = async (
           error
         )
       }
-    }
+    
 
     if (action === 'Execute')
       try {
