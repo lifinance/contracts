@@ -286,6 +286,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.20_LibAsset(v2.1.0).pdf",
       "auditCommitHash": "8a3e150513c066311252acc95b72a46ee51776a1"
+    },
+    "audit20250630": {
+      "auditCompletedOn": "30.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.30_LiFiDexAggregator(v1.11.0).pdf",
+      "auditCommitHash": "6561ef4cc67f167d6485c412afb738f5b5b0da7f"
     }
   },
   "auditedContracts": {
