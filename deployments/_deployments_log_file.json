@@ -27770,6 +27770,16 @@
             "SALT": "09072024",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.2": [
+          {
+            "ADDRESS": "0xEd655D7e67ecd4185b28fED2580774455a8C84f4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-02 09:29:54",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddead0000",
+            "SALT": "",
+            "VERIFIED": true
+          }
         ]
       }
     },
