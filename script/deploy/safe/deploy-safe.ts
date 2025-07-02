@@ -698,10 +698,10 @@ async function createSafeProxy(params: {
       }
     )) as Address
 
-    return safeAddress
+    return getAddress(safeAddress)
   }
 
-  const safeAddr = proxyEvent.args.proxy as Address
+  const safeAddr = getAddress(proxyEvent.args.proxy)
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
   // verify on-chain proxy bytecode
