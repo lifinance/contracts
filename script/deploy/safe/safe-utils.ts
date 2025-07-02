@@ -6,6 +6,9 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
+
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
@@ -752,10 +755,10 @@ export const shouldShowSignAndExecuteWithDeployer = (
   // Two scenarios:
   // 1. If deployer already signed: check if current user's signature would meet threshold
   // 2. If deployer hasn't signed: check if current user + deployer would meet threshold
-  if (isDeployerAlreadySigned) 
+  if (isDeployerAlreadySigned)
     // Deployer already signed, just need current user to potentially meet threshold
     return signaturesAfterCurrentSigner >= threshold
-   else {
+  else {
     // Deployer hasn't signed, need both current user + deployer to meet threshold
     const signaturesAfterBoth = signaturesAfterCurrentSigner + 1
     return signaturesAfterBoth >= threshold
@@ -1023,6 +1026,116 @@ export function getNetworksToProcess(networkArg?: string): string[] {
 }
 
 /**
+ * Gets contract name from deployment log file by address
+ * @param address - Contract address
+ * @returns Contract name or "Unknown"
+ */
+function getContractNameFromDeploymentLog(address: string): string {
+  try {
+    const projectRoot = process.cwd()
+    const deploymentLogPath = path.join(
+      projectRoot,
+      'deployments',
+      '_deployments_log_file.json'
+    )
+
+    if (!fs.existsSync(deploymentLogPath)) 
+      return 'Unknown'
+    
+
+    const logData = JSON.parse(fs.readFileSync(deploymentLogPath, 'utf8'))
+    const normalizedAddress = address.toLowerCase()
+
+    // Search through the nested structure: ContractName -> network -> environment -> version -> deployments[]
+    for (const [contractName, networks] of Object.entries(logData)) 
+      if (typeof networks === 'object' && networks !== null) 
+        for (const [_networkName, environments] of Object.entries(
+          networks as Record<string, unknown>
+        )) 
+          if (typeof environments === 'object' && environments !== null) 
+            for (const [_envName, versions] of Object.entries(
+              environments as Record<string, unknown>
+            )) 
+              if (typeof versions === 'object' && versions !== null) 
+                for (const [_version, deployments] of Object.entries(
+                  versions as Record<string, unknown>
+                )) 
+                  if (Array.isArray(deployments)) 
+                    for (const deployment of deployments) 
+                      if (
+                        deployment.ADDRESS &&
+                        deployment.ADDRESS.toLowerCase() === normalizedAddress
+                      ) 
+                        return contractName
+                      
+                    
+                  
+                
+              
+            
+          
+        
+      
+    
+
+    return 'Unknown'
+  } catch (error) {
+    consola.warn(`Error reading deployment log: ${error}`)
+    return 'Unknown'
+  }
+}
+
+/**
+ * Creates a mapping of function selectors to function names from diamond ABI
+ * @returns Map of selector to function info
+ */
+async function createSelectorMap(): Promise<Map<
+  string,
+  { name: string; signature: string }
+> | null> {
+  try {
+    const projectRoot = process.cwd()
+    const diamondPath = path.join(projectRoot, 'diamond.json')
+
+    if (!fs.existsSync(diamondPath)) 
+      return null
+    
+
+    const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
+    if (!Array.isArray(abiData)) 
+      return null
+    
+
+    const selectorMap = new Map<string, { name: string; signature: string }>()
+
+    for (const abiItem of abiData) 
+      if (abiItem.type === 'function') 
+        try {
+          const selector = toFunctionSelector(abiItem)
+          const inputs =
+            abiItem.inputs?.map((input: any) => input.type).join(',') || ''
+          const signature = `${abiItem.name}(${inputs})`
+
+          selectorMap.set(selector, {
+            name: abiItem.name,
+            signature: signature,
+          })
+        } catch (error) {
+          // Skip invalid ABI items
+          continue
+        }
+      
+    
+
+    consola.info(`Created selector map with ${selectorMap.size} functions`)
+    return selectorMap
+  } catch (error) {
+    consola.warn(`Error creating selector map: ${error}`)
+    return null
+  }
+}
+
+/**
  * Decodes a diamond cut transaction and displays its details
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
@@ -1033,6 +1146,10 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     1: 'Replace',
     2: 'Remove',
   }
+
+  // Create selector map for efficient lookup
+  const selectorMap = await createSelectorMap()
+
   consola.info('Diamond Cut Details:')
   consola.info('-'.repeat(80))
   // diamondCutData.args[0] contains an array of modifications.
@@ -1041,38 +1158,62 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
-      consola.info(
-        `Fetching ABI for Facet Address: \u001b[34m${facetAddress}\u001b[0m`
-      )
-      const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-      const response = await fetch(url)
-      const resData = await response.json()
+      consola.info(`Facet Address: \u001b[34m${facetAddress}\u001b[0m`)
       consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
-      if (resData && resData.abi) {
-        consola.info(
-          `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
-        )
 
-        for (const selector of selectors)
-          try {
-            // Find matching function in ABI
-            const matchingFunction = resData.abi.find((abiItem: any) => {
-              if (abiItem.type !== 'function') return false
-              const calculatedSelector = toFunctionSelector(abiItem)
-              return calculatedSelector === selector
-            })
+      // Use selector map for efficient lookup
+      if (selectorMap) {
+        const contractName = getContractNameFromDeploymentLog(facetAddress)
+        consola.info(`Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
-            if (matchingFunction)
-              consola.info(
-                `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-              )
-            else consola.warn(`Unknown function [${selector}]`)
-          } catch (error) {
-            consola.warn(`Failed to decode selector: ${selector}`)
-          }
-      } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+        for (const selector of selectors) {
+          const functionInfo = selectorMap.get(selector)
+          if (functionInfo) 
+            consola.info(
+              `Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
+            )
+           else 
+            consola.warn(`Unknown function [${selector}]`)
+          
+        }
+      } else {
+        // Fallback to external API if selector map not available
+        consola.info('No diamond ABI found, fetching from anyabi.xyz...')
+        const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
+        const response = await fetch(url)
+        const resData = await response.json()
+
+        if (resData && resData.abi) {
+          consola.info(
+            `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
+          )
+
+          for (const selector of selectors) 
+            try {
+              // Find matching function in ABI
+              const matchingFunction = resData.abi.find((abiItem: any) => {
+                if (abiItem.type !== 'function') return false
+                const calculatedSelector = toFunctionSelector(abiItem)
+                return calculatedSelector === selector
+              })
+
+              if (matchingFunction) 
+                consola.info(
+                  `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
+                )
+               else 
+                consola.warn(`Unknown function [${selector}]`)
+              
+            } catch (error) {
+              consola.warn(`Failed to decode selector: ${selector}`)
+            }
+          
+        } else 
+          consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+        
+      }
     } catch (error) {
-      consola.error(`Error fetching ABI for ${facetAddress}:`, error)
+      consola.error(`Error processing facet ${facetAddress}:`, error)
     }
     consola.info('-'.repeat(80))
   }
