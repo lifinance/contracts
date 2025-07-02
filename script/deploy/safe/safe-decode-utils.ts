@@ -32,8 +32,8 @@ async function tryLoadLocalAbi(
   contractName: string
 ): Promise<{ abi: any[]; name?: string } | null> {
   try {
-    // Go up three levels from script/deploy/safe to project root
-    const projectRoot = path.join(process.cwd(), '..', '..', '..')
+    // Use current working directory as project root (script is called from project root)
+    const projectRoot = process.cwd()
     const abiPath = path.join(
       projectRoot,
       'out',
@@ -67,8 +67,8 @@ async function findContractNameByAddress(
   network: string
 ): Promise<string | null> {
   try {
-    // Go up three levels from script/deploy/safe to project root
-    const projectRoot = path.join(process.cwd(), '..', '..', '..')
+    // Use current working directory as project root (script is called from project root)
+    const projectRoot = process.cwd()
     const deploymentsDir = path.join(projectRoot, 'deployments')
 
     if (!fs.existsSync(deploymentsDir)) {
@@ -164,8 +164,8 @@ async function findLocalAbiBySelector(
   selector: string
 ): Promise<{ functionName: string; contractName: string } | null> {
   try {
-    // Go up three levels from script/deploy/safe to project root
-    const projectRoot = path.join(process.cwd(), '..', '..', '..')
+    // Use current working directory as project root (script is called from project root)
+    const projectRoot = process.cwd()
     const outDir = path.join(projectRoot, 'out')
     if (!fs.existsSync(outDir)) {
       return null
