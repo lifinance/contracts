@@ -60,7 +60,7 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
     consola.info('-'.repeat(80))
 
     // Try to decode the nested data
-    if (data && data !== '0x') 
+    if (data && data !== '0x')
       try {
         const nestedDecoded = await decodeTransactionData(data as Hex)
         if (nestedDecoded.functionName) {
@@ -80,26 +80,21 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
             if (nestedDecodedData.functionName === 'diamondCut') {
               consola.info('Nested Diamond Cut detected - decoding...')
               await decodeDiamondCut(nestedDecodedData, chainId)
-            } else 
+            } else
               consola.info(
                 'Nested Data:',
                 JSON.stringify(nestedDecodedData, null, 2)
               )
-            
-          } else 
+          } else
             consola.info(
               'Nested Data:',
               JSON.stringify(nestedDecoded.decodedData, null, 2)
             )
-          
-        } else 
-          consola.info(`Nested Data: ${data}`)
-        
-      } catch (error) {
+        } else consola.info(`Nested Data: ${data}`)
+      } catch (error: any) {
         consola.warn(`Failed to decode nested data: ${error.message}`)
         consola.info(`Raw nested data: ${data}`)
       }
-    
   }
 }
 
@@ -248,11 +243,10 @@ const processTxs = async (
               }
             } catch (receiptError: any) {
               // Transaction not found yet, continue polling
-              if (!receiptError.message.includes('not found')) 
+              if (!receiptError.message.includes('not found'))
                 consola.warn(
                   `Error checking transaction status: ${receiptError.message}`
                 )
-              
             }
 
             if (attempt < maxAttempts) {
@@ -264,13 +258,11 @@ const processTxs = async (
               await new Promise((resolve) => setTimeout(resolve, intervalMs))
             }
           }
-        } else 
-          throw timeoutError
-        
+        } else throw timeoutError
       }
 
       // Step 4: Process result or error
-      if (receipt) 
+      if (receipt)
         if (receipt.status === 'success') {
           consola.success('✅ Transaction confirmed as successful on-chain')
 
@@ -292,7 +284,7 @@ const processTxs = async (
           consola.error('❌ Transaction failed on-chain')
           throw new Error(`Transaction failed with status: ${receipt.status}`)
         }
-       else {
+      else {
         // Step 4: Error if we can't get anything
         consola.error(
           '❌ Could not confirm transaction status after 90 seconds total'
@@ -409,9 +401,9 @@ const processTxs = async (
     if (abi)
       if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
-      else if (decoded && decoded.functionName === 'schedule') 
+      else if (decoded && decoded.functionName === 'schedule')
         await decodeNestedTimelockCall(decoded, chain.id)
-       else {
+      else {
         consola.info('Method:', abi)
         if (decoded)
           consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
@@ -450,9 +442,8 @@ const processTxs = async (
             tx.threshold,
             signerAddress
           )
-        ) 
+        )
           options.push('Sign and Execute With Deployer')
-        
       }
 
       action =
@@ -475,9 +466,8 @@ const processTxs = async (
             tx.threshold,
             signerAddress
           )
-        ) 
+        )
           options.push('Sign and Execute With Deployer')
-        
       }
 
       if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
@@ -533,7 +523,7 @@ const processTxs = async (
         consola.error('Error signing and executing transaction:', error)
       }
 
-    if (action === 'Sign and Execute With Deployer') 
+    if (action === 'Sign and Execute With Deployer')
       try {
         // Step 1: Sign with current user
         const safeTransaction = await initializeSafeTransaction(tx, safe)
@@ -583,11 +573,10 @@ const processTxs = async (
             'Transaction signed with deployer and stored in MongoDB'
           )
           finalTx = deployerSignedTx
-        } else 
+        } else
           consola.info(
             'Deployer has already signed - proceeding to execution...'
           )
-        
 
         // Step 5: Execute with deployer using shared executeTransaction function
         const executeWithDeployer = async (
@@ -604,7 +593,6 @@ const processTxs = async (
           error
         )
       }
-    
 
     if (action === 'Execute')
       try {
