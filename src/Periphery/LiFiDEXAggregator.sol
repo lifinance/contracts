@@ -796,6 +796,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             );
         }
 
+        // After the swapX2Y or swapY2X call, the callback should reset lastCalledPool to IMPOSSIBLE_POOL_ADDRESS.
+        // If it hasn't, it means the callback either didn't happen, was incorrect, or the pool misbehaved so we revert
+        // to protect against misuse or faulty integrations
         if (lastCalledPool != IMPOSSIBLE_POOL_ADDRESS) {
             revert IzumiV3SwapUnexpected();
         }
@@ -868,6 +871,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         address tokenIn = abi.decode(data, (address));
 
+        // After a successful callback, we reset lastCalledPool to an impossible address.
+        // This prevents any subsequent callback from erroneously succeeding.
+        // It's a security measure to avoid reentrancy or misuse of stale state in future callbacks
         lastCalledPool = IMPOSSIBLE_POOL_ADDRESS;
 
         IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
