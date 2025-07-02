@@ -539,10 +539,6 @@ function queryMongoDeployment() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  if ! isMongoLoggingEnabled; then
-    return 1
-  fi
-
   bun script/deploy/query-deployment-logs.ts get \
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
@@ -557,10 +553,6 @@ function checkMongoDeploymentExists() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  if ! isMongoLoggingEnabled; then
-    return 1
-  fi
-
   bun script/deploy/query-deployment-logs.ts exists \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
@@ -573,10 +565,6 @@ function getLatestMongoDeployment() {
   local CONTRACT="$1"
   local NETWORK="$2"
   local ENVIRONMENT="$3"
-
-  if ! isMongoLoggingEnabled; then
-    return 1
-  fi
 
   bun script/deploy/query-deployment-logs.ts latest \
     --env="$ENVIRONMENT" \
@@ -595,10 +583,6 @@ function getLatestMongoDeployment() {
 
 function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
-
-  if ! isMongoLoggingEnabled; then
-    return 1
-  fi
 
   echoDebug "Getting unverified contracts from MongoDB"
   bun script/deploy/query-deployment-logs.ts filter \
