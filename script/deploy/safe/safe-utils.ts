@@ -18,6 +18,7 @@ import {
   type Chain,
   type Hex,
   type PublicClient,
+  type TransactionReceipt,
   type WalletClient,
   createPublicClient,
   createWalletClient,
@@ -555,7 +556,7 @@ export class ViemSafe {
    */
   public async executeTransaction(
     safeTx: ISafeTransaction
-  ): Promise<{ hash: Hex }> {
+  ): Promise<{ hash: Hex; receipt?: TransactionReceipt }> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
@@ -580,16 +581,73 @@ export class ViemSafe {
         ],
       })
 
-      // Wait for transaction receipt with better error handling
+      consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
+
+      // Step 2: Wait for confirmation with 30 second timeout
+      let receipt: TransactionReceipt | null = null
+
       try {
-        await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-      } catch (waitError: any) {
-        throw new Error(
-          `Transaction submitted (${txHash}) but failed to confirm: ${waitError.message}`
+        // Wait for receipt with 30 second timeout
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
         )
+
+        const receiptPromise = this.publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        })
+
+        receipt = (await Promise.race([
+          receiptPromise,
+          timeoutPromise,
+        ])) as TransactionReceipt
+      } catch (timeoutError: any) {
+        if (timeoutError.message.includes('timeout')) {
+          // Step 3: Poll for result for up to 1 minute
+          const maxAttempts = 12 // 12 attempts * 5s = 60s
+          const intervalMs = 5000
+
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              receipt = await this.publicClient.getTransactionReceipt({
+                hash: txHash,
+              })
+
+              if (receipt) 
+                break
+              
+            } catch (receiptError: any) {
+              // Transaction not found yet, continue polling
+              if (!receiptError.message.includes('not found')) 
+                // If it's not a "not found" error, something else went wrong
+                if (attempt === maxAttempts) 
+                  throw new Error(
+                    `Error checking transaction status: ${receiptError.message}`
+                  )
+                
+              
+            }
+
+            if (attempt < maxAttempts) 
+              await new Promise((resolve) => setTimeout(resolve, intervalMs))
+            
+          }
+        } else 
+          throw timeoutError
+        
       }
 
-      return { hash: txHash }
+      // Step 4: Process result or error
+      if (receipt) 
+        if (receipt.status === 'success') 
+          return { hash: txHash, receipt }
+         else 
+          throw new Error(`Transaction failed with status: ${receipt.status}`)
+        
+       else 
+        throw new Error(
+          `Could not confirm transaction status after 90 seconds total - hash: ${txHash}`
+        )
+      
     } catch (error: any) {
       if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
@@ -1039,44 +1097,32 @@ function getContractNameFromDeploymentLog(address: string): string {
       '_deployments_log_file.json'
     )
 
-    if (!fs.existsSync(deploymentLogPath)) 
-      return 'Unknown'
-    
+    if (!fs.existsSync(deploymentLogPath)) return 'Unknown'
 
     const logData = JSON.parse(fs.readFileSync(deploymentLogPath, 'utf8'))
     const normalizedAddress = address.toLowerCase()
 
     // Search through the nested structure: ContractName -> network -> environment -> version -> deployments[]
-    for (const [contractName, networks] of Object.entries(logData)) 
-      if (typeof networks === 'object' && networks !== null) 
+    for (const [contractName, networks] of Object.entries(logData))
+      if (typeof networks === 'object' && networks !== null)
         for (const [_networkName, environments] of Object.entries(
           networks as Record<string, unknown>
-        )) 
-          if (typeof environments === 'object' && environments !== null) 
+        ))
+          if (typeof environments === 'object' && environments !== null)
             for (const [_envName, versions] of Object.entries(
               environments as Record<string, unknown>
-            )) 
-              if (typeof versions === 'object' && versions !== null) 
+            ))
+              if (typeof versions === 'object' && versions !== null)
                 for (const [_version, deployments] of Object.entries(
                   versions as Record<string, unknown>
-                )) 
-                  if (Array.isArray(deployments)) 
-                    for (const deployment of deployments) 
+                ))
+                  if (Array.isArray(deployments))
+                    for (const deployment of deployments)
                       if (
                         deployment.ADDRESS &&
                         deployment.ADDRESS.toLowerCase() === normalizedAddress
-                      ) 
+                      )
                         return contractName
-                      
-                    
-                  
-                
-              
-            
-          
-        
-      
-    
 
     return 'Unknown'
   } catch (error) {
@@ -1097,19 +1143,15 @@ async function createSelectorMap(): Promise<Map<
     const projectRoot = process.cwd()
     const diamondPath = path.join(projectRoot, 'diamond.json')
 
-    if (!fs.existsSync(diamondPath)) 
-      return null
-    
+    if (!fs.existsSync(diamondPath)) return null
 
     const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
-    if (!Array.isArray(abiData)) 
-      return null
-    
+    if (!Array.isArray(abiData)) return null
 
     const selectorMap = new Map<string, { name: string; signature: string }>()
 
-    for (const abiItem of abiData) 
-      if (abiItem.type === 'function') 
+    for (const abiItem of abiData)
+      if (abiItem.type === 'function')
         try {
           const selector = toFunctionSelector(abiItem)
           const inputs =
@@ -1124,8 +1166,6 @@ async function createSelectorMap(): Promise<Map<
           // Skip invalid ABI items
           continue
         }
-      
-    
 
     consola.info(`Created selector map with ${selectorMap.size} functions`)
     return selectorMap
@@ -1168,13 +1208,11 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
 
         for (const selector of selectors) {
           const functionInfo = selectorMap.get(selector)
-          if (functionInfo) 
+          if (functionInfo)
             consola.info(
               `Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
             )
-           else 
-            consola.warn(`Unknown function [${selector}]`)
-          
+          else consola.warn(`Unknown function [${selector}]`)
         }
       } else {
         // Fallback to external API if selector map not available
@@ -1188,7 +1226,7 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
             `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
           )
 
-          for (const selector of selectors) 
+          for (const selector of selectors)
             try {
               // Find matching function in ABI
               const matchingFunction = resData.abi.find((abiItem: any) => {
@@ -1197,20 +1235,15 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
                 return calculatedSelector === selector
               })
 
-              if (matchingFunction) 
+              if (matchingFunction)
                 consola.info(
                   `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
                 )
-               else 
-                consola.warn(`Unknown function [${selector}]`)
-              
+              else consola.warn(`Unknown function [${selector}]`)
             } catch (error) {
               consola.warn(`Failed to decode selector: ${selector}`)
             }
-          
-        } else 
-          consola.info(`Could not fetch ABI for facet ${facetAddress}`)
-        
+        } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
       }
     } catch (error) {
       consola.error(`Error processing facet ${facetAddress}:`, error)

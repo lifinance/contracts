@@ -189,116 +189,25 @@ const processTxs = async (
       const safeTxHash = await safeClient.getTransactionHash(safeTransaction)
       consola.info(`Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`)
 
-      // Execute the transaction on-chain
+      // Execute the transaction on-chain (timeout/polling handled in safeClient)
       consola.info('Submitting execution transaction to blockchain...')
-
-      // Step 1: Submit transaction and grab hash immediately
       const exec = await safeClient.executeTransaction(safeTransaction)
       const executionHash = exec.hash
 
-      consola.success(`Execution transaction submitted successfully!`)
-      consola.info(
-        `Blockchain Transaction Hash: \u001b[33m${executionHash}\u001b[0m`
+      consola.success(`✅ Transaction confirmed as successful on-chain`)
+
+      // Update MongoDB transaction status
+      await pendingTransactions.updateOne(
+        { safeTxHash: safeTxHash },
+        { $set: { status: 'executed', executionHash: executionHash } }
       )
 
-      // Step 2: Wait for confirmation with 30 second timeout
-      consola.info('Waiting for transaction confirmation (30s timeout)...')
-      let receipt = null
-
-      try {
-        // Wait for receipt with 30 second timeout
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
-        )
-
-        const receiptPromise =
-          safeClient.account.client.waitForTransactionReceipt({
-            hash: executionHash as `0x${string}`,
-          })
-
-        receipt = await Promise.race([receiptPromise, timeoutPromise])
-        consola.success('Transaction confirmed within 30 seconds')
-      } catch (timeoutError: any) {
-        if (timeoutError.message.includes('timeout')) {
-          consola.warn(
-            '⚠️  Transaction confirmation timed out after 30 seconds'
-          )
-
-          // Step 3: Poll for result for up to 1 minute
-          consola.info('Polling for transaction confirmation (60s max)...')
-          const maxAttempts = 12 // 12 attempts * 5s = 60s
-          const intervalMs = 5000
-
-          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-              receipt = await safeClient.account.client.getTransactionReceipt({
-                hash: executionHash as `0x${string}`,
-              })
-
-              if (receipt) {
-                consola.success(
-                  `Transaction confirmed after ${attempt} polling attempts`
-                )
-                break
-              }
-            } catch (receiptError: any) {
-              // Transaction not found yet, continue polling
-              if (!receiptError.message.includes('not found'))
-                consola.warn(
-                  `Error checking transaction status: ${receiptError.message}`
-                )
-            }
-
-            if (attempt < maxAttempts) {
-              consola.info(
-                `Poll attempt ${attempt}/${maxAttempts} - waiting ${
-                  intervalMs / 1000
-                }s...`
-              )
-              await new Promise((resolve) => setTimeout(resolve, intervalMs))
-            }
-          }
-        } else throw timeoutError
-      }
-
-      // Step 4: Process result or error
-      if (receipt)
-        if (receipt.status === 'success') {
-          consola.success('✅ Transaction confirmed as successful on-chain')
-
-          // Update MongoDB transaction status
-          await pendingTransactions.updateOne(
-            { safeTxHash: safeTxHash },
-            { $set: { status: 'executed', executionHash: executionHash } }
-          )
-
-          consola.success(
-            `✅ Safe transaction successfully executed and recorded in database`
-          )
-          consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-          consola.info(
-            `   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`
-          )
-          consola.log(' ')
-        } else {
-          consola.error('❌ Transaction failed on-chain')
-          throw new Error(`Transaction failed with status: ${receipt.status}`)
-        }
-      else {
-        // Step 4: Error if we can't get anything
-        consola.error(
-          '❌ Could not confirm transaction status after 90 seconds total'
-        )
-        consola.error(
-          `   Transaction was submitted with hash: ${executionHash}`
-        )
-        consola.error(
-          '   Please manually verify the transaction status on the blockchain'
-        )
-        throw new Error(
-          `Transaction confirmation failed - hash: ${executionHash}`
-        )
-      }
+      consola.success(
+        `✅ Safe transaction successfully executed and recorded in database`
+      )
+      consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
+      consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
+      consola.log(' ')
     } catch (error: any) {
       consola.error('❌ Error executing Safe transaction:')
       consola.error(`   ${error.message}`)
