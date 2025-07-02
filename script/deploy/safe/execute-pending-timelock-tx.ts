@@ -19,13 +19,9 @@ import {
   http,
   parseAbi,
   formatEther,
-  encodeFunctionData} from 'viem';
-import type {
-  Address,
-  PublicClient,
-  WalletClient,
-  Hex
+  encodeFunctionData,
 } from 'viem'
+import type { Address, PublicClient, WalletClient, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
