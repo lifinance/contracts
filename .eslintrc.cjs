@@ -106,6 +106,12 @@ module.exports = {
         suffix: ['Enum']
       }
     ],
+    'import/no-unresolved': [
+      'error',
+      {
+        ignore: ['^bun$'], // <- allow Bun's built-in module
+      },
+    ],
   },
   settings: {
     'import/resolver': {
