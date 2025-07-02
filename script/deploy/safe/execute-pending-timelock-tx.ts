@@ -13,18 +13,18 @@ import { join } from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import type {
-  Address,
-  PublicClient,
-  WalletClient,
-  Hex} from 'viem';
 import {
   createPublicClient,
   createWalletClient,
   http,
   parseAbi,
   formatEther,
-  encodeFunctionData,
+  encodeFunctionData} from 'viem';
+import type {
+  Address,
+  PublicClient,
+  WalletClient,
+  Hex
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -124,19 +124,18 @@ const cmd = defineCommand({
     }
 
     // Log execution mode
-    if (isDryRun) 
+    if (isDryRun)
       consola.info('🔍 Running in DRY RUN mode - no transactions will be sent')
-    
-    if (executeAll) 
+
+    if (executeAll)
       consola.info(
         '🚀 AUTO EXECUTE mode - all pending operations will be executed automatically'
       )
-    
-    if (rejectAll) 
+
+    if (rejectAll)
       consola.info(
         '❌ AUTO REJECT mode - all pending operations will be cancelled automatically'
       )
-    
 
     if (!privateKey) {
       consola.error(
@@ -157,12 +156,12 @@ const cmd = defineCommand({
         process.exit(1)
       }
       networksToProcess = [network]
-    } else 
-      // Use all active networks
+    }
+    // Use all active networks
+    else
       networksToProcess = Object.values(networksConfig).filter(
         (network) => network.status === 'active'
       )
-    
 
     consola.info(
       `🔍 Processing ${networksToProcess.length} network${
@@ -170,12 +169,11 @@ const cmd = defineCommand({
       }${args?.network ? ` (${args.network})` : ''}`
     )
 
-    if (isDryRun) 
+    if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
-    
 
     // Process each network
-    for (const network of networksToProcess) 
+    for (const network of networksToProcess)
       try {
         await processNetwork(
           network,
@@ -188,7 +186,6 @@ const cmd = defineCommand({
       } catch (error) {
         consola.error(`Error processing network ${network.name}:`, error)
       }
-    
   },
 })
 
@@ -259,8 +256,8 @@ async function processNetwork(
     )
 
     // Execute or reject each ready operation
-    for (const operation of pendingOperations) 
-      if (rejectAll) 
+    for (const operation of pendingOperations)
+      if (rejectAll)
         await rejectOperation(
           publicClient,
           walletClient,
@@ -268,7 +265,7 @@ async function processNetwork(
           operation,
           isDryRun
         )
-       else {
+      else {
         // Determine if we should use interactive mode
         const isInteractive = !executeAll && !rejectAll
 
@@ -283,11 +280,8 @@ async function processNetwork(
         )
 
         // Log the result for interactive mode
-        if (isInteractive) 
-          consola.info(`Operation ${operation.id}: ${result}`)
-        
+        if (isInteractive) consola.info(`Operation ${operation.id}: ${result}`)
       }
-    
   } catch (error) {
     consola.error(`Error reading deployment data for ${network.name}:`, error)
   }
@@ -502,29 +496,27 @@ async function getPendingOperations(
             '0x0000000000000000000000000000000000000000000000000000000000000000',
           delay: event.args.delay || 0n,
         })
-      } else 
+      } else
         consola.info(
           `⏰ Operation ${operationId} not ready yet (${formatTimeRemaining(
             remainingTime
           )} remaining)`
         )
-      
     }
   }
 
-  if (includeNotReady) 
+  if (includeNotReady)
     consola.info(
       `🚀 Found ${readyOperations.length} operation${
         readyOperations.length === 1 ? '' : 's'
       } to cancel`
     )
-   else 
+  else
     consola.info(
       `🚀 Found ${readyOperations.length} operation${
         readyOperations.length === 1 ? '' : 's'
       } ready to execute`
     )
-  
 
   return readyOperations
 }
@@ -557,13 +549,11 @@ async function getOperationDetailsFromEvents(
     toBlock: 'latest',
   })
 
-  if (scheduledEvents.length === 0) 
-    return null
-  
+  if (scheduledEvents.length === 0) return null
 
   const event = scheduledEvents[0]
 
-  if (event) 
+  if (event)
     return {
       id: operationId,
       target: event.args.target || '0x0',
@@ -575,7 +565,6 @@ async function getOperationDetailsFromEvents(
         '0x0000000000000000000000000000000000000000000000000000000000000000',
       delay: event.args.delay || 0n,
     }
-  
 
   return null
 }
@@ -632,9 +621,7 @@ async function executeOperation(
   try {
     // Try to decode the function call
     const functionName = await decodeFunctionCall(operation.data)
-    if (functionName) 
-      consola.info(`   Function: ${functionName}`)
-    
+    if (functionName) consola.info(`   Function: ${functionName}`)
 
     // Get the salt from CallSalt event
     const saltEvents = await publicClient.getLogs({
@@ -655,15 +642,14 @@ async function executeOperation(
     })
 
     let salt: Hex
-    if (saltEvents.length > 0) 
+    if (saltEvents.length > 0)
       salt =
         saltEvents[0]?.args.salt ||
         '0x0000000000000000000000000000000000000000000000000000000000000000'
-     else 
-      // If no CallSalt event found, the salt was likely bytes32(0)
+    // If no CallSalt event found, the salt was likely bytes32(0)
+    else
       salt =
         '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
-    
 
     if (isDryRun) {
       // Simulate the transaction
@@ -710,11 +696,9 @@ async function executeOperation(
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success') 
+      if (receipt.status === 'success')
         consola.success(`✅ Operation ${operation.id} executed successfully`)
-       else 
-        consola.error(`❌ Transaction failed for operation ${operation.id}`)
-      
+      else consola.error(`❌ Transaction failed for operation ${operation.id}`)
     }
 
     return 'executed'
@@ -747,9 +731,7 @@ async function rejectOperation(
   try {
     // Try to decode the function call
     const functionName = await decodeFunctionCall(operation.data)
-    if (functionName) 
-      consola.info(`   Function: ${functionName}`)
-    
+    if (functionName) consola.info(`   Function: ${functionName}`)
 
     if (isDryRun) {
       // Simulate the cancellation
@@ -784,11 +766,9 @@ async function rejectOperation(
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success') 
+      if (receipt.status === 'success')
         consola.success(`✅ Operation ${operation.id} cancelled successfully`)
-       else 
-        consola.error(`❌ Cancellation failed for operation ${operation.id}`)
-      
+      else consola.error(`❌ Cancellation failed for operation ${operation.id}`)
     }
   } catch (error) {
     consola.error(`Failed to cancel operation ${operation.id}:`, error)
@@ -828,9 +808,8 @@ async function decodeFunctionCall(data: Hex): Promise<string | null> {
       responseData.result &&
       responseData.result.function &&
       responseData.result.function[selector]
-    ) 
+    )
       return responseData.result.function[selector][0].name
-    
 
     return null
   } catch (error) {
