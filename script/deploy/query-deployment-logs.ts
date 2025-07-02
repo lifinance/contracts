@@ -46,20 +46,20 @@ const config: IConfig = {
 
 class DeploymentLogQuerier {
   private client: MongoClient
-  private db: Db
-  private collection: Collection<IDeploymentRecord>
+  private db!: Db
+  private collection!: Collection<IDeploymentRecord>
 
   public constructor(
     private config: IConfig,
     private environment: 'staging' | 'production'
   ) {
-    this.client = new MongoClient(config.mongoUri)
+    this.client = new MongoClient(this.config.mongoUri)
   }
 
   public async connect(): Promise<void> {
     try {
       await this.client.connect()
-      this.db = this.client.db(config.databaseName)
+      this.db = this.client.db(this.config.databaseName)
       const collectionName = this.environment
       this.collection = this.db.collection<IDeploymentRecord>(collectionName)
       consola.info(`Connected to MongoDB collection: ${collectionName}`)
@@ -206,11 +206,22 @@ const latestCommand = defineCommand({
       description: 'Network name',
       required: true,
     },
+    format: {
+      type: 'string',
+      description: 'Output format (json or table)',
+      default: 'json',
+    },
   },
   async run({ args }) {
     // Validate environment
     if (args.env !== 'staging' && args.env !== 'production') {
       consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    // Validate format
+    if (args.format !== 'json' && args.format !== 'table') {
+      consola.error('Format must be either "json" or "table"')
       process.exit(1)
     }
 
@@ -226,8 +237,15 @@ const latestCommand = defineCommand({
         args.network
       )
 
-      if (deployment) outputJSON(deployment)
-      else process.exit(1)
+      if (deployment) 
+        if (args.format === 'table') 
+          console.log(formatDeployment(deployment))
+         else 
+          outputJSON(deployment)
+        
+       else 
+        process.exit(1)
+      
     } catch (error) {
       consola.error('Query failed:', error)
       process.exit(1)
@@ -269,11 +287,22 @@ const listCommand = defineCommand({
       description: 'Page number (default: 1)',
       required: false,
     },
+    format: {
+      type: 'string',
+      description: 'Output format (json or table)',
+      default: 'json',
+    },
   },
   async run({ args }) {
     // Validate environment
     if (args.env !== 'staging' && args.env !== 'production') {
       consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    // Validate format
+    if (args.format !== 'json' && args.format !== 'table') {
+      consola.error('Format must be either "json" or "table"')
       process.exit(1)
     }
 
@@ -293,19 +322,35 @@ const listCommand = defineCommand({
         page
       )
 
-      if (result.data.length > 0) {
-        consola.success(
-          `Found ${result.data.length} deployment(s) (Page ${result.pagination.page} of ${result.pagination.totalPages}, Total: ${result.pagination.total}):`
-        )
-        result.data.forEach((deployment) => {
-          console.log(formatDeployment(deployment))
-        })
-
-        if (result.pagination.hasNext)
-          consola.info(
-            `Use --page ${result.pagination.page + 1} to see more results`
+      if (result.data.length > 0) 
+        if (args.format === 'table') {
+          consola.success(
+            `Found ${result.data.length} deployment(s) (Page ${result.pagination.page} of ${result.pagination.totalPages}, Total: ${result.pagination.total}):`
           )
-      } else consola.warn('No deployments found matching criteria')
+          result.data.forEach((deployment) => {
+            console.log(formatDeployment(deployment))
+          })
+
+          if (result.pagination.hasNext)
+            consola.info(
+              `Use --page ${result.pagination.page + 1} to see more results`
+            )
+        } else 
+          outputJSON({
+            data: result.data,
+            pagination: result.pagination,
+          })
+        
+       else 
+        if (args.format === 'table') 
+          consola.warn('No deployments found matching criteria')
+         else 
+          outputJSON({
+            data: [],
+            pagination: result.pagination,
+          })
+        
+      
     } catch (error) {
       consola.error('Query failed:', error)
       process.exit(1)
@@ -332,11 +377,22 @@ const findCommand = defineCommand({
       description: 'Contract address',
       required: true,
     },
+    format: {
+      type: 'string',
+      description: 'Output format (json or table)',
+      default: 'json',
+    },
   },
   async run({ args }) {
     // Validate environment
     if (args.env !== 'staging' && args.env !== 'production') {
       consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    // Validate format
+    if (args.format !== 'json' && args.format !== 'table') {
+      consola.error('Format must be either "json" or "table"')
       process.exit(1)
     }
 
@@ -349,8 +405,15 @@ const findCommand = defineCommand({
       await querier.connect()
       const deployment = await querier.findByAddress(args.address)
 
-      if (deployment) outputJSON(deployment)
-      else process.exit(1)
+      if (deployment) 
+        if (args.format === 'table') 
+          console.log(formatDeployment(deployment))
+         else 
+          outputJSON(deployment)
+        
+       else 
+        process.exit(1)
+      
     } catch (error) {
       consola.error('Query failed:', error)
       process.exit(1)
@@ -398,11 +461,22 @@ const filterCommand = defineCommand({
       description: 'Maximum number of results (default: 50)',
       required: false,
     },
+    format: {
+      type: 'string',
+      description: 'Output format (json or table)',
+      default: 'json',
+    },
   },
   async run({ args }) {
     // Validate environment
     if (args.env !== 'staging' && args.env !== 'production') {
       consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    // Validate format
+    if (args.format !== 'json' && args.format !== 'table') {
+      consola.error('Format must be either "json" or "table"')
       process.exit(1)
     }
 
@@ -423,12 +497,22 @@ const filterCommand = defineCommand({
       await querier.connect()
       const deployments = await querier.filterDeployments(filters)
 
-      if (deployments.length > 0) {
-        consola.success(`Found ${deployments.length} deployment(s):`)
-        deployments.forEach((deployment) => {
-          console.log(formatDeployment(deployment))
-        })
-      } else consola.warn('No deployments found matching criteria')
+      if (deployments.length > 0) 
+        if (args.format === 'table') {
+          consola.success(`Found ${deployments.length} deployment(s):`)
+          deployments.forEach((deployment) => {
+            console.log(formatDeployment(deployment))
+          })
+        } else 
+          outputJSON(deployments)
+        
+       else 
+        if (args.format === 'table') 
+          consola.warn('No deployments found matching criteria')
+         else 
+          outputJSON([])
+        
+      
     } catch (error) {
       consola.error('Query failed:', error)
       process.exit(1)
@@ -460,6 +544,11 @@ const historyCommand = defineCommand({
       description: 'Network name',
       required: true,
     },
+    format: {
+      type: 'string',
+      description: 'Output format (json or table)',
+      default: 'json',
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -467,6 +556,13 @@ const historyCommand = defineCommand({
       consola.error('Environment must be either "staging" or "production"')
       process.exit(1)
     }
+
+    // Validate format
+    if (args.format !== 'json' && args.format !== 'table') {
+      consola.error('Format must be either "json" or "table"')
+      process.exit(1)
+    }
+
     const querier = new DeploymentLogQuerier(
       config,
       args.env as 'staging' | 'production'
@@ -479,8 +575,18 @@ const historyCommand = defineCommand({
         args.network
       )
 
-      if (deployments.length > 0) outputJSON(deployments)
-      else process.exit(1)
+      if (deployments.length > 0) 
+        if (args.format === 'table') {
+          consola.success(`Found ${deployments.length} deployment(s):`)
+          deployments.forEach((deployment) => {
+            console.log(formatDeployment(deployment))
+          })
+        } else 
+          outputJSON(deployments)
+        
+       else 
+        process.exit(1)
+      
     } catch (error) {
       consola.error('Query failed:', error)
       process.exit(1)
@@ -578,11 +684,22 @@ const getCommand = defineCommand({
       description: 'Contract version',
       required: true,
     },
+    format: {
+      type: 'string',
+      description: 'Output format (json or table)',
+      default: 'json',
+    },
   },
   async run({ args }) {
     // Validate environment
     if (args.env !== 'staging' && args.env !== 'production') {
       consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    // Validate format
+    if (args.format !== 'json' && args.format !== 'table') {
+      consola.error('Format must be either "json" or "table"')
       process.exit(1)
     }
 
@@ -603,9 +720,13 @@ const getCommand = defineCommand({
       if (deployments.length === 0) process.exit(1)
 
       const deployment = deployments[0]
+      if (!deployment) process.exit(1)
 
-      // Always output as JSON
-      console.log(JSON.stringify(deployment, null, 2))
+      if (args.format === 'table') 
+        console.log(formatDeployment(deployment))
+       else 
+        console.log(JSON.stringify(deployment, null, 2))
+      
     } catch (error) {
       process.exit(1)
     } finally {

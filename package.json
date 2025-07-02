@@ -89,7 +89,7 @@
     "mongo-logs:update": "bun script/deploy/update-deployment-logs.ts update",
     "mongo-logs:query": "bun script/deploy/query-deployment-logs.ts",
     "mongo-logs:latest": "bun script/deploy/query-deployment-logs.ts latest",
-    "mongo-logs:list": "bun script/deploy/query-deployment-logs.ts list",
+    "mongo-logs:list": "bun script/deploy/query-deployment-logs.ts list --format table",
     "mongo-logs:find": "bun script/deploy/query-deployment-logs.ts find",
     "mongo-logs:exists": "bun script/deploy/query-deployment-logs.ts exists",
     "mongo-logs:get": "bun script/deploy/query-deployment-logs.ts get",
