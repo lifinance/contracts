@@ -445,7 +445,7 @@
   "hyperevm": {
     "name": "hyperevm",
     "chainId": 999,
-    "nativeAddress": "0x2222222222222222222222222222222222222222",
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "HYPE",
     "wrappedNativeAddress": "0x5555555555555555555555555555555555555555",
     "status": "active",
