@@ -8,19 +8,20 @@
 
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
+import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
 import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  http,
+  parseAbi,
+  toFunctionSelector,
   type Account,
   type Address,
   type Chain,
   type Hex,
   type PublicClient,
   type WalletClient,
-  createPublicClient,
-  createWalletClient,
-  encodeFunctionData,
-  http,
-  toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
