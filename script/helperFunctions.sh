@@ -156,6 +156,43 @@ function logContractDeploymentInfo {
   fi
 
   echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+
+  # Also log to MongoDB if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "logging to MongoDB as well"
+    
+    # Build MongoDB command as array for safe execution
+    local MONGO_CMD=(
+      bun script/deploy/update-deployment-logs.ts add
+      --env "$ENVIRONMENT"
+      --contract "$CONTRACT"
+      --network "$NETWORK"
+      --version "$VERSION"
+      --address "$ADDRESS"
+      --optimizer-runs "$OPTIMIZER_RUNS"
+      --timestamp "$TIMESTAMP"
+      --constructor-args "$CONSTRUCTOR_ARGS"
+      --verified "$VERIFIED"
+    )
+
+    # Add optional salt parameter if provided
+    if [[ -n "$SALT" ]]; then
+      MONGO_CMD+=(--salt "$SALT")
+    fi
+
+    # Execute MongoDB logging command – keep stderr in debug mode
+    if [[ "$DEBUG" == "true" ]]; then
+      "${MONGO_CMD[@]}"
+    else
+      "${MONGO_CMD[@]}" 2>/dev/null
+    fi
+
+    if [[ $? -eq 0 ]]; then
+      echoDebug "contract deployment info added to MongoDB (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+    else
+      echoDebug "MongoDB logging failed but continuing deployment (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+    fi
+  fi
 } # will replace, if entry exists already
 function getBytecodeFromLog() {
 
@@ -240,12 +277,29 @@ function checkIfJSONContainsEntry {
   fi
 }
 function findContractInMasterLog() {
-  # read function arguments into variables
   local CONTRACT="$1"
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    local MONGO_EXIT_CODE=$?
+    if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that the result is valid JSON before returning it
+      if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
+        echo "$MONGO_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB result is not valid JSON, falling back to JSON file"
+      fi
+    else
+      echoDebug "MongoDB query failed, falling back to JSON file"
+    fi
+  fi
+
+  # Fallback to original JSON file method
   local FOUND=false
 
   # Check if log file exists
@@ -284,11 +338,41 @@ function findContractInMasterLog() {
   exit 0
 }
 function findContractInMasterLogByAddress() {
-  # read function arguments into variables
-  NETWORK="$1"
-  ENVIRONMENT="$2"
-  TARGET_ADDRESS="$3"
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET_ADDRESS="$3"
 
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
+    local MONGO_RESULT
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env "$ENVIRONMENT" \
+      --address "$TARGET_ADDRESS" 2>/dev/null)
+    local MONGO_EXIT=$?
+
+    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that MONGO_RESULT is valid JSON
+      if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+        echoDebug "MongoDB returned invalid JSON, skipping: $MONGO_RESULT"
+        echoDebug "MongoDB query failed, falling back to JSON file"
+      else
+        # Convert MongoDB result to expected format
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+        
+        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+          echo "$JSON_ENTRY"
+          return 0
+        fi
+      fi
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
   # Check if log file exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
     error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
@@ -326,12 +410,32 @@ function findContractInMasterLogByAddress() {
   exit 1
 }
 function getContractVersionFromMasterLog() {
-  # read function arguments into variables
-  local NETWORK=$1
-  local ENVIRONMENT=$2
-  local CONTRACT=$3
-  local TARGET_ADDRESS=$4
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT="$3"
+  local TARGET_ADDRESS="$4"
 
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
+    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env="$ENVIRONMENT" \
+      --network="$NETWORK" \
+      --address="$TARGET_ADDRESS" 2>/dev/null)
+    
+    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+      local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+      local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+      
+      if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
+        echo "$VERSION"
+        return 0
+      fi
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
   # special handling for CelerIMFacet
   if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
     CONTRACT="CelerIMFacet"
@@ -366,14 +470,33 @@ function getContractVersionFromMasterLog() {
 
   # no matching entry found
   return 1
-
 }
 function getHighestDeployedContractVersionFromMasterLog() {
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  CONTRACT=$3
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT="$3"
 
+  # Try MongoDB first if enabled
+  if isMongoLoggingEnabled; then
+    echoDebug "Trying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT"
+    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+      --env="$ENVIRONMENT" \
+      --contract="$CONTRACT" \
+      --network="$NETWORK" \
+      --limit=50 2>/dev/null)
+    
+    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Extract all versions and find the highest one
+      local VERSIONS=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
+      if [[ -n "$VERSIONS" && "$VERSIONS" != "null" ]]; then
+        echo "$VERSIONS"
+        return 0
+      fi
+    fi
+    echoDebug "MongoDB query failed, falling back to JSON file"
+  fi
+
+  # Fallback to original JSON file method
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
@@ -404,8 +527,78 @@ function getHighestDeployedContractVersionFromMasterLog() {
 
   # no matching entry found
   return 1
-
 }
+# >>>>> MongoDB logging integration
+function isMongoLoggingEnabled() {
+  # Check if MongoDB logging is enabled via environment variable
+  if [[ "$ENABLE_MONGODB_LOGGING" == "true" && -n "$MONGODB_URI" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+
+function queryMongoDeployment() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+
+  bun script/deploy/query-deployment-logs.ts get \
+    --env "$ENVIRONMENT" \
+    --contract "$CONTRACT" \
+    --network "$NETWORK" \
+    --version "$VERSION" 2>/dev/null
+  return $?
+}
+
+function checkMongoDeploymentExists() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+
+  bun script/deploy/query-deployment-logs.ts exists \
+    --env="$ENVIRONMENT" \
+    --contract="$CONTRACT" \
+    --network="$NETWORK" \
+    --version="$VERSION" 2>/dev/null
+  return $?
+}
+
+function getLatestMongoDeployment() {
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+
+  bun script/deploy/query-deployment-logs.ts latest \
+    --env="$ENVIRONMENT" \
+    --contract="$CONTRACT" \
+    --network="$NETWORK" 2>/dev/null
+  return $?
+}
+
+
+
+
+
+
+
+
+
+function getUnverifiedContractsFromMongo() {
+  local ENVIRONMENT="$1"
+
+  echoDebug "Getting unverified contracts from MongoDB"
+  bun script/deploy/query-deployment-logs.ts filter \
+    --env="$ENVIRONMENT" \
+    --verified=false \
+    --limit=1000 2>/dev/null
+  return $?
+}
+# <<<<< MongoDB logging integration
+
 # <<<<< logging
 
 # >>>>> reading and manipulation of deployment log files
@@ -1455,20 +1648,38 @@ function verifyContract() {
   echoDebug "FULL_PATH=$FULL_PATH"
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
-  # Build base verification command
-  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
+  # Build verification command as array for safe execution
+  local VERIFY_CMD=()
+  
+  # Handle zkEVM networks vs regular networks
+  if isZkEvmNetwork "$NETWORK"; then
+    # Set environment variable for zkEVM
+    export FOUNDRY_PROFILE=zksync
+    VERIFY_CMD=(
+      "./foundry-zksync/forge"
+      "verify-contract"
+      "--zksync"
+      "--watch"
+      "--chain" "$CHAIN_ID"
+      "$ADDRESS"
+      "$FULL_PATH"
+      "--skip-is-verified-check"
+    )
+  else
+    VERIFY_CMD=(
+      "forge"
+      "verify-contract"
+      "--watch"
+      "--chain" "$CHAIN_ID"
+      "$ADDRESS"
+      "$FULL_PATH"
+      "--skip-is-verified-check"
+    )
+  fi
 
   # Add constructor args if present
   if [ "$ARGS" != "0x" ]; then
-    VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-  fi
-
-  # Handle zkEVM networks
-  if isZkEvmNetwork "$NETWORK"; then
-    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-    if [ "$ARGS" != "0x" ]; then
-      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-    fi
+    VERIFY_CMD+=("--constructor-args" "$ARGS")
   fi
 
   # Get API key and determine verification method
@@ -1478,9 +1689,9 @@ function verifyContract() {
     return 1
   fi
 
-  # determine verification method based on API key
+  # Add verification method based on API key
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
-    VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
+    VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
@@ -1488,13 +1699,13 @@ function verifyContract() {
       return 1
     fi
     # add API key to verification command
-    VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
+    VERIFY_CMD+=("-e" "${!API_KEY}")
   fi
 
   # Attempt verification with retries
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # execute verification command
-    eval "$VERIFY_CMD"
+    # execute verification command safely
+    "${VERIFY_CMD[@]}"
     COMMAND_STATUS=$?
 
     # increase retry counter
@@ -1687,10 +1898,11 @@ function removeFacetFromDiamond() {
   # go through list of facet selectors and find out which of those is known by the diamond
   for SELECTOR in $FUNCTION_SELECTORS; do
     # get address of facet in diamond
-    local FACET_ADDRESS=$(getFacetAddressFromSelector "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$SELECTOR")
+    FACET_ADDRESS=$(getFacetAddressFromSelector "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$SELECTOR")
+    local FACET_EXIT_CODE=$?
 
     # check if facet address could be obtained
-    if [[ $? -ne 0 ]]; then
+    if [[ $FACET_EXIT_CODE -ne 0 ]]; then
       # display error message
       echo "$FACET_ADDRESS"
       # exit script
@@ -2519,8 +2731,9 @@ function doesDiamondHaveCoreFacetsRegistered() {
 
 
   # get a list of all facets that the diamond knows
-  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
-  if [ $? -ne 0 ]; then
+  KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
+  local CAST_EXIT_CODE=$?
+  if [ $CAST_EXIT_CODE -ne 0 ]; then
     echoDebug "not all core facets are registered in the diamond"
     return 1
   fi
@@ -2745,10 +2958,11 @@ function getContractOwner() {
   rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
-  local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  local ADDRESS_EXIT_CODE=$?
 
   # check if address was found
-  if [[ $? -ne 0 || -z $address ]]; then
+  if [[ $ADDRESS_EXIT_CODE -ne 0 || -z $address ]]; then
     echoDebug "could not find address of '$contract' in network-specific deploy log"
     return 1
   fi
@@ -2774,10 +2988,11 @@ function getPendingContractOwner() {
   rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
 
   # get contract address
-  local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+  local ADDRESS_EXIT_CODE=$?
 
   # check if address was found
-  if [[ $? -ne 0 || -z $address ]]; then
+  if [[ $ADDRESS_EXIT_CODE -ne 0 || -z $address ]]; then
     echoDebug "could not find address of '$contract' in network-specific deploy log"
     return 1
   fi
