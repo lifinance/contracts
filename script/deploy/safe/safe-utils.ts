@@ -6,6 +6,9 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
+
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
@@ -1190,9 +1193,25 @@ export async function wrapWithTimelockSchedule(
     })
   } catch (error) {
     consola.warn(
-      'Failed to get minimum delay from timelock, using default 1 hour'
+      'Failed to get minimum delay from timelock, reading from config file'
     )
-    minDelay = 3600n // Default to 1 hour
+
+    // Read from config file as fallback
+    try {
+      const configPath = path.join(
+        process.cwd(),
+        'config',
+        'timelockcontroller.json'
+      )
+      const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      minDelay = BigInt(configData.minDelay || 3600)
+      consola.info(`Using minimum delay from config: ${minDelay} seconds`)
+    } catch (configError) {
+      consola.warn(
+        'Failed to read timelockController.json config file, using default 1 hour'
+      )
+      minDelay = 3600n // Default to 1 hour
+    }
   }
 
   // Create a unique salt based on the current timestamp
