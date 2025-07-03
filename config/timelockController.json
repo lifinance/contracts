@@ -1,0 +1,4 @@
+{
+  "minDelay": 10800,
+  "description": "Timelock controller configuration - minimum delay in seconds (fallback when contract call fails)"
+}

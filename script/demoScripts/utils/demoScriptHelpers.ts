@@ -3,15 +3,15 @@ import { fileURLToPath } from 'url'
 
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
 import { config } from 'dotenv'
-import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
+import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
 import {
   createPublicClient,
   createWalletClient,
+  formatEther,
+  formatUnits,
   getContract,
   http,
   parseAbi,
-  formatEther,
-  formatUnits,
   zeroAddress,
   type Narrow,
 } from 'viem'
@@ -20,7 +20,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
-import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { IEnvironmentEnum, type SupportedChain } from '../../common/types'
 import { node_url } from '../../utils/network'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
@@ -606,11 +606,11 @@ const getRpcUrl = (chain: SupportedChain) => {
  */
 export const getDeployments = async (
   chain: SupportedChain,
-  environment: EnvironmentEnum = EnvironmentEnum.staging
+  environment: IEnvironmentEnum = IEnvironmentEnum.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === EnvironmentEnum.production
+    environment === IEnvironmentEnum.production
       ? `${chain}.json`
       : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../../deployments/${fileName}`)
@@ -634,7 +634,7 @@ export const getDeployments = async (
 export const setupEnvironment = async (
   chain: SupportedChain,
   facetAbi: Narrow<readonly any[]> | null,
-  environment: EnvironmentEnum = EnvironmentEnum.staging,
+  environment: IEnvironmentEnum = IEnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {
   // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
@@ -894,9 +894,9 @@ export function parseAmountToHumanReadable(
 }
 
 export const getPrivateKeyForEnvironment = (
-  environment: EnvironmentEnum
+  environment: IEnvironmentEnum
 ): string => {
-  return environment === EnvironmentEnum.production
+  return environment === IEnvironmentEnum.production
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }
