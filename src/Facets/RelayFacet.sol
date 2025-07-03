@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -16,8 +16,10 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 /// @custom:version 1.0.0
 contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // Receiver for native transfers
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable relayReceiver;
     // Relayer wallet for ERC20 transfers
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable relaySolver;
 
     /// Storage ///

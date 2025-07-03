@@ -179,6 +179,15 @@
       }
     }
   },
+  "GenericSwapFacetV3": {
+    "configData": {
+      "_nativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.nativeAddress",
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
+  },
   "GnosisBridgeFacet": {
     "configData": {
       "_xDaiBridge": {
