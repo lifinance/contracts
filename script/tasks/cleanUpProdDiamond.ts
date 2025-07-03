@@ -4,8 +4,8 @@
  * Purpose:
  *   - Remove facet(s) or unregister periphery contract(s) from the LiFiDiamond contract
  *   - Supports both interactive and headless CLI modes
- *   - In production, or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true in .env, it proposes calldata to our Safe (using SAFE_SIGNER_PRIVATE_KEY from .env)
- *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND!=true (or not set), it sends the transaction directly to the diamond (using PRIVATE_KEY from .env)
+ *   - In production, or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND==false in .env, it proposes timelock-wrapped calldata to our Safe (using SAFE_SIGNER_PRIVATE_KEY from .env)
+ *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND==true, it sends the transaction directly to the diamond (using PRIVATE_KEY from .env), no wrapping in timelock calldata
  *
  * Usage without parameters:
  *  bun script/tasks/cleanUpProdDiamond.ts
@@ -54,45 +54,75 @@ async function prepareTimelockCalldata(
   environment: IEnvironmentEnum
 ): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
   const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+  const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
 
-  if (!useTimelock || environment !== IEnvironmentEnum.production)
-    // Use diamond directly
-    return {
-      targetAddress: diamondAddress,
-      calldata: originalCalldata,
-    }
-
-  // Get timelock controller address from deployment logs
-  const timelockAddress = await getContractAddressForNetwork(
-    'LiFiTimelockController',
-    network as SupportedChain,
-    environment
-  )
-
-  if (!timelockAddress || timelockAddress === '0x') {
-    consola.warn(
-      'USE_TIMELOCK_CONTROLLER=true but no LiFiTimelockController found in deployment logs'
+  // Determine which option will be chosen
+  if (environment === IEnvironmentEnum.staging || sendDirectly) {
+    consola.info(
+      '🔧 Option chosen: Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
     )
+    consola.info('📤 Final calldata (direct to diamond):')
+    consola.info(originalCalldata)
     return {
       targetAddress: diamondAddress,
       calldata: originalCalldata,
     }
   }
 
-  consola.info(`Using timelock controller at ${timelockAddress} for operation`)
+  // Production environment - check if timelock should be used
+  if (useTimelock) {
+    consola.info(
+      '🔧 Option chosen: Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+    )
 
-  // Use the existing wrapWithTimelockSchedule helper function
-  const wrappedTransaction = await wrapWithTimelockSchedule(
-    network,
-    '', // rpcUrl will be determined by the helper function
-    timelockAddress as `0x${string}`,
-    diamondAddress as `0x${string}`,
-    originalCalldata
-  )
+    // Get timelock controller address from deployment logs
+    const timelockAddress = await getContractAddressForNetwork(
+      'LiFiTimelockController',
+      network as SupportedChain,
+      IEnvironmentEnum.production // Timelock is always in production deployments
+    )
 
-  return {
-    targetAddress: wrappedTransaction.targetAddress,
-    calldata: wrappedTransaction.calldata,
+    if (!timelockAddress || timelockAddress === '0x') {
+      consola.warn(
+        'USE_TIMELOCK_CONTROLLER=true but no LiFiTimelockController found in deployment logs'
+      )
+      consola.info('📤 Final calldata (direct to diamond, no timelock):')
+      consola.info(originalCalldata)
+      return {
+        targetAddress: diamondAddress,
+        calldata: originalCalldata,
+      }
+    }
+
+    consola.info(
+      `⏰ Using timelock controller at ${timelockAddress} for operation`
+    )
+
+    // Use the existing wrapWithTimelockSchedule helper function
+    const wrappedTransaction = await wrapWithTimelockSchedule(
+      network,
+      '', // rpcUrl will be determined by the helper function
+      timelockAddress as `0x${string}`,
+      diamondAddress as `0x${string}`,
+      originalCalldata
+    )
+
+    consola.info(`✅ Transaction wrapped in timelock schedule`)
+
+    return {
+      targetAddress: wrappedTransaction.targetAddress,
+      calldata: wrappedTransaction.calldata,
+    }
+  } else {
+    consola.info(
+      '🔧 Option chosen: Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+    )
+    consola.info('📤 Final calldata (direct to diamond via Safe):')
+    consola.info(originalCalldata)
+    return {
+      targetAddress: diamondAddress,
+      calldata: originalCalldata,
+    }
   }
 }
 
@@ -186,6 +216,38 @@ const command = defineCommand({
 
       consola.info(`📦 Built calldata to remove ${facetNames.length} facets`)
 
+      // Show environment variables and decision logic
+      consola.log('\n🔧 Environment Configuration:')
+      consola.log(`   Environment: ${environment}`)
+      consola.log(
+        `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
+          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
+        }`
+      )
+      consola.log(
+        `   USE_TIMELOCK_CONTROLLER: ${
+          process.env.USE_TIMELOCK_CONTROLLER || 'false'
+        }`
+      )
+
+      // Determine which option will be chosen
+      const sendDirectly =
+        process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+      const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+      let executionMode = ''
+      if (environment === 'staging' || sendDirectly)
+        executionMode =
+          'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+      else if (useTimelock)
+        executionMode =
+          'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+      else
+        executionMode =
+          'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+
+      consola.log(`   Execution Mode: ${executionMode}`)
+
       // Prepare calldata for timelock if needed
       const { targetAddress, calldata: finalCalldata } =
         await prepareTimelockCalldata(
@@ -194,6 +256,9 @@ const command = defineCommand({
           network,
           typedEnv
         )
+
+      consola.log('\n📦 Final Calldata:')
+      consola.log(finalCalldata)
 
       await sendOrPropose({
         calldata: finalCalldata,
@@ -217,6 +282,38 @@ const command = defineCommand({
 
         consola.info(`→ Removing periphery: ${name}`)
 
+        // Show environment variables and decision logic
+        consola.log('\n🔧 Environment Configuration:')
+        consola.log(`   Environment: ${environment}`)
+        consola.log(
+          `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
+            process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
+          }`
+        )
+        consola.log(
+          `   USE_TIMELOCK_CONTROLLER: ${
+            process.env.USE_TIMELOCK_CONTROLLER || 'false'
+          }`
+        )
+
+        // Determine which option will be chosen
+        const sendDirectly =
+          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+        const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+        let executionMode = ''
+        if (environment === 'staging' || sendDirectly)
+          executionMode =
+            'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+        else if (useTimelock)
+          executionMode =
+            'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+        else
+          executionMode =
+            'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+
+        consola.log(`   Execution Mode: ${executionMode}`)
+
         // Prepare calldata for timelock if needed
         const { targetAddress, calldata: finalCalldata } =
           await prepareTimelockCalldata(
@@ -225,6 +322,9 @@ const command = defineCommand({
             network,
             typedEnv
           )
+
+        consola.log('\n📦 Final Calldata:')
+        consola.log(finalCalldata)
 
         // send it
         await sendOrPropose({
@@ -287,8 +387,49 @@ const command = defineCommand({
       // build the (combined) calldata for removal of all selected facets
       calldata = buildDiamondCutRemoveCalldata(facetDefs)
 
-      consola.log('\n📦 Calldata:')
-      consola.log(calldata)
+      // Show environment variables and decision logic before confirmation
+      consola.log('\n🔧 Environment Configuration:')
+      consola.log(`   Environment: ${environment}`)
+      consola.log(
+        `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
+          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
+        }`
+      )
+      consola.log(
+        `   USE_TIMELOCK_CONTROLLER: ${
+          process.env.USE_TIMELOCK_CONTROLLER || 'false'
+        }`
+      )
+
+      // Determine which option will be chosen
+      const sendDirectly =
+        process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+      const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+      let executionMode = ''
+      if (environment === 'staging' || sendDirectly)
+        executionMode =
+          'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+      else if (useTimelock)
+        executionMode =
+          'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+      else
+        executionMode =
+          'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+
+      consola.log(`   Execution Mode: ${executionMode}`)
+
+      // Prepare calldata for timelock if needed
+      const { targetAddress, calldata: finalCalldata } =
+        await prepareTimelockCalldata(
+          calldata,
+          diamondAddress,
+          network,
+          typedEnv
+        )
+
+      consola.log('\n📦 Final Calldata:')
+      consola.log(finalCalldata)
 
       const confirm = await consola.prompt('Send/propose this calldata?', {
         type: 'confirm',
@@ -296,23 +437,14 @@ const command = defineCommand({
       })
 
       // send/propose it if the user selected yes
-      if (confirm) {
-        // Prepare calldata for timelock if needed
-        const { targetAddress, calldata: finalCalldata } =
-          await prepareTimelockCalldata(
-            calldata,
-            diamondAddress,
-            network,
-            typedEnv
-          )
-
+      if (confirm)
         await sendOrPropose({
           calldata: finalCalldata,
           network,
           environment: typedEnv,
           diamondAddress: targetAddress,
         })
-      } else {
+      else {
         consola.info('Aborted.')
         process.exit(0)
       }
@@ -337,8 +469,45 @@ const command = defineCommand({
       // go through each contract, build the calldata and send/propose it
       for (const name of selected) {
         const data = buildUnregisterPeripheryCalldata(name)
-        consola.log(`\n📦 Calldata to unregister: ${name}`)
-        consola.log(data)
+
+        // Show environment variables and decision logic before confirmation
+        consola.log('\n🔧 Environment Configuration:')
+        consola.log(`   Environment: ${environment}`)
+        consola.log(
+          `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
+            process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
+          }`
+        )
+        consola.log(
+          `   USE_TIMELOCK_CONTROLLER: ${
+            process.env.USE_TIMELOCK_CONTROLLER || 'false'
+          }`
+        )
+
+        // Determine which option will be chosen
+        const sendDirectly =
+          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+        const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+        let executionMode = ''
+        if (environment === 'staging' || sendDirectly)
+          executionMode =
+            'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+        else if (useTimelock)
+          executionMode =
+            'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+        else
+          executionMode =
+            'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+
+        consola.log(`   Execution Mode: ${executionMode}`)
+
+        // Prepare calldata for timelock if needed
+        const { targetAddress, calldata: finalCalldata } =
+          await prepareTimelockCalldata(data, diamondAddress, network, typedEnv)
+
+        consola.log(`\n📦 Final Calldata to unregister: ${name}`)
+        consola.log(finalCalldata)
 
         const confirm = await consola.prompt(`Propose removal of ${name}?`, {
           type: 'confirm',
@@ -346,23 +515,13 @@ const command = defineCommand({
         })
 
         // send/propose it if the user selected yes
-        if (confirm) {
-          // Prepare calldata for timelock if needed
-          const { targetAddress, calldata: finalCalldata } =
-            await prepareTimelockCalldata(
-              data,
-              diamondAddress,
-              network,
-              typedEnv
-            )
-
+        if (confirm)
           await sendOrPropose({
             calldata: finalCalldata,
             network,
             environment: typedEnv,
             diamondAddress: targetAddress,
           })
-        }
       }
       return
     }
