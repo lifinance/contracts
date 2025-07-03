@@ -585,7 +585,7 @@ async function executeOperation(
   consola.info(`\n⚡ Processing operation: ${operation.id}`)
   consola.info(`   Target: ${operation.target}`)
   consola.info(`   Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`   Data: ${operation.data.substring(0, 42)}...`)
+  consola.info(`   Data: ${operation.data}`)
 
   // If interactive mode, show choice prompt
   if (interactive && !autoExecute) {
@@ -722,7 +722,7 @@ async function rejectOperation(
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
   consola.info(`   Target: ${operation.target}`)
   consola.info(`   Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`   Data: ${operation.data.substring(0, 42)}...`)
+  consola.info(`   Data: ${operation.data}`)
 
   try {
     // Try to decode the function call

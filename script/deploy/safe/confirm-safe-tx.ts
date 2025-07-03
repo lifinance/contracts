@@ -194,7 +194,7 @@ const processTxs = async (
       const exec = await safeClient.executeTransaction(safeTransaction)
       const executionHash = exec.hash
 
-      consola.success(`✅ Transaction confirmed as successful on-chain`)
+      consola.success(`✅ Transaction submitted successfully`)
 
       // Update MongoDB transaction status
       await pendingTransactions.updateOne(
@@ -202,9 +202,15 @@ const processTxs = async (
         { $set: { status: 'executed', executionHash: executionHash } }
       )
 
-      consola.success(
-        `✅ Safe transaction successfully executed and recorded in database`
-      )
+      if (exec.receipt) 
+        consola.success(
+          `✅ Safe transaction confirmed and recorded in database`
+        )
+       else 
+        consola.success(
+          `✅ Safe transaction submitted and recorded in database (confirmation pending)`
+        )
+      
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
