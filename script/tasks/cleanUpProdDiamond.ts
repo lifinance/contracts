@@ -107,8 +107,6 @@ async function prepareTimelockCalldata(
       originalCalldata
     )
 
-    consola.info(`✅ Transaction wrapped in timelock schedule`)
-
     return {
       targetAddress: wrappedTransaction.targetAddress,
       calldata: wrappedTransaction.calldata,
