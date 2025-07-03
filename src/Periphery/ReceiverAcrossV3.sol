@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibSwap } from "../Libraries/LibSwap.sol";
@@ -38,6 +38,7 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
         address _executor,
         address _spokepool
     ) WithdrawablePeriphery(_owner) {
+        // TODO: add constructor parameter validation on next contract update
         executor = IExecutor(_executor);
         spokepool = _spokepool;
     }
