@@ -48,8 +48,17 @@ Follow the folder structure to locate resources and generate or modify code in a
   **Exceptions:**
 
   - External dependencies (libraries, etc.)
-  - External contracts copied from other projects
-  - Contracts with a license that require the same license to be used when copying/modifying the contract
+  - External contracts copied from other projects: here we must retain the original license and add information from where we copied this contract
+
+  Example for how to mark a contract that
+
+  ```solidity
+  // SPDX-License-Identifier: MIT
+  // Modified from: https://github.com/nomad-xyz/ExcessivelySafeCall
+  // Original license: MIT OR Apache-2.0
+  // Modifications © 2025 LI.FI
+  pragma solidity ^0.8.17;
+  ```
 
 - **Design patterns:**
   - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard for facet-based architectures).
