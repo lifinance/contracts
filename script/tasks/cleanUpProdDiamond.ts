@@ -30,6 +30,7 @@ import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
   buildDiamondCutRemoveCalldata,
   buildUnregisterPeripheryCalldata,
+  castEnv,
   getAllActiveNetworks,
   getContractAddressForNetwork,
   getFunctionSelectors,
@@ -93,17 +94,6 @@ async function prepareTimelockCalldata(
     targetAddress: wrappedTransaction.targetAddress,
     calldata: wrappedTransaction.calldata,
   }
-}
-
-/**
- * Casts a string environment to IEnvironmentEnum
- * @param environment - The environment string
- * @returns IEnvironmentEnum value
- */
-function castEnv(environment: string): IEnvironmentEnum {
-  if (environment === 'production') return IEnvironmentEnum.production
-  if (environment === 'staging') return IEnvironmentEnum.staging
-  throw new Error(`Invalid environment: ${environment}`)
 }
 
 const command = defineCommand({

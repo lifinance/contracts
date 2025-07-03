@@ -259,6 +259,17 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
 }
 
 /**
+ * Casts a string environment to IEnvironmentEnum
+ * @param environment - The environment string
+ * @returns IEnvironmentEnum value
+ */
+export function castEnv(environment: string): IEnvironmentEnum {
+  if (environment === 'production') return IEnvironmentEnum.production
+  if (environment === 'staging') return IEnvironmentEnum.staging
+  throw new Error(`Invalid environment: ${environment}`)
+}
+
+/**
  * Helper function to display options in columns
  */
 function displayOptionsInColumns(options: string[], columns = 3): void {
