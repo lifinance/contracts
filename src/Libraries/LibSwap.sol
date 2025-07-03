@@ -7,7 +7,7 @@ import { InvalidContract, NoSwapFromZeroBalance } from "../Errors/GenericErrors.
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title LibSwap
-/// @custom:version 1.1.0
+/// @custom:version 1.1.1
 /// @notice This library contains functionality to execute mostly swaps but also
 ///         other calls such as fee collection, token wrapping/unwrapping or
 ///         sending gas to destination chain
