@@ -33397,6 +33397,20 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0xbb7c30Dc5AcE1A51940b202182c07D45e3e2Cba4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-03 16:54:45",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004f8c9056bb8a3616693a76922fa35d53c056e5b30000000000000000000000000000000000225e31d15943971f47ad3022f714fa000000000000000000000000257cbcdc7fcba79a83149c9d7160ef15a86fa39c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
