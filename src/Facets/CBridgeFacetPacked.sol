@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ICBridge } from "../Interfaces/ICBridge.sol";
@@ -6,6 +6,7 @@ import { CBridgeFacet } from "./CBridgeFacet.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+// solhint-disable-next-line no-unused-import
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -21,6 +22,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     ICBridge private immutable cBridge;
 
     /// Events ///
@@ -214,10 +216,12 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint64 nonce,
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             nonce <= type(uint32).max,
             "nonce value passed too big to fit in uint32"
@@ -245,6 +249,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             _data.length >= 44,
             "data passed in is not the correct length"
@@ -279,14 +284,17 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint64 nonce,
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             minAmount <= type(uint128).max,
             "amount value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             nonce <= type(uint32).max,
             "nonce value passed too big to fit in uint32"
@@ -314,6 +322,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
     {
+        // solhint-disable-next-line gas-custom-errors
         require(_data.length >= 80, "data passed is not the correct length");
 
         BridgeData memory bridgeData;
