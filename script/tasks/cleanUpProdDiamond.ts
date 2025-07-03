@@ -31,13 +31,13 @@ import {
   type Abi,
 } from 'viem'
 
-import { IEnvironmentEnum } from '../common/types'
+import { IEnvironmentEnum, type SupportedChain } from '../common/types'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
   buildDiamondCutRemoveCalldata,
   buildUnregisterPeripheryCalldata,
   getAllActiveNetworks,
-  getDeployLogFile,
+  getContractAddressForNetwork,
   getFunctionSelectors,
   getViemChainForNetworkName,
   multiselectWithSearch,
@@ -68,8 +68,11 @@ async function prepareTimelockCalldata(
     }
 
   // Get timelock controller address from deployment logs
-  const deployLog = getDeployLogFile(network, environment)
-  const timelockAddress = deployLog['LiFiTimelockController']
+  const timelockAddress = await getContractAddressForNetwork(
+    'LiFiTimelockController',
+    network as SupportedChain,
+    environment
+  )
 
   if (!timelockAddress || timelockAddress === '0x') {
     consola.warn(
@@ -202,8 +205,11 @@ const command = defineCommand({
     const typedEnv = castEnv(environment)
 
     // get diamond address from deploy log
-    const deployLog = getDeployLogFile(network, typedEnv)
-    const diamondAddress = deployLog[diamondName]
+    const diamondAddress = await getContractAddressForNetwork(
+      diamondName,
+      network as SupportedChain,
+      typedEnv
+    )
 
     if (!diamondAddress) {
       consola.error(`Could not find ${diamondName} in deploy log`)
@@ -334,7 +340,7 @@ const command = defineCommand({
         diamondAddress,
         facetDefs,
         network,
-        deployLog,
+        environment: typedEnv,
       })
 
       // -------------
@@ -432,12 +438,12 @@ async function verifySelectorsExistInDiamond({
   diamondAddress,
   facetDefs,
   network,
-  deployLog,
+  environment,
 }: {
   diamondAddress: string
   facetDefs: { name: string; selectors: `0x${string}`[] }[]
   network: string
-  deployLog: Record<string, string>
+  environment: IEnvironmentEnum
 }): Promise<void> {
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({
@@ -446,14 +452,24 @@ async function verifySelectorsExistInDiamond({
   })
 
   // prepare multicalls
-  const calls = facetDefs.map((facet) => ({
-    address: getAddress(diamondAddress),
-    abi: parseAbi([
-      'function facetFunctionSelectors(address _facet) view returns (bytes4[])',
-    ]) satisfies Abi,
-    functionName: 'facetFunctionSelectors',
-    args: [getAddress(facetAddressFromName(deployLog, facet.name))],
-  }))
+  const calls = await Promise.all(
+    facetDefs.map(async (facet) => ({
+      address: getAddress(diamondAddress),
+      abi: parseAbi([
+        'function facetFunctionSelectors(address _facet) view returns (bytes4[])',
+      ]) satisfies Abi,
+      functionName: 'facetFunctionSelectors',
+      args: [
+        getAddress(
+          await getContractAddressForNetwork(
+            facet.name,
+            network as SupportedChain,
+            environment
+          )
+        ),
+      ],
+    }))
+  )
 
   // execute multicalls to obtain all registered facets/function selectors
   const results = await client.multicall({ contracts: calls })
@@ -487,17 +503,6 @@ async function verifySelectorsExistInDiamond({
   }
 
   // All selectors present — return silently
-}
-
-function facetAddressFromName(
-  deployLog: Record<string, string>,
-  name: string
-): string {
-  const facetAddress = deployLog[name]
-  if (!facetAddress)
-    throw new Error(`No address found for facet in deploy log: ${name}`)
-
-  return facetAddress
 }
 
 runMain(command)
