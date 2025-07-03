@@ -198,8 +198,7 @@ const command = defineCommand({
       await sendOrPropose({
         calldata: finalCalldata,
         network,
-        environment:
-          typedEnv === IEnvironmentEnum.production ? 'production' : 'staging',
+        environment: typedEnv,
         diamondAddress: targetAddress,
       })
       return
@@ -231,8 +230,7 @@ const command = defineCommand({
         await sendOrPropose({
           calldata: finalCalldata,
           network,
-          environment:
-            typedEnv === IEnvironmentEnum.production ? 'production' : 'staging',
+          environment: typedEnv,
           diamondAddress: targetAddress,
         })
       }
@@ -311,8 +309,7 @@ const command = defineCommand({
         await sendOrPropose({
           calldata: finalCalldata,
           network,
-          environment:
-            typedEnv === IEnvironmentEnum.production ? 'production' : 'staging',
+          environment: typedEnv,
           diamondAddress: targetAddress,
         })
       } else {
@@ -362,10 +359,7 @@ const command = defineCommand({
           await sendOrPropose({
             calldata: finalCalldata,
             network,
-            environment:
-              typedEnv === IEnvironmentEnum.production
-                ? 'production'
-                : 'staging',
+            environment: typedEnv,
             diamondAddress: targetAddress,
           })
         }
