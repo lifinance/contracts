@@ -35109,6 +35109,48 @@
           }
         ]
       }
+    },
+    "celo": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x66dAAa672cdB57F1F00CeD0408D6B7ca8ddb3399",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-26 17:36:53",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007f4babd2c7d35221e72ab67ea72cba99573a0089000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x44a1f8744c85665553eFb8C24fd4428B1D3D8e1B",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-30 00:00:00",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c56043daac3a26ad451abc7610f04f53cc4412e5000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "cronos": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x49cf6ff64B9B617Bee2B4Ce12eb0248D1656a46f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-30 17:14:22",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c56043daac3a26ad451abc7610f04f53cc4412e5000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {

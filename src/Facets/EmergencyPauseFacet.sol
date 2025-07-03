@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
@@ -26,9 +26,12 @@ contract EmergencyPauseFacet {
     error NoFacetToPause();
 
     /// Storage ///
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable pauserWallet;
+    // solhint-disable-next-line immutable-vars-naming
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.emergencyPauseFacet");
+    // solhint-disable-next-line immutable-vars-naming
     address internal immutable _emergencyPauseFacetAddress;
 
     struct Storage {
