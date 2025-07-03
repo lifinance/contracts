@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-// import { IDiamondCut } from "../Interfaces/LibDiamond.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { OnlyContractOwner } from "../Errors/GenericErrors.sol";
 
-/// Implementation of EIP-2535 Diamond Standard
-/// https://eips.ethereum.org/EIPS/eip-2535
+/// @title LibDiamond
+/// @custom:version 1.0.0
+/// @notice This library implements the EIP-2535 Diamond Standard
 library LibDiamond {
     bytes32 internal constant DIAMOND_STORAGE_POSITION =
         keccak256("diamond.standard.diamond.storage");
