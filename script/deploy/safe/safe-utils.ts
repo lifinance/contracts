@@ -552,7 +552,7 @@ export class ViemSafe {
   /**
    * Executes a Safe transaction
    * @param safeTx - The transaction to execute
-   * @returns Object containing the transaction hash
+   * @returns Object containing the transaction hash and optional receipt
    * @throws Error if execution fails
    */
   public async executeTransaction(
@@ -561,7 +561,7 @@ export class ViemSafe {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      // First, prepare the transaction data
+      // Submit the transaction
       const txHash = await this.walletClient.writeContract({
         account: this.account,
         chain: null,
@@ -584,11 +584,10 @@ export class ViemSafe {
 
       consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
 
-      // Step 2: Wait for confirmation with 30 second timeout
+      // Try to get receipt with 30 second timeout
       let receipt: TransactionReceipt | null = null
 
       try {
-        // Wait for receipt with 30 second timeout
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
         )
@@ -601,44 +600,27 @@ export class ViemSafe {
           receiptPromise,
           timeoutPromise,
         ])) as TransactionReceipt
+
+        // If we got a receipt, check its status
+        if (receipt.status === 'success') 
+          return { hash: txHash, receipt }
+         else 
+          throw new Error(`Transaction failed with status: ${receipt.status}`)
+        
       } catch (timeoutError: any) {
         if (timeoutError.message.includes('timeout')) {
-          // Step 3: Poll for result for up to 1 minute
-          const maxAttempts = 12 // 12 attempts * 5s = 60s
-          const intervalMs = 5000
-
-          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-              receipt = await this.publicClient.getTransactionReceipt({
-                hash: txHash,
-              })
-
-              if (receipt) break
-            } catch (receiptError: any) {
-              // Transaction not found yet, continue polling
-              if (!receiptError.message.includes('not be found'))
-                if (attempt === maxAttempts)
-                  // If it's not a "not found" error, something else went wrong
-                  throw new Error(
-                    `Error checking transaction status: ${receiptError.message}`
-                  )
-            }
-
-            if (attempt < maxAttempts)
-              await new Promise((resolve) => setTimeout(resolve, intervalMs))
-          }
-        } else throw timeoutError
+          // Timeout reached - return optimistically with warning
+          consola.warn(
+            `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
+          )
+          consola.warn(`   Transaction hash: ${txHash}`)
+          consola.warn(`   Please manually verify transaction status later`)
+          return { hash: txHash }
+        } else 
+          // Some other error occurred
+          throw timeoutError
+        
       }
-
-      // Step 4: Process result or error
-      if (receipt)
-        if (receipt.status === 'success') return { hash: txHash, receipt }
-        else
-          throw new Error(`Transaction failed with status: ${receipt.status}`)
-      else
-        throw new Error(
-          `Could not confirm transaction status after 90 seconds total - hash: ${txHash}`
-        )
     } catch (error: any) {
       if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
