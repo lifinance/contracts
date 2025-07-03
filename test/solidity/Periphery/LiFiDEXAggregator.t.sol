@@ -39,7 +39,9 @@ enum PoolType {
     Trident, // 4
     Curve, // 5
     VelodromeV2, // 6
-    Algebra // 7
+    Algebra, // 7
+    iZiSwap, // 8
+    SyncSwapV2 // 9
 }
 
 // Direction constants
@@ -1844,6 +1846,434 @@ contract LiFiDexAggregatorAlgebraTest is LiFiDexAggregatorTest {
     }
 }
 
+/**
+ * @title LiFiDexAggregatorIzumiV3Test
+ * @notice Tests specific to iZiSwap V3 pool type
+ */
+contract LiFiDexAggregatorIzumiV3Test is LiFiDexAggregatorTest {
+    // ==================== iZiSwap V3 specific variables ====================
+    // Base constants
+    address internal constant USDC =
+        0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address internal constant WETH =
+        0x4200000000000000000000000000000000000006;
+    address internal constant USDB_C =
+        0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA;
+
+    // iZiSwap pools
+    address internal constant IZUMI_WETH_USDC_POOL =
+        0xb92A9A91a9F7E8e6Bb848508A6DaF08f9D718554;
+    address internal constant IZUMI_WETH_USDB_C_POOL =
+        0xdb5D62f06EEcEf0Da7506e0700c2f03c57016De5;
+
+    // Test parameters
+    uint256 internal constant AMOUNT_USDC = 100 * 1e6; // 100 USDC with 6 decimals
+    uint256 internal constant AMOUNT_WETH = 1 * 1e18; // 1 WETH with 18 decimals
+
+    // structs
+    struct IzumiV3SwapTestParams {
+        address from;
+        address to;
+        address tokenIn;
+        uint256 amountIn;
+        address tokenOut;
+        SwapDirection direction;
+    }
+
+    struct MultiHopTestParams {
+        address tokenIn;
+        address tokenMid;
+        address tokenOut;
+        address pool1;
+        address pool2;
+        uint256 amountIn;
+        SwapDirection direction1;
+        SwapDirection direction2;
+    }
+
+    error IzumiV3SwapUnexpected();
+    error IzumiV3SwapCallbackUnknownSource();
+    error IzumiV3SwapCallbackNotPositiveAmount();
+
+    function setUp() public override {
+        super.setUp();
+
+        string memory baseRpc = vm.envString("ETH_NODE_URI_BASE");
+        vm.createSelectFork(baseRpc, 29831758);
+
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
+
+        // Setup labels
+        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+        vm.label(USDC, "USDC");
+        vm.label(WETH, "WETH");
+        vm.label(USDB_C, "USDB-C");
+        vm.label(IZUMI_WETH_USDC_POOL, "WETH-USDC Pool");
+        vm.label(IZUMI_WETH_USDB_C_POOL, "WETH-USDB-C Pool");
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        // Test USDC -> WETH
+        deal(USDC, address(liFiDEXAggregator), AMOUNT_USDC);
+
+        vm.startPrank(USER_SENDER);
+        _testSwap(
+            IzumiV3SwapTestParams({
+                from: address(liFiDEXAggregator),
+                to: USER_SENDER,
+                tokenIn: USDC,
+                amountIn: AMOUNT_USDC,
+                tokenOut: WETH,
+                direction: SwapDirection.Token1ToToken0
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        _testMultiHopSwap(
+            MultiHopTestParams({
+                tokenIn: USDC,
+                tokenMid: WETH,
+                tokenOut: USDB_C,
+                pool1: IZUMI_WETH_USDC_POOL,
+                pool2: IZUMI_WETH_USDB_C_POOL,
+                amountIn: AMOUNT_USDC,
+                direction1: SwapDirection.Token1ToToken0,
+                direction2: SwapDirection.Token0ToToken1
+            })
+        );
+    }
+
+    function test_CanSwap() public override {
+        deal(address(USDC), USER_SENDER, AMOUNT_USDC);
+
+        vm.startPrank(USER_SENDER);
+        IERC20(USDC).approve(address(liFiDEXAggregator), AMOUNT_USDC);
+
+        // fix the swap data encoding
+        bytes memory swapData = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            USDC,
+            uint8(SwapDirection.Token1ToToken0),
+            IZUMI_WETH_USDC_POOL,
+            USER_RECEIVER
+        );
+
+        vm.expectEmit(true, true, true, false);
+        emit Route(USER_SENDER, USER_RECEIVER, USDC, WETH, AMOUNT_USDC, 0, 0);
+
+        liFiDEXAggregator.processRoute(
+            USDC,
+            AMOUNT_USDC,
+            WETH,
+            0,
+            USER_RECEIVER,
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_IzumiV3SwapUnexpected() public {
+        deal(USDC, USER_SENDER, AMOUNT_USDC);
+
+        vm.startPrank(USER_SENDER);
+
+        // create invalid pool address
+        address invalidPool = address(0x999);
+
+        // create a route with an invalid pool
+        bytes memory invalidRoute = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            USDC,
+            uint8(SwapDirection.Token1ToToken0),
+            invalidPool,
+            USER_SENDER
+        );
+
+        IERC20(USDC).approve(address(liFiDEXAggregator), AMOUNT_USDC);
+
+        // mock the iZiSwap pool to return without updating lastCalledPool
+        vm.mockCall(
+            invalidPool,
+            abi.encodeWithSignature("swapY2X(address,uint128,int24,bytes)"),
+            abi.encode(0, 0) // return amountX and amountY without triggering callback or updating lastCalledPool
+        );
+
+        vm.expectRevert(IzumiV3SwapUnexpected.selector);
+
+        liFiDEXAggregator.processRoute(
+            USDC,
+            AMOUNT_USDC,
+            WETH,
+            0,
+            USER_SENDER,
+            invalidRoute
+        );
+
+        vm.stopPrank();
+        vm.clearMockedCalls();
+    }
+
+    function testRevert_IzumiV3SwapCallbackUnknownSource() public {
+        deal(USDC, USER_SENDER, AMOUNT_USDC);
+
+        // create invalid pool address
+        address invalidPool = address(0x999);
+
+        vm.prank(USER_SENDER);
+        IERC20(USDC).approve(address(liFiDEXAggregator), AMOUNT_USDC);
+
+        // mock the pool to call the callback directly without setting lastCalledPool
+        vm.mockCall(
+            invalidPool,
+            abi.encodeWithSignature("swapY2X(address,uint128,int24,bytes)"),
+            abi.encode(0, 0)
+        );
+
+        // try to call the callback directly from the pool without setting lastCalledPool
+        vm.prank(invalidPool);
+        vm.expectRevert(IzumiV3SwapCallbackUnknownSource.selector);
+        liFiDEXAggregator.swapY2XCallback(0, AMOUNT_USDC, abi.encode(USDC));
+
+        vm.clearMockedCalls();
+    }
+
+    function testRevert_IzumiV3SwapCallbackNotPositiveAmount() public {
+        deal(USDC, USER_SENDER, AMOUNT_USDC);
+
+        // set lastCalledPool to the pool address to pass the unknown source check
+        vm.store(
+            address(liFiDEXAggregator),
+            bytes32(uint256(3)), // slot for lastCalledPool
+            bytes32(uint256(uint160(IZUMI_WETH_USDC_POOL)))
+        );
+
+        // try to call the callback with zero amount
+        vm.prank(IZUMI_WETH_USDC_POOL);
+        vm.expectRevert(IzumiV3SwapCallbackNotPositiveAmount.selector);
+        liFiDEXAggregator.swapY2XCallback(
+            0,
+            0, // zero amount should trigger the error
+            abi.encode(USDC)
+        );
+    }
+
+    function testRevert_FailsIfAmountInIsTooLarge() public {
+        deal(address(WETH), USER_SENDER, type(uint256).max);
+
+        vm.startPrank(USER_SENDER);
+        IERC20(WETH).approve(address(liFiDEXAggregator), type(uint256).max);
+
+        // fix the swap data encoding
+        bytes memory swapData = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            WETH,
+            uint8(SwapDirection.Token0ToToken1),
+            IZUMI_WETH_USDC_POOL,
+            USER_RECEIVER
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            WETH,
+            type(uint216).max,
+            USDC,
+            0,
+            USER_RECEIVER,
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function _testSwap(IzumiV3SwapTestParams memory params) internal {
+        // Fund the sender with tokens if not the contract itself
+        if (params.from != address(liFiDEXAggregator)) {
+            deal(params.tokenIn, params.from, params.amountIn);
+        }
+
+        // Capture initial token balances
+        uint256 initialBalanceIn = IERC20(params.tokenIn).balanceOf(
+            params.from
+        );
+        uint256 initialBalanceOut = IERC20(params.tokenOut).balanceOf(
+            params.to
+        );
+
+        // Build the route based on the command type
+        CommandType commandCode = params.from == address(liFiDEXAggregator)
+            ? CommandType.ProcessMyERC20
+            : CommandType.ProcessUserERC20;
+
+        // Construct the route
+        bytes memory route = _buildIzumiV3Route(
+            commandCode,
+            params.tokenIn,
+            uint8(params.direction == SwapDirection.Token0ToToken1 ? 1 : 0),
+            IZUMI_WETH_USDC_POOL,
+            params.to
+        );
+
+        // Approve tokens if necessary
+        if (params.from == USER_SENDER) {
+            vm.startPrank(USER_SENDER);
+            IERC20(params.tokenIn).approve(
+                address(liFiDEXAggregator),
+                params.amountIn
+            );
+        }
+
+        // Expect the Route event emission
+        address from = params.from == address(liFiDEXAggregator)
+            ? USER_SENDER
+            : params.from;
+
+        vm.expectEmit(true, true, true, false);
+        emit Route(
+            from,
+            params.to,
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn,
+            0, // No minimum amount enforced in test
+            0 // Actual amount will be checked after the swap
+        );
+
+        // Execute the swap
+        uint256 amountOut = liFiDEXAggregator.processRoute(
+            params.tokenIn,
+            params.amountIn,
+            params.tokenOut,
+            0, // No minimum amount for testing
+            params.to,
+            route
+        );
+
+        if (params.from == USER_SENDER) {
+            vm.stopPrank();
+        }
+
+        // Verify balances have changed correctly
+        uint256 finalBalanceIn = IERC20(params.tokenIn).balanceOf(params.from);
+        uint256 finalBalanceOut = IERC20(params.tokenOut).balanceOf(params.to);
+
+        assertApproxEqAbs(
+            initialBalanceIn - finalBalanceIn,
+            params.amountIn,
+            1, // 1 wei tolerance because of undrain protection for dex aggregator
+            "TokenIn amount mismatch"
+        );
+        assertGt(finalBalanceOut, initialBalanceOut, "TokenOut not received");
+        assertEq(
+            amountOut,
+            finalBalanceOut - initialBalanceOut,
+            "AmountOut mismatch"
+        );
+
+        emit log_named_uint("Amount In", params.amountIn);
+        emit log_named_uint("Amount Out", amountOut);
+    }
+
+    function _testMultiHopSwap(MultiHopTestParams memory params) internal {
+        // Fund the sender with tokens
+        deal(params.tokenIn, USER_SENDER, params.amountIn);
+
+        // Capture initial token balances
+        uint256 initialBalanceIn;
+        uint256 initialBalanceOut;
+
+        initialBalanceIn = IERC20(params.tokenIn).balanceOf(USER_SENDER);
+        initialBalanceOut = IERC20(params.tokenOut).balanceOf(USER_SENDER);
+
+        // Build multi-hop route
+        bytes memory route = _buildIzumiV3MultiHopRoute(params);
+
+        // Approve tokens
+        vm.startPrank(USER_SENDER);
+        IERC20(params.tokenIn).approve(
+            address(liFiDEXAggregator),
+            params.amountIn
+        );
+
+        // Execute the swap
+        uint256 amountOut = liFiDEXAggregator.processRoute(
+            params.tokenIn,
+            params.amountIn,
+            params.tokenOut,
+            0, // No minimum amount for testing
+            USER_SENDER,
+            route
+        );
+        vm.stopPrank();
+
+        // Verify balances have changed correctly
+        uint256 finalBalanceIn;
+        uint256 finalBalanceOut;
+
+        finalBalanceIn = IERC20(params.tokenIn).balanceOf(USER_SENDER);
+        finalBalanceOut = IERC20(params.tokenOut).balanceOf(USER_SENDER);
+
+        assertEq(
+            initialBalanceIn - finalBalanceIn,
+            params.amountIn,
+            "TokenIn amount mismatch"
+        );
+        assertGt(finalBalanceOut, initialBalanceOut, "TokenOut not received");
+        assertEq(
+            amountOut,
+            finalBalanceOut - initialBalanceOut,
+            "AmountOut mismatch"
+        );
+    }
+
+    function _buildIzumiV3Route(
+        CommandType commandCode,
+        address tokenIn,
+        uint8 direction,
+        address pool,
+        address recipient
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uint8(commandCode),
+                tokenIn,
+                uint8(1), // number of pools (1)
+                FULL_SHARE, // 100% share
+                uint8(PoolType.iZiSwap), // pool type
+                pool,
+                uint8(direction),
+                recipient
+            );
+    }
+
+    function _buildIzumiV3MultiHopRoute(
+        MultiHopTestParams memory params
+    ) internal view returns (bytes memory) {
+        // First hop: USER_ERC20 -> LDA
+        bytes memory firstHop = _buildIzumiV3Route(
+            CommandType.ProcessUserERC20,
+            params.tokenIn,
+            uint8(params.direction1),
+            params.pool1,
+            address(liFiDEXAggregator)
+        );
+
+        // Second hop: MY_ERC20 (LDA) -> pool2
+        bytes memory secondHop = _buildIzumiV3Route(
+            CommandType.ProcessMyERC20,
+            params.tokenMid,
+            uint8(params.direction2),
+            params.pool2,
+            USER_SENDER // final recipient
+        );
+
+        // Combine the two hops
+        return bytes.concat(firstHop, secondHop);
+    }
+}
+
 // -----------------------------------------------------------------------------
 //  HyperswapV3 on HyperEVM
 // -----------------------------------------------------------------------------
@@ -2558,5 +2988,395 @@ contract LiFiDexAggregatorEnosysDexV3Test is LiFiDexAggregatorTest {
         // the pool.swap call. UniV3-style pools immediately revert on
         // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
         // in a single processRoute invocation.
+    }
+}
+
+// ----------------------------------------------
+// SyncSwapV2 on Linea
+// ----------------------------------------------
+contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    IERC20 internal constant USDC =
+        IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff);
+    IERC20 internal constant WETH =
+        IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f);
+    address internal constant USDC_WETH_POOL_V1 =
+        address(0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308);
+    address internal constant SYNC_SWAP_VAULT =
+        address(0x7160570BB153Edd0Ea1775EC2b2Ac9b65F1aB61B);
+
+    address internal constant USDC_WETH_POOL_V2 =
+        address(0xDDed227D71A096c6B5D87807C1B5C456771aAA94);
+
+    IERC20 internal constant USDT =
+        IERC20(0xA219439258ca9da29E9Cc4cE5596924745e12B93);
+    address internal constant USDC_USDT_POOL_V1 =
+        address(0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2);
+
+    /// @notice Set up a fork of Linea at block 20077881 and initialize the aggregator
+    function setUp() public override {
+        customRpcUrlForForking = "ETH_NODE_URI_LINEA";
+        customBlockNumberForForking = 20077881;
+        fork();
+
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
+    }
+
+    /// @notice Single‐pool swap: USER sends WETH → receives USDC
+    function test_CanSwap() public override {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Record balances before swap
+        uint256 inBefore = WETH.balanceOf(USER_SENDER);
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that WETH was spent and some USDC_C was received
+        uint256 inAfter = WETH.balanceOf(USER_SENDER);
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_PoolV2() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V2, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(0) // isV1Pool
+        );
+
+        // Record balances before swap
+        uint256 inBefore = WETH.balanceOf(USER_SENDER);
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that WETH was spent and some USDC_C was received
+        uint256 inAfter = WETH.balanceOf(USER_SENDER);
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        // Fund the aggregator with 1 000 WETH
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            swapAmount,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDC was received
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator_PoolV2() public {
+        // Fund the aggregator with 1 000 WETH
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V2, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2) // withdrawMode
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            swapAmount,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDC was received
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        uint256 amountIn = 1_000e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        uint256 initialBalanceIn = WETH.balanceOf(USER_SENDER);
+        uint256 initialBalanceOut = USDT.balanceOf(USER_SENDER);
+
+        //
+        // 1) PROCESS_USER_ERC20:  WETH → USDC   (SyncSwap V1 → withdrawMode=2 → vault that still holds USDC)
+        //
+        bytes memory hop1 = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(WETH),
+            uint8(1), // one pool
+            FULL_SHARE, // 100% of the WETH
+            uint8(PoolType.SyncSwapV2),
+            USDC_WETH_POOL_V1, // the V1 pool
+            SYNC_SWAP_VAULT, // “to” = the vault address
+            uint8(2), // withdrawMode = 2
+            uint8(1), // isV1Pool = true
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        //
+        // 2) PROCESS_ONE_POOL: now swap that USDC → USDT via SyncSwap pool V1
+        //
+        bytes memory hop2 = abi.encodePacked(
+            uint8(CommandType.ProcessOnePool),
+            address(USDC),
+            uint8(PoolType.SyncSwapV2),
+            USDC_USDT_POOL_V1, // V1 USDC⟶USDT pool
+            address(USER_SENDER), // send the USDT home
+            uint8(2), // withdrawMode = 2
+            uint8(1), // isV1Pool = true
+            SYNC_SWAP_VAULT // vault
+        );
+
+        bytes memory route = bytes.concat(hop1, hop2);
+
+        uint256 amountOut = liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDT),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 afterBalanceIn = WETH.balanceOf(USER_SENDER);
+        uint256 afterBalanceOut = USDT.balanceOf(USER_SENDER);
+
+        assertEq(
+            initialBalanceIn - afterBalanceIn,
+            amountIn,
+            "WETH spent mismatch"
+        );
+        assertEq(
+            amountOut,
+            afterBalanceOut - initialBalanceOut,
+            "USDT amountOut mismatch"
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_V1PoolMissingVaultAddress() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(0) // vault (invalid address)
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidPoolOrRecipient() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(liFiDEXAggregator), amountIn);
+
+        bytes memory routeWithInvalidPool = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            address(0), // pool address (invalid address)
+            address(USER_SENDER), // recipient
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidPool
+        );
+
+        bytes memory routeWithInvalidRecipient = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address
+            address(0), // recipient (invalid address)
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidRecipient
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidWithdrawMode() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory routeWithInvalidWithdrawMode = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.SyncSwapV2), // SyncSwapV2
+            USDC_WETH_POOL_V1, // pool address (invalid address)
+            address(USER_SENDER), // recipient
+            uint8(3), // withdrawMode (invalid)
+            uint8(1), // isV1Pool
+            address(SYNC_SWAP_VAULT) // vault
+        );
+
+        // Expect revert with InvalidCallData because withdrawMode is invalid
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(WETH),
+            1,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidWithdrawMode
+        );
+
+        vm.stopPrank();
     }
 }
