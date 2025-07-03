@@ -34672,11 +34672,11 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xb60aD996E75B56445530E644cA14E15F3162ba3e",
+            "ADDRESS": "0x44a1f8744c85665553eFb8C24fd4428B1D3D8e1B",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-30 17:30:28",
+            "TIMESTAMP": "2025-06-30 00:00:00",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c56043daac3a26ad451abc7610f04f53cc4412e5000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
-            "SALT": "1234",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]

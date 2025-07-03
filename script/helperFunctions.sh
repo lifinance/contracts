@@ -54,7 +54,7 @@ function logContractDeploymentInfo_BACKUP {
   fi
 
   # Check if log FILE already contains entry with same CONTRACT, NETWORK, ENVIRONMENT and VERSION
-  checkIfJSONContainsEntry $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH
+  checkIfJSONContainsEntry "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" "$LOG_FILE_PATH"
   if [ $? -eq 1 ]; then
     echo "[warning]: deployment log file contained already an entry for (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION). This is unexpected behaviour since an existing CONTRACT should not have been re-deployed. A new entry was added to the log file. "
   fi
@@ -314,7 +314,7 @@ function findContractInMasterLogByAddress() {
       ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
 
       # check if address matches with target address
-      if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+      if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
         JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT\", \"Version\": \"$VERSION\"}}"
         echo "$JSON_ENTRY"
         exit 0
@@ -356,7 +356,7 @@ function getContractVersionFromMasterLog() {
       ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
 
       # check if address matches
-      if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+      if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
         # return version
         echo "$VERSION"
         return 0
@@ -426,7 +426,7 @@ function getContractNameFromDeploymentLogs() {
   fi
 
   # read all keys (i.e. names)
-  FACET_NAMES=($(cat $ADDRESSES_FILE | jq -r 'keys[]'))
+  FACET_NAMES=($(cat "$ADDRESSES_FILE" | jq -r 'keys[]'))
 
   # loop through all names
   for FACET in "${FACET_NAMES[@]}"; do
@@ -434,7 +434,7 @@ function getContractNameFromDeploymentLogs() {
     ADDRESS=$(jq -r ".${FACET}" "$ADDRESSES_FILE")
 
     # check if address matches
-    if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+    if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
       echo "$FACET"
       return 0
     fi
@@ -584,8 +584,8 @@ function saveDiamond_DEPRECATED() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # store function arguments in variables
-  FACETS=$(echo $4 | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
+  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
+  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -620,8 +620,8 @@ function saveDiamondFacets() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # store function arguments in variables
-  FACETS=$(echo $4 | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
+  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
+  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -979,7 +979,7 @@ function getContractFilePath() {
   local FILENAME="$CONTRACT.sol"
 
   # find FILE path
-  local file_path=$(find "${dir%/}" -name $FILENAME -print)
+  local file_path=$(find "${dir%/}" -name "$FILENAME" -print)
 
   # return FILE path or throw error if FILE path does not have a value
   if [ -n "$file_path" ]; then
@@ -1313,7 +1313,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
           # if code reached here that means we should have a valid target state entry that needs to be added
           addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true
-          echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true"
+          echo "addContractVersionToTargetState ""$NETWORK"" ""$ENVIRONMENT"" ""$CONTRACT"" "$DIAMOND_TYPE" ""$VERSION"" true"
 
         done
       fi
@@ -1490,14 +1490,13 @@ function verifyContract() {
 
     # some block explorers require to pass a string "verifyContract" instead of an API key (e.g. https://explorer.metis.io/documentation/recipes/foundry-verification)
     if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
-      # add API key to verification command
-      echo "yes"
+      # add API key to verification command"
       VERIFY_CMD="$VERIFY_CMD -e 'verifyContract'"
     fi
   fi
 
   # Attempt verification with retries
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     # execute verification command
     eval "$VERIFY_CMD"
     COMMAND_STATUS=$?
@@ -1534,12 +1533,12 @@ function verifyContract() {
 
   # Check Sourcify verification
   if isZkEvmNetwork "$NETWORK"; then
-    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
       --zksync \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   else
-    forge verify-check $ADDRESS \
+    forge verify-check "$ADDRESS" \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   fi
@@ -1937,7 +1936,7 @@ function updateAllContractsToTargetState() {
           if [[ "$CONTRACT_TYPE" == "Facet" ]]; then
             # case: facet contract
             # check if current contract is known by diamond
-            CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" $CONTRACT)
+            CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$CONTRACT")
 
             # check result
             if [[ "$?" -ne 0 ]]; then
@@ -2314,7 +2313,7 @@ function addContractVersionToTargetState() {
   UPDATE_EXISTING=$6
 
   # check if entry already exists
-  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" "$TARGET_STATE_PATH")
 
   # check if entry should be updated and log warning if debug flag is set
   if [[ -n "$ENTRY_EXISTS" ]]; then
@@ -2328,7 +2327,7 @@ function addContractVersionToTargetState() {
   fi
 
   # add or update target state file
-  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH >temp.json && mv temp.json $TARGET_STATE_PATH
+  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" "$TARGET_STATE_PATH" >temp.json && mv temp.json "$TARGET_STATE_PATH"
 }
 function updateExistingContractVersionInTargetState() {
   # this function will update only existing entries, not add new ones
@@ -2341,13 +2340,13 @@ function updateExistingContractVersionInTargetState() {
   VERSION=$5
 
   # check if entry already exists
-  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" "$TARGET_STATE_PATH")
 
   # check if entry should be updated and log warning if debug flag is set
   if [[ -n "$ENTRY_EXISTS" ]]; then
     echo "[info]: updating version in target state file: NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, CONTRACT_NAME:$CONTRACT_NAME, new VERSION: $VERSION."
     # add or update target state file
-    jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH >temp.json && mv temp.json $TARGET_STATE_PATH
+    jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" "$TARGET_STATE_PATH" >temp.json && mv temp.json "$TARGET_STATE_PATH"
   else
     echo "[info]: target state file does not contain an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME that could be updated."
     # exit script
@@ -2589,7 +2588,7 @@ function getFacetFunctionSelectorsFromDiamond() {
 
   # get facet address from deployments JSON
   local FILE_PATH="deployments/$NETWORK.${FILE_SUFFIX}json"
-  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" $FILE_PATH)
+  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" "$FILE_PATH")
 
   # check if facet address was found
   if [[ -z "$FACET_ADDRESS" ]]; then
@@ -3018,7 +3017,7 @@ function getCreate3FactoryAddress() {
     return 1
   fi
 
-  echo $CREATE3_FACTORY
+  echo "$CREATE3_FACTORY"
 }
 
 function convertToBcInt() {
@@ -3118,7 +3117,7 @@ transferContractOwnership() {
             echo "balance of new owner wallet is too low. Cannot continue"
             return 1
         else
-            echo "sending "$MIN_NATIVE_BALANCE" native tokens from new ("$ADDRESS_NEW_OWNER") to old wallet ("$ADDRESS_OLD_OWNER") now"
+            echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
             # Send some funds from new to old wallet
             cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
 
@@ -3133,13 +3132,13 @@ transferContractOwnership() {
     # # transfer ownership to new owner
     echo ""
     echo "[info] calling transferOwnership() function from old owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIV_KEY_OLD_OWNER --rpc-url "$RPC_URL"
+    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
     echo ""
 
     # # accept ownership transfer
     echo ""
     echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key $PRIV_KEY_NEW_OWNER --rpc-url "$RPC_URL"
+    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
     echo ""
     echo ""
 
@@ -3148,7 +3147,7 @@ transferContractOwnership() {
     SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
     if [[ $SENDABLE_BALANCE -gt 0 ]]; then
       echo ""
-      echo "sending "$SENDABLE_BALANCE" native tokens from old ("$ADDRESS_OLD_OWNER") to new wallet ("$ADDRESS_NEW_OWNER") now"
+      echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
       cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
     else
       echo "remaining native balance in old wallet is too low to send back to new wallet"
@@ -3265,17 +3264,17 @@ function printDeploymentsStatusV2() {
   echo "|      Contract (latest version)       | target : deployed | target : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
-  echo "" >$OUTPUT_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >>$OUTPUT_FILE_PATH
-  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >>$OUTPUT_FILE_PATH
-  echo "+                                                                              +" >>$OUTPUT_FILE_PATH
-  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >>$OUTPUT_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >>$OUTPUT_FILE_PATH
-  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >>$OUTPUT_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >>$OUTPUT_FILE_PATH
-  echo "|                                      |      mutable      |     immutable     |" >>$OUTPUT_FILE_PATH
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >>$OUTPUT_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >>$OUTPUT_FILE_PATH
+  echo "" >"$OUTPUT_FILE_PATH"
+  echo "+------------------------------------------------------------------------------+" >>"$OUTPUT_FILE_PATH"
+  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >>"$OUTPUT_FILE_PATH"
+  echo "+                                                                              +" >>"$OUTPUT_FILE_PATH"
+  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >>"$OUTPUT_FILE_PATH"
+  echo "+------------------------------------------------------------------------------+" >>"$OUTPUT_FILE_PATH"
+  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >>"$OUTPUT_FILE_PATH"
+  echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
+  echo "|                                      |      mutable      |     immutable     |" >>"$OUTPUT_FILE_PATH"
+  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >>"$OUTPUT_FILE_PATH"
+  echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
 
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
@@ -3302,7 +3301,7 @@ function printDeploymentsStatusV2() {
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >>$OUTPUT_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >>"$OUTPUT_FILE_PATH"
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]}; do
@@ -3391,18 +3390,18 @@ function printDeploymentsStatusV2() {
 
         # print new line in table view
         printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
-        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >>$OUTPUT_FILE_PATH
+        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >>"$OUTPUT_FILE_PATH"
       fi
     done
 
     # print empty line
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >>$OUTPUT_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >>"$OUTPUT_FILE_PATH"
   done
 
   # print closing line
   echo "+--------------------------------------+-------------------+-------------------+"
-  echo "+--------------------------------------+-------------------+-------------------+" >>$OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
   return 0
 
   playNotificationSound
@@ -3606,7 +3605,7 @@ function sendMessageToSlackSmartContractsChannel() {
   curl -H "Content-Type: application/json" \
      -X POST \
      -d "{\"text\": \"$MESSAGE\"}" \
-     $SLACK_WEBHOOK_SC_GENERAL
+     "$SLACK_WEBHOOK_SC_GENERAL"
 
   echoDebug "Log message sent to Slack"
 

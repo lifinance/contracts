@@ -82,8 +82,8 @@
         "Version": "1.0.0"
       },
       "0x44a1f8744c85665553eFb8C24fd4428B1D3D8e1B": {
-        "Name": "",
-        "Version": ""
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
