@@ -22,16 +22,10 @@ import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import {
-  createPublicClient,
-  encodeFunctionData,
-  getAddress,
-  http,
-  parseAbi,
-  type Abi,
-} from 'viem'
+import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 
 import { IEnvironmentEnum, type SupportedChain } from '../common/types'
+import { wrapWithTimelockSchedule } from '../deploy/safe/safe-utils'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
   buildDiamondCutRemoveCalldata,
@@ -86,61 +80,18 @@ async function prepareTimelockCalldata(
 
   consola.info(`Using timelock controller at ${timelockAddress} for operation`)
 
-  // Get minimum delay from timelock controller
-  const chain = getViemChainForNetworkName(network)
-  const client = createPublicClient({
-    chain,
-    transport: http(),
-  })
-
-  let minDelay: bigint
-  try {
-    const timelockAbi = parseAbi([
-      'function getMinDelay() view returns (uint256)',
-    ])
-
-    minDelay = await client.readContract({
-      address: getAddress(timelockAddress),
-      abi: timelockAbi,
-      functionName: 'getMinDelay',
-    })
-
-    consola.info(`Timelock minimum delay: ${minDelay} seconds`)
-  } catch (error) {
-    consola.warn(
-      'Failed to get minimum delay from timelock, using default 3600 seconds'
-    )
-    minDelay = 3600n // Default to 1 hour
-  }
-
-  // Create unique salt based on current timestamp
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as `0x${string}`
-
-  // Encode the schedule function call
-  const scheduleAbi = parseAbi([
-    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
-  ])
-
-  const scheduleCalldata = encodeFunctionData({
-    abi: scheduleAbi,
-    functionName: 'schedule',
-    args: [
-      getAddress(diamondAddress), // target
-      0n, // value
-      originalCalldata, // data
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // predecessor (empty)
-      salt, // salt
-      minDelay, // delay
-    ],
-  })
-
-  consola.info(
-    `Encoded schedule call with minimum delay of ${minDelay} seconds`
+  // Use the existing wrapWithTimelockSchedule helper function
+  const wrappedTransaction = await wrapWithTimelockSchedule(
+    network,
+    '', // rpcUrl will be determined by the helper function
+    timelockAddress as `0x${string}`,
+    diamondAddress as `0x${string}`,
+    originalCalldata
   )
 
   return {
-    targetAddress: timelockAddress,
-    calldata: scheduleCalldata,
+    targetAddress: wrappedTransaction.targetAddress,
+    calldata: wrappedTransaction.calldata,
   }
 }
 
