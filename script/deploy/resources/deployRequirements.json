@@ -394,7 +394,7 @@
   "LiFiTimelockController": {
     "configData": {
       "_minDelay": {
-        "configFileName": "timelockcontroller.json",
+        "configFileName": "timelockController.json",
         "keyInConfigFile": ".minDelay",
         "allowToDeployWithZeroAddress": "false"
       },

@@ -39,7 +39,7 @@ contract DeployScript is DeployScriptBase {
         // get minDelay from config file
         string memory timelockConfigPath = string.concat(
             root,
-            "/config/timelockcontroller.json"
+            "/config/timelockController.json"
         );
         string memory timelockJson = vm.readFile(timelockConfigPath);
         uint256 minDelay = timelockJson.readUint(".minDelay");
