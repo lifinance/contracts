@@ -6,7 +6,7 @@ export interface INetworksObject {
   [key: string]: Omit<INetwork, 'id'>
 }
 
-export enum EnvironmentEnum {
+export enum IEnvironmentEnum {
   'staging',
   'production',
 }

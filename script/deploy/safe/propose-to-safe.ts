@@ -6,94 +6,24 @@
  */
 
 import 'dotenv/config'
-import { defineCommand, runMain } from 'citty'
-import {
-  Address,
-  Hex,
-  createPublicClient,
-  http,
-  parseAbi,
-  encodeFunctionData,
-} from 'viem'
-import { consola } from 'consola'
-import {
-  getSafeMongoCollection,
-  getNextNonce,
-  initializeSafeClient,
-  getPrivateKey,
-  storeTransactionInMongoDB,
-  OperationTypeEnum,
-  isAddressASafeOwner,
-} from './safe-utils'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
 import * as fs from 'fs'
 import * as path from 'path'
 
-/**
- * Helper function to wrap calldata in a timelock schedule call
- */
-async function wrapWithTimelockSchedule(
-  network: string,
-  rpcUrl: string,
-  timelockAddress: Address,
-  targetAddress: Address,
-  originalCalldata: Hex
-): Promise<{ calldata: Hex; targetAddress: Address }> {
-  const chain = getViemChainForNetworkName(network)
-  const client = createPublicClient({
-    chain,
-    transport: http(rpcUrl),
-  })
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import { type Address, type Hex } from 'viem'
 
-  // Get the minimum delay from the timelock controller
-  const timelockAbi = parseAbi([
-    'function getMinDelay() view returns (uint256)',
-  ])
-
-  let minDelay: bigint
-  try {
-    minDelay = await client.readContract({
-      address: timelockAddress,
-      abi: timelockAbi,
-      functionName: 'getMinDelay',
-    })
-  } catch (error) {
-    consola.warn(
-      'Failed to get minimum delay from timelock, using default 1 hour'
-    )
-    minDelay = 3600n // Default to 1 hour
-  }
-
-  // Create a unique salt based on the current timestamp
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
-
-  // Encode the schedule function call
-  const scheduleAbi = parseAbi([
-    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
-  ])
-
-  const scheduleCalldata = encodeFunctionData({
-    abi: scheduleAbi,
-    functionName: 'schedule',
-    args: [
-      targetAddress, // target
-      0n, // value
-      originalCalldata, // data
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
-      salt, // salt
-      minDelay, // delay
-    ],
-  })
-
-  consola.info(
-    `Wrapped transaction in timelock schedule call with minimum delay of ${minDelay} seconds`
-  )
-
-  return {
-    calldata: scheduleCalldata,
-    targetAddress: timelockAddress,
-  }
-}
+import {
+  OperationTypeEnum,
+  getNextNonce,
+  getPrivateKey,
+  getSafeMongoCollection,
+  initializeSafeClient,
+  isAddressASafeOwner,
+  storeTransactionInMongoDB,
+  wrapWithTimelockSchedule,
+} from './safe-utils'
 
 /**
  * Main command definition for proposing transactions to a Safe
@@ -233,18 +163,16 @@ const main = defineCommand({
         `${args.network}.json`
       )
 
-      if (!fs.existsSync(deploymentPath)) {
+      if (!fs.existsSync(deploymentPath))
         throw new Error(`Deployment file not found: ${deploymentPath}`)
-      }
 
       const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
       const timelockAddress = deployments.LiFiTimelockController
 
-      if (!timelockAddress || timelockAddress === '0x') {
+      if (!timelockAddress || timelockAddress === '0x')
         throw new Error(
           `LiFiTimelockController not found in deployments for network ${args.network}`
         )
-      }
 
       consola.info(`Using timelock controller at ${timelockAddress}`)
 

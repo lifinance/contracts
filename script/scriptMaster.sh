@@ -50,6 +50,15 @@ scriptMaster() {
     forge build
   fi
 
+  # warn if SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true and this should only be activated for new network deployments
+  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
+    echo ""
+    echo ""
+    warning "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true. This should only be activated for new network deployments."
+    echo ""
+    echo ""
+  fi
+
   # start local anvil network if flag in config is set
   if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then
     # check if anvil is already running
@@ -57,7 +66,7 @@ scriptMaster() {
       echoDebug "local testnetwork 'localanvil' is running"
     else
       echoDebug "Anvil process is not running. Starting network now."
-      $(anvil -m "$MNEMONIC" -f $ETH_NODE_URI_MAINNET --fork-block-number 17427723 >/dev/null) &
+      $(anvil -m "$MNEMONIC" -f "$ETH_NODE_URI_MAINNET" --fork-block-number 17427723 >/dev/null) &
       if pgrep -x "anvil" >/dev/null; then
         echoDebug "local testnetwork 'localanvil' is running"
       else
@@ -105,9 +114,7 @@ scriptMaster() {
       "3) Deploy all contracts to one selected network (=new network)" \
       "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
       "5) Execute a script" \
-      "═════════════════════════════════════════════════════════════════════════════════" \
       "6) EMERGENCY >> Remove a facet or pause the whole diamond" \
-      "═════════════════════════════════════════════════════════════════════════════════" \
       "7) Batch update _targetState.json file" \
       "8) Verify all unverified contracts" \
       "9) Review deploy status (vs. target state)" \
@@ -135,7 +142,7 @@ scriptMaster() {
 
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
-    checkRequiredVariablesInDotEnv $NETWORK
+    checkRequiredVariablesInDotEnv "$NETWORK"
 
     # Handle ZkSync
     # We need to make sure that the zksync fork of foundry is available before
@@ -153,7 +160,7 @@ scriptMaster() {
     fi
 
     # get user-selected deploy script and contract from list
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for
     if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
@@ -196,7 +203,7 @@ scriptMaster() {
 
     # get user-selected deploy script and contract from list
     local SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment
     if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
@@ -513,7 +520,7 @@ scriptMaster() {
 
       echo "[info] deployer wallet balance in this network: $BALANCE"
       echo ""
-      checkRequiredVariablesInDotEnv $NETWORK
+      checkRequiredVariablesInDotEnv "$NETWORK"
 
       # call update diamond log function
       updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
@@ -525,7 +532,7 @@ scriptMaster() {
   #---------------------------------------------------------------------------------------------------------------------
   # use case 13: Remove facets or periphery from diamond
   elif [[ "$SELECTION" == "13)"* ]]; then
-    bun script/tasks/cleanUpProdDiamond.ts
+    bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   else
     error "invalid use case selected ('$SELECTION') - exiting script"

@@ -11,8 +11,14 @@ import * as path from 'path'
 
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
+import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
 import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  http,
+  parseAbi,
+  toFunctionSelector,
   type Account,
   type Address,
   type Chain,
@@ -20,11 +26,6 @@ import {
   type PublicClient,
   type TransactionReceipt,
   type WalletClient,
-  createPublicClient,
-  createWalletClient,
-  encodeFunctionData,
-  http,
-  toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -612,42 +613,32 @@ export class ViemSafe {
                 hash: txHash,
               })
 
-              if (receipt) 
-                break
-              
+              if (receipt) break
             } catch (receiptError: any) {
               // Transaction not found yet, continue polling
-              if (!receiptError.message.includes('not found')) 
-                // If it's not a "not found" error, something else went wrong
-                if (attempt === maxAttempts) 
+              if (!receiptError.message.includes('not found'))
+                if (attempt === maxAttempts)
+                  // If it's not a "not found" error, something else went wrong
                   throw new Error(
                     `Error checking transaction status: ${receiptError.message}`
                   )
-                
-              
             }
 
-            if (attempt < maxAttempts) 
+            if (attempt < maxAttempts)
               await new Promise((resolve) => setTimeout(resolve, intervalMs))
-            
           }
-        } else 
-          throw timeoutError
-        
+        } else throw timeoutError
       }
 
       // Step 4: Process result or error
-      if (receipt) 
-        if (receipt.status === 'success') 
-          return { hash: txHash, receipt }
-         else 
+      if (receipt)
+        if (receipt.status === 'success') return { hash: txHash, receipt }
+        else
           throw new Error(`Transaction failed with status: ${receipt.status}`)
-        
-       else 
+      else
         throw new Error(
           `Could not confirm transaction status after 90 seconds total - hash: ${txHash}`
         )
-      
     } catch (error: any) {
       if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
@@ -1331,4 +1322,86 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   }
 
   return safeInfo
+}
+
+/**
+ * Helper function to wrap calldata in a timelock schedule call
+ */
+export async function wrapWithTimelockSchedule(
+  network: string,
+  rpcUrl: string,
+  timelockAddress: Address,
+  targetAddress: Address,
+  originalCalldata: Hex
+): Promise<{ calldata: Hex; targetAddress: Address }> {
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  })
+
+  // Get the minimum delay from the timelock controller
+  const timelockAbi = parseAbi([
+    'function getMinDelay() view returns (uint256)',
+  ])
+
+  let minDelay: bigint
+  try {
+    minDelay = await client.readContract({
+      address: timelockAddress,
+      abi: timelockAbi,
+      functionName: 'getMinDelay',
+    })
+  } catch (error) {
+    consola.warn(
+      'Failed to get minimum delay from timelock, reading from config file'
+    )
+
+    // Read from config file as fallback
+    try {
+      const configPath = path.join(
+        process.cwd(),
+        'config',
+        'timelockcontroller.json'
+      )
+      const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      minDelay = BigInt(configData.minDelay || 3600)
+      consola.info(`Using minimum delay from config: ${minDelay} seconds`)
+    } catch (configError) {
+      consola.warn(
+        'Failed to read timelockController.json config file, using default 1 hour'
+      )
+      minDelay = 3600n // Default to 1 hour
+    }
+  }
+
+  // Create a unique salt based on the current timestamp
+  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+
+  // Encode the schedule function call
+  const scheduleAbi = parseAbi([
+    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+  ])
+
+  const scheduleCalldata = encodeFunctionData({
+    abi: scheduleAbi,
+    functionName: 'schedule',
+    args: [
+      targetAddress, // target
+      0n, // value
+      originalCalldata, // data
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
+      salt, // salt
+      minDelay, // delay
+    ],
+  })
+
+  consola.info(
+    `Wrapped transaction in timelock schedule call with minimum delay of ${minDelay} seconds`
+  )
+
+  return {
+    calldata: scheduleCalldata,
+    targetAddress: timelockAddress,
+  }
 }

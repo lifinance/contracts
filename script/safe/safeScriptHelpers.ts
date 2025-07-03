@@ -8,9 +8,10 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { IEnvironmentEnum } from '../common/types'
 import {
-  getSafeMongoCollection,
   getNextNonce,
+  getSafeMongoCollection,
   initializeSafeClient,
   OperationTypeEnum,
   storeTransactionInMongoDB,
@@ -29,12 +30,12 @@ export async function sendOrPropose({
 }: {
   calldata: `0x${string}`
   network: string
-  environment: 'staging' | 'production'
+  environment: IEnvironmentEnum
   diamondAddress: string
 }) {
-  const isProd = environment === 'production'
+  const isProd = environment === IEnvironmentEnum.production
   const sendDirectly =
-    environment === 'staging' ||
+    environment === IEnvironmentEnum.staging ||
     process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
 
   // ───────────── DIRECT TX FLOW ───────────── //
