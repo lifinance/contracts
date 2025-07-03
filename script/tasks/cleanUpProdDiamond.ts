@@ -24,29 +24,25 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
   createPublicClient,
+  encodeFunctionData,
+  getAddress,
   http,
   parseAbi,
-  getAddress,
-  encodeFunctionData,
   type Abi,
 } from 'viem'
 
+import { IEnvironmentEnum } from '../common/types'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
-  getDeployLogFile,
-  getFunctionSelectors,
   buildDiamondCutRemoveCalldata,
   buildUnregisterPeripheryCalldata,
   getAllActiveNetworks,
+  getDeployLogFile,
+  getFunctionSelectors,
   getViemChainForNetworkName,
+  multiselectWithSearch,
+  selectWithSearch,
 } from '../utils/viemScriptHelpers'
-
-function castEnv(value: string): 'staging' | 'production' {
-  if (value !== 'staging' && value !== 'production')
-    throw new Error(`Invalid environment: ${value}`)
-
-  return value
-}
 
 /**
  * Wraps calldata in a timelock schedule call if USE_TIMELOCK_CONTROLLER=true
@@ -60,17 +56,16 @@ async function prepareTimelockCalldata(
   originalCalldata: `0x${string}`,
   diamondAddress: string,
   network: string,
-  environment: 'staging' | 'production'
+  environment: IEnvironmentEnum
 ): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
   const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
 
-  if (!useTimelock || environment !== 'production') {
+  if (!useTimelock || environment !== IEnvironmentEnum.production)
     // Use diamond directly
     return {
       targetAddress: diamondAddress,
       calldata: originalCalldata,
     }
-  }
 
   // Get timelock controller address from deployment logs
   const deployLog = getDeployLogFile(network, environment)
@@ -146,6 +141,17 @@ async function prepareTimelockCalldata(
   }
 }
 
+/**
+ * Casts a string environment to IEnvironmentEnum
+ * @param environment - The environment string
+ * @returns IEnvironmentEnum value
+ */
+function castEnv(environment: string): IEnvironmentEnum {
+  if (environment === 'production') return IEnvironmentEnum.production
+  if (environment === 'staging') return IEnvironmentEnum.staging
+  throw new Error(`Invalid environment: ${environment}`)
+}
+
 const command = defineCommand({
   meta: {
     name: 'Clean Up Production Diamonds',
@@ -180,18 +186,18 @@ const command = defineCommand({
     // select network (if not provided via parameter)
     if (!network) {
       const options = getAllActiveNetworks().map((n) => n.id)
-      network = await consola.prompt('Select network', {
-        type: 'select',
-        options,
-      })
+      network = await selectWithSearch('Select network', options)
+      consola.info(`Network selected: ${network}`)
     }
 
     // select environment (if not provided via parameter)
-    if (!environment)
-      environment = await consola.prompt('Select environment', {
-        type: 'select',
-        options: ['production', 'staging'],
-      })
+    if (!environment) {
+      environment = await selectWithSearch('Select environment', [
+        'production',
+        'staging',
+      ])
+      consola.info(`Environment selected: ${environment}`)
+    }
 
     const typedEnv = castEnv(environment)
 
@@ -245,7 +251,8 @@ const command = defineCommand({
       await sendOrPropose({
         calldata: finalCalldata,
         network,
-        environment: typedEnv,
+        environment:
+          typedEnv === IEnvironmentEnum.production ? 'production' : 'staging',
         diamondAddress: targetAddress,
       })
       return
@@ -277,7 +284,8 @@ const command = defineCommand({
         await sendOrPropose({
           calldata: finalCalldata,
           network,
-          environment: typedEnv,
+          environment:
+            typedEnv === IEnvironmentEnum.production ? 'production' : 'staging',
           diamondAddress: targetAddress,
         })
       }
@@ -304,10 +312,10 @@ const command = defineCommand({
         .sort((a, b) => a.localeCompare(b))
 
       // select one or more facets
-      const selectedFacets = await consola.prompt('Select facets to remove', {
-        type: 'multiselect',
-        options: facetNames,
-      })
+      const selectedFacets = await multiselectWithSearch(
+        'Select facets to remove',
+        facetNames
+      )
 
       if (!selectedFacets?.length) {
         consola.info('No facets selected – aborting.')
@@ -356,7 +364,8 @@ const command = defineCommand({
         await sendOrPropose({
           calldata: finalCalldata,
           network,
-          environment: typedEnv,
+          environment:
+            typedEnv === IEnvironmentEnum.production ? 'production' : 'staging',
           diamondAddress: targetAddress,
         })
       } else {
@@ -376,10 +385,10 @@ const command = defineCommand({
         .map((f) => f.replace('.sol', ''))
 
       // select one or more periphery contracts
-      const selected = await consola.prompt('Select periphery contracts', {
-        type: 'multiselect',
-        options: names,
-      })
+      const selected = await multiselectWithSearch(
+        'Select periphery contracts',
+        names
+      )
 
       // go through each contract, build the calldata and send/propose it
       for (const name of selected) {
@@ -406,7 +415,10 @@ const command = defineCommand({
           await sendOrPropose({
             calldata: finalCalldata,
             network,
-            environment: typedEnv,
+            environment:
+              typedEnv === IEnvironmentEnum.production
+                ? 'production'
+                : 'staging',
             diamondAddress: targetAddress,
           })
         }
