@@ -616,7 +616,7 @@ export class ViemSafe {
               if (receipt) break
             } catch (receiptError: any) {
               // Transaction not found yet, continue polling
-              if (!receiptError.message.includes('not found'))
+              if (!receiptError.message.includes('not be found'))
                 if (attempt === maxAttempts)
                   // If it's not a "not found" error, something else went wrong
                   throw new Error(
