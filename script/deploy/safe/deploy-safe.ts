@@ -180,6 +180,7 @@ const sleep = (ms: number): Promise<void> => {
 // At the top of the file, add new type for EVM versions
 type EVMVersion = 'london' | 'cancun'
 
+// Modify the command arguments to include EVM version
 const main = defineCommand({
   meta: {
     name: 'deploy-safe',
@@ -491,8 +492,6 @@ const main = defineCommand({
 
       consola.info('-'.repeat(80))
     }
-
-    process.stdout.write('', () => process.stdout.end())
   },
 })
 
@@ -687,7 +686,7 @@ async function createSafeProxy(params: {
     const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
     if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
-    const safeAddress = (await consola.prompt(
+    const safeAddress = await consola.prompt(
       'Enter the deployed Safe address:',
       {
         type: 'text',
@@ -696,7 +695,7 @@ async function createSafeProxy(params: {
             ? true
             : 'Please enter a valid Ethereum address',
       }
-    )) as Address
+    )
 
     return getAddress(safeAddress)
   }
