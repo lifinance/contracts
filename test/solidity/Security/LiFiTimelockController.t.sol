@@ -119,7 +119,7 @@ contract LiFiTimelockControllerTest is Test {
         // Then deploy timelock with correct mockDiamond address
         timelock = new LiFiTimelockController(
             MIN_DELAY,
-            new address[](0),
+            proposers,
             executors,
             address(0),
             admin,
@@ -131,7 +131,7 @@ contract LiFiTimelockControllerTest is Test {
         // Then deploy timelock with correct mockDiamond address
         timelock = new LiFiTimelockController(
             MIN_DELAY,
-            new address[](0),
+            proposers,
             executors,
             deployerWallet,
             address(0),
@@ -143,7 +143,7 @@ contract LiFiTimelockControllerTest is Test {
         // Then deploy timelock with correct mockDiamond address
         timelock = new LiFiTimelockController(
             MIN_DELAY,
-            new address[](0),
+            proposers,
             executors,
             deployerWallet,
             admin,

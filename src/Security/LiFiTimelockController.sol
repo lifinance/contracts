@@ -43,6 +43,7 @@ contract LiFiTimelockController is TimelockController {
             _minDelay == 0 ||
             _proposers.length == 0 ||
             _executors.length == 0 ||
+            _deployerWallet == address(0) ||
             _admin == address(0) ||
             _diamond == address(0)
         ) revert InvalidConfig();
