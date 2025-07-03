@@ -752,10 +752,10 @@ export const shouldShowSignAndExecuteWithDeployer = (
   // Two scenarios:
   // 1. If deployer already signed: check if current user's signature would meet threshold
   // 2. If deployer hasn't signed: check if current user + deployer would meet threshold
-  if (isDeployerAlreadySigned) 
+  if (isDeployerAlreadySigned)
     // Deployer already signed, just need current user to potentially meet threshold
     return signaturesAfterCurrentSigner >= threshold
-   else {
+  else {
     // Deployer hasn't signed, need both current user + deployer to meet threshold
     const signaturesAfterBoth = signaturesAfterCurrentSigner + 1
     return signaturesAfterBoth >= threshold
@@ -1157,4 +1157,70 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   }
 
   return safeInfo
+}
+
+/**
+ * Helper function to wrap calldata in a timelock schedule call
+ */
+export async function wrapWithTimelockSchedule(
+  network: string,
+  rpcUrl: string,
+  timelockAddress: Address,
+  targetAddress: Address,
+  originalCalldata: Hex
+): Promise<{ calldata: Hex; targetAddress: Address }> {
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  })
+
+  // Get the minimum delay from the timelock controller
+  const timelockAbi = parseAbi([
+    'function getMinDelay() view returns (uint256)',
+  ])
+
+  let minDelay: bigint
+  try {
+    minDelay = await client.readContract({
+      address: timelockAddress,
+      abi: timelockAbi,
+      functionName: 'getMinDelay',
+    })
+  } catch (error) {
+    consola.warn(
+      'Failed to get minimum delay from timelock, using default 1 hour'
+    )
+    minDelay = 3600n // Default to 1 hour
+  }
+
+  // Create a unique salt based on the current timestamp
+  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+
+  // Encode the schedule function call
+  const scheduleAbi = parseAbi([
+    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+  ])
+
+  const scheduleCalldata = encodeFunctionData({
+    abi: scheduleAbi,
+    functionName: 'schedule',
+    args: [
+      targetAddress, // target
+      0n, // value
+      originalCalldata, // data
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
+      salt, // salt
+      minDelay, // delay
+    ],
+  })
+
+  consola.info(
+    `Wrapped transaction in timelock schedule call with minimum delay of ${minDelay} seconds`
+  )
+
+  return {
+    calldata: scheduleCalldata,
+    targetAddress: timelockAddress,
+  }
 }
