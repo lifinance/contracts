@@ -226,7 +226,7 @@ const main = defineCommand({
     allowOverride: {
       type: 'boolean',
       description:
-        'Whether to allow overriding existing Safe address in networks.json (default: false)',
+        'Whether to allow overriding existing Safe address in networks.json (default: true)',
       required: false,
       default: true,
     },
