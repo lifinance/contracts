@@ -5,10 +5,12 @@
  * particularly for complex transactions like diamond cuts.
  */
 
-import { consola } from 'consola'
-import { Hex, toFunctionSelector } from 'viem'
 import * as fs from 'fs'
 import * as path from 'path'
+
+import { consola } from 'consola'
+import { toFunctionSelector, type Hex } from 'viem'
+
 import networksConfig from '../../../config/networks.json'
 
 /**
@@ -71,9 +73,7 @@ async function findContractNameByAddress(
     const projectRoot = process.cwd()
     const deploymentsDir = path.join(projectRoot, 'deployments')
 
-    if (!fs.existsSync(deploymentsDir)) {
-      return null
-    }
+    if (!fs.existsSync(deploymentsDir)) return null
 
     // Normalize address for comparison
     const normalizedAddress = address.toLowerCase()
@@ -93,7 +93,7 @@ async function findContractNameByAddress(
       // Search through all contract entries
       for (const [contractName, contractAddress] of Object.entries(
         deploymentData
-      )) {
+      ))
         if (
           typeof contractAddress === 'string' &&
           contractAddress.toLowerCase() === normalizedAddress
@@ -103,7 +103,6 @@ async function findContractNameByAddress(
           )
           return contractName
         }
-      }
     } catch (error) {
       consola.warn(`Error reading deployment file ${deploymentFile}: ${error}`)
       return null
@@ -167,9 +166,7 @@ async function findLocalAbiBySelector(
     // Use current working directory as project root (script is called from project root)
     const projectRoot = process.cwd()
     const outDir = path.join(projectRoot, 'out')
-    if (!fs.existsSync(outDir)) {
-      return null
-    }
+    if (!fs.existsSync(outDir)) return null
 
     // Get all .sol directories
     const solDirs = fs
@@ -187,10 +184,10 @@ async function findLocalAbiBySelector(
         const jsonPath = path.join(outDir, solDir, jsonFile)
         try {
           const abiData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
-          if (abiData.abi) {
+          if (abiData.abi)
             // Search for matching function selector in ABI
-            for (const abiItem of abiData.abi) {
-              if (abiItem.type === 'function') {
+            for (const abiItem of abiData.abi)
+              if (abiItem.type === 'function')
                 try {
                   const calculatedSelector = toFunctionSelector(abiItem)
                   if (calculatedSelector === selector) {
@@ -207,9 +204,6 @@ async function findLocalAbiBySelector(
                   // Skip invalid ABI items
                   continue
                 }
-              }
-            }
-          }
         } catch (error) {
           // Skip invalid JSON files
           continue
@@ -251,11 +245,10 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
       const networkName = getNetworkNameForChainId(chainId)
       let resData = null
 
-      if (networkName) {
+      if (networkName)
         resData = await findLocalAbiByAddress(facetAddress, networkName)
-      } else {
+      else
         consola.warn(`Unknown chainId: ${chainId}, skipping local ABI lookup`)
-      }
 
       // If no local ABI found, fallback to external API
       if (!resData) {
