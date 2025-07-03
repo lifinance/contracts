@@ -33,9 +33,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xe1E3633263F0aC18693942b761371762967f8B05": {
+      "0xa12D48dBf4248d702D5b41e271742914D7d8A321": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "1.0.2"
       },
       "0xB2Cc198b18Eda93e4ac90F446EE499b7f4935F8a": {
         "Name": "CalldataVerificationFacet",
