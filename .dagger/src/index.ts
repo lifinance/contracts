@@ -4,28 +4,88 @@
  * This module provides deployment functions for LiFi smart contracts
  * using Foundry in containerized environments.
  */
-import { dag, Container, Directory, object, func } from '@dagger.io/dagger'
+import {
+  dag,
+  Container,
+  Directory,
+  Secret,
+  object,
+  func,
+} from '@dagger.io/dagger'
+
+interface NetworkConfig {
+  chainId: number
+  rpcUrl: string
+  deployedWithEvmVersion: string
+  deployedWithSolcVersion: string
+  verificationType: string
+  explorerApiUrl: string
+  create3Factory: string
+}
 
 @object()
 export class LifiContracts {
   /**
+   * Build the Foundry project using forge build
+   *
+   * @param source - Source directory containing the project root
+   * @param uid - User ID to match host user (optional)
+   * @param gid - Group ID to match host group (optional)
+   */
+  @func()
+  buildProject(source: Directory): Container {
+    let container = dag
+      .container()
+      .from('ghcr.io/foundry-rs/foundry:latest')
+      .withDirectory('/workspace/src', source.directory('src'))
+      .withDirectory('/workspace/lib', source.directory('lib'))
+      .withDirectory('/workspace/script', source.directory('script'))
+      .withFile('/workspace/foundry.toml', source.file('foundry.toml'))
+      .withFile('/workspace/remappings.txt', source.file('remappings.txt'))
+      .withFile('/workspace/.env', source.file('.env'))
+      .withWorkdir('/workspace')
+      .withUser('root')
+      .withExec([
+        'mkdir',
+        '-p',
+        '/workspace/out',
+        '/workspace/cache',
+        '/workspace/broadcast',
+      ])
+      .withExec([
+        'chown',
+        'foundry:foundry',
+        '/workspace/out',
+        '/workspace/cache',
+        '/workspace/broadcast',
+      ])
+      .withUser('foundry')
+      .withExec(['forge', 'build'])
+
+    return container
+  }
+
+  /**
    * Deploy a smart contract using Foundry forge script
    *
-   * @param source - Source directory containing the contract code (should include .env file)
+   * @param source - Source directory containing the project root
    * @param scriptPath - Path to the deployment script (e.g., "script/deploy/facets/DeployExecutor.s.sol")
    * @param network - Target network name (e.g., "mainnet", "polygon", "arbitrum")
    * @param deploySalt - Salt for CREATE3 deployment
    * @param create3FactoryAddress - Address of the CREATE3 factory contract
    * @param fileSuffix - File suffix for deployment logs (e.g., "staging", "production")
+   * @param privateKey - Private key secret for deployment
    * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param gasEstimateMultiplier - Gas estimate multiplier percentage (default: "130")
-   * @param diamondType - Type of diamond contract ("LiFiDiamond" or "LiFiDiamondImmutable")
    * @param broadcast - Whether to broadcast the transaction (default: true)
    * @param legacy - Whether to use legacy transaction type (default: true)
    * @param slow - Whether to use slow mode for better reliability (default: true)
    * @param skipSimulation - Whether to skip simulation (default: false)
    * @param verbosity - Verbosity level (default: "vvvvv")
+   * @param defaultDiamondAddressDeploysalt - Default diamond address deploy salt (optional)
+   * @param deployToDefaultDiamondAddress - Whether to deploy to default diamond address (optional)
+   * @param diamondType - Diamond type for CelerIMFacet (optional)
    */
   @func()
   deployContract(
@@ -35,15 +95,18 @@ export class LifiContracts {
     deploySalt: string,
     create3FactoryAddress: string,
     fileSuffix: string,
+    privateKey: Secret,
     solcVersion?: string,
     evmVersion?: string,
     gasEstimateMultiplier?: string,
-    diamondType?: string,
     broadcast?: boolean,
     legacy?: boolean,
     slow?: boolean,
     skipSimulation?: boolean,
-    verbosity?: string
+    verbosity?: string,
+    defaultDiamondAddressDeploysalt?: string,
+    deployToDefaultDiamondAddress?: string,
+    diamondType?: string
   ): Container {
     // Set default values
     const gasMultiplier = gasEstimateMultiplier || '130'
@@ -51,9 +114,17 @@ export class LifiContracts {
     const useLegacy = legacy !== false
     const useSlow = slow !== false
     const shouldSkipSimulation = skipSimulation === true
-    const logLevel = verbosity || 'vvvvv'
     const solc = solcVersion || '0.8.29'
     const evm = evmVersion || 'cancun'
+
+    // Build the project first
+    const builtContainer = this.buildProject(source)
+
+    // Mount the deployments directory to the built container
+    const containerWithDeployments = builtContainer.withMountedDirectory(
+      '/workspace/deployments',
+      source.directory('deployments')
+    )
 
     // Build forge script command
     const forgeArgs = [
@@ -66,9 +137,13 @@ export class LifiContracts {
       solc,
       '--evm-version',
       evm,
-      `-${logLevel}`,
       '--json',
     ]
+
+    // Add verbosity flag only if specified
+    if (verbosity) {
+      forgeArgs.splice(-1, 0, `-${verbosity}`)
+    }
 
     // Add conditional flags
     if (shouldBroadcast) forgeArgs.push('--broadcast')
@@ -79,31 +154,642 @@ export class LifiContracts {
     // Add gas estimate multiplier
     forgeArgs.push('--gas-estimate-multiplier', gasMultiplier)
 
-    // Start with foundry container
-    let container = dag
-      .container()
-      .from('ghcr.io/foundry-rs/foundry:latest')
-      .withMountedDirectory('/workspace', source)
-      .withWorkdir('/workspace')
-      // Set required environment variables
+    // Set required environment variables that the deployment scripts expect
+    let deployContainer = containerWithDeployments
       .withEnvVariable('DEPLOYSALT', deploySalt)
       .withEnvVariable('CREATE3_FACTORY_ADDRESS', create3FactoryAddress)
       .withEnvVariable('NETWORK', network)
       .withEnvVariable('FILE_SUFFIX', fileSuffix)
+      .withSecretVariable('PRIVATE_KEY', privateKey)
+      .withEnvVariable(
+        'DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS',
+        deployToDefaultDiamondAddress || 'true'
+      )
 
-    // Set optional environment variables if provided
-    if (diamondType) {
-      container = container.withEnvVariable('DIAMOND_TYPE', diamondType)
+    // Add optional environment variables if provided
+    if (defaultDiamondAddressDeploysalt) {
+      deployContainer = deployContainer.withEnvVariable(
+        'DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT',
+        defaultDiamondAddressDeploysalt
+      )
     }
 
-    // Build command that sources .env file and runs forge
-    const forgeCommand = [
+    if (diamondType) {
+      deployContainer = deployContainer.withEnvVariable(
+        'DIAMOND_TYPE',
+        diamondType
+      )
+    }
+
+    // Execute the forge script command
+    return deployContainer.withExec(forgeArgs)
+  }
+
+  /**
+   * Verify a smart contract using Foundry forge verify-contract
+   *
+   * This function provides containerized contract verification using the same
+   * built environment as deployment. It can be used as an alternative to the
+   * traditional verifyContract bash function.
+   *
+   * @param source - Source directory containing the project root
+   * @param contractName - Name of the contract to verify (e.g., "Executor")
+   * @param contractAddress - Deployed contract address
+   * @param constructorArgs - Constructor arguments in hex format (e.g., "0x123...")
+   * @param chainId - Chain ID for verification
+   * @param contractFilePath - Custom contract file path (optional, auto-detected if not provided)
+   * @param apiKey - API key for verification service (optional)
+   * @param verifier - Verification service ("etherscan", "blockscout", "sourcify") (default: "etherscan")
+   * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
+   * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
+   * @param watch - Whether to watch verification status (default: true)
+   * @param skipIsVerifiedCheck - Whether to skip already verified check (default: true)
+   */
+  @func()
+  verifyContract(
+    source: Directory,
+    contractName: string,
+    contractAddress: string,
+    constructorArgs: string,
+    chainId: string,
+    contractFilePath?: string,
+    apiKey?: string,
+    verifier?: string,
+    solcVersion?: string,
+    evmVersion?: string,
+    watch?: boolean,
+    skipIsVerifiedCheck?: boolean
+  ): Container {
+    // Set default values
+    const verificationService = verifier || 'etherscan'
+    const shouldWatch = watch !== false
+    const shouldSkipVerifiedCheck = skipIsVerifiedCheck !== false
+    const solc = solcVersion || '0.8.29'
+    const evm = evmVersion || 'cancun'
+
+    // Build the project first using the same parameters as deployment
+    let container = dag
+      .container()
+      .from('ghcr.io/foundry-rs/foundry:latest')
+      .withDirectory('/workspace/src', source.directory('src'))
+      .withDirectory('/workspace/lib', source.directory('lib'))
+      .withDirectory('/workspace/script', source.directory('script'))
+      .withFile('/workspace/foundry.toml', source.file('foundry.toml'))
+      .withFile('/workspace/remappings.txt', source.file('remappings.txt'))
+      .withFile('/workspace/.env', source.file('.env'))
+      .withWorkdir('/workspace')
+      .withUser('root')
+      .withExec([
+        'mkdir',
+        '-p',
+        '/workspace/out',
+        '/workspace/cache',
+        '/workspace/broadcast',
+      ])
+      .withExec([
+        'chown',
+        'foundry:foundry',
+        '/workspace/out',
+        '/workspace/cache',
+        '/workspace/broadcast',
+      ])
+      .withUser('foundry')
+      .withExec(['forge', 'build', '--use', solc, '--evm-version', evm])
+
+    // Mount the deployments directory
+    const builtContainer = container.withMountedDirectory(
+      '/workspace/deployments',
+      source.directory('deployments')
+    )
+
+    // Determine contract file path - use provided path or auto-detect
+    let finalContractFilePath: string
+
+    if (contractFilePath) {
+      finalContractFilePath = contractFilePath
+    } else {
+      // Auto-detect based on contract name - follows pattern from getContractFilePath
+      // The helper function searches in src/ directory, so we need to construct the full path
+      // Common locations: src/Facets/, src/Periphery/, src/
+      finalContractFilePath = `src/Facets/${contractName}.sol:${contractName}`
+
+      // For some contracts like LiFiDiamond, they're directly in src/
+      if (
+        contractName === 'LiFiDiamond' ||
+        contractName === 'LiFiDiamondImmutable'
+      ) {
+        finalContractFilePath = `src/${contractName}.sol:${contractName}`
+      }
+      // Periphery contracts are in src/Periphery/
+      else if (
+        contractName.includes('Receiver') ||
+        contractName.includes('Executor') ||
+        contractName.includes('FeeCollector') ||
+        contractName.includes('ERC20Proxy')
+      ) {
+        finalContractFilePath = `src/Periphery/${contractName}.sol:${contractName}`
+      }
+    }
+
+    // Build base verification command
+    const forgeArgs = ['forge', 'verify-contract']
+
+    // Add watch flag
+    if (shouldWatch) {
+      forgeArgs.push('--watch')
+    }
+
+    // Add chain ID
+    forgeArgs.push('--chain', chainId)
+
+    // Add contract address and path
+    forgeArgs.push(contractAddress, finalContractFilePath)
+
+    // Add skip verification check flag
+    if (shouldSkipVerifiedCheck) {
+      forgeArgs.push('--skip-is-verified-check')
+    }
+
+    // Add constructor args if present
+    if (constructorArgs && constructorArgs !== '0x') {
+      forgeArgs.push('--constructor-args', constructorArgs)
+    }
+
+    // Add verifier
+    if (verificationService !== 'etherscan') {
+      forgeArgs.push('--verifier', verificationService)
+    }
+
+    // Set up container with environment variables
+    let verifyContainer = builtContainer
+
+    // Add API key if provided and not using sourcify
+    if (apiKey && verificationService !== 'sourcify') {
+      verifyContainer = verifyContainer.withEnvVariable(
+        'ETHERSCAN_API_KEY',
+        apiKey
+      )
+      forgeArgs.push('-e', 'ETHERSCAN_API_KEY')
+    }
+
+    // Execute the verification command
+    return verifyContainer.withExec(forgeArgs)
+  }
+
+  /**
+   * Verify a smart contract with simplified interface matching bash script
+   *
+   * This function provides a simplified interface that matches the existing
+   * verifyContract bash function signature for easier integration.
+   *
+   * @param source - Source directory containing the project root
+   * @param network - Target network name (e.g., "mainnet", "polygon", "arbitrum")
+   * @param contractName - Name of the contract to verify (e.g., "Executor")
+   * @param contractAddress - Deployed contract address
+   * @param constructorArgs - Constructor arguments in hex format (e.g., "0x123...")
+   * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
+   * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
+   */
+  @func()
+  verifyContractSimple(
+    source: Directory,
+    network: string,
+    contractName: string,
+    contractAddress: string,
+    constructorArgs: string,
+    solcVersion?: string,
+    evmVersion?: string
+  ): Container {
+    const solc = solcVersion || '0.8.29'
+    const evm = evmVersion || 'cancun'
+
+    // Create a mapping of network names to chain IDs
+    // This should ideally read from networks.json, but for now we'll use a static mapping
+    const networkToChainId: { [key: string]: string } = {
+      mainnet: '1',
+      arbitrum: '42161',
+      polygon: '137',
+      optimism: '10',
+      base: '8453',
+      avalanche: '43114',
+      bsc: '56',
+      fantom: '250',
+      gnosis: '100',
+      celo: '42220',
+      moonbeam: '1284',
+      moonriver: '1285',
+      aurora: '1313161554',
+      cronos: '25',
+      fuse: '122',
+      metis: '1088',
+      boba: '288',
+      viction: '88',
+      mantle: '5000',
+      linea: '59144',
+      scroll: '534352',
+      zksync: '324',
+      polygonzkevm: '1101',
+      mode: '34443',
+      blast: '81457',
+      fraxtal: '252',
+      sei: '1329',
+      taiko: '167000',
+      worldchain: '480',
+      sonic: '146',
+      unichain: '130',
+      abstract: '2741',
+      apechain: '33139',
+      berachain: '80094',
+      bob: '60808',
+      corn: '21000000',
+      etherlink: '42793',
+      flare: '14',
+      gravity: '1625',
+      hyperevm: '999',
+      immutablezkevm: '13371',
+      ink: '57073',
+      kaia: '8217',
+      katana: '747474',
+      lens: '232',
+      lisk: '1135',
+      nibiru: '6900',
+      opbnb: '204',
+      plume: '98866',
+      rootstock: '30',
+      soneium: '1868',
+      superposition: '55244',
+      swellchain: '1923',
+      vana: '1480',
+      xdc: '50',
+      xlayer: '196',
+    }
+
+    const chainId = networkToChainId[network] || '1' // default to mainnet if network not found
+
+    return this.verifyContract(
+      source,
+      contractName,
+      contractAddress,
+      constructorArgs,
+      chainId,
+      undefined, // auto-detect contract file path
+      undefined, // API key should be determined from network config
+      'etherscan', // default verifier
+      solc,
+      evm
+    )
+  }
+  /**
+   * Deploy a smart contract with simplified interface matching bash script
+   *
+   * This function provides a simplified interface that matches the existing
+   * forge script execution in the bash deployment scripts.
+   *
+   * @param source - Source directory containing the project root
+   * @param scriptPath - Path to the deployment script
+   * @param network - Target network name
+   * @param environment - Environment (staging/production)
+   * @param privateKey - Private key secret for deployment
+   * @param deploySalt - Salt for CREATE3 deployment
+   * @param create3FactoryAddress - Address of the CREATE3 factory contract
+   * @param gasEstimateMultiplier - Gas estimate multiplier (optional)
+   * @param defaultDiamondAddressDeploysalt - Default diamond address deploy salt (optional)
+   * @param deployToDefaultDiamondAddress - Whether to deploy to default diamond address (optional)
+   * @param diamondType - Diamond type for CelerIMFacet (optional)
+   */
+  @func()
+  deployContractSimple(
+    source: Directory,
+    scriptPath: string,
+    network: string,
+    environment: string,
+    privateKey: Secret,
+    deploySalt: string,
+    create3FactoryAddress: string,
+    gasEstimateMultiplier?: string,
+    defaultDiamondAddressDeploysalt?: string,
+    deployToDefaultDiamondAddress?: string,
+    diamondType?: string
+  ): Container {
+    // Determine file suffix based on environment
+    const fileSuffix = environment === 'production' ? '' : 'staging.'
+
+    return this.deployContract(
+      source,
+      scriptPath,
+      network,
+      deploySalt,
+      create3FactoryAddress,
+      fileSuffix,
+      privateKey,
+      '0.8.29', // default solc version
+      'cancun', // default evm version
+      gasEstimateMultiplier,
+      true, // broadcast
+      true, // legacy
+      true, // slow
+      false, // skipSimulation
+      undefined, // verbosity - omit by default
+      defaultDiamondAddressDeploysalt,
+      deployToDefaultDiamondAddress,
+      diamondType
+    )
+  }
+
+  /**
+   * Deploy a smart contract with advanced configuration reading from networks.json
+   *
+   * @param source - Source directory containing the project root
+   * @param contractName - Name of the contract to deploy (e.g., "AcrossFacet")
+   * @param network - Target network name (e.g., "arbitrum", "mainnet")
+   * @param privateKey - Private key secret for deployment
+   * @param environment - Deployment environment ("staging" or "production", defaults to "production")
+   */
+  @func()
+  async deployContractAdvanced(
+    source: Directory,
+    contractName: string,
+    network: string,
+    privateKey: Secret,
+    environment?: string
+  ): Promise<Container> {
+    const env = environment || 'production'
+
+    // Read network configuration from networks.json
+    const networksFile = source.file('config/networks.json')
+    const networksContent = await networksFile.contents()
+    const networks = JSON.parse(networksContent)
+
+    if (!networks[network]) {
+      throw new Error(`Network ${network} not found in networks.json`)
+    }
+
+    const networkConfig = networks[network] as NetworkConfig
+
+    // Build the project first
+    const builtContainer = this.buildProject(source)
+
+    const scriptPath = `script/deploy/facets/Deploy${contractName}.s.sol`
+
+    // Generate deployment salt - use container to generate hash since we need the built artifacts
+    const saltContainer = builtContainer.withExec([
       'sh',
       '-c',
-      `test -f .env && source .env; ${forgeArgs.join(' ')}`,
-    ]
+      `
+        # Generate deployment salt from bytecode
+        if [ "${contractName}" = "LiFiDiamondImmutable" ]; then
+          echo "0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66"
+        else
+          BYTECODE=$(cat /workspace/out/${contractName}.sol/${contractName}.json | grep '"bytecode"' | cut -d'"' -f4)
+          echo "0x$(echo -n "$BYTECODE" | sha256sum | cut -d' ' -f1)"
+        fi
+        `,
+    ])
 
-    // Execute the forge script command with .env sourcing
-    return container.withExec(forgeCommand)
+    const deploySalt = await saltContainer.stdout()
+
+    // Execute deployment
+    const deploymentContainer = this.deployContract(
+      source,
+      scriptPath,
+      network,
+      deploySalt.trim(),
+      networkConfig.create3Factory,
+      env === 'production' ? '' : 'staging.',
+      privateKey, // privateKey passed as secret
+      networkConfig.deployedWithSolcVersion,
+      networkConfig.deployedWithEvmVersion,
+      '130', // gasEstimateMultiplier
+      true, // broadcast
+      true, // legacy
+      true, // slow
+      false, // skipSimulation
+      undefined, // verbosity - omit by default
+      undefined, // defaultDiamondAddressDeploysalt
+      'true', // deployToDefaultDiamondAddress
+      undefined // diamondType
+    )
+
+    // Extract deployment results from the output
+    const deploymentOutput = await deploymentContainer.stdout()
+
+    // Parse the JSON output to extract contract address and constructor args
+    let contractAddress = ''
+    let constructorArgs = '0x'
+
+    try {
+      const result = JSON.parse(deploymentOutput)
+      if (result.returns && result.returns.deployed) {
+        contractAddress = result.returns.deployed.value
+      }
+      if (result.returns && result.returns.constructorArgs) {
+        constructorArgs = result.returns.constructorArgs.value
+      }
+    } catch (e) {
+      // If parsing fails, try to extract address from logs
+      const addressMatch = deploymentOutput.match(/0x[a-fA-F0-9]{40}/)
+      if (addressMatch) {
+        contractAddress = addressMatch[0]
+      }
+    }
+
+    if (!contractAddress) {
+      throw new Error(
+        'Failed to extract contract address from deployment output'
+      )
+    }
+
+    // Update deployment logs
+    const loggedContainer = await this.logDeployment(
+      deploymentContainer,
+      contractName,
+      network,
+      env,
+      contractAddress,
+      constructorArgs,
+      deploySalt.trim()
+    )
+
+    // Attempt contract verification
+    const finalContainer = await this.attemptVerification(
+      loggedContainer,
+      source,
+      contractName,
+      contractAddress,
+      constructorArgs,
+      networkConfig,
+      env
+    )
+
+    return finalContainer
+  }
+
+  /**
+   * Log deployment details to deployment files
+   */
+  private async logDeployment(
+    container: Container,
+    contractName: string,
+    network: string,
+    environment: string,
+    contractAddress: string,
+    constructorArgs: string,
+    deploySalt: string
+  ): Promise<Container> {
+    const fileSuffix = environment === 'production' ? '' : '.staging'
+    const deploymentFile = `deployments/${network}${fileSuffix}.json`
+    const logFile = 'deployments/_deployments_log_file.json'
+
+    // Read current deployment files or create empty ones
+    const readDeploymentFile = container.withExec([
+      'sh',
+      '-c',
+      `
+        if [ -f "/workspace/${deploymentFile}" ]; then
+          cat "/workspace/${deploymentFile}"
+        else
+          echo '{}'
+        fi
+      `,
+    ])
+
+    const currentDeploymentsRaw = await readDeploymentFile.stdout()
+
+    const readLogFile = container.withExec([
+      'sh',
+      '-c',
+      `
+        if [ -f "/workspace/${logFile}" ]; then
+          cat "/workspace/${logFile}"
+        else
+          echo '[]'
+        fi
+      `,
+    ])
+
+    const currentLogsRaw = await readLogFile.stdout()
+
+    // Parse and update deployment data using TypeScript
+    const timestamp = new Date().toISOString()
+
+    let currentDeployments: any = {}
+    try {
+      currentDeployments = JSON.parse(currentDeploymentsRaw.trim() || '{}')
+    } catch (e) {
+      currentDeployments = {}
+    }
+
+    let currentLogs: any[] = []
+    try {
+      currentLogs = JSON.parse(currentLogsRaw.trim() || '[]')
+    } catch (e) {
+      currentLogs = []
+    }
+
+    // Update deployment data
+    currentDeployments[contractName] = {
+      address: contractAddress,
+      constructorArgs: constructorArgs,
+      deploySalt: deploySalt,
+      timestamp: timestamp,
+      verified: false,
+    }
+
+    // Add to master log (remove existing entry for same contract/network/environment if exists)
+    currentLogs = currentLogs.filter(
+      (log) =>
+        !(
+          log.contractName === contractName &&
+          log.network === network &&
+          log.environment === environment
+        )
+    )
+
+    currentLogs.push({
+      contractName: contractName,
+      network: network,
+      environment: environment,
+      address: contractAddress,
+      constructorArgs: constructorArgs,
+      deploySalt: deploySalt,
+      timestamp: timestamp,
+      verified: false,
+    })
+
+    // Write updated files
+    const updatedDeployments = JSON.stringify(currentDeployments, null, 2)
+    const updatedLogs = JSON.stringify(currentLogs, null, 2)
+
+    const writeDeploymentFile = container.withNewFile(
+      `/workspace/${deploymentFile}`,
+      updatedDeployments
+    )
+
+    const writeLogFile = writeDeploymentFile.withNewFile(
+      `/workspace/${logFile}`,
+      updatedLogs
+    )
+
+    return writeLogFile
+  }
+
+  /**
+   * Attempt contract verification
+   */
+  private async attemptVerification(
+    container: Container,
+    source: Directory,
+    contractName: string,
+    contractAddress: string,
+    constructorArgs: string,
+    networkConfig: NetworkConfig,
+    environment: string
+  ): Promise<Container> {
+    try {
+      // Determine chain ID from network config
+      const chainId = networkConfig.chainId.toString()
+
+      // Attempt verification using the existing verifyContract function
+      const verificationContainer = this.verifyContract(
+        source,
+        contractName,
+        contractAddress,
+        constructorArgs,
+        chainId,
+        undefined, // auto-detect contract file path
+        undefined, // API key should be determined from network config
+        networkConfig.verificationType || 'etherscan',
+        networkConfig.deployedWithSolcVersion,
+        networkConfig.deployedWithEvmVersion,
+        true, // watch
+        true // skipIsVerifiedCheck
+      )
+
+      // Execute verification and update logs on success
+      const verifiedContainer = verificationContainer.withExec([
+        'sh',
+        '-c',
+        `
+          echo "Contract verification completed successfully"
+          # Update deployment logs to mark as verified
+          DEPLOYMENT_FILE="deployments/${networkConfig.chainId}${
+          environment === 'production' ? '' : '.staging'
+        }.json"
+          if [ -f "/workspace/$DEPLOYMENT_FILE" ]; then
+            # Use sed to update the verified field since we don't have jq
+            sed -i 's/"verified": false/"verified": true/g' "/workspace/$DEPLOYMENT_FILE"
+          fi
+        `,
+      ])
+
+      return verifiedContainer
+    } catch (error) {
+      // If verification fails, continue with unverified deployment
+      console.warn(`Contract verification failed: ${error}`)
+      return container.withExec([
+        'echo',
+        `Warning: Contract verification failed for ${contractName} at ${contractAddress}`,
+      ])
+    }
   }
 }
