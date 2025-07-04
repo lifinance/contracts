@@ -35311,7 +35311,7 @@
             "TIMESTAMP": "2025-07-04 08:08:19",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000005501e28f588b3a246a590a391a7ae7b2ba065dde",
             "SALT": "",
-            "VERIFIED": false
+            "VERIFIED": "true"
           }
         ]
       }
@@ -35325,7 +35325,7 @@
             "TIMESTAMP": "2025-07-04 08:10:20",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a0246202ac2537c9978be8940d51dc70b3d38426",
             "SALT": "",
-            "VERIFIED": true
+            "VERIFIED": "true"
           }
         ]
       }
