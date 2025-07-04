@@ -27,14 +27,14 @@ contract LiFiTimelockController is TimelockController {
     /// @param _minDelay Initial minimum delay for operations
     /// @param _proposers Accounts to be granted proposer and canceller roles
     /// @param _executors Accounts to be granted executor role
-    /// @param _deployerWallet Address of the deployer wallet (that will be granted CANCELLER role)
+    /// @param _cancellerWallet Address of the wallet that will be granted CANCELLER role
     /// @param _admin The address that will be the admin of the TimelockController (= the LI.FI MultiSig SAFE)
     /// @param _diamond The address of the diamond contract that this timelock controls
     constructor(
         uint256 _minDelay,
         address[] memory _proposers,
         address[] memory _executors,
-        address _deployerWallet,
+        address _cancellerWallet,
         address _admin,
         address _diamond
     ) TimelockController(_minDelay, _proposers, _executors, _admin) {
@@ -43,7 +43,7 @@ contract LiFiTimelockController is TimelockController {
             _minDelay == 0 ||
             _proposers.length == 0 ||
             _executors.length == 0 ||
-            _deployerWallet == address(0) ||
+            _cancellerWallet == address(0) ||
             _admin == address(0) ||
             _diamond == address(0)
         ) revert InvalidConfig();
@@ -51,7 +51,7 @@ contract LiFiTimelockController is TimelockController {
         diamond = _diamond;
 
         // grant CANCELLER role to deployer wallet
-        _grantRole(CANCELLER_ROLE, _deployerWallet);
+        _grantRole(CANCELLER_ROLE, _cancellerWallet);
 
         emit DiamondAddressUpdated(diamond);
     }
