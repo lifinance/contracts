@@ -263,11 +263,11 @@ contract Patcher {
         // Get the dynamic value
         uint256 dynamicValue = _getDynamicValue(valueSource, valueGetter);
 
-        // Create a mutable copy of the original calldata
-        bytes memory patchedData = bytes(data);
-
-        // Apply the patches in-place
-        _applyPatches(patchedData, offsets, dynamicValue);
+        bytes memory patchedData = _createPatchedData(
+            data,
+            offsets,
+            dynamicValue
+        );
 
         // Execute the call with the patched data
         return _executeCall(finalTarget, value, patchedData, delegateCall);
@@ -340,6 +340,42 @@ contract Patcher {
             unchecked {
                 ++j;
             }
+        }
+    }
+
+    /// @notice Creates a patched copy of input data with a dynamic value applied at specified offsets
+    /// @dev Uses assembly for efficient memory operations without expensive memory copies
+    /// @param data The original calldata to patch
+    /// @param offsets Array of byte offsets where the dynamic value should be written
+    /// @param dynamicValue The value to write at each offset
+    /// @return patchedData The new bytes array containing the patched data
+    function _createPatchedData(
+        bytes calldata data,
+        uint256[] calldata offsets,
+        uint256 dynamicValue
+    ) internal pure returns (bytes memory patchedData) {
+        uint256 dataLength = data.length;
+
+        assembly {
+            // allocate memory for result
+            patchedData := mload(0x40)
+            mstore(patchedData, dataLength)
+
+            // calculate and set new free memory pointer
+            let patchedDataEnd := add(add(patchedData, 0x20), dataLength)
+            mstore(0x40, patchedDataEnd)
+
+            // copy calldata directly to memory
+            calldatacopy(add(patchedData, 0x20), data.offset, dataLength)
+        }
+
+        // single simple loop for 1-2 offsets
+        for (uint256 i = 0; i < offsets.length; i++) {
+            if (offsets[i] + 32 > dataLength) {
+                revert InvalidPatchOffset();
+            }
+
+            _applyPatch(patchedData, offsets[i], dynamicValue);
         }
     }
 }
