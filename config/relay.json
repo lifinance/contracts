@@ -38,8 +38,14 @@
   "bsc": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
+  "celo": {
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+  },
   "corn": {
     "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec"
+  },
+  "cronos": {
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
   },
   "gnosis": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
@@ -64,6 +70,9 @@
   },
   "mantle": {
     "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e"
+  },
+  "metis": {
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
   },
   "mode": {
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"

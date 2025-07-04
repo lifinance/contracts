@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 /// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
@@ -120,6 +120,7 @@ library LibBytes {
             buffer[i] = _SYMBOLS[value & 0xf];
             value >>= 4;
         }
+        // solhint-disable-next-line gas-custom-errors
         require(value == 0, "Strings: hex length insufficient");
         return string(buffer);
     }

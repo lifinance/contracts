@@ -293,6 +293,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.26_PioneerFacet(v1.0.0).pdf",
       "auditCommitHash": "af8cfaf1bbd80a1c98449f8115fa8f34c9b78ee9"
+    },
+    "audit20250629": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_CalldataVerificationFacet(v1.3.1).pdf",
+      "auditCommitHash": "8840d8b41a894c46a444c5b2db2ca34babee753f"
+    },
+    "audit20250630": {
+      "auditCompletedOn": "30.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.30_LiFiDexAggregator(v1.11.0).pdf",
+      "auditCommitHash": "6561ef4cc67f167d6485c412afb738f5b5b0da7f"
     }
   },
   "auditedContracts": {
@@ -327,7 +341,8 @@
     },
     "CalldataVerificationFacet": {
       "1.2.0": ["audit20240902", "audit20250508"],
-      "1.3.0": ["audit20250220"]
+      "1.3.0": ["audit20250220"],
+      "1.3.1": ["audit20250629"]
     },
     "CBridgeFacet": {
       "1.0.0": ["audit20250508"]
@@ -465,7 +480,8 @@
       "1.7.0": ["audit20250411"],
       "1.8.0": ["audit20250422"],
       "1.9.0": ["audit20250510"],
-      "1.10.0": ["audit20250608"]
+      "1.10.0": ["audit20250608"],
+      "1.11.0": ["audit20250630"]
     },
     "LiFuelFeeCollector": {
       "1.0.2": ["audit20250109_3", "audit20250508"]
