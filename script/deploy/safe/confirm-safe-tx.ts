@@ -93,11 +93,44 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
                 'Nested Data:',
                 JSON.stringify(nestedDecodedData, null, 2)
               )
-          } else
-            consola.info(
-              'Nested Data:',
-              JSON.stringify(nestedDecoded.decodedData, null, 2)
-            )
+          } else 
+            // Decode the nested function arguments properly
+            try {
+              const fullAbiString = `function ${nestedDecoded.functionName}`
+              const abiInterface = parseAbi([fullAbiString])
+              const nestedDecodedData = decodeFunctionData({
+                abi: abiInterface,
+                data: data as Hex,
+              })
+
+              if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
+                consola.info('Nested Decoded Arguments:')
+                nestedDecodedData.args.forEach((arg: any, index: number) => {
+                  // Handle different types of arguments
+                  let displayValue = arg
+                  if (typeof arg === 'bigint') displayValue = arg.toString()
+                  else if (typeof arg === 'object' && arg !== null)
+                    displayValue = JSON.stringify(arg)
+
+                  consola.info(
+                    `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
+                  )
+                })
+              } else 
+                consola.info(
+                  'No nested arguments or failed to decode nested arguments'
+                )
+              
+            } catch (decodeError: any) {
+              consola.warn(
+                `Failed to decode nested function arguments: ${decodeError.message}`
+              )
+              consola.info(
+                'Nested Data:',
+                JSON.stringify(nestedDecoded.decodedData, null, 2)
+              )
+            }
+          
         } else consola.info(`Nested Data: ${data}`)
       } catch (error: any) {
         consola.warn(`Failed to decode nested data: ${error.message}`)
@@ -649,7 +682,7 @@ const main = defineCommand({
 
     // Create ledger connection once if using ledger
     let ledgerResult: ILedgerAccountResult | undefined
-    if (useLedger) 
+    if (useLedger)
       try {
         const { getLedgerAccount } = await import('./ledger')
         ledgerResult = await getLedgerAccount(ledgerOptions)
@@ -658,7 +691,6 @@ const main = defineCommand({
         consola.error(`Failed to connect to Ledger: ${error.message}`)
         throw error
       }
-    
 
     try {
       // Connect to MongoDB and fetch ALL pending transactions
