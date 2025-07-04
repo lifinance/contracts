@@ -202,15 +202,15 @@ const processTxs = async (
         { $set: { status: 'executed', executionHash: executionHash } }
       )
 
-      if (exec.receipt) 
+      if (exec.receipt)
         consola.success(
           `✅ Safe transaction confirmed and recorded in database`
         )
-       else 
+      else
         consola.success(
           `✅ Safe transaction submitted and recorded in database (confirmation pending)`
         )
-      
+
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
@@ -320,8 +320,28 @@ const processTxs = async (
         await decodeNestedTimelockCall(decoded, chain.id)
       else {
         consola.info('Method:', abi)
-        if (decoded)
-          consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
+        if (decoded) {
+          consola.info('Function Name:', decoded.functionName)
+          if (decoded.args && decoded.args.length > 0) {
+            consola.info('Decoded Arguments:')
+            decoded.args.forEach((arg: any, index: number) => {
+              // Handle different types of arguments
+              let displayValue = arg
+              if (typeof arg === 'bigint') 
+                displayValue = arg.toString()
+               else if (typeof arg === 'object' && arg !== null) 
+                displayValue = JSON.stringify(arg)
+              
+              consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+            })
+          } else 
+            consola.info('No arguments or failed to decode arguments')
+          
+          // Only show full decoded data if it contains useful information beyond what we've already shown
+          if (decoded.args === undefined) 
+            consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
+          
+        }
       }
 
     consola.info(`Safe Transaction Details:
