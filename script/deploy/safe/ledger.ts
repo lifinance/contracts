@@ -18,19 +18,27 @@ import type {
 } from 'viem'
 
 /**
+ * Result of creating a Ledger account, includes both the account and transport for cleanup
+ */
+export interface ILedgerAccountResult {
+  account: Account
+  transport: Transport
+}
+
+/**
  * Creates a viem-compatible account using a Ledger hardware wallet
  *
  * @param options Configuration options for the Ledger connection
  * @param options.derivationPath HD wallet derivation path (default: "m/44'/60'/0'/0/0")
  * @param options.ledgerLive Use Ledger Live derivation path if true
  * @param options.accountIndex Account index to use (default: 0, only used with ledgerLive: true)
- * @returns A viem-compatible account for transaction signing
+ * @returns A viem-compatible account for transaction signing with transport reference
  */
 export async function getLedgerAccount(options?: {
   derivationPath?: string
   ledgerLive?: boolean
   accountIndex?: number
-}): Promise<Account> {
+}): Promise<ILedgerAccountResult> {
   // Validate that incompatible options aren't provided together
   if (options?.derivationPath && options?.ledgerLive)
     throw new Error(
@@ -63,12 +71,18 @@ export async function getLedgerAccount(options?: {
     const { address } = await eth.getAddress(derivationPath)
     consola.success(`Connected to Ledger with address: ${address}`)
 
-    // Create and return a viem-compatible account
-    return await createLedgerAccount({
+    // Create and return a viem-compatible account with transport reference
+    const account = await createLedgerAccount({
       address: address as Address,
       transport,
       derivationPath,
     })
+
+    // Return both account and transport for cleanup
+    return {
+      account,
+      transport,
+    }
   } catch (error: any) {
     consola.error(`Failed to connect to Ledger device:`, error)
     throw new Error(`Ledger connection failed: ${error.message}`)
@@ -242,6 +256,22 @@ async function createLedgerAccount({
 }
 
 /**
+ * Closes a Ledger transport connection
+ *
+ * @param transport The transport to close
+ */
+export async function closeLedgerConnection(
+  transport: Transport
+): Promise<void> {
+  try {
+    await transport.close()
+    consola.success('Ledger connection closed successfully')
+  } catch (error: any) {
+    consola.warn(`Failed to close Ledger connection: ${error.message}`)
+  }
+}
+
+/**
  * Utility function to get multiple Ledger accounts
  *
  * @param count Number of accounts to get (default: 3)
@@ -253,8 +283,8 @@ export async function getLedgerAccounts(
   count = 3,
   startIndex = 0,
   ledgerLive = true
-): Promise<Account[]> {
-  const accounts: Account[] = []
+): Promise<ILedgerAccountResult[]> {
+  const accounts: ILedgerAccountResult[] = []
 
   consola.info(
     `Getting ${count} Ledger accounts starting from index ${startIndex}...`
@@ -263,12 +293,14 @@ export async function getLedgerAccounts(
   for (let i = 0; i < count; i++) {
     const index = startIndex + i
     try {
-      const account = await getLedgerAccount({
+      const result = await getLedgerAccount({
         ledgerLive,
         accountIndex: index,
       })
-      accounts.push(account)
-      consola.success(`Got account ${i + 1}/${count}: ${account.address}`)
+      accounts.push(result)
+      consola.success(
+        `Got account ${i + 1}/${count}: ${result.account.address}`
+      )
     } catch (error) {
       consola.error(`Failed to get account at index ${index}:`, error)
       break

@@ -163,9 +163,16 @@ export class ViemSafe {
       ledgerLive?: boolean
       accountIndex?: number
     }
+    account?: Account
   }): Promise<ViemSafe> {
-    const { privateKey, safeAddress, provider, useLedger, ledgerOptions } =
-      options
+    const {
+      privateKey,
+      safeAddress,
+      provider,
+      useLedger,
+      ledgerOptions,
+      account: preCreatedAccount,
+    } = options
 
     // Create provider with Viem
     let publicClient: PublicClient
@@ -183,15 +190,21 @@ export class ViemSafe {
       })
     }
 
-    // Get account - either from private key or Ledger
+    // Get account - either use pre-created, from private key, or create new Ledger connection
     let account
-    if (useLedger) {
+    if (preCreatedAccount) 
+      account = preCreatedAccount
+     else if (useLedger) {
       // Dynamically import the Ledger module to avoid dependency issues
       const { getLedgerAccount } = await import('./ledger')
-      account = await getLedgerAccount(ledgerOptions)
+      const ledgerResult = await getLedgerAccount(ledgerOptions)
+      account = ledgerResult.account
     } else if (privateKey)
       account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
-    else throw new Error('Either privateKey or useLedger must be provided')
+    else
+      throw new Error(
+        'Either privateKey, useLedger, or account must be provided'
+      )
 
     // Create wallet client with the account and chain
     const walletClient = createWalletClient({
@@ -602,11 +615,9 @@ export class ViemSafe {
         ])) as TransactionReceipt
 
         // If we got a receipt, check its status
-        if (receipt.status === 'success') 
-          return { hash: txHash, receipt }
-         else 
+        if (receipt.status === 'success') return { hash: txHash, receipt }
+        else
           throw new Error(`Transaction failed with status: ${receipt.status}`)
-        
       } catch (timeoutError: any) {
         if (timeoutError.message.includes('timeout')) {
           // Timeout reached - return optimistically with warning
@@ -616,16 +627,41 @@ export class ViemSafe {
           consola.warn(`   Transaction hash: ${txHash}`)
           consola.warn(`   Please manually verify transaction status later`)
           return { hash: txHash }
-        } else 
-          // Some other error occurred
-          throw timeoutError
-        
+        }
+        // Some other error occurred
+        else throw timeoutError
       }
     } catch (error: any) {
       if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
 
       throw new Error(`Error executing transaction: ${error.message || error}`)
+    }
+  }
+
+  /**
+   * Cleanup method to close transport connections and prevent hanging processes
+   */
+  public async cleanup(): Promise<void> {
+    try {
+      // Close public client transport if it has a close method
+      if (
+        this.publicClient?.transport &&
+        'close' in this.publicClient.transport
+      ) 
+        await (this.publicClient.transport as any).close?.()
+      
+
+      // Close wallet client transport if it has a close method
+      if (
+        this.walletClient?.transport &&
+        'close' in this.walletClient.transport
+      ) 
+        await (this.walletClient.transport as any).close?.()
+      
+    } catch (error: any) {
+      // Don't throw on cleanup errors, just log them
+      consola.warn(`Warning during ViemSafe cleanup: ${error.message}`)
     }
   }
 }
@@ -986,16 +1022,19 @@ export async function initializeSafeClient(
     derivationPath?: string
     ledgerLive?: boolean
     accountIndex?: number
-  }
+  },
+  safeAddress?: Address,
+  account?: Account
 ): Promise<{
   safe: ViemSafe
   chain: Chain
   safeAddress: Address
 }> {
   const chain = getViemChainForNetworkName(network)
-  const safeAddress = networks[network.toLowerCase()]?.safeAddress as Address
+  const finalSafeAddress =
+    safeAddress || (networks[network.toLowerCase()]?.safeAddress as Address)
 
-  if (!safeAddress)
+  if (!finalSafeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
@@ -1005,12 +1044,13 @@ export async function initializeSafeClient(
     const safe = await ViemSafe.init({
       provider: parsedRpcUrl as string,
       privateKey,
-      safeAddress,
+      safeAddress: finalSafeAddress,
       useLedger,
       ledgerOptions,
+      account,
     })
 
-    return { safe, chain, safeAddress }
+    return { safe, chain, safeAddress: finalSafeAddress }
   } catch (error: any) {
     consola.error(`Error encountered while setting up Safe: ${error}`)
     throw new Error(

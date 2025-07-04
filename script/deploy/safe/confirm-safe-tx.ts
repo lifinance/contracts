@@ -9,8 +9,16 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import { parseAbi, decodeFunctionData, type Hex, type Abi } from 'viem'
+import {
+  parseAbi,
+  decodeFunctionData,
+  type Hex,
+  type Abi,
+  type Address,
+  type Account,
+} from 'viem'
 
+import type { ILedgerAccountResult } from './ledger'
 import {
   type ISafeTransaction,
   type ISafeTxDocument,
@@ -121,18 +129,22 @@ const processTxs = async (
     derivationPath?: string
     ledgerLive?: boolean
     accountIndex?: number
-  }
+  },
+  account?: Account
 ) => {
   consola.info(' ')
   consola.info('-'.repeat(80))
 
-  // Initialize Safe client
+  // Initialize Safe client using safeAddress from first transaction
+  const txSafeAddress = pendingTxs[0]?.safeAddress as Address
   const { safe, chain, safeAddress } = await initializeSafeClient(
     network,
     privateKey,
     rpcUrl,
     useLedger,
-    ledgerOptions
+    ledgerOptions,
+    txSafeAddress,
+    account
   )
 
   // Get signer address
@@ -327,20 +339,17 @@ const processTxs = async (
             decoded.args.forEach((arg: any, index: number) => {
               // Handle different types of arguments
               let displayValue = arg
-              if (typeof arg === 'bigint') 
-                displayValue = arg.toString()
-               else if (typeof arg === 'object' && arg !== null) 
+              if (typeof arg === 'bigint') displayValue = arg.toString()
+              else if (typeof arg === 'object' && arg !== null)
                 displayValue = JSON.stringify(arg)
-              
+
               consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
             })
-          } else 
-            consola.info('No arguments or failed to decode arguments')
-          
+          } else consola.info('No arguments or failed to decode arguments')
+
           // Only show full decoded data if it contains useful information beyond what we've already shown
-          if (decoded.args === undefined) 
+          if (decoded.args === undefined)
             consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
-          
         }
       }
 
@@ -483,7 +492,8 @@ const processTxs = async (
           deployerPrivateKey,
           rpcUrl,
           false, // Not using ledger for deployer
-          undefined
+          undefined,
+          txSafeAddress
         )
 
         // Step 4: Check if deployer needs to sign
@@ -536,6 +546,11 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
+  }
+  try {
+    await safe.cleanup()
+  } catch (e) {
+    consola.error('Error:', e)
   }
 }
 
@@ -632,33 +647,55 @@ const main = defineCommand({
           : PrivateKeyTypeEnum.DEPLOYER
     } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
-    // Connect to MongoDB and fetch ALL pending transactions
-    const { client: mongoClient, pendingTransactions } =
-      await getSafeMongoCollection()
+    // Create ledger connection once if using ledger
+    let ledgerResult: ILedgerAccountResult | undefined
+    if (useLedger) 
+      try {
+        const { getLedgerAccount } = await import('./ledger')
+        ledgerResult = await getLedgerAccount(ledgerOptions)
+        consola.success('Ledger connected successfully for all networks')
+      } catch (error: any) {
+        consola.error(`Failed to connect to Ledger: ${error.message}`)
+        throw error
+      }
+    
 
-    // Fetch all pending transactions for the networks we're processing
-    const txsByNetwork = await getPendingTransactionsByNetwork(
-      pendingTransactions,
-      networks
-    )
+    try {
+      // Connect to MongoDB and fetch ALL pending transactions
+      const { client: mongoClient, pendingTransactions } =
+        await getSafeMongoCollection()
 
-    // Process transactions for each network
-    for (const network of networks) {
-      const networkTxs = txsByNetwork[network.toLowerCase()] || []
-      await processTxs(
-        network,
-        privateKey,
-        keyType,
-        networkTxs,
+      // Fetch all pending transactions for the networks we're processing
+      const txsByNetwork = await getPendingTransactionsByNetwork(
         pendingTransactions,
-        args.rpcUrl,
-        useLedger,
-        ledgerOptions
+        networks
       )
-    }
 
-    // Close MongoDB connection
-    await mongoClient.close()
+      // Process transactions for each network
+      for (const network of networks) {
+        const networkTxs = txsByNetwork[network.toLowerCase()] || []
+        await processTxs(
+          network,
+          privateKey,
+          keyType,
+          networkTxs,
+          pendingTransactions,
+          args.rpcUrl,
+          useLedger,
+          ledgerOptions,
+          ledgerResult?.account
+        )
+      }
+
+      // Close MongoDB connection
+      await mongoClient.close(true)
+    } finally {
+      // Always close ledger connection if it was created
+      if (ledgerResult) {
+        const { closeLedgerConnection } = await import('./ledger')
+        await closeLedgerConnection(ledgerResult.transport)
+      }
+    }
   },
 })
 
