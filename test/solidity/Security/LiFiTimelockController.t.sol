@@ -114,6 +114,18 @@ contract LiFiTimelockControllerTest is Test {
             address(mockDiamond)
         );
 
+        // deploy with empty proposers array
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            new address[](0),
+            executors,
+            deployerWallet,
+            admin,
+            address(mockDiamond)
+        );
+
         // deploy with invalid deployer wallet
         vm.expectRevert(InvalidConfig.selector);
         // Then deploy timelock with correct mockDiamond address
