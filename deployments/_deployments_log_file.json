@@ -35289,6 +35289,34 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8AA1575399be4E9a49cAF5ecFB4878A2982A5cFD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-04 08:08:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005501e28f588b3a246a590a391a7ae7b2ba065dde",
+            "SALT": "",
+            "VERIFIED": false
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x167e8431f2C65220FC0De0FA752A5661A1281102",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-04 08:10:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a0246202ac2537c9978be8940d51dc70b3d38426",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
