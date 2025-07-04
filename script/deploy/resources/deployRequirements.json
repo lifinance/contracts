@@ -156,25 +156,6 @@
       }
     }
   },
-  "CelerIMFacet": {
-    "configData": {
-      "_messageBus": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.messageBus",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_relayerOwner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_cfUSDC": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cfUSDC",
-        "allowToDeployWithZeroAddress": "true"
-      }
-    }
-  },
   "CircleBridgeFacet": {
     "configData": {
       "_tokenMessenger": {
@@ -477,20 +458,6 @@
       }
     }
   },
-  "RelayerCelerIM": {
-    "configData": {
-      "_cBridgeMessageBusAddress": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.messageBus",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "RelayFacet": {
     "configData": {
       "_relayReceiver": {
@@ -561,6 +528,15 @@
     },
     "contractAddresses": {
       "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "StargateFacet": {
+    "configData": {
+      "stargateRouter": {
+        "configFileName": "stargate.json",
+        "keyInConfigFile": ".<NETWORK>.stargateRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }
