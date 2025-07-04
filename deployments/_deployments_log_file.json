@@ -4760,6 +4760,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc7576334Fb5184B398fCC5ce0f5d237d9bb8BB22",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-03 14:54:59",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "linea": {
@@ -35342,6 +35354,50 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000081f2508aac59757ef7425ddc9717ab5c2aa0a84f000000000000000000000000c02fe7317d4eb8753a02c35fe019786854a92001000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "PioneerFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x371E61d9DC497C506837DFA47B8dccEF1da30459",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-26 15:57:47",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e92ed34fd131d5480f56ccb5f73dc799dba8f459",
+            "SALT": "",
+            "VERIFIED": false
+          }
+        ]
+      }
+    },
+    "soneium": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa5A269F733E960D3F1E4509726438d3263BDb20d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 14:04:00",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e92ed34fd131d5480f56ccb5f73dc799dba8f459",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x371E61d9DC497C506837DFA47B8dccEF1da30459",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-26 16:07:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e92ed34fd131d5480f56ccb5f73dc799dba8f459",
+            "SALT": "",
+            "VERIFIED": true
           }
         ]
       }
