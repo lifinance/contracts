@@ -24,7 +24,6 @@
     "imports-on-top": "error",
     "indent": ["error", 4],
     "interface-starts-with-i": "off",
-    "max-line-length": ["error", 120],
     "max-states-count": ["error", 15],
     "no-empty-blocks": "off",
     "no-global-import": "error",

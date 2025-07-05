@@ -1,13 +1,14 @@
+import { config } from 'dotenv'
+import { ethers, utils } from 'ethers'
+
 import deployments from '../../deployments/mainnet.staging.json'
 import {
   ThorSwapFacet__factory,
-  ILiFi,
-  ThorSwapFacet,
   ERC20__factory,
-} from '../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
-dotenv.config()
+  type ILiFi,
+  type ThorSwapFacet,
+} from '../../typechain'
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_MAINNET
@@ -24,8 +25,7 @@ const main = async () => {
     'https://dev-api.thorswap.net/aggregator/tokens/quote?sellAsset=ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48&buyAsset=LTC.LTC&sellAmount=10&recipientAddress=ltc1qpl20tgr56q6wk7t6gug0z77dhk80ppw728mvzx&providers=THORCHAIN'
   )
   const quote = await resp.json()
-  // @ts-ignore
-  const route = quote.routes.filter((r) => r.optimal === true)[0]
+  const route = quote.routes.filter((r: any) => r.optimal === true)[0]
 
   const token = ERC20__factory.connect(route.calldata.assetAddress, provider)
 

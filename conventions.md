@@ -114,6 +114,34 @@ We use Foundry as our primary development and testing framework. Foundry provide
   - All Solidity files must start with license identifier, followed by a blank line, then pragma statement
   - The EVM and Solidity version used for deployments (unless networks require lower versions) is defined in `foundry.toml`
 
+- **License requirements:**
+  All our own Solidity files must use the LGPL-3.0 license identifier. This applies to:
+
+  - All contracts in `src/` directory (except external dependencies)
+  - All test files in `test/solidity/` directory
+  - All deployment and task scripts in `script/` directory
+
+  License identifier format:
+
+  ```solidity
+  // SPDX-License-Identifier: LGPL-3.0
+  ```
+
+  Exceptions:
+
+  - External dependencies (libraries, etc.)
+  - External contracts copied from other projects: here we must retain the original license and add information from where we copied this contract
+
+  Example for how to mark a contract that
+
+  ```solidity
+  // SPDX-License-Identifier: MIT
+  // Modified from: https://github.com/nomad-xyz/ExcessivelySafeCall
+  // Original license: MIT OR Apache-2.0
+  // Modifications © 2025 LI.FI
+  pragma solidity ^0.8.17;
+  ```
+
 - **Design Patterns:**
   - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard)
   - Favor modular design for reusability and security

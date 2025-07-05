@@ -7,3 +7,5 @@ node_modules/
 package.json
 typechain/
 lib/
+*.hbs
+templates/
