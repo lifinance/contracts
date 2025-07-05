@@ -383,7 +383,7 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 
 ### TypeScript Scripts
 
-- All scripts must follow the rules defined in `.eslintrc.js`
+- All scripts must follow the rules defined in `.eslintrc.cjs`
 - Use async/await for asynchronous operations
 - Handle errors appropriately with try/catch blocks
 - Include proper logging for debugging and monitoring
