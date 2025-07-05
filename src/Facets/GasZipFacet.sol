@@ -13,7 +13,8 @@ import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfi
 
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the gas.zip protocol (https://www.gas.zip/)
+/// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the gas.zip protocol
+///         (https://www.gas.zip/)
 /// @custom:version 2.0.4
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
@@ -60,7 +61,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _gasZipData);
     }
 
-    /// @notice Performs one or multiple actions (e.g. fee collection, swapping) that must end with the native token before depositing to the gas.zip protocol
+    /// @notice Performs one or multiple actions (e.g. fee collection, swapping) that must end
+    ///         with the native token before depositing to the gas.zip protocol
     /// @param _bridgeData The core information needed for depositing
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _gasZipData contains information which chains and address gas should be sent to
@@ -110,7 +112,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _gasZipData.receiverAddress !=
-            bytes32(bytes20(uint160(_bridgeData.receiver))) // GasZip expects the receiver address as a right-padded bytes32 value. That's why we use bytes20 instead of uint256 to ensure proper formatting
+            bytes32(bytes20(uint160(_bridgeData.receiver)))
+            // GasZip expects the receiver address as a right-padded bytes32 value.
+            // That's why we use bytes20 instead of uint256 to ensure proper formatting
         ) revert InvalidCallData();
 
         // validate bridgeData
@@ -118,7 +122,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (_bridgeData.destinationChainId == block.chainid)
             revert CannotBridgeToSameNetwork();
 
-        // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
+        // We are depositing to a new contract that supports deposits for EVM chains + Solana
+        // (therefore 'receiver' address is bytes32)
         GAS_ZIP_ROUTER.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
@@ -128,7 +133,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @dev Returns a value that signals to Gas.zip to which chains gas should be sent in equal parts
-    /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds), see https://dev.gas.zip/gas/chain-support/outbound
+    /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds),
+    ///                 see https://dev.gas.zip/gas/chain-support/outbound
     function getDestinationChainsValue(
         uint8[] calldata _chainIds
     ) external pure returns (uint256 destinationChains) {
