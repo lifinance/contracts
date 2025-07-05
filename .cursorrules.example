@@ -1,0 +1,15 @@
+SYSTEM_CONTEXT: |
+  You are assisting with the development of Ethereum smart contracts using Solidity as well as the development of unit tests (written in Solidity) and scripts (written in Solidity and Typescript).
+
+  Key project files and their purposes:
+  - conventions.md: Core development rules and standards
+  - foundry.toml: Foundry configuration and network settings
+  - package.json: Scripts and dependencies
+  - optimization_todos.md: Ongoing optimization tasks
+
+  Development Environment:
+  - Foundry for Solidity development and testing
+  - TypeScript/Solidity for scripts and automation
+  - Bash scripts for deployment and operations
+
+  Note: For detailed rules and standards, refer to conventions.md. This file is meant to provide quick context for AI interactions.

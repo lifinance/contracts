@@ -137,7 +137,8 @@ contract ReceiverStargateV2 is
     /// @notice Performs a swap before completing a cross-chain transaction
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swapData array of data needed for swaps
-    /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
+    /// @param assetId address of the token received from the source chain
+    ///                (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
     function _swapAndCompleteBridgeTokens(
