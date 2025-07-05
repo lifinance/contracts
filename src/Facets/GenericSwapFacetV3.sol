@@ -5,7 +5,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
@@ -408,7 +407,7 @@ contract GenericSwapFacetV3 is ILiFi {
                 revert ContractCallNotAllowed();
             }
 
-            if (LibAsset.isNativeAsset(sendingAssetId)) {
+            if (_isNativeAsset(sendingAssetId)) {
                 // Native
                 // execute the swap
                 (success, returnData) = currentSwap.callTo.call{
@@ -461,7 +460,7 @@ contract GenericSwapFacetV3 is ILiFi {
                 sendingAssetId,
                 receivingAssetId,
                 currentSwap.fromAmount,
-                LibAsset.isNativeAsset(receivingAssetId)
+                _isNativeAsset(receivingAssetId)
                     ? address(this).balance
                     : ERC20(receivingAssetId).balanceOf(address(this)),
                 block.timestamp
@@ -571,5 +570,11 @@ contract GenericSwapFacetV3 is ILiFi {
             (bool success, ) = receiver.call{ value: nativeBalance }("");
             if (!success) revert NativeAssetTransferFailed();
         }
+    }
+
+    // returns true if the assetId is the native asset for this network
+    // we cannot use LibAsset.isNativeAsset as it will not consider a network's custom native address
+    function _isNativeAsset(address assetId) private view returns (bool) {
+        return assetId == NATIVE_ADDRESS;
     }
 }
