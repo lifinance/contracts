@@ -150,6 +150,18 @@ We use Foundry as our primary development and testing framework. Foundry provide
     - Use reentrancy guards
     - Optimize for gas efficiency
 
+- **Error Handling:**
+  - All custom errors must be defined in `src/Errors/GenericErrors.sol`
+  - Error names should be descriptive and follow PascalCase
+  - Errors should not include error messages (gas optimization)
+  - Use custom error types rather than generic `revert()` statements
+
+- **Interface Design Standards:**
+  - All interfaces must start with `I` prefix (e.g., `ILiFi`, `IStargate`)
+  - Use consistent parameter naming across similar interfaces
+  - All interfaces must be placed in separate files in the `src/Interfaces` directory
+  - Do not define interfaces in the same file as their implementation
+
 ## Code Style and Documentation
 
 ### General Rules
@@ -389,6 +401,13 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 - Include proper logging for debugging and monitoring
 - Use environment variables for configuration
 - Include proper type definitions
+- All scripts must use `citty` for CLI argument parsing
+- Use `consola` for consistent logging across scripts
+- Environment variables should be validated using `getEnvVar()` helper
+- Scripts should exit with appropriate exit codes (0 for success, 1 for error)
+
+- **Execution Environment:**
+  - All scripts should use `bunx tsx` for TypeScript execution
 
 ### Bash Scripts
 
@@ -413,6 +432,7 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
   - Validate inputs early
   - Check function exit status with `checkFailure`
   - Add system packages to `preinstall.sh`
+  - Use `set -e` for error handling where appropriate
 
 - **User Interaction:**
   - Use clear prompts with descriptive instructions
