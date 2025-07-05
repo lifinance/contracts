@@ -1074,9 +1074,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
-        bool callback = stream.readUint8() == CALLBACK_ENABLED;
-        // if true then run callback after swap with tokenIn as flashloan data.
-        // Will revert if contract (to) does not implement IVelodromeV2PoolCallee
+        // solhint-disable-next-line max-line-length
+        bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
         if (from == INTERNAL_INPUT_SOURCE) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
@@ -1149,8 +1148,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
-        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction:
-        // true for token0 -> token1, false for token1 -> token0
+        // solhint-disable-next-line max-line-length
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
         address recipient = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0; // Any non-zero value enables fee-on-transfer handling
 
