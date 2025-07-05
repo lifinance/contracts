@@ -67,7 +67,7 @@ export class LifiContracts {
   }
 
   /**
-   * Deploy a smart contract using Foundry forge script
+   * Deploy a smart contract using Foundry forge script (internal function)
    *
    * @param source - Source directory containing the project root
    * @param scriptPath - Path to the deployment script (e.g., "script/deploy/facets/DeployExecutor.s.sol")
@@ -89,7 +89,7 @@ export class LifiContracts {
    * @param diamondType - Diamond type for CelerIMFacet (optional)
    */
   @func()
-  deployContract(
+  deployContractInternal(
     source: Directory,
     scriptPath: string,
     network: string,
@@ -208,7 +208,7 @@ export class LifiContracts {
    * @param skipIsVerifiedCheck - Whether to skip already verified check (default: true)
    */
   @func()
-  verifyContractWithBuiltContainer(
+  verifyContract(
     builtContainer: Container,
     source: Directory,
     contractName: string,
@@ -316,7 +316,7 @@ export class LifiContracts {
   }
 
   /**
-   * Deploy a smart contract with advanced configuration reading from networks.json
+   * Deploy a smart contract with configuration reading from networks.json
    *
    * @param source - Source directory containing the project root
    * @param contractName - Name of the contract to deploy (e.g., "AcrossFacet")
@@ -325,7 +325,7 @@ export class LifiContracts {
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
    */
   @func()
-  async deployContractAdvanced(
+  async deployContract(
     source: Directory,
     contractName: string,
     network: string,
@@ -368,7 +368,7 @@ export class LifiContracts {
     const deploySalt = await saltContainer.stdout()
 
     // Execute deployment
-    const deploymentContainer = this.deployContract(
+    const deploymentContainer = this.deployContractInternal(
       source,
       scriptPath,
       network,
@@ -589,7 +589,7 @@ export class LifiContracts {
       const chainId = networkConfig.chainId.toString()
 
       // Use the built container for verification to reuse compiled artifacts
-      const verificationContainer = this.verifyContractWithBuiltContainer(
+      const verificationContainer = this.verifyContract(
         builtContainer,
         source,
         contractName,
