@@ -196,22 +196,46 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 ### Documentation Requirements
 
-1. **Contract Documentation**
+1. **Contract NatSpec Documentation**
 
-   - Every contract must have a header comment containing:
-     - Title of the contract
-     - Author information
-     - Notice describing the contract's purpose
-     - Version number
+   - Every contract MUST have the following NatSpec tags in this order:
+     ```solidity
+     /// @title ContractName
+     /// @author LI.FI (https://li.fi)
+     /// @notice Brief description of the contract's purpose
+     /// @custom:version X.Y.Z
+     ```
+   - The @author tag MUST always be "LI.FI (https://li.fi)"
+   - The @custom:version MUST follow semantic versioning (X.Y.Z format)
+   - Additional NatSpec tags (like @dev, @custom:security, etc.) may be added after these required tags
 
-2. **Function Documentation**
+2. **Interface NatSpec Documentation**
+
+   - Every interface MUST have the following NatSpec tags in this order:
+     ```solidity
+     /// @title InterfaceName
+     /// @notice Brief description of the interface
+     /// @author LI.FI (https://li.fi)
+     /// @custom:version X.Y.Z
+     ```
+   - The @custom:version MUST follow semantic versioning (X.Y.Z format)
+   - For external interfaces that we're wrapping, original authorship should be preserved if applicable
+
+3. **Function Documentation**
 
    - Every public/external function must have NatSpec comments
    - Include description of what the function does
    - Document parameters and return values
    - Note if function is restricted to admin or specific addresses
+   - Example:
+     ```solidity
+     /// @notice Brief description of function purpose
+     /// @param parameterName Description of parameter
+     /// @return Description of return value
+     /// @dev Additional details about implementation (optional)
+     ```
 
-3. **Complex Logic Documentation**
+4. **Complex Logic Documentation**
    - Add inline comments for complex algorithms
    - Explain non-obvious optimizations
    - Document gas-saving techniques
