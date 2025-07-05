@@ -124,7 +124,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
   License identifier format:
 
   ```solidity
-  // SPDX-License-Identifier: LGPL-3.0
+  // SPDX-License-Identifier: LGPL-3.0-only
   ```
 
   Exceptions:
