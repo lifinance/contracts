@@ -188,7 +188,7 @@ export class LifiContracts {
   }
 
   /**
-   * Verify a smart contract using an existing built container
+   * Verify a smart contract using an existing built container (internal function)
    *
    * This function reuses a pre-built container to avoid rebuilding and ensure
    * the same artifacts are used for both deployment and verification.
@@ -208,7 +208,7 @@ export class LifiContracts {
    * @param skipIsVerifiedCheck - Whether to skip already verified check (default: true)
    */
   @func()
-  verifyContract(
+  verifyContractInternal(
     builtContainer: Container,
     source: Directory,
     contractName: string,
@@ -313,6 +313,66 @@ export class LifiContracts {
 
     // Execute the verification command
     return containerWithDeployments.withExec(forgeArgs)
+  }
+
+  /**
+   * Verify a smart contract with configuration reading from networks.json
+   *
+   * This function builds the project and verifies a deployed contract using the same
+   * configuration as deployContract to ensure consistency.
+   *
+   * @param source - Source directory containing the project root
+   * @param contractName - Name of the contract to verify (e.g., "AcrossFacet")
+   * @param contractAddress - Deployed contract address
+   * @param constructorArgs - Constructor arguments in hex format (e.g., "0x123...")
+   * @param network - Target network name (e.g., "arbitrum", "mainnet")
+   * @param contractFilePath - Custom contract file path (optional, auto-detected if not provided)
+   * @param apiKey - API key for verification service (optional)
+   * @param watch - Whether to watch verification status (default: true)
+   * @param skipIsVerifiedCheck - Whether to skip already verified check (default: true)
+   */
+  @func()
+  async verifyContract(
+    source: Directory,
+    contractName: string,
+    contractAddress: string,
+    constructorArgs: string,
+    network: string,
+    contractFilePath?: string,
+    apiKey?: string,
+    watch?: boolean,
+    skipIsVerifiedCheck?: boolean
+  ): Promise<Container> {
+    // Read network configuration from networks.json
+    const networksFile = source.file('config/networks.json')
+    const networksContent = await networksFile.contents()
+    const networks = JSON.parse(networksContent)
+
+    if (!networks[network]) {
+      throw new Error(`Network ${network} not found in networks.json`)
+    }
+
+    const networkConfig = networks[network] as NetworkConfig
+
+    // Build the project first to get the same artifacts as deployment
+    const builtContainer = this.buildProject(source)
+
+    // Use the built container for verification
+    return this.verifyContractInternal(
+      builtContainer,
+      source,
+      contractName,
+      contractAddress,
+      constructorArgs,
+      networkConfig.chainId.toString(),
+      contractFilePath,
+      apiKey,
+      networkConfig.verificationType || 'etherscan',
+      networkConfig.deployedWithSolcVersion,
+      networkConfig.deployedWithEvmVersion,
+      watch,
+      skipIsVerifiedCheck
+    )
   }
 
   /**
@@ -589,7 +649,7 @@ export class LifiContracts {
       const chainId = networkConfig.chainId.toString()
 
       // Use the built container for verification to reuse compiled artifacts
-      const verificationContainer = this.verifyContract(
+      const verificationContainer = this.verifyContractInternal(
         builtContainer,
         source,
         contractName,
