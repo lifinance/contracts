@@ -362,14 +362,14 @@ Deployment and update scripts for LI.FI smart contracts are located in: `script/
   - Deployment scripts must be prefixed with `Deploy` followed by the contract name (e.g., `DeployMayanFacet.s.sol`).
   - Update scripts must be prefixed with `Update` followed by the contract name (e.g., `UpdateMayanFacet.s.sol`).
 - **Structure of Deployment scripts:**
-  - Each deployment script follow this format:
+  - Each deployment script follows this format:
     - Inherits `DeployScriptBase` to maintain consistency.
     - Uses JSON config (`stdJson`) to fetch contract-specific configuration data.
     - Optionally defines `getConstructorArgs()` if the contract has constructor arguments.
     - Encodes constructor arguments before deployment.
     - Calls `deploy()` using `type({ContractName}).creationCode`.
 - **Structure of Update scripts:**
-  - Each deployment script follow this format:
+  - Each deployment script follows this format:
     - Inherits `UpdateScriptBase` for consistency in update logic.
     - Calls `update("{ContractName}")` to handle facet upgrades in the Diamond architecture.
     - Ensures correct function selectors are updated.
