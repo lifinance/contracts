@@ -231,11 +231,8 @@ export class LifiContracts {
     contractAddress: string,
     constructorArgs: string,
     chainId: string,
-    contractFilePath?: string,
     apiKey?: string,
     verifier?: string,
-    solcVersion?: string,
-    evmVersion?: string,
     watch?: boolean,
     skipIsVerifiedCheck?: boolean
   ): Container {
@@ -252,37 +249,8 @@ export class LifiContracts {
       source.directory('deployments')
     )
 
-    // Determine contract file path - use provided path or auto-detect
-    let finalContractFilePath: string
-
-    if (contractFilePath) {
-      finalContractFilePath = contractFilePath
-    } else {
-      // Auto-detect based on contract name - follows pattern from getContractFilePath
-      // The helper function searches in src/ directory, so we need to construct the full path
-      // Common locations: src/Facets/, src/Periphery/, src/
-      finalContractFilePath = `src/Facets/${contractName}.sol:${contractName}`
-
-      // For some contracts like LiFiDiamond, they're directly in src/
-      if (
-        contractName === 'LiFiDiamond' ||
-        contractName === 'LiFiDiamondImmutable'
-      ) {
-        finalContractFilePath = `src/${contractName}.sol:${contractName}`
-      }
-      // Periphery contracts are in src/Periphery/
-      else if (
-        contractName.includes('Receiver') ||
-        contractName.includes('Executor') ||
-        contractName.includes('FeeCollector') ||
-        contractName.includes('ERC20Proxy')
-      ) {
-        finalContractFilePath = `src/Periphery/${contractName}.sol:${contractName}`
-      }
-    }
-
     // Build base verification command
-    const forgeArgs = ['forge', 'verify-contract', '--root', '/workspace']
+    const forgeArgs = ['forge', 'verify-contract']
 
     // Add watch flag
     if (shouldWatch) {
@@ -302,7 +270,7 @@ export class LifiContracts {
 
     // Add constructor args if present
     if (constructorArgs && constructorArgs !== '0x') {
-      forgeArgs.push('--constructor-args', constructorArgs)
+      forgeArgs.push('--constructor-args', constructorArgs.trim())
     }
 
     // Add verifier
@@ -353,7 +321,6 @@ export class LifiContracts {
     contractAddress: string,
     constructorArgs: string,
     network: string,
-    contractFilePath?: string,
     apiKey?: string,
     watch?: boolean,
     skipIsVerifiedCheck?: boolean
@@ -384,11 +351,8 @@ export class LifiContracts {
       contractAddress,
       constructorArgs,
       networkConfig.chainId.toString(),
-      contractFilePath,
       apiKey,
       networkConfig.verificationType || 'etherscan',
-      networkConfig.deployedWithSolcVersion,
-      networkConfig.deployedWithEvmVersion,
       watch,
       skipIsVerifiedCheck
     )
@@ -528,8 +492,7 @@ export class LifiContracts {
       constructorArgs,
       networkConfig,
       network,
-      env,
-      builtContainer // Pass the built container to reuse artifacts
+      env
     )
 
     return finalContainer
@@ -788,8 +751,7 @@ export class LifiContracts {
     constructorArgs: string,
     networkConfig: NetworkConfig,
     network: string,
-    environment: string,
-    builtContainer: Container
+    environment: string
   ): Promise<Container> {
     try {
       // Determine chain ID from network config
@@ -797,17 +759,14 @@ export class LifiContracts {
 
       // Use the built container for verification to reuse compiled artifacts
       const verificationContainer = this.verifyContractInternal(
-        builtContainer,
+        container,
         source,
         contractName,
         contractAddress,
         constructorArgs,
         chainId,
         undefined, // auto-detect contract file path
-        undefined, // API key should be determined from network config
         networkConfig.verificationType || 'etherscan',
-        networkConfig.deployedWithSolcVersion,
-        networkConfig.deployedWithEvmVersion,
         true, // watch
         true // skipIsVerifiedCheck
       )
