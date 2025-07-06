@@ -26,57 +26,18 @@ interface NetworkConfig {
 @object()
 export class LifiContracts {
   /**
-   * Generate deployment salt from contract bytecode using TypeScript
-   *
-   * @param builtContainer - Pre-built container with compiled artifacts
-   * @param contractName - Name of the contract to generate salt for
-   */
-  @func()
-  async generateDeploymentSalt(
-    builtContainer: Container,
-    contractName: string
-  ): Promise<string> {
-    // Special case for LiFiDiamondImmutable - use hardcoded salt
-    if (contractName === 'LiFiDiamondImmutable') {
-      return '0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66'
-    }
-
-    // Read the bytecode from the compiled artifacts
-    const artifactPath = `/workspace/out/${contractName}.sol/${contractName}.json`
-    const artifactContainer = builtContainer.withExec(['cat', artifactPath])
-
-    const artifactContent = await artifactContainer.stdout()
-
-    try {
-      const artifact = JSON.parse(artifactContent)
-      const bytecode = artifact.bytecode?.object || artifact.bytecode
-
-      if (!bytecode) {
-        throw new Error(`No bytecode found for contract ${contractName}`)
-      }
-
-      // Generate SHA256 hash of the bytecode using container's sha256sum
-      const hashContainer = builtContainer.withExec([
-        'sh',
-        '-c',
-        `echo -n "${bytecode}" | sha256sum | cut -d' ' -f1`,
-      ])
-
-      const hash = await hashContainer.stdout()
-      return `0x${hash.trim()}`
-    } catch (error) {
-      throw new Error(`Failed to generate salt for ${contractName}: ${error}`)
-    }
-  }
-  /**
    * Build the Foundry project using forge build
    *
    * @param source - Source directory containing the project root
-   * @param uid - User ID to match host user (optional)
-   * @param gid - Group ID to match host group (optional)
+   * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
+   * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    */
   @func()
-  buildProject(source: Directory): Container {
+  buildProject(
+    source: Directory,
+    solcVersion?: string,
+    evmVersion?: string
+  ): Container {
     let container = dag
       .container()
       .from('ghcr.io/foundry-rs/foundry:latest')
@@ -104,7 +65,19 @@ export class LifiContracts {
       ])
       .withUser('foundry')
       .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
-      .withExec(['forge', 'build'])
+
+    // Build forge build command with version parameters
+    const buildArgs = ['forge', 'build']
+
+    if (solcVersion) {
+      buildArgs.push('--use', solcVersion)
+    }
+
+    if (evmVersion) {
+      buildArgs.push('--evm-version', evmVersion)
+    }
+
+    container = container.withExec(buildArgs)
 
     return container
   }
@@ -161,8 +134,8 @@ export class LifiContracts {
     const solc = solcVersion || '0.8.29'
     const evm = evmVersion || 'cancun'
 
-    // Build the project first
-    const builtContainer = this.buildProject(source)
+    // Build the project first with the same versions as deployment
+    const builtContainer = this.buildProject(source, solc, evm)
 
     // Mount the deployments directory to the built container
     const containerWithDeployments = builtContainer.withMountedDirectory(
@@ -272,7 +245,9 @@ export class LifiContracts {
     const shouldSkipVerifiedCheck = skipIsVerifiedCheck !== false
 
     // Mount the deployments directory to the built container
-    const containerWithDeployments = builtContainer.withMountedDirectory(
+    // Note: The built container already has src, lib, script, foundry.toml, etc.
+    // We just need to mount the deployments directory for verification
+    builtContainer = builtContainer.withMountedDirectory(
       '/workspace/deployments',
       source.directory('deployments')
     )
@@ -307,7 +282,7 @@ export class LifiContracts {
     }
 
     // Build base verification command
-    const forgeArgs = ['forge', 'verify-contract']
+    const forgeArgs = ['forge', 'verify-contract', '--root', '/workspace']
 
     // Add watch flag
     if (shouldWatch) {
@@ -317,8 +292,8 @@ export class LifiContracts {
     // Add chain ID
     forgeArgs.push('--chain', chainId)
 
-    // Add contract address and path
-    forgeArgs.push(contractAddress, finalContractFilePath)
+    // Add contract address and contract name
+    forgeArgs.push(contractAddress, contractName)
 
     // Add skip verification check flag
     if (shouldSkipVerifiedCheck) {
@@ -334,9 +309,6 @@ export class LifiContracts {
     if (verificationService !== 'etherscan') {
       forgeArgs.push('--verifier', verificationService)
     }
-
-    // Add optimizer settings to match deployment
-    forgeArgs.push('--optimizer-runs', '1000000')
 
     // Add API key if provided and not using sourcify
     if (apiKey && verificationService !== 'sourcify') {
@@ -355,7 +327,7 @@ export class LifiContracts {
     }
 
     // Execute the verification command
-    return containerWithDeployments.withExec(forgeArgs)
+    return builtContainer.withExec(forgeArgs)
   }
 
   /**
@@ -398,7 +370,11 @@ export class LifiContracts {
     const networkConfig = networks[network] as NetworkConfig
 
     // Build the project first to get the same artifacts as deployment
-    const builtContainer = this.buildProject(source)
+    const builtContainer = this.buildProject(
+      source,
+      networkConfig.deployedWithSolcVersion,
+      networkConfig.deployedWithEvmVersion
+    )
 
     // Use the built container for verification
     return this.verifyContractInternal(
@@ -448,16 +424,38 @@ export class LifiContracts {
 
     const networkConfig = networks[network] as NetworkConfig
 
-    // Build the project first
-    const builtContainer = this.buildProject(source)
+    // Build the project first with network-specific versions
+    const builtContainer = this.buildProject(
+      source,
+      networkConfig.deployedWithSolcVersion,
+      networkConfig.deployedWithEvmVersion
+    )
 
     const scriptPath = `script/deploy/facets/Deploy${contractName}.s.sol`
 
-    // Generate deployment salt using TypeScript method
-    const deploySalt = await this.generateDeploymentSalt(
-      builtContainer,
-      contractName
-    )
+    // Generate deployment salt
+    let deploySalt: string
+    // Read the bytecode from compiled artifacts
+    const artifactPath = `/workspace/out/${contractName}.sol/${contractName}.json`
+    const artifactContainer = builtContainer.withExec(['cat', artifactPath])
+    const artifactContent = await artifactContainer.stdout()
+
+    const artifact = JSON.parse(artifactContent)
+    const bytecode = artifact.bytecode?.object || artifact.bytecode
+
+    if (!bytecode) {
+      throw new Error(`No bytecode found for contract ${contractName}`)
+    }
+
+    // Generate SHA256 hash of the bytecode
+    const hashContainer = builtContainer.withExec([
+      'sh',
+      '-c',
+      `echo -n "${bytecode}" | sha256sum | cut -d' ' -f1`,
+    ])
+
+    const hash = await hashContainer.stdout()
+    deploySalt = `0x${hash.trim()}`
 
     // Execute deployment
     const deploymentContainer = this.deployContractInternal(
