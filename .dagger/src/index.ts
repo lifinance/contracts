@@ -538,6 +538,123 @@ export class LifiContracts {
   }
 
   /**
+   * Update deployment logs to mark contract as verified using TypeScript
+   *
+   * @param container - Container to execute the update in
+   * @param contractName - Name of the verified contract
+   * @param network - Target network name
+   * @param environment - Deployment environment
+   * @param contractAddress - Address of the verified contract
+   */
+  @func()
+  async updateVerificationLogs(
+    container: Container,
+    contractName: string,
+    network: string,
+    environment: string,
+    contractAddress: string
+  ): Promise<Container> {
+    const fileSuffix = environment === 'production' ? '' : '.staging'
+    const deploymentFile = `deployments/${network}${fileSuffix}.json`
+    const logFile = 'deployments/_deployments_log_file.json'
+
+    // Read current deployment files
+    const readDeploymentFile = container.withExec([
+      'sh',
+      '-c',
+      `
+        if [ -f "/workspace/${deploymentFile}" ]; then
+          cat "/workspace/${deploymentFile}"
+        else
+          echo '{}'
+        fi
+      `,
+    ])
+
+    const currentDeploymentsRaw = await readDeploymentFile.stdout()
+
+    const readLogFile = container.withExec([
+      'sh',
+      '-c',
+      `
+        if [ -f "/workspace/${logFile}" ]; then
+          cat "/workspace/${logFile}"
+        else
+          echo '{}'
+        fi
+      `,
+    ])
+
+    const currentLogsRaw = await readLogFile.stdout()
+
+    // Parse and update deployment data using TypeScript
+    let currentDeployments: any = {}
+    try {
+      currentDeployments = JSON.parse(currentDeploymentsRaw.trim() || '{}')
+    } catch (e) {
+      currentDeployments = {}
+    }
+
+    let currentLogs: any = {}
+    try {
+      currentLogs = JSON.parse(currentLogsRaw.trim() || '{}')
+    } catch (e) {
+      currentLogs = {}
+    }
+
+    // Update network-specific deployment file
+    if (currentDeployments[contractName]) {
+      currentDeployments[contractName].verified = true
+    }
+
+    // Update master log file - find entries with matching address and mark as verified
+    if (
+      currentLogs[contractName] &&
+      currentLogs[contractName][network] &&
+      currentLogs[contractName][network][environment]
+    ) {
+      Object.keys(currentLogs[contractName][network][environment]).forEach(
+        (version) => {
+          const entries =
+            currentLogs[contractName][network][environment][version]
+          if (Array.isArray(entries)) {
+            entries.forEach((entry: any) => {
+              if (entry.ADDRESS === contractAddress) {
+                entry.VERIFIED = 'true'
+              }
+            })
+          }
+        }
+      )
+    }
+
+    // Write updated files
+    const updatedDeployments = JSON.stringify(currentDeployments, null, 2)
+    const updatedLogs = JSON.stringify(currentLogs, null, 2)
+
+    const writeDeploymentFile = container.withNewFile(
+      `/workspace/${deploymentFile}`,
+      updatedDeployments
+    )
+
+    const writeLogFile = writeDeploymentFile.withNewFile(
+      `/workspace/${logFile}`,
+      updatedLogs
+    )
+
+    // Log success message
+    return writeLogFile.withExec([
+      'sh',
+      '-c',
+      `
+        echo "Contract verification completed successfully for ${contractName} at ${contractAddress}"
+        echo "Updated network deployment file: ${deploymentFile}"
+        echo "Updated master log file: ${logFile}"
+      `,
+    ])
+  }
+
+  /**
    * Log deployment details to deployment files
    */
   private async logDeployment(
@@ -697,36 +814,25 @@ export class LifiContracts {
         true // skipIsVerifiedCheck
       )
 
-      // Use the network name passed to the function
-      const fileSuffix = environment === 'production' ? '' : '.staging'
-
-      // Execute verification and update logs on success
-      const verifiedContainer = verificationContainer.withExec([
+      // Log verification details
+      const logContainer = verificationContainer.withExec([
         'sh',
         '-c',
         `
           echo "Contract verification completed successfully for ${contractName} at ${contractAddress}"
           echo "Using compiler: ${networkConfig.deployedWithSolcVersion}, EVM: ${networkConfig.deployedWithEvmVersion}"
           echo "Constructor args: ${constructorArgs}"
-          
-          # Update deployment logs to mark as verified
-          DEPLOYMENT_FILE="deployments/${network}${fileSuffix}.json"
-          if [ -f "/workspace/$DEPLOYMENT_FILE" ]; then
-            # Use sed to update the verified field in network-specific file
-            sed -i 's/"verified": false/"verified": true/g' "/workspace/$DEPLOYMENT_FILE"
-            echo "Updated network deployment file: $DEPLOYMENT_FILE"
-          fi
-          
-          # Update master log file - this is more complex due to nested structure
-          # We'll use sed to find and replace the VERIFIED field for this specific contract/network/environment
-          MASTER_LOG_FILE="deployments/_deployments_log_file.json"
-          if [ -f "/workspace/$MASTER_LOG_FILE" ]; then
-            # Replace "VERIFIED": "false" with "VERIFIED": "true" for entries with matching ADDRESS
-            sed -i 's/"VERIFIED": "false"/"VERIFIED": "true"/g' "/workspace/$MASTER_LOG_FILE"
-            echo "Updated master log file: $MASTER_LOG_FILE"
-          fi
         `,
       ])
+
+      // Update deployment logs using TypeScript method
+      const verifiedContainer = await this.updateVerificationLogs(
+        logContainer,
+        contractName,
+        network,
+        environment,
+        contractAddress
+      )
 
       return verifiedContainer
     } catch (error) {
