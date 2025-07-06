@@ -26,6 +26,49 @@ interface NetworkConfig {
 @object()
 export class LifiContracts {
   /**
+   * Generate deployment salt from contract bytecode using TypeScript
+   *
+   * @param builtContainer - Pre-built container with compiled artifacts
+   * @param contractName - Name of the contract to generate salt for
+   */
+  @func()
+  async generateDeploymentSalt(
+    builtContainer: Container,
+    contractName: string
+  ): Promise<string> {
+    // Special case for LiFiDiamondImmutable - use hardcoded salt
+    if (contractName === 'LiFiDiamondImmutable') {
+      return '0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66'
+    }
+
+    // Read the bytecode from the compiled artifacts
+    const artifactPath = `/workspace/out/${contractName}.sol/${contractName}.json`
+    const artifactContainer = builtContainer.withExec(['cat', artifactPath])
+
+    const artifactContent = await artifactContainer.stdout()
+
+    try {
+      const artifact = JSON.parse(artifactContent)
+      const bytecode = artifact.bytecode?.object || artifact.bytecode
+
+      if (!bytecode) {
+        throw new Error(`No bytecode found for contract ${contractName}`)
+      }
+
+      // Generate SHA256 hash of the bytecode using container's sha256sum
+      const hashContainer = builtContainer.withExec([
+        'sh',
+        '-c',
+        `echo -n "${bytecode}" | sha256sum | cut -d' ' -f1`,
+      ])
+
+      const hash = await hashContainer.stdout()
+      return `0x${hash.trim()}`
+    } catch (error) {
+      throw new Error(`Failed to generate salt for ${contractName}: ${error}`)
+    }
+  }
+  /**
    * Build the Foundry project using forge build
    *
    * @param source - Source directory containing the project root
@@ -410,29 +453,18 @@ export class LifiContracts {
 
     const scriptPath = `script/deploy/facets/Deploy${contractName}.s.sol`
 
-    // Generate deployment salt - use container to generate hash since we need the built artifacts
-    const saltContainer = builtContainer.withExec([
-      'sh',
-      '-c',
-      `
-        # Generate deployment salt from bytecode
-        if [ "${contractName}" = "LiFiDiamondImmutable" ]; then
-          echo "0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66"
-        else
-          BYTECODE=$(cat /workspace/out/${contractName}.sol/${contractName}.json | grep '"bytecode"' | cut -d'"' -f4)
-          echo "0x$(echo -n "$BYTECODE" | sha256sum | cut -d' ' -f1)"
-        fi
-        `,
-    ])
-
-    const deploySalt = await saltContainer.stdout()
+    // Generate deployment salt using TypeScript method
+    const deploySalt = await this.generateDeploymentSalt(
+      builtContainer,
+      contractName
+    )
 
     // Execute deployment
     const deploymentContainer = this.deployContractInternal(
       source,
       scriptPath,
       network,
-      deploySalt.trim(),
+      deploySalt,
       networkConfig.create3Factory,
       env === 'production' ? '' : 'staging.',
       privateKey, // privateKey passed as secret
@@ -486,7 +518,7 @@ export class LifiContracts {
       env,
       contractAddress,
       constructorArgs,
-      deploySalt.trim()
+      deploySalt
     )
 
     // Attempt contract verification using the same built container
