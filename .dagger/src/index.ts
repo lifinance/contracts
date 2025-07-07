@@ -12,6 +12,7 @@ import {
   object,
   func,
 } from '@dagger.io/dagger'
+import * as fs from 'fs/promises'
 
 interface NetworkConfig {
   chainId: number
@@ -159,7 +160,7 @@ export class LifiContracts {
 
     // Add verbosity flag only if specified
     if (verbosity) {
-      forgeArgs.splice(-1, 0, `-${verbosity}`)
+      forgeArgs.push(`-${verbosity}`)
     }
 
     // Add conditional flags
@@ -215,11 +216,8 @@ export class LifiContracts {
    * @param contractAddress - Deployed contract address
    * @param constructorArgs - Constructor arguments in hex format (e.g., "0x123...")
    * @param chainId - Chain ID for verification
-   * @param contractFilePath - Custom contract file path (optional, auto-detected if not provided)
    * @param apiKey - API key for verification service (optional)
    * @param verifier - Verification service ("etherscan", "blockscout", "sourcify") (default: "etherscan")
-   * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
-   * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param watch - Whether to watch verification status (default: true)
    * @param skipIsVerifiedCheck - Whether to skip already verified check (default: true)
    */
@@ -281,17 +279,6 @@ export class LifiContracts {
     // Add API key if provided and not using sourcify
     if (apiKey && verificationService !== 'sourcify') {
       forgeArgs.push('-e', apiKey)
-    } else if (verificationService === 'etherscan') {
-      // For etherscan verification without explicit API key, get MAINNET_ETHERSCAN_API_KEY from environment
-      // and pass the actual value directly to the verification command
-      const mainnetApiKey = process.env.MAINNET_ETHERSCAN_API_KEY
-      if (mainnetApiKey) {
-        forgeArgs.push('-e', mainnetApiKey)
-      } else {
-        console.warn(
-          'MAINNET_ETHERSCAN_API_KEY not found in environment, verification may fail'
-        )
-      }
     }
 
     // Execute the verification command
@@ -374,7 +361,7 @@ export class LifiContracts {
     network: string,
     privateKey: Secret,
     environment?: string
-  ): Promise<Container> {
+  ): Promise<Directory> {
     const env = environment || 'production'
 
     // Read network configuration from networks.json
@@ -472,9 +459,9 @@ export class LifiContracts {
       )
     }
 
-    // Update deployment logs
-    const loggedContainer = await this.logDeployment(
-      deploymentContainer,
+    // Update deployment logs locally
+    await this.logDeployment(
+      source,
       contractName,
       network,
       env,
@@ -483,9 +470,9 @@ export class LifiContracts {
       deploySalt
     )
 
-    // Attempt contract verification using the same built container
+    // Attempt contract verification using the deployment container
     const finalContainer = await this.attemptVerification(
-      loggedContainer,
+      deploymentContainer,
       source,
       contractName,
       contractAddress,
@@ -495,13 +482,33 @@ export class LifiContracts {
       env
     )
 
-    return finalContainer
+    // Create a new directory with the updated deployment files
+    // We need to read the locally modified files and create a new directory
+    const deploymentsContainer = dag
+      .container()
+      .from('alpine:latest')
+      .withWorkdir('/deployments')
+
+    // Read all files from the local deployments directory and add them to the container
+    const deploymentFiles = await fs.readdir('./deployments')
+    let containerWithFiles = deploymentsContainer
+
+    for (const file of deploymentFiles) {
+      if (file.endsWith('.json')) {
+        const content = await fs.readFile(`./deployments/${file}`, 'utf-8')
+        containerWithFiles = containerWithFiles.withNewFile(
+          `/deployments/${file}`,
+          content
+        )
+      }
+    }
+
+    return containerWithFiles.directory('/deployments')
   }
 
   /**
-   * Update deployment logs to mark contract as verified using TypeScript
+   * Update deployment logs to mark contract as verified locally
    *
-   * @param container - Container to execute the update in
    * @param contractName - Name of the verified contract
    * @param network - Target network name
    * @param environment - Deployment environment
@@ -509,44 +516,29 @@ export class LifiContracts {
    */
   @func()
   async updateVerificationLogs(
-    container: Container,
     contractName: string,
     network: string,
     environment: string,
     contractAddress: string
-  ): Promise<Container> {
+  ): Promise<void> {
     const fileSuffix = environment === 'production' ? '' : '.staging'
-    const deploymentFile = `deployments/${network}${fileSuffix}.json`
-    const logFile = 'deployments/_deployments_log_file.json'
+    const deploymentFile = `./deployments/${network}${fileSuffix}.json`
+    const logFile = './deployments/_deployments_log_file.json'
 
     // Read current deployment files
-    const readDeploymentFile = container.withExec([
-      'sh',
-      '-c',
-      `
-        if [ -f "/workspace/${deploymentFile}" ]; then
-          cat "/workspace/${deploymentFile}"
-        else
-          echo '{}'
-        fi
-      `,
-    ])
+    let currentDeploymentsRaw = '{}'
+    try {
+      currentDeploymentsRaw = await fs.readFile(deploymentFile, 'utf-8')
+    } catch (e) {
+      // File doesn't exist, use empty object
+    }
 
-    const currentDeploymentsRaw = await readDeploymentFile.stdout()
-
-    const readLogFile = container.withExec([
-      'sh',
-      '-c',
-      `
-        if [ -f "/workspace/${logFile}" ]; then
-          cat "/workspace/${logFile}"
-        else
-          echo '{}'
-        fi
-      `,
-    ])
-
-    const currentLogsRaw = await readLogFile.stdout()
+    let currentLogsRaw = '{}'
+    try {
+      currentLogsRaw = await fs.readFile(logFile, 'utf-8')
+    } catch (e) {
+      // File doesn't exist, use empty object
+    }
 
     // Parse and update deployment data using TypeScript
     let currentDeployments: any = {}
@@ -593,72 +585,50 @@ export class LifiContracts {
     const updatedDeployments = JSON.stringify(currentDeployments, null, 2)
     const updatedLogs = JSON.stringify(currentLogs, null, 2)
 
-    const writeDeploymentFile = container.withNewFile(
-      `/workspace/${deploymentFile}`,
-      updatedDeployments
-    )
+    await fs.writeFile(deploymentFile, updatedDeployments)
+    await fs.writeFile(logFile, updatedLogs)
 
-    const writeLogFile = writeDeploymentFile.withNewFile(
-      `/workspace/${logFile}`,
-      updatedLogs
+    console.log(
+      `Contract verification completed successfully for ${contractName} at ${contractAddress}`
     )
-
-    // Log success message
-    return writeLogFile.withExec([
-      'sh',
-      '-c',
-      `
-        echo "Contract verification completed successfully for ${contractName} at ${contractAddress}"
-        echo "Updated network deployment file: ${deploymentFile}"
-        echo "Updated master log file: ${logFile}"
-      `,
-    ])
+    console.log(`Updated network deployment file: ${deploymentFile}`)
+    console.log(`Updated master log file: ${logFile}`)
   }
 
   /**
    * Log deployment details to deployment files
    */
   private async logDeployment(
-    container: Container,
+    source: Directory,
     contractName: string,
     network: string,
     environment: string,
     contractAddress: string,
     constructorArgs: string,
     deploySalt: string
-  ): Promise<Container> {
+  ): Promise<void> {
     const fileSuffix = environment === 'production' ? '' : '.staging'
-    const deploymentFile = `deployments/${network}${fileSuffix}.json`
-    const logFile = 'deployments/_deployments_log_file.json'
+    const deploymentFileName = `${network}${fileSuffix}.json`
+    const logFileName = '_deployments_log_file.json'
 
-    // Read current deployment files or create empty ones
-    const readDeploymentFile = container.withExec([
-      'sh',
-      '-c',
-      `
-        if [ -f "/workspace/${deploymentFile}" ]; then
-          cat "/workspace/${deploymentFile}"
-        else
-          echo '{}'
-        fi
-      `,
-    ])
+    // Read current deployment files from source directory or create empty ones
+    let currentDeploymentsRaw = '{}'
+    try {
+      const deploymentFile = source
+        .directory('deployments')
+        .file(deploymentFileName)
+      currentDeploymentsRaw = await deploymentFile.contents()
+    } catch (e) {
+      // File doesn't exist, use empty object
+    }
 
-    const currentDeploymentsRaw = await readDeploymentFile.stdout()
-
-    const readLogFile = container.withExec([
-      'sh',
-      '-c',
-      `
-        if [ -f "/workspace/${logFile}" ]; then
-          cat "/workspace/${logFile}"
-        else
-          echo '{}'
-        fi
-      `,
-    ])
-
-    const currentLogsRaw = await readLogFile.stdout()
+    let currentLogsRaw = '{}'
+    try {
+      const logFile = source.directory('deployments').file(logFileName)
+      currentLogsRaw = await logFile.contents()
+    } catch (e) {
+      // File doesn't exist, use empty object
+    }
 
     // Parse and update deployment data using TypeScript
     const timestamp = new Date()
@@ -723,21 +693,24 @@ export class LifiContracts {
       VERIFIED: 'false',
     })
 
-    // Write updated files
+    // Write updated files locally using fs
     const updatedDeployments = JSON.stringify(currentDeployments, null, 2)
     const updatedLogs = JSON.stringify(currentLogs, null, 2)
 
-    const writeDeploymentFile = container.withNewFile(
-      `/workspace/${deploymentFile}`,
+    // Ensure deployments directory exists
+    await fs.mkdir('./deployments', { recursive: true })
+
+    await fs.writeFile(
+      `./deployments/${deploymentFileName}`,
       updatedDeployments
     )
+    await fs.writeFile(`./deployments/${logFileName}`, updatedLogs)
 
-    const writeLogFile = writeDeploymentFile.withNewFile(
-      `/workspace/${logFile}`,
-      updatedLogs
+    console.log(`Deployment logged for ${contractName} at ${contractAddress}`)
+    console.log(
+      `Updated network deployment file: ./deployments/${deploymentFileName}`
     )
-
-    return writeLogFile
+    console.log(`Updated master log file: ./deployments/${logFileName}`)
   }
 
   /**
@@ -782,16 +755,15 @@ export class LifiContracts {
         `,
       ])
 
-      // Update deployment logs using TypeScript method
-      const verifiedContainer = await this.updateVerificationLogs(
-        logContainer,
+      // Update deployment logs locally
+      await this.updateVerificationLogs(
         contractName,
         network,
         environment,
         contractAddress
       )
 
-      return verifiedContainer
+      return logContainer
     } catch (error) {
       // If verification fails, continue with unverified deployment
       console.warn(`Contract verification failed: ${error}`)
