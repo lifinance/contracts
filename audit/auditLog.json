@@ -300,6 +300,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.30_LiFiDexAggregator(v1.11.0).pdf",
       "auditCommitHash": "6561ef4cc67f167d6485c412afb738f5b5b0da7f"
+    },
+    "audit20250706_01": {
+      "auditCompletedOn": "06.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.06_Permit2Proxy(v1.0.4).pdf",
+      "auditCommitHash": "a00deeb45dafe3e5124770c41a7a28ba931361d2"
     }
   },
   "auditedContracts": {
@@ -554,7 +561,8 @@
       "1.0.0": ["audit20241122"],
       "1.0.1": ["audit20250110_1"],
       "1.0.2": ["audit20250109_3"],
-      "1.0.3": ["audit20250415", "audit20250508"]
+      "1.0.3": ["audit20250415", "audit20250508"],
+      "1.0.4": ["audit20250706_01"]
     },
     "ReceiverAcrossV3": {
       "1.0.0": ["audit20241007"],
