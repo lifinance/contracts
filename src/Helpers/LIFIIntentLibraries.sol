@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 struct MandateOutput {
@@ -33,44 +33,6 @@ library MandateOutputType {
 
     bytes32 internal constant MANDATE_OUTPUT_TYPE_HASH =
         keccak256(MANDATE_OUTPUT_TYPE_STUB);
-
-    function hashOutput(
-        MandateOutput calldata output
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    MANDATE_OUTPUT_TYPE_HASH,
-                    output.oracle,
-                    output.settler,
-                    output.chainId,
-                    output.token,
-                    output.amount,
-                    output.recipient,
-                    keccak256(output.call),
-                    keccak256(output.context)
-                )
-            );
-    }
-
-    function hashOutputs(
-        MandateOutput[] calldata outputs
-    ) internal pure returns (bytes32) {
-        unchecked {
-            bytes memory currentHash = new bytes(32 * outputs.length);
-
-            for (uint256 i = 0; i < outputs.length; ++i) {
-                bytes32 outputHash = hashOutput(outputs[i]);
-                assembly {
-                    mstore(
-                        add(add(currentHash, 0x20), mul(i, 0x20)),
-                        outputHash
-                    )
-                }
-            }
-            return keccak256(currentHash);
-        }
-    }
 
     // Memory copy of the above:
     function hashOutputM(
@@ -135,36 +97,8 @@ struct Mandate {
 
 /**
  * @notice Helper library for the LIFIIntent order type.
- * TYPE_PARTIAL: An incomplete type. Is missing a field.
- * TYPE_STUB: Type has no subtypes.
- * TYPE: Is complete including sub-types.
  */
 library StandardOrderType {
-    function orderIdentifier(
-        StandardOrder calldata order
-    ) internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    block.chainid,
-                    address(this),
-                    order.user,
-                    order.nonce,
-                    order.expires,
-                    order.fillDeadline,
-                    order.localOracle,
-                    order.inputs,
-                    abi.encode(order.outputs)
-                )
-            );
-    }
-
-    /// @dev TheCompact needs us to provide the type without the last ")"
-    bytes internal constant BATCH_COMPACT_SUB_TYPES =
-        bytes(
-            "uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 oracle,bytes32 settler,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes call,bytes context"
-        );
-
     /// @dev For hashing of our subtypes, we need proper types.
     bytes internal constant LIFI_INTENT_WITNESS_TYPE =
         abi.encodePacked(
@@ -172,25 +106,6 @@ library StandardOrderType {
         );
     bytes32 internal constant LIFI_INTENT_WITNESS_TYPE_HASH =
         keccak256(LIFI_INTENT_WITNESS_TYPE);
-
-    /**
-     * @notice Computes the Compact witness of derived from a StandardOrder
-     * @param order StandardOrder to derived the witness from.
-     * @return witness hash.
-     */
-    function witnessHash(
-        StandardOrder calldata order
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    LIFI_INTENT_WITNESS_TYPE_HASH,
-                    order.fillDeadline,
-                    order.localOracle,
-                    MandateOutputType.hashOutputs(order.outputs)
-                )
-            );
-    }
 }
 
 /**
@@ -200,7 +115,6 @@ library StandardOrderType {
  */
 library RegisterIntentLib {
     error DeadlinePassed();
-    error WrongChain(uint256 expected, uint256 provided);
 
     bytes32 internal constant STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH =
         keccak256(

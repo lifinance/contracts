@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
@@ -214,7 +214,8 @@ contract LIFIIntentFacetTest is TestBaseFacet {
             outputAmount: 999888999,
             outputCall: hex"",
             outputContext: hex"",
-            expectedClaimHash: bytes32(0)
+            expectedClaimHash: bytes32(0),
+            broadcast: false
         });
     }
 
@@ -237,6 +238,8 @@ contract LIFIIntentFacetTest is TestBaseFacet {
         bytes32 solver,
         bytes32 destination
     );
+
+    event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
     function test_LIFIIntent_deposit_on_compact() external {
         bool isNative = false;
@@ -299,6 +302,12 @@ contract LIFIIntentFacetTest is TestBaseFacet {
         vm.expectEmit();
         emit CompactRegistered(sponsor, claimHash, typehash);
 
+        vm.expectEmit(false, false, false, true);
+        emit IntentRegistered(bytes32(0), order);
+
+        validLIFIIntentData.broadcast = true;
+        validLIFIIntentData.expectedClaimHash = claimHash;
+
         baseLIFIIntentFacet.startBridgeTokensViaLIFIIntent{
             value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
                 ? bridgeData.minAmount
@@ -333,6 +342,122 @@ contract LIFIIntentFacetTest is TestBaseFacet {
         );
 
         assertEq(usdc.balanceOf(solver), bridgeData.minAmount);
+    }
+
+    function test_revert_LIFIIntent_wrong_claim_hash() external {
+        bool isNative = false;
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(baseLIFIIntentFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+
+        validLIFIIntentData.inputAssetId = uint256(
+            bytes32(abi.encodePacked(lockId, bridgeData.sendingAssetId))
+        );
+
+        // Check that the execution happens as we would expect it to.
+
+        address by = address(baseLIFIIntentFacet);
+        address from = address(0); // indexed
+        address to = validLIFIIntentData.user; // indexed
+        uint256 id = validLIFIIntentData.inputAssetId; // indexed
+        uint256 amount = bridgeData.minAmount;
+
+        vm.expectEmit();
+        emit Transfer(by, from, to, id, amount);
+
+        MandateOutput[] memory outputs = new MandateOutput[](1);
+        outputs[0] = MandateOutput({
+            oracle: validLIFIIntentData.outputOracle,
+            settler: validLIFIIntentData.outputSettler,
+            chainId: bridgeData.destinationChainId,
+            token: validLIFIIntentData.outputToken,
+            amount: validLIFIIntentData.outputAmount,
+            recipient: validLIFIIntentData.receiverAddress,
+            call: validLIFIIntentData.outputCall,
+            context: validLIFIIntentData.outputContext
+        });
+        uint256[2][] memory idsAndAmounts = new uint256[2][](1);
+        idsAndAmounts[0] = [
+            validLIFIIntentData.inputAssetId,
+            bridgeData.minAmount
+        ];
+
+        StandardOrder memory order = StandardOrder({
+            user: validLIFIIntentData.user,
+            nonce: validLIFIIntentData.nonce,
+            originChainId: block.chainid,
+            expires: validLIFIIntentData.expires,
+            fillDeadline: validLIFIIntentData.fillDeadline,
+            localOracle: validLIFIIntentData.inputOracle,
+            inputs: idsAndAmounts,
+            outputs: outputs
+        });
+
+        validLIFIIntentData.expectedClaimHash = bytes32(uint256(1));
+
+        bytes32 claimHash = RegisterIntentLib.compactClaimHash(
+            lifiIntentCompactSettler,
+            order
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "IncorrectRegisteredClaimHash(bytes32,bytes32)",
+                claimHash,
+                validLIFIIntentData.expectedClaimHash
+            )
+        );
+        baseLIFIIntentFacet.startBridgeTokensViaLIFIIntent{
+            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
+                ? bridgeData.minAmount
+                : 0
+        }(bridgeData, validLIFIIntentData);
+    }
+
+    function test_revert_LIFIIntent_wrong_asset_id() external {
+        bool isNative = false;
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(baseLIFIIntentFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+
+        // Incorrectly modify the asset id.
+        validLIFIIntentData.inputAssetId =
+            uint256(
+                bytes32(abi.encodePacked(lockId, bridgeData.sendingAssetId))
+            ) +
+            1;
+
+        vm.expectRevert(abi.encodeWithSignature("AssetIdsDoNotMatch()"));
+        baseLIFIIntentFacet.startBridgeTokensViaLIFIIntent{
+            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
+                ? bridgeData.minAmount
+                : 0
+        }(bridgeData, validLIFIIntentData);
+    }
+
+    function test_revert_LIFIIntent_wrong_receiver() external {
+        bool isNative = false;
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(baseLIFIIntentFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+
+        validLIFIIntentData.inputAssetId = uint256(
+            bytes32(abi.encodePacked(lockId, bridgeData.sendingAssetId))
+        );
+        // Incorrectly modify the receiverAddress
+        validLIFIIntentData.receiverAddress = bytes32(
+            uint256(uint160(bridgeData.receiver)) + 1
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("ReceiverDoNotMatch()"));
+        baseLIFIIntentFacet.startBridgeTokensViaLIFIIntent{
+            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
+                ? bridgeData.minAmount
+                : 0
+        }(bridgeData, validLIFIIntentData);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

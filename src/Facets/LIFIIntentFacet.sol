@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -29,8 +29,6 @@ contract LIFIIntentFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes32 expectedClaimHash,
         bytes32 registeredClaimHash
     );
-    error FillDeadlinePassed(uint32 deadline);
-    error CompactExpiryPassed(uint32 expiry);
     error AssetIdsDoNotMatch();
     error ReceiverDoNotMatch();
 
@@ -56,6 +54,7 @@ contract LIFIIntentFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param outputAmount The amount of the destired token.
     /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type.
+    /// @param broadcast Whether to broadcast the intent on-chain. Note that this incurs additional gas costs.
     struct LIFIIntentData {
         bytes32 receiverAddress; // StandardOrder.outputs.recipient.
         /// BatchClaim
@@ -75,6 +74,7 @@ contract LIFIIntentFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes outputContext; // StandardOrder.outputs.context
         // Validation
         bytes32 expectedClaimHash;
+        bool broadcast;
     }
 
     /// Constructor ///
@@ -222,18 +222,19 @@ contract LIFIIntentFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         // Call broadcast on the settler.
-        IBroadcastableSettler(LIFI_INTENT_COMPACT_SETTLER).broadcast(
-            StandardOrder({
-                user: _lifiIntentData.user,
-                nonce: _lifiIntentData.nonce,
-                originChainId: block.chainid,
-                expires: _lifiIntentData.expires,
-                fillDeadline: _lifiIntentData.fillDeadline,
-                localOracle: _lifiIntentData.inputOracle,
-                inputs: idsAndAmounts,
-                outputs: outputs
-            })
-        );
+        if (_lifiIntentData.broadcast)
+            IBroadcastableSettler(LIFI_INTENT_COMPACT_SETTLER).broadcast(
+                StandardOrder({
+                    user: _lifiIntentData.user,
+                    nonce: _lifiIntentData.nonce,
+                    originChainId: block.chainid,
+                    expires: _lifiIntentData.expires,
+                    fillDeadline: _lifiIntentData.fillDeadline,
+                    localOracle: _lifiIntentData.inputOracle,
+                    inputs: idsAndAmounts,
+                    outputs: outputs
+                })
+            );
 
         emit LiFiTransferStarted(_bridgeData);
     }
