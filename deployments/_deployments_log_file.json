@@ -35329,6 +35329,48 @@
           }
         ]
       }
+    },
+    "sei": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-07 07:44:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7667CB57CA47f7F69761113894a4dd48BEe35DFd",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-07 07:44:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
+    },
+    "mantle": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-07 07:46:25",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000686893d73fa3817a13217e858652a4866b096dca",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
