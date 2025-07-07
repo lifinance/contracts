@@ -2,6 +2,9 @@
   "mainnet": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "abstract": {
+    "airlift": "0x5501e28f588b3A246a590a391A7Ae7B2bA065ddE"
+  },
   "arbitrum": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
@@ -76,5 +79,8 @@
   },
   "viction": {
     "airlift": "0x2aEEC3AD32B39Fc67a1284Ea23a59eD986c3C47b"
+  },
+  "zksync": {
+    "airlift": "0xA0246202aC2537C9978BE8940D51dc70b3d38426"
   }
 }
