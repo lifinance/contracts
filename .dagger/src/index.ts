@@ -459,6 +459,9 @@ export class LifiContracts {
       )
     }
 
+    // Get salt for logging from environment variable (different from deployment salt)
+    const logSalt = process.env.SALT || ''
+
     // Update deployment logs locally
     await this.logDeployment(
       source,
@@ -467,7 +470,7 @@ export class LifiContracts {
       env,
       contractAddress,
       constructorArgs,
-      deploySalt
+      logSalt
     )
 
     // Attempt contract verification using the deployment container
