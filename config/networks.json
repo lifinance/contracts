@@ -628,7 +628,7 @@
   "metis": {
     "name": "metis",
     "chainId": 1088,
-    "nativeAddress": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000",
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "METIS",
     "wrappedNativeAddress": "0x75cb093E4D61d2A2e65D8e0BBb01DE8d89b53481",
     "status": "active",
