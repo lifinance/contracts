@@ -12,6 +12,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient, type Db, type Collection, type ObjectId } from 'mongodb'
 
+import type { EnvironmentEnum } from '../common/types'
+
 import { ValidationUtils } from './shared/mongo-log-utils'
 
 // Reuse the same DeploymentRecord interface
@@ -51,7 +53,7 @@ class DeploymentLogQuerier {
 
   public constructor(
     private config: IConfig,
-    private environment: 'staging' | 'production'
+    private environment: keyof typeof EnvironmentEnum
   ) {
     this.client = new MongoClient(this.config.mongoUri)
   }
@@ -173,6 +175,8 @@ Network: ${deployment.network}
 Version: ${deployment.version}
 Address: ${deployment.address}
 Timestamp: ${deployment.timestamp.toISOString()}
+Created: ${deployment.createdAt.toISOString()}
+Updated: ${deployment.updatedAt.toISOString()}
 Verified: ${deployment.verified}
 Optimizer Runs: ${deployment.optimizerRuns}
 ${deployment.salt ? `Salt: ${deployment.salt}` : ''}
@@ -237,17 +241,16 @@ const latestCommand = defineCommand({
         args.network
       )
 
-      if (deployment) 
-        if (args.format === 'table') 
-          console.log(formatDeployment(deployment))
-         else 
-          outputJSON(deployment)
-        
-       else 
+      if (deployment)
+        if (args.format === 'table') console.log(formatDeployment(deployment))
+        else outputJSON(deployment)
+      else {
+        await querier.disconnect()
         process.exit(1)
-      
+      }
     } catch (error) {
       consola.error('Query failed:', error)
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
@@ -322,7 +325,7 @@ const listCommand = defineCommand({
         page
       )
 
-      if (result.data.length > 0) 
+      if (result.data.length > 0)
         if (args.format === 'table') {
           consola.success(
             `Found ${result.data.length} deployment(s) (Page ${result.pagination.page} of ${result.pagination.totalPages}, Total: ${result.pagination.total}):`
@@ -335,24 +338,21 @@ const listCommand = defineCommand({
             consola.info(
               `Use --page ${result.pagination.page + 1} to see more results`
             )
-        } else 
+        } else
           outputJSON({
             data: result.data,
             pagination: result.pagination,
           })
-        
-       else 
-        if (args.format === 'table') 
-          consola.warn('No deployments found matching criteria')
-         else 
-          outputJSON({
-            data: [],
-            pagination: result.pagination,
-          })
-        
-      
+      else if (args.format === 'table')
+        consola.warn('No deployments found matching criteria')
+      else
+        outputJSON({
+          data: [],
+          pagination: result.pagination,
+        })
     } catch (error) {
       consola.error('Query failed:', error)
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
@@ -405,17 +405,16 @@ const findCommand = defineCommand({
       await querier.connect()
       const deployment = await querier.findByAddress(args.address)
 
-      if (deployment) 
-        if (args.format === 'table') 
-          console.log(formatDeployment(deployment))
-         else 
-          outputJSON(deployment)
-        
-       else 
+      if (deployment)
+        if (args.format === 'table') console.log(formatDeployment(deployment))
+        else outputJSON(deployment)
+      else {
+        await querier.disconnect()
         process.exit(1)
-      
+      }
     } catch (error) {
       consola.error('Query failed:', error)
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
@@ -497,24 +496,19 @@ const filterCommand = defineCommand({
       await querier.connect()
       const deployments = await querier.filterDeployments(filters)
 
-      if (deployments.length > 0) 
+      if (deployments.length > 0)
         if (args.format === 'table') {
           consola.success(`Found ${deployments.length} deployment(s):`)
           deployments.forEach((deployment) => {
             console.log(formatDeployment(deployment))
           })
-        } else 
-          outputJSON(deployments)
-        
-       else 
-        if (args.format === 'table') 
-          consola.warn('No deployments found matching criteria')
-         else 
-          outputJSON([])
-        
-      
+        } else outputJSON(deployments)
+      else if (args.format === 'table')
+        consola.warn('No deployments found matching criteria')
+      else outputJSON([])
     } catch (error) {
       consola.error('Query failed:', error)
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
@@ -575,20 +569,20 @@ const historyCommand = defineCommand({
         args.network
       )
 
-      if (deployments.length > 0) 
+      if (deployments.length > 0)
         if (args.format === 'table') {
           consola.success(`Found ${deployments.length} deployment(s):`)
           deployments.forEach((deployment) => {
             console.log(formatDeployment(deployment))
           })
-        } else 
-          outputJSON(deployments)
-        
-       else 
+        } else outputJSON(deployments)
+      else {
+        await querier.disconnect()
         process.exit(1)
-      
+      }
     } catch (error) {
       consola.error('Query failed:', error)
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
@@ -650,6 +644,7 @@ const existsCommand = defineCommand({
       process.exit(deployments.length > 0 ? 0 : 1)
     } catch (error) {
       // Exit with error code on failure
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
@@ -717,17 +712,21 @@ const getCommand = defineCommand({
         limit: 1,
       })
 
-      if (deployments.length === 0) process.exit(1)
+      if (deployments.length === 0) {
+        await querier.disconnect()
+        process.exit(1)
+      }
 
       const deployment = deployments[0]
-      if (!deployment) process.exit(1)
+      if (!deployment) {
+        await querier.disconnect()
+        process.exit(1)
+      }
 
-      if (args.format === 'table') 
-        console.log(formatDeployment(deployment))
-       else 
-        console.log(JSON.stringify(deployment, null, 2))
-      
+      if (args.format === 'table') console.log(formatDeployment(deployment))
+      else console.log(JSON.stringify(deployment, null, 2))
     } catch (error) {
+      await querier.disconnect()
       process.exit(1)
     } finally {
       await querier.disconnect()
