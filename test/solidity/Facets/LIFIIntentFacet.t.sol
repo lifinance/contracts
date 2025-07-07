@@ -4,21 +4,13 @@ pragma solidity ^0.8.17;
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { MandateOutput, StandardOrder, RegisterIntentLib } from "lifi/Helpers/LIFIIntentLibraries.sol";
-import { ITheCompact } from "lifi/interfaces/ITheCompact.sol";
+import { RegisterIntentLib } from "lifi/Helpers/LIFIIntentLibraries.sol";
+import { ITheCompact } from "lifi/Interfaces/ITheCompact.sol";
 import { LIFIIntentFacet } from "lifi/Facets/LIFIIntentFacet.sol";
 
-contract AlwaysOKAllocator {
-    function attest(
-        address,
-        address,
-        address,
-        uint256,
-        uint256
-    ) external pure returns (bytes4) {
-        return this.attest.selector;
-    }
+import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOIF.sol";
 
+contract AlwaysOKAllocator {
     function authorizeClaim(
         bytes32,
         address,

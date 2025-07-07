@@ -7,7 +7,6 @@ Catlayst uses The Compact as a deposit mechanism for its intents. The Compact co
 The LIFIIntent Faucet constructs the LIFIIntent witness and then sends the witness along with the typings to The Compact which will derive the assocaited claim and register it.
 
 Once signed by an allocator (off-chain action), solvers can solve the order and take the proof to the chain of the deposit to claim the deposit.
-TODO: fix mermaid
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL --> LIFIIntentFacet;
@@ -16,11 +15,11 @@ graph LR;
     Solver -- CALL -> C(outputSettler)
     C(outputSettler) -- Tokens -> User
 
-    C(outputOracle) -- Static Call -> C(outputSettler)
+    C(outputOracle) -- STATICCALL -> C(outputSettler)
 
     C(outputOracle) -- Validation -> C(LocalOracle)
-    C(LIFI_INTENT_COMPACT_SETTLER) -- Static Call -> C(LocalOracle)
-    C(LIFI_INTENT_COMPACT_SETTLER) -- claim -> C(COMPACT)
+    C(LIFI_INTENT_COMPACT_SETTLER) -- STATICCALL -> C(LocalOracle)
+    C(LIFI_INTENT_COMPACT_SETTLER) -- CALL -> C(COMPACT)
 ```
 
 ## Public Methods

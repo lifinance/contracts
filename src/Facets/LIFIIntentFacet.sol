@@ -9,14 +9,10 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { MandateOutput, StandardOrder, RegisterIntentLib } from "../Helpers/LIFIIntentLibraries.sol";
+import { MandateOutput, RegisterIntentLib } from "../Helpers/LIFIIntentLibraries.sol";
 
-import { ITheCompact } from "../interfaces/ITheCompact.sol";
-
-// TODO: move into own interface file
-interface IBroadcastableSettler {
-    function broadcast(StandardOrder calldata order) external;
-}
+import { IBroadcastableSettler, MandateOutput, StandardOrder } from "../Interfaces/IOIF.sol";
+import { ITheCompact } from "../Interfaces/ITheCompact.sol";
 
 /// @title LIFIIntent Facet
 /// @author LI.FI (https://li.fi)
