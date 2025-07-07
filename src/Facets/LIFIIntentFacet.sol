@@ -10,6 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { MandateOutput, RegisterIntentLib } from "../Helpers/LIFIIntentLibraries.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 import { IBroadcastableSettler, MandateOutput, StandardOrder } from "../Interfaces/IOIF.sol";
 import { ITheCompact } from "../Interfaces/ITheCompact.sol";
@@ -78,6 +79,8 @@ contract LIFIIntentFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param compact The Compact delopment, used as a deposit escrow.
     /// @param compactSettler LIFIIntent Compact arbiter / settlement implementation.
     constructor(address compact, address compactSettler) {
+        if (compact == address(0) || compactSettler == address(0))
+            revert InvalidConfig();
         COMPACT = ITheCompact(compact);
         LIFI_INTENT_COMPACT_SETTLER = compactSettler;
     }
