@@ -22,9 +22,92 @@ interface NetworkConfig {
   explorerApiUrl: string
   create3Factory: string
 }
-
 @object()
 export class LifiContracts {
+  /// Utility Methods ///
+
+  /**
+   * Parse JSON string with explicit error handling
+   */
+  private parseJson(jsonString: string, context: string): any {
+    try {
+      const trimmed = jsonString.trim()
+      if (!trimmed) {
+        throw new Error(`Empty JSON content in ${context}`)
+      }
+      return JSON.parse(trimmed)
+    } catch (e) {
+      throw new Error(`Failed to parse JSON in ${context}: ${e}`)
+    }
+  }
+
+  /**
+   * Read file with explicit error handling
+   */
+  private async readFile(source: Directory, filePath: string): Promise<string> {
+    try {
+      return await source.file(filePath).contents()
+    } catch (e) {
+      throw new Error(`Failed to read required file: ${filePath}`)
+    }
+  }
+
+  /**
+   * Get network configuration with validation
+   */
+  private async getNetworkConfig(
+    source: Directory,
+    network: string
+  ): Promise<NetworkConfig> {
+    const networks = await this.readAndParseJson(source, 'config/networks.json')
+
+    if (!networks[network]) {
+      throw new Error(`Network ${network} not found in networks.json`)
+    }
+
+    return networks[network] as NetworkConfig
+  }
+
+  /**
+   * Read and parse JSON file in one operation
+   */
+  private async readAndParseJson(
+    source: Directory,
+    filePath: string
+  ): Promise<any> {
+    const content = await this.readFile(source, filePath)
+    return this.parseJson(content, filePath)
+  }
+
+  /**
+   * Ensure nested log structure exists
+   */
+  private ensureLogStructure(
+    logs: any,
+    contractName: string,
+    network: string,
+    environment: string,
+    version: string
+  ): void {
+    if (!logs[contractName]) logs[contractName] = {}
+    if (!logs[contractName][network]) logs[contractName][network] = {}
+    if (!logs[contractName][network][environment]) {
+      logs[contractName][network][environment] = {}
+    }
+    if (!logs[contractName][network][environment][version]) {
+      logs[contractName][network][environment][version] = []
+    }
+  }
+
+  /**
+   * Generate timestamp in deployment log format
+   */
+  private generateTimestamp(): string {
+    return new Date()
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d{3}Z$/, '')
+  }
   /**
    * Build the Foundry project using forge build
    *
@@ -335,15 +418,7 @@ export class LifiContracts {
     skipIsVerifiedCheck?: boolean
   ): Promise<Container> {
     // Read network configuration from networks.json
-    const networksFile = source.file('config/networks.json')
-    const networksContent = await networksFile.contents()
-    const networks = JSON.parse(networksContent)
-
-    if (!networks[network]) {
-      throw new Error(`Network ${network} not found in networks.json`)
-    }
-
-    const networkConfig = networks[network] as NetworkConfig
+    const networkConfig = await this.getNetworkConfig(source, network)
 
     // Build the project first to get the same artifacts as deployment
     const builtContainer = await this.buildProject(
@@ -431,12 +506,8 @@ export class LifiContracts {
       console.log(`📍 Found LiFiDiamond at ${diamondAddress}`)
 
       // 3. Read network config for RPC URL (needed for Safe proposals)
-      const networkConfigContent = await source
-        .file('config/networks.json')
-        .contents()
-      const networkConfig = JSON.parse(networkConfigContent)
-      const rpcUrl =
-        networkConfig[network]?.rpcUrl || networkConfig[network]?.rpc
+      const networkConfig = await this.getNetworkConfig(source, network)
+      const rpcUrl = networkConfig.rpcUrl
 
       if (!rpcUrl && environment === 'production') {
         throw new Error(`RPC URL not found for network ${network}`)
@@ -600,15 +671,7 @@ export class LifiContracts {
     const env = environment || 'production'
 
     // Read network configuration from networks.json
-    const networksFile = source.file('config/networks.json')
-    const networksContent = await networksFile.contents()
-    const networks = JSON.parse(networksContent)
-
-    if (!networks[network]) {
-      throw new Error(`Network ${network} not found in networks.json`)
-    }
-
-    const networkConfig = networks[network] as NetworkConfig
+    const networkConfig = await this.getNetworkConfig(source, network)
 
     // Build the project first with foundry.toml defaults (buildProject will read foundry.toml)
     let builtContainer = await this.buildProject(
@@ -874,39 +937,15 @@ export class LifiContracts {
     const deploymentFileName = `${network}${fileSuffix}.json`
     const logFileName = '_deployments_log_file.json'
 
-    // Read current deployment files from source directory
-    let currentDeploymentsRaw = '{}'
-    try {
-      const deploymentFile = source
-        .directory('deployments')
-        .file(deploymentFileName)
-      currentDeploymentsRaw = await deploymentFile.contents()
-    } catch (e) {
-      // File doesn't exist, use empty object
-    }
-
-    let currentLogsRaw = '{}'
-    try {
-      const logFile = source.directory('deployments').file(logFileName)
-      currentLogsRaw = await logFile.contents()
-    } catch (e) {
-      // File doesn't exist, use empty object
-    }
-
-    // Parse and update deployment data using TypeScript
-    let currentDeployments: any = {}
-    try {
-      currentDeployments = JSON.parse(currentDeploymentsRaw.trim() || '{}')
-    } catch (e) {
-      currentDeployments = {}
-    }
-
-    let currentLogs: any = {}
-    try {
-      currentLogs = JSON.parse(currentLogsRaw.trim() || '{}')
-    } catch (e) {
-      currentLogs = {}
-    }
+    // Read and parse current deployment files
+    const currentDeployments = await this.readAndParseJson(
+      source,
+      `deployments/${deploymentFileName}`
+    )
+    const currentLogs = await this.readAndParseJson(
+      source,
+      `deployments/${logFileName}`
+    )
 
     // Update network-specific deployment file
     if (currentDeployments[contractName]) {
@@ -965,29 +1004,12 @@ export class LifiContracts {
   ): Promise<Directory> {
     const failedLogFileName = 'failed_deployments_log.json'
 
-    // Read current failed deployments log
-    let currentFailedLogsRaw = '{}'
-    try {
-      const failedLogFile = source
-        .directory('deployments')
-        .file(failedLogFileName)
-      currentFailedLogsRaw = await failedLogFile.contents()
-    } catch (e) {
-      // File doesn't exist, use empty object
-    }
-
-    // Parse and update failed deployment data
-    const timestamp = new Date()
-      .toISOString()
-      .replace('T', ' ')
-      .replace(/\.\d{3}Z$/, '')
-
-    let currentFailedLogs: any = {}
-    try {
-      currentFailedLogs = JSON.parse(currentFailedLogsRaw.trim() || '{}')
-    } catch (e) {
-      currentFailedLogs = {}
-    }
+    // Read and parse current failed deployments log
+    const currentFailedLogs = await this.readAndParseJson(
+      source,
+      `deployments/${failedLogFileName}`
+    )
+    const timestamp = this.generateTimestamp()
 
     // Create nested structure: contractName -> network -> environment -> array
     if (!currentFailedLogs[contractName]) {
@@ -1025,6 +1047,58 @@ export class LifiContracts {
   }
 
   /**
+   * Extract version from contract natspec @custom:version comment
+   */
+  private async extractContractVersion(
+    source: Directory,
+    contractName: string
+  ): Promise<string> {
+    // Check in src/Facets, src/Periphery, and src/Security directories
+    const possiblePaths = [
+      `src/Facets/${contractName}.sol`,
+      `src/Periphery/${contractName}.sol`,
+      `src/Security/${contractName}.sol`,
+    ]
+
+    for (const contractPath of possiblePaths) {
+      try {
+        const contractContent = await source.file(contractPath).contents()
+
+        // Look for @custom:version x.x.x pattern in natspec comments
+        const versionMatch = contractContent.match(
+          /@custom:version\s+(\d+\.\d+\.\d+)/
+        )
+
+        if (versionMatch) {
+          return versionMatch[1]
+        }
+      } catch (error) {
+        // File doesn't exist, continue to next path
+        continue
+      }
+    }
+
+    throw new Error(
+      `Contract version not found for ${contractName}. Please add @custom:version x.x.x to the contract natspec.`
+    )
+  }
+
+  /**
+   * Extract optimizer runs from foundry.toml
+   */
+  private async extractOptimizerRuns(source: Directory): Promise<string> {
+    const foundryToml = await source.file('foundry.toml').contents()
+
+    // Look for optimizer_runs = number pattern
+    const optimizerMatch = foundryToml.match(/optimizer_runs\s*=\s*(\d+)/)
+
+    if (optimizerMatch) {
+      return optimizerMatch[1]
+    }
+
+    throw new Error('optimizer_runs not found in foundry.toml')
+  }
+  /**
    * Log deployment details to deployment files
    */
   private async logDeployment(
@@ -1040,65 +1114,34 @@ export class LifiContracts {
     const deploymentFileName = `${network}${fileSuffix}.json`
     const logFileName = '_deployments_log_file.json'
 
-    // Read current deployment files from source directory or create empty ones
-    let currentDeploymentsRaw = '{}'
-    try {
-      const deploymentFile = source
-        .directory('deployments')
-        .file(deploymentFileName)
-      currentDeploymentsRaw = await deploymentFile.contents()
-    } catch (e) {
-      // File doesn't exist, use empty object
-    }
+    // Extract version and optimizer runs
+    const version = await this.extractContractVersion(source, contractName)
+    const optimizerRuns = await this.extractOptimizerRuns(source)
 
-    let currentLogsRaw = '{}'
-    try {
-      const logFile = source.directory('deployments').file(logFileName)
-      currentLogsRaw = await logFile.contents()
-    } catch (e) {
-      // File doesn't exist, use empty object
-    }
+    // Read and parse current deployment files
+    const currentDeployments = await this.readAndParseJson(
+      source,
+      `deployments/${deploymentFileName}`
+    )
+    const currentLogs = await this.readAndParseJson(
+      source,
+      `deployments/${logFileName}`
+    )
 
-    // Parse and update deployment data using TypeScript
-    const timestamp = new Date()
-      .toISOString()
-      .replace('T', ' ')
-      .replace(/\.\d{3}Z$/, '')
-
-    let currentDeployments: any = {}
-    try {
-      currentDeployments = JSON.parse(currentDeploymentsRaw.trim() || '{}')
-    } catch (e) {
-      currentDeployments = {}
-    }
-
-    let currentLogs: any = {}
-    try {
-      currentLogs = JSON.parse(currentLogsRaw.trim() || '{}')
-    } catch (e) {
-      currentLogs = {}
-    }
+    const timestamp = this.generateTimestamp()
 
     // Update deployment data (network-specific file)
     // For network files, just store the address as a string (matching existing format)
     currentDeployments[contractName] = contractAddress
 
     // Update master log with nested structure: contractName -> network -> environment -> version -> array
-    if (!currentLogs[contractName]) {
-      currentLogs[contractName] = {}
-    }
-    if (!currentLogs[contractName][network]) {
-      currentLogs[contractName][network] = {}
-    }
-    if (!currentLogs[contractName][network][environment]) {
-      currentLogs[contractName][network][environment] = {}
-    }
-
-    // Use version 1.0.0 as default (could be extracted from contract source later)
-    const version = '1.0.0'
-    if (!currentLogs[contractName][network][environment][version]) {
-      currentLogs[contractName][network][environment][version] = []
-    }
+    this.ensureLogStructure(
+      currentLogs,
+      contractName,
+      network,
+      environment,
+      version
+    )
 
     // Remove existing entry for same address if it exists
     currentLogs[contractName][network][environment][version] = currentLogs[
@@ -1110,7 +1153,7 @@ export class LifiContracts {
     // Add new deployment entry
     currentLogs[contractName][network][environment][version].push({
       ADDRESS: contractAddress,
-      OPTIMIZER_RUNS: '1000000', // Default value, could be extracted from build info
+      OPTIMIZER_RUNS: optimizerRuns,
       TIMESTAMP: timestamp,
       CONSTRUCTOR_ARGS: constructorArgs,
       SALT: deploySalt,
