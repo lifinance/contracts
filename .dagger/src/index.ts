@@ -33,11 +33,11 @@ export class LifiContracts {
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    */
   @func()
-  buildProject(
+  async buildProject(
     source: Directory,
     solcVersion?: string,
     evmVersion?: string
-  ): Container {
+  ): Promise<Container> {
     let container = dag
       .container()
       .from('ghcr.io/foundry-rs/foundry:latest')
@@ -66,15 +66,33 @@ export class LifiContracts {
       .withUser('foundry')
       .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
 
+    // Read defaults from foundry.toml if versions not provided
+    let finalSolcVersion = solcVersion
+    let finalEvmVersion = evmVersion
+
+    if (!solcVersion || !evmVersion) {
+      const foundryToml = await source.file('foundry.toml').contents()
+      if (!solcVersion) {
+        const solcMatch = foundryToml.match(
+          /solc_version\s*=\s*['"]([^'"]+)['"]/
+        )
+        finalSolcVersion = solcMatch ? solcMatch[1] : '0.8.29'
+      }
+      if (!evmVersion) {
+        const evmMatch = foundryToml.match(/evm_version\s*=\s*['"]([^'"]+)['"]/)
+        finalEvmVersion = evmMatch ? evmMatch[1] : 'cancun'
+      }
+    }
+
     // Build forge build command with version parameters
     const buildArgs = ['forge', 'build']
 
-    if (solcVersion) {
-      buildArgs.push('--use', solcVersion)
+    if (finalSolcVersion) {
+      buildArgs.push('--use', finalSolcVersion)
     }
 
-    if (evmVersion) {
-      buildArgs.push('--evm-version', evmVersion)
+    if (finalEvmVersion) {
+      buildArgs.push('--evm-version', finalEvmVersion)
     }
 
     container = container.withExec(buildArgs)
@@ -105,7 +123,7 @@ export class LifiContracts {
    * @param diamondType - Diamond type for CelerIMFacet (optional)
    */
   @func()
-  deployContractInternal(
+  async deployContractInternal(
     source: Directory,
     scriptPath: string,
     network: string,
@@ -124,18 +142,18 @@ export class LifiContracts {
     defaultDiamondAddressDeploysalt?: string,
     deployToDefaultDiamondAddress?: string,
     diamondType?: string
-  ): Container {
+  ): Promise<Container> {
     // Set default values
     const gasMultiplier = gasEstimateMultiplier || '130'
     const shouldBroadcast = broadcast !== false
     const useLegacy = legacy !== false
     const useSlow = slow !== false
     const shouldSkipSimulation = skipSimulation === true
-    const solc = solcVersion || '0.8.29'
-    const evm = evmVersion || 'cancun'
-
+    // Use provided versions or let buildProject read foundry.toml defaults
+    const solc = solcVersion || '0.8.29' // fallback only
+    const evm = evmVersion || 'cancun' // fallback only
     // Build the project first with the same versions as deployment
-    const builtContainer = this.buildProject(source, solc, evm)
+    const builtContainer = await this.buildProject(source, solc, evm)
 
     // Mount the deployments directory to the built container
     const containerWithDeployments = builtContainer.withMountedDirectory(
@@ -179,6 +197,7 @@ export class LifiContracts {
       .withEnvVariable('NETWORK', network)
       .withEnvVariable('FILE_SUFFIX', fileSuffix)
       .withSecretVariable('PRIVATE_KEY', privateKey)
+      .withEnvVariable('SALT', process.env.SALT || '')
       .withEnvVariable(
         'DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS',
         deployToDefaultDiamondAddress || 'true'
@@ -323,7 +342,7 @@ export class LifiContracts {
     const networkConfig = networks[network] as NetworkConfig
 
     // Build the project first to get the same artifacts as deployment
-    const builtContainer = this.buildProject(
+    const builtContainer = await this.buildProject(
       source,
       networkConfig.deployedWithSolcVersion,
       networkConfig.deployedWithEvmVersion
@@ -375,12 +394,8 @@ export class LifiContracts {
 
     const networkConfig = networks[network] as NetworkConfig
 
-    // Build the project first with network-specific versions
-    let builtContainer = this.buildProject(
-      source,
-      networkConfig.deployedWithSolcVersion,
-      networkConfig.deployedWithEvmVersion
-    )
+    // Build the project first with foundry.toml defaults (buildProject will read foundry.toml)
+    let builtContainer = await this.buildProject(source)
 
     const scriptPath = `script/deploy/facets/Deploy${contractName}.s.sol`
 
@@ -418,7 +433,7 @@ export class LifiContracts {
     deploySalt = keccakResult.trim()
 
     // Execute deployment
-    const deploymentContainer = this.deployContractInternal(
+    const deploymentContainer = await this.deployContractInternal(
       source,
       scriptPath,
       network,
@@ -426,8 +441,8 @@ export class LifiContracts {
       networkConfig.create3Factory,
       env === 'production' ? '' : 'staging.',
       privateKey, // privateKey passed as secret
-      networkConfig.deployedWithSolcVersion,
-      networkConfig.deployedWithEvmVersion,
+      undefined, // solcVersion - use foundry.toml defaults
+      undefined, // evmVersion - use foundry.toml defaults
       '130', // gasEstimateMultiplier
       true, // broadcast
       true, // legacy
