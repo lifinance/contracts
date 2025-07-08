@@ -61,5 +61,9 @@ test/solidity/TestPlayground.t.sol
 # -----------------------------------------------------------------------------
 .aider*
 .claude*
+.copilot*
 .direnv/
 .cursorrules
+
+AGENTS.md
+CLAUDE.md
