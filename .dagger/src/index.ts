@@ -100,6 +100,20 @@ export class LifiContracts {
   }
 
   /**
+   * Format constructor args for display - show "0x" for empty args
+   */
+  private formatConstructorArgsForDisplay(constructorArgs: string): string {
+    if (
+      !constructorArgs ||
+      constructorArgs === '0x' ||
+      /^0x0+$/.test(constructorArgs)
+    ) {
+      return '0x'
+    }
+    return constructorArgs
+  }
+
+  /**
    * Generate timestamp in deployment log format
    */
   private generateTimestamp(): string {
@@ -217,6 +231,8 @@ export class LifiContracts {
     skipSimulation?: boolean,
     verbosity?: string
   ): Promise<Container> {
+    // Setup
+
     // Set default values
     const gasMultiplier = gasEstimateMultiplier || '130'
     const shouldBroadcast = broadcast !== false
@@ -249,26 +265,23 @@ export class LifiContracts {
     // Add gas estimate multiplier
     forgeArgs.push('--gas-estimate-multiplier', gasMultiplier)
 
-    // Build the project first - buildProject will read foundry.toml if versions not provided
-    return (
-      (await this.buildProject(source, solcVersion, evmVersion))
-        // Mount the deployments and config directories to the built container
-        .withMountedDirectory(
-          '/workspace/deployments',
-          source.directory('deployments')
-        )
-        .withMountedDirectory('/workspace/config', source.directory('config'))
-        // Set required environment variables that the deployment scripts expect
-        .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
-        .withEnvVariable('DEPLOYSALT', deploySalt)
-        .withEnvVariable('CREATE3_FACTORY_ADDRESS', create3FactoryAddress)
-        .withEnvVariable('NETWORK', network)
-        .withEnvVariable('FILE_SUFFIX', fileSuffix)
-        .withSecretVariable('PRIVATE_KEY', privateKey)
-        .withEnvVariable('SALT', originalSalt)
-        .withEnvVariable('DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS', 'true')
-        .withExec(forgeArgs)
-    )
+    // Execute
+
+    return (await this.buildProject(source, solcVersion, evmVersion))
+      .withMountedDirectory(
+        '/workspace/deployments',
+        source.directory('deployments')
+      )
+      .withMountedDirectory('/workspace/config', source.directory('config'))
+      .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
+      .withEnvVariable('DEPLOYSALT', deploySalt)
+      .withEnvVariable('CREATE3_FACTORY_ADDRESS', create3FactoryAddress)
+      .withEnvVariable('NETWORK', network)
+      .withEnvVariable('FILE_SUFFIX', fileSuffix)
+      .withSecretVariable('PRIVATE_KEY', privateKey)
+      .withEnvVariable('SALT', originalSalt)
+      .withEnvVariable('DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS', 'true')
+      .withExec(forgeArgs)
   }
 
   /**
@@ -301,18 +314,12 @@ export class LifiContracts {
     watch?: boolean,
     skipIsVerifiedCheck?: boolean
   ): Container {
+    // Setup
+
     // Set default values
     const verificationService = verifier || 'etherscan'
     const shouldWatch = watch !== false
     const shouldSkipVerifiedCheck = skipIsVerifiedCheck !== false
-
-    // Mount the deployments directory to the built container
-    // Note: The built container already has src, lib, script, foundry.toml, etc.
-    // We just need to mount the deployments directory for verification
-    builtContainer = builtContainer.withMountedDirectory(
-      '/workspace/deployments',
-      source.directory('deployments')
-    )
 
     // Build base verification command
     const forgeArgs = ['forge', 'verify-contract']
@@ -348,8 +355,14 @@ export class LifiContracts {
       forgeArgs.push('-e', apiKey)
     }
 
-    // Execute the verification command
-    return builtContainer.withExec(forgeArgs)
+    // Execute
+
+    return builtContainer
+      .withMountedDirectory(
+        '/workspace/deployments',
+        source.directory('deployments')
+      )
+      .withExec(forgeArgs)
   }
 
   /**
@@ -1153,7 +1166,7 @@ export class LifiContracts {
       ADDRESS: contractAddress,
       OPTIMIZER_RUNS: optimizerRuns,
       TIMESTAMP: timestamp,
-      CONSTRUCTOR_ARGS: constructorArgs,
+      CONSTRUCTOR_ARGS: this.formatConstructorArgsForDisplay(constructorArgs),
       SALT: deploySalt,
       VERIFIED: 'false',
     })
@@ -1190,6 +1203,8 @@ export class LifiContracts {
     environment: string
   ): Promise<Container> {
     try {
+      // Setup
+
       // Determine chain ID from network config
       const chainId = networkConfig.chainId.toString()
 
@@ -1207,17 +1222,6 @@ export class LifiContracts {
         true // skipIsVerifiedCheck
       )
 
-      // Log verification details
-      const logContainer = verificationContainer.withExec([
-        '/bin/sh',
-        '-c',
-        `
-          echo "Contract verification completed successfully for ${contractName} at ${contractAddress}"
-          echo "Using compiler: ${networkConfig.deployedWithSolcVersion}, EVM: ${networkConfig.deployedWithEvmVersion}"
-          echo "Constructor args: ${constructorArgs}"
-        `,
-      ])
-
       // Update deployment logs locally
       await this.updateVerificationLogs(
         source,
@@ -1227,7 +1231,21 @@ export class LifiContracts {
         contractAddress
       )
 
-      return logContainer
+      // Execute
+
+      return verificationContainer.withExec([
+        '/bin/sh',
+        '-c',
+        `
+          echo "Contract verification completed successfully for ${contractName} at ${contractAddress}"
+          echo "Using compiler: ${
+            networkConfig.deployedWithSolcVersion
+          }, EVM: ${networkConfig.deployedWithEvmVersion}"
+          echo "Constructor args: ${this.formatConstructorArgsForDisplay(
+            constructorArgs
+          )}"
+        `,
+      ])
     } catch (error) {
       // If verification fails, continue with unverified deployment
       console.warn(`Contract verification failed: ${error}`)
