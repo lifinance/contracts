@@ -151,23 +151,10 @@ export class LifiContracts {
       .withExec(['bun', 'install', '--ignore-scripts'])
       .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
 
-    // Read defaults from foundry.toml if versions not provided
-    let finalSolcVersion = solcVersion
-    let finalEvmVersion = evmVersion
-
-    if (!solcVersion || !evmVersion) {
-      const foundryToml = await source.file('foundry.toml').contents()
-      if (!solcVersion) {
-        const solcMatch = foundryToml.match(
-          /solc_version\s*=\s*['"]([^'"]+)['"]/
-        )
-        finalSolcVersion = solcMatch ? solcMatch[1] : '0.8.29'
-      }
-      if (!evmVersion) {
-        const evmMatch = foundryToml.match(/evm_version\s*=\s*['"]([^'"]+)['"]/)
-        finalEvmVersion = evmMatch ? evmMatch[1] : 'cancun'
-      }
-    }
+    // Read from foundry.toml if versions not provided
+    const finalSolcVersion =
+      solcVersion || (await this.extractSolcVersion(source))
+    const finalEvmVersion = evmVersion || (await this.extractEvmVersion(source))
 
     // Build forge build command with version parameters
     const buildArgs = ['forge', 'build']
@@ -234,11 +221,13 @@ export class LifiContracts {
     const useLegacy = legacy !== false
     const useSlow = slow !== false
     const shouldSkipSimulation = skipSimulation === true
-    // Use provided versions or let buildProject read foundry.toml defaults
-    const solc = solcVersion || '0.8.29' // fallback only
-    const evm = evmVersion || 'cancun' // fallback only
-    // Build the project first with the same versions as deployment
-    const builtContainer = await this.buildProject(source, solc, evm)
+
+    // Build the project first - buildProject will read foundry.toml if versions not provided
+    const builtContainer = await this.buildProject(
+      source,
+      solcVersion,
+      evmVersion
+    )
 
     // Mount the deployments and config directories to the built container
     let containerWithDeployments = builtContainer
@@ -249,18 +238,15 @@ export class LifiContracts {
       .withMountedDirectory('/workspace/config', source.directory('config'))
 
     // Build forge script command
-    const forgeArgs = [
-      'forge',
-      'script',
-      scriptPath,
-      '-f',
-      network,
-      '--use',
-      solc,
-      '--evm-version',
-      evm,
-      '--json',
-    ]
+    const forgeArgs = ['forge', 'script', scriptPath, '-f', network, '--json']
+
+    // Add version flags if provided
+    if (solcVersion) {
+      forgeArgs.push('--use', solcVersion)
+    }
+    if (evmVersion) {
+      forgeArgs.push('--evm-version', evmVersion)
+    }
 
     // Add verbosity flag only if specified
     if (verbosity) {
@@ -1097,6 +1083,36 @@ export class LifiContracts {
     }
 
     throw new Error('optimizer_runs not found in foundry.toml')
+  }
+
+  /**
+   * Extract solc version from foundry.toml
+   */
+  private async extractSolcVersion(source: Directory): Promise<string> {
+    const foundryToml = await source.file('foundry.toml').contents()
+
+    const solcMatch = foundryToml.match(/solc_version\s*=\s*['"]([^'"]+)['"]/)
+
+    if (solcMatch) {
+      return solcMatch[1]
+    }
+
+    throw new Error('solc_version not found in foundry.toml')
+  }
+
+  /**
+   * Extract evm version from foundry.toml
+   */
+  private async extractEvmVersion(source: Directory): Promise<string> {
+    const foundryToml = await source.file('foundry.toml').contents()
+
+    const evmMatch = foundryToml.match(/evm_version\s*=\s*['"]([^'"]+)['"]/)
+
+    if (evmMatch) {
+      return evmMatch[1]
+    }
+
+    throw new Error('evm_version not found in foundry.toml')
   }
   /**
    * Log deployment details to deployment files
