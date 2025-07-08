@@ -13127,14 +13127,6 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
             "VERIFIED": "true"
-          },
-          {
-            "ADDRESS": "0xa22eB01f143edd5d35C9463bd438FC4E3A1AA013",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-08 07:37:15",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
-            "SALT": "",
-            "VERIFIED": "false"
           }
         ]
       },
