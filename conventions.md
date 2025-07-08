@@ -307,18 +307,21 @@ We use Foundry as our primary development and testing framework. Foundry provide
    - Event: `LiFiTransferStarted`
    - Emit: At transaction start, before external calls
    - Purpose: Track bridge transactions
+   - Usage: ONLY to be used in Facet contracts
 
 2. **Transaction Completion:**
 
    - Event: `LiFiTransferCompleted`
    - Emit: After successful execution
    - Purpose: Signal transaction finalization
+   - Usage: ONLY to be used in the Executor contract, NOT in Facet contracts
 
 3. **Transaction Recovery:**
 
    - Event: `LiFiTransferRecovered`
    - Emit: When transaction is recovered
    - Purpose: Track recovery attempts
+   - Usage: ONLY to be used in Receiver contracts (e.g., ReceiverAcrossV3, ReceiverChainflip, ReceiverStargateV2), NOT in Facet contracts
 
 4. **Same-chain Swap:**
    - Event: `GenericSwapCompleted`
@@ -378,6 +381,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 - Use `assertEq()` for checking equality of values
 - Use custom assertion modifiers for balance changes
+- Use `vm.expectRevert()` to verify specific revert reasons in failure test cases. Simply checking the success/failure status of a call() is not sufficient.
 - Use `vm.expectEmit(true, true, true, true, <contractAddress>)` for event testing
 - Verify expected events are emitted with correct parameters
 
