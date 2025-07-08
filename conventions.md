@@ -415,34 +415,90 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 
 ### Bash Scripts
 
-- **Structure:**
+Bash scripts provide the robust deployment framework with automated retry mechanisms for handling RPC issues and other deployment challenges. These scripts wrap Foundry's deployment functionality to add reliability and automation.
 
-  - Use proper shebang: `#!/bin/bash`
+#### General Structure
+
+- **Shebang and Organization:**
+  - Begin with `#!/bin/bash`
   - Organize into modular functions with clear sections:
     - "Logging"
     - "Error handling and logging"
     - "Deployment functions"
   - Follow DRY principle using helper files
+  - Extract common logic to helper files
+  - Separate core operations into functions
 
-- **Environment:**
+- **Code Style:**
+  - Use consistent indentation and naming
+  - Include proper comments and documentation
+  - Provide usage instructions
+  - Document TODOs and limitations
 
+#### Environment Configuration
+
+- **Environment Loading:**
   - Load from `.env` or `config.sh`
   - Declare global variables in config files
   - Update `.env.example` accordingly
+  - Validate environment variables early
+
+- **Dependencies:**
+  - Add system packages to `preinstall.sh`
+
+#### Error Handling and Logging
 
 - **Error Handling:**
-
   - Use helper functions for logging (e.g., `echoDebug`, `error`, `warning`, `success`)
-  - Validate inputs early
+  - Validate inputs and environment early
   - Check function exit status with `checkFailure`
-  - Add system packages to `preinstall.sh`
   - Use `set -e` for error handling where appropriate
 
-- **User Interaction:**
+- **Logging:**
+  - Include proper logging for debugging and monitoring
+  - Use helper functions for consistent logging across scripts
+  - Provide clear error messages and debugging information
+
+#### Deployment and Utility Functions
+
+- **Deployment Framework:**
+  - Provide automated retry mechanisms for RPC issues
+  - Wrap Foundry's deployment functionality
+  - Handle deployment challenges with robust error recovery
+  - Validate deployment requirements and dependencies
+
+- **Function Organization:**
+  - Group related functionality into logical modules
+  - Use clear function names that describe their purpose
+  - Implement proper parameter validation
+
+#### User Interaction
+
+- **Interface Design:**
   - Use clear prompts with descriptive instructions
   - Use tools like `gum choose` for enhanced usability
+  - Provide helpful feedback and status updates
+  - Include progress indicators for long-running operations
+
+- **Documentation:**
   - Document TODOs and limitations
   - Provide usage instructions
+  - Include examples of common use cases
+  - Maintain clear help text and error messages
+
+#### Conventions and Best Practices
+
+- **Integration:**
+  - Scripts should integrate seamlessly with the overall deployment pipeline
+  - Use consistent patterns across all bash scripts
+  - Follow project-wide naming conventions
+  - Maintain compatibility with existing tooling
+
+- **Maintenance:**
+  - Keep scripts modular for easy maintenance
+  - Use version control best practices
+  - Test scripts thoroughly before deployment
+  - Update documentation when making changes
 
 ## Deployment and Configuration
 
@@ -552,32 +608,6 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 - Name jobs and steps clearly
 - Include notification steps
 - Set explicit permissions with comments
-
-# Bash Scripts
-
-## General Structure
-
-- Begin with `#!/bin/bash`
-- Organize into modular functions
-- Extract common logic to helper files
-- Load environment from `.env` or `config.sh`
-- Declare global variables in config files
-- Update `.env.example` accordingly
-
-## Error Handling and Logging
-
-- Use helper functions for logging
-- Validate inputs and environment early
-- Check function exit status with `checkFailure`
-- Add system packages to `preinstall.sh`
-
-## User Interaction
-
-- Use clear prompts with instructions
-- Document TODOs and limitations
-- Use consistent indentation and naming
-- Provide usage instructions
-- Separate core operations into functions
 
 # Audit Logs and Reports
 
