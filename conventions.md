@@ -504,41 +504,60 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 
 ### Deployment Scripts
 
-- **Location:** `script/deploy/facets/`
-- **Naming:**
-
+- **Location and Organization:**
+  - Base location: `script/deploy/facets/`
+  - ZKSync-specific scripts: `script/deploy/zksync/`
   - Deployment: `Deploy{ContractName}.s.sol`
   - Update: `Update{ContractName}.s.sol`
 
-- **Structure:**
-  - Inherit from base classes
-  - Use JSON config with `stdJson`
-  - Handle constructor arguments
-  - Manage function selectors
-  - Example JSON handling:
-    ```solidity
-    string memory path = string.concat(root, "/config/{facetName}.json");
-    address configValue = _getConfigContractAddress(
-      path,
-      string.concat(".{key}.", network, ".{subkey}")
-    );
-    ```
+- **Script Structure:**
+  - **Deployment Scripts:**
+    - Inherit `DeployScriptBase`
+    - Use JSON config with `stdJson`
+    - Define `getConstructorArgs()` if needed
+    - Encode constructor arguments
+    - Call `deploy()` with `type({ContractName}).creationCode`
+    - Example JSON handling:
+      ```solidity
+      string memory path = string.concat(root, "/config/{facetName}.json");
+      address configValue = _getConfigContractAddress(
+        path,
+        string.concat(".{key}.", network, ".{subkey}")
+      );
+      ```
+
+  - **Update Scripts:**
+    - Inherit `UpdateScriptBase`
+    - Call `update("{ContractName}")`
+    - Use `getExcludes()` for special cases
+    - Return array of excluded function selectors
 
 ### Configuration Files
 
 - **deployRequirements.json:**
-
-  - Controls deployment rules
-  - Manages contract dependencies
-  - Handles network-specific parameters
-  - Specifies zero address restrictions
-  - Defines required external config files
+  - Location: `script/deploy/resources/deployRequirements.json`
+  - Purpose: Dictates deployment rules and dependencies
+  - Features:
+    - Controls deployment rules and dependencies
+    - Manages contract dependencies
+    - Handles network-specific parameters
+    - Specifies zero address restrictions
+    - Defines required external config files
+  - Usage: Used in `helperFunctions.sh` for deployment validation
 
 - **targetState.json:**
-  - Defines expected contract versions
-  - Tracks deployments across networks
-  - Manages environment-specific versions
-  - Is auto-created from a Google Sheet
+  - Location: `script/deploy/`
+  - Purpose: Version control and deployment tracking
+  - Features:
+    - Defines expected contract versions
+    - Tracks deployments across networks
+    - Manages environment-specific versions
+  - Structure:
+    - Network keys (e.g., `mainnet`, `arbitrum`)
+    - Environment keys (e.g., `production`, `staging`)
+    - Contract versions for facets, periphery, and core contracts
+  - Source: Auto-created from a Google Sheet
+  - Usage: Ensures version consistency across deployments
 
 ### Template-based Code Generation
 
@@ -580,105 +599,22 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 ### GitHub Workflows
 
 - **Sensitive Data:**
-
-  - Use GitHub Secrets
+  - Use GitHub Secrets for sensitive data
   - Reference with `${{ secrets.SECRET_NAME }}`
 
-- **Structure:**
-
+- **File Structure and Comments:**
+  - Begin with clear description (YAML comments)
+  - Include descriptive comments throughout
+  - Define triggers explicitly
+  - Use conditional checks with `if:`
+  - Name jobs and steps clearly
+  - Include notification steps
+  - Set explicit permissions with comments
   - Clear file headers
-  - Descriptive comments
-  - Explicit triggers
-  - Clear job names
+  - Descriptive comments for each step
 
 - **Security:**
   - Set explicit permissions
   - Include notifications
   - Document permission requirements
-# Github Workflows Conventions
-
-## Sensitive Data Handling
-
-- Use Github Secrets for sensitive data
-- Reference secrets using `${{ secrets.SECRET_NAME }}`
-
-## File Structure
-
-- Begin with clear description (YAML comments)
-- Include descriptive comments throughout
-- Define triggers explicitly
-- Use conditional checks with `if:`
-- Name jobs and steps clearly
-- Include notification steps
-- Set explicit permissions with comments
-
-# Deployment and Update Scripts
-
-## Location and Naming
-
-- Located in `script/deploy/facets/`
-- Deployment scripts: `Deploy{ContractName}.s.sol`
-- Update scripts: `Update{ContractName}.s.sol`
-
-## Script Structure
-
-### Deployment Scripts
-
-- Inherit `DeployScriptBase`
-- Use JSON config with `stdJson`
-- Define `getConstructorArgs()` if needed
-- Encode constructor arguments
-- Call `deploy()` with `type({ContractName}).creationCode`
-
-### Update Scripts
-
-- Inherit `UpdateScriptBase`
-- Call `update("{ContractName}")`
-- Use `getExcludes()` for special cases
-- Return array of excluded function selectors
-
-## Configuration
-
-- Reference JSON configs in `/config/`
-- Use dynamic path selection:
-  ```solidity
-  string memory path = string.concat(root, "/config/{facetName}.json");
-  address configValue = _getConfigContractAddress(
-    path,
-    string.concat(".{key}.", network, ".{subkey}")
-  );
-  ```
-
-# Template-based Code Generation
-
-## Overview
-
-- Use `plop facet` to generate new facets
-- Templates stored in `templates/` folder
-
-## Template Files
-
-All template files are stored in the `templates/` folder. These templates are used by the `plop facet` command to generate new facets and their associated files.
-
-# Configuration Files
-
-## `deployRequirements.json`
-
-- Location: `script/deploy/resources/deployRequirements.json`
-- Purpose: Dictates deployment rules and dependencies
-- Specifies:
-  - Zero address restrictions
-  - Required external config files
-  - Network-specific parameters
-- Used in `helperFunctions.sh` for deployment validation
-
-## `targetState.json`
-
-- Location: `script/deploy/`
-- Purpose: Defines expected contract versions per network
-- Structure:
-  - Network keys (e.g., `mainnet`, `arbitrum`)
-  - Environment keys (e.g., `production`, `staging`)
-  - Contract versions for facets, periphery, and core contracts
-- Used to ensure version consistency across deployments
 
