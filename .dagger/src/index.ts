@@ -371,6 +371,8 @@ export class LifiContracts {
    * @param network - Target network name (e.g., "arbitrum", "mainnet")
    * @param privateKey - Private key secret for deployment
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
+   * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
+   * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
    * @returns Updated source directory with deployment logs
    */
   @func()
@@ -379,7 +381,9 @@ export class LifiContracts {
     contractName: string,
     network: string,
     privateKey: Secret,
-    environment?: string
+    environment?: string,
+    evmVersion?: string,
+    solcVersion?: string
   ): Promise<Directory> {
     const env = environment || 'production'
 
@@ -395,7 +399,11 @@ export class LifiContracts {
     const networkConfig = networks[network] as NetworkConfig
 
     // Build the project first with foundry.toml defaults (buildProject will read foundry.toml)
-    let builtContainer = await this.buildProject(source)
+    let builtContainer = await this.buildProject(
+      source,
+      solcVersion,
+      evmVersion
+    )
 
     const scriptPath = `script/deploy/facets/Deploy${contractName}.s.sol`
 
@@ -441,8 +449,8 @@ export class LifiContracts {
       networkConfig.create3Factory,
       env === 'production' ? '' : 'staging.',
       privateKey, // privateKey passed as secret
-      undefined, // solcVersion - use foundry.toml defaults
-      undefined, // evmVersion - use foundry.toml defaults
+      solcVersion, // solcVersion - use provided version or foundry.toml defaults
+      evmVersion, // evmVersion - use provided version or foundry.toml defaults
       '130', // gasEstimateMultiplier
       true, // broadcast
       true, // legacy
@@ -537,6 +545,8 @@ export class LifiContracts {
    * @param networks - Array of network names to deploy to (e.g., ["arbitrum", "optimism"])
    * @param privateKey - Private key secret for deployment
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
+   * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
+   * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
    */
   @func()
   async deployToAllNetworks(
@@ -544,7 +554,9 @@ export class LifiContracts {
     contractName: string,
     networks: string[],
     privateKey: Secret,
-    environment?: string
+    environment?: string,
+    evmVersion?: string,
+    solcVersion?: string
   ): Promise<Directory> {
     let updatedSource = source
 
@@ -556,7 +568,9 @@ export class LifiContracts {
           contractName,
           network,
           privateKey,
-          environment
+          environment,
+          evmVersion,
+          solcVersion
         )
         console.log(`✅ Successfully deployed ${contractName} to ${network}`)
       } catch (error) {
