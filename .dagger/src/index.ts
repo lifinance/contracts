@@ -560,7 +560,12 @@ export class LifiContracts {
     const safeArgs = [
       '/bin/sh',
       '-c',
-      `bun script/deploy/safe/propose-to-safe.ts --to "${diamondAddress}" --calldata "${facetCut}" --network "${network}" --rpcUrl "${rpcUrl}" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"`,
+      'bun script/deploy/safe/propose-to-safe.ts --to "$1" --calldata "$2" --network "$3" --rpcUrl "$4" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"',
+      '--',
+      diamondAddress,
+      facetCut,
+      network,
+      rpcUrl,
     ]
 
     await container.withExec(safeArgs).stdout()
