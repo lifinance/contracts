@@ -118,24 +118,24 @@ echo "Selected EVM version: $SELECTED_EVM_VERSION"
 if [ -n "$NETWORKS_ARG" ]; then
   # Validate provided networks against available networks
   AVAILABLE_NETWORKS=$(jq -r 'to_entries[] | select(.value.isZkEVM == false) | .key' config/networks.json | sort)
-  
+
   # Convert comma-separated list to array and validate each network
   IFS=',' read -ra NETWORK_ARRAY <<< "$NETWORKS_ARG"
   INVALID_NETWORKS=()
-  
+
   for network in "${NETWORK_ARRAY[@]}"; do
     if ! echo "$AVAILABLE_NETWORKS" | grep -q "^$network$"; then
       INVALID_NETWORKS+=("$network")
     fi
   done
-  
+
   if [ ${#INVALID_NETWORKS[@]} -gt 0 ]; then
     echo "Error: Invalid networks specified: ${INVALID_NETWORKS[*]}"
     echo "Available networks:"
     echo "$AVAILABLE_NETWORKS"
     exit 1
   fi
-  
+
   SELECTED_NETWORKS="$NETWORKS_ARG"
   echo "Using provided networks: $SELECTED_NETWORKS"
 else
@@ -170,7 +170,7 @@ if [ "$UPDATE_DIAMOND" = false ]; then
   UPDATE_DIAMOND_SELECTION=$(echo -e "no\nyes" | gum choose \
     --limit=1 \
     --header="Update diamond after deployment (for facets only)?")
-  
+
   if [ "$UPDATE_DIAMOND_SELECTION" = "yes" ]; then
     UPDATE_DIAMOND=true
   fi
@@ -179,7 +179,7 @@ fi
 echo "Update diamond: $UPDATE_DIAMOND"
 
 # Build dagger command with selected options
-DAGGER_CMD="deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION"
+DAGGER_CMD="deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY --salt=$SALT --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION"
 
 # Add update-diamond flag if requested
 if [ "$UPDATE_DIAMOND" = true ]; then

@@ -121,35 +121,7 @@ export class LifiContracts {
     solcVersion?: string,
     evmVersion?: string
   ): Promise<Container> {
-    let container = dag
-      .container()
-      .from('ghcr.io/foundry-rs/foundry:latest')
-      .withDirectory('/workspace/src', source.directory('src'))
-      .withDirectory('/workspace/lib', source.directory('lib'))
-      .withDirectory('/workspace/script', source.directory('script'))
-      .withFile('/workspace/foundry.toml', source.file('foundry.toml'))
-      .withFile('/workspace/remappings.txt', source.file('remappings.txt'))
-      .withFile('/workspace/.env', source.file('.env'))
-      .withFile('/workspace/package.json', source.file('package.json'))
-      .withFile('/workspace/bun.lock', source.file('bun.lock'))
-      .withWorkdir('/workspace')
-      .withUser('root')
-      .withExec([
-        'mkdir',
-        '-p',
-        '/workspace/out',
-        '/workspace/cache',
-        '/workspace/broadcast',
-      ])
-      .withExec(['chown', '-R', 'foundry:foundry', '/workspace'])
-      // Install Node.js, bun, and jq
-      .withExec(['apt-get', 'update'])
-      .withExec(['apt-get', 'install', '-y', 'nodejs', 'npm', 'jq'])
-      .withExec(['npm', 'install', '-g', 'bun'])
-      .withUser('foundry')
-      // Install dependencies
-      .withExec(['bun', 'install', '--ignore-scripts'])
-      .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
+    // Setup
 
     // Read from foundry.toml if versions not provided
     const finalSolcVersion =
@@ -167,9 +139,40 @@ export class LifiContracts {
       buildArgs.push('--evm-version', finalEvmVersion)
     }
 
-    container = container.withExec(buildArgs)
+    // Execute
 
-    return container
+    return (
+      dag
+        .container()
+        .from('ghcr.io/foundry-rs/foundry:latest')
+        .withDirectory('/workspace/src', source.directory('src'))
+        .withDirectory('/workspace/lib', source.directory('lib'))
+        .withDirectory('/workspace/script', source.directory('script'))
+        .withFile('/workspace/foundry.toml', source.file('foundry.toml'))
+        .withFile('/workspace/remappings.txt', source.file('remappings.txt'))
+        .withFile('/workspace/.env', source.file('.env'))
+        .withFile('/workspace/package.json', source.file('package.json'))
+        .withFile('/workspace/bun.lock', source.file('bun.lock'))
+        .withWorkdir('/workspace')
+        .withUser('root')
+        .withExec([
+          'mkdir',
+          '-p',
+          '/workspace/out',
+          '/workspace/cache',
+          '/workspace/broadcast',
+        ])
+        .withExec(['chown', '-R', 'foundry:foundry', '/workspace'])
+        // Install Node.js, bun, and jq
+        .withExec(['apt-get', 'update'])
+        .withExec(['apt-get', 'install', '-y', 'nodejs', 'npm', 'jq'])
+        .withExec(['npm', 'install', '-g', 'bun'])
+        .withUser('foundry')
+        // Install dependencies
+        .withExec(['bun', 'install', '--ignore-scripts'])
+        .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
+        .withExec(buildArgs)
+    )
   }
 
   /**
@@ -182,6 +185,7 @@ export class LifiContracts {
    * @param create3FactoryAddress - Address of the CREATE3 factory contract
    * @param fileSuffix - File suffix for deployment logs (e.g., "staging", "production")
    * @param privateKey - Private key secret for deployment
+   * @param originalSalt - Original salt value for logging (before keccak hashing)
    * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param gasEstimateMultiplier - Gas estimate multiplier percentage (default: "130")
@@ -203,6 +207,7 @@ export class LifiContracts {
     create3FactoryAddress: string,
     fileSuffix: string,
     privateKey: Secret,
+    originalSalt: string,
     solcVersion?: string,
     evmVersion?: string,
     gasEstimateMultiplier?: string,
@@ -210,10 +215,7 @@ export class LifiContracts {
     legacy?: boolean,
     slow?: boolean,
     skipSimulation?: boolean,
-    verbosity?: string,
-    defaultDiamondAddressDeploysalt?: string,
-    deployToDefaultDiamondAddress?: string,
-    diamondType?: string
+    verbosity?: string
   ): Promise<Container> {
     // Set default values
     const gasMultiplier = gasEstimateMultiplier || '130'
@@ -221,21 +223,6 @@ export class LifiContracts {
     const useLegacy = legacy !== false
     const useSlow = slow !== false
     const shouldSkipSimulation = skipSimulation === true
-
-    // Build the project first - buildProject will read foundry.toml if versions not provided
-    const builtContainer = await this.buildProject(
-      source,
-      solcVersion,
-      evmVersion
-    )
-
-    // Mount the deployments and config directories to the built container
-    let containerWithDeployments = builtContainer
-      .withMountedDirectory(
-        '/workspace/deployments',
-        source.directory('deployments')
-      )
-      .withMountedDirectory('/workspace/config', source.directory('config'))
 
     // Build forge script command
     const forgeArgs = ['forge', 'script', scriptPath, '-f', network, '--json']
@@ -262,37 +249,26 @@ export class LifiContracts {
     // Add gas estimate multiplier
     forgeArgs.push('--gas-estimate-multiplier', gasMultiplier)
 
-    // Set required environment variables that the deployment scripts expect
-    containerWithDeployments = containerWithDeployments
-      .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
-      .withEnvVariable('DEPLOYSALT', deploySalt)
-      .withEnvVariable('CREATE3_FACTORY_ADDRESS', create3FactoryAddress)
-      .withEnvVariable('NETWORK', network)
-      .withEnvVariable('FILE_SUFFIX', fileSuffix)
-      .withSecretVariable('PRIVATE_KEY', privateKey)
-      .withEnvVariable('SALT', process.env.SALT || '')
-      .withEnvVariable(
-        'DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS',
-        deployToDefaultDiamondAddress || 'true'
-      )
-
-    // Add optional environment variables if provided
-    if (defaultDiamondAddressDeploysalt) {
-      containerWithDeployments = containerWithDeployments.withEnvVariable(
-        'DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT',
-        defaultDiamondAddressDeploysalt
-      )
-    }
-
-    if (diamondType) {
-      containerWithDeployments = containerWithDeployments.withEnvVariable(
-        'DIAMOND_TYPE',
-        diamondType
-      )
-    }
-
-    // Execute the forge script command
-    return containerWithDeployments.withExec(forgeArgs)
+    // Build the project first - buildProject will read foundry.toml if versions not provided
+    return (
+      (await this.buildProject(source, solcVersion, evmVersion))
+        // Mount the deployments and config directories to the built container
+        .withMountedDirectory(
+          '/workspace/deployments',
+          source.directory('deployments')
+        )
+        .withMountedDirectory('/workspace/config', source.directory('config'))
+        // Set required environment variables that the deployment scripts expect
+        .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
+        .withEnvVariable('DEPLOYSALT', deploySalt)
+        .withEnvVariable('CREATE3_FACTORY_ADDRESS', create3FactoryAddress)
+        .withEnvVariable('NETWORK', network)
+        .withEnvVariable('FILE_SUFFIX', fileSuffix)
+        .withSecretVariable('PRIVATE_KEY', privateKey)
+        .withEnvVariable('SALT', originalSalt)
+        .withEnvVariable('DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS', 'true')
+        .withExec(forgeArgs)
+    )
   }
 
   /**
@@ -635,6 +611,7 @@ export class LifiContracts {
    * @param contractName - Name of the contract to deploy (e.g., "AcrossFacet")
    * @param network - Target network name (e.g., "arbitrum", "mainnet")
    * @param privateKey - Private key secret for deployment
+   * @param salt - Salt value for CREATE3 deployment (optional, defaults to empty string)
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
@@ -648,6 +625,7 @@ export class LifiContracts {
     contractName: string,
     network: string,
     privateKey: Secret,
+    salt?: string,
     environment?: string,
     evmVersion?: string,
     solcVersion?: string,
@@ -655,6 +633,7 @@ export class LifiContracts {
     safeSignerPrivateKey?: Secret
   ): Promise<Directory> {
     const env = environment || 'production'
+    const deploymentSalt = salt || ''
 
     // Read network configuration from networks.json
     const networkConfig = await this.getNetworkConfig(source, network)
@@ -682,18 +661,15 @@ export class LifiContracts {
       throw new Error(`No bytecode found for contract ${contractName}`)
     }
 
-    // Get SALT from environment variable (can be empty)
-    const salt = process.env.SALT || ''
-
     // Validate SALT format if provided (must have even number of digits)
-    if (salt && salt.length % 2 !== 0) {
+    if (deploymentSalt && deploymentSalt.length % 2 !== 0) {
       throw new Error(
-        'SALT environment variable has odd number of digits (must be even digits)'
+        'SALT parameter has odd number of digits (must be even digits)'
       )
     }
 
     // Create salt input by concatenating bytecode and SALT (same as bash: SALT_INPUT="$BYTECODE""$SALT")
-    const saltInput = bytecode + salt
+    const saltInput = bytecode + deploymentSalt
 
     // Generate DEPLOYSALT using cast keccak (same as bash: DEPLOYSALT=$(cast keccak "$SALT_INPUT"))
     builtContainer = builtContainer.withExec(['cast', 'keccak', saltInput])
@@ -710,6 +686,7 @@ export class LifiContracts {
       networkConfig.create3Factory,
       env === 'production' ? '' : 'staging.',
       privateKey, // privateKey passed as secret
+      deploymentSalt, // originalSalt - for logging purposes
       solcVersion, // solcVersion - use provided version or foundry.toml defaults
       evmVersion, // evmVersion - use provided version or foundry.toml defaults
       '130', // gasEstimateMultiplier
@@ -717,10 +694,7 @@ export class LifiContracts {
       true, // legacy
       true, // slow
       false, // skipSimulation
-      undefined, // verbosity - omit by default
-      undefined, // defaultDiamondAddressDeploysalt
-      'true', // deployToDefaultDiamondAddress
-      undefined // diamondType
+      undefined // verbosity - omit by default
     )
 
     // Extract deployment results from the output
@@ -768,9 +742,6 @@ export class LifiContracts {
       )
     }
 
-    // Use original SALT for logging (can be empty string)
-    const logSalt = salt
-
     // Update deployment logs and get updated source
     source = await this.logDeployment(
       source,
@@ -779,7 +750,7 @@ export class LifiContracts {
       env,
       contractAddress,
       constructorArgs,
-      logSalt
+      deploymentSalt // Use original SALT parameter, not the computed deploySalt hash
     )
 
     // Attempt contract verification using the deployment container
@@ -835,6 +806,7 @@ export class LifiContracts {
    * @param contractName - Name of the contract to deploy (e.g., "AcrossFacet")
    * @param networks - Array of network names to deploy to (e.g., ["arbitrum", "optimism"])
    * @param privateKey - Private key secret for deployment
+   * @param salt - Salt value for CREATE3 deployment (optional, defaults to empty string)
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
@@ -847,6 +819,7 @@ export class LifiContracts {
     contractName: string,
     networks: string[],
     privateKey: Secret,
+    salt?: string,
     environment?: string,
     evmVersion?: string,
     solcVersion?: string,
@@ -863,6 +836,7 @@ export class LifiContracts {
           contractName,
           network,
           privateKey,
+          salt,
           environment,
           evmVersion,
           solcVersion,
@@ -990,11 +964,19 @@ export class LifiContracts {
   ): Promise<Directory> {
     const failedLogFileName = 'failed_deployments_log.json'
 
-    // Read and parse current failed deployments log
-    const currentFailedLogs = await this.readAndParseJson(
-      source,
-      `deployments/${failedLogFileName}`
-    )
+    // Read and parse current failed deployments log, create empty object if file doesn't exist
+    let currentFailedLogs: any = {}
+    try {
+      currentFailedLogs = await this.readAndParseJson(
+        source,
+        `deployments/${failedLogFileName}`
+      )
+    } catch (error) {
+      // File doesn't exist, start with empty object
+      console.log(
+        `Creating new failed deployments log file: deployments/${failedLogFileName}`
+      )
+    }
     const timestamp = this.generateTimestamp()
 
     // Create nested structure: contractName -> network -> environment -> array
