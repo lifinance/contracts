@@ -35,42 +35,39 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 
 ```solidity
 /// @param receiverAddress The destination account for the delivered assets and calldata.
-/// @param assetId Input token. The leftmost 12 bytes is the lockTag and the
-/// rightmost 20 is the address of the token which needs to be equal to the inputAssetId.
-/// @param expectedClaimHash Security check. If provided, it needs to match the returned claim hash from TheCompact
-/// @param user The deposit and claim registration will be made in this user's name.
-/// Compact 6909 tokens will be minted for this user and if the intent fails to be filled
-/// the tokens will remain in this user's name.
+/// @param inputAssetId Input token. The leftmost 12 bytes is the lockTag and the rightmost 20 is the address of the token which needs to be equal to the inputAssetId.
+/// @param expectedClaimHash Security check. If provided, it needs to match the returned claim hash from TheCompact.
+/// @param user The deposit and claim registration will be made in this user's name. Compact 6909 tokens will be minted for this user and if the intent fails to be filled the tokens will remain in this user's name.
 /// @param expiry If the proof for the fill does not arrive before this time, the claim expires.
 /// @param fillDeadline The fill has to happen before this time.
-/// @param localOracle Address of the validation layer used on the sending chain.
-/// @param outputOracle Address of the validation layer used on the remote chain.
+/// @param inputOracle Address of the validation layer used on the input chain.
+/// @param outputOracle Address of the validation layer used on the output chain.
 /// @param outputSettler Address of the output settlement contract containing the fill logic.
 /// @param outputToken The desires destination token.
 /// @param outputAmount The amount of the destired token.
-/// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress.
-/// if set to 0x / hex"" no call is made.
+/// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type.
+/// @param broadcast Whether to broadcast the intent on-chain. Note that this incurs additional gas costs.
 struct LIFIIntentData {
-    /// And calldata.
-    bytes32 receiverAddress;
-    uint256 assetId;
-    bytes32 expectedClaimHash;
-
-    address user;
-    uint32 expiry;
-
+    bytes32 receiverAddress; // StandardOrder.outputs.recipient.
+    /// BatchClaim
+    uint256 inputAssetId; // StandardOrder.inputs[0]
+    address user; // StandardOrder.user
+    uint256 nonce; // StandardOrder.nonce
+    uint32 expires; // StandardOrder.expiry
     // LIFIIntent Witness //
-    uint32 fillDeadline;
-    address localOracle;
-
+    uint32 fillDeadline; // StandardOrder.fillDeadline
+    address inputOracle; // StandardOrder.localOracle
     // LIFIIntent Output //
-    bytes32 outputOracle;
-    bytes32 outputSettler;
-    bytes32 outputToken;
-    uint256 outputAmount;
-    bytes outputCall;
-    bytes outputContext;
+    bytes32 outputOracle; // StandardOrder.outputs.oracle
+    bytes32 outputSettler; // StandardOrder.outputs.settler
+    bytes32 outputToken; // StandardOrder.outputs.token
+    uint256 outputAmount; // StandardOrder.outputs.amount
+    bytes outputCall; // StandardOrder.outputs.call
+    bytes outputContext; // StandardOrder.outputs.context
+    // Validation
+    bytes32 expectedClaimHash;
+    bool broadcast;
 }
 ```
 
