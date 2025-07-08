@@ -20,7 +20,6 @@ library MandateOutputType {
     bytes32 internal constant MANDATE_OUTPUT_TYPE_HASH =
         keccak256(MANDATE_OUTPUT_TYPE_STUB);
 
-    // Memory copy of the above:
     function hashOutputM(
         MandateOutput memory output
     ) internal pure returns (bytes32) {
@@ -61,8 +60,7 @@ library MandateOutputType {
 }
 
 /**
- * @notice This is the signed Compact witness structure. This allows us to more easily collect the order hash.
- * Notice that this is different to both the order data and the ERC7683 order.
+ * @notice This is the signed Compact witness structure.
  */
 struct Mandate {
     uint32 fillDeadline;
@@ -74,7 +72,6 @@ struct Mandate {
  * @notice Helper library for the LIFIIntent order type.
  */
 library StandardOrderType {
-    /// @dev For hashing of our subtypes, we need proper types.
     bytes internal constant LIFI_INTENT_WITNESS_TYPE =
         abi.encodePacked(
             "Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 oracle,bytes32 settler,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes call,bytes context)"
@@ -98,8 +95,7 @@ library RegisterIntentLib {
             )
         );
 
-    // Copy from OIF implementation with elements in memory for usage inside other contracts constructing the
-    // StandardOrder.
+    // Copy from OIF implementation with elements in memory
     function witnessHash(
         uint32 fillDeadline,
         address inputOracle,
@@ -120,9 +116,7 @@ library RegisterIntentLib {
         uint32 fillDeadline,
         uint32 expires
     ) internal view {
-        // Check if the fill deadline has been passed
         if (block.timestamp > fillDeadline) revert DeadlinePassed();
-        // Check if expiry has been passed
         if (block.timestamp > expires) revert DeadlinePassed();
     }
 
