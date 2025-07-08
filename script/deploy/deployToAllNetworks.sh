@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Parse command line arguments
+SELECT_ALL_NETWORKS=true
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --no-select-all)
+      SELECT_ALL_NETWORKS=false
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--no-select-all]"
+      exit 1
+      ;;
+  esac
+done
+
 source .env
 source script/config.sh
 
@@ -81,12 +97,19 @@ echo "Selected EVM version: $SELECTED_EVM_VERSION"
 # Extract network names from config/networks.json, filtering out zkEVM networks
 NETWORKS=$(jq -r 'to_entries[] | select(.value.isZkEVM == false) | .key' config/networks.json | sort)
 
-# Use gum to select networks with all networks pre-selected
-SELECTED_NETWORKS=$(echo "$NETWORKS" | gum choose \
-  --no-limit \
-  --selected="*" \
-  --header="Select networks to deploy to:" \
-  --output-delimiter=",")
+# Use gum to select networks (conditionally pre-select all)
+if [ "$SELECT_ALL_NETWORKS" = true ]; then
+  SELECTED_NETWORKS=$(echo "$NETWORKS" | gum choose \
+    --no-limit \
+    --selected="*" \
+    --header="Select networks to deploy to:" \
+    --output-delimiter=",")
+else
+  SELECTED_NETWORKS=$(echo "$NETWORKS" | gum choose \
+    --no-limit \
+    --header="Select networks to deploy to:" \
+    --output-delimiter=",")
+fi
 
 # Check if any networks were selected
 if [ -z "$SELECTED_NETWORKS" ]; then
@@ -97,4 +120,4 @@ fi
 echo "Selected networks: $SELECTED_NETWORKS"
 
 # Run dagger command with selected contract, networks, EVM version, and Solidity version
-dagger -c "deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY $SELECTED_EVM_VERSION $SELECTED_SOLC_VERSION | export ./deployments"
+dagger -c "deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION | export ./deployments"
