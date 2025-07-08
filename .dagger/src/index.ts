@@ -654,13 +654,8 @@ export class LifiContracts {
     }
 
     // Update deployment data (network-specific file)
-    currentDeployments[contractName] = {
-      address: contractAddress,
-      constructorArgs: constructorArgs,
-      deploySalt: deploySalt,
-      timestamp: timestamp,
-      verified: false,
-    }
+    // For network files, just store the address as a string (matching existing format)
+    currentDeployments[contractName] = contractAddress
 
     // Update master log with nested structure: contractName -> network -> environment -> version -> array
     if (!currentLogs[contractName]) {
