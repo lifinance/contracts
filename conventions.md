@@ -552,19 +552,23 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 
 ### Audit and Documentation
 
-#### Audit Logs
+#### Audit Logs and Reports
 
-- **auditLog.json:**
+**Audit Log Structure (`auditLog.json`):**
 
-  - Unique audit IDs: `auditYYYYMMDD`
-  - Add `_x` if several audits submitted on the same day
-  - Required fields: completion date, auditor, report path, commit hash
-  - Maps contracts to audit IDs
+- **audits:** Entries with unique ID (`auditYYYYMMDD_X`)
+  - `auditCompletedOn`: Date (DD.MM.YYYY or YYYY-MM-DD)
+  - `auditedBy`: Name/firm
+  - `auditorGitHandle`: (if applicable)
+  - `auditReportPath`: PDF location
+  - `auditCommitHash`: Audited commit
+- **auditedContracts:** Maps contracts to audit IDs
 
-- **Report Storage:**
-  - Location: `audit/reports/`
-  - Naming: `YYYY.MM.DD_ContractName(version).pdf`
-  - Multi-contract format: `YYYY.MM.DD_CustomFileName.pdf`
+**Report Storage:**
+
+- Store PDFs in `audit/reports/`
+- Individual contract format: `YYYY.MM.DD_ContractName(version).pdf`
+- Multiple contracts format: `YYYY.MM.DD_CustomFileName.pdf`
 
 #### Documentation
 
@@ -591,7 +595,6 @@ Bash scripts provide the robust deployment framework with automated retry mechan
   - Set explicit permissions
   - Include notifications
   - Document permission requirements
-
 # Github Workflows Conventions
 
 ## Sensitive Data Handling
@@ -608,24 +611,6 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 - Name jobs and steps clearly
 - Include notification steps
 - Set explicit permissions with comments
-
-# Audit Logs and Reports
-
-## Audit Log Structure (`auditLog.json`)
-
-- **audits:** Entries with unique ID (`auditYYYYMMDD_X`)
-  - `auditCompletedOn`: Date (DD.MM.YYYY or YYYY-MM-DD)
-  - `auditedBy`: Name/firm
-  - `auditorGitHandle`: (if applicable)
-  - `auditReportPath`: PDF location
-  - `auditCommitHash`: Audited commit
-- **auditedContracts:** Maps contracts to audit IDs
-
-## Report Storage
-
-- Store PDFs in `audit/reports/`
-- Individual contract format: `YYYY.MM.DD_ContractName(version).pdf`
-- Multiple contracts format: `YYYY.MM.DD_CustomFileName.pdf`
 
 # Deployment and Update Scripts
 
@@ -696,3 +681,4 @@ All template files are stored in the `templates/` folder. These templates are us
   - Environment keys (e.g., `production`, `staging`)
   - Contract versions for facets, periphery, and core contracts
 - Used to ensure version consistency across deployments
+
