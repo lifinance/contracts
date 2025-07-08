@@ -376,7 +376,7 @@ export class LifiContracts {
     const networkConfig = networks[network] as NetworkConfig
 
     // Build the project first with network-specific versions
-    const builtContainer = this.buildProject(
+    let builtContainer = this.buildProject(
       source,
       networkConfig.deployedWithSolcVersion,
       networkConfig.deployedWithEvmVersion
@@ -384,7 +384,7 @@ export class LifiContracts {
 
     const scriptPath = `script/deploy/facets/Deploy${contractName}.s.sol`
 
-    // Generate deployment salt
+    // Generate deployment salt exactly like the bash script
     let deploySalt: string
     // Read the bytecode from compiled artifacts
     const artifactPath = `/workspace/out/${contractName}.sol/${contractName}.json`
@@ -392,21 +392,30 @@ export class LifiContracts {
     const artifactContent = await artifactContainer.stdout()
 
     const artifact = JSON.parse(artifactContent)
-    const bytecode = artifact.bytecode?.object || artifact.bytecode
+    let bytecode = artifact.bytecode?.object || artifact.bytecode
 
     if (!bytecode) {
       throw new Error(`No bytecode found for contract ${contractName}`)
     }
 
-    // Generate SHA256 hash of the bytecode
-    const hashContainer = builtContainer.withExec([
-      'sh',
-      '-c',
-      `echo -n "${bytecode}" | sha256sum | cut -d' ' -f1`,
-    ])
+    // Get SALT from environment variable (can be empty)
+    const salt = process.env.SALT || ''
 
-    const hash = await hashContainer.stdout()
-    deploySalt = `0x${hash.trim()}`
+    // Validate SALT format if provided (must have even number of digits)
+    if (salt && salt.length % 2 !== 0) {
+      throw new Error(
+        'SALT environment variable has odd number of digits (must be even digits)'
+      )
+    }
+
+    // Create salt input by concatenating bytecode and SALT (same as bash: SALT_INPUT="$BYTECODE""$SALT")
+    const saltInput = bytecode + salt
+
+    // Generate DEPLOYSALT using cast keccak (same as bash: DEPLOYSALT=$(cast keccak "$SALT_INPUT"))
+    builtContainer = builtContainer.withExec(['cast', 'keccak', saltInput])
+
+    const keccakResult = await builtContainer.stdout()
+    deploySalt = keccakResult.trim()
 
     // Execute deployment
     const deploymentContainer = this.deployContractInternal(
@@ -433,24 +442,65 @@ export class LifiContracts {
     // Extract deployment results from the output
     const deploymentOutput = await deploymentContainer.stdout()
 
-    // Parse the JSON output to extract contract address and constructor args
+    // Parse the deployment output using the same logic as deploySingleContract.sh
     let contractAddress = ''
     let constructorArgs = '0x'
 
-    try {
-      const result = JSON.parse(deploymentOutput)
-      if (result.returns && result.returns.deployed) {
-        contractAddress = result.returns.deployed.value
+    // Extract the JSON blob that starts with {"logs":
+    const jsonMatch = deploymentOutput.match(/\{"logs":.*/)
+    let cleanData = ''
+
+    if (jsonMatch) {
+      cleanData = jsonMatch[0]
+
+      try {
+        const result = JSON.parse(cleanData)
+
+        // Try extracting from `.returns.deployed.value` (primary method)
+        if (
+          result.returns &&
+          result.returns.deployed &&
+          result.returns.deployed.value
+        ) {
+          contractAddress = result.returns.deployed.value
+        }
+
+        // Extract constructor args from `.returns.constructorArgs.value`
+        if (
+          result.returns &&
+          result.returns.constructorArgs &&
+          result.returns.constructorArgs.value
+        ) {
+          constructorArgs = result.returns.constructorArgs.value
+        }
+      } catch (e) {
+        // JSON parsing failed, continue to fallback methods
       }
-      if (result.returns && result.returns.constructorArgs) {
-        constructorArgs = result.returns.constructorArgs.value
+    }
+
+    // Fallback: try to extract from Etherscan "contract_address"
+    if (!contractAddress) {
+      const etherscanMatch = deploymentOutput.match(
+        /"contract_address"\s*:\s*"(0x[a-fA-F0-9]{40})"/
+      )
+      if (etherscanMatch) {
+        contractAddress = etherscanMatch[1]
       }
-    } catch (e) {
-      // If parsing fails, try to extract address from logs
+    }
+
+    // Last resort: use first 0x-prefixed address in output
+    if (!contractAddress) {
       const addressMatch = deploymentOutput.match(/0x[a-fA-F0-9]{40}/)
       if (addressMatch) {
         contractAddress = addressMatch[0]
       }
+    }
+
+    // Validate the format of the extracted address
+    if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+      throw new Error(
+        'Failed to extract valid contract address from deployment output'
+      )
     }
 
     if (!contractAddress) {
@@ -459,8 +509,8 @@ export class LifiContracts {
       )
     }
 
-    // Get salt for logging from environment variable (different from deployment salt)
-    const logSalt = process.env.SALT || ''
+    // Use original SALT for logging (can be empty string)
+    const logSalt = salt
 
     // Update deployment logs locally
     await this.logDeployment(
@@ -474,7 +524,7 @@ export class LifiContracts {
     )
 
     // Attempt contract verification using the deployment container
-    const finalContainer = await this.attemptVerification(
+    await this.attemptVerification(
       deploymentContainer,
       source,
       contractName,
