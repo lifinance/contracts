@@ -459,6 +459,7 @@ export class LifiContracts {
           '/workspace/deployments',
           source.directory('deployments')
         )
+        .withMountedDirectory('/workspace/config', source.directory('config'))
 
       // 6. Build forge command based on environment
       const forgeArgs = [
@@ -558,18 +559,9 @@ export class LifiContracts {
     }
 
     const safeArgs = [
-      'bun',
-      'script/deploy/safe/propose-to-safe.ts',
-      '--to',
-      diamondAddress,
-      '--calldata',
-      facetCut,
-      '--network',
-      network,
-      '--rpcUrl',
-      rpcUrl,
-      '--privateKey',
-      '$SAFE_SIGNER_PRIVATE_KEY',
+      '/bin/sh',
+      '-c',
+      `bun script/deploy/safe/propose-to-safe.ts --to "${diamondAddress}" --calldata "${facetCut}" --network "${network}" --rpcUrl "${rpcUrl}" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"`,
     ]
 
     await containerWithSafe.withExec(safeArgs).stdout()
