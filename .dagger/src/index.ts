@@ -572,9 +572,30 @@ export class LifiContracts {
         )
         console.log(`✅ Successfully deployed ${contractName} to ${network}`)
       } catch (error) {
+        // Capture full error details for logging
+        let errorMessage = 'Unknown error'
+        if (error instanceof Error) {
+          errorMessage = `${error.name}: ${error.message}`
+          if (error.stack) {
+            errorMessage += `\nStack: ${error.stack}`
+          }
+        } else {
+          errorMessage = String(error)
+        }
+
         console.error(
-          `❌ Failed to deploy ${contractName} to ${network}: ${error}`
+          `❌ Failed to deploy ${contractName} to ${network}: ${errorMessage}`
         )
+
+        // Log the failure to failed_deployments_log.json
+        updatedSource = await this.logFailedDeployment(
+          updatedSource,
+          contractName,
+          network,
+          environment || 'production',
+          errorMessage
+        )
+
         // Continue to next network
       }
     }
@@ -678,6 +699,77 @@ export class LifiContracts {
       `Updated network deployment file: deployments/${deploymentFileName}`
     )
     console.log(`Updated master log file: deployments/${logFileName}`)
+
+    return updatedSource
+  }
+
+  /**
+   * Log failed deployment details to failed_deployments_log.json
+   */
+  private async logFailedDeployment(
+    source: Directory,
+    contractName: string,
+    network: string,
+    environment: string,
+    errorMessage: string
+  ): Promise<Directory> {
+    const failedLogFileName = 'failed_deployments_log.json'
+
+    // Read current failed deployments log
+    let currentFailedLogsRaw = '{}'
+    try {
+      const failedLogFile = source
+        .directory('deployments')
+        .file(failedLogFileName)
+      currentFailedLogsRaw = await failedLogFile.contents()
+    } catch (e) {
+      // File doesn't exist, use empty object
+    }
+
+    // Parse and update failed deployment data
+    const timestamp = new Date()
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d{3}Z$/, '')
+
+    let currentFailedLogs: any = {}
+    try {
+      currentFailedLogs = JSON.parse(currentFailedLogsRaw.trim() || '{}')
+    } catch (e) {
+      currentFailedLogs = {}
+    }
+
+    // Create nested structure: contractName -> network -> environment -> array
+    if (!currentFailedLogs[contractName]) {
+      currentFailedLogs[contractName] = {}
+    }
+    if (!currentFailedLogs[contractName][network]) {
+      currentFailedLogs[contractName][network] = {}
+    }
+    if (!currentFailedLogs[contractName][network][environment]) {
+      currentFailedLogs[contractName][network][environment] = []
+    }
+
+    // Add new failed deployment entry
+    currentFailedLogs[contractName][network][environment].push({
+      TIMESTAMP: timestamp,
+      ERROR_MESSAGE: errorMessage,
+      ENVIRONMENT: environment,
+    })
+
+    // Write updated failed deployments log to source directory
+    const updatedFailedLogs = JSON.stringify(currentFailedLogs, null, 2)
+    const updatedSource = source.withNewFile(
+      `deployments/${failedLogFileName}`,
+      updatedFailedLogs
+    )
+
+    console.log(
+      `Failed deployment logged for ${contractName} on ${network}: ${errorMessage}`
+    )
+    console.log(
+      `Updated failed deployments log: deployments/${failedLogFileName}`
+    )
 
     return updatedSource
   }
