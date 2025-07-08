@@ -3,6 +3,7 @@
 # Parse command line arguments
 SELECT_ALL_NETWORKS=true
 NETWORKS_ARG=""
+UPDATE_DIAMOND=false
 while [[ $# -gt 0 ]]; do
   case $1 in
     --no-select-all)
@@ -21,9 +22,13 @@ while [[ $# -gt 0 ]]; do
       NETWORKS_ARG="$2"
       shift 2
       ;;
+    --update-diamond)
+      UPDATE_DIAMOND=true
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--no-select-all | --networks network1,network2,...]"
+      echo "Usage: $0 [--no-select-all | --networks network1,network2,...] [--update-diamond]"
       exit 1
       ;;
   esac
@@ -35,11 +40,13 @@ source script/config.sh
 # Extract contract names from script/deploy/facets/ directory
 CONTRACTS=$(find script/deploy/facets/ -name "Deploy*.s.sol" -exec basename {} \; | sed 's/^Deploy//; s/\.s\.sol$//' | sort)
 
-# Use gum to select a single contract
-SELECTED_CONTRACT=$(echo "$CONTRACTS" | gum choose \
+# Use gum filter to select a single contract with fuzzy search
+SELECTED_CONTRACT=$(echo "$CONTRACTS" | gum filter \
   --limit=1 \
   --select-if-one \
-  --header="Select contract to deploy:")
+  --header="Select contract to deploy:" \
+  --placeholder="Type to filter contracts..." \
+  --fuzzy)
 
 # Check if a contract was selected
 if [ -z "$SELECTED_CONTRACT" ]; then
@@ -158,5 +165,26 @@ fi
 
 echo "Selected networks: $SELECTED_NETWORKS"
 
-# Run dagger command with selected contract, networks, EVM version, and Solidity version
-dagger -c "deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION | export ./deployments"
+# Ask about diamond update if not specified via flag
+if [ "$UPDATE_DIAMOND" = false ]; then
+  UPDATE_DIAMOND_SELECTION=$(echo -e "no\nyes" | gum choose \
+    --limit=1 \
+    --header="Update diamond after deployment (for facets only)?")
+  
+  if [ "$UPDATE_DIAMOND_SELECTION" = "yes" ]; then
+    UPDATE_DIAMOND=true
+  fi
+fi
+
+echo "Update diamond: $UPDATE_DIAMOND"
+
+# Build dagger command with selected options
+DAGGER_CMD="deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION"
+
+# Add update-diamond flag if requested
+if [ "$UPDATE_DIAMOND" = true ]; then
+  DAGGER_CMD="$DAGGER_CMD --update-diamond=true --safe-signer-private-key=env:SAFE_SIGNER_PRIVATE_KEY"
+fi
+
+# Run dagger command
+dagger -c "$DAGGER_CMD | export ./deployments"

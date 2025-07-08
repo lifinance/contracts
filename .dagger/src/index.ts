@@ -47,6 +47,8 @@ export class LifiContracts {
       .withFile('/workspace/foundry.toml', source.file('foundry.toml'))
       .withFile('/workspace/remappings.txt', source.file('remappings.txt'))
       .withFile('/workspace/.env', source.file('.env'))
+      .withFile('/workspace/package.json', source.file('package.json'))
+      .withFile('/workspace/bun.lock', source.file('bun.lock'))
       .withWorkdir('/workspace')
       .withUser('root')
       .withExec([
@@ -56,14 +58,14 @@ export class LifiContracts {
         '/workspace/cache',
         '/workspace/broadcast',
       ])
-      .withExec([
-        'chown',
-        'foundry:foundry',
-        '/workspace/out',
-        '/workspace/cache',
-        '/workspace/broadcast',
-      ])
+      .withExec(['chown', '-R', 'foundry:foundry', '/workspace'])
+      // Install Node.js, bun, and jq
+      .withExec(['apt-get', 'update'])
+      .withExec(['apt-get', 'install', '-y', 'nodejs', 'npm', 'jq'])
+      .withExec(['npm', 'install', '-g', 'bun'])
       .withUser('foundry')
+      // Install dependencies
+      .withExec(['bun', 'install', '--ignore-scripts'])
       .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
 
     // Read defaults from foundry.toml if versions not provided
@@ -155,11 +157,13 @@ export class LifiContracts {
     // Build the project first with the same versions as deployment
     const builtContainer = await this.buildProject(source, solc, evm)
 
-    // Mount the deployments directory to the built container
-    const containerWithDeployments = builtContainer.withMountedDirectory(
-      '/workspace/deployments',
-      source.directory('deployments')
-    )
+    // Mount the deployments and config directories to the built container
+    const containerWithDeployments = builtContainer
+      .withMountedDirectory(
+        '/workspace/deployments',
+        source.directory('deployments')
+      )
+      .withMountedDirectory('/workspace/config', source.directory('config'))
 
     // Build forge script command
     const forgeArgs = [
@@ -364,6 +368,214 @@ export class LifiContracts {
   }
 
   /**
+   * Check if a contract is a facet (exists in src/Facets directory)
+   */
+  private async checkIfFacetExists(
+    source: Directory,
+    contractName: string
+  ): Promise<boolean> {
+    try {
+      const facetPath = `src/Facets/${contractName}.sol`
+      await source.file(facetPath).id()
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
+  /**
+   * Update diamond with a facet using TypeScript-heavy approach
+   */
+  @func()
+  async updateFacet(
+    source: Directory,
+    contractName: string,
+    network: string,
+    privateKey: Secret,
+    evmVersion?: string,
+    solcVersion?: string,
+    environment: string = 'staging',
+    safeSignerPrivateKey?: Secret
+  ): Promise<void> {
+    console.log(
+      `🔄 Starting diamond update for ${contractName} on ${network} (${environment})`
+    )
+
+    try {
+      // 1. Check if update script exists
+      const updateScriptPath = `script/deploy/facets/Update${contractName}.s.sol`
+      try {
+        await source.file(updateScriptPath).id()
+      } catch (error) {
+        throw new Error(`Update script not found: ${updateScriptPath}`)
+      }
+
+      // 2. Read diamond address from deployment file
+      const fileSuffix = environment === 'production' ? '' : '.staging'
+      const deploymentFile = `deployments/${network}${fileSuffix}.json`
+
+      let deploymentContent: string
+      try {
+        deploymentContent = await source.file(deploymentFile).contents()
+      } catch (error) {
+        throw new Error(`Deployment file not found: ${deploymentFile}`)
+      }
+
+      const deployments = JSON.parse(deploymentContent)
+      const diamondAddress = deployments.LiFiDiamond
+
+      if (!diamondAddress) {
+        throw new Error(`LiFiDiamond address not found in ${deploymentFile}`)
+      }
+
+      console.log(`📍 Found LiFiDiamond at ${diamondAddress}`)
+
+      // 3. Read network config for RPC URL (needed for Safe proposals)
+      const networkConfigContent = await source
+        .file('config/networks.json')
+        .contents()
+      const networkConfig = JSON.parse(networkConfigContent)
+      const rpcUrl =
+        networkConfig[network]?.rpcUrl || networkConfig[network]?.rpc
+
+      if (!rpcUrl && environment === 'production') {
+        throw new Error(`RPC URL not found for network ${network}`)
+      }
+
+      // 4. Build project with same versions as deployment
+      const builtContainer = await this.buildProject(
+        source,
+        solcVersion,
+        evmVersion
+      )
+
+      // 5. Setup container with environment variables
+      let container = builtContainer
+        .withEnvVariable('NETWORK', network)
+        .withEnvVariable('FILE_SUFFIX', fileSuffix)
+        .withEnvVariable('USE_DEF_DIAMOND', 'true')
+        .withSecretVariable('PRIVATE_KEY', privateKey)
+        .withMountedDirectory(
+          '/workspace/deployments',
+          source.directory('deployments')
+        )
+
+      // 6. Build forge command based on environment
+      const forgeArgs = [
+        'forge',
+        'script',
+        updateScriptPath,
+        '-f',
+        network,
+        '--json',
+        '-vvvv',
+        '--legacy',
+      ]
+
+      if (environment === 'staging') {
+        forgeArgs.push('--broadcast')
+        console.log(`🚀 Executing direct diamond update for staging...`)
+      } else {
+        forgeArgs.push('--skip-simulation')
+        container = container.withEnvVariable('NO_BROADCAST', 'true')
+        console.log(`📋 Generating Safe proposal for production...`)
+      }
+
+      // Add version flags if provided
+      if (solcVersion) {
+        forgeArgs.push('--use', solcVersion)
+      }
+      if (evmVersion) {
+        forgeArgs.push('--evm-version', evmVersion)
+      }
+
+      // 7. Execute forge script
+      const result = await container.withExec(forgeArgs).stdout()
+      console.log(`✅ Forge script executed successfully`)
+
+      // 8. Parse and validate forge output
+      let forgeOutput: any
+      try {
+        // Extract JSON from output (sometimes has extra text)
+        const jsonMatch = result.match(/\{"logs":.*/)
+        const cleanData = jsonMatch ? jsonMatch[0] : result
+        forgeOutput = JSON.parse(cleanData)
+      } catch (error) {
+        throw new Error(`Failed to parse forge output: ${error}`)
+      }
+
+      if (environment === 'production') {
+        // 9. Handle production: Create Safe proposal
+        const facetCut = forgeOutput.returns?.cutData?.value
+        if (!facetCut || facetCut === '0x') {
+          throw new Error('No facet cut data generated for Safe proposal')
+        }
+
+        console.log(`📤 Creating Safe proposal with facet cut data...`)
+        await this.proposeFacetCutToSafe(
+          container,
+          diamondAddress,
+          facetCut,
+          network,
+          rpcUrl,
+          safeSignerPrivateKey
+        )
+        console.log(`✅ Safe proposal created successfully`)
+      } else {
+        // 10. Handle staging: Validate direct update
+        const facets = forgeOutput.returns?.facets?.value
+        if (!facets || facets === '{}') {
+          throw new Error('Facet update failed - no facets returned')
+        }
+        console.log(`✅ Diamond updated directly with new facet`)
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`❌ Diamond update failed: ${errorMessage}`)
+      throw new Error(`Diamond update failed: ${errorMessage}`)
+    }
+  }
+
+  /**
+   * Create Safe proposal for facet cut (production deployments)
+   */
+  private async proposeFacetCutToSafe(
+    container: Container,
+    diamondAddress: string,
+    facetCut: string,
+    network: string,
+    rpcUrl: string,
+    safeSignerPrivateKey?: Secret
+  ): Promise<void> {
+    // Add Safe signer private key as secret if provided
+    let containerWithSafe = container
+    if (safeSignerPrivateKey) {
+      containerWithSafe = container.withSecretVariable(
+        'SAFE_SIGNER_PRIVATE_KEY',
+        safeSignerPrivateKey
+      )
+    }
+
+    const safeArgs = [
+      'bun',
+      'script/deploy/safe/propose-to-safe.ts',
+      '--to',
+      diamondAddress,
+      '--calldata',
+      facetCut,
+      '--network',
+      network,
+      '--rpcUrl',
+      rpcUrl,
+      '--privateKey',
+      '$SAFE_SIGNER_PRIVATE_KEY',
+    ]
+
+    await containerWithSafe.withExec(safeArgs).stdout()
+  }
+
+  /**
    * Deploy a smart contract with configuration reading from networks.json
    *
    * @param source - Source directory containing the project root
@@ -373,6 +585,8 @@ export class LifiContracts {
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
+   * @param updateDiamond - Whether to update diamond after deployment (for facets only)
+   * @param safeSignerPrivateKey - Safe signer private key secret (for production diamond updates)
    * @returns Updated source directory with deployment logs
    */
   @func()
@@ -383,7 +597,9 @@ export class LifiContracts {
     privateKey: Secret,
     environment?: string,
     evmVersion?: string,
-    solcVersion?: string
+    solcVersion?: string,
+    updateDiamond?: boolean,
+    safeSignerPrivateKey?: Secret
   ): Promise<Directory> {
     const env = environment || 'production'
 
@@ -533,6 +749,36 @@ export class LifiContracts {
       env
     )
 
+    // Update diamond if requested and contract is a facet
+    if (updateDiamond) {
+      const isFacet = await this.checkIfFacetExists(source, contractName)
+      if (isFacet) {
+        console.log(`🔄 Updating diamond with ${contractName} facet...`)
+        try {
+          await this.updateFacet(
+            source,
+            contractName,
+            network,
+            privateKey,
+            evmVersion,
+            solcVersion,
+            env,
+            safeSignerPrivateKey
+          )
+          console.log(`✅ Diamond updated with ${contractName} facet`)
+        } catch (error) {
+          console.error(
+            `❌ Failed to update diamond with ${contractName}: ${error}`
+          )
+          // Don't throw - deployment was successful, only diamond update failed
+        }
+      } else {
+        console.log(
+          `ℹ️ ${contractName} is not a facet, skipping diamond update`
+        )
+      }
+    }
+
     // Return the full updated source directory
     return source
   }
@@ -547,6 +793,8 @@ export class LifiContracts {
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
    * @param evmVersion - EVM version target (e.g., "cancun", "london", "shanghai")
    * @param solcVersion - Solidity compiler version (e.g., "0.8.29")
+   * @param updateDiamond - Whether to update diamond after deployment (for facets only)
+   * @param safeSignerPrivateKey - Safe signer private key secret (for production diamond updates)
    */
   @func()
   async deployToAllNetworks(
@@ -556,7 +804,9 @@ export class LifiContracts {
     privateKey: Secret,
     environment?: string,
     evmVersion?: string,
-    solcVersion?: string
+    solcVersion?: string,
+    updateDiamond?: boolean,
+    safeSignerPrivateKey?: Secret
   ): Promise<Directory> {
     let updatedSource = source
 
@@ -570,7 +820,9 @@ export class LifiContracts {
           privateKey,
           environment,
           evmVersion,
-          solcVersion
+          solcVersion,
+          updateDiamond,
+          safeSignerPrivateKey
         )
         console.log(`✅ Successfully deployed ${contractName} to ${network}`)
       } catch (error) {
@@ -920,7 +1172,7 @@ export class LifiContracts {
 
       // Log verification details
       const logContainer = verificationContainer.withExec([
-        'sh',
+        '/bin/sh',
         '-c',
         `
           echo "Contract verification completed successfully for ${contractName} at ${contractAddress}"

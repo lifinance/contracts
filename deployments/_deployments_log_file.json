@@ -27435,6 +27435,22 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          },
+          {
+            "ADDRESS": "0x23b4c5716850A0aC675b19E1Dad1771109C8Ad54",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-08 11:58:17",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
+          },
+          {
+            "ADDRESS": "0x7b863dcD8bF8a61A3f0b6D98dC6540b8ADF67E7c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-08 12:57:24",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       },
