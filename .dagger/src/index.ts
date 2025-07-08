@@ -352,6 +352,7 @@ export class LifiContracts {
    * @param network - Target network name (e.g., "arbitrum", "mainnet")
    * @param privateKey - Private key secret for deployment
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
+   * @returns Updated source directory with deployment logs
    */
   @func()
   async deployContract(
@@ -477,31 +478,6 @@ export class LifiContracts {
       }
     }
 
-    // Fallback: try to extract from Etherscan "contract_address"
-    if (!contractAddress) {
-      const etherscanMatch = deploymentOutput.match(
-        /"contract_address"\s*:\s*"(0x[a-fA-F0-9]{40})"/
-      )
-      if (etherscanMatch) {
-        contractAddress = etherscanMatch[1]
-      }
-    }
-
-    // Last resort: use first 0x-prefixed address in output
-    if (!contractAddress) {
-      const addressMatch = deploymentOutput.match(/0x[a-fA-F0-9]{40}/)
-      if (addressMatch) {
-        contractAddress = addressMatch[0]
-      }
-    }
-
-    // Validate the format of the extracted address
-    if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
-      throw new Error(
-        'Failed to extract valid contract address from deployment output'
-      )
-    }
-
     if (!contractAddress) {
       throw new Error(
         'Failed to extract contract address from deployment output'
@@ -534,8 +510,8 @@ export class LifiContracts {
       env
     )
 
-    // Return the updated deployments directory from source
-    return source.directory('deployments')
+    // Return the full updated source directory
+    return source
   }
 
   /**
@@ -558,17 +534,13 @@ export class LifiContracts {
 
     for (const network of networks) {
       try {
-        const deploymentResult = await this.deployContract(
+        // deployContract returns an updated source directory with the new deployment logs
+        updatedSource = await this.deployContract(
           updatedSource,
           contractName,
           network,
           privateKey,
           environment
-        )
-        // Update source with the changes from this deployment
-        updatedSource = updatedSource.withDirectory(
-          'deployments',
-          deploymentResult
         )
         console.log(`✅ Successfully deployed ${contractName} to ${network}`)
       } catch (error) {
