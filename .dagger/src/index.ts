@@ -158,7 +158,7 @@ export class LifiContracts {
     const builtContainer = await this.buildProject(source, solc, evm)
 
     // Mount the deployments and config directories to the built container
-    const containerWithDeployments = builtContainer
+    let containerWithDeployments = builtContainer
       .withMountedDirectory(
         '/workspace/deployments',
         source.directory('deployments')
@@ -194,7 +194,7 @@ export class LifiContracts {
     forgeArgs.push('--gas-estimate-multiplier', gasMultiplier)
 
     // Set required environment variables that the deployment scripts expect
-    let deployContainer = containerWithDeployments
+    containerWithDeployments = containerWithDeployments
       .withEnvVariable('FOUNDRY_DISABLE_NIGHTLY_WARNING', 'true')
       .withEnvVariable('DEPLOYSALT', deploySalt)
       .withEnvVariable('CREATE3_FACTORY_ADDRESS', create3FactoryAddress)
@@ -209,21 +209,21 @@ export class LifiContracts {
 
     // Add optional environment variables if provided
     if (defaultDiamondAddressDeploysalt) {
-      deployContainer = deployContainer.withEnvVariable(
+      containerWithDeployments = containerWithDeployments.withEnvVariable(
         'DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT',
         defaultDiamondAddressDeploysalt
       )
     }
 
     if (diamondType) {
-      deployContainer = deployContainer.withEnvVariable(
+      containerWithDeployments = containerWithDeployments.withEnvVariable(
         'DIAMOND_TYPE',
         diamondType
       )
     }
 
     // Execute the forge script command
-    return deployContainer.withExec(forgeArgs)
+    return containerWithDeployments.withExec(forgeArgs)
   }
 
   /**
@@ -443,14 +443,14 @@ export class LifiContracts {
       }
 
       // 4. Build project with same versions as deployment
-      const builtContainer = await this.buildProject(
+      let builtContainer = await this.buildProject(
         source,
         solcVersion,
         evmVersion
       )
 
       // 5. Setup container with environment variables
-      let container = builtContainer
+      builtContainer = builtContainer
         .withEnvVariable('NETWORK', network)
         .withEnvVariable('FILE_SUFFIX', fileSuffix)
         .withEnvVariable('USE_DEF_DIAMOND', 'true')
@@ -478,7 +478,7 @@ export class LifiContracts {
         console.log(`🚀 Executing direct diamond update for staging...`)
       } else {
         forgeArgs.push('--skip-simulation')
-        container = container.withEnvVariable('NO_BROADCAST', 'true')
+        builtContainer = builtContainer.withEnvVariable('NO_BROADCAST', 'true')
         console.log(`📋 Generating Safe proposal for production...`)
       }
 
@@ -491,7 +491,7 @@ export class LifiContracts {
       }
 
       // 7. Execute forge script
-      const result = await container.withExec(forgeArgs).stdout()
+      const result = await builtContainer.withExec(forgeArgs).stdout()
       console.log(`✅ Forge script executed successfully`)
 
       // 8. Parse and validate forge output
@@ -514,7 +514,7 @@ export class LifiContracts {
 
         console.log(`📤 Creating Safe proposal with facet cut data...`)
         await this.proposeFacetCutToSafe(
-          container,
+          builtContainer,
           diamondAddress,
           facetCut,
           network,
@@ -550,9 +550,8 @@ export class LifiContracts {
     safeSignerPrivateKey?: Secret
   ): Promise<void> {
     // Add Safe signer private key as secret if provided
-    let containerWithSafe = container
     if (safeSignerPrivateKey) {
-      containerWithSafe = container.withSecretVariable(
+      container = container.withSecretVariable(
         'SAFE_SIGNER_PRIVATE_KEY',
         safeSignerPrivateKey
       )
@@ -564,7 +563,7 @@ export class LifiContracts {
       `bun script/deploy/safe/propose-to-safe.ts --to "${diamondAddress}" --calldata "${facetCut}" --network "${network}" --rpcUrl "${rpcUrl}" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"`,
     ]
 
-    await containerWithSafe.withExec(safeArgs).stdout()
+    await container.withExec(safeArgs).stdout()
   }
 
   /**
@@ -1118,7 +1117,7 @@ export class LifiContracts {
     const updatedLogs = JSON.stringify(currentLogs, null, 2)
 
     // Update the source directory with new deployment files
-    let updatedSource = source
+    source = source
       .withNewFile(`deployments/${deploymentFileName}`, updatedDeployments)
       .withNewFile(`deployments/${logFileName}`, updatedLogs)
 
@@ -1128,7 +1127,7 @@ export class LifiContracts {
     )
     console.log(`Updated master log file: deployments/${logFileName}`)
 
-    return updatedSource
+    return source
   }
 
   /**
