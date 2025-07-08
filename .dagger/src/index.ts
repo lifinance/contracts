@@ -12,7 +12,6 @@ import {
   object,
   func,
 } from '@dagger.io/dagger'
-import * as fs from 'fs/promises'
 
 interface NetworkConfig {
   chainId: number
@@ -512,8 +511,8 @@ export class LifiContracts {
     // Use original SALT for logging (can be empty string)
     const logSalt = salt
 
-    // Update deployment logs locally
-    await this.logDeployment(
+    // Update deployment logs and get updated source
+    source = await this.logDeployment(
       source,
       contractName,
       network,
@@ -535,33 +534,58 @@ export class LifiContracts {
       env
     )
 
-    // Create a new directory with the updated deployment files
-    // We need to read the locally modified files and create a new directory
-    const deploymentsContainer = dag
-      .container()
-      .from('alpine:latest')
-      .withWorkdir('/deployments')
+    // Return the updated deployments directory from source
+    return source.directory('deployments')
+  }
 
-    // Read all files from the local deployments directory and add them to the container
-    const deploymentFiles = await fs.readdir('./deployments')
-    let containerWithFiles = deploymentsContainer
+  /**
+   * Deploy a smart contract to multiple networks
+   *
+   * @param source - Source directory containing the project root
+   * @param contractName - Name of the contract to deploy (e.g., "AcrossFacet")
+   * @param privateKey - Private key secret for deployment
+   * @param environment - Deployment environment ("staging" or "production", defaults to "production")
+   */
+  @func()
+  async deployToAllNetworks(
+    source: Directory,
+    contractName: string,
+    privateKey: Secret,
+    environment?: string
+  ): Promise<Directory> {
+    const networks = ['optimism', 'arbitrum', 'base', 'boba', 'rootstock']
+    let updatedSource = source
 
-    for (const file of deploymentFiles) {
-      if (file.endsWith('.json')) {
-        const content = await fs.readFile(`./deployments/${file}`, 'utf-8')
-        containerWithFiles = containerWithFiles.withNewFile(
-          `/deployments/${file}`,
-          content
+    for (const network of networks) {
+      try {
+        const deploymentResult = await this.deployContract(
+          updatedSource,
+          contractName,
+          network,
+          privateKey,
+          environment
         )
+        // Update source with the changes from this deployment
+        updatedSource = updatedSource.withDirectory(
+          'deployments',
+          deploymentResult
+        )
+        console.log(`✅ Successfully deployed ${contractName} to ${network}`)
+      } catch (error) {
+        console.error(
+          `❌ Failed to deploy ${contractName} to ${network}: ${error}`
+        )
+        // Continue to next network
       }
     }
 
-    return containerWithFiles.directory('/deployments')
+    return updatedSource.directory('deployments')
   }
 
   /**
    * Update deployment logs to mark contract as verified locally
    *
+   * @param source - Source directory containing the project root
    * @param contractName - Name of the verified contract
    * @param network - Target network name
    * @param environment - Deployment environment
@@ -569,26 +593,31 @@ export class LifiContracts {
    */
   @func()
   async updateVerificationLogs(
+    source: Directory,
     contractName: string,
     network: string,
     environment: string,
     contractAddress: string
-  ): Promise<void> {
+  ): Promise<Directory> {
     const fileSuffix = environment === 'production' ? '' : '.staging'
-    const deploymentFile = `./deployments/${network}${fileSuffix}.json`
-    const logFile = './deployments/_deployments_log_file.json'
+    const deploymentFileName = `${network}${fileSuffix}.json`
+    const logFileName = '_deployments_log_file.json'
 
-    // Read current deployment files
+    // Read current deployment files from source directory
     let currentDeploymentsRaw = '{}'
     try {
-      currentDeploymentsRaw = await fs.readFile(deploymentFile, 'utf-8')
+      const deploymentFile = source
+        .directory('deployments')
+        .file(deploymentFileName)
+      currentDeploymentsRaw = await deploymentFile.contents()
     } catch (e) {
       // File doesn't exist, use empty object
     }
 
     let currentLogsRaw = '{}'
     try {
-      currentLogsRaw = await fs.readFile(logFile, 'utf-8')
+      const logFile = source.directory('deployments').file(logFileName)
+      currentLogsRaw = await logFile.contents()
     } catch (e) {
       // File doesn't exist, use empty object
     }
@@ -634,18 +663,23 @@ export class LifiContracts {
       )
     }
 
-    // Write updated files
+    // Write updated files to source directory
     const updatedDeployments = JSON.stringify(currentDeployments, null, 2)
     const updatedLogs = JSON.stringify(currentLogs, null, 2)
 
-    await fs.writeFile(deploymentFile, updatedDeployments)
-    await fs.writeFile(logFile, updatedLogs)
+    const updatedSource = source
+      .withNewFile(`deployments/${deploymentFileName}`, updatedDeployments)
+      .withNewFile(`deployments/${logFileName}`, updatedLogs)
 
     console.log(
       `Contract verification completed successfully for ${contractName} at ${contractAddress}`
     )
-    console.log(`Updated network deployment file: ${deploymentFile}`)
-    console.log(`Updated master log file: ${logFile}`)
+    console.log(
+      `Updated network deployment file: deployments/${deploymentFileName}`
+    )
+    console.log(`Updated master log file: deployments/${logFileName}`)
+
+    return updatedSource
   }
 
   /**
@@ -659,7 +693,7 @@ export class LifiContracts {
     contractAddress: string,
     constructorArgs: string,
     deploySalt: string
-  ): Promise<void> {
+  ): Promise<Directory> {
     const fileSuffix = environment === 'production' ? '' : '.staging'
     const deploymentFileName = `${network}${fileSuffix}.json`
     const logFileName = '_deployments_log_file.json'
@@ -741,24 +775,22 @@ export class LifiContracts {
       VERIFIED: 'false',
     })
 
-    // Write updated files locally using fs
+    // Write updated files to source directory
     const updatedDeployments = JSON.stringify(currentDeployments, null, 2)
     const updatedLogs = JSON.stringify(currentLogs, null, 2)
 
-    // Ensure deployments directory exists
-    await fs.mkdir('./deployments', { recursive: true })
-
-    await fs.writeFile(
-      `./deployments/${deploymentFileName}`,
-      updatedDeployments
-    )
-    await fs.writeFile(`./deployments/${logFileName}`, updatedLogs)
+    // Update the source directory with new deployment files
+    let updatedSource = source
+      .withNewFile(`deployments/${deploymentFileName}`, updatedDeployments)
+      .withNewFile(`deployments/${logFileName}`, updatedLogs)
 
     console.log(`Deployment logged for ${contractName} at ${contractAddress}`)
     console.log(
-      `Updated network deployment file: ./deployments/${deploymentFileName}`
+      `Updated network deployment file: deployments/${deploymentFileName}`
     )
-    console.log(`Updated master log file: ./deployments/${logFileName}`)
+    console.log(`Updated master log file: deployments/${logFileName}`)
+
+    return updatedSource
   }
 
   /**
@@ -805,6 +837,7 @@ export class LifiContracts {
 
       // Update deployment logs locally
       await this.updateVerificationLogs(
+        source,
         contractName,
         network,
         environment,
