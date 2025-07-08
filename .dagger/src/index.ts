@@ -534,6 +534,7 @@ export class LifiContracts {
    *
    * @param source - Source directory containing the project root
    * @param contractName - Name of the contract to deploy (e.g., "AcrossFacet")
+   * @param networks - Array of network names to deploy to (e.g., ["arbitrum", "optimism"])
    * @param privateKey - Private key secret for deployment
    * @param environment - Deployment environment ("staging" or "production", defaults to "production")
    */
@@ -541,10 +542,10 @@ export class LifiContracts {
   async deployToAllNetworks(
     source: Directory,
     contractName: string,
+    networks: string[],
     privateKey: Secret,
     environment?: string
   ): Promise<Directory> {
-    const networks = ['optimism', 'arbitrum', 'base', 'boba', 'rootstock']
     let updatedSource = source
 
     for (const network of networks) {
