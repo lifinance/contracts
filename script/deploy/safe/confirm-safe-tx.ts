@@ -9,8 +9,16 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import { parseAbi, decodeFunctionData, type Hex, type Abi } from 'viem'
+import {
+  parseAbi,
+  decodeFunctionData,
+  type Hex,
+  type Abi,
+  type Address,
+  type Account,
+} from 'viem'
 
+import type { ILedgerAccountResult } from './ledger'
 import {
   type ISafeTransaction,
   type ISafeTxDocument,
@@ -20,6 +28,8 @@ import {
   hasEnoughSignatures,
   isSignedByCurrentSigner,
   wouldMeetThreshold,
+  isSignedByProductionWallet,
+  shouldShowSignAndExecuteWithDeployer,
   getSafeMongoCollection,
   getPendingTransactionsByNetwork,
   getNetworksToProcess,
@@ -36,6 +46,96 @@ const storedResponses: Record<string, string> = {}
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as any).toJSON = function () {
   return this.toString()
+}
+
+/**
+ * Decodes nested timelock schedule calls that may contain diamondCut
+ * @param decoded - The decoded schedule function data
+ * @param chainId - Chain ID for ABI fetching
+ */
+async function decodeNestedTimelockCall(decoded: any, chainId: number) {
+  if (decoded.functionName === 'schedule') {
+    consola.info('Timelock Schedule Details:')
+    consola.info('-'.repeat(80))
+
+    const [target, value, data, predecessor, salt, delay] = decoded.args
+
+    consola.info(`Target:      \u001b[32m${target}\u001b[0m`)
+    consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
+    consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
+    consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
+    consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
+    consola.info('-'.repeat(80))
+
+    // Try to decode the nested data
+    if (data && data !== '0x')
+      try {
+        const nestedDecoded = await decodeTransactionData(data as Hex)
+        if (nestedDecoded.functionName) {
+          consola.info(
+            `Nested Function: \u001b[34m${nestedDecoded.functionName}\u001b[0m`
+          )
+
+          // If the nested call is diamondCut, decode it further
+          if (nestedDecoded.functionName.includes('diamondCut')) {
+            const fullAbiString = `function ${nestedDecoded.functionName}`
+            const abiInterface = parseAbi([fullAbiString])
+            const nestedDecodedData = decodeFunctionData({
+              abi: abiInterface,
+              data: data as Hex,
+            })
+
+            if (nestedDecodedData.functionName === 'diamondCut') {
+              consola.info('Nested Diamond Cut detected - decoding...')
+              await decodeDiamondCut(nestedDecodedData, chainId)
+            } else
+              consola.info(
+                'Nested Data:',
+                JSON.stringify(nestedDecodedData, null, 2)
+              )
+          }
+          // Decode the nested function arguments properly
+          else
+            try {
+              const fullAbiString = `function ${nestedDecoded.functionName}`
+              const abiInterface = parseAbi([fullAbiString])
+              const nestedDecodedData = decodeFunctionData({
+                abi: abiInterface,
+                data: data as Hex,
+              })
+
+              if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
+                consola.info('Nested Decoded Arguments:')
+                nestedDecodedData.args.forEach((arg: any, index: number) => {
+                  // Handle different types of arguments
+                  let displayValue = arg
+                  if (typeof arg === 'bigint') displayValue = arg.toString()
+                  else if (typeof arg === 'object' && arg !== null)
+                    displayValue = JSON.stringify(arg)
+
+                  consola.info(
+                    `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
+                  )
+                })
+              } else
+                consola.info(
+                  'No nested arguments or failed to decode nested arguments'
+                )
+            } catch (decodeError: any) {
+              consola.warn(
+                `Failed to decode nested function arguments: ${decodeError.message}`
+              )
+              consola.info(
+                'Nested Data:',
+                JSON.stringify(nestedDecoded.decodedData, null, 2)
+              )
+            }
+        } else consola.info(`Nested Data: ${data}`)
+      } catch (error: any) {
+        consola.warn(`Failed to decode nested data: ${error.message}`)
+        consola.info(`Raw nested data: ${data}`)
+      }
+  }
 }
 
 /**
@@ -61,18 +161,22 @@ const processTxs = async (
     derivationPath?: string
     ledgerLive?: boolean
     accountIndex?: number
-  }
+  },
+  account?: Account
 ) => {
   consola.info(' ')
   consola.info('-'.repeat(80))
 
-  // Initialize Safe client
+  // Initialize Safe client using safeAddress from first transaction
+  const txSafeAddress = pendingTxs[0]?.safeAddress as Address
   const { safe, chain, safeAddress } = await initializeSafeClient(
     network,
     privateKey,
     rpcUrl,
     useLedger,
-    ledgerOptions
+    ledgerOptions,
+    txSafeAddress,
+    account
   )
 
   // Get signer address
@@ -117,35 +221,42 @@ const processTxs = async (
   /**
    * Executes a SafeTransaction and updates its status in MongoDB
    * @param safeTransaction - The transaction to execute
+   * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
-  async function executeTransaction(safeTransaction: ISafeTransaction) {
+  async function executeTransaction(
+    safeTransaction: ISafeTransaction,
+    safeClient: any = safe
+  ) {
     consola.info('Preparing to execute Safe transaction...')
     try {
       // Get the Safe transaction hash for reference
-      const safeTxHash = await safe.getTransactionHash(safeTransaction)
+      const safeTxHash = await safeClient.getTransactionHash(safeTransaction)
       consola.info(`Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`)
 
-      // Execute the transaction on-chain
+      // Execute the transaction on-chain (timeout/polling handled in safeClient)
       consola.info('Submitting execution transaction to blockchain...')
-      const exec = await safe.executeTransaction(safeTransaction)
+      const exec = await safeClient.executeTransaction(safeTransaction)
+      const executionHash = exec.hash
 
-      // Log execution details with color coding
-      consola.success(`Execution transaction submitted successfully!`)
-      consola.info(
-        `Blockchain Transaction Hash: \u001b[33m${exec.hash}\u001b[0m`
-      )
+      consola.success(`✅ Transaction submitted successfully`)
 
       // Update MongoDB transaction status
       await pendingTransactions.updateOne(
         { safeTxHash: safeTxHash },
-        { $set: { status: 'executed', executionHash: exec.hash } }
+        { $set: { status: 'executed', executionHash: executionHash } }
       )
 
-      consola.success(
-        `✅ Safe transaction successfully executed and recorded in database`
-      )
+      if (exec.receipt)
+        consola.success(
+          `✅ Safe transaction confirmed and recorded in database`
+        )
+      else
+        consola.success(
+          `✅ Safe transaction submitted and recorded in database (confirmation pending)`
+        )
+
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-      consola.info(`   - Execution Hash: \u001b[33m${exec.hash}\u001b[0m`)
+      consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
     } catch (error: any) {
       consola.error('❌ Error executing Safe transaction:')
@@ -249,10 +360,29 @@ const processTxs = async (
     if (abi)
       if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
+      else if (decoded && decoded.functionName === 'schedule')
+        await decodeNestedTimelockCall(decoded, chain.id)
       else {
         consola.info('Method:', abi)
-        if (decoded)
-          consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
+        if (decoded) {
+          consola.info('Function Name:', decoded.functionName)
+          if (decoded.args && decoded.args.length > 0) {
+            consola.info('Decoded Arguments:')
+            decoded.args.forEach((arg: any, index: number) => {
+              // Handle different types of arguments
+              let displayValue = arg
+              if (typeof arg === 'bigint') displayValue = arg.toString()
+              else if (typeof arg === 'object' && arg !== null)
+                displayValue = JSON.stringify(arg)
+
+              consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+            })
+          } else consola.info('No arguments or failed to decode arguments')
+
+          // Only show full decoded data if it contains useful information beyond what we've already shown
+          if (decoded.args === undefined)
+            consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
+        }
       }
 
     consola.info(`Safe Transaction Details:
@@ -262,11 +392,7 @@ const processTxs = async (
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
     }\u001b[0m
-    Data:            \u001b[32m${
-      tx.safeTx.data.data?.length > 66
-        ? tx.safeTx.data.data.substring(0, 66) + '...'
-        : tx.safeTx.data.data
-    }\u001b[0m
+    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
     Proposer:        \u001b[32m${tx.proposer}\u001b[0m
     Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
     Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
@@ -281,7 +407,21 @@ const processTxs = async (
     // Determine available actions based on signature status
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
-      const options = ['Do Nothing', 'Sign']
+      const options = ['Do Nothing']
+      if (!tx.hasSignedAlready) {
+        options.push('Sign')
+
+        // Check if signing with current user + deployer (if needed) would meet threshold
+        if (
+          shouldShowSignAndExecuteWithDeployer(
+            tx.safeTransaction,
+            tx.threshold,
+            signerAddress
+          )
+        )
+          options.push('Sign and Execute With Deployer')
+      }
+
       action =
         storedResponse ||
         (await consola.prompt('Select action:', {
@@ -294,6 +434,16 @@ const processTxs = async (
         options.push('Sign')
         if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
+
+        // Check if signing with current user + deployer (if needed) would meet threshold
+        if (
+          shouldShowSignAndExecuteWithDeployer(
+            tx.safeTransaction,
+            tx.threshold,
+            signerAddress
+          )
+        )
+          options.push('Sign and Execute With Deployer')
       }
 
       if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
@@ -349,6 +499,78 @@ const processTxs = async (
         consola.error('Error signing and executing transaction:', error)
       }
 
+    if (action === 'Sign and Execute With Deployer')
+      try {
+        // Step 1: Sign with current user
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const signedTx = await signTransaction(safeTransaction)
+
+        // Step 2: Update MongoDB with current user's signature
+        await pendingTransactions.updateOne(
+          { safeTxHash: tx.safeTxHash },
+          {
+            $set: {
+              [`safeTx`]: signedTx,
+            },
+          }
+        )
+        consola.success('Transaction signed and stored in MongoDB')
+
+        // Step 3: Initialize deployer Safe client
+        consola.info('Initializing deployer wallet...')
+        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+        const { safe: deployerSafe } = await initializeSafeClient(
+          network,
+          deployerPrivateKey,
+          rpcUrl,
+          false, // Not using ledger for deployer
+          undefined,
+          txSafeAddress
+        )
+
+        // Step 4: Check if deployer needs to sign
+        const needsDeployerSignature = !isSignedByProductionWallet(signedTx)
+        let finalTx = signedTx
+
+        if (needsDeployerSignature) {
+          consola.info('Deployer signature needed - signing with deployer...')
+          // Sign with deployer
+          const deployerSignedTx = await deployerSafe.signTransaction(signedTx)
+
+          // Update MongoDB with deployer's signature
+          await pendingTransactions.updateOne(
+            { safeTxHash: tx.safeTxHash },
+            {
+              $set: {
+                [`safeTx`]: deployerSignedTx,
+              },
+            }
+          )
+          consola.success(
+            'Transaction signed with deployer and stored in MongoDB'
+          )
+          finalTx = deployerSignedTx
+        } else
+          consola.info(
+            'Deployer has already signed - proceeding to execution...'
+          )
+
+        // Step 5: Execute with deployer using shared executeTransaction function
+        const executeWithDeployer = async (
+          safeTransaction: ISafeTransaction
+        ) => {
+          consola.info('Executing transaction with deployer wallet...')
+          await executeTransaction(safeTransaction, deployerSafe)
+        }
+
+        await executeWithDeployer(finalTx)
+      } catch (error) {
+        consola.error(
+          'Error signing and executing transaction with deployer:',
+          error
+        )
+      }
+
     if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
@@ -356,6 +578,11 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
+  }
+  try {
+    await safe.cleanup()
+  } catch (e) {
+    consola.error('Error:', e)
   }
 }
 
@@ -452,33 +679,54 @@ const main = defineCommand({
           : PrivateKeyTypeEnum.DEPLOYER
     } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
-    // Connect to MongoDB and fetch ALL pending transactions
-    const { client: mongoClient, pendingTransactions } =
-      await getSafeMongoCollection()
+    // Create ledger connection once if using ledger
+    let ledgerResult: ILedgerAccountResult | undefined
+    if (useLedger)
+      try {
+        const { getLedgerAccount } = await import('./ledger')
+        ledgerResult = await getLedgerAccount(ledgerOptions)
+        consola.success('Ledger connected successfully for all networks')
+      } catch (error: any) {
+        consola.error(`Failed to connect to Ledger: ${error.message}`)
+        throw error
+      }
 
-    // Fetch all pending transactions for the networks we're processing
-    const txsByNetwork = await getPendingTransactionsByNetwork(
-      pendingTransactions,
-      networks
-    )
+    try {
+      // Connect to MongoDB and fetch ALL pending transactions
+      const { client: mongoClient, pendingTransactions } =
+        await getSafeMongoCollection()
 
-    // Process transactions for each network
-    for (const network of networks) {
-      const networkTxs = txsByNetwork[network.toLowerCase()] || []
-      await processTxs(
-        network,
-        privateKey,
-        keyType,
-        networkTxs,
+      // Fetch all pending transactions for the networks we're processing
+      const txsByNetwork = await getPendingTransactionsByNetwork(
         pendingTransactions,
-        args.rpcUrl,
-        useLedger,
-        ledgerOptions
+        networks
       )
-    }
 
-    // Close MongoDB connection
-    await mongoClient.close()
+      // Process transactions for each network
+      for (const network of networks) {
+        const networkTxs = txsByNetwork[network.toLowerCase()] || []
+        await processTxs(
+          network,
+          privateKey,
+          keyType,
+          networkTxs,
+          pendingTransactions,
+          args.rpcUrl,
+          useLedger,
+          ledgerOptions,
+          ledgerResult?.account
+        )
+      }
+
+      // Close MongoDB connection
+      await mongoClient.close(true)
+    } finally {
+      // Always close ledger connection if it was created
+      if (ledgerResult) {
+        const { closeLedgerConnection } = await import('./ledger')
+        await closeLedgerConnection(ledgerResult.transport)
+      }
+    }
   },
 })
 
