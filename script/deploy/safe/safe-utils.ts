@@ -1381,7 +1381,7 @@ export async function wrapWithTimelockSchedule(
       const configPath = path.join(
         process.cwd(),
         'config',
-        'timelockcontroller.json'
+        'timelockController.json'
       )
       const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
       minDelay = BigInt(configData.minDelay || 3600)
