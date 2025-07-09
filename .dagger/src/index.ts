@@ -11,6 +11,7 @@ import {
   Secret,
   object,
   func,
+  ReturnType,
 } from '@dagger.io/dagger'
 
 interface NetworkConfig {
@@ -270,7 +271,7 @@ export class LifiContracts {
 
     // Execute
 
-    return (await this.buildProject(source, solcVersion, evmVersion))
+    const result = (await this.buildProject(source, solcVersion, evmVersion))
       .withMountedDirectory(
         '/workspace/deployments',
         source.directory('deployments')
@@ -284,7 +285,13 @@ export class LifiContracts {
       .withSecretVariable('PRIVATE_KEY', privateKey)
       .withEnvVariable('SALT', originalSalt)
       .withEnvVariable('DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS', 'true')
-      .withExec(forgeArgs)
+      .withExec(forgeArgs, { expect: ReturnType.Any })
+
+    if ((await result.exitCode()) > 0) {
+      throw new Error(`Failed to deploy contract: ${await result.stderr()}`)
+    }
+
+    return result
   }
 
   /**
