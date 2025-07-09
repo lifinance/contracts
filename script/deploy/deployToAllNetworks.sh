@@ -117,7 +117,7 @@ echo "Selected EVM version: $SELECTED_EVM_VERSION"
 # Handle network selection
 if [ -n "$NETWORKS_ARG" ]; then
   # Validate provided networks against available networks
-  AVAILABLE_NETWORKS=$(jq -r 'to_entries[] | select(.value.isZkEVM == false) | .key' config/networks.json | sort)
+  AVAILABLE_NETWORKS=$(jq -r 'to_entries[] | select(.value.isZkEVM == false and .key != "localanvil") | .key' config/networks.json | sort)
 
   # Convert comma-separated list to array and validate each network
   IFS=',' read -ra NETWORK_ARRAY <<< "$NETWORKS_ARG"
@@ -139,8 +139,8 @@ if [ -n "$NETWORKS_ARG" ]; then
   SELECTED_NETWORKS="$NETWORKS_ARG"
   echo "Using provided networks: $SELECTED_NETWORKS"
 else
-  # Extract network names from config/networks.json, filtering out zkEVM networks
-  NETWORKS=$(jq -r 'to_entries[] | select(.value.isZkEVM == false) | .key' config/networks.json | sort)
+  # Extract network names from config/networks.json, filtering out zkEVM networks and localanvil
+  NETWORKS=$(jq -r 'to_entries[] | select(.value.isZkEVM == false and .key != "localanvil") | .key' config/networks.json | sort)
 
   # Use gum to select networks (conditionally pre-select all)
   if [ "$SELECT_ALL_NETWORKS" = true ]; then
@@ -178,8 +178,15 @@ fi
 
 echo "Update diamond: $UPDATE_DIAMOND"
 
+# Determine which private key to use based on PRODUCTION environment variable
+if [ "$PRODUCTION" = "true" ]; then
+  PRIVATE_KEY_ENV="env:PRIVATE_KEY_PRODUCTION"
+else
+  PRIVATE_KEY_ENV="env:PRIVATE_KEY"
+fi
+
 # Build dagger command with selected options
-DAGGER_CMD="deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS env:PRIVATE_KEY --salt=$SALT --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION"
+DAGGER_CMD="deploy-to-all-networks . $SELECTED_CONTRACT $SELECTED_NETWORKS $PRIVATE_KEY_ENV --salt=$SALT --evm-version=$SELECTED_EVM_VERSION --solc-version=$SELECTED_SOLC_VERSION"
 
 # Add update-diamond flag if requested
 if [ "$UPDATE_DIAMOND" = true ]; then
