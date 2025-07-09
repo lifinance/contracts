@@ -156,6 +156,25 @@
       }
     }
   },
+  "CelerIMFacet": {
+    "configData": {
+      "_messageBus": {
+        "configFileName": "cbridge.json",
+        "keyInConfigFile": ".<NETWORK>.messageBus",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_relayerOwner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_cfUSDC": {
+        "configFileName": "cbridge.json",
+        "keyInConfigFile": ".<NETWORK>.cfUSDC",
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
+  },
   "CircleBridgeFacet": {
     "configData": {
       "_tokenMessenger": {
@@ -229,6 +248,35 @@
       "_privilegedUser": {
         "configFileName": "global.json",
         "keyInConfigFile": ".pauserWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LiFiTimelockController": {
+    "configData": {
+      "_minDelay": {
+        "configFileName": "timelockController.json",
+        "keyInConfigFile": ".minDelay",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_proposers": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.safeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_cancellerWallet": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".deployerWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_admin": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.safeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "LiFiDiamond": {
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -458,6 +506,20 @@
       }
     }
   },
+  "RelayerCelerIM": {
+    "configData": {
+      "_cBridgeMessageBusAddress": {
+        "configFileName": "cbridge.json",
+        "keyInConfigFile": ".<NETWORK>.messageBus",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "RelayFacet": {
     "configData": {
       "_relayReceiver": {
@@ -468,6 +530,15 @@
       "_relaySolver": {
         "configFileName": "relay.json",
         "keyInConfigFile": ".relaySolver",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "PioneerFacet": {
+    "configData": {
+      "_pioneerAddress": {
+        "configFileName": "pioneer.json",
+        "keyInConfigFile": ".pioneerEOAProduction",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -528,15 +599,6 @@
     },
     "contractAddresses": {
       "Executor": {
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "StargateFacet": {
-    "configData": {
-      "stargateRouter": {
-        "configFileName": "stargate.json",
-        "keyInConfigFile": ".<NETWORK>.stargateRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { LiFiTimelockController } from "lifi/Security/LiFiTimelockController.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 // Mock contract to simulate a diamond that can be unpaused
 contract MockDiamond is Ownable {
@@ -26,6 +27,7 @@ contract LiFiTimelockControllerTest is Test {
     address public proposer = address(0x2);
     address public executor = address(0x3);
     address public unauthorized = address(0x4);
+    address public deployerWallet = address(0x5);
 
     uint256 public constant MIN_DELAY = 1 days;
 
@@ -58,12 +60,107 @@ contract LiFiTimelockControllerTest is Test {
             MIN_DELAY,
             proposers,
             executors,
+            deployerWallet,
             admin,
             address(mockDiamond)
         );
 
         // Transfer ownership of MockDiamond to timelock
         mockDiamond.transferOwnership(address(timelock));
+    }
+
+    function testRevert_WhenInvalidConfig() public {
+        // Setup proposers and executors arrays
+        address[] memory proposers = new address[](1);
+        proposers[0] = proposer;
+
+        address[] memory executors = new address[](1);
+        executors[0] = executor;
+
+        // Deploy MockDiamond first
+        mockDiamond = new MockDiamond();
+
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            proposers,
+            executors,
+            deployerWallet,
+            admin,
+            address(mockDiamond)
+        );
+
+        // deploy with invalid minDelay
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            0,
+            proposers,
+            executors,
+            deployerWallet,
+            admin,
+            address(mockDiamond)
+        );
+
+        // deploy with empty executors array
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            proposers,
+            new address[](0),
+            deployerWallet,
+            admin,
+            address(mockDiamond)
+        );
+
+        // deploy with empty proposers array
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            new address[](0),
+            executors,
+            deployerWallet,
+            admin,
+            address(mockDiamond)
+        );
+
+        // deploy with invalid deployer wallet
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            proposers,
+            executors,
+            address(0),
+            admin,
+            address(mockDiamond)
+        );
+
+        // deploy with invalid admin address
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            proposers,
+            executors,
+            deployerWallet,
+            address(0),
+            address(mockDiamond)
+        );
+
+        // deploy with invalid diamond address
+        vm.expectRevert(InvalidConfig.selector);
+        // Then deploy timelock with correct mockDiamond address
+        timelock = new LiFiTimelockController(
+            MIN_DELAY,
+            proposers,
+            executors,
+            deployerWallet,
+            admin,
+            address(0)
+        );
     }
 
     function test_InitializesWithCorrectRolesAndDelay() public {
@@ -78,6 +175,7 @@ contract LiFiTimelockControllerTest is Test {
         assertTrue(timelock.hasRole(proposerRole, proposer));
         assertTrue(timelock.hasRole(executorRole, executor));
         assertTrue(timelock.hasRole(cancellerRole, proposer));
+        assertTrue(timelock.hasRole(cancellerRole, deployerWallet));
 
         // Check delay
         assertEq(timelock.getMinDelay(), MIN_DELAY);
