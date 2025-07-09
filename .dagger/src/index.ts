@@ -179,15 +179,9 @@ export class LifiContracts {
         .withExec(['chown', '-R', 'foundry:foundry', '/workspace'])
         // Install Node.js, bun, and jq
         .withExec([
-          'apt-get',
-          'update',
-          '&&',
-          'apt-get',
-          'install',
-          '-y',
-          'nodejs',
-          'npm',
-          'jq',
+          'bash',
+          '-c',
+          'apt-get update && apt-get install -y nodejs npm jq',
         ])
         .withExec(['npm', 'install', '-g', 'bun'])
         .withUser('foundry')
