@@ -226,7 +226,7 @@ const main = defineCommand({
     allowOverride: {
       type: 'boolean',
       description:
-        'Whether to allow overriding existing Safe address in networks.json (default: false)',
+        'Whether to allow overriding existing Safe address in networks.json (default: true)',
       required: false,
       default: true,
     },
@@ -686,7 +686,7 @@ async function createSafeProxy(params: {
     const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
     if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
-    const safeAddress = (await consola.prompt(
+    const safeAddress = await consola.prompt(
       'Enter the deployed Safe address:',
       {
         type: 'text',
@@ -695,12 +695,12 @@ async function createSafeProxy(params: {
             ? true
             : 'Please enter a valid Ethereum address',
       }
-    )) as Address
+    )
 
-    return safeAddress
+    return getAddress(safeAddress)
   }
 
-  const safeAddr = proxyEvent.args.proxy as Address
+  const safeAddr = getAddress(proxyEvent.args.proxy)
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
   // verify on-chain proxy bytecode
