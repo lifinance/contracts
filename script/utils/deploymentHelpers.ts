@@ -1,18 +1,18 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { IEnvironmentEnum, type SupportedChain } from '../common/types'
 
 /**
  * Utility function to dynamically import the deployments file for a chain.
  */
 export const getDeployments = async (
   chain: SupportedChain,
-  environment: EnvironmentEnum = EnvironmentEnum.staging
+  environment: IEnvironmentEnum = IEnvironmentEnum.staging
 ) => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const fileName =
-    environment === EnvironmentEnum.production
+    environment === IEnvironmentEnum.production
       ? `${chain}.json`
       : `${chain}.staging.json`
   const filePath = path.resolve(__dirname, `../../deployments/${fileName}`)

@@ -293,6 +293,33 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
   fi
 
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    # ------------------------------------------------------------
+    # Prepare ownership transfer to Timelock
+    echo ""
+    echo "Preparing ownership transfer to Timelock"
+    TIMELOCK_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiTimelockController")
+    if [[ -z "$TIMELOCK_ADDRESS" ]]; then
+      echo "Timelock address not found. Cannot prepare ownership transfer to Timelock"
+      exit 1
+    fi
+
+    # initiate ownership transfer
+    echo "Initiating ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
+    cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$RPC_URL"  --legacy
+    echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
+    echo ""
+
+    echo ""
+    echo "Proposing ownership transfer acceptance tx to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS) "
+    # propose tx with calldata 0x7200b829 = acceptOwnershipTransfer() to diamond (propose to multisig and wrap in timeloc calldata with --timelock flag)
+    bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND" --calldata 0x7200b829 --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY_PRODUCTION" --timelock
+    echo "Ownership transfer acceptance proposed to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)"
+    echo ""
+    # ------------------------------------------------------------
+  fi
+
+
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
 }

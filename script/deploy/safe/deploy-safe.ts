@@ -73,7 +73,7 @@ import {
 // Local imports last, in alphabetical order
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { IEnvironmentEnum, type SupportedChain } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
 dotenv.config()
@@ -226,7 +226,7 @@ const main = defineCommand({
     allowOverride: {
       type: 'boolean',
       description:
-        'Whether to allow overriding existing Safe address in networks.json (default: false)',
+        'Whether to allow overriding existing Safe address in networks.json (default: true)',
       required: false,
       default: true,
     },
@@ -259,7 +259,7 @@ const main = defineCommand({
     //   }
     // )) as unknown as EnvironmentEnum
     // we currently use SAFEs only in production but will keep this code just in case
-    const environment: EnvironmentEnum = EnvironmentEnum.production
+    const environment: IEnvironmentEnum = IEnvironmentEnum.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain
@@ -686,7 +686,7 @@ async function createSafeProxy(params: {
     const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
     if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
-    const safeAddress = (await consola.prompt(
+    const safeAddress = await consola.prompt(
       'Enter the deployed Safe address:',
       {
         type: 'text',
@@ -695,12 +695,12 @@ async function createSafeProxy(params: {
             ? true
             : 'Please enter a valid Ethereum address',
       }
-    )) as Address
+    )
 
-    return safeAddress
+    return getAddress(safeAddress)
   }
 
-  const safeAddr = proxyEvent.args.proxy as Address
+  const safeAddr = getAddress(proxyEvent.args.proxy)
   consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
   // verify on-chain proxy bytecode

@@ -152,6 +152,10 @@ function handleNetwork() {
   echoDebug "BLACKLIST=$BLACKLIST"
   echo ""
 
+  if [[ -z "$PRIVATE_KEY_PAUSER_WALLET" ]]; then
+    warning "[network: $NETWORK] Pauser wallet private key is not set in your .env file. Actions requiring this key will not succeed."
+  fi
+
   # check if the diamond is already paused by calling owner() function and analyzing the response
   local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
   # only required if we dont expect the diamond to be paused
@@ -164,7 +168,7 @@ function handleNetwork() {
         # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
         success "[network: $NETWORK] The diamond is already paused."
         echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-        exit 0
+        return 0
     else
         # Handle other RPC or network errors
         error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
@@ -179,16 +183,19 @@ function handleNetwork() {
     # if a facet address is given, remove that facet, otherwise pause the diamond
     if [ -z "$FACET_CONTRACT_NAME"  ]; then
       if [ "$ACTION" == "pause the diamond contract entirely" ]; then
-        echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from wallet $DEPLOYER"
+        # pause the diamond
+        echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from wallet $DEPLOYER (requires PRIVATE_KEY_PAUSER_WALLET to be set in .env file)"
         cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy >/dev/null
       else
-        echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig now"
+        # unpause the diamond
+        echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
 
         local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")
-        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
       fi
     else
-      echoDebug "[network: $NETWORK] removing $FACET_CONTRACT_NAME now"
+      # remove a facet (diamond remains paused)
+      echoDebug "[network: $NETWORK] removing $FACET_CONTRACT_NAME now (requires PRIVATE_KEY_PAUSER_WALLET to be set in .env file)"
 
       # get facet address
       FACET_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "$FACET_CONTRACT_NAME")
@@ -198,6 +205,7 @@ function handleNetwork() {
         return 1
       fi
 
+      # call diamond with PauserWallet to remove facet
       cast send "$DIAMOND_ADDRESS" "removeFacet(address)" "$FACET_ADDRESS" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
     fi
 

@@ -27,5 +27,6 @@
   "ReceiverAcrossV3": "0xd62d7C4Bb23f65EF3d312C74Cd77a367285CA8fc",
   "ReceiverStargateV2": "0x058f63F483053280246A1c5Db4DAFbE917c13295",
   "SymbiosisFacet": "0xE5b8Ab14A6c7D2b1e8f21050B5504D5b8abf4FcD",
-  "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF"
+  "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
+  "LiFiTimelockController": "0x4616BB33d17c5fbFd69eC68c1d8A19490e78A978"
 }

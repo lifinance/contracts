@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import readline from 'readline'
 
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
@@ -13,10 +14,10 @@ import {
 
 import networksConfig from '../../config/networks.json'
 import {
-  EnvironmentEnum,
-  type SupportedChain,
+  IEnvironmentEnum,
   type INetwork,
   type INetworksObject,
+  type SupportedChain,
 } from '../common/types'
 
 import { getDeployments } from './deploymentHelpers'
@@ -129,7 +130,7 @@ export const retry = async <T>(
 export const getContractAddressForNetwork = async (
   contractName: string,
   network: SupportedChain,
-  environment: EnvironmentEnum = EnvironmentEnum.production
+  environment: IEnvironmentEnum = IEnvironmentEnum.production
 ): Promise<string> => {
   // get network deploy log file
   const deployments = await getDeployments(network, environment)
@@ -198,9 +199,10 @@ export function getFunctionSelectors(
  */
 export function getDeployLogFile(
   network: string,
-  environment: 'production' | 'staging'
+  environment: IEnvironmentEnum
 ): Record<string, string> {
-  const suffix = environment === 'production' ? '' : `.${environment}`
+  const suffix =
+    environment === IEnvironmentEnum.production ? '' : `.${environment}`
   const filePath = path.resolve(`deployments/${network}${suffix}.json`)
 
   if (!fs.existsSync(filePath))
@@ -254,4 +256,256 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
     functionName: 'registerPeripheryContract',
     args: [name, '0x0000000000000000000000000000000000000000'],
   })
+}
+
+/**
+ * Casts a string environment to IEnvironmentEnum
+ * @param environment - The environment string
+ * @returns IEnvironmentEnum value
+ */
+export function castEnv(environment: string): IEnvironmentEnum {
+  if (environment === 'production') return IEnvironmentEnum.production
+  if (environment === 'staging') return IEnvironmentEnum.staging
+  throw new Error(`Invalid environment: ${environment}`)
+}
+
+/**
+ * Helper function to display options in columns
+ */
+function displayOptionsInColumns(options: string[], columns = 3): void {
+  const maxLength = Math.max(...options.map((opt) => opt.length))
+  const paddedOptions = options.map((opt) => opt.padEnd(maxLength + 2))
+
+  const rows = Math.ceil(options.length / columns)
+
+  for (let row = 0; row < rows; row++) {
+    let line = ''
+    for (let col = 0; col < columns; col++) {
+      const index = row + col * rows
+      if (index < options.length) {
+        const number = (index + 1).toString().padStart(2)
+        line += `${number}. ${paddedOptions[index]}`
+      }
+    }
+    consola.log(line)
+  }
+}
+
+/**
+ * Helper function to get user input with proper signal handling
+ */
+export async function getUserInput(prompt: string): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
+
+  return new Promise((resolve, _reject) => {
+    // Set up signal handlers
+    const handleSigInt = () => {
+      rl.close()
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
+
+    const handleSigTerm = () => {
+      rl.close()
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
+
+    process.once('SIGINT', handleSigInt)
+    process.once('SIGTERM', handleSigTerm)
+
+    rl.question(prompt, (answer) => {
+      rl.close()
+      // Clean up signal handlers
+      process.removeListener('SIGINT', handleSigInt)
+      process.removeListener('SIGTERM', handleSigTerm)
+      resolve(answer.trim())
+    })
+  })
+}
+
+/**
+ * Helper function to filter options based on user input with better UX
+ */
+export async function selectWithSearch(
+  message: string,
+  options: string[]
+): Promise<string> {
+  let filteredOptions = options
+  let selected: string | undefined
+
+  while (!selected) {
+    // Show current state
+    consola.log(`\n${message}`)
+    consola.log(`Found ${filteredOptions.length} options.`)
+    consola.log('')
+
+    // Display all options in columns
+    displayOptionsInColumns(filteredOptions)
+
+    consola.log('')
+    consola.log('Options:')
+    consola.log('- Type a number to select')
+    consola.log('- Press Ctrl+C to cancel')
+    consola.log('')
+
+    try {
+      const input = await getUserInput('Enter selection: ')
+
+      if (!input) {
+        consola.warn('Please enter a valid selection.')
+        continue
+      }
+
+      // Check if input is a number (selection)
+      const selectionNumber = parseInt(input)
+      if (!isNaN(selectionNumber))
+        if (selectionNumber >= 1 && selectionNumber <= filteredOptions.length) {
+          // Valid option selected
+          const selectedOption = filteredOptions[selectionNumber - 1]
+          if (selectedOption) {
+            selected = selectedOption
+            break
+          }
+        } else {
+          consola.warn('Invalid selection number.')
+          continue
+        }
+      else {
+        // Input is not a number - treat as search term
+        filteredOptions = options.filter((option) =>
+          option.toLowerCase().includes(input.toLowerCase())
+        )
+        if (filteredOptions.length === 0) {
+          consola.warn('No matches found. Showing all options.')
+          filteredOptions = options
+        }
+        continue
+      }
+    } catch (error) {
+      // Handle Ctrl+C or other interruptions
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
+  }
+
+  if (!selected) throw new Error('No option was selected')
+
+  return selected
+}
+
+/**
+ * Helper function to filter options for multiselect with better UX
+ */
+export async function multiselectWithSearch(
+  message: string,
+  options: string[]
+): Promise<string[]> {
+  let filteredOptions = options
+  let selected: string[] = []
+  let isComplete = false
+
+  while (!isComplete) {
+    // Show current state
+    consola.log(`\n${message}`)
+    if (selected.length > 0) consola.log(`Selected: ${selected.join(', ')}`)
+
+    consola.log(`Found ${filteredOptions.length} options.`)
+    consola.log('')
+
+    // Display all options in columns with selection markers
+    const displayOptions = filteredOptions.map((option, index) => {
+      const isSelected = selected.includes(option)
+      const marker = isSelected ? '✓' : ' '
+      const number = (index + 1).toString().padStart(2)
+      return `${number}. [${marker}] ${option}`
+    })
+
+    // Display in columns
+    const columns = 2 // Use fewer columns for multiselect to accommodate checkboxes
+    const maxLength = Math.max(...displayOptions.map((opt) => opt.length))
+    const paddedOptions = displayOptions.map((opt) => opt.padEnd(maxLength + 2))
+
+    const rows = Math.ceil(displayOptions.length / columns)
+
+    for (let row = 0; row < rows; row++) {
+      let line = ''
+      for (let col = 0; col < columns; col++) {
+        const index = row + col * rows
+        if (index < displayOptions.length) line += paddedOptions[index]
+      }
+      consola.log(line)
+    }
+
+    consola.log('')
+    consola.log('Options:')
+    consola.log(
+      "- Type numbers (comma-separated) to select/deselect, e.g.: '1,2,3"
+    )
+    consola.log('- Type "done" when finished')
+    consola.log('- Press Ctrl+C to cancel')
+    consola.log('')
+
+    try {
+      const input = await getUserInput('Enter selection: ')
+
+      if (!input) {
+        consola.warn('Please enter a valid selection.')
+        continue
+      }
+
+      if (input.toLowerCase() === 'done')
+        if (selected.length > 0) {
+          isComplete = true
+          break
+        } else {
+          consola.warn('Please select at least one option.')
+          continue
+        }
+
+      // Check if input is numbers (selection)
+      const numbers = input
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s)
+      const allNumbers = numbers.every((n) => !isNaN(parseInt(n)))
+
+      if (allNumbers && numbers.length > 0) {
+        const selectionNumbers = numbers.map((n) => parseInt(n))
+
+        // Process regular selections
+        for (const num of selectionNumbers)
+          if (num >= 1 && num <= filteredOptions.length) {
+            const option = filteredOptions[num - 1]
+            if (option)
+              if (selected.includes(option))
+                selected = selected.filter((item) => item !== option)
+              else selected.push(option)
+          }
+
+        consola.info(`Facet(s) selected: ${selected.join(', ')}`)
+        isComplete = true
+        break
+      } else {
+        // Input is not numbers - treat as search term
+        filteredOptions = options.filter((option) =>
+          option.toLowerCase().includes(input.toLowerCase())
+        )
+        if (filteredOptions.length === 0) {
+          consola.warn('No matches found. Showing all options.')
+          filteredOptions = options
+        }
+        continue
+      }
+    } catch (error) {
+      // Handle Ctrl+C or other interruptions
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
+  }
+
+  return selected
 }
