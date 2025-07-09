@@ -178,8 +178,17 @@ export class LifiContracts {
         ])
         .withExec(['chown', '-R', 'foundry:foundry', '/workspace'])
         // Install Node.js, bun, and jq
-        .withExec(['apt-get', 'update'])
-        .withExec(['apt-get', 'install', '-y', 'nodejs', 'npm', 'jq'])
+        .withExec([
+          'apt-get',
+          'update',
+          '&&',
+          'apt-get',
+          'install',
+          '-y',
+          'nodejs',
+          'npm',
+          'jq',
+        ])
         .withExec(['npm', 'install', '-g', 'bun'])
         .withUser('foundry')
         // Install dependencies
@@ -839,6 +848,16 @@ export class LifiContracts {
     updateDiamond?: boolean,
     safeSignerPrivateKey?: Secret
   ): Promise<Directory> {
+    // Remove failed_deployments.json at the start if it exists
+    try {
+      const failedLogFileName = 'failed_deployments_log.json'
+      await source.file(`deployments/${failedLogFileName}`).id()
+      // File exists, remove it by creating source without it
+      source = source.withoutFile(`deployments/${failedLogFileName}`)
+    } catch (error) {
+      // File doesn't exist, which is fine - no need to log this as an error
+    }
+
     let updatedSource = source
 
     for (const network of networks) {
