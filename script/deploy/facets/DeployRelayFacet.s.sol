@@ -29,9 +29,7 @@ contract DeployScript is DeployScriptBase {
         );
 
         // the relaySolver address is the same address on all mainnets (and it's not a contract)
-        address relaySolver = json.readAddress(
-            string.concat(".", network, ".relaySolver")
-        );
+        address relaySolver = json.readAddress(".relaySolver");
 
         return abi.encode(relayReceiver, relaySolver);
     }
