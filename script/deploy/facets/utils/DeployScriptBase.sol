@@ -40,31 +40,26 @@ contract DeployScriptBase is ScriptBase {
         vm.startBroadcast(deployerPrivateKey);
         emit log_named_address("LI.FI: Predicted Address: ", predicted);
 
-        if (_isDeployed()) {
+        if (LibAsset.isContract(predicted)) {
             emit log("LI.FI: Contract is already deployed");
             return payable(predicted);
         }
 
-        // reproduce and log calldata that is sent to CREATE3
-        bytes memory create3Calldata = abi.encodeWithSelector(
-            CREATE3Factory.deploy.selector,
-            salt,
-            bytes.concat(creationCode, constructorArgs)
-        );
-
         // @DEV: activate on demand when deployment fails (e.g. to try manual deployment)
-        emit log("LI.FI: Will send this calldata to CREATE3Factory now: ");
-        emit log_bytes(create3Calldata);
-        emit log("        ");
+        // reproduce and log calldata that is sent to CREATE3
+        // bytes memory create3Calldata = abi.encodeWithSelector(
+        //     CREATE3Factory.deploy.selector,
+        //     salt,
+        //     bytes.concat(creationCode, constructorArgs)
+        // );
+        // emit log("LI.FI: Will send this calldata to CREATE3Factory now: ");
+        // emit log_bytes(create3Calldata);
+        // emit log("        ");
 
         deployed = payable(
             factory.deploy(salt, bytes.concat(creationCode, constructorArgs))
         );
 
         vm.stopBroadcast();
-    }
-
-    function _isDeployed() internal view returns (bool) {
-        return LibAsset.isContract(predicted);
     }
 }
