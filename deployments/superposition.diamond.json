@@ -52,6 +52,10 @@
       "0x522dC397B49A9424a374e84e17498CeBDa44AC04": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0xEcfF5F473F099FEB3f764264Bc61141788b161B1": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
@@ -59,12 +63,12 @@
       "Executor": "0x7F0ba01CBC2dA244a3C1f7D4ad073F49d36f4bB4",
       "FeeCollector": "0x15b9Cf781B4A79C00E4dB7b49d8Bf67359a87Fd2",
       "GasZipPeriphery": "0xbD21dB112F56F2aa0b35b9EA4c3f50aE0146E17A",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x349e00F0D4033CB7014Dbf12fdF9E80CFaf262Bc",
       "Permit2Proxy": "0x2f5F36c068e7AB64D64ead087b0702797f5ab5Ee",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0xD5D10E4305c337E1d9a9880aB61D2f674d46C9A9",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x698F5d62E6841B3623907330B9883afFC3d6A6D3"
     }
   }
