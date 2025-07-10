@@ -307,6 +307,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.06.30_LiFiDexAggregator(v1.11.0).pdf",
       "auditCommitHash": "6561ef4cc67f167d6485c412afb738f5b5b0da7f"
+    },
+    "audit20250706": {
+      "auditCompletedOn": "06.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.06_LiFiTimelockController(v1.0.1).pdf",
+      "auditCommitHash": "f4bbda99541c441f90a76515a0624713831c8abb"
     }
   },
   "auditedContracts": {
@@ -490,7 +497,8 @@
       "1.0.1": ["audit20250508"]
     },
     "LiFiTimelockController": {
-      "1.0.0": ["audit20250110_2", "audit20250508"]
+      "1.0.0": ["audit20250110_2", "audit20250508"],
+      "1.0.1": ["audit20250706"]
     },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
@@ -590,7 +598,8 @@
       "1.0.0": ["audit20250508"]
     },
     "WithdrawablePeriphery": {
-      "1.0.0": ["audit20241014", "audit20250508"]
+      "1.0.0": ["audit20241014", "audit20250508"],
+      "1.0.1": ["audit20250706"]
     }
   }
 }
