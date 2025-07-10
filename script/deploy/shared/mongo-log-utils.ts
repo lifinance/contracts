@@ -28,7 +28,7 @@ export interface IDeploymentRecord {
   timestamp: Date
   /** Constructor arguments used during deployment */
   constructorArgs: string
-  /** Optional salt value used for CREATE2 deployments */
+  /** Optional salt value used for CREATE3 deployments */
   salt?: string
   /** Whether the contract has been verified on block explorer */
   verified: boolean
@@ -468,16 +468,10 @@ export class RecordTransformer {
    * @param contractName - Name of the contract being deployed
    * @param network - Network where the contract was deployed
    * @param version - Version of the contract
-   * @param _environment - Deployment environment (currently unused but kept for consistency)
    * @returns Function that transforms raw data to IDeploymentRecord or null if invalid
    */
   public static transformRawToDeployment =
-    (
-      contractName: string,
-      network: string,
-      version: string,
-      _environment: string
-    ) =>
+    (contractName: string, network: string, version: string) =>
     (rawData: unknown): IDeploymentRecord | null => {
       if (!ValidationUtils.isValidRawDeploymentData(rawData)) return null
 
@@ -541,8 +535,7 @@ export class RecordTransformer {
                             RecordTransformer.transformRawToDeployment(
                               contractName,
                               network,
-                              version,
-                              environment
+                              version
                             )
                           )
                           .filter(
