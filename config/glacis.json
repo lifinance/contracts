@@ -44,11 +44,17 @@
   "ink": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "katana": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
   "linea": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "lisk": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "mantle": {
+    "airlift": "0x686893D73fA3817A13217E858652A4866B096dCa"
   },
   "mode": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
@@ -67,6 +73,9 @@
   },
   "scroll": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "sei": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
   "sonic": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
