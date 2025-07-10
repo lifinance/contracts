@@ -29,6 +29,8 @@ contract PioneerFacetTest is TestBaseFacet {
 
     PioneerFacet.PioneerData internal pioneerData;
 
+    event PioneerRefundAddressRegistered(address indexed refundTo);
+
     function setUp() public {
         customBlockNumberForForking = 17130542;
         initTestBase();
@@ -77,9 +79,7 @@ contract PioneerFacetTest is TestBaseFacet {
         usdc.approve(address(basePioneerFacet), bridgeData.minAmount);
 
         vm.expectEmit();
-        emit PioneerFacet.PioneerRefundAddressRegistered(
-            pioneerData.refundAddress
-        );
+        emit PioneerRefundAddressRegistered(pioneerData.refundAddress);
 
         basePioneerFacet.startBridgeTokensViaPioneer(bridgeData, pioneerData);
 
@@ -95,9 +95,7 @@ contract PioneerFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
 
         vm.expectEmit();
-        emit PioneerFacet.PioneerRefundAddressRegistered(
-            pioneerData.refundAddress
-        );
+        emit PioneerRefundAddressRegistered(pioneerData.refundAddress);
 
         basePioneerFacet.startBridgeTokensViaPioneer{
             value: bridgeData.minAmount

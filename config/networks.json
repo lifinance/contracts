@@ -623,7 +623,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "devNotes": "When using LDA 1.11.0 in evm=cancun some transactions were failing. So probably better to always use 0.8.17 and evm=london"
   },
   "metis": {
     "name": "metis",
