@@ -139,12 +139,12 @@
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
       "GasZipPeriphery": "0x0ec6D2eEb94541C51620830D151995fCFf83Aa74",
-      "LiFiDEXAggregator": "",
-      "Permit2Proxy": "",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xcaA342e4f781d63EF41E220D7622B97E66BAEcF3",
+      "Permit2Proxy": "0xD3244E036bf326c7d737aEeE91BC0063a8Dbf8Ad",
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a"
     }
   }

@@ -50,8 +50,8 @@
         "Version": "1.0.1"
       },
       "0xec592406DB1825270Fc6530c91c4E34834F492cA": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -65,7 +65,6 @@
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x4121151bdF67f06E66eAbA9f596eD289e762935a",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x48DD6d8b94fA02C65cC0476cB0270acEfc12Cd82"
     }
   }

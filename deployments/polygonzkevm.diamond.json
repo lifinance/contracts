@@ -41,9 +41,9 @@
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
-      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
-        "Name": "CelerIMFacetMutable",
-        "Version": "2.0.0"
+      "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       },
       "0x0107859E4Ee0Fc2b8f3c2A602264D95184cd297F": {
         "Name": "SymbiosisFacet",
@@ -80,10 +80,6 @@
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
-      },
-      "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -91,12 +87,12 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
       "GasZipPeriphery": "",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "Permit2Proxy": "",
+      "Permit2Proxy": "0xBDfF0c1C8B0b779581C4aC3bA1F29667C366C56e",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }

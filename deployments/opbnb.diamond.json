@@ -63,12 +63,12 @@
       "Executor": "0xDaF30Ca8fbB0f6cE6FF21fe33932eE786CC77646",
       "FeeCollector": "0x6A2420650139854F17964b8C3Bb60248470aB57E",
       "GasZipPeriphery": "",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x077A38b812e57E2e76849954c880E1a2f5e0A68d"
     }
   }
