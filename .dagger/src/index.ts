@@ -12,6 +12,7 @@ import {
   object,
   func,
   ReturnType,
+  Platform,
 } from '@dagger.io/dagger'
 
 interface NetworkConfig {
@@ -26,6 +27,24 @@ interface NetworkConfig {
 @object()
 export class LifiContracts {
   /// Utility Methods ///
+
+  private async detectHostArch(): Promise<Platform> {
+    // Use uname to detect architecture
+    const output = await dag
+      .container()
+      .from('alpine:latest')
+      .withExec(['uname', '-m'])
+      .stdout()
+
+    const arch = output.trim()
+
+    // Common ARM64 identifiers
+    if (arch === 'aarch64' || arch === 'arm64') {
+      return 'linux/arm64' as Platform
+    }
+
+    return 'linux/amd64' as Platform
+  }
 
   /**
    * Parse JSON string with explicit error handling
@@ -158,7 +177,9 @@ export class LifiContracts {
 
     return (
       dag
-        .container()
+        .container({
+          platform: await this.detectHostArch(),
+        })
         .from('ghcr.io/foundry-rs/foundry:latest')
         .withDirectory('/workspace/src', source.directory('src'))
         .withDirectory('/workspace/lib', source.directory('lib'))
