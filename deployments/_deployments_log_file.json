@@ -34045,6 +34045,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0x2cCd505656e0f5ba1611b5D67677bB2E22667cb2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-10 22:15:13",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
