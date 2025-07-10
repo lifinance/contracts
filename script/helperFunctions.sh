@@ -1442,8 +1442,7 @@ function verifyContract() {
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
   # Build base verification command
-  #local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-  local VERIFY_CMD="forge verify-contract --watch --chain $NETWORK $ADDRESS $FULL_PATH --verifier etherscan"
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
 
   # Add constructor args if present
   if [ "$ARGS" != "0x" ]; then
