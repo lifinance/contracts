@@ -72,6 +72,7 @@ plume = "${ETH_NODE_URI_PLUME}"
 polygon = "${ETH_NODE_URI_POLYGON}"
 polygonzkevm = "${ETH_NODE_URI_POLYGONZKEVM}"
 rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
+ronin = "${ETH_NODE_URI_RONIN}"
 sei = "${ETH_NODE_URI_SEI}"
 soneium = "${ETH_NODE_URI_SONEIUM}"
 sonic = "${ETH_NODE_URI_SONIC}"
@@ -134,6 +135,7 @@ opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://api-opbnb.bscscan.c
 plume = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-plume-mainnet-1.t.conduit.xyz/api", verifier = "blockscout", chain = "98866" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
 polygonzkevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1101", chain = "1101" }
+ronin= { key = "${SOURCIFY_API_KEY}", url = "https://sourcify.roninchain.com/server", chain = "2020", verifier = "sourcify" }
 rootstock= { key = "${BLOCKSCOUT_API_KEY}", url = "https://rootstock.blockscout.com/api", chain = "30", verifier = "blockscout" }
 scroll = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = "534352" }
 sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
