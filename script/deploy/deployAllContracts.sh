@@ -114,17 +114,6 @@ deployAllContracts() {
       echo "Deployer wallet does not have any balance in network $NETWORK. Please fund the wallet and try again"
       exit 1
     fi
-
-    # add core periphery addresses to whitelistedAddresses.json for whitelisting in subsequent steps
-    addPeripheryToWhitelistedAddressesJson "$NETWORK" "$ENVIRONMENT"
-  
-    # run sync whitelisted addresses script
-    echo ""
-    diamondSyncWhitelistedAddresses "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-  
-    # run sync selectors script
-    echo ""
-    diamondSyncSelectors "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
   
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
@@ -276,18 +265,18 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
 
-  # Stage 8: Execute dexs/sigs scripts and update ERC20Proxy
+  # Stage 8: Execute whitelisted addresses and selectors scripts and update ERC20Proxy
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute dexs/sigs scripts and update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute whitelisted addresses and selectors scripts and update ERC20Proxy"
 
-    # run sync dexs script
+    # run sync whitelisted addresses script
     echo ""
-    diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+    diamondSyncWhitelistedAddresses "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
-    # run sync sigs script
+    # run sync selectors script
     echo ""
-    diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+    diamondSyncSelectors "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
     # register Executor as authorized caller in ERC20Proxy
     echo ""
