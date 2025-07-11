@@ -73,9 +73,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
         "Name": "SquidFacet",

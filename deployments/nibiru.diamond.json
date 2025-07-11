@@ -48,6 +48,10 @@
       "0x51Fd4F1cCacDD1bbc92689f1D1eC419addd8529e": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x5db483Fe3FE9ae091ACfCcA27088529C952B4487": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {

@@ -49,13 +49,13 @@
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
       "0x7667CB57CA47f7F69761113894a4dd48BEe35DFd": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {

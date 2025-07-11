@@ -60,6 +60,10 @@
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
+      },
+      "0x2cCd505656e0f5ba1611b5D67677bB2E22667cb2": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {

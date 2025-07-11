@@ -53,9 +53,9 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0xBfc367eedaC8Ad5Bc80869760ce7a777cd8FE11C": {
+      "0x29A56dC0fc91A11F9807b7D82d32706BB85aaF4F": {
         "Name": "GasZipFacet",
-        "Version": "2.0.2"
+        "Version": "2.0.4"
       },
       "0x2010a7848E26D3B83038269953305075D65F7141": {
         "Name": "RelayFacet",

@@ -57,9 +57,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": ""
       },
-      "0x7B47250AAbDE56A6c927F2144ffd770D9F93D9d2": {
+      "0x17E0c08d40266d391c710297d7849296CD67cF9F": {
         "Name": "GasZipFacet",
-        "Version": "2.0.2"
+        "Version": "2.0.4"
       },
       "0x2E4E7beD12E1EeE5E98582EE41aDf36Ce40d2dE4": {
         "Name": "GlacisFacet",

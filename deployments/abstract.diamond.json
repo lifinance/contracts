@@ -57,9 +57,9 @@
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0x79ae44B0C33FDC804EB0A6e4A1c1434565264cfE": {
+      "0xE1f26d5876F854609a067E5B767ACa44a0271F9d": {
         "Name": "GasZipFacet",
-        "Version": "2.0.2"
+        "Version": "2.0.4"
       },
       "0xe4db6A19c9F53fB946D31772a48002e1f9cB8763": {
         "Name": "SymbiosisFacet",
