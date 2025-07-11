@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { $ } from 'bun'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
@@ -12,7 +13,6 @@ import {
   http,
   parseAbi,
 } from 'viem'
-import { $ } from 'zx'
 
 import {
   coreFacets,
