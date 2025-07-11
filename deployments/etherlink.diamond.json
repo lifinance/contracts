@@ -48,6 +48,10 @@
       "0x5240883FEB3018d33E19754380c3AE49DDdcD128": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xa72dE67430233B7F70375244Dbf1525c88094ca9": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
@@ -61,7 +65,6 @@
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x4F204Bc48eE92B86c1142c1C97332AF7f30Bb68C"
     }
   }

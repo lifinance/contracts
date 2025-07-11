@@ -56,6 +56,10 @@
       "0xd1059C492eC2472220fca8Dc358a7A587500b1Ab": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x75325E9f1E8a6f26a590e2c2F4e5976a5e74F6Aa": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
@@ -69,7 +73,6 @@
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0xdD73C6B0387018314FFBd4CB0b9F382771BB541A"
     }
   }
