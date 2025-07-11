@@ -88,23 +88,10 @@ function diamondUpdatePeriphery() {
     # check if contract is in target state, otherwise skip iteration
     TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
 
-    # only continue if contract was found in target state
-    if [[ "$?" -eq 0 ]]; then
+    # only continue if contract was found in target state (only required for production environment)
+    if [[ "$?" -eq 0 || "$ENVIRONMENT" == "staging" ]]; then
       # get contract address from deploy log
-      if [[ "$CONTRACT" == "RelayerCelerIM" ]]; then
-        # special handling for RelayerCelerIM
-        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
-          local CONTRACT_ADDRESS=$(jq -r '.RelayerCelerIMMutable // "0x"' "$ADDRS")
-        elif [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamondImmutable" ]]; then
-          local CONTRACT_ADDRESS=$(jq -r '.RelayerCelerIMImmutable // "0x"' "$ADDRS")
-        else
-          error "invalid value for DIAMOND_CONTRACT_NAME: ($DIAMOND_CONTRACT_NAME) in function diamondUpdatePeriphery()"
-        fi
-        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-      else
-        local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
-      fi
+      local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
 
       # check if address available, otherwise throw error and skip iteration
       if [ "$CONTRACT_ADDRESS" != "0x" ]; then
@@ -139,11 +126,13 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  # update diamond log file
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
-  else
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+  # update diamond log file (only for staging environment since in PROD we need to execute proposals first)
+  if [[ "$ENVIRONMENT" == "staging"  ]]; then
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+    else
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+    fi
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"

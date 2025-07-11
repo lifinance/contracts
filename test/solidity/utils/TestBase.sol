@@ -372,7 +372,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
 
     function setDefaultBridgeData() internal {
         bridgeData = ILiFi.BridgeData({
-            transactionId: "",
+            transactionId: "someId",
             bridge: "<UpdateWithYourBridgeName>",
             integrator: "",
             referrer: address(0),

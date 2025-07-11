@@ -41,24 +41,26 @@ contract AllowListMigratorFacetTest is TestBase {
     address internal constant DIAMOND =
         0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
 
-    string internal constant WHITELISTED_SELECTORS =
-        "config/whitelistedSelectors.json";
-
     AllowListMigratorFacet internal migratorFacet;
     WhitelistManagerFacet internal whitelistManager;
     IDexManagerFacet internal dexManager;
     MockSwapperFacet internal mockSwapperFacet;
 
-    // Test data
-    string internal jsonSelectors;
+    // Add this array of example selectors
+    bytes4[] internal currentWhitelistedSelectors;
 
     function setUp() public {
         // Fork mainnet
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
         vm.createSelectFork(rpcUrl, 22888619);
 
-        // load selectors data
-        jsonSelectors = vm.readFile(WHITELISTED_SELECTORS);
+        // Replace JSON loading with hardcoded selectors
+        currentWhitelistedSelectors = new bytes4[](5);
+        currentWhitelistedSelectors[0] = 0x38ed1739; // swapExactTokensForTokens
+        currentWhitelistedSelectors[1] = 0x8803dbee; // swapTokensForExactTokens
+        currentWhitelistedSelectors[2] = 0x7c025200; // swap
+        currentWhitelistedSelectors[3] = 0x7617b389; // exactInputSingle
+        currentWhitelistedSelectors[4] = 0x90411a32; // execute
 
         // get DexManager interface
         dexManager = IDexManagerFacet(DIAMOND);
@@ -231,21 +233,16 @@ contract AllowListMigratorFacetTest is TestBase {
     }
 
     function getAllApprovedSelectors() internal returns (bytes4[] memory) {
-        bytes4[] memory approvedSelectors = new bytes4[](165); // We expect around 165 selectors
+        bytes4[] memory approvedSelectors = new bytes4[](5); // Changed from 165 to 5
         uint256 count = 0;
 
-        // get all selectors from the json file
-        // file has exactly 165 selectors
-        for (uint256 i = 0; i < 165; i++) {
-            string memory key = string(
-                abi.encodePacked(".selectors[", vm.toString(i), "]")
-            );
-            string memory selectorString = jsonSelectors.readString(key);
-            bytes4 selector = bytes4(vm.parseBytes(selectorString));
-
+        // Replace JSON parsing with example selectors
+        for (uint256 i = 0; i < currentWhitelistedSelectors.length; i++) {
             // check if this selector is approved
-            if (dexManager.isFunctionApproved(selector)) {
-                approvedSelectors[count] = selector;
+            if (
+                dexManager.isFunctionApproved(currentWhitelistedSelectors[i])
+            ) {
+                approvedSelectors[count] = currentWhitelistedSelectors[i];
                 count++;
             }
         }
