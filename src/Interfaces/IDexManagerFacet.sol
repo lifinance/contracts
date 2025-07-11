@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 /// @title IDexManagerFacet Interface
+/// @notice Interface for the DexManagerFacet
 /// @author LI.FI (https://li.fi)
+/// @custom:version 1.0.0
 interface IDexManagerFacet {
     function addDex(address _dex) external;
     function batchAddDex(address[] calldata _dexs) external;
