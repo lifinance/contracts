@@ -105,13 +105,7 @@ module.exports = {
         format: ['PascalCase'],
         suffix: ['Enum']
       }
-    ],
-    'import/no-unresolved': [
-      'error',
-      {
-        ignore: ['^bun$'], // <- allow Bun's built-in module
-      },
-    ],
+    ]
   },
   settings: {
     'import/resolver': {
