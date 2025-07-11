@@ -217,8 +217,8 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         uint256 maxCount,
         bytes calldata message
     ) external pure returns (bytes memory) {
-        // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
-        // we feel comfortable using this approach to save further gas
+        // there are already existing networks with chainIds outside uint32 range but since we not
+        // support either of them yet, we feel comfortable using this approach to save further gas
         // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
@@ -261,8 +261,8 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         bytes calldata message,
         uint256 maxCount
     ) external pure returns (bytes memory) {
-        // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
-        // we feel comfortable using this approach to save further gas
+        // there are already existing networks with chainIds outside uint32 range but since we not
+        // support either of them yet, we feel comfortable using this approach to save further gas
         // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,

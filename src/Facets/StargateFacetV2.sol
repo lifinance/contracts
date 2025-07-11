@@ -23,7 +23,8 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ITokenMessaging public immutable tokenMessaging;
 
     /// @param assetId The Stargate-specific assetId for the token that should be bridged
-    /// @param sendParams Various parameters that describe what needs to be bridged, how to bridge it and what to do with it on dst
+    /// @param sendParams Various parameters that describe what needs to be bridged, how to bridge it
+    ///                    and what to do with it on dst
     /// @param fee Information about the (native) LayerZero fee that needs to be sent with the tx
     /// @param refundAddress the address that is used for potential refunds
     struct StargateData {

@@ -20,6 +20,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
     ISignatureTransfer public immutable PERMIT2;
 
     string public constant WITNESS_TYPE_STRING =
+        // solhint-disable-next-line max-line-length
         "LiFiCall witness)LiFiCall(address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant WITNESS_TYPEHASH =
         keccak256(
@@ -299,9 +300,13 @@ contract Permit2Proxy is WithdrawablePeriphery {
         return data;
     }
 
-    /// The following code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/src/Permit2NonceFinder.sol
+    /// The following code was adapted from
+    // solhint-disable-next-line max-line-length
+    /// https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/src/Permit2NonceFinder.sol
     /// Provides utility functions for determining the next valid Permit2 nonce
 
+    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign
+    ///      but the start one is still valid.
     /// @notice Finds the next valid nonce for a user, starting from 0.
     /// @param owner The owner of the nonces
     /// @return nonce The first valid nonce starting from 0
@@ -310,7 +315,8 @@ contract Permit2Proxy is WithdrawablePeriphery {
     }
 
     /// @notice Finds the next valid nonce for a user, after from a given nonce.
-    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign but the start one is still valid.
+    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign
+    ///      but the start one is still valid.
     /// @param owner The owner of the nonces
     /// @param start The nonce to start from
     /// @return nonce The first valid nonce after the given nonce

@@ -29,11 +29,13 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param receiverAddress The address that will receive the token on dst chain (our Receiver contract or the user-defined receiver address)
+    /// @param receiverAddress The address that will receive the token on dst chain
+    ///                        (our Receiver contract or the user-defined receiver address)
     /// @param refundAddress The address that will be used for potential bridge refunds
     /// @param receivingAssetId The address of the token to be received at destination chain
     /// @param outputAmount The amount to be received at destination chain (after fees)
-    /// @param outputAmountPercent The percentage of the output amount with 18 decimal precision (0.7550e18 = 75.50%, 0.99e18 = 99.00%)
+    /// @param outputAmountPercent The percentage of the output amount with 18 decimal precision
+    ///                            (0.7550e18 = 75.50%, 0.99e18 = 99.00%)
     /// @param exclusiveRelayer This is the exclusive relayer who can fill the deposit before the exclusivity deadline.
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
