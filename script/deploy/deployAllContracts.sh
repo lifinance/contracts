@@ -44,8 +44,8 @@ deployAllContracts() {
       "4) Set approvals (refund wallet and deployer wallet)" \
       "5) Deploy non-core facets and add to diamond" \
       "6) Deploy periphery contracts" \
-      "7) Add periphery to diamond and update dexs.json" \
-      "8) Execute dexs/sigs scripts and update ERC20Proxy" \
+      "7) Add periphery to diamond and update whitelistedAddresses.json" \
+      "8) Execute whitelisted addresses and selectors scripts and update ERC20Proxy" \
       "9) Run health check only"
   )
 
@@ -251,16 +251,16 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
   fi
 
-  # Stage 7: Add periphery to diamond and update dexs.json
+  # Stage 7: Add periphery to diamond and update whitelistedAddresses.json
   if [[ $START_STAGE -le 7 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update dexs.json"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update whitelistedAddresses.json"
 
     # update periphery registry
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
-    # add core periphery addresses to dexs.json for whitelisting in subsequent steps
-    addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
+    # add core periphery addresses to whitelistedAddresses.json for whitelisting in subsequent steps
+    addPeripheryToWhitelistedAddressesJson "$NETWORK" "$ENVIRONMENT"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
