@@ -52,3 +52,4 @@ test/solidity/TestPlayground.t.sol
 .claude*
 .direnv/
 .cursorrules
+deployments/failed_deployments_log.json
