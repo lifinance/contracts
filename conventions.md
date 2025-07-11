@@ -214,7 +214,7 @@ Follow the folder structure to locate resources and generate or modify code in a
 
 - **File naming and structure**
 
-  - Test files must have a `.t.sol` extension (e.g., `AcrossFacetV3.t.sol`, `DeBridgeDlnFacet.t.sol`, `DexManagerFacet.t.sol`).
+  - Test files must have a `.t.sol` extension (e.g., `AcrossFacetV3.t.sol`, `DeBridgeDlnFacet.t.sol`, `WhitelistManagerFacet.t.sol`).
   - Group and order imports with system libraries first and project files next.
 
 - **Test function naming**
@@ -224,8 +224,8 @@ Follow the folder structure to locate resources and generate or modify code in a
   - Use clear and descriptive names that capture the test’s purpose. For example:
     1. `test_CanSwapAndBridgeTokensWithOutputAmountPercent`
     2. `testRevert_FailsIfCalledWithOutdatedQuote`
-    3. `test_SucceedsIfOwnerAddsDex`
-    4. `testRevert_FailsIfNonOwnerTriesToAddDex`
+    3. `test_SucceedsIfOwnerAddsToWhitelist`
+    4. `testRevert_FailsIfNonOwnerTriesToAddToWhitelist`
   - For base or inherited tests, prefix with `testBase_`.
 
 - **Test structure and setup**

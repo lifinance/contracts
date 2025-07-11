@@ -5,20 +5,12 @@ import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestBase } from "../../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
 
 // Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet {
+contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract CBridgeAndFeeCollectionTest is TestBase {
@@ -40,24 +32,24 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addDex.selector;
-        functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
+        functionSelectors[2] = cBridge.addToWhitelist.selector;
+        functionSelectors[3] = cBridge.setFunctionApprovalBySelector.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addDex(address(uniswap));
-        cBridge.addDex(address(feeCollector));
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.addToWhitelist(address(uniswap));
+        cBridge.addToWhitelist(address(feeCollector));
+        cBridge.setFunctionApprovalBySelector(
             bytes4(feeCollector.collectTokenFees.selector)
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(feeCollector.collectNativeFees.selector)
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(uniswap.swapExactTokensForTokens.selector)
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.setFunctionApprovalBySelector(
             bytes4(uniswap.swapETHForExactTokens.selector)
         );
     }

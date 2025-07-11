@@ -2,22 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
 
 // Stub HopFacet Contract
-contract TestHopFacet is HopFacetOptimized {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
-}
+contract TestHopFacet is HopFacetOptimized, TestWhitelistManagerBase {}
 
 contract HopFacetOptimizedL1Test is TestBaseFacet {
     // These values are for Mainnet
@@ -51,26 +43,24 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             .swapAndStartBridgeTokensViaHopL1Native
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
-        functionSelectors[5] = hopFacet.addDex.selector;
-        functionSelectors[6] = hopFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[5] = hopFacet.addToWhitelist.selector;
+        functionSelectors[6] = hopFacet.setFunctionApprovalBySelector.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
         hopFacet = TestHopFacet(address(diamond));
 
-        hopFacet.addDex(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.addToWhitelist(address(uniswap));
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.setFunctionApprovalBySelector(
             uniswap.swapExactETHForTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");

@@ -22,8 +22,8 @@
         "Version": "1.0.0"
       },
       "0x603f0c31B37E5ca3eA75D5730CCfaBCFF6D17aa3": {
-        "Name": "",
-        "Version": ""
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.3"
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",

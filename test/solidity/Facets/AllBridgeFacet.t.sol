@@ -2,21 +2,13 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub AllBridgeFacet Contract
-contract TestAllBridgeFacet is AllBridgeFacet {
+contract TestAllBridgeFacet is AllBridgeFacet, TestWhitelistManagerBase {
     constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract AllBridgeFacetTest is TestBaseFacet {
@@ -40,21 +32,21 @@ contract AllBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = allBridgeFacet
             .swapAndStartBridgeTokensViaAllBridge
             .selector;
-        functionSelectors[2] = allBridgeFacet.addDex.selector;
+        functionSelectors[2] = allBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = allBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
-        allBridgeFacet.addDex(ADDRESS_UNISWAP);
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
+        allBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

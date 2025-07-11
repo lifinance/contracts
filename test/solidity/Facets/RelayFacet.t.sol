@@ -2,10 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 contract Reverter {
     error AlwaysReverts();
@@ -16,19 +16,11 @@ contract Reverter {
 }
 
 // Stub RelayFacet Contract
-contract TestRelayFacet is RelayFacet {
+contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
     constructor(
         address _relayReceiver,
         address _relaySolver
     ) RelayFacet(_relayReceiver, _relaySolver) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 
     function getMappedChainId(
         uint256 chainId
@@ -60,23 +52,23 @@ contract RelayFacetTest is TestBaseFacet {
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
             .selector;
-        functionSelectors[2] = relayFacet.addDex.selector;
+        functionSelectors[2] = relayFacet.addToWhitelist.selector;
         functionSelectors[3] = relayFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
-        relayFacet.addDex(ADDRESS_UNISWAP);
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.addToWhitelist(ADDRESS_UNISWAP);
+        relayFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

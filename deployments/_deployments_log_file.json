@@ -35472,5 +35472,21 @@
         ]
       }
     }
+  },
+  "AllowListMigratorFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3D91Bb8063127c82FEBc4866D050FD3D78C2E18",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-11 14:34:18",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
