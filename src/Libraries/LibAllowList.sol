@@ -11,15 +11,16 @@ import { LibAsset } from "./LibAsset.sol";
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.library.allow.list.v2");
+        keccak256("com.lifi.library.allow.list");
 
     struct AllowListStorage {
         mapping(address => bool) contractAllowList;
         mapping(bytes4 => bool) selectorAllowList;
+        address[] contracts;
         mapping(address => uint256) contractToIndex;
         mapping(bytes4 => uint256) selectorToIndex;
-        address[] contracts;
         bytes4[] selectors;
+        bool migrated;
     }
 
     /// @dev Adds a contract address to the allow list
@@ -91,7 +92,6 @@ library LibAllowList {
     /// @param _selector the selector to add
     function addAllowedSelector(bytes4 _selector) internal {
         AllowListStorage storage als = _getStorage();
-
         // skip if selector is already in allow list
         if (als.selectorAllowList[_selector]) return;
 
@@ -143,6 +143,54 @@ library LibAllowList {
     /// @dev Fetch all allowed selectors
     function getAllowedSelectors() internal view returns (bytes4[] memory) {
         return _getStorage().selectors;
+    }
+
+    /// @dev Migrate the allow list configuration. This function is used to migrate the allow list configuration during diamond upgrade. It is called by the AllowListMigratorFacet only once.
+    /// @param _contracts Array of contract addresses to allow
+    /// @param _selectors Array of selectors to allow
+    function migrate(
+        address[] memory _contracts,
+        bytes4[] memory _selectors
+    ) internal {
+        AllowListStorage storage als = _getStorage();
+
+        // return early if already migrated
+        if (als.migrated) return;
+
+        // clear old state
+        // reset contractAllowList
+        for (uint256 i = 0; i < als.contracts.length; i++) {
+            address contractAddr = als.contracts[i];
+            als.contractAllowList[contractAddr] = false;
+        }
+
+        // reset selectorAllowList with external selectors array because new selectors array does not exist yet
+        for (uint256 i = 0; i < _selectors.length; i++) {
+            bytes4 selector = _selectors[i];
+            als.selectorAllowList[selector] = false;
+        }
+
+        // reset contract array
+        delete als.contracts;
+        // clearing selectors is not needed as it new variable
+
+        // whitelist contracts
+        for (uint256 i = 0; i < _contracts.length; i++) {
+            addAllowedContract(_contracts[i]);
+        }
+
+        // whitelist selectors
+        for (uint256 i = 0; i < _selectors.length; i++) {
+            addAllowedSelector(_selectors[i]);
+        }
+
+        // Mark as migrated
+        als.migrated = true;
+    }
+
+    /// @dev Check if the allow list has been migrated
+    function isMigrated() internal view returns (bool) {
+        return _getStorage().migrated;
     }
 
     /// @dev Fetch local storage struct
