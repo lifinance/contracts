@@ -16,7 +16,7 @@ graph LR;
 
 - `function initMultichain(address anyNative, address[] calldata routers)`
   - Initializer method. Allow routers.
-- `function function registerRouters(address[] calldata routers, bool[] calldata allowed)`
+- `function registerRouters(address[] calldata routers, bool[] calldata allowed)`
   - Register method. Allow or disallow router.
 - `function startBridgeTokensViaMultichain(BridgeData memory _bridgeData, MultichainData calldata _multichainData)`
   - Simply bridges tokens using Multichain
