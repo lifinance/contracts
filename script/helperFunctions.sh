@@ -3719,73 +3719,57 @@ function updateDiamondLogForNetwork() {
   local ENVIRONMENT=$2
 
   # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-  RPC_URL=${!RPC_URL}
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-  # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
-  local DIAMONDS=("LiFiDiamond")
+  if [[ -z $RPC_URL ]]; then
+    error "[$NETWORK] RPC URL is not set"
+    return 1
+  fi
 
-  for DIAMOND in "${DIAMONDS[@]}"; do
-    echo "  -----------------------"
-    echo "  current DIAMOND: $DIAMOND"
+  # get diamond address
+  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
 
-    # define diamond type flag
-    if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then
-      USE_MUTABLE_DIAMOND=false
-    else
-      USE_MUTABLE_DIAMOND=true
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Failed to get LiFiDiamond address on $NETWORK in $ENVIRONMENT environment"
+    return 1
+  fi
+
+  # get list of facets
+  # execute script
+  attempts=1 # initialize attempts to 0
+
+  while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+    # try to execute call
+    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
     fi
 
-    # get diamond address
-    DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND")
-
-    if [[ $? -ne 0 ]]; then
-      continue
-    else
-      echo "    diamond address: $DIAMOND_ADDRESS"
-    fi
-
-    echo "    RPC_URL: $RPC_URL"
-
-    # get list of facets
-    # execute script
-    attempts=1 # initialize attempts to 0
-
-    while [ $attempts -lt 11 ]; do
-      echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
-      # try to execute call
-      KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-
-      # check the return code the last call
-      if [ $? -eq 0 ]; then
-        break # exit the loop if the operation was successful
-      fi
-
-      attempts=$((attempts + 1)) # increment attempts
-      sleep 1                    # wait for 1 second before trying the operation again
-    done
-
-    if [ $attempts -eq 11 ]; then
-      echo "Failed to get facets"
-    fi
-
-    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-      echo "    no facets found"
-      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
-    else
-      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
-      # saveDiamondPeriphery is executed as part of saveDiamondFacets
-    fi
-
-    # check result
-    if [[ $? -ne 0 ]]; then
-      echo "    error"
-    else
-      echo "    updated"
-    fi
-
-    echo ""
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
   done
+
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to get facets"
+  fi
+
+  if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+    echo "    no facets found"
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+  else
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
+    # saveDiamondPeriphery is executed as part of saveDiamondFacets
+  fi
+
+  # check result
+  if [[ $? -ne 0 ]]; then
+    echo "    error"
+  else
+    echo "    updated"
+  fi
 }
 
 function updateDiamondLogs() {
