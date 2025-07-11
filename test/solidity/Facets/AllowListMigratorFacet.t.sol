@@ -232,7 +232,11 @@ contract AllowListMigratorFacetTest is TestBase {
         AllowListMigratorFacet(DIAMOND).migrate(newContracts, newSelectors);
     }
 
-    function getAllApprovedSelectors() internal returns (bytes4[] memory) {
+    function getAllApprovedSelectors()
+        internal
+        view
+        returns (bytes4[] memory)
+    {
         bytes4[] memory approvedSelectors = new bytes4[](5); // Changed from 165 to 5
         uint256 count = 0;
 
