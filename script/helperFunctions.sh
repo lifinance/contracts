@@ -3796,8 +3796,10 @@ function updateDiamondLogs() {
     ENVIRONMENTS=("staging")
   fi
 
-  # Create an array to store background job PIDs
+  # Create arrays to store background job PIDs and their corresponding network/environment info
   local pids=()
+  local job_info=()
+  local job_index=0
 
   # loop through all networks
   for NETWORK in "${NETWORKS[@]}"; do
@@ -3811,19 +3813,42 @@ function updateDiamondLogs() {
       # Call the helper function in background for parallel execution
       updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
 
-      # Store the PID
+      # Store the PID and job info
       pids+=($!)
+      job_info+=("$NETWORK:$ENVIRONMENT")
+      job_index=$((job_index + 1))
     done
   done
 
-  # Wait for all background jobs to complete
+  # Wait for all background jobs to complete and capture exit codes
   echo "Waiting for all diamond log updates to complete..."
-  for pid in "${pids[@]}"; do
-    wait "$pid"
+  local failed_jobs=()
+  local job_count=${#pids[@]}
+
+  for i in "${!pids[@]}"; do
+    local pid="${pids[$i]}"
+    local info="${job_info[$i]}"
+
+    # Wait for this specific job and capture its exit code
+    if wait "$pid"; then
+      echo "[$info] Completed successfully"
+    else
+      echo "[$info] Failed with exit code $?"
+      failed_jobs+=("$info")
+    fi
   done
 
-  echo "All diamond log updates completed"
-  playNotificationSound
+  # Check if any jobs failed
+  if [ ${#failed_jobs[@]} -gt 0 ]; then
+    error "Some diamond log updates failed: ${failed_jobs[*]}"
+    echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    playNotificationSound
+    return 1
+  else
+    echo "All diamond log updates completed successfully ($job_count jobs)"
+    playNotificationSound
+    return 0
+  fi
 }
 
 # Function: install_foundry_zksync
