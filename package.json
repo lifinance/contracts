@@ -14,7 +14,7 @@
     "smart-contracts",
     "template",
     "cross-chain",
-    "solidity"
+    "solidity",
   ],
   "devDependencies": {
     "@mayanfinance/swap-sdk": "^8.5.0",
