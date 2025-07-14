@@ -86,6 +86,8 @@ function logContractDeploymentInfo {
   local ADDRESS="$8"
   local VERIFIED="$9"
   local SALT="${10}"
+  local SOLC_VERSION="${11}"
+  local EVM_VERSION="${12}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -105,6 +107,8 @@ function logContractDeploymentInfo {
   echoDebug "ADDRESS=$ADDRESS"
   echoDebug "VERIFIED=$VERIFIED"
   echoDebug "SALT=$SALT"
+  echoDebug "SOLC_VERSION=$SOLC_VERSION"
+  echoDebug "EVM_VERSION=$EVM_VERSION"
   echo ""
 
   # Check if log FILE exists, if not create it
@@ -174,6 +178,14 @@ function logContractDeploymentInfo {
     # Add optional salt parameter if provided
     if [[ -n "$SALT" ]]; then
       MONGO_CMD+=(--salt "$SALT")
+    fi
+
+    # Add version parameters if provided
+    if [[ -n "$SOLC_VERSION" ]]; then
+      MONGO_CMD+=(--solc-version "$SOLC_VERSION")
+    fi
+    if [[ -n "$EVM_VERSION" ]]; then
+      MONGO_CMD+=(--evm-version "$EVM_VERSION")
     fi
 
     # Execute MongoDB logging command – keep stderr in debug mode
@@ -592,6 +604,30 @@ function getUnverifiedContractsFromMongo() {
     --verified=false \
     --limit=1000 2>/dev/null
   return $?
+}
+
+function getSolcVersion() {
+  local NETWORK="$1"
+  
+  if isZkEvmNetwork "$NETWORK"; then
+    # Extract from zksync profile
+    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
+  else
+    # Extract from default profile  
+    grep -A 10 "^\[profile\.default\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
+  fi
+}
+
+function getEvmVersion() {
+  local NETWORK="$1"
+  
+  if isZkEvmNetwork "$NETWORK"; then
+    # For zkEVM networks, return appropriate identifier
+    echo "zkevm"
+  else
+    # Extract from default profile
+    grep -A 10 "^\[profile\.default\]" foundry.toml | grep "evm_version" | cut -d "'" -f 2
+  fi
 }
 # <<<<< MongoDB logging integration
 

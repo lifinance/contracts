@@ -32,6 +32,10 @@ export interface IDeploymentRecord {
   salt?: string
   /** Whether the contract has been verified on block explorer */
   verified: boolean
+  /** Solidity compiler version used during deployment */
+  solcVersion?: string
+  /** EVM version used during deployment */
+  evmVersion?: string
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */

@@ -27,6 +27,8 @@ interface IDeploymentRecord {
   constructorArgs: string
   salt?: string
   verified: boolean
+  solcVersion?: string
+  evmVersion?: string
 
   // Metadata for tracking
   createdAt: Date
@@ -45,6 +47,8 @@ interface IRawDeploymentData {
   CONSTRUCTOR_ARGS: string
   SALT?: string
   VERIFIED: string
+  SOLC_VERSION?: string
+  EVM_VERSION?: string
 }
 
 interface IJsonDataStructure {
@@ -290,6 +294,8 @@ class DeploymentLogManager {
                   constructorArgs: typedDeployment.CONSTRUCTOR_ARGS,
                   salt: typedDeployment.SALT || undefined,
                   verified: typedDeployment.VERIFIED === 'true',
+                  solcVersion: typedDeployment.SOLC_VERSION,
+                  evmVersion: typedDeployment.EVM_VERSION,
                   createdAt: new Date(),
                   updatedAt: new Date(),
                   contractNetworkKey: `${contractName}-${network}`,
@@ -334,6 +340,8 @@ class DeploymentLogManager {
         constructorArgs: record.constructorArgs,
         salt: record.salt,
         verified: record.verified,
+        solcVersion: record.solcVersion,
+        evmVersion: record.evmVersion,
         contractNetworkKey: record.contractNetworkKey,
         contractVersionKey: record.contractVersionKey,
         updatedAt: new Date(),
@@ -370,6 +378,8 @@ class DeploymentLogManager {
             constructorArgs: record.constructorArgs,
             salt: record.salt,
             verified: record.verified,
+            solcVersion: record.solcVersion,
+            evmVersion: record.evmVersion,
             contractNetworkKey: record.contractNetworkKey,
             contractVersionKey: record.contractVersionKey,
             updatedAt: new Date(),
@@ -705,6 +715,16 @@ const addCommand = defineCommand({
       description: 'Salt value (optional)',
       required: false,
     },
+    'solc-version': {
+      type: 'string',
+      description: 'Solidity compiler version',
+      required: false,
+    },
+    'evm-version': {
+      type: 'string',
+      description: 'EVM version',
+      required: false,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -731,6 +751,8 @@ const addCommand = defineCommand({
       constructorArgs: args['constructor-args'],
       salt: args.salt || undefined,
       verified: args.verified === 'true',
+      solcVersion: args['solc-version'],
+      evmVersion: args['evm-version'],
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,
@@ -813,6 +835,16 @@ const updateCommand = defineCommand({
       description: 'Update salt value',
       required: false,
     },
+    'solc-version': {
+      type: 'string',
+      description: 'Solidity compiler version',
+      required: false,
+    },
+    'evm-version': {
+      type: 'string',
+      description: 'EVM version',
+      required: false,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -838,6 +870,8 @@ const updateCommand = defineCommand({
       updates.constructorArgs = args['constructor-args']
     if (args.verified) updates.verified = args.verified === 'true'
     if (args.salt !== undefined) updates.salt = args.salt || undefined
+    if (args['solc-version']) updates.solcVersion = args['solc-version']
+    if (args['evm-version']) updates.evmVersion = args['evm-version']
 
     if (Object.keys(updates).length === 0) {
       consola.error(
