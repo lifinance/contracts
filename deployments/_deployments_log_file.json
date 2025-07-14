@@ -34059,6 +34059,132 @@
           }
         ]
       }
+    },
+    "aurora": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:23:00",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "boba": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:23:13",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fuse": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:27:12",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:28:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "moonbeam": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:30:01",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "kaia": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0x7AbF00987740d6db0d1180171B6ad41bE2b6b85C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:30:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:37:17",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygonzkevm": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:37:36",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "2.0.4": [
+          {
+            "ADDRESS": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 07:38:24",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
