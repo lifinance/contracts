@@ -13,7 +13,13 @@ import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { type Db, type Collection, type ObjectId, MongoClient } from 'mongodb'
+import {
+  type Db,
+  type Collection,
+  type ObjectId,
+  type IndexSpecification,
+  MongoClient,
+} from 'mongodb'
 
 // TypeScript interface for deployment records
 interface IDeploymentRecord {
@@ -82,8 +88,8 @@ const config: IConfig = {
 
 class DeploymentLogManager {
   private client: MongoClient
-  private db: Db
-  private collection: Collection<IDeploymentRecord>
+  private db: Db | undefined
+  private collection: Collection<IDeploymentRecord> | undefined
 
   public constructor(
     private config: IConfig,
@@ -121,17 +127,22 @@ class DeploymentLogManager {
   }
 
   private async createIndexes(): Promise<void> {
+    if (!this.collection) {
+      consola.error('Collection not initialized')
+      return
+    }
+
     const indexSpecs = [
       {
-        key: { contractName: 1, network: 1, version: 1 },
+        key: { contractName: 1, network: 1, version: 1 } as IndexSpecification,
         name: 'contract_network_version',
       },
       {
-        key: { contractNetworkKey: 1, version: 1 },
+        key: { contractNetworkKey: 1, version: 1 } as IndexSpecification,
         name: 'contract_network_key_version',
       },
-      { key: { timestamp: -1 }, name: 'timestamp_desc' },
-      { key: { address: 1 }, name: 'address' },
+      { key: { timestamp: -1 } as IndexSpecification, name: 'timestamp_desc' },
+      { key: { address: 1 } as IndexSpecification, name: 'address' },
     ]
 
     try {
@@ -322,6 +333,10 @@ class DeploymentLogManager {
   }
 
   public async upsertDeployment(record: IDeploymentRecord): Promise<void> {
+    if (!this.collection) 
+      throw new Error('Collection not initialized')
+    
+
     const filter = {
       contractName: record.contractName,
       network: record.network,
@@ -358,6 +373,10 @@ class DeploymentLogManager {
     records: IDeploymentRecord[]
   ): Promise<void> {
     if (records.length === 0) return
+
+    if (!this.collection) 
+      throw new Error('Collection not initialized')
+    
 
     const operations = records.map((record) => ({
       updateOne: {
@@ -421,6 +440,10 @@ class DeploymentLogManager {
   }
 
   public async syncDeployments(): Promise<void> {
+    if (!this.collection) 
+      throw new Error('Collection not initialized')
+    
+
     try {
       consola.info('Reading deployment log file...')
       const jsonData = JSON.parse(readFileSync(this.config.logFilePath, 'utf8'))
@@ -571,6 +594,10 @@ class DeploymentLogManager {
     address: string,
     updates: Partial<IDeploymentRecord>
   ): Promise<void> {
+    if (!this.collection) 
+      throw new Error('Collection not initialized')
+    
+
     const filter = {
       contractName,
       network,
@@ -598,6 +625,9 @@ class DeploymentLogManager {
   public async queryDeployments(
     filters: Partial<IDeploymentRecord>
   ): Promise<IDeploymentRecord[]> {
+    if (!this.collection) 
+      throw new Error('Collection not initialized')
+    
     return this.collection.find(filters).toArray()
   }
 
@@ -605,6 +635,9 @@ class DeploymentLogManager {
     contractName: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
+    if (!this.collection) 
+      throw new Error('Collection not initialized')
+    
     return this.collection.findOne(
       { contractName, network },
       { sort: { timestamp: -1 } }
