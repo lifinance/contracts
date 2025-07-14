@@ -131,15 +131,14 @@ const main = defineCommand({
     //          │          Check that all facets are registered           │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking facets registered in diamond...')
-    $.quiet = true
 
     let registeredFacets: string[] = []
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
         const rpcUrl: string = chain.rpcUrls.default.http
-        const facetsResult =
-          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`
-        const rawString = facetsResult.stdout
+        const rawString =
+          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`.text()
+        console.log(rawString)
 
         const jsonCompatibleString = rawString
           .replace(/\(/g, '[')
