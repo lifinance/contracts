@@ -72,6 +72,14 @@
       "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
         "Name": "GasZipFacet",
         "Version": "2.0.0"
+      },
+      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -79,16 +87,13 @@
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
-      "Permit2Proxy": "",
-      "Receiver": "0x2fA14922ABc117c4737260032C8fD6D9Ab35395A",
+      "Permit2Proxy": "0xBDfF0c1C8B0b779581C4aC3bA1F29667C366C56e",
       "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "RelayerCelerIM": "",
-      "TokenWrapper": "0x0263180888007D45340F86eC0b610d250BbDcB23",
-      "Permit2Proxy.flattened": "",
-      "ReceiverChainflip": ""
+      "TokenWrapper": "0x0263180888007D45340F86eC0b610d250BbDcB23"
     }
   }
 }
