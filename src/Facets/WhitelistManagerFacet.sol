@@ -151,11 +151,13 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
     /// @notice Migrate the allow list configuration with new contracts and selectors.
     /// @dev This function can only be called by the diamond owner or authorized addresses.
-    /// @param _contracts Array of contract addresses to allow.
-    /// @param _selectors Array of selectors to allow.
+    /// @param _selectorsToRemove Array of selectors to remove from the allow list.
+    /// @param _contractsToAdd Array of contract addresses to add to the allow list.
+    /// @param _selectorsToAdd Array of selectors to add to the allow list.
     function migrate(
-        address[] calldata _contracts,
-        bytes4[] calldata _selectors
+        bytes4[] calldata _selectorsToRemove,
+        address[] calldata _contractsToAdd,
+        bytes4[] calldata _selectorsToAdd
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -174,8 +176,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
 
         // reset selectorAllowList with external selectors array because new selectors array does not exist yet
-        for (uint256 i = 0; i < _selectors.length; i++) {
-            bytes4 selector = _selectors[i];
+        for (uint256 i = 0; i < _selectorsToRemove.length; i++) {
+            bytes4 selector = _selectorsToRemove[i];
             als.selectorAllowList[selector] = false;
         }
 
@@ -184,13 +186,13 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         // clearing selectors is not needed as it new variable
 
         // whitelist contracts
-        for (uint256 i = 0; i < _contracts.length; i++) {
-            LibAllowList.addAllowedContract(_contracts[i]);
+        for (uint256 i = 0; i < _contractsToAdd.length; i++) {
+            LibAllowList.addAllowedContract(_contractsToAdd[i]);
         }
 
         // whitelist selectors
-        for (uint256 i = 0; i < _selectors.length; i++) {
-            LibAllowList.addAllowedSelector(_selectors[i]);
+        for (uint256 i = 0; i < _selectorsToAdd.length; i++) {
+            LibAllowList.addAllowedSelector(_selectorsToAdd[i]);
         }
 
         // Mark as migrated

@@ -930,6 +930,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         // 1. reset the old state to the initial state
         // 2. add the new contracts and selectors to the allow list one more time in order to have correct mapping of contract addresses and selectors
         WhitelistManagerFacet(DIAMOND).migrate(
+            currentWhitelistedSelectors,
             whitelistedAddresses,
             selectorsToWhitelist
         );
@@ -995,14 +996,19 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             migratorSelectors
         );
 
-        address[] memory newContracts = new address[](0);
-        bytes4[] memory newSelectors = new bytes4[](0);
+        bytes4[] memory selectorsToRemove = new bytes4[](0);
+        address[] memory contractsToAdd = new address[](0);
+        bytes4[] memory selectorsToAdd = new bytes4[](0);
 
         // try to call migrate as non-owner
         address nonOwner = address(0x123);
         vm.prank(nonOwner);
         vm.expectRevert(UnAuthorized.selector);
-        WhitelistManagerFacet(DIAMOND).migrate(newContracts, newSelectors);
+        WhitelistManagerFacet(DIAMOND).migrate(
+            selectorsToRemove,
+            contractsToAdd,
+            selectorsToAdd
+        );
     }
 
     function getAllApprovedSelectors()
