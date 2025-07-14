@@ -1082,9 +1082,10 @@
     "safeAddress": "0x20577798deE0F3116cF4f7ffff0143228d6A5090",
     "gasZipChainId": 420,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
+    "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
+    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287",
+    "devNotes": "Was on cancun + 0.8.17 but now switched to london + 0.8.17 to make it part of legacy networksgroup. If that doesnt work, revert to old state"
   },
   "xlayer": {
     "name": "xlayer",
