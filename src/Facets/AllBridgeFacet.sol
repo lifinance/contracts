@@ -23,10 +23,6 @@ contract AllBridgeFacet is
     Validatable,
     LiFiData
 {
-    uint256 private constant CHAIN_ID_ETHEREUM = 1;
-    uint256 private constant CHAIN_ID_ARBITRUM = 42161;
-    uint256 private constant CHAIN_ID_SOLANA = 1151111081099710;
-    uint256 private constant CHAIN_ID_BITCOIN = 20000000000001;
     uint32 private constant ALLBRIDGE_ID_ETHEREUM = 1;
     uint32 private constant ALLBRIDGE_ID_BSC = 2;
     uint32 private constant ALLBRIDGE_ID_TRON = 3;
@@ -38,6 +34,14 @@ contract AllBridgeFacet is
     uint32 private constant ALLBRIDGE_ID_OPTIMISM = 10;
     uint32 private constant ALLBRIDGE_ID_CELO = 11;
     uint32 private constant ALLBRIDGE_ID_SUI = 13;
+    uint256 internal constant LIFI_CHAIN_ID_ETHEREUM = 1;
+    uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
+    uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
+    uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
+    uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
+    uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
+    uint256 internal constant LIFI_CHAIN_ID_OPTIMISM = 10;
+    uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
 
     error UnsupportedAllBridgeChainId();
 
@@ -125,14 +129,16 @@ contract AllBridgeFacet is
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
     ) internal {
-        // validate destinationChainId
-        uint256 destinationChainId = _bridgeData.destinationChainId;
-        if (destinationChainId != _getAllBridgeChainId(destinationChainId))
-            revert InvalidCallData();
+        // make sure destinationChainId matches in bridgeData and allBridgeData
+        if (
+            _allBridgeData.destinationChainId !=
+            _getAllBridgeChainId(_bridgeData.destinationChainId)
+        ) revert InvalidCallData();
 
         // validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             // destination chain is non-EVM
+            // make sure it's non-zero (we cannot validate further)
             if (_allBridgeData.recipient == bytes32(0))
                 revert InvalidNonEVMReceiver();
         } else {
@@ -144,13 +150,16 @@ contract AllBridgeFacet is
             ) revert InvalidReceiver();
         }
 
+        // set max approval to allBridge, if current allowance is insufficient
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(allBridge),
             _bridgeData.minAmount
         );
 
+        // check if bridge fee should be paid with sending or native asset
         if (_allBridgeData.payFeeWithSendingAsset) {
+            // pay fee with sending asset
             allBridge.swapAndBridge(
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
@@ -162,6 +171,7 @@ contract AllBridgeFacet is
                 _allBridgeData.fees
             );
         } else {
+            // pay fee with native asset
             allBridge.swapAndBridge{ value: _allBridgeData.fees }(
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
@@ -186,7 +196,7 @@ contract AllBridgeFacet is
     ) internal pure returns (uint256) {
         // split possible values in half for more efficient search/matching
 
-        // first try to match cases where chainId is the same
+        // first try to match cases where chainId is the same and does not need to be mapped
         if (
             destinationChainId == ALLBRIDGE_ID_ETHEREUM ||
             destinationChainId == ALLBRIDGE_ID_OPTIMISM
