@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title Whitelist Manager Facet Interface
 /// @author LI.FI (https://li.fi)
 /// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 interface IWhitelistManagerFacet {
     /// @notice Emitted when a new address is added to the whitelist.
     event AddressWhitelisted(address indexed whitelistedAddress);
@@ -83,4 +83,19 @@ interface IWhitelistManagerFacet {
         external
         view
         returns (bytes4[] memory selectors);
+
+    /// @notice Migrate the allow list configuration with new contracts and selectors.
+    /// @dev This function can only be called by the diamond owner or authorized addresses.
+    /// @param _selectorsToRemove Array of selectors to remove from the allow list.
+    /// @param _contractsToAdd Array of contract addresses to add to the allow list.
+    /// @param _selectorsToAdd Array of selectors to add to the allow list.
+    function migrate(
+        bytes4[] calldata _selectorsToRemove,
+        address[] calldata _contractsToAdd,
+        bytes4[] calldata _selectorsToAdd
+    ) external;
+
+    /// @notice Check if the allow list has been migrated.
+    /// @return True if the allow list has been migrated, false otherwise.
+    function isMigrated() external view returns (bool);
 }

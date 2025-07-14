@@ -57,6 +57,7 @@
     "abi:removeDuplicateEvents": "bunx tsx ./script/removeDuplicateEventsFromABI.ts",
     "add-network-rpc": "bunx tsx ./script/mongoDb/add-network-rpc.ts",
     "add-safe-owners-and-threshold": "bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
+    "allowlist-migration": "bunx tsx ./script/migration/allowListMigration.ts",
     "codegen": "plop",
     "compile": "forge build",
     "confirm-safe-tx": "bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",

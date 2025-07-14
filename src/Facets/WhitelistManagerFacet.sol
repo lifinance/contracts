@@ -10,7 +10,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @title Whitelist Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
@@ -149,11 +149,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// Temporary methods for migration ///
     /// @dev These methods should be removed after the migration is complete. On the next facet upgrade, this section should be removed.
 
-    /// @notice Migrate the allow list configuration with new contracts and selectors.
-    /// @dev This function can only be called by the diamond owner or authorized addresses.
-    /// @param _selectorsToRemove Array of selectors to remove from the allow list.
-    /// @param _contractsToAdd Array of contract addresses to add to the allow list.
-    /// @param _selectorsToAdd Array of selectors to add to the allow list.
+    /// @inheritdoc IWhitelistManagerFacet
     function migrate(
         bytes4[] calldata _selectorsToRemove,
         address[] calldata _contractsToAdd,
@@ -199,9 +195,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         als.migrated = true;
     }
 
-    /// @notice Check if the allow list has been migrated.
-    /// @dev This function can only be called by the diamond owner or authorized addresses.
-    /// @return True if the allow list has been migrated, false otherwise.
+    /// @inheritdoc IWhitelistManagerFacet
     function isMigrated() external view returns (bool) {
         LibAllowList.AllowListStorage storage als = _getAllowListStorage();
         return als.migrated;
@@ -213,8 +207,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         pure
         returns (LibAllowList.AllowListStorage storage als)
     {
-        bytes32 position = keccak256("com.lifi.library.allow.list");
-        // solhint-disable-next-line no-inline-assembly
+        bytes32 position = LibAllowList.NAMESPACE;
         assembly {
             als.slot := position
         }
