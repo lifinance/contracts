@@ -1554,19 +1554,11 @@ function verifyContract() {
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
   # Build base verification command
-  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-
-  # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
-    VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-  fi
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH"
 
   # Handle zkEVM networks
   if isZkEvmNetwork "$NETWORK"; then
-    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-    if [ "$ARGS" != "0x" ]; then
-      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-    fi
+    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH"
   fi
 
   # Get API key and determine verification method
@@ -1580,6 +1572,11 @@ function verifyContract() {
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+    # add constructor args if present
+    if [ "$ARGS" != "0x" ]; then
+      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
+    fi
+
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
       echo "Error: Could not find API key for network $NETWORK"
@@ -1597,9 +1594,25 @@ function verifyContract() {
 
   # Attempt verification with retries
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
-    # execute verification command
-    FOUNDRY_LOG=trace eval "$VERIFY_CMD"
+    # execute verification command and capture output
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace eval "$VERIFY_CMD" 2>&1)
     COMMAND_STATUS=$?
+
+    echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Parse verification response
+    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
+    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+
+    # Check if verification actually succeeded
+    if [[ "$RESPONSE" == "OK" && "$DETAILS" != *"Fail"* && "$DETAILS" != *"Unable to verify"* && "$DETAILS" != *"Pending"* ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+      return 0
+    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
+      # HTTP request succeeded but verification failed
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
+      COMMAND_STATUS=1
+    fi
 
     # increase retry counter
     RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -1608,11 +1621,9 @@ function verifyContract() {
     [ $COMMAND_STATUS -ne 0 ] && sleep 2
   done
 
-  # Check verification status
-  if [ $COMMAND_STATUS -eq 0 ]; then
-    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-    return 0
-  fi
+  # If we get here, verification failed after all retries
+  echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
+  return 1
 
   # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
