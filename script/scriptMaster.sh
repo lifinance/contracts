@@ -50,6 +50,15 @@ scriptMaster() {
     forge build
   fi
 
+  # warn if SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true and this should only be activated for new network deployments
+  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
+    echo ""
+    echo ""
+    warning "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true. This should only be activated for new network deployments."
+    echo ""
+    echo ""
+  fi
+
   # start local anvil network if flag in config is set
   if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then
     # check if anvil is already running
@@ -497,7 +506,7 @@ scriptMaster() {
 
     if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
       # call update diamond log function
-      updateDiamondLogs
+      updateDiamondLogs "$ENVIRONMENT"
     else
       checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
       # get user-selected network from list
@@ -514,7 +523,7 @@ scriptMaster() {
       checkRequiredVariablesInDotEnv $NETWORK
 
       # call update diamond log function
-      updateDiamondLogs "$NETWORK"
+      updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
   # use case 12: Propose upgrade TX to Gnosis SAFE

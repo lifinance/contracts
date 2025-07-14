@@ -18,9 +18,13 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// Storage ///
 
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable nativeBridge;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable nativeL2CanonicalToken;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable nativeHToken;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable nativeExchangeAddress;
 
     /// Errors ///
@@ -172,14 +176,17 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 bonderFee,
         uint256 amountOutMin
     ) external pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             bonderFee <= type(uint128).max,
             "bonderFee value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             amountOutMin <= type(uint128).max,
             "amountOutMin value passed too big to fit in uint128"
@@ -205,6 +212,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             _data.length >= 68,
             "data passed in is not the correct length"
@@ -345,26 +353,32 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 destinationDeadline,
         address wrapper
     ) external pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             minAmount <= type(uint128).max,
             "amount value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             bonderFee <= type(uint128).max,
             "bonderFee value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             amountOutMin <= type(uint128).max,
             "amountOutMin value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationDeadline <= type(uint32).max,
             "destinationDeadline value passed too big to fit in uint32"
@@ -395,6 +409,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             _data.length >= 144,
             "data passed in is not the correct length"
@@ -496,14 +511,17 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 relayerFee,
         address hopBridge
     ) external pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             relayerFee <= type(uint128).max,
             "relayerFee value passed too big to fit in uint128"
@@ -531,6 +549,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             _data.length >= 108,
             "data passed in is not the correct length"
@@ -653,18 +672,22 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 relayerFee,
         address hopBridge
     ) external pure returns (bytes memory) {
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             minAmount <= type(uint128).max,
             "amount value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
+        // solhint-disable-next-line gas-custom-errors
         require(
             relayerFee <= type(uint128).max,
             "relayerFee value passed too big to fit in uint128"
@@ -694,6 +717,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             _data.length >= 144,
             "data passed in is not the correct length"

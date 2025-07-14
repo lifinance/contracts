@@ -68,6 +68,7 @@ nibiru = "${ETH_NODE_URI_NIBIRU}"
 okx = "${ETH_NODE_URI_OKX}"
 opbnb = "${ETH_NODE_URI_OPBNB}"
 optimism = "${ETH_NODE_URI_OPTIMISM}"
+plume = "${ETH_NODE_URI_PLUME}"
 polygon = "${ETH_NODE_URI_POLYGON}"
 polygonzkevm = "${ETH_NODE_URI_POLYGONZKEVM}"
 rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
@@ -79,6 +80,7 @@ swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 velas = "${ETH_NODE_URI_VELAS}"
 unichain = "${ETH_NODE_URI_UNICHAIN}"
+vana = "${ETH_NODE_URI_VANA}"
 viction = "${ETH_NODE_URI_VICTION}"
 worldchain = "${ETH_NODE_URI_WORLDCHAIN}"
 xdc = "${ETH_NODE_URI_XDC}"
@@ -121,14 +123,15 @@ katana = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-katana.t.condu
 lens = { key = "${LENS_ETHERSCAN_API_KEY}", url = "https://api-explorer-verify.lens.matterhosted.dev/contract_verification", chain = "232", verifier = "zksync" }
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }
 lisk = { key = "${BLOCKSCOUT_API_KEY}", url = "https://blockscout.lisk.com/api", chain = "1135", verifier = "blockscout" }
-mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan", chain = "5000" }
-metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
+mantle = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=5000", chain = "5000" }
+metis = { key = "${VERIFY_CONTRACT_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
 moonbeam = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1284", chain = "1284" }
 moonriver = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1285", chain = "1285" }
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }
 opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://api-opbnb.bscscan.com/api", chain = "204" }
+plume = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-plume-mainnet-1.t.conduit.xyz/api", verifier = "blockscout", chain = "98866" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
 polygonzkevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1101", chain = "1101" }
 rootstock= { key = "${BLOCKSCOUT_API_KEY}", url = "https://rootstock.blockscout.com/api", chain = "30", verifier = "blockscout" }
@@ -140,6 +143,7 @@ superposition = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-superpo
 swellchain = { key = "${SWELLCHAIN_ETHERSCAN_API_KEY}", url = "https://api.swellchainscan.io/api", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 unichain = { key = "${BLOCKSCOUT_API_KEY}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
+vana = { key = "${BLOCKSCOUT_API_KEY}", url = "https://vanascan.io/api", chain = "1480", verifier = "blockscout" }
 viction = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.vicscan.xyz/api/contract/foundry/verify", chain = "88" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
 xdc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50", chain = "50" }
