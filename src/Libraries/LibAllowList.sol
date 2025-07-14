@@ -145,54 +145,6 @@ library LibAllowList {
         return _getStorage().selectors;
     }
 
-    /// @dev Migrate the allow list configuration. This function is used to migrate the allow list configuration during diamond upgrade. It is called by the AllowListMigratorFacet only once.
-    /// @param _contracts Array of contract addresses to allow
-    /// @param _selectors Array of selectors to allow
-    function migrate(
-        address[] memory _contracts,
-        bytes4[] memory _selectors
-    ) internal {
-        AllowListStorage storage als = _getStorage();
-
-        // return early if already migrated
-        if (als.migrated) return;
-
-        // clear old state
-        // reset contractAllowList
-        for (uint256 i = 0; i < als.contracts.length; i++) {
-            address contractAddr = als.contracts[i];
-            als.contractAllowList[contractAddr] = false;
-        }
-
-        // reset selectorAllowList with external selectors array because new selectors array does not exist yet
-        for (uint256 i = 0; i < _selectors.length; i++) {
-            bytes4 selector = _selectors[i];
-            als.selectorAllowList[selector] = false;
-        }
-
-        // reset contract array
-        delete als.contracts;
-        // clearing selectors is not needed as it new variable
-
-        // whitelist contracts
-        for (uint256 i = 0; i < _contracts.length; i++) {
-            addAllowedContract(_contracts[i]);
-        }
-
-        // whitelist selectors
-        for (uint256 i = 0; i < _selectors.length; i++) {
-            addAllowedSelector(_selectors[i]);
-        }
-
-        // Mark as migrated
-        als.migrated = true;
-    }
-
-    /// @dev Check if the allow list has been migrated
-    function isMigrated() internal view returns (bool) {
-        return _getStorage().migrated;
-    }
-
     /// @dev Fetch local storage struct
     function _getStorage()
         internal

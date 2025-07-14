@@ -145,4 +145,76 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
             emit FunctionSelectorApprovalChanged(_selector, _approval);
         }
     }
+
+    /// Temporary methods for migration ///
+    /// @dev These methods should be removed after the migration is complete. On the next facet upgrade, this section should be removed.
+
+    /// @notice Migrate the allow list configuration with new contracts and selectors.
+    /// @dev This function can only be called by the diamond owner or authorized addresses.
+    /// @param _contracts Array of contract addresses to allow.
+    /// @param _selectors Array of selectors to allow.
+    function migrate(
+        address[] calldata _contracts,
+        bytes4[] calldata _selectors
+    ) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+
+        // return early if already migrated
+        if (als.migrated) return;
+
+        // clear old state
+        // reset contractAllowList
+        for (uint256 i = 0; i < als.contracts.length; i++) {
+            address contractAddr = als.contracts[i];
+            als.contractAllowList[contractAddr] = false;
+        }
+
+        // reset selectorAllowList with external selectors array because new selectors array does not exist yet
+        for (uint256 i = 0; i < _selectors.length; i++) {
+            bytes4 selector = _selectors[i];
+            als.selectorAllowList[selector] = false;
+        }
+
+        // reset contract array
+        delete als.contracts;
+        // clearing selectors is not needed as it new variable
+
+        // whitelist contracts
+        for (uint256 i = 0; i < _contracts.length; i++) {
+            LibAllowList.addAllowedContract(_contracts[i]);
+        }
+
+        // whitelist selectors
+        for (uint256 i = 0; i < _selectors.length; i++) {
+            LibAllowList.addAllowedSelector(_selectors[i]);
+        }
+
+        // Mark as migrated
+        als.migrated = true;
+    }
+
+    /// @notice Check if the allow list has been migrated.
+    /// @dev This function can only be called by the diamond owner or authorized addresses.
+    /// @return True if the allow list has been migrated, false otherwise.
+    function isMigrated() external view returns (bool) {
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+        return als.migrated;
+    }
+
+    /// @dev Fetch allow list storage struct
+    function _getAllowListStorage()
+        internal
+        pure
+        returns (LibAllowList.AllowListStorage storage als)
+    {
+        bytes32 position = keccak256("com.lifi.library.allow.list");
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            als.slot := position
+        }
+    }
 }
