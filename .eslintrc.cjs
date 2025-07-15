@@ -105,7 +105,7 @@ module.exports = {
         format: ['PascalCase'],
         suffix: ['Enum']
       }
-    ],
+    ]
   },
   settings: {
     'import/resolver': {
