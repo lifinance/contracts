@@ -88,6 +88,7 @@ function logContractDeploymentInfo {
   local SALT="${10}"
   local SOLC_VERSION="${11}"
   local EVM_VERSION="${12}"
+  local ZK_SOLC_VERSION="${13}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -109,6 +110,7 @@ function logContractDeploymentInfo {
   echoDebug "SALT=$SALT"
   echoDebug "SOLC_VERSION=$SOLC_VERSION"
   echoDebug "EVM_VERSION=$EVM_VERSION"
+  echoDebug "ZK_SOLC_VERSION=$ZK_SOLC_VERSION"
   echo ""
 
   # Check if log FILE exists, if not create it
@@ -138,7 +140,8 @@ function logContractDeploymentInfo {
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
+      --arg ZK_SOLC_VERSION "$ZK_SOLC_VERSION" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED, ZK_SOLC_VERSION: $ZK_SOLC_VERSION }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -151,7 +154,8 @@ function logContractDeploymentInfo {
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg SALT "$SALT" \
       --arg VERIFIED "$VERIFIED" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
+      --arg ZK_SOLC_VERSION "$ZK_SOLC_VERSION" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED, ZK_SOLC_VERSION: $ZK_SOLC_VERSION }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -186,6 +190,9 @@ function logContractDeploymentInfo {
     fi
     if [[ -n "$EVM_VERSION" ]]; then
       MONGO_CMD+=(--evm-version "$EVM_VERSION")
+    fi
+    if [[ -n "$ZK_SOLC_VERSION" ]]; then
+      MONGO_CMD+=(--zk-solc-version "$ZK_SOLC_VERSION")
     fi
 
     # Execute MongoDB logging command – keep stderr in debug mode
@@ -627,6 +634,17 @@ function getEvmVersion() {
   else
     # Extract from default profile
     grep -A 10 "^\[profile\.default\]" foundry.toml | grep "evm_version" | cut -d "'" -f 2
+  fi
+}
+
+function getZkSolcVersion() {
+  local NETWORK="$1"
+  
+  if isZkEvmNetwork "$NETWORK"; then
+    # Extract zksolc version from zksync profile
+    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+  else
+    echo ""
   fi
 }
 # <<<<< MongoDB logging integration

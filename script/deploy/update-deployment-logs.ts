@@ -35,6 +35,7 @@ interface IDeploymentRecord {
   verified: boolean
   solcVersion?: string
   evmVersion?: string
+  zkSolcVersion?: string
 
   // Metadata for tracking
   createdAt: Date
@@ -55,6 +56,7 @@ interface IRawDeploymentData {
   VERIFIED: string
   SOLC_VERSION?: string
   EVM_VERSION?: string
+  ZK_SOLC_VERSION?: string
 }
 
 interface IJsonDataStructure {
@@ -307,6 +309,7 @@ class DeploymentLogManager {
                   verified: typedDeployment.VERIFIED === 'true',
                   solcVersion: typedDeployment.SOLC_VERSION,
                   evmVersion: typedDeployment.EVM_VERSION,
+                  zkSolcVersion: typedDeployment.ZK_SOLC_VERSION,
                   createdAt: new Date(),
                   updatedAt: new Date(),
                   contractNetworkKey: `${contractName}-${network}`,
@@ -333,9 +336,7 @@ class DeploymentLogManager {
   }
 
   public async upsertDeployment(record: IDeploymentRecord): Promise<void> {
-    if (!this.collection) 
-      throw new Error('Collection not initialized')
-    
+    if (!this.collection) throw new Error('Collection not initialized')
 
     const filter = {
       contractName: record.contractName,
@@ -357,6 +358,7 @@ class DeploymentLogManager {
         verified: record.verified,
         solcVersion: record.solcVersion,
         evmVersion: record.evmVersion,
+        zkSolcVersion: record.zkSolcVersion,
         contractNetworkKey: record.contractNetworkKey,
         contractVersionKey: record.contractVersionKey,
         updatedAt: new Date(),
@@ -374,9 +376,7 @@ class DeploymentLogManager {
   ): Promise<void> {
     if (records.length === 0) return
 
-    if (!this.collection) 
-      throw new Error('Collection not initialized')
-    
+    if (!this.collection) throw new Error('Collection not initialized')
 
     const operations = records.map((record) => ({
       updateOne: {
@@ -399,6 +399,7 @@ class DeploymentLogManager {
             verified: record.verified,
             solcVersion: record.solcVersion,
             evmVersion: record.evmVersion,
+            zkSolcVersion: record.zkSolcVersion,
             contractNetworkKey: record.contractNetworkKey,
             contractVersionKey: record.contractVersionKey,
             updatedAt: new Date(),
@@ -440,9 +441,7 @@ class DeploymentLogManager {
   }
 
   public async syncDeployments(): Promise<void> {
-    if (!this.collection) 
-      throw new Error('Collection not initialized')
-    
+    if (!this.collection) throw new Error('Collection not initialized')
 
     try {
       consola.info('Reading deployment log file...')
@@ -594,9 +593,7 @@ class DeploymentLogManager {
     address: string,
     updates: Partial<IDeploymentRecord>
   ): Promise<void> {
-    if (!this.collection) 
-      throw new Error('Collection not initialized')
-    
+    if (!this.collection) throw new Error('Collection not initialized')
 
     const filter = {
       contractName,
@@ -625,9 +622,8 @@ class DeploymentLogManager {
   public async queryDeployments(
     filters: Partial<IDeploymentRecord>
   ): Promise<IDeploymentRecord[]> {
-    if (!this.collection) 
-      throw new Error('Collection not initialized')
-    
+    if (!this.collection) throw new Error('Collection not initialized')
+
     return this.collection.find(filters).toArray()
   }
 
@@ -635,9 +631,8 @@ class DeploymentLogManager {
     contractName: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
-    if (!this.collection) 
-      throw new Error('Collection not initialized')
-    
+    if (!this.collection) throw new Error('Collection not initialized')
+
     return this.collection.findOne(
       { contractName, network },
       { sort: { timestamp: -1 } }
@@ -786,6 +781,10 @@ const addCommand = defineCommand({
       verified: args.verified === 'true',
       solcVersion: args['solc-version'],
       evmVersion: args['evm-version'],
+      zkSolcVersion:
+        typeof args['zk-solc-version'] === 'string'
+          ? args['zk-solc-version']
+          : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,
@@ -878,6 +877,11 @@ const updateCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
+    'zk-solc-version': {
+      type: 'string',
+      description: 'ZK Solidity compiler version',
+      required: false,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -898,13 +902,35 @@ const updateCommand = defineCommand({
 
     // Build updates object with only provided fields
     const updates: Partial<IDeploymentRecord> = {}
-    if (args['optimizer-runs']) updates.optimizerRuns = args['optimizer-runs']
+    if (args['optimizer-runs'])
+      updates.optimizerRuns =
+        typeof args['optimizer-runs'] === 'string'
+          ? args['optimizer-runs']
+          : undefined
     if (args['constructor-args'])
-      updates.constructorArgs = args['constructor-args']
+      updates.constructorArgs =
+        typeof args['constructor-args'] === 'string'
+          ? args['constructor-args']
+          : undefined
     if (args.verified) updates.verified = args.verified === 'true'
-    if (args.salt !== undefined) updates.salt = args.salt || undefined
-    if (args['solc-version']) updates.solcVersion = args['solc-version']
-    if (args['evm-version']) updates.evmVersion = args['evm-version']
+    if (args.salt !== undefined)
+      updates.salt =
+        typeof args.salt === 'string' ? args.salt || undefined : undefined
+    if (args['solc-version'])
+      updates.solcVersion =
+        typeof args['solc-version'] === 'string'
+          ? args['solc-version']
+          : undefined
+    if (args['evm-version'])
+      updates.evmVersion =
+        typeof args['evm-version'] === 'string'
+          ? args['evm-version']
+          : undefined
+    if (args['zk-solc-version'])
+      updates.zkSolcVersion =
+        typeof args['zk-solc-version'] === 'string'
+          ? args['zk-solc-version']
+          : undefined
 
     if (Object.keys(updates).length === 0) {
       consola.error(
