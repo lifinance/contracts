@@ -11,8 +11,8 @@
  */
 
 import 'dotenv/config'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+
+import { existsSync, readFileSync } from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -23,7 +23,6 @@ import {
   parseAbi,
   encodeFunctionData,
   type Address,
-  type PublicClient,
   type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -31,7 +30,8 @@ import { privateKeyToAccount } from 'viem/accounts'
 import networksData from '../../config/networks.json'
 import whitelistedAddresses from '../../config/whitelistedAddresses.json'
 import whitelistedSelectors from '../../config/whitelistedSelectors.json'
-import { type SupportedChain } from '../common/types'
+import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { getDeployments } from '../utils/deploymentHelpers'
 
 // Define interfaces
 interface INetworkConfig {
@@ -48,6 +48,23 @@ interface IDeploymentData {
 
 interface IWhitelistedSelectors {
   selectors: string[]
+}
+
+interface INetworkSelectorData {
+  network: string
+  chainId: number
+  diamondAddress: string
+  scanFromBlock: string
+  scanToBlock: string
+  scannedAt: string
+  totalEvents: number
+  selectors: string[]
+}
+
+interface ISelectorsDataFile {
+  version: string
+  generatedAt: string
+  networks: Record<string, INetworkSelectorData>
 }
 
 // WhitelistManagerFacet ABI for events and migration function
@@ -90,12 +107,26 @@ const cmd = defineCommand({
       description: 'Block number to start scanning from (default: earliest)',
       required: false,
     },
+    environment: {
+      type: 'string',
+      description: 'Environment to use (staging or production)',
+      required: false,
+      default: EnvironmentEnum[EnvironmentEnum.production],
+      options: [
+        EnvironmentEnum[EnvironmentEnum.staging],
+        EnvironmentEnum[EnvironmentEnum.production],
+      ],
+    },
   },
   async run({ args }) {
     const privateKey = args?.privateKey || process.env.PRIVATE_KEY_PRODUCTION
     const isDryRun = Boolean(args?.dryRun)
     const rpcUrlOverride = args?.rpcUrl
     const fromBlockArg = args?.fromBlock
+    const environment =
+      args?.environment === EnvironmentEnum[EnvironmentEnum.staging]
+        ? EnvironmentEnum.staging
+        : EnvironmentEnum.production
 
     if (!privateKey) {
       consola.error(
@@ -131,69 +162,24 @@ const cmd = defineCommand({
       privateKey,
       isDryRun,
       rpcUrlOverride,
-      fromBlockArg
+      fromBlockArg,
+      environment
     )
   },
 })
-
-// Add this function to get the diamond deployment block
-async function getDiamondDeploymentBlock(
-  publicClient: PublicClient,
-  diamondAddress: Address,
-  create3FactoryAddress: Address
-): Promise<bigint> {
-  consola.info('🔍 Looking for diamond deployment block...')
-
-  // Get the CREATE3 factory deployment event
-  const deploymentLogs = await publicClient.getLogs({
-    address: create3FactoryAddress,
-    event: {
-      type: 'event',
-      name: 'Deployed',
-      inputs: [
-        { indexed: true, name: 'deployer', type: 'address' },
-        { indexed: true, name: 'salt', type: 'bytes32' },
-        { indexed: true, name: 'deployed', type: 'address' },
-      ],
-    },
-    fromBlock: 'earliest',
-    toBlock: 'latest',
-  })
-
-  // Find the log where the deployed address matches our diamond
-  const deploymentLog = deploymentLogs.find(
-    (log) => log.args.deployed?.toLowerCase() === diamondAddress.toLowerCase()
-  )
-
-  if (!deploymentLog) {
-    consola.warn(
-      'Could not find diamond deployment block, falling back to last 100k blocks'
-    )
-    const currentBlock = await publicClient.getBlockNumber()
-    return currentBlock > 100000n ? currentBlock - 100000n : 0n
-  }
-
-  consola.info(`Found diamond deployment at block ${deploymentLog.blockNumber}`)
-  return deploymentLog.blockNumber
-}
 
 async function migrateAllowList(
   network: INetworkConfig,
   privateKey: string,
   isDryRun: boolean,
   rpcUrlOverride?: string,
-  fromBlockArg?: string
+  fromBlockArg?: string,
+  environment: EnvironmentEnum = EnvironmentEnum.production
 ) {
-  // Load deployment data
-  const deploymentPath = join(
-    process.cwd(),
-    'deployments',
-    `${network.name}.json`
-  )
-
+  // Replace the manual deployment file reading with getDeployments
   let deploymentData: IDeploymentData
   try {
-    deploymentData = JSON.parse(readFileSync(deploymentPath, 'utf-8'))
+    deploymentData = await getDeployments(network.name, environment)
   } catch (error) {
     consola.error(`Error reading deployment data for ${network.name}:`, error)
     return
@@ -210,6 +196,7 @@ async function migrateAllowList(
   // Create viem clients
   const account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
   const rpcUrl = rpcUrlOverride || network.rpcUrl
+  consola.info(`🔍 RPC URL: ${rpcUrl}`)
 
   // Import the chain configuration
   const { getViemChainForNetworkName } = await import(
@@ -229,6 +216,7 @@ async function migrateAllowList(
   })
 
   // Check if already migrated
+
   try {
     const isMigrated = await publicClient.readContract({
       address: diamondAddress,
@@ -242,9 +230,12 @@ async function migrateAllowList(
     }
   } catch (error) {
     consola.error(
-      '❌ WhitelistManagerFacet v1.0.1 with migration logic is not yet deployed to the diamond.'
+      '❌ Most probably: WhitelistManagerFacet not found on diamond. Please ensure the facet is added to the diamond first.'
     )
-    return
+    consola.info(
+      '💡 The WhitelistManagerFacet needs to be deployed and added to the diamond before running the migration.'
+    )
+    throw error
   }
 
   // Get CREATE3Factory address from networks.json
@@ -265,6 +256,8 @@ async function migrateAllowList(
         diamondAddress,
         create3FactoryAddress
       )
+      consola.info(`🔍 Diamond deployment block: ${fromBlock}`)
+      consola.info(`🔍 Scanning events from block ${fromBlock} to latest`)
     } catch (error) {
       consola.warn(
         'Failed to get diamond deployment block, using default range:',
@@ -281,32 +274,61 @@ async function migrateAllowList(
 
   consola.info(`🔍 Scanning events from block ${fromBlock} to latest`)
 
-  // Fetch all ever-whitelisted selectors (previously they where named function signatures from DexManagerFacet)
-  consola.info(
-    '📡 Fetching FunctionSignatureApprovalChanged events which where used in the old DexManagerFacet...'
-  )
-  const selectorApprovalEvents = await publicClient.getLogs({
-    address: diamondAddress,
-    event: {
-      type: 'event',
-      name: 'FunctionSignatureApprovalChanged',
-      inputs: [
-        { indexed: true, name: 'functionSignature', type: 'bytes4' },
-        { indexed: true, name: 'approved', type: 'bool' },
-      ],
-    },
-    fromBlock,
-    toBlock: 'latest',
-  })
+  // Replace the event scanning section with:
+  const selectorsFilePath = './script/migration/functionSelectors.json'
+  let selectorsToRemove: string[] = []
 
-  // Get all ever-whitelisted selectors from events (previously they where named function signatures from DexManagerFacet)
-  const everWhitelistedSelectors = new Set(
-    selectorApprovalEvents
-      .filter((event) => event.args.approved) // only get events where selectors were approved
-      .map((event) => event.args.functionSignature as string)
-  )
+  if (!existsSync(selectorsFilePath)) {
+    consola.error(
+      `❌ Function selectors file not found at ${selectorsFilePath}`
+    )
+    consola.info(
+      '💡 Please run prepare-function-selectors script first to generate the file'
+    )
+    process.exit(1)
+  }
 
-  const selectorsToRemove = Array.from(everWhitelistedSelectors)
+  try {
+    const fileContent = readFileSync(selectorsFilePath, 'utf-8')
+    const selectorsData: ISelectorsDataFile = JSON.parse(fileContent)
+
+    if (!selectorsData.networks[network.name]) {
+      consola.error(
+        `❌ No data found for network ${network.name} in selectors file`
+      )
+      consola.info(
+        '💡 Please run prepare-function-selectors script for this network first'
+      )
+      process.exit(1)
+    }
+
+    const networkData = selectorsData.networks[network.name]
+
+    // Verify diamond address matches
+    if (
+      networkData.diamondAddress.toLowerCase() !== diamondAddress.toLowerCase()
+    ) {
+      consola.error('❌ Diamond address mismatch!')
+      consola.info(`Expected: ${diamondAddress}`)
+      consola.info(`Found in file: ${networkData.diamondAddress}`)
+      consola.info('💡 Please regenerate the selectors file for this network')
+      process.exit(1)
+    }
+
+    selectorsToRemove = networkData.selectors
+    consola.info(`📂 Loaded selectors from prepared file:`)
+    consola.info(`   Network: ${networkData.network}`)
+    consola.info(`   Chain ID: ${networkData.chainId}`)
+    consola.info(
+      `   Scanned blocks: ${networkData.scanFromBlock} to ${networkData.scanToBlock}`
+    )
+    consola.info(`   Data generated: ${networkData.scannedAt}`)
+    consola.info(`   Total events found: ${networkData.totalEvents}`)
+    consola.info(`   Selectors to remove: ${selectorsToRemove.length}`)
+  } catch (error) {
+    consola.error('❌ Failed to load selectors from file:', error)
+    process.exit(1)
+  }
 
   // Load current config (whitelistedSelectors.json)
   const whitelistedSelectorsFromFile =

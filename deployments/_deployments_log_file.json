@@ -35472,5 +35472,21 @@
         ]
       }
     }
+  },
+  "WhitelistManagerFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x9c3C2a13a5dd24D078D247EEC09Cebf2fC4E4686",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-14 18:38:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }

@@ -31,7 +31,6 @@ module.exports = {
     'no-empty-function': 'off',
     'eqeqeq': ['error', 'always'],
     'prefer-const': 'error',
-    'curly': ['error', 'multi'], // Allow single-line statements without braces
     'no-template-curly-in-string': 'error', // Warns about `${var}` in regular strings
     'no-throw-literal': 'error', // Requires throwing Error objects instead of literals
     '@typescript-eslint/return-await': ['error', 'in-try-catch'], // More nuanced control over return await
