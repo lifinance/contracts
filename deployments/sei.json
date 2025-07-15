@@ -25,5 +25,6 @@
   "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
   "EmergencyPauseFacet": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
   "RelayFacet": "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5",
+  "GlacisFacet": "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57",
   "LiFiTimelockController": "0x5604A94A3438C3074EFFF803fab14B7244fe4E29"
 }

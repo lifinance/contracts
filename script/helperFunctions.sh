@@ -435,22 +435,22 @@ function getContractNameFromDeploymentLogs() {
 }
 function getContractAddressFromDeploymentLogs() {
   # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  CONTRACT=$3
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local CONTRACT=$3
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # load JSON FILE that contains deployment addresses
-  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  local ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
     return 1
   fi
 
   # read address
-  CONTRACT_ADDRESS=$(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT] // "0x"' "$ADDRESSES_FILE")
+  local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT] // "0x"' "$ADDRESSES_FILE")
 
   if [[ "$CONTRACT_ADDRESS" == "0x" || "$CONTRACT_ADDRESS" == "" || "$CONTRACT_ADDRESS" == " " || -z "$CONTRACT_ADDRESS" ]]; then
     # address not found
@@ -599,6 +599,46 @@ function getContractInfoFromDiamondDeploymentLogByName() {
   error "could not find contract info"
   return 1
 }
+function getConstructorArgsFromMasterLog() {
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION=${4:-} # Optional version parameter
+
+  # If version is not provided, get the highest deployed version
+  if [ -z "$VERSION" ]; then
+    VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+    if [ -z "$VERSION" ]; then
+      echo ""
+      return 1
+    fi
+  fi
+
+  # Check if log file exists
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
+    echo ""
+    return 1
+  fi
+
+  # Extract constructor arguments using jq
+  local CONSTRUCTOR_ARGS=$(jq -r --arg CONTRACT "$CONTRACT" \
+    --arg NETWORK "$NETWORK" \
+    --arg ENVIRONMENT "$ENVIRONMENT" \
+    --arg VERSION "$VERSION" \
+    '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0].CONSTRUCTOR_ARGS' \
+    "$LOG_FILE_PATH")
+
+  if [[ "$CONSTRUCTOR_ARGS" == "null" || -z "$CONSTRUCTOR_ARGS" ]]; then
+    echo ""
+    return 1
+  fi
+
+  echo "$CONSTRUCTOR_ARGS"
+  return 0
+}
+
 function saveDiamond_DEPRECATED() {
   :'
   This contract version only saves the facet addresses as an array in the JSON file
@@ -1481,8 +1521,7 @@ function verifyContract() {
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
   # Build base verification command
-  #local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-  local VERIFY_CMD="forge verify-contract --watch --chain $NETWORK $ADDRESS $FULL_PATH --verifier etherscan"
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
 
   # Add constructor args if present
   if [ "$ARGS" != "0x" ]; then
@@ -2135,6 +2174,55 @@ function getIncludedNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+function getIncludedNetworksByEvmVersionArray() {
+  # Function: getNetworksByEvmVersionArray
+  # Description: Gets a list of all networks that have a specific EVM version
+  # Arguments:
+  #   $1 - EVM_VERSION: The EVM version to filter by (e.g., "london", "cancun", "shanghai")
+  # Returns:
+  #   Array of network names that match the specified EVM version (excluding networks in EXCLUDE_NETWORKS)
+  # Example:
+  #   getNetworksByEvmVersionArray "london"
+  #   getNetworksByEvmVersionArray "cancun"
+
+  # read function arguments into variables
+  local EVM_VERSION="$1"
+
+  # validate input parameter
+  if [[ -z "$EVM_VERSION" ]]; then
+    error "EVM_VERSION parameter is required for getNetworksByEvmVersionArray function"
+    return 1
+  fi
+
+  # prepare required variables
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
+  local ARRAY=()
+
+  # extract list of excluded networks from config
+  local EXCLUDED_NETWORKS_REGEXP="^($(echo "$EXCLUDE_NETWORKS" | tr ',' '|'))$"
+
+  # loop through networks list and add each network to ARRAY that matches the EVM version and is not excluded
+  while IFS= read -r network; do
+    # check if network is excluded
+    if [[ "$network" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
+      continue
+    fi
+
+    # get the EVM version for this network
+    local network_evm_version=$(jq -r --arg network "$network" '.[$network].deployedWithEvmVersion // empty' "$FILE")
+
+    # check if the network's EVM version matches the requested version
+    if [[ "$network_evm_version" == "$EVM_VERSION" ]]; then
+      ARRAY+=("$network")
+    fi
+  done < <(jq -r 'keys[]' "$FILE")
+
+  # return ARRAY
+  printf '%s\n' "${ARRAY[@]}"
+}
+
 function getFileSuffix() {
   # read function arguments into variables
   ENVIRONMENT="$1"
@@ -3664,6 +3752,65 @@ function cleanupBackgroundJobs() {
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
+function updateDiamondLogForNetwork() {
+  # read function arguments into variable
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+
+  # get RPC URL
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+
+  if [[ -z $RPC_URL ]]; then
+    error "[$NETWORK] RPC URL is not set"
+    return 1
+  fi
+
+  # get diamond address
+  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Failed to get LiFiDiamond address on $NETWORK in $ENVIRONMENT environment"
+    return 1
+  fi
+
+  # get list of facets
+  # execute script
+  attempts=1 # initialize attempts to 0
+
+  while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+    # try to execute call
+    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to get facets"
+  fi
+
+  if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+    echo "    no facets found"
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+  else
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
+    # saveDiamondPeriphery is executed as part of saveDiamondFacets
+  fi
+
+  # check result
+  if [[ $? -ne 0 ]]; then
+    echo "    error"
+  else
+    echo "    updated"
+  fi
+}
+
 function updateDiamondLogs() {
   # read function arguments into variable
   local ENVIRONMENT=$1
@@ -3688,92 +3835,59 @@ function updateDiamondLogs() {
     ENVIRONMENTS=("staging")
   fi
 
-  # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
-  DIAMONDS=("LiFiDiamond")
+  # Create arrays to store background job PIDs and their corresponding network/environment info
+  local pids=()
+  local job_info=()
+  local job_index=0
 
   # loop through all networks
   for NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "current Network: $NETWORK"
 
-
-    # get RPC URL
-    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-    RPC_URL=${!RPC_URL}
-    echo "RPC_URL: $RPC_URL"
-
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
+      # Call the helper function in background for parallel execution
+      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
 
-      for DIAMOND in "${DIAMONDS[@]}"; do
-        echo "  -----------------------"
-        echo "  current DIAMOND: $DIAMOND"
-
-
-        # define diamond type flag
-        if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then
-          USE_MUTABLE_DIAMOND=false
-        else
-          USE_MUTABLE_DIAMOND=true
-        fi
-
-        # get diamond address
-        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND")
-
-        if [[ $? -ne 0 ]]; then
-          continue
-        else
-          echo "    diamond address: $DIAMOND_ADDRESS"
-        fi
-
-        echo "    RPC_URL: $RPC_URL"
-
-        # get list of facets
-        # execute script
-        attempts=1 # initialize attempts to 0
-
-        while [ $attempts -lt 11 ]; do
-          echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
-          # try to execute call
-          KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-
-          # check the return code the last call
-          if [ $? -eq 0 ]; then
-            break # exit the loop if the operation was successful
-          fi
-
-          attempts=$((attempts + 1)) # increment attempts
-          sleep 1                    # wait for 1 second before trying the operation again
-        done
-
-        if [ $attempts -eq 11 ]; then
-          echo "Failed to get facets"
-        fi
-
-        if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-          echo "    no facets found"
-          saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
-        else
-          saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
-          # saveDiamondPeriphery is executed as part of saveDiamondFacets
-        fi
-
-        # check result
-        if [[ $? -ne 0 ]]; then
-          echo "    error"
-        else
-          echo "    updated"
-        fi
-
-        echo ""
-      done
-      echo ""
+      # Store the PID and job info
+      pids+=($!)
+      job_info+=("$NETWORK:$ENVIRONMENT")
+      job_index=$((job_index + 1))
     done
-    echo ""
   done
-  playNotificationSound
+
+  # Wait for all background jobs to complete and capture exit codes
+  echo "Waiting for all diamond log updates to complete..."
+  local failed_jobs=()
+  local job_count=${#pids[@]}
+
+  for i in "${!pids[@]}"; do
+    local pid="${pids[$i]}"
+    local info="${job_info[$i]}"
+
+    # Wait for this specific job and capture its exit code
+    if wait "$pid"; then
+      echo "[$info] Completed successfully"
+    else
+      echo "[$info] Failed with exit code $?"
+      failed_jobs+=("$info")
+    fi
+  done
+
+  # Check if any jobs failed
+  if [ ${#failed_jobs[@]} -gt 0 ]; then
+    error "Some diamond log updates failed: ${failed_jobs[*]}"
+    echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    playNotificationSound
+    return 1
+  else
+    echo "All diamond log updates completed successfully ($job_count jobs)"
+    playNotificationSound
+    return 0
+  fi
 }
 
 # Function: install_foundry_zksync
@@ -3915,5 +4029,4 @@ install_foundry_zksync() {
   return 0
 }
 
-# <<<<<< helpers to set/update deployment files/logs/etc
 
