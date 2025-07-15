@@ -432,53 +432,71 @@ const main = defineCommand({
 
     // verify on-chain owners & threshold
     consola.info('🔍 Verifying Safe on-chain state…')
-    const [actualOwners, actualThreshold] = await Promise.all([
-      publicClient.readContract({
-        address: safeAddress,
-        abi: SAFE_READ_ABI,
-        functionName: 'getOwners',
-      }),
-      publicClient.readContract({
-        address: safeAddress,
-        abi: SAFE_READ_ABI,
-        functionName: 'getThreshold',
-      }),
-    ])
 
-    const expected = owners.map((o) => o.toLowerCase())
-    const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
+    try {
+      const [actualOwners, actualThreshold] = await Promise.all([
+        publicClient.readContract({
+          address: safeAddress,
+          abi: SAFE_READ_ABI,
+          functionName: 'getOwners',
+        }),
+        publicClient.readContract({
+          address: safeAddress,
+          abi: SAFE_READ_ABI,
+          functionName: 'getThreshold',
+        }),
+      ])
 
-    const missing = expected.filter((o) => !actual.includes(o))
-    const extra = actual.filter((o) => !expected.includes(o))
+      const expected = owners.map((o) => o.toLowerCase())
+      const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
 
-    if (missing.length || extra.length) {
-      consola.error('❌ Owner mismatch detected:')
-      if (missing.length) consola.error(`  • Missing:  ${missing.join(', ')}`)
-      if (extra.length) consola.error(`  • Unexpected: ${extra.join(', ')}`)
-      throw new Error('Owner verification failed')
-    } else consola.success('✔ Owners match expected')
+      const missing = expected.filter((o) => !actual.includes(o))
+      const extra = actual.filter((o) => !expected.includes(o))
 
-    if (BigInt(threshold) !== BigInt(actualThreshold)) {
+      if (missing.length || extra.length) {
+        consola.error('❌ Owner mismatch detected:')
+        if (missing.length) consola.error(`  • Missing:  ${missing.join(', ')}`)
+        if (extra.length) consola.error(`  • Unexpected: ${extra.join(', ')}`)
+        throw new Error('Owner verification failed')
+      } else consola.success('✔ Owners match expected')
+
+      if (BigInt(threshold) !== BigInt(actualThreshold)) {
+        consola.error(
+          `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
+        )
+        throw new Error('Threshold verification failed')
+      } else consola.success('✔ Threshold matches expected')
+    } catch (error) {
+      consola.error('❌ Verification failed with error:', error)
+      consola.error(`Safe address: ${safeAddress}`)
       consola.error(
-        `❌ Threshold mismatch: expected=${threshold}, actual=${actualThreshold}`
+        'Please check the deployed Safe manually and update networks.json if needed'
       )
-      throw new Error('Threshold verification failed')
-    } else consola.success('✔ Threshold matches expected')
+      throw error
+    }
 
     // update networks.json
-    if (args.allowOverride) {
-      ;(networks as any)[networkName] = {
-        ...networks[networkName],
-        safeAddress,
-      }
-      writeFileSync(
-        join(__dirname, '../../../config/networks.json'),
-        JSON.stringify(networks, null, 2),
-        'utf8'
+    try {
+      if (args.allowOverride) {
+        ;(networks as any)[networkName] = {
+          ...networks[networkName],
+          safeAddress,
+        }
+        writeFileSync(
+          join(__dirname, '../../../config/networks.json'),
+          JSON.stringify(networks, null, 2),
+          'utf8'
+        )
+        consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
+      } else
+        consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
+    } catch (error) {
+      consola.error('❌ Failed to update networks.json:', error)
+      consola.error(
+        `Please manually update the safeAddress for ${networkName} to: ${safeAddress}`
       )
-      consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
-    } else
-      consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
+      throw error
+    }
 
     if (safeAddress) {
       consola.info('-'.repeat(80))
@@ -652,68 +670,84 @@ async function createSafeProxy(params: {
     BigInt.asUintN(64, BigInt(walletClient.account.address))
 
   consola.info('⚙️  Creating Safe proxy…')
-  const txHash = await walletClient.writeContract({
-    address: factoryAddress,
-    abi: SAFE_PROXY_FACTORY_ABI,
-    functionName: 'createProxyWithNonce',
-    args: [singletonAddress, initializer, salt],
-  })
-  const rcpt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-    confirmations: 5,
-  })
-  if (rcpt.status === 'reverted') throw new Error('Proxy creation reverted')
 
-  // decode ProxyCreation event
-  const proxyEvent = rcpt.logs
-    .map((log: Log) => {
-      try {
-        return decodeEventLog({
-          abi: SAFE_PROXY_FACTORY_ABI,
-          data: log.data,
-          topics: log.topics,
-        })
-      } catch {
-        return null
-      }
+  try {
+    const txHash = await walletClient.writeContract({
+      address: factoryAddress,
+      abi: SAFE_PROXY_FACTORY_ABI,
+      functionName: 'createProxyWithNonce',
+      args: [singletonAddress, initializer, salt],
     })
-    .find((e: any) => e && e.eventName === 'ProxyCreation')
 
-  if (!proxyEvent) {
-    consola.warn('No ProxyCreation events found in transaction logs')
-    consola.info(`Please check transaction ${txHash} on the explorer`)
+    consola.info(`Transaction submitted: ${txHash}`)
+    const rcpt = await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      confirmations: 5,
+    })
 
-    const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
-    if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
-
-    const safeAddress = await consola.prompt(
-      'Enter the deployed Safe address:',
-      {
-        type: 'text',
-        validate: (input: string) =>
-          /^0x[a-fA-F0-9]{40}$/.test(input)
-            ? true
-            : 'Please enter a valid Ethereum address',
-      }
-    )
-
-    return getAddress(safeAddress)
-  }
-
-  const safeAddr = getAddress(proxyEvent.args.proxy)
-  consola.success(`🎉 Safe deployed @ ${safeAddr}`)
-
-  // verify on-chain proxy bytecode
-  if (proxyBytecode) {
-    const code = await publicClient.getCode({ address: safeAddr })
-    if (code === proxyBytecode) consola.success('✔ Proxy bytecode verified')
-    else {
-      consola.error('❌ Proxy bytecode mismatch')
-      consola.debug('On-chain:', code.slice(0, 100), '…')
-      consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
-      throw new Error('Proxy bytecode verification failed')
+    if (rcpt.status === 'reverted') {
+      consola.error('❌ Proxy creation transaction reverted')
+      throw new Error('Proxy creation reverted')
     }
-  }
 
-  return safeAddr
+    // decode ProxyCreation event
+    const proxyEvent = rcpt.logs
+      .map((log: Log) => {
+        try {
+          return decodeEventLog({
+            abi: SAFE_PROXY_FACTORY_ABI,
+            data: log.data,
+            topics: log.topics,
+          })
+        } catch {
+          return null
+        }
+      })
+      .find((e: any) => e && e.eventName === 'ProxyCreation')
+
+    if (!proxyEvent) {
+      consola.warn('No ProxyCreation events found in transaction logs')
+      consola.info(`Please check transaction ${txHash} on the explorer`)
+
+      const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
+      if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
+
+      const safeAddress = await consola.prompt(
+        'Enter the deployed Safe address:',
+        {
+          type: 'text',
+          validate: (input: string) =>
+            /^0x[a-fA-F0-9]{40}$/.test(input)
+              ? true
+              : 'Please enter a valid Ethereum address',
+        }
+      )
+
+      return getAddress(safeAddress)
+    }
+
+    const safeAddr = proxyEvent.args.proxy as Address
+    consola.success(`🎉 Safe deployed @ ${safeAddr}`)
+
+    // verify on-chain proxy bytecode
+    if (proxyBytecode)
+      try {
+        const code = await publicClient.getCode({ address: safeAddr })
+        if (code === proxyBytecode) consola.success('✔ Proxy bytecode verified')
+        else {
+          consola.error('❌ Proxy bytecode mismatch')
+          consola.debug('On-chain:', code.slice(0, 100), '…')
+          consola.debug('Expected:', proxyBytecode.slice(0, 100), '…')
+          throw new Error('Proxy bytecode verification failed')
+        }
+      } catch (error) {
+        consola.error('❌ Failed to verify proxy bytecode:', error)
+        throw error
+      }
+
+    return safeAddr
+  } catch (error) {
+    consola.error('❌ Failed to create Safe proxy:', error)
+    throw error
+  }
 }
