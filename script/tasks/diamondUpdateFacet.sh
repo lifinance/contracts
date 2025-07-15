@@ -149,7 +149,6 @@ diamondUpdateFacet() {
         else
           error "FACET_CUT is empty"
         fi
-      fi
     else
       # STAGING (or new network deployment): just deploy normally without further checks
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
