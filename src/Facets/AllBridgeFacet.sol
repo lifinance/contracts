@@ -188,36 +188,37 @@ contract AllBridgeFacet is
     }
 
     /// @notice Converts LiFi internal chain IDs to AllBridge chain IDs
-    /// @param destinationChainId The LiFi chain ID to convert
+    /// @param _destinationChainId The LiFi chain ID to convert
     /// @return The corresponding Chainflip chain ID
     /// @dev Reverts if the destination chain is not supported
     function _getAllBridgeChainId(
-        uint256 destinationChainId
+        uint256 _destinationChainId
     ) internal pure returns (uint256) {
         // split possible values in half for more efficient search/matching
 
         // first try to match cases where chainId is the same and does not need to be mapped
         if (
-            destinationChainId == ALLBRIDGE_ID_ETHEREUM ||
-            destinationChainId == ALLBRIDGE_ID_OPTIMISM
-        ) return destinationChainId;
-        else if (destinationChainId == LIFI_CHAIN_ID_BSC)
+            _destinationChainId == ALLBRIDGE_ID_ETHEREUM ||
+            _destinationChainId == ALLBRIDGE_ID_OPTIMISM
+        ) return _destinationChainId;
+        // all others have custom chainIds
+        else if (_destinationChainId == LIFI_CHAIN_ID_BSC)
             return ALLBRIDGE_ID_BSC;
-        else if (destinationChainId == LIFI_CHAIN_ID_TRON)
+        else if (_destinationChainId == LIFI_CHAIN_ID_TRON)
             return ALLBRIDGE_ID_TRON;
-        else if (destinationChainId == LIFI_CHAIN_ID_SOLANA)
+        else if (_destinationChainId == LIFI_CHAIN_ID_SOLANA)
             return ALLBRIDGE_ID_SOLANA;
-        else if (destinationChainId == LIFI_CHAIN_ID_POLYGON)
+        else if (_destinationChainId == LIFI_CHAIN_ID_POLYGON)
             return ALLBRIDGE_ID_POLYGON;
-        else if (destinationChainId == LIFI_CHAIN_ID_ARBITRUM)
+        else if (_destinationChainId == LIFI_CHAIN_ID_ARBITRUM)
             return ALLBRIDGE_ID_ARBITRUM;
-        else if (destinationChainId == LIFI_CHAIN_ID_AVALANCHE)
+        else if (_destinationChainId == LIFI_CHAIN_ID_AVALANCHE)
             return ALLBRIDGE_ID_AVALANCHE;
-        else if (destinationChainId == LIFI_CHAIN_ID_BASE)
+        else if (_destinationChainId == LIFI_CHAIN_ID_BASE)
             return ALLBRIDGE_ID_BASE;
-        else if (destinationChainId == LIFI_CHAIN_ID_CELO)
+        else if (_destinationChainId == LIFI_CHAIN_ID_CELO)
             return ALLBRIDGE_ID_CELO;
-        else if (destinationChainId == LIFI_CHAIN_ID_SUI)
+        else if (_destinationChainId == LIFI_CHAIN_ID_SUI)
             return ALLBRIDGE_ID_SUI;
         // revert if no match found
         else revert UnsupportedAllBridgeChainId();
