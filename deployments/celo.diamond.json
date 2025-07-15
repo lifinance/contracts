@@ -72,6 +72,10 @@
       "0x66dAAa672cdB57F1F00CeD0408D6B7ca8ddb3399": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
+      },
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {

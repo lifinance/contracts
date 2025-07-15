@@ -117,9 +117,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0x75943d7305310635945736D00235d825181018f3": {
+      "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0xfac73BA460aa736bf7173359dD1E077e629B85eB": {
         "Name": "DeBridgeDlnFacet",

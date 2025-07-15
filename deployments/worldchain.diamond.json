@@ -61,9 +61,9 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.0.0"
       },
-      "0xb40044Bf27c2448e05e1f34ED83Ca4A3DfA54D19": {
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0x08F7800449ad6681bd607EF21d3cc9C9dDDaF1C8": {
         "Name": "AcrossFacetV3",

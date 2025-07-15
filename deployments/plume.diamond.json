@@ -55,17 +55,17 @@
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0xEb68ad34Af6150f840Bbc8d32E1cC09719Df9327",
-      "Executor": "0x406359505DB288bb884C1B9d068d167B851a0c83",
-      "FeeCollector": "0x3e46137a80BB3c14906505d0f78ADbb2deDb9E3f",
-      "GasZipPeriphery": "0xAeF572b25fbb561f72ab485bE2504f1b11E5797f",
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "GasZipPeriphery": "",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "0xc40DF76D0Ec998cDf07dC90148Ab3FDF44e7fB96",
-      "Permit2Proxy": "0xbbB6149C0Ce2f7a15468024ede9488d4D7322Bf7",
+      "LiFiDEXAggregator": "",
+      "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
-      "ReceiverStargateV2": "0x120794dae6F4A2aF50ABF83A524DD4Fe5F258Dd9",
-      "TokenWrapper": "0x895eA96A8E1940463C40753CB472615fe215760A"
+      "ReceiverStargateV2": "",
+      "TokenWrapper": ""
     }
   }
 }

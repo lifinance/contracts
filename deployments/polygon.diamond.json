@@ -145,9 +145,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
