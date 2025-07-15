@@ -102,6 +102,11 @@ const cmd = defineCommand({
       required: false,
       default: false,
     },
+    rpcUrl: {
+      type: 'string',
+      description: 'Override RPC URL for the network',
+      required: false,
+    },
   },
   async run({ args }) {
     // Get private key from command line argument or environment variable
@@ -110,12 +115,18 @@ const cmd = defineCommand({
     const specificOperationId = args?.operationId as Hex | undefined
     const executeAll = Boolean(args?.executeAll)
     const rejectAll = Boolean(args?.rejectAll)
+    const rpcUrlOverride = args?.rpcUrl
 
     // Validate conflicting flags
     if (executeAll && rejectAll) {
       consola.error(
         '❌ Cannot use both --executeAll and --rejectAll flags together'
       )
+      process.exit(1)
+    }
+
+    if (rpcUrlOverride && !args?.network) {
+      consola.error('❌ --rpc-url can only be used with --network')
       process.exit(1)
     }
 
@@ -177,7 +188,8 @@ const cmd = defineCommand({
           isDryRun,
           specificOperationId,
           executeAll,
-          rejectAll
+          rejectAll,
+          rpcUrlOverride
         )
       } catch (error) {
         consola.error(`Error processing network ${network.name}:`, error)
@@ -185,13 +197,30 @@ const cmd = defineCommand({
   },
 })
 
+async function getBlockRange(
+  publicClient: PublicClient
+): Promise<{ fromBlock: bigint | 'earliest'; toBlock: 'latest' }> {
+  try {
+    const currentBlock = await publicClient.getBlockNumber()
+    const fromBlock = currentBlock > 1024n ? currentBlock - 1024n : 0n
+    return { fromBlock, toBlock: 'latest' }
+  } catch (error) {
+    consola.warn(
+      'Failed to get current block number, falling back to earliest:',
+      error
+    )
+    return { fromBlock: 'earliest', toBlock: 'latest' }
+  }
+}
+
 async function processNetwork(
   network: INetworkConfig,
   privateKey: string,
   isDryRun: boolean,
   specificOperationId?: Hex,
   executeAll?: boolean,
-  rejectAll?: boolean
+  rejectAll?: boolean,
+  rpcUrlOverride?: string
 ) {
   consola.info(`\n📡 ${network.name} (Chain ID: ${network.chainId})`)
 
@@ -221,15 +250,17 @@ async function processNetwork(
 
     const chain = getViemChainForNetworkName(network.name)
 
+    const rpcUrl = rpcUrlOverride || network.rpcUrl
+
     const publicClient = createPublicClient({
       chain,
-      transport: http(network.rpcUrl),
+      transport: http(rpcUrl),
     })
 
     const walletClient = createWalletClient({
       account,
       chain,
-      transport: http(network.rpcUrl),
+      transport: http(rpcUrl),
     })
 
     // Get pending operations
@@ -363,6 +394,14 @@ async function getPendingOperations(
   consola.info('Searching for all pending operations...')
 
   // Get the CallScheduled events to find all operations
+  const blockRange = await getBlockRange(publicClient)
+  if (blockRange.fromBlock === 'earliest')
+    consola.warn('Using earliest block due to RPC error - this may be slow')
+  else
+    consola.debug(
+      `Querying events from block ${blockRange.fromBlock} to latest`
+    )
+
   const scheduledEvents = await publicClient.getLogs({
     address: timelockAddress,
     event: {
@@ -378,8 +417,8 @@ async function getPendingOperations(
         { name: 'delay', type: 'uint256' },
       ],
     },
-    fromBlock: 'earliest',
-    toBlock: 'latest',
+    fromBlock: blockRange.fromBlock,
+    toBlock: blockRange.toBlock,
   })
 
   consola.info(`Found ${scheduledEvents.length} scheduled operations in total`)
@@ -398,8 +437,8 @@ async function getPendingOperations(
         { name: 'data', type: 'bytes' },
       ],
     },
-    fromBlock: 'earliest',
-    toBlock: 'latest',
+    fromBlock: blockRange.fromBlock,
+    toBlock: blockRange.toBlock,
   })
 
   // Create a set of executed operation IDs
@@ -415,8 +454,8 @@ async function getPendingOperations(
       name: 'Cancelled',
       inputs: [{ indexed: true, name: 'id', type: 'bytes32' }],
     },
-    fromBlock: 'earliest',
-    toBlock: 'latest',
+    fromBlock: blockRange.fromBlock,
+    toBlock: blockRange.toBlock,
   })
 
   // Create a set of cancelled operation IDs
@@ -523,6 +562,14 @@ async function getOperationDetailsFromEvents(
   operationId: Hex
 ) {
   // Get the CallScheduled event for this operation
+  const blockRange = await getBlockRange(publicClient)
+  if (blockRange.fromBlock === 'earliest')
+    consola.warn('Using earliest block due to RPC error - this may be slow')
+  else
+    consola.debug(
+      `Querying events from block ${blockRange.fromBlock} to latest`
+    )
+
   const scheduledEvents = await publicClient.getLogs({
     address: timelockAddress,
     event: {
@@ -541,8 +588,8 @@ async function getOperationDetailsFromEvents(
     args: {
       id: operationId,
     },
-    fromBlock: 'earliest',
-    toBlock: 'latest',
+    fromBlock: blockRange.fromBlock,
+    toBlock: blockRange.toBlock,
   })
 
   if (scheduledEvents.length === 0) return null
@@ -620,6 +667,14 @@ async function executeOperation(
     if (functionName) consola.info(`   Function: ${functionName}`)
 
     // Get the salt from CallSalt event
+    const blockRange = await getBlockRange(publicClient)
+    if (blockRange.fromBlock === 'earliest')
+      consola.warn('Using earliest block due to RPC error - this may be slow')
+    else
+      consola.debug(
+        `Querying events from block ${blockRange.fromBlock} to latest`
+      )
+
     const saltEvents = await publicClient.getLogs({
       address: timelockAddress,
       event: {
@@ -633,8 +688,8 @@ async function executeOperation(
       args: {
         id: operation.id,
       },
-      fromBlock: 'earliest',
-      toBlock: 'latest',
+      fromBlock: blockRange.fromBlock,
+      toBlock: blockRange.toBlock,
     })
 
     let salt: Hex
