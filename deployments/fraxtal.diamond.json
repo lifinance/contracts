@@ -60,23 +60,24 @@
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
+      },
+      "0x2cCd505656e0f5ba1611b5D67677bB2E22667cb2": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xEd170C587Ccb4DaD6986798c8E7cC66fBb564AC5",
       "Executor": "0x6d425eAb1Eb6e002Bf40c44e5d9Ff7fC6a38824a",
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
-      "LiFiDEXAggregator": "0xE38621607316cB43367c134C65dca3f41B61250f",
-      "LiFuelFeeCollector": "0x9870F0C91D722B3393383722968269496d919bD8",
-      "Permit2Proxy": "",
-      "Receiver": "0xf22c55c50fF14d9AB1fa4D9DCA832085D143E854",
-      "ReceiverAcrossV3": "",
-      "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
-      "TokenWrapper": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5",
       "GasZipPeriphery": "",
-      "Permit2Proxy.flattened": "",
-      "ReceiverChainflip": ""
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xE38621607316cB43367c134C65dca3f41B61250f",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5"
     }
   }
 }

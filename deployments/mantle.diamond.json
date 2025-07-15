@@ -69,17 +69,17 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.0"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "",
+        "Version": ""
       },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
+      "0xBE770dd9e83505595deA830651f153c086830FB5": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {

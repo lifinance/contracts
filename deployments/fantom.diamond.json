@@ -73,9 +73,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.0"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "",
+        "Version": ""
       },
       "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
         "Name": "SquidFacet",
@@ -97,11 +97,10 @@
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "Permit2Proxy": "0x15913A4C92F92039F45519639Ded5b0A2062b0d8",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
