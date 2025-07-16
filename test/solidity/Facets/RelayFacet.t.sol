@@ -133,7 +133,7 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
         // invalid relay receiver
         vm.expectRevert(InvalidConfig.selector);
 
-        new RelayFacet(RELAY_RECEIVER, address(0));
+        new RelayFacet(address(0), relaySolver);
     }
 
     function test_CanDeployFacet() public virtual {
