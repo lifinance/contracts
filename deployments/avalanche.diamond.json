@@ -65,9 +65,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.1"
       },
-      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
-        "Name": "CelerIMFacetMutable",
-        "Version": "2.0.0"
+      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       },
       "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
         "Name": "CBridgeFacetPacked",
@@ -101,9 +101,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x6F6d8c854417F00dcB0C698B6f0724b9FCe02324": {
+      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
         "Name": "MayanFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -117,16 +117,12 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.0"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "",
+        "Version": ""
       },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
-        "Name": "GlacisFacet",
         "Version": "1.0.0"
       }
     },
@@ -135,12 +131,12 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }

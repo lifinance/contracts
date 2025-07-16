@@ -107,6 +107,30 @@ function logContractDeploymentInfo {
   echoDebug "SALT=$SALT"
   echo ""
 
+  # Create lock file path
+  local LOCK_FILE="${LOG_FILE_PATH}.lock"
+  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_ATTEMPTS=0
+  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+
+  # Wait for lock to be available
+  while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
+    sleep 0.5
+    LOCK_ATTEMPTS=$((LOCK_ATTEMPTS + 1))
+  done
+
+  # If we couldn't get the lock, fail
+  if [[ -f "$LOCK_FILE" ]]; then
+    error "Could not acquire lock for $LOG_FILE_PATH after $LOCK_TIMEOUT seconds. Another process may be stuck."
+    return 1
+  fi
+
+  # Create lock file
+  echo "$$" > "$LOCK_FILE"
+
+  # Ensure lock is released on exit
+  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+
   # Check if log FILE exists, if not create it
   if [ ! -f "$LOG_FILE_PATH" ]; then
     echo "{}" >"$LOG_FILE_PATH"
@@ -119,8 +143,6 @@ function logContractDeploymentInfo {
     --arg VERSION "$VERSION" \
     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
     "$LOG_FILE_PATH")
-
-
 
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
@@ -150,6 +172,9 @@ function logContractDeploymentInfo {
       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
+
+  # Remove lock file
+  rm -f "$LOCK_FILE"
 
   echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
 } # will replace, if entry exists already
@@ -877,6 +902,30 @@ function saveContract() {
     return 1
   fi
 
+  # Create lock file path
+  local LOCK_FILE="${ADDRESSES_FILE}.lock"
+  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_ATTEMPTS=0
+  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+
+  # Wait for lock to be available
+  while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
+    sleep 0.5
+    LOCK_ATTEMPTS=$((LOCK_ATTEMPTS + 1))
+  done
+
+  # If we couldn't get the lock, fail
+  if [[ -f "$LOCK_FILE" ]]; then
+    error "Could not acquire lock for $ADDRESSES_FILE after $LOCK_TIMEOUT seconds. Another process may be stuck."
+    return 1
+  fi
+
+  # Create lock file
+  echo "$$" > "$LOCK_FILE"
+
+  # Ensure lock is released on exit
+  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+
   # create an empty json if it does not exist
   if [[ ! -e $ADDRESSES_FILE ]]; then
     echo "{}" >"$ADDRESSES_FILE"
@@ -885,8 +934,31 @@ function saveContract() {
   # add new address to address log FILE
   RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
   printf %s "$RESULT" >"$ADDRESSES_FILE"
+
+  # Remove lock file
+  rm -f "$LOCK_FILE"
 }
 # <<<<< reading and manipulation of deployment log files
+
+# >>>>> lock file management
+function cleanupStaleLocks() {
+  # Clean up any stale lock files that might be left behind
+  local LOCK_FILES=(
+    "${LOG_FILE_PATH}.lock"
+    "./deployments/"*.lock
+  )
+
+  for lock_file in "${LOCK_FILES[@]}"; do
+    if [[ -f "$lock_file" ]]; then
+      # Check if the process that created the lock is still running
+      local pid=$(cat "$lock_file" 2>/dev/null)
+      if [[ -n "$pid" && ! -d "/proc/$pid" ]]; then
+        echo "[info] Removing stale lock file: $lock_file (PID $pid not running)"
+        rm -f "$lock_file"
+      fi
+    fi
+  done
+}
 
 # >>>>> working with directories and reading other files
 function checkIfFileExists() {
@@ -1482,19 +1554,11 @@ function verifyContract() {
   echoDebug "CHAIN_ID=$CHAIN_ID"
 
   # Build base verification command
-  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-
-  # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
-    VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-  fi
+  local VERIFY_CMD="forge verify-contract --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH"
 
   # Handle zkEVM networks
   if isZkEvmNetwork "$NETWORK"; then
-    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-    if [ "$ARGS" != "0x" ]; then
-      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-    fi
+    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH"
   fi
 
   # Get API key and determine verification method
@@ -1508,6 +1572,11 @@ function verifyContract() {
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+    # add constructor args if present
+    if [ "$ARGS" != "0x" ]; then
+      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
+    fi
+
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
       echo "Error: Could not find API key for network $NETWORK"
@@ -1525,9 +1594,25 @@ function verifyContract() {
 
   # Attempt verification with retries
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
-    # execute verification command
-    FOUNDRY_LOG=trace eval "$VERIFY_CMD"
+    # execute verification command and capture output
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace eval "$VERIFY_CMD" 2>&1)
     COMMAND_STATUS=$?
+
+    echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Parse verification response
+    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
+    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+
+    # Check if verification actually succeeded
+    if [[ "$RESPONSE" == "OK" && "$DETAILS" != *"Fail"* && "$DETAILS" != *"Unable to verify"* && "$DETAILS" != *"Pending"* ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+      return 0
+    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
+      # HTTP request succeeded but verification failed
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
+      COMMAND_STATUS=1
+    fi
 
     # increase retry counter
     RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -1536,11 +1621,9 @@ function verifyContract() {
     [ $COMMAND_STATUS -ne 0 ] && sleep 2
   done
 
-  # Check verification status
-  if [ $COMMAND_STATUS -eq 0 ]; then
-    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-    return 0
-  fi
+  # If we get here, verification failed after all retries
+  echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
+  return 1
 
   # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
@@ -3988,6 +4071,140 @@ install_foundry_zksync() {
   echo "Installation completed successfully"
   echo "Binaries are executable and ready to use"
   return 0
+}
+
+# Function: getContractDeploymentStatusSummary
+# Description: Provides a comprehensive deployment status summary for a contract across all supported networks
+# Arguments:
+#   $1 - Environment (production/staging)
+#   $2 - Contract name
+#   $3 - Version (optional, if not provided will use current version)
+# Returns:
+#   Prints a formatted table summary and lists of networks by status
+# Example:
+#   getContractDeploymentStatusSummary "production" "Permit2Proxy" "1.0.4"
+#   getContractDeploymentStatusSummary "production" "Permit2Proxy"
+getContractDeploymentStatusSummary() {
+  local ENVIRONMENT="$1"
+  local CONTRACT="$2"
+  local VERSION="$3"
+
+  # Validate required parameters
+  if [[ -z "$ENVIRONMENT" || -z "$CONTRACT" ]]; then
+    error "Usage: getContractDeploymentStatusSummary ENVIRONMENT CONTRACT [VERSION]"
+    error "Example: getContractDeploymentStatusSummary production Permit2Proxy 1.0.4"
+    return 1
+  fi
+
+  # If no version provided, get current version
+  if [[ -z "$VERSION" ]]; then
+    VERSION=$(getCurrentContractVersion "$CONTRACT")
+    if [[ -z "$VERSION" ]]; then
+      error "Could not determine version for contract $CONTRACT"
+      return 1
+    fi
+  fi
+
+  # Get list of all supported networks
+  local NETWORKS=($(getIncludedNetworksArray))
+
+  echo ""
+  echo "=========================================="
+  echo "  DEPLOYMENT STATUS SUMMARY"
+  echo "=========================================="
+  echo "Contract: $CONTRACT"
+  echo "Version: $VERSION"
+  echo "Environment: $ENVIRONMENT"
+  echo "Networks to check: ${#NETWORKS[@]}"
+  echo ""
+
+  # Initialize arrays to track results
+  local DEPLOYED_VERIFIED=()
+  local DEPLOYED_UNVERIFIED=()
+  local NOT_DEPLOYED=()
+  local TOTAL_NETWORKS=${#NETWORKS[@]}
+
+  # Print table header
+  printf "%-20s %-10s %-10s %-42s\n" "NETWORK" "DEPLOYED" "VERIFIED" "ADDRESS"
+  printf "%-20s %-10s %-10s %-42s\n" "--------------------" "----------" "----------" "------------------------------------------"
+
+    # Check each network
+  for network in "${NETWORKS[@]}"; do
+    # Check if contract is deployed - use a more robust approach
+    local LOG_ENTRY=""
+    local FIND_RESULT=1
+
+    # Try to find the contract and capture both output and exit code
+    LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
+    FIND_RESULT=$?
+
+    # Additional check: if LOG_ENTRY contains error message, treat as not found
+    if [[ "$LOG_ENTRY" == *"No matching entry found"* ]]; then
+      FIND_RESULT=1
+    fi
+
+    if [[ $FIND_RESULT -eq 0 && -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
+      # Contract is deployed
+      local ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS" 2>/dev/null)
+      local VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED" 2>/dev/null)
+
+      # Handle cases where jq fails or returns null
+      if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
+        ADDRESS="N/A"
+      fi
+      if [[ "$VERIFIED" == "null" || -z "$VERIFIED" ]]; then
+        VERIFIED="false"
+      fi
+
+      if [[ "$VERIFIED" == "true" ]]; then
+        printf "%-20s %-10s %-10s %-42s\n" "$network" "✅" "✅" "$ADDRESS"
+        DEPLOYED_VERIFIED+=("$network")
+      else
+        printf "%-20s %-10s %-10s %-42s\n" "$network" "✅" "❌" "$ADDRESS"
+        DEPLOYED_UNVERIFIED+=("$network")
+      fi
+    else
+      # Contract is not deployed
+      printf "%-20s %-10s %-10s %-42s\n" "$network" "❌" "N/A" "N/A"
+      NOT_DEPLOYED+=("$network")
+    fi
+  done
+
+  echo ""
+  echo "=========================================="
+  echo "  SUMMARY STATISTICS"
+  echo "=========================================="
+  echo "Total networks: $TOTAL_NETWORKS"
+  echo "✅ Deployed & Verified: ${#DEPLOYED_VERIFIED[@]}"
+  echo "⚠️  Deployed but Unverified: ${#DEPLOYED_UNVERIFIED[@]}"
+  echo "❌ Not Deployed: ${#NOT_DEPLOYED[@]}"
+  echo ""
+
+  # Show detailed lists
+  if [[ ${#DEPLOYED_VERIFIED[@]} -gt 0 ]]; then
+    echo "✅ NETWORKS WITH DEPLOYED & VERIFIED CONTRACTS (${#DEPLOYED_VERIFIED[@]}):"
+    printf "  %s\n" "${DEPLOYED_VERIFIED[@]}"
+    echo ""
+  fi
+
+  if [[ ${#DEPLOYED_UNVERIFIED[@]} -gt 0 ]]; then
+    echo "⚠️  NETWORKS WITH DEPLOYED BUT UNVERIFIED CONTRACTS (${#DEPLOYED_UNVERIFIED[@]}):"
+    printf "  %s\n" "${DEPLOYED_UNVERIFIED[@]}"
+    echo ""
+  fi
+
+  if [[ ${#NOT_DEPLOYED[@]} -gt 0 ]]; then
+    echo "❌ NETWORKS WHERE CONTRACT IS NOT DEPLOYED (${#NOT_DEPLOYED[@]}):"
+    printf "  %s\n" "${NOT_DEPLOYED[@]}"
+    echo ""
+
+    # Provide retry command for networks that need deployment
+    echo "🔄 To deploy to remaining networks, use:"
+    echo "  local NETWORKS=($(printf '"%s" ' "${NOT_DEPLOYED[@]}" | sed 's/ $//'))"
+    echo ""
+  fi
+
+  echo "=========================================="
 }
 
 

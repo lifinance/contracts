@@ -52,6 +52,10 @@
       "0x7667CB57CA47f7F69761113894a4dd48BEe35DFd": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -61,7 +65,7 @@
       "GasZipPeriphery": "0x6BCAF079647788ceC14f10D6601Ecb34d0b79c6E",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
-      "Permit2Proxy": "0x1220570A1270b85517D2f9A1Ee81bbB05B4D73F1",
+      "Permit2Proxy": "0x628d684D57c73A5D8cA77F455Fdf2CC8Bd503c16",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
