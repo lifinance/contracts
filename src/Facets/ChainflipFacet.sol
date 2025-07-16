@@ -10,12 +10,19 @@ import { Validatable } from "../Helpers/Validatable.sol";
 import { IChainflipVault } from "../Interfaces/IChainflip.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { InformationMismatch, InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
-/// @title Chainflip Facet
+/// @title ChainflipFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Allows bridging assets via Chainflip
-/// @custom:version 1.0.0
-contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @custom:version 1.0.1
+contract ChainflipFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Events ///
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
@@ -134,7 +141,7 @@ contract ChainflipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Handle address encoding based on destination chain type
         bytes memory encodedDstAddress;
-        if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_chainflipData.nonEVMReceiver.length == 0) {
                 revert EmptyNonEvmAddress();
             }
