@@ -388,7 +388,6 @@ async function processNetwork(
           timelockAddress,
           operation,
           isDryRun,
-          executeAll,
           isInteractive
         )
 
@@ -422,7 +421,7 @@ async function getPendingOperations(
   const { client, pendingTransactions } = await getSafeMongoCollection()
 
   try {
-    for (const tx of safeTxs) 
+    for (const tx of safeTxs)
       try {
         const dataField: Hex | undefined = tx.safeTx?.data?.data
         if (!dataField) {
@@ -450,9 +449,7 @@ async function getPendingOperations(
         )
 
         // If a specific operation ID is provided, check only that one
-        if (specificOperationId && opId !== specificOperationId) 
-          continue
-        
+        if (specificOperationId && opId !== specificOperationId) continue
 
         // Check operation status in the timelock controller
         const status = await checkOperationStatus(
@@ -536,7 +533,6 @@ async function getPendingOperations(
           `Error processing transaction ${tx._id}: ${error.message}`
         )
       }
-    
   } finally {
     await client.close()
   }
@@ -573,7 +569,6 @@ async function executeOperation(
     mongoId?: any
   },
   isDryRun: boolean,
-  autoExecute?: boolean,
   interactive?: boolean
 ): Promise<'executed' | 'rejected' | 'skipped'> {
   consola.info(`\n⚡ Processing operation: ${operation.id}`)
@@ -667,7 +662,7 @@ async function executeOperation(
         consola.success(`✅ Operation ${operation.id} executed successfully`)
 
         // Update MongoDB to mark the operation as executed
-        if (operation.mongoId) 
+        if (operation.mongoId)
           try {
             const { client, pendingTransactions } =
               await getSafeMongoCollection()
@@ -685,10 +680,8 @@ async function executeOperation(
           } catch (error) {
             consola.warn(`Failed to update MongoDB document: ${error}`)
           }
-        
-      } else 
+      } else
         consola.error(`❌ Transaction failed for operation ${operation.id}`)
-      
     }
 
     return 'executed'
@@ -762,7 +755,7 @@ async function rejectOperation(
         consola.success(`✅ Operation ${operation.id} cancelled successfully`)
 
         // Update MongoDB to mark the operation as executed (cancelled counts as executed)
-        if (operation.mongoId) 
+        if (operation.mongoId)
           try {
             const { client, pendingTransactions } =
               await getSafeMongoCollection()
@@ -780,10 +773,8 @@ async function rejectOperation(
           } catch (error) {
             consola.warn(`Failed to update MongoDB document: ${error}`)
           }
-        
-      } else 
+      } else
         consola.error(`❌ Cancellation failed for operation ${operation.id}`)
-      
     }
   } catch (error) {
     consola.error(`Failed to cancel operation ${operation.id}:`, error)
