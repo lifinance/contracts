@@ -36,12 +36,9 @@ contract ChainflipFacet is
 
     /// Storage ///
 
-    // solhint-disable-next-line immutable-vars-naming
-    IChainflipVault public immutable chainflipVault;
+    IChainflipVault public immutable CHAINFLIP_VAULT;
     uint256 private constant CHAIN_ID_ETHEREUM = 1;
     uint256 private constant CHAIN_ID_ARBITRUM = 42161;
-    uint256 private constant CHAIN_ID_SOLANA = 1151111081099710;
-    uint256 private constant CHAIN_ID_BITCOIN = 20000000000001;
     uint32 private constant CHAINFLIP_ID_ETHEREUM = 1;
     uint32 private constant CHAINFLIP_ID_ARBITRUM = 4;
     uint32 private constant CHAINFLIP_ID_SOLANA = 5;
@@ -73,7 +70,7 @@ contract ChainflipFacet is
         if (address(_chainflipVault) == address(0)) {
             revert InvalidConfig();
         }
-        chainflipVault = _chainflipVault;
+        CHAINFLIP_VAULT = _chainflipVault;
     }
 
     /// External Methods ///
@@ -169,7 +166,7 @@ contract ChainflipFacet is
         if (!isNativeAsset) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(chainflipVault),
+                address(CHAINFLIP_VAULT),
                 _bridgeData.minAmount
             );
         }
@@ -187,7 +184,7 @@ contract ChainflipFacet is
             );
 
             if (isNativeAsset) {
-                chainflipVault.xCallNative{ value: _bridgeData.minAmount }(
+                CHAINFLIP_VAULT.xCallNative{ value: _bridgeData.minAmount }(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
@@ -196,7 +193,7 @@ contract ChainflipFacet is
                     _chainflipData.cfParameters
                 );
             } else {
-                chainflipVault.xCallToken(
+                CHAINFLIP_VAULT.xCallToken(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
@@ -213,14 +210,14 @@ contract ChainflipFacet is
             }
 
             if (isNativeAsset) {
-                chainflipVault.xSwapNative{ value: _bridgeData.minAmount }(
+                CHAINFLIP_VAULT.xSwapNative{ value: _bridgeData.minAmount }(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
                     _chainflipData.cfParameters
                 );
             } else {
-                chainflipVault.xSwapToken(
+                CHAINFLIP_VAULT.xSwapToken(
                     dstChain,
                     encodedDstAddress,
                     _chainflipData.dstToken,
@@ -245,9 +242,9 @@ contract ChainflipFacet is
             return CHAINFLIP_ID_ETHEREUM;
         } else if (destinationChainId == CHAIN_ID_ARBITRUM) {
             return CHAINFLIP_ID_ARBITRUM;
-        } else if (destinationChainId == CHAIN_ID_SOLANA) {
+        } else if (destinationChainId == LIFI_CHAIN_ID_SOLANA) {
             return CHAINFLIP_ID_SOLANA;
-        } else if (destinationChainId == CHAIN_ID_BITCOIN) {
+        } else if (destinationChainId == LIFI_CHAIN_ID_BTC) {
             return CHAINFLIP_ID_BITCOIN;
         } else {
             revert UnsupportedChainflipChainId();

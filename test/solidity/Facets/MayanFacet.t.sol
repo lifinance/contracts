@@ -61,6 +61,7 @@ contract MayanFacetTest is TestBaseFacet {
 
     error InvalidReceiver(address expected, address actual);
     error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
+    error ProtocolDataTooShort();
 
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
@@ -511,7 +512,7 @@ contract MayanFacetTest is TestBaseFacet {
         bytes memory shortData = new bytes(50); // shorter than 68 bytes (50 bytes)
         uint256 newAmount = 1000;
 
-        vm.expectRevert("protocol data too short");
+        vm.expectRevert(abi.encodeWithSelector(ProtocolDataTooShort.selector));
         testFacet.testReplaceInputAmount(shortData, newAmount);
     }
 
