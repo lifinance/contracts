@@ -75,7 +75,8 @@
         "RelayFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GlacisFacet": "1.0.0"
       }
     }
   },
@@ -928,7 +929,8 @@
         "DeBridgeDlnFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "RelayFacet": "1.0.0"
       }
     }
   },
@@ -1522,7 +1524,7 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.1",
+        "GenericSwapFacetV3": "1.0.2",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
@@ -1540,7 +1542,8 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "RelayFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GlacisFacet": "1.0.0"
       }
     }
   },

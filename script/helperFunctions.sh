@@ -54,7 +54,7 @@ function logContractDeploymentInfo_BACKUP {
   fi
 
   # Check if log FILE already contains entry with same CONTRACT, NETWORK, ENVIRONMENT and VERSION
-  checkIfJSONContainsEntry $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH
+  checkIfJSONContainsEntry "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" "$LOG_FILE_PATH"
   if [ $? -eq 1 ]; then
     echo "[warning]: deployment log file contained already an entry for (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION). This is unexpected behaviour since an existing CONTRACT should not have been re-deployed. A new entry was added to the log file. "
   fi
@@ -120,11 +120,7 @@ function logContractDeploymentInfo {
     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
     "$LOG_FILE_PATH")
 
-  # Convert VERIFIED string to boolean for jq
-  local VERIFIED_BOOL="false"
-  if [[ "$VERIFIED" == "true" ]]; then
-    VERIFIED_BOOL="true"
-  fi
+
 
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
@@ -136,9 +132,9 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
+      --arg VERIFIED "$VERIFIED" \
       --arg SALT "$SALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }]' \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -150,8 +146,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg SALT "$SALT" \
-      --argjson VERIFIED_BOOL "$VERIFIED_BOOL" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED_BOOL }' \
+      --arg VERIFIED "$VERIFIED" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -314,7 +310,7 @@ function findContractInMasterLogByAddress() {
       ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
 
       # check if address matches with target address
-      if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+      if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
         JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT\", \"Version\": \"$VERSION\"}}"
         echo "$JSON_ENTRY"
         exit 0
@@ -331,11 +327,6 @@ function getContractVersionFromMasterLog() {
   local ENVIRONMENT=$2
   local CONTRACT=$3
   local TARGET_ADDRESS=$4
-
-  # special handling for CelerIMFacet
-  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-    CONTRACT="CelerIMFacet"
-  fi
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -356,7 +347,7 @@ function getContractVersionFromMasterLog() {
       ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
 
       # check if address matches
-      if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+      if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
         # return version
         echo "$VERSION"
         return 0
@@ -426,7 +417,7 @@ function getContractNameFromDeploymentLogs() {
   fi
 
   # read all keys (i.e. names)
-  FACET_NAMES=($(cat $ADDRESSES_FILE | jq -r 'keys[]'))
+  FACET_NAMES=($(cat "$ADDRESSES_FILE" | jq -r 'keys[]'))
 
   # loop through all names
   for FACET in "${FACET_NAMES[@]}"; do
@@ -434,7 +425,7 @@ function getContractNameFromDeploymentLogs() {
     ADDRESS=$(jq -r ".${FACET}" "$ADDRESSES_FILE")
 
     # check if address matches
-    if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+    if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
       echo "$FACET"
       return 0
     fi
@@ -444,22 +435,22 @@ function getContractNameFromDeploymentLogs() {
 }
 function getContractAddressFromDeploymentLogs() {
   # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  CONTRACT=$3
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local CONTRACT=$3
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # load JSON FILE that contains deployment addresses
-  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  local ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
     return 1
   fi
 
   # read address
-  CONTRACT_ADDRESS=$(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT] // "0x"' "$ADDRESSES_FILE")
+  local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT] // "0x"' "$ADDRESSES_FILE")
 
   if [[ "$CONTRACT_ADDRESS" == "0x" || "$CONTRACT_ADDRESS" == "" || "$CONTRACT_ADDRESS" == " " || -z "$CONTRACT_ADDRESS" ]]; then
     # address not found
@@ -569,6 +560,46 @@ function getContractInfoFromDiamondDeploymentLogByName() {
   error "could not find contract info"
   return 1
 }
+function getConstructorArgsFromMasterLog() {
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION=${4:-} # Optional version parameter
+
+  # If version is not provided, get the highest deployed version
+  if [ -z "$VERSION" ]; then
+    VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+    if [ -z "$VERSION" ]; then
+      echo ""
+      return 1
+    fi
+  fi
+
+  # Check if log file exists
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
+    echo ""
+    return 1
+  fi
+
+  # Extract constructor arguments using jq
+  local CONSTRUCTOR_ARGS=$(jq -r --arg CONTRACT "$CONTRACT" \
+    --arg NETWORK "$NETWORK" \
+    --arg ENVIRONMENT "$ENVIRONMENT" \
+    --arg VERSION "$VERSION" \
+    '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0].CONSTRUCTOR_ARGS' \
+    "$LOG_FILE_PATH")
+
+  if [[ "$CONSTRUCTOR_ARGS" == "null" || -z "$CONSTRUCTOR_ARGS" ]]; then
+    echo ""
+    return 1
+  fi
+
+  echo "$CONSTRUCTOR_ARGS"
+  return 0
+}
+
 function saveDiamond_DEPRECATED() {
   :'
   This contract version only saves the facet addresses as an array in the JSON file
@@ -584,8 +615,8 @@ function saveDiamond_DEPRECATED() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # store function arguments in variables
-  FACETS=$(echo $4 | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
+  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
+  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -620,8 +651,8 @@ function saveDiamondFacets() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # store function arguments in variables
-  FACETS=$(echo $4 | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
+  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
+  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -969,17 +1000,12 @@ function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
 
-  #  # special handling for CelerIMFacet
-  #  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-  #    CONTRACT="CelerIMFacetBase"
-  #  fi
-
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
   local FILENAME="$CONTRACT.sol"
 
   # find FILE path
-  local file_path=$(find "${dir%/}" -name $FILENAME -print)
+  local file_path=$(find "${dir%/}" -name "$FILENAME" -print)
 
   # return FILE path or throw error if FILE path does not have a value
   if [ -n "$file_path" ]; then
@@ -1313,7 +1339,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
           # if code reached here that means we should have a valid target state entry that needs to be added
           addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true
-          echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true"
+          echo "addContractVersionToTargetState ""$NETWORK"" ""$ENVIRONMENT"" ""$CONTRACT"" "$DIAMOND_TYPE" ""$VERSION"" true"
 
         done
       fi
@@ -1487,14 +1513,20 @@ function verifyContract() {
       echo "Error: Could not find API key for network $NETWORK"
       return 1
     fi
-    # add API key to verification command
-    VERIFY_CMD="$VERIFY_CMD -e ${!API_KEY}"
+
+    # some block explorers require to pass a string "verifyContract" instead of an API key (e.g. https://explorer.metis.io/documentation/recipes/foundry-verification)
+    if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
+      # add API key to verification command"
+      VERIFY_CMD="$VERIFY_CMD -e 'verifyContract'"
+    fi
   fi
 
+  echoDebug "VERIFY_CMD: $VERIFY_CMD"
+
   # Attempt verification with retries
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     # execute verification command
-    eval "$VERIFY_CMD"
+    FOUNDRY_LOG=trace eval "$VERIFY_CMD"
     COMMAND_STATUS=$?
 
     # increase retry counter
@@ -1529,19 +1561,19 @@ function verifyContract() {
 
   # Check Sourcify verification
   if isZkEvmNetwork "$NETWORK"; then
-    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check $ADDRESS \
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
       --zksync \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   else
-    forge verify-check $ADDRESS \
+    forge verify-check "$ADDRESS" \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   fi
 
   if [ $? -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
-    return 0
+    return 1
   else
     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
     return 1
@@ -1932,7 +1964,7 @@ function updateAllContractsToTargetState() {
           if [[ "$CONTRACT_TYPE" == "Facet" ]]; then
             # case: facet contract
             # check if current contract is known by diamond
-            CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" $CONTRACT)
+            CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$CONTRACT")
 
             # check result
             if [[ "$?" -ne 0 ]]; then
@@ -2103,6 +2135,55 @@ function getIncludedNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+function getIncludedNetworksByEvmVersionArray() {
+  # Function: getNetworksByEvmVersionArray
+  # Description: Gets a list of all networks that have a specific EVM version
+  # Arguments:
+  #   $1 - EVM_VERSION: The EVM version to filter by (e.g., "london", "cancun", "shanghai")
+  # Returns:
+  #   Array of network names that match the specified EVM version (excluding networks in EXCLUDE_NETWORKS)
+  # Example:
+  #   getNetworksByEvmVersionArray "london"
+  #   getNetworksByEvmVersionArray "cancun"
+
+  # read function arguments into variables
+  local EVM_VERSION="$1"
+
+  # validate input parameter
+  if [[ -z "$EVM_VERSION" ]]; then
+    error "EVM_VERSION parameter is required for getNetworksByEvmVersionArray function"
+    return 1
+  fi
+
+  # prepare required variables
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
+  local ARRAY=()
+
+  # extract list of excluded networks from config
+  local EXCLUDED_NETWORKS_REGEXP="^($(echo "$EXCLUDE_NETWORKS" | tr ',' '|'))$"
+
+  # loop through networks list and add each network to ARRAY that matches the EVM version and is not excluded
+  while IFS= read -r network; do
+    # check if network is excluded
+    if [[ "$network" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
+      continue
+    fi
+
+    # get the EVM version for this network
+    local network_evm_version=$(jq -r --arg network "$network" '.[$network].deployedWithEvmVersion // empty' "$FILE")
+
+    # check if the network's EVM version matches the requested version
+    if [[ "$network_evm_version" == "$EVM_VERSION" ]]; then
+      ARRAY+=("$network")
+    fi
+  done < <(jq -r 'keys[]' "$FILE")
+
+  # return ARRAY
+  printf '%s\n' "${ARRAY[@]}"
+}
+
 function getFileSuffix() {
   # read function arguments into variables
   ENVIRONMENT="$1"
@@ -2309,7 +2390,7 @@ function addContractVersionToTargetState() {
   UPDATE_EXISTING=$6
 
   # check if entry already exists
-  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" "$TARGET_STATE_PATH")
 
   # check if entry should be updated and log warning if debug flag is set
   if [[ -n "$ENTRY_EXISTS" ]]; then
@@ -2323,7 +2404,7 @@ function addContractVersionToTargetState() {
   fi
 
   # add or update target state file
-  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH >temp.json && mv temp.json $TARGET_STATE_PATH
+  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" "$TARGET_STATE_PATH" >temp.json && mv temp.json "$TARGET_STATE_PATH"
 }
 function updateExistingContractVersionInTargetState() {
   # this function will update only existing entries, not add new ones
@@ -2336,13 +2417,13 @@ function updateExistingContractVersionInTargetState() {
   VERSION=$5
 
   # check if entry already exists
-  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" "$TARGET_STATE_PATH")
 
   # check if entry should be updated and log warning if debug flag is set
   if [[ -n "$ENTRY_EXISTS" ]]; then
     echo "[info]: updating version in target state file: NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, CONTRACT_NAME:$CONTRACT_NAME, new VERSION: $VERSION."
     # add or update target state file
-    jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH >temp.json && mv temp.json $TARGET_STATE_PATH
+    jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" "$TARGET_STATE_PATH" >temp.json && mv temp.json "$TARGET_STATE_PATH"
   else
     echo "[info]: target state file does not contain an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME that could be updated."
     # exit script
@@ -2584,7 +2665,7 @@ function getFacetFunctionSelectorsFromDiamond() {
 
   # get facet address from deployments JSON
   local FILE_PATH="deployments/$NETWORK.${FILE_SUFFIX}json"
-  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" $FILE_PATH)
+  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" "$FILE_PATH")
 
   # check if facet address was found
   if [[ -z "$FACET_ADDRESS" ]]; then
@@ -3013,7 +3094,7 @@ function getCreate3FactoryAddress() {
     return 1
   fi
 
-  echo $CREATE3_FACTORY
+  echo "$CREATE3_FACTORY"
 }
 
 function convertToBcInt() {
@@ -3113,7 +3194,7 @@ transferContractOwnership() {
             echo "balance of new owner wallet is too low. Cannot continue"
             return 1
         else
-            echo "sending "$MIN_NATIVE_BALANCE" native tokens from new ("$ADDRESS_NEW_OWNER") to old wallet ("$ADDRESS_OLD_OWNER") now"
+            echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
             # Send some funds from new to old wallet
             cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
 
@@ -3128,13 +3209,13 @@ transferContractOwnership() {
     # # transfer ownership to new owner
     echo ""
     echo "[info] calling transferOwnership() function from old owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIV_KEY_OLD_OWNER --rpc-url "$RPC_URL"
+    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
     echo ""
 
     # # accept ownership transfer
     echo ""
     echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key $PRIV_KEY_NEW_OWNER --rpc-url "$RPC_URL"
+    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
     echo ""
     echo ""
 
@@ -3143,7 +3224,7 @@ transferContractOwnership() {
     SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
     if [[ $SENDABLE_BALANCE -gt 0 ]]; then
       echo ""
-      echo "sending "$SENDABLE_BALANCE" native tokens from old ("$ADDRESS_OLD_OWNER") to new wallet ("$ADDRESS_NEW_OWNER") now"
+      echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
       cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
     else
       echo "remaining native balance in old wallet is too low to send back to new wallet"
@@ -3260,17 +3341,17 @@ function printDeploymentsStatusV2() {
   echo "|      Contract (latest version)       | target : deployed | target : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
-  echo "" >$OUTPUT_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >>$OUTPUT_FILE_PATH
-  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >>$OUTPUT_FILE_PATH
-  echo "+                                                                              +" >>$OUTPUT_FILE_PATH
-  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >>$OUTPUT_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >>$OUTPUT_FILE_PATH
-  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >>$OUTPUT_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >>$OUTPUT_FILE_PATH
-  echo "|                                      |      mutable      |     immutable     |" >>$OUTPUT_FILE_PATH
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >>$OUTPUT_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >>$OUTPUT_FILE_PATH
+  echo "" >"$OUTPUT_FILE_PATH"
+  echo "+------------------------------------------------------------------------------+" >>"$OUTPUT_FILE_PATH"
+  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >>"$OUTPUT_FILE_PATH"
+  echo "+                                                                              +" >>"$OUTPUT_FILE_PATH"
+  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >>"$OUTPUT_FILE_PATH"
+  echo "+------------------------------------------------------------------------------+" >>"$OUTPUT_FILE_PATH"
+  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >>"$OUTPUT_FILE_PATH"
+  echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
+  echo "|                                      |      mutable      |     immutable     |" >>"$OUTPUT_FILE_PATH"
+  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >>"$OUTPUT_FILE_PATH"
+  echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
 
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
@@ -3297,7 +3378,7 @@ function printDeploymentsStatusV2() {
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >>$OUTPUT_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >>"$OUTPUT_FILE_PATH"
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]}; do
@@ -3386,18 +3467,18 @@ function printDeploymentsStatusV2() {
 
         # print new line in table view
         printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
-        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >>$OUTPUT_FILE_PATH
+        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >>"$OUTPUT_FILE_PATH"
       fi
     done
 
     # print empty line
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >>$OUTPUT_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >>"$OUTPUT_FILE_PATH"
   done
 
   # print closing line
   echo "+--------------------------------------+-------------------+-------------------+"
-  echo "+--------------------------------------+-------------------+-------------------+" >>$OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
   return 0
 
   playNotificationSound
@@ -3601,7 +3682,7 @@ function sendMessageToSlackSmartContractsChannel() {
   curl -H "Content-Type: application/json" \
      -X POST \
      -d "{\"text\": \"$MESSAGE\"}" \
-     $SLACK_WEBHOOK_SC_GENERAL
+     "$SLACK_WEBHOOK_SC_GENERAL"
 
   echoDebug "Log message sent to Slack"
 
@@ -3632,9 +3713,69 @@ function cleanupBackgroundJobs() {
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
-function updateDiamondLogs() {
+function updateDiamondLogForNetwork() {
   # read function arguments into variable
   local NETWORK=$1
+  local ENVIRONMENT=$2
+
+  # get RPC URL
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+
+  if [[ -z $RPC_URL ]]; then
+    error "[$NETWORK] RPC URL is not set"
+    return 1
+  fi
+
+  # get diamond address
+  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Failed to get LiFiDiamond address on $NETWORK in $ENVIRONMENT environment"
+    return 1
+  fi
+
+  # get list of facets
+  # execute script
+  attempts=1 # initialize attempts to 0
+
+  while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+    # try to execute call
+    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to get facets"
+  fi
+
+  if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+    echo "    no facets found"
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+  else
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
+    # saveDiamondPeriphery is executed as part of saveDiamondFacets
+  fi
+
+  # check result
+  if [[ $? -ne 0 ]]; then
+    echo "    error"
+  else
+    echo "    updated"
+  fi
+}
+
+function updateDiamondLogs() {
+  # read function arguments into variable
+  local ENVIRONMENT=$1
+  local NETWORK=$2
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -3649,105 +3790,65 @@ function updateDiamondLogs() {
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
-  ENVIRONMENTS=("production")
-  # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
-  DIAMONDS=("LiFiDiamond")
+  if [[ "$ENVIRONMENT" == "production" || -z "$ENVIRONMENT" ]]; then
+    ENVIRONMENTS=("production")
+  else
+    ENVIRONMENTS=("staging")
+  fi
+
+  # Create arrays to store background job PIDs and their corresponding network/environment info
+  local pids=()
+  local job_info=()
+  local job_index=0
 
   # loop through all networks
   for NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "current Network: $NETWORK"
 
-    # >>>>  limit here to a certain network, if needed
-    #    if [[ $NETWORK == "optimism" ]]; then
-    #      continue
-    #    fi
-
-    # get RPC URL
-    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-    RPC_URL=${!RPC_URL}
-    echo "RPC_URL: $RPC_URL"
-
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-      # >>>>  limit here to a certain environment, if needed
-      #      if [[ $ENVIRONMENT == "staging" ]]; then
-      #        continue
-      #      fi
+      # Call the helper function in background for parallel execution
+      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
 
-      for DIAMOND in "${DIAMONDS[@]}"; do
-        echo "  -----------------------"
-        echo "  current DIAMOND: $DIAMOND"
-
-        # >>>>  limit here to a certain diamond type, if needed
-        #        if [[ $DIAMOND == "LiFiDiamond" ]]; then
-        #          continue
-        #        fi
-
-        # define diamond type flag
-        if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then
-          USE_MUTABLE_DIAMOND=false
-        else
-          USE_MUTABLE_DIAMOND=true
-        fi
-
-        # get diamond address
-        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND")
-
-        if [[ $? -ne 0 ]]; then
-          continue
-        else
-          echo "    diamond address: $DIAMOND_ADDRESS"
-        fi
-
-        echo "    RPC_URL: $RPC_URL"
-
-        # get list of facets
-        # execute script
-        attempts=1 # initialize attempts to 0
-
-        while [ $attempts -lt 11 ]; do
-          echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
-          # try to execute call
-          KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-
-          # check the return code the last call
-          if [ $? -eq 0 ]; then
-            break # exit the loop if the operation was successful
-          fi
-
-          attempts=$((attempts + 1)) # increment attempts
-          sleep 1                    # wait for 1 second before trying the operation again
-        done
-
-        if [ $attempts -eq 11 ]; then
-          echo "Failed to get facets"
-        fi
-
-        if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-          echo "    no facets found"
-          saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
-        else
-          saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
-          # saveDiamondPeriphery is executed as part of saveDiamondFacets
-        fi
-
-        # check result
-        if [[ $? -ne 0 ]]; then
-          echo "    error"
-        else
-          echo "    updated"
-        fi
-
-        echo ""
-      done
-      echo ""
+      # Store the PID and job info
+      pids+=($!)
+      job_info+=("$NETWORK:$ENVIRONMENT")
+      job_index=$((job_index + 1))
     done
-    echo ""
   done
-  playNotificationSound
+
+  # Wait for all background jobs to complete and capture exit codes
+  echo "Waiting for all diamond log updates to complete..."
+  local failed_jobs=()
+  local job_count=${#pids[@]}
+
+  for i in "${!pids[@]}"; do
+    local pid="${pids[$i]}"
+    local info="${job_info[$i]}"
+
+    # Wait for this specific job and capture its exit code
+    if wait "$pid"; then
+      echo "[$info] Completed successfully"
+    else
+      echo "[$info] Failed with exit code $?"
+      failed_jobs+=("$info")
+    fi
+  done
+
+  # Check if any jobs failed
+  if [ ${#failed_jobs[@]} -gt 0 ]; then
+    error "Some diamond log updates failed: ${failed_jobs[*]}"
+    echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    playNotificationSound
+    return 1
+  else
+    echo "All diamond log updates completed successfully ($job_count jobs)"
+    playNotificationSound
+    return 0
+  fi
 }
 
 # Function: install_foundry_zksync
@@ -3889,222 +3990,4 @@ install_foundry_zksync() {
   return 0
 }
 
-# <<<<<< helpers to set/update deployment files/logs/etc
 
-# test cases for helper functions
-function test_logContractDeploymentInfo() {
-
-  logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "staging" "0x1234"
-  logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "staging" "0x4321"
-
-  logContractDeploymentInfo "ContractName" "ETH" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "staging" "0x1234"
-  logContractDeploymentInfo "ContractName" "ETH" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "staging" "0x4321"
-
-  logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "production" "0x5555"
-  logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "production" "0x6666"
-
-  logContractDeploymentInfo "ContractName" "ETH" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "production" "0x5555"
-  logContractDeploymentInfo "ContractName" "ETH" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "production" "0x6666"
-
-  logContractDeploymentInfo "ContractName2" "BSC" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "staging" "0x1234"
-  logContractDeploymentInfo "ContractName2" "BSC" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "staging" "0x4321"
-
-  logContractDeploymentInfo "ContractName2" "ETH" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "staging" "0x1234"
-  logContractDeploymentInfo "ContractName2" "ETH" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "staging" "0x4321"
-
-}
-function test_checkIfJSONContainsEntry() {
-  checkIfJSONContainsEntry "ContractName" "BSC" "staging" "1.0.0"
-  echo "should be 1: $?"
-
-  checkIfJSONContainsEntry "ContractName" "BSC" "staging" "1.0.1"
-  echo "should be 1: $?"
-
-  checkIfJSONContainsEntry "ContractName" "ETH" "staging" "1.0.0"
-  echo "should be 1: $?"
-
-  checkIfJSONContainsEntry "ContractName" "ETH" "staging" "1.0.1"
-  echo "should be 1: $?"
-
-  checkIfJSONContainsEntry "ContractName2" "ETH" "staging" "1.0.1"
-  echo "should be 1: $?"
-
-  checkIfJSONContainsEntry "ContractName3" "ETH" "staging" "1.0.1"
-  echo "should be 0: $?"
-
-  checkIfJSONContainsEntry "ContractName" "POL" "staging" "1.0.1"
-  echo "should be 0: $?"
-
-  checkIfJSONContainsEntry "ContractName" "ETH" "production" "1.0.1"
-  echo "should be 0: $?"
-
-  checkIfJSONContainsEntry "ContractName" "ETH" "staging" "1.0.2"
-  echo "should be 0: $?"
-
-}
-function test_findContractInMasterLog() {
-  findContractInMasterLog "DiamondCutFacet" "optimism" "production" "1.0.0"
-  match=($(findContractInMasterLog "DiamondCutFacet" "optimism" "production" "1.0.0"))
-
-  echo "Address: ${match[2]}"
-  echo "Optimizer Runs: ${match[4]}"
-  echo "Date: ${match[6]}"
-  echo "Constructor Arguments: ${match[8]}"
-}
-function test_getCurrentContractVersion() {
-
-  echo "should return error - VERSION string not found:"
-  getCurrentContractVersion "AccessManagerFacet"
-
-  echo ""
-  echo "should return error - FILE not found:"
-  getCurrentContractVersion "nofile"
-
-  echo ""
-  echo "should return '1.0.0':"
-  getCurrentContractVersion "testfile"
-
-  echo ""
-  echo "should return '1.0.0':"
-  getCurrentContractVersion "Executor"
-
-  echo ""
-  echo "should return '1.0.0':"
-  getCurrentContractVersion "Receiver"
-
-}
-function test_doesAddressContainBytecode() {
-  echo "should return true: $(doesAddressContainBytecode "BSC" "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae")"
-  echo "should return false: $(doesAddressContainBytecode "BSC" "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0")"
-  echo "should return error message: $(doesAddressContainBytecode "NoNet" "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0")"
-}
-function test_getOptimizerRuns() {
-  echo "should return 1000000: $(getOptimizerRuns)"
-}
-function test_getContractFilePath() {
-  echo "should return src/Periphery/Receiver.sol: $(getContractFilePath "Receiver")"
-  echo "should return src/Facets/MultichainFacet.sol: $(getContractFilePath "MultichainFacet")"
-  echo "should return src/LiFiDiamond.sol: $(getContractFilePath "LiFiDiamond")"
-  echo "should throw error: $(getContractFilePath "noContract")"
-}
-function test_getIncludedNetworksArray() {
-  NETWORKS=($(getIncludedNetworksArray))
-
-  # print number of networks
-  echo "should return 20: ${#NETWORKS[@]}"
-
-  # print each network value
-  for ((i = 0; i < ${#NETWORKS[@]}; i++)); do
-    echo "networks[$i]: ${NETWORKS[$i]}"
-  done
-
-}
-function test_getFileSuffix() {
-  echo "should return '.staging': $(getFileSuffix "staging")"
-  echo "should return '.staging': $(getFileSuffix "anyValue")"
-  echo "should return '': $(getFileSuffix "production")"
-}
-function test_getContractNamesInFolder() {
-  echo "should an ARRAY with all periphery contracts: $(getContractNamesInFolder "src/Periphery/")"
-  echo "should an ARRAY with all facet contracts: $(getContractNamesInFolder "src/Facets/")"
-}
-function test_getIncludedPeripheryContractsArray() {
-  echo "should return an ARRAY with all included periphery contracts: $(getIncludedPeripheryContractsArray)"
-}
-function test_getIncludedFacetContractsArray() {
-  echo "should return an ARRAY with all included facet contracts: $(getIncludedFacetContractsArray "true")"
-}
-function test_findContractVersionInTargetState() {
-  echo "should return '1.0.0: $(findContractVersionInTargetState "goerli" "production" "Executor")"
-  echo "should return '1.0.1: $(findContractVersionInTargetState "goerli" "production" "Receiver")"
-  echo "should return '1.0.0: $(findContractVersionInTargetState "goerli" "staging" "FeeCollector")"
-  echo "should return '1.0.1: $(findContractVersionInTargetState "goerli" "staging" "RelayerCelerIM")"
-}
-function test_userDialogSelectDiamondType() {
-  echo ""
-  echo "Please select which type of diamond contract to deploy:"
-  echo "should return 'LiFiDiamondImmutable': $(userDialogSelectDiamondType)"
-}
-function test_getFunctionSelectorsFromContractABI() {
-  echo "should return {}: $(getFunctionSelectorsFromContractABI "LiFiDiamond")"
-  echo "should return selectors: $(getFunctionSelectorsFromContractABI "MultichainFacet")"
-}
-function test_doesFacetExistInDiamond() {
-  echo "should return 'true': $(doesFacetExistInDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "OwnershipFacet" "goerli")"
-  echo "should return 'false': $(doesFacetExistInDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacet" "goerli")"
-}
-function test_getFunctionSelectorFromContractABI() {
-  echo "should return 'ebbaa1cb': $(getFunctionSelectorFromContractABI "AllBridgeFacet" "startBridgeTokensViaAllBridge")"
-  echo "should return 'aeb116de': $(getFunctionSelectorFromContractABI "AxelarFacet" "executeCallViaAxelar")"
-  echo "should return 'aeb116de': $(getFunctionSelectorFromContractABI "DiamondCutFacet" "executeCallViaAxelar")"
-}
-function test_removeFacetFromDiamond() {
-  removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacetOptimized" "goerli"
-  removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "StargateFacet" "goerli"
-}
-function test_getFacetFunctionSelectorsFromDiamond() {
-  echo "should return '[0x23452b9c,0x7200b829,0x8da5cb5b,0xf2fde38b]': $(getFacetFunctionSelectorsFromDiamond "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "OwnershipFacet" "mainnet" "staging")"
-  echo "should return '[0x536db266,0xfbb2d381,0xfcd8e49e,0x9afc19c7,0x44e2b18c,0x2d2506a9,0x124f1ead,0xc3a6a96b]': $(getFacetFunctionSelectorsFromDiamond "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "DexManagerFacet" "bsc" "production")"
-}
-function test_doesDiamondHaveCoreFacetsRegistered() {
-  doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mainnet" "staging"
-  #doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mumbai" "staging"
-}
-function test_addContractVersionToTargetState() {
-  addContractVersionToTargetState "mumbai" "production" "TESTNAME2" "LiFiDiamond" "1.0.6" true
-  addContractVersionToTargetState "mumbai" "production" "TESTNAME2" "LiFiDiamond" "2.0.6" true
-  addContractVersionToTargetState "mumbai" "staging" "TESTNAME2" "LiFiDiamond" "2.0.6" true
-  addContractVersionToTargetState "mumbai" "staging" "TESTNAME2" "LiFiDiamond" "1.0.6" true
-
-}
-function test_updateExistingContractVersionInTargetState() {
-  updateExistingContractVersionInTargetState "mumbai" "staging" "TESTNAME2" "LiFiDiamond" "1.1.9"
-}
-function test_updateContractVersionInAllIncludedNetworks() {
-  updateContractVersionInAllIncludedNetworks "production" "TESTNAME2" "LiFiDiamond" "2.0.0"
-}
-function test_addNewContractVersionToAllIncludedNetworks() {
-  addNewContractVersionToAllIncludedNetworks "production" "newContract" "LiFiDiamondImmutable" "1.0.0"
-}
-function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
-  addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork3" "production" "LiFiDiamondImmutable"
-}
-function test_checkIfFileExists() {
-  echo "should be true: $(checkIfFileExists "./script/DeployCelerIMFacet.s.sol")"
-  echo "should be false: $(checkIfFileExists "./script/NoScript.s.sol")"
-}
-function test_getFacetAddressFromDiamond() {
-  getFacetAddressFromDiamond "arbitrum" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "0xc5ae0fe6"
-}
-function test_getAddressOfDeployedContractFromDeploymentsFiles() {
-  getAddressOfDeployedContractFromDeploymentsFiles "mumbai" "staging" "LiFiDiamondImmutable" "ContractName"
-}
-function test_findContractInMasterLogByAddress() {
-  #findContractInMasterLogByAddress"optimism" "production" "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F"
-  findContractInMasterLogByAddress "optimism" "production" "0x49d195D3138D4E0E2b4ea88484C54AEE45B04BFd"
-}
-function test_getContractAddressFromDeploymentLogs() {
-  echo "should be '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE': $(getContractAddressFromDeploymentLogs "arbitrum" "production" "LiFiDiamond")"
-  echo "should be '0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068': $(getContractAddressFromDeploymentLogs "arbitrum" "production" "Receiver")"
-  echo "should be '0x856FF421D9b354ba1E909e26655E159F5Bd04F2E': $(getContractAddressFromDeploymentLogs "celo" "production" "ERC20Proxy")"
-  echo "should be '': $(getContractAddressFromDeploymentLogs "testNetwork" "production" "LiFiDiamond")"
-}
-function test_getContractInfoFromDiamondDeploymentLogByName() {
-  getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamond" "OwnershipFacet"
-  getContractInfoFromDiamondDeploymentLogByName "testNetwork" "production" "LiFiDiamond" "noFacet"
-}
-function test_updateAllContractsToTargetState() {
-  updateAllContractsToTargetState
-}
-function test_getPeripheryAddressFromDiamond() {
-  getPeripheryAddressFromDiamond "mainnet" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "Executor"
-}
-function test_getContractVersionFromMasterLog() {
-  echo "should return '1.0.0': $(getContractVersionFromMasterLog "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374b")"
-  echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
-  echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "DeBridgeFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
-  echo "should return '': $(getContractVersionFromMasterLog "testNetwork" "production" "LiFiDiamond" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
-}
-function test_getContractNameFromDeploymentLogs() {
-  echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
-}
