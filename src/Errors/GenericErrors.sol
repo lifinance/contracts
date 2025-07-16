@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 /// @notice This contract contains errors commonly used by the LiFi protocol
 
 error AlreadyInitialized();
