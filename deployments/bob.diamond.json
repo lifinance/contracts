@@ -52,6 +52,10 @@
       "0x2c3B1f633c00bCd65dB98317daE1049c4c918C0a": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
+      },
+      "0x29A56dC0fc91A11F9807b7D82d32706BB85aaF4F": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -59,12 +63,12 @@
       "Executor": "0x6501F452591e9D03608830A9c99f018d7e613675",
       "FeeCollector": "0x728f23859C718B9e1cA762f051C29Ea99119B92D",
       "GasZipPeriphery": "0x0A735a259805b8aCfb257aac3f2DCDDf3d235811",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8F3736CC9B10e340937B9cff5aB5302B84933685",
-      "Permit2Proxy": "0x9c8EE267255dF4cbBE81052C2a95C60668F31f11",
+      "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x917F0625dD20f9a8eA45500361d2F1F1a39DF8DE"
     }
   }
