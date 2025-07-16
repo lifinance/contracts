@@ -43,6 +43,18 @@ dotenv.config()
 
 const storedResponses: Record<string, string> = {}
 
+// Global arrays to record execution failures and timeouts
+const globalFailedExecutions: Array<{
+  chain: string
+  safeTxHash: string
+  error: string
+}> = []
+const globalTimeoutExecutions: Array<{
+  chain: string
+  safeTxHash: string
+  error: string
+}> = []
+
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as any).toJSON = function () {
   return this.toString()
@@ -228,9 +240,10 @@ const processTxs = async (
     safeClient: any = safe
   ) {
     consola.info('Preparing to execute Safe transaction...')
+    let safeTxHash = ''
     try {
       // Get the Safe transaction hash for reference
-      const safeTxHash = await safeClient.getTransactionHash(safeTransaction)
+      safeTxHash = await safeClient.getTransactionHash(safeTransaction)
       consola.info(`Safe Transaction Hash: \u001b[36m${safeTxHash}\u001b[0m`)
 
       // Execute the transaction on-chain (timeout/polling handled in safeClient)
@@ -269,6 +282,20 @@ const processTxs = async (
           '   Possible causes: invalid signature format or incorrect signer.'
         )
       }
+      // Record error in global arrays
+      if (error.message.toLowerCase().includes('timeout')) 
+        globalTimeoutExecutions.push({
+          chain: chain.name,
+          safeTxHash: safeTxHash,
+          error: error.message,
+        })
+       else 
+        globalFailedExecutions.push({
+          chain: chain.name,
+          safeTxHash: safeTxHash,
+          error: error.message,
+        })
+      
       throw new Error(`Transaction execution failed: ${error.message}`)
     }
   }
@@ -720,6 +747,53 @@ const main = defineCommand({
 
       // Close MongoDB connection
       await mongoClient.close(true)
+      // Print summary of any failed or timed out executions
+      if (
+        globalFailedExecutions.length > 0 ||
+        globalTimeoutExecutions.length > 0
+      ) {
+        consola.info('=== Execution Summary ===')
+        if (globalFailedExecutions.length > 0) {
+          consola.info('Failed Executions:')
+          globalFailedExecutions.forEach((item) => {
+            consola.info(
+              `Chain: ${item.chain}, SafeTxHash: ${item.safeTxHash}, Error: ${item.error}`
+            )
+          })
+        }
+        if (globalTimeoutExecutions.length > 0) {
+          consola.info('Timed Out Executions (saved in MongoDB):')
+          globalTimeoutExecutions.forEach((item) => {
+            consola.info(
+              `Chain: ${item.chain}, SafeTxHash: ${item.safeTxHash}, Error: ${item.error}`
+            )
+          })
+        }
+      }
+
+      // Print summary of any failed or timed out executions
+      if (
+        globalFailedExecutions.length > 0 ||
+        globalTimeoutExecutions.length > 0
+      ) {
+        consola.info('=== Execution Summary ===')
+        if (globalFailedExecutions.length > 0) {
+          consola.info('Failed Executions:')
+          globalFailedExecutions.forEach((item) => {
+            consola.info(
+              `Chain: ${item.chain}, SafeTxHash: ${item.safeTxHash}, Error: ${item.error}`
+            )
+          })
+        }
+        if (globalTimeoutExecutions.length > 0) {
+          consola.info('Timed Out Executions (saved in MongoDB):')
+          globalTimeoutExecutions.forEach((item) => {
+            consola.info(
+              `Chain: ${item.chain}, SafeTxHash: ${item.safeTxHash}, Error: ${item.error}`
+            )
+          })
+        }
+      }
     } finally {
       // Always close ledger connection if it was created
       if (ledgerResult) {
