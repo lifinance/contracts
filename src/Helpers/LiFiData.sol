@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-
 pragma solidity ^0.8.17;
 
 /// @title LiFiData
-/// @author Li.Finance (https://li.finance)
+/// @author LI.FI (https://li.fi)
 /// @notice A storage for LI.FI-internal config data (addresses, chainIDs, etc.)
 /// @custom:version 1.0.0
 contract LiFiData {

@@ -13,7 +13,7 @@ import { InvalidConfig, InvalidCallData, InvalidNonEVMReceiver, InvalidReceiver 
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title Allbridge Facet
-/// @author Li.Finance (https://li.finance)
+/// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through AllBridge
 /// @custom:version 2.1.0
 contract AllBridgeFacet is
@@ -34,20 +34,18 @@ contract AllBridgeFacet is
     uint32 private constant ALLBRIDGE_ID_OPTIMISM = 10;
     uint32 private constant ALLBRIDGE_ID_CELO = 11;
     uint32 private constant ALLBRIDGE_ID_SUI = 13;
-    uint256 internal constant LIFI_CHAIN_ID_ETHEREUM = 1;
     uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
     uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
     uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
     uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
     uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
-    uint256 internal constant LIFI_CHAIN_ID_OPTIMISM = 10;
     uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
 
     error UnsupportedAllBridgeChainId();
 
     /// @notice The contract address of the AllBridge router on the source chain.
     // solhint-disable-next-line immutable-vars-naming
-    IAllBridge private immutable allBridge;
+    IAllBridge private immutable ALLBRIDGE;
 
     /// @notice The struct for the AllBridge data.
     /// @param recipient The address of the token receiver after bridging.
@@ -72,7 +70,7 @@ contract AllBridgeFacet is
     constructor(IAllBridge _allBridge) {
         if (address(_allBridge) == address(0)) revert InvalidConfig();
 
-        allBridge = _allBridge;
+        ALLBRIDGE = _allBridge;
     }
 
     /// @notice Bridge tokens to another chain via AllBridge
@@ -153,14 +151,14 @@ contract AllBridgeFacet is
         // set max approval to allBridge, if current allowance is insufficient
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
-            address(allBridge),
+            address(ALLBRIDGE),
             _bridgeData.minAmount
         );
 
         // check if bridge fee should be paid with sending or native asset
         if (_allBridgeData.payFeeWithSendingAsset) {
             // pay fee with sending asset
-            allBridge.swapAndBridge(
+            ALLBRIDGE.swapAndBridge(
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
@@ -172,7 +170,7 @@ contract AllBridgeFacet is
             );
         } else {
             // pay fee with native asset
-            allBridge.swapAndBridge{ value: _allBridgeData.fees }(
+            ALLBRIDGE.swapAndBridge{ value: _allBridgeData.fees }(
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
