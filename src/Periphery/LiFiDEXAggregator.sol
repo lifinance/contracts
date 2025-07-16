@@ -10,6 +10,9 @@ import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
 import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
+import { IKatanaV3Pool } from "lifi/Interfaces/KatanaV3/IKatanaV3Pool.sol";
+import { IKatanaV3Governance } from "lifi/Interfaces/KatanaV3/IKatanaV3Governance.sol";
+import { IKatanaV3AggregateRouter } from "lifi/Interfaces/KatanaV3/IKatanaV3AggregateRouter.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -44,6 +47,7 @@ uint8 constant POOL_TYPE_VELODROME_V2 = 6;
 uint8 constant POOL_TYPE_ALGEBRA = 7;
 uint8 constant POOL_TYPE_IZUMI_V3 = 8;
 uint8 constant POOL_TYPE_SYNCSWAP = 9;
+uint8 constant POOL_TYPE_KATANA_V3 = 10;
 
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
@@ -80,6 +84,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     error IzumiV3SwapUnexpected();
     error IzumiV3SwapCallbackUnknownSource();
     error IzumiV3SwapCallbackNotPositiveAmount();
+    error KatanaV3SwapUnexpected();
 
     IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
@@ -391,6 +396,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             swapIzumiV3(stream, from, tokenIn, amountIn);
         else if (poolType == POOL_TYPE_SYNCSWAP)
             swapSyncSwap(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_KATANA_V3)
+            swapKatanaV3(stream, from, tokenIn, amountIn);
         else revert UnknownPoolType();
     }
 
@@ -748,21 +755,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
-    /// @notice Called to `msg.sender` after executing a swap via KatanaV3#swap.
-    /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
-    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
-    /// @param data Any data passed through by the caller via the KatanaV3#swap call
-    function katanaV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata data
-    ) external {
-        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
-    }
-
     /// @notice Performs a swap through iZiSwap V3 pools
     /// @dev This function handles both X to Y and Y to X swaps through iZiSwap V3 pools
     /// @param stream [pool, direction, recipient]
@@ -867,6 +859,70 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes memory data = abi.encode(tokenIn, to, withdrawMode);
 
         ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
+    }
+
+    /// @notice Performs a swap through KatanaV3 pools
+    /// @dev This function handles swaps through KatanaV3 pools.
+    /// @param stream [pool, direction, recipient]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    function swapKatanaV3(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
+        address recipient = stream.readAddress();
+
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
+
+        // get router address from pool governance
+        address governance = IKatanaV3Pool(pool).governance();
+        address router = IKatanaV3Governance(governance).getRouter();
+
+        // get pool info for constructing the path
+        address token0 = IKatanaV3Pool(pool).token0();
+        address token1 = IKatanaV3Pool(pool).token1();
+        uint24 fee = IKatanaV3Pool(pool).fee();
+
+        // determine tokenOut based on swap direction
+        address tokenOut = direction ? token1 : token0;
+
+        // transfer tokens to the router
+        if (from == msg.sender) {
+            IERC20(tokenIn).safeTransferFrom(msg.sender, router, amountIn);
+        } else if (from == address(this)) {
+            IERC20(tokenIn).safeTransfer(router, amountIn);
+        }
+
+        // construct the path for V3 swap (tokenIn -> tokenOut with fee)
+        bytes memory path = abi.encodePacked(tokenIn, fee, tokenOut);
+
+        // command for V3_SWAP_EXACT_IN (0x00)
+        bytes memory commands = abi.encodePacked(uint8(0x00));
+
+        // encode the inputs for V3_SWAP_EXACT_IN
+        // set payerIsUser to false since we already transferred tokens to the router
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(
+            recipient, // recipient
+            amountIn, // amountIn
+            uint256(0), // amountOutMin (0, as we handle slippage at higher level)
+            path, // path
+            false // payerIsUser (false since tokens are already in router)
+        );
+
+        // call the router's execute function
+        IKatanaV3AggregateRouter(router).execute(commands, inputs);
+
+        // katanaV3SwapCallback implementation is in the router contract itself
     }
 
     /// @dev Common logic for iZiSwap callbacks
