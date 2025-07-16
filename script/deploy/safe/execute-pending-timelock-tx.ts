@@ -349,7 +349,7 @@ async function processNetwork(
     })
 
     // Get pending operations using new decode-based approach
-    const pendingOperations = await getPendingOperations(
+    const { readyOperations, totalPendingCount } = await getPendingOperations(
       publicClient,
       timelockAddress,
       network.name,
@@ -357,19 +357,25 @@ async function processNetwork(
       rejectAll
     )
 
-    if (pendingOperations.length === 0) {
-      consola.info(`✅ No pending operations found`)
+    if (readyOperations.length === 0) {
+      if (totalPendingCount === 0) 
+        consola.info(`✅ No pending operations found`)
+       else 
+        consola.info(
+          `✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
+        )
+      
       return
     }
 
     consola.info(
-      `📋 Found ${pendingOperations.length} pending operation${
-        pendingOperations.length === 1 ? '' : 's'
+      `📋 Found ${readyOperations.length} pending operation${
+        readyOperations.length === 1 ? '' : 's'
       }`
     )
 
     // Execute or reject each ready operation
-    for (const operation of pendingOperations)
+    for (const operation of readyOperations)
       if (rejectAll)
         await rejectOperation(
           publicClient,
@@ -405,7 +411,7 @@ async function getPendingOperations(
   networkName: string,
   specificOperationId?: Hex,
   includeNotReady?: boolean
-) {
+): Promise<{ readyOperations: any[]; totalPendingCount: number }> {
   // Fetch Safe transactions with schedule data from MongoDB
   consola.info('Fetching Safe transactions with schedule data from MongoDB...')
   const safeTxs = await fetchPendingTimelockTransactions(networkName)
@@ -550,7 +556,7 @@ async function getPendingOperations(
       } ready to execute`
     )
 
-  return readyOperations
+  return { readyOperations, totalPendingCount: safeTxs.length }
 }
 
 async function executeOperation(
