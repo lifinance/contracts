@@ -48,7 +48,8 @@
 
 // Node.js built-in modules first
 import { readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 
 // Third-party dependencies in alphabetical order
 import {
@@ -75,6 +76,10 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 dotenv.config()
 
