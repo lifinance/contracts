@@ -8,6 +8,7 @@ import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsN
 
 /// @title LibAsset
 /// @custom:version 2.1.1
+/// @author LI.FI (https://li.fi)
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
