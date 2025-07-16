@@ -10,6 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title RelayFacet
 /// @author LI.FI (https://li.fi)
@@ -110,6 +111,10 @@ contract RelayFacet is
     /// @param _relayReceiver The receiver for native transfers
     /// @param _relaySolver The relayer wallet for ERC20 transfers
     constructor(address _relayReceiver, address _relaySolver) {
+        if (_relayReceiver == address(0) || _relaySolver == address(0)) {
+            revert InvalidConfig();
+        }
+
         relayReceiver = _relayReceiver;
         relaySolver = _relaySolver;
     }

@@ -6,6 +6,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract Reverter {
     error AlwaysReverts();
@@ -122,6 +123,17 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
                 validRelayData
             );
         }
+    }
+
+    function testRevert_WhenUsingInvalidConfig() public {
+        // invalid relay solver
+        vm.expectRevert(InvalidConfig.selector);
+        new RelayFacet(RELAY_RECEIVER, address(0));
+
+        // invalid relay receiver
+        vm.expectRevert(InvalidConfig.selector);
+
+        new RelayFacet(RELAY_RECEIVER, address(0));
     }
 
     function test_CanDeployFacet() public virtual {
