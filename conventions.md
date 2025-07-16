@@ -201,10 +201,10 @@ Follow the folder structure to locate resources and generate or modify code in a
         );
     }
     ```
-  - When a non-EVM address is used, the `bridgeData.receiver` must contain `NON_EVM_ADDRESS` (found in src/Helpers/LiFiData.sol), ensuring proper handling:
+  - When a non-EVM address is used, the `bridgeData.receiver` must contain `LibAsset.NON_EVM_ADDRESS`, ensuring proper handling:
     ```
     if (
-        bridgeData.receiver != NON_EVM_ADDRESS
+        bridgeData.receiver != LibAsset.NON_EVM_ADDRESS
     ) {
         revert InvalidCallData();
     }

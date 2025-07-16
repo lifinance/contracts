@@ -9,20 +9,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
-import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
-/// @title RelayFacet
+/// @title Relay Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Relay Protocol
-/// @custom:version 1.0.1
-contract RelayFacet is
-    ILiFi,
-    ReentrancyGuard,
-    SwapperV2,
-    Validatable,
-    LiFiData
-{
+/// @custom:version 1.0.0
+contract RelayFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // Receiver for native transfers
     // solhint-disable-next-line immutable-vars-naming
     address public immutable relayReceiver;
@@ -75,7 +67,7 @@ contract RelayFacet is
 
         // Ensure nonEVMAddress is not empty
         if (
-            _bridgeData.receiver == NON_EVM_ADDRESS &&
+            _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS &&
             _relayData.nonEVMReceiver == bytes32(0)
         ) {
             revert InvalidQuote();
@@ -92,7 +84,7 @@ contract RelayFacet is
                     bytes32(uint256(uint160(address(this)))),
                     bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                     _getMappedChainId(_bridgeData.destinationChainId),
-                    _bridgeData.receiver == NON_EVM_ADDRESS
+                    _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
                         ? _relayData.nonEVMReceiver
                         : bytes32(uint256(uint160(_bridgeData.receiver))),
                     _relayData.receivingAssetId
@@ -111,10 +103,6 @@ contract RelayFacet is
     /// @param _relayReceiver The receiver for native transfers
     /// @param _relaySolver The relayer wallet for ERC20 transfers
     constructor(address _relayReceiver, address _relaySolver) {
-        if (_relayReceiver == address(0) || _relaySolver == address(0)) {
-            revert InvalidConfig();
-        }
-
         relayReceiver = _relayReceiver;
         relaySolver = _relaySolver;
     }
@@ -215,7 +203,7 @@ contract RelayFacet is
         consumedIds[_relayData.requestId] = true;
 
         // Emit special event if bridging to non-EVM chain
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+        if (_bridgeData.receiver == LibAsset.NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _getMappedChainId(_bridgeData.destinationChainId),

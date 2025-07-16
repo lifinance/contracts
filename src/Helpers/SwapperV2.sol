@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
+/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -7,10 +8,9 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { ContractCallNotAllowed, NoSwapDataProvided, CumulativeSlippageTooHigh } from "../Errors/GenericErrors.sol";
 
-/// @title SwapperV2
+/// @title Swapper
 /// @author LI.FI (https://li.fi)
 /// @notice Abstract contract to provide swap functionality
-/// @custom:version 1.0.1
 contract SwapperV2 is ILiFi {
     /// Types ///
 
@@ -119,7 +119,7 @@ contract SwapperV2 is ILiFi {
 
         if (finalBalance > initialBalance) {
             LibAsset.transferAsset(
-                LibAsset.NULL_ADDRESS,
+                LibAsset.NATIVE_ASSETID,
                 _refundReceiver,
                 finalBalance - initialBalance
             );

@@ -12,7 +12,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title ReceiverChainflip
 /// @author LI.FI (https://li.fi)
 /// @notice Receiver contract for Chainflip cross-chain swaps and message passing
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
     using SafeTransferLib for address payable;
@@ -114,7 +114,7 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     ) private {
         // Group address conversion and store in memory to avoid multiple storage reads
         address actualAssetId = assetId == CHAINFLIP_NATIVE_ADDRESS
-            ? LibAsset.NULL_ADDRESS
+            ? LibAsset.NATIVE_ASSETID
             : assetId;
         bool isNative = LibAsset.isNativeAsset(actualAssetId);
 
