@@ -20,12 +20,17 @@ import {
   parseAbi,
   formatEther,
   encodeFunctionData,
+  decodeFunctionData,
+  keccak256,
+  encodeAbiParameters,
 } from 'viem'
 import type { Address, PublicClient, WalletClient, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
+import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 
 // Define interfaces for network configuration
 interface INetworkConfig {
@@ -57,6 +62,17 @@ const TIMELOCK_ABI = parseAbi([
   'event CallSalt(bytes32 indexed id, bytes32 salt)',
   'event Cancelled(bytes32 indexed id)',
 ])
+
+// Schedule ABI for decoding Safe transaction data
+const SCHEDULE_ABI = parseAbi([
+  'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+])
+
+// Extend the interface to include MongoDB's _id field and timelockIsExecuted
+interface ISafeTxDocumentWithId extends ISafeTxDocument {
+  _id: any
+  timelockIsExecuted?: boolean
+}
 
 // Define the command
 const cmd = defineCommand({
@@ -197,19 +213,88 @@ const cmd = defineCommand({
   },
 })
 
-async function getBlockRange(
-  publicClient: PublicClient
-): Promise<{ fromBlock: bigint | 'earliest'; toBlock: 'latest' }> {
+/**
+ * Computes operation ID by hashing the schedule parameters (excluding delay)
+ * This matches the Solidity hashOperation function
+ */
+function computeOperationId(
+  target: string,
+  value: bigint,
+  data: Hex,
+  predecessor: Hex,
+  salt: Hex
+): Hex {
+  const encoded = encodeAbiParameters(
+    [
+      { name: 'target', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'predecessor', type: 'bytes32' },
+      { name: 'salt', type: 'bytes32' },
+    ],
+    [target as Hex, value, data, predecessor, salt]
+  )
+
+  return keccak256(encoded)
+}
+
+/**
+ * Checks the status of an operation in the LiFiTimelockController
+ */
+async function checkOperationStatus(
+  publicClient: PublicClient,
+  timelockAddress: Address,
+  operationId: Hex
+): Promise<{
+  isDone: boolean
+  isPending: boolean
+  isReady: boolean
+}> {
+  const [isDone, isPending, isReady] = await Promise.all([
+    publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationDone',
+      args: [operationId],
+    }),
+    publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationPending',
+      args: [operationId],
+    }),
+    publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationReady',
+      args: [operationId],
+    }),
+  ])
+
+  return { isDone, isPending, isReady }
+}
+
+/**
+ * Fetches Safe transactions with schedule data that haven't been executed in timelock
+ */
+async function fetchPendingTimelockTransactions(
+  networkName: string
+): Promise<ISafeTxDocumentWithId[]> {
+  const { client, pendingTransactions } = await getSafeMongoCollection()
+
   try {
-    const currentBlock = await publicClient.getBlockNumber()
-    const fromBlock = currentBlock > 1024n ? currentBlock - 1024n : 0n
-    return { fromBlock, toBlock: 'latest' }
-  } catch (error) {
-    consola.warn(
-      'Failed to get current block number, falling back to earliest:',
-      error
-    )
-    return { fromBlock: 'earliest', toBlock: 'latest' }
+    const txs = await pendingTransactions
+      .find({
+        network: { $regex: networkName, $options: 'i' },
+        'safeTx.data.data': { $regex: '^0x01d5062a' },
+        status: 'executed',
+        timelockIsExecuted: { $ne: true },
+      })
+      .toArray()
+
+    return txs
+  } finally {
+    await client.close()
   }
 }
 
@@ -263,10 +348,11 @@ async function processNetwork(
       transport: http(rpcUrl),
     })
 
-    // Get pending operations
+    // Get pending operations using new decode-based approach
     const pendingOperations = await getPendingOperations(
       publicClient,
       timelockAddress,
+      network.name,
       specificOperationId,
       rejectAll
     )
@@ -317,227 +403,142 @@ async function processNetwork(
 async function getPendingOperations(
   publicClient: PublicClient,
   timelockAddress: Address,
+  networkName: string,
   specificOperationId?: Hex,
   includeNotReady?: boolean
 ) {
-  // If a specific operation ID is provided, check only that one
-  if (specificOperationId) {
-    consola.info(`🔍 Checking operation: ${specificOperationId}`)
+  // Fetch Safe transactions with schedule data from MongoDB
+  consola.info('Fetching Safe transactions with schedule data from MongoDB...')
+  const safeTxs = await fetchPendingTimelockTransactions(networkName)
 
-    const isOperation = await publicClient.readContract({
-      address: timelockAddress,
-      abi: TIMELOCK_ABI,
-      functionName: 'isOperation',
-      args: [specificOperationId],
-    })
-
-    if (!isOperation) {
-      consola.warn(`Operation ${specificOperationId} does not exist`)
-      return []
-    }
-
-    const isPending = await publicClient.readContract({
-      address: timelockAddress,
-      abi: TIMELOCK_ABI,
-      functionName: 'isOperationPending',
-      args: [specificOperationId],
-    })
-
-    if (!isPending) {
-      consola.warn(
-        `Operation ${specificOperationId} is not pending (may be already executed)`
-      )
-      return []
-    }
-
-    const isReady = await publicClient.readContract({
-      address: timelockAddress,
-      abi: TIMELOCK_ABI,
-      functionName: 'isOperationReady',
-      args: [specificOperationId],
-    })
-
-    if (!isReady) {
-      const timestamp = await publicClient.readContract({
-        address: timelockAddress,
-        abi: TIMELOCK_ABI,
-        functionName: 'getTimestamp',
-        args: [specificOperationId],
-      })
-
-      const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
-      const remainingTime = timestamp - currentTimestamp
-
-      consola.warn(`Operation ${specificOperationId} is not ready yet`)
-      consola.info(`Remaining time: ${formatTimeRemaining(remainingTime)}`)
-      return []
-    }
-
-    // Get the operation details from events
-    const operationDetails = await getOperationDetailsFromEvents(
-      publicClient,
-      timelockAddress,
-      specificOperationId
-    )
-
-    if (!operationDetails) {
-      consola.warn(
-        `Could not find details for operation ${specificOperationId}`
-      )
-      return []
-    }
-
-    return [operationDetails]
+  if (safeTxs.length === 0) {
+    consola.info('No Safe transactions with schedule data found')
+    return []
   }
 
-  // Otherwise, find all pending operations by scanning events
-  consola.info('Searching for all pending operations...')
+  consola.info(`Found ${safeTxs.length} Safe transaction(s) with schedule data`)
 
-  // Get the CallScheduled events to find all operations
-  const blockRange = await getBlockRange(publicClient)
-  if (blockRange.fromBlock === 'earliest')
-    consola.warn('Using earliest block due to RPC error - this may be slow')
-  else
-    consola.debug(
-      `Querying events from block ${blockRange.fromBlock} to latest`
-    )
-
-  const scheduledEvents = await publicClient.getLogs({
-    address: timelockAddress,
-    event: {
-      type: 'event',
-      name: 'CallScheduled',
-      inputs: [
-        { indexed: true, name: 'id', type: 'bytes32' },
-        { indexed: true, name: 'index', type: 'uint256' },
-        { name: 'target', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'data', type: 'bytes' },
-        { name: 'predecessor', type: 'bytes32' },
-        { name: 'delay', type: 'uint256' },
-      ],
-    },
-    fromBlock: blockRange.fromBlock,
-    toBlock: blockRange.toBlock,
-  })
-
-  consola.info(`Found ${scheduledEvents.length} scheduled operations in total`)
-
-  // Get the CallExecuted events to find which operations have already been executed
-  const executedEvents = await publicClient.getLogs({
-    address: timelockAddress,
-    event: {
-      type: 'event',
-      name: 'CallExecuted',
-      inputs: [
-        { indexed: true, name: 'id', type: 'bytes32' },
-        { indexed: true, name: 'index', type: 'uint256' },
-        { name: 'target', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'data', type: 'bytes' },
-      ],
-    },
-    fromBlock: blockRange.fromBlock,
-    toBlock: blockRange.toBlock,
-  })
-
-  // Create a set of executed operation IDs
-  const executedOperationIds = new Set(
-    executedEvents.map((event) => event.args.id)
-  )
-
-  // Get the Cancelled events to find which operations have been cancelled/rejected
-  const cancelledEvents = await publicClient.getLogs({
-    address: timelockAddress,
-    event: {
-      type: 'event',
-      name: 'Cancelled',
-      inputs: [{ indexed: true, name: 'id', type: 'bytes32' }],
-    },
-    fromBlock: blockRange.fromBlock,
-    toBlock: blockRange.toBlock,
-  })
-
-  // Create a set of cancelled operation IDs
-  const cancelledOperationIds = new Set(
-    cancelledEvents.map((event) => event.args.id)
-  )
-
-  consola.info(`Found ${executedEvents.length} already executed operations`)
-  consola.info(`Found ${cancelledEvents.length} cancelled operations`)
-
-  // Filter out operations that have already been executed OR cancelled
-  const pendingOperationEvents = scheduledEvents.filter(
-    (event) =>
-      !executedOperationIds.has(event.args.id) &&
-      !cancelledOperationIds.has(event.args.id)
-  )
-
-  consola.info(`Found ${pendingOperationEvents.length} pending operations`)
-
-  // Check which operations are ready to be executed
   const readyOperations = []
+  const { client, pendingTransactions } = await getSafeMongoCollection()
 
-  for (const event of pendingOperationEvents) {
-    const operationId = event.args.id
-    if (!operationId) continue
+  try {
+    for (const tx of safeTxs) 
+      try {
+        const dataField: Hex | undefined = tx.safeTx?.data?.data
+        if (!dataField) {
+          consola.warn(`Transaction ${tx._id} has no data field; skipping.`)
+          continue
+        }
 
-    const isReady = await publicClient.readContract({
-      address: timelockAddress,
-      abi: TIMELOCK_ABI,
-      functionName: 'isOperationReady',
-      args: [operationId],
-    })
-
-    if (isReady) {
-      consola.info(`✅ Operation ${operationId} is ready for execution`)
-      readyOperations.push({
-        id: operationId,
-        target: event.args.target || '0x0',
-        value: event.args.value || 0n,
-        data: event.args.data || '0x',
-        index: event.args.index || 0n,
-        predecessor:
-          event.args.predecessor ||
-          '0x0000000000000000000000000000000000000000000000000000000000000000',
-        delay: event.args.delay || 0n,
-      })
-    } else {
-      // Get the timestamp when the operation will be ready
-      const timestamp = await publicClient.readContract({
-        address: timelockAddress,
-        abi: TIMELOCK_ABI,
-        functionName: 'getTimestamp',
-        args: [operationId],
-      })
-
-      const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
-      const remainingTime = timestamp - currentTimestamp
-
-      if (includeNotReady) {
-        consola.info(
-          `⏰ Operation ${operationId} is pending (${formatTimeRemaining(
-            remainingTime
-          )} remaining) - will be cancelled`
-        )
-        readyOperations.push({
-          id: operationId,
-          target: event.args.target || '0x0',
-          value: event.args.value || 0n,
-          data: event.args.data || '0x',
-          index: event.args.index || 0n,
-          predecessor:
-            event.args.predecessor ||
-            '0x0000000000000000000000000000000000000000000000000000000000000000',
-          delay: event.args.delay || 0n,
+        // Decode using the schedule ABI
+        const decoded = decodeFunctionData({
+          abi: SCHEDULE_ABI,
+          data: dataField,
         })
-      } else
-        consola.info(
-          `⏰ Operation ${operationId} not ready yet (${formatTimeRemaining(
-            remainingTime
-          )} remaining)`
+
+        // Extract the decoded parameters
+        const [target, value, innerData, predecessor, salt, delay] =
+          decoded.args
+
+        // Compute the operation ID
+        const opId = computeOperationId(
+          target,
+          value,
+          innerData,
+          predecessor,
+          salt
         )
-    }
+
+        // If a specific operation ID is provided, check only that one
+        if (specificOperationId && opId !== specificOperationId) 
+          continue
+        
+
+        // Check operation status in the timelock controller
+        const status = await checkOperationStatus(
+          publicClient,
+          timelockAddress,
+          opId
+        )
+
+        if (status.isDone) {
+          consola.info(
+            `Operation ${opId} is already executed. Marking tx ${tx._id} as timelock executed.`
+          )
+          await pendingTransactions.updateOne(
+            { _id: tx._id },
+            { $set: { timelockIsExecuted: true } }
+          )
+          continue
+        }
+
+        if (status.isReady) {
+          consola.info(`✅ Operation ${opId} is ready for execution`)
+          readyOperations.push({
+            id: opId,
+            target: target as Address,
+            value: value,
+            data: innerData,
+            index: 0n, // Not used in our implementation
+            predecessor: predecessor,
+            delay: delay,
+            salt: salt, // Store the actual salt from the schedule call
+            mongoId: tx._id, // Store MongoDB ID for later updates
+          })
+        } else if (includeNotReady && status.isPending) {
+          // Get the timestamp when the operation will be ready
+          const timestamp = await publicClient.readContract({
+            address: timelockAddress,
+            abi: TIMELOCK_ABI,
+            functionName: 'getTimestamp',
+            args: [opId],
+          })
+
+          const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
+          const remainingTime = timestamp - currentTimestamp
+
+          consola.info(
+            `⏰ Operation ${opId} is pending (${formatTimeRemaining(
+              remainingTime
+            )} remaining) - will be cancelled`
+          )
+          readyOperations.push({
+            id: opId,
+            target: target as Address,
+            value: value,
+            data: innerData,
+            index: 0n,
+            predecessor: predecessor,
+            delay: delay,
+            salt: salt, // Store the actual salt from the schedule call
+            mongoId: tx._id,
+          })
+        } else if (status.isPending) {
+          // Get the timestamp when the operation will be ready
+          const timestamp = await publicClient.readContract({
+            address: timelockAddress,
+            abi: TIMELOCK_ABI,
+            functionName: 'getTimestamp',
+            args: [opId],
+          })
+
+          const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
+          const remainingTime = timestamp - currentTimestamp
+
+          consola.info(
+            `⏰ Operation ${opId} not ready yet (${formatTimeRemaining(
+              remainingTime
+            )} remaining)`
+          )
+        }
+      } catch (error: any) {
+        consola.error(
+          `Error processing transaction ${tx._id}: ${error.message}`
+        )
+      }
+    
+  } finally {
+    await client.close()
   }
 
   if (includeNotReady)
@@ -556,62 +557,6 @@ async function getPendingOperations(
   return readyOperations
 }
 
-async function getOperationDetailsFromEvents(
-  publicClient: PublicClient,
-  timelockAddress: Address,
-  operationId: Hex
-) {
-  // Get the CallScheduled event for this operation
-  const blockRange = await getBlockRange(publicClient)
-  if (blockRange.fromBlock === 'earliest')
-    consola.warn('Using earliest block due to RPC error - this may be slow')
-  else
-    consola.debug(
-      `Querying events from block ${blockRange.fromBlock} to latest`
-    )
-
-  const scheduledEvents = await publicClient.getLogs({
-    address: timelockAddress,
-    event: {
-      type: 'event',
-      name: 'CallScheduled',
-      inputs: [
-        { indexed: true, name: 'id', type: 'bytes32' },
-        { indexed: true, name: 'index', type: 'uint256' },
-        { name: 'target', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'data', type: 'bytes' },
-        { name: 'predecessor', type: 'bytes32' },
-        { name: 'delay', type: 'uint256' },
-      ],
-    },
-    args: {
-      id: operationId,
-    },
-    fromBlock: blockRange.fromBlock,
-    toBlock: blockRange.toBlock,
-  })
-
-  if (scheduledEvents.length === 0) return null
-
-  const event = scheduledEvents[0]
-
-  if (event)
-    return {
-      id: operationId,
-      target: event.args.target || '0x0',
-      value: event.args.value || 0n,
-      data: event.args.data || '0x',
-      index: event.args.index || 0n,
-      predecessor:
-        event.args.predecessor ||
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
-      delay: event.args.delay || 0n,
-    }
-
-  return null
-}
-
 async function executeOperation(
   publicClient: PublicClient,
   walletClient: WalletClient,
@@ -624,6 +569,8 @@ async function executeOperation(
     index: bigint
     predecessor: Hex
     delay: bigint
+    salt?: Hex
+    mongoId?: any
   },
   isDryRun: boolean,
   autoExecute?: boolean,
@@ -635,7 +582,7 @@ async function executeOperation(
   consola.info(`   Data: ${operation.data}`)
 
   // If interactive mode, show choice prompt
-  if (interactive && !autoExecute) {
+  if (interactive) {
     const action = await consola.prompt('Select action:', {
       type: 'select',
       options: ['Execute', 'Reject', 'Skip'],
@@ -666,41 +613,10 @@ async function executeOperation(
     const functionName = await decodeFunctionCall(operation.data)
     if (functionName) consola.info(`   Function: ${functionName}`)
 
-    // Get the salt from CallSalt event
-    const blockRange = await getBlockRange(publicClient)
-    if (blockRange.fromBlock === 'earliest')
-      consola.warn('Using earliest block due to RPC error - this may be slow')
-    else
-      consola.debug(
-        `Querying events from block ${blockRange.fromBlock} to latest`
-      )
-
-    const saltEvents = await publicClient.getLogs({
-      address: timelockAddress,
-      event: {
-        type: 'event',
-        name: 'CallSalt',
-        inputs: [
-          { indexed: true, name: 'id', type: 'bytes32' },
-          { name: 'salt', type: 'bytes32' },
-        ],
-      },
-      args: {
-        id: operation.id,
-      },
-      fromBlock: blockRange.fromBlock,
-      toBlock: blockRange.toBlock,
-    })
-
-    let salt: Hex
-    if (saltEvents.length > 0)
-      salt =
-        saltEvents[0]?.args.salt ||
-        '0x0000000000000000000000000000000000000000000000000000000000000000'
-    // If no CallSalt event found, the salt was likely bytes32(0)
-    else
-      salt =
-        '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
+    // Use the salt from the operation if available, otherwise use default
+    const salt =
+      operation.salt ||
+      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex)
 
     if (isDryRun) {
       // Simulate the transaction
@@ -747,9 +663,32 @@ async function executeOperation(
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success')
+      if (receipt.status === 'success') {
         consola.success(`✅ Operation ${operation.id} executed successfully`)
-      else consola.error(`❌ Transaction failed for operation ${operation.id}`)
+
+        // Update MongoDB to mark the operation as executed
+        if (operation.mongoId) 
+          try {
+            const { client, pendingTransactions } =
+              await getSafeMongoCollection()
+            try {
+              await pendingTransactions.updateOne(
+                { _id: operation.mongoId },
+                { $set: { timelockIsExecuted: true } }
+              )
+              consola.info(
+                `Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
+              )
+            } finally {
+              await client.close()
+            }
+          } catch (error) {
+            consola.warn(`Failed to update MongoDB document: ${error}`)
+          }
+        
+      } else 
+        consola.error(`❌ Transaction failed for operation ${operation.id}`)
+      
     }
 
     return 'executed'
@@ -771,6 +710,8 @@ async function rejectOperation(
     index: bigint
     predecessor: Hex
     delay: bigint
+    salt?: Hex
+    mongoId?: any
   },
   isDryRun: boolean
 ) {
@@ -817,9 +758,32 @@ async function rejectOperation(
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success')
+      if (receipt.status === 'success') {
         consola.success(`✅ Operation ${operation.id} cancelled successfully`)
-      else consola.error(`❌ Cancellation failed for operation ${operation.id}`)
+
+        // Update MongoDB to mark the operation as executed (cancelled counts as executed)
+        if (operation.mongoId) 
+          try {
+            const { client, pendingTransactions } =
+              await getSafeMongoCollection()
+            try {
+              await pendingTransactions.updateOne(
+                { _id: operation.mongoId },
+                { $set: { timelockIsExecuted: true } }
+              )
+              consola.info(
+                `Updated MongoDB document ${operation.mongoId} to mark timelock as cancelled`
+              )
+            } finally {
+              await client.close()
+            }
+          } catch (error) {
+            consola.warn(`Failed to update MongoDB document: ${error}`)
+          }
+        
+      } else 
+        consola.error(`❌ Cancellation failed for operation ${operation.id}`)
+      
     }
   } catch (error) {
     consola.error(`Failed to cancel operation ${operation.id}:`, error)
