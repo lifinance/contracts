@@ -358,13 +358,13 @@ async function processNetwork(
     )
 
     if (readyOperations.length === 0) {
-      if (totalPendingCount === 0) 
+      if (totalPendingCount === 0)
         consola.info(`✅ No pending operations found`)
-       else 
+      else
         consola.info(
           `✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
         )
-      
+
       return
     }
 
@@ -418,7 +418,7 @@ async function getPendingOperations(
 
   if (safeTxs.length === 0) {
     consola.info('No Safe transactions with schedule data found')
-    return []
+    return { readyOperations: [], totalPendingCount: 0 }
   }
 
   consola.info(`Found ${safeTxs.length} Safe transaction(s) with schedule data`)
