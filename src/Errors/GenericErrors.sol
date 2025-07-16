@@ -19,7 +19,6 @@ error InvalidConfig();
 error InvalidContract();
 error InvalidDestinationChain();
 error InvalidFallbackAddress();
-error InvalidNonEVMReceiver();
 error InvalidReceiver();
 error InvalidSendingToken();
 error NativeAssetNotSupported();
