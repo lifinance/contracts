@@ -103,9 +103,9 @@ diamondUpdateFacet() {
   echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
 
   # check if update script exists
-  local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  local FULL_SCRIPT_PATH="$DEPLOY_SCRIPT_DIRECTORY$SCRIPT.s.sol"
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
-    error "could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
+    error "could not find update script for $CONTRACT_NAME in this path: $FULL_SCRIPT_PATH. Aborting update."
     return 1
   fi
 
@@ -121,22 +121,21 @@ diamondUpdateFacet() {
       echoDebug "Calculating facet cuts for $SCRIPT..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync)
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         echoDebug "$SCRIPT_PATH"
 
-        PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
         echoDebug "Calculating facet cuts for $SCRIPT..."
 
         if isZkEvmNetwork "$NETWORK"; then
-          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync)
+          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync)
         else
-          RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --legacy)
+          RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
         fi
 
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-        FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+        CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
+        FACET_CUT=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns.cutData.value')
 
         if [ "$FACET_CUT" != "0x" ]; then
           echo "Proposing facet cut for $CONTRACT_NAME on network $NETWORK..."

@@ -12,11 +12,10 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { parseArgs } from 'util'
 
+import { $ } from 'bun'
 import consola from 'consola'
-import type { Address} from 'viem';
+import type { Address } from 'viem'
 import { encodeFunctionData } from 'viem'
-import { $ } from 'zx'
-
 
 // Define interfaces for network configuration
 interface INetworkConfig {
@@ -100,13 +99,12 @@ async function main() {
   }
 
   // Process each network
-  for (const network of networksWithSafe) 
+  for (const network of networksWithSafe)
     try {
       await processNetwork(network, privateKey)
     } catch (error) {
       consola.error(`Error processing network ${network.name}:`, error)
     }
-  
 }
 
 async function processNetwork(network: INetworkConfig, privateKey: string) {
@@ -120,27 +118,27 @@ async function processNetwork(network: INetworkConfig, privateKey: string) {
   )
 
   try {
-    const IdeploymentData = JSON.parse(
+    const deploymentData = JSON.parse(
       readFileSync(deploymentPath, 'utf-8')
     ) as IDeploymentData
 
     // Check if both LiFiDiamond and LiFiTimelockController are deployed
-    if (!IdeploymentData.LiFiDiamond) {
+    if (!deploymentData.LiFiDiamond) {
       consola.warn(
         `LiFiDiamond not found in deployments for ${network.name}, skipping...`
       )
       return
     }
 
-    if (!IdeploymentData.LiFiTimelockController) {
+    if (!deploymentData.LiFiTimelockController) {
       consola.warn(
         `LiFiTimelockController not found in deployments for ${network.name}, skipping...`
       )
       return
     }
 
-    const diamondAddress = IdeploymentData.LiFiDiamond
-    const timelockAddress = IdeploymentData.LiFiTimelockController
+    const diamondAddress = deploymentData.LiFiDiamond
+    const timelockAddress = deploymentData.LiFiTimelockController
 
     consola.info(`Diamond address: ${diamondAddress}`)
     consola.info(`Timelock address: ${timelockAddress}`)
@@ -172,11 +170,11 @@ async function processNetwork(network: INetworkConfig, privateKey: string) {
         await $`bun script/deploy/safe/propose-to-safe.ts --to ${diamondAddress} --calldata ${calldata} --network ${network.name} --rpcUrl ${network.rpcUrl} --privateKey ${privateKey}`.quiet()
 
       // Check if the command was successful
-      if (result.exitCode === 0) 
+      if (result.exitCode === 0)
         consola.success(
           `Successfully proposed transferOwnership for ${network.name}`
         )
-       else {
+      else {
         consola.error(
           `Failed to propose transferOwnership for ${network.name} with exit code ${result.exitCode}`
         )
