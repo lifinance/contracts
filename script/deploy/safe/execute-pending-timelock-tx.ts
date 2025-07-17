@@ -410,7 +410,7 @@ async function getPendingOperations(
   timelockAddress: Address,
   networkName: string,
   specificOperationId?: Hex,
-  rejectAll?: boolean
+  isCancellingOperations?: boolean
 ): Promise<{ readyOperations: any[]; totalPendingCount: number }> {
   // Fetch Safe transactions with schedule data from MongoDB
   consola.info('Fetching Safe transactions with schedule data from MongoDB...')
@@ -488,7 +488,7 @@ async function getPendingOperations(
             salt: salt, // Store the actual salt from the schedule call
             mongoId: tx._id, // Store MongoDB ID for later updates
           })
-        } else if (rejectAll && status.isPending) {
+        } else if (isCancellingOperations && status.isPending) {
           // Get the timestamp when the operation will be ready
           const timestamp = await publicClient.readContract({
             address: timelockAddress,
@@ -543,18 +543,14 @@ async function getPendingOperations(
     await client.close()
   }
 
-  if (rejectAll)
-    consola.info(
-      `🚀 Found ${readyOperations.length} operation${
-        readyOperations.length === 1 ? '' : 's'
-      } to cancel`
-    )
-  else
-    consola.info(
-      `🚀 Found ${readyOperations.length} operation${
-        readyOperations.length === 1 ? '' : 's'
-      } ready to execute`
-    )
+  const operationAction = isCancellingOperations
+    ? 'to cancel'
+    : 'ready to execute'
+  consola.info(
+    `🚀 Found ${readyOperations.length} operation${
+      readyOperations.length === 1 ? '' : 's'
+    } ${operationAction}`
+  )
 
   return { readyOperations, totalPendingCount: safeTxs.length }
 }
@@ -576,7 +572,7 @@ async function executeOperation(
   },
   isDryRun: boolean,
   interactive?: boolean
-): Promise<'executed' | 'rejected' | 'skipped'> {
+): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
   consola.info(`\n⚡ Processing operation: ${operation.id}`)
   consola.info(`   Target: ${operation.target}`)
   consola.info(`   Value: ${formatEther(operation.value)} ETH`)
@@ -693,7 +689,7 @@ async function executeOperation(
     return 'executed'
   } catch (error) {
     consola.error(`Failed to execute operation ${operation.id}:`, error)
-    return 'executed' // Return executed even on error since we attempted execution
+    return 'failed'
   }
 }
 
