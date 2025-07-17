@@ -35362,11 +35362,11 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57",
+            "ADDRESS": "0xBE770dd9e83505595deA830651f153c086830FB5",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-07 07:46:25",
+            "TIMESTAMP": "2025-07-14 10:16:19",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000686893d73fa3817a13217e858652a4866b096dca",
-            "SALT": "",
+            "SALT": "20250714",
             "VERIFIED": "true"
           }
         ]
