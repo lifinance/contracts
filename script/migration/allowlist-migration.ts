@@ -230,12 +230,13 @@ async function migrateAllowList(
     throw error
   }
 
-  const selectorsFilePath = './script/migration/flattened-selectors.json'
+  const selectorsToRemoveFilePath =
+    './script/migration/flattened-selectors.json'
   let selectorsToRemove: string[] = []
 
-  if (!existsSync(selectorsFilePath)) {
+  if (!existsSync(selectorsToRemoveFilePath)) {
     consola.error(
-      `❌ Flattened selectors file not found at ${selectorsFilePath}`
+      `❌ Flattened selectors file not found at ${selectorsToRemoveFilePath}`
     )
     consola.info(
       '💡 Please run flatten-selectors script first to generate the file'
@@ -244,7 +245,7 @@ async function migrateAllowList(
   }
 
   try {
-    const fileContent = readFileSync(selectorsFilePath, 'utf-8')
+    const fileContent = readFileSync(selectorsToRemoveFilePath, 'utf-8')
     const { selectors } = JSON.parse(fileContent)
     selectorsToRemove = selectors
     consola.info(`📂 Loaded ${selectorsToRemove.length} selectors to remove`)
