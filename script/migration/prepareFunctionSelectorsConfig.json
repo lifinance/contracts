@@ -1,0 +1,251 @@
+{
+  "version": "1.0.0",
+  "description": "Diamond deployment blocks for each network - manually filled",
+  "lastUpdated": "2024-01-01T00:00:00.000Z",
+  "networks": {
+    "mainnet": {
+      "deploymentBlock": 15788691,
+      "skip": false
+    },
+    "arbitrum": {
+      "deploymentBlock": 30605048,
+      "skip": false
+    },
+    "optimism": {
+      "deploymentBlock": 30030524,
+      "chunkSize": 1000,
+      "skip": false
+    },
+    "polygon": {
+      "deploymentBlock": 34330528,
+      "useCustomRPC": true,
+      "skip": false
+    },
+    "bsc": {
+      "deploymentBlock": 22255012,
+      "chunkSize": 500,
+      "useCustomRPC": true,
+      "skip": false
+    },
+    "avalanche": {
+      "deploymentBlock": 21219160,
+      "chunkSize": 2048,
+      "skip": false
+    },
+    "fantom": {
+      "deploymentBlock": null,
+      "useCustomRPC": true,
+      "skip": false,
+      "notes": "No deployment block available"
+    },
+    "gnosis": {
+      "deploymentBlock": 24656401,
+      "skip": false
+    },
+    "base": {
+      "deploymentBlock": 2649729,
+      "skip": false
+    },
+    "linea": {
+      "deploymentBlock": 265994,
+      "skip": false
+    },
+    "scroll": {
+      "deploymentBlock": 3896849,
+      "skip": false
+    },
+    "polygonzkevm": {
+      "deploymentBlock": 2775270,
+      "skip": false
+    },
+    "zksync": {
+      "deploymentBlock": 8484794,
+      "skip": false
+    },
+    "mantle": {
+      "deploymentBlock": 63599927,
+      "skip": false
+    },
+    "mode": {
+      "deploymentBlock": 6380715,
+      "skip": false
+    },
+    "blast": {
+      "deploymentBlock": 3561856,
+      "skip": false
+    },
+    "fraxtal": {
+      "deploymentBlock": 6069293,
+      "skip": false
+    },
+    "metis": {
+      "deploymentBlock": 13043913,
+      "skip": false
+    },
+    "immutablezkevm": {
+      "deploymentBlock": 10107103,
+      "chunkSize": 5000,
+      "skip": false
+    },
+    "moonbeam": {
+      "deploymentBlock": 2106095,
+      "chunkSize": 1024,
+      "useCustomRPC": true,
+      "skip": false
+    },
+    "moonriver": {
+      "deploymentBlock": 2800016,
+      "chunkSize": 1024,
+      "useCustomRPC": true,
+      "skip": false
+    },
+    "celo": {
+      "deploymentBlock": 15686585,
+      "skip": true
+    },
+    "fuse": {
+      "deploymentBlock": 19732820,
+      "skip": false
+    },
+    "cronos": {
+      "deploymentBlock": 5159585,
+      "skip": false
+    },
+    "kaia": {
+      "deploymentBlock": 163541467,
+      "skip": false
+    },
+    "aurora": {
+      "deploymentBlock": 76711097,
+      "skip": false
+    },
+    "boba": {
+      "deploymentBlock": 845499,
+      "skip": false
+    },
+    "opbnb": {
+      "deploymentBlock": 3267081,
+      "skip": false
+    },
+    "lisk": {
+      "deploymentBlock": 8896248,
+      "skip": false
+    },
+    "taiko": {
+      "deploymentBlock": 264677,
+      "chunkSize": 1000,
+      "skip": false
+    },
+    "sei": {
+      "deploymentBlock": 81395208,
+      "chunkSize": 1000,
+      "skip": false
+    },
+    "flare": {
+      "deploymentBlock": 42561614,
+      "chunkSize": 30,
+      "skip": false
+    },
+    "gravity": {
+      "deploymentBlock": 36127,
+      "skip": false
+    },
+    "worldchain": {
+      "deploymentBlock": 6332960,
+      "skip": false
+    },
+    "xlayer": {
+      "deploymentBlock": 4984007,
+      "chunkSize": 100,
+      "skip": false
+    },
+    "abstract": {
+      "deploymentBlock": 160694,
+      "skip": false
+    },
+    "apechain": {
+      "deploymentBlock": 8533475,
+      "skip": false
+    },
+    "berachain": {
+      "deploymentBlock": 806887,
+      "skip": false
+    },
+    "bob": {
+      "deploymentBlock": 17483306,
+      "skip": false
+    },
+    "corn": {
+      "deploymentBlock": 388064,
+      "skip": false
+    },
+    "etherlink": {
+      "deploymentBlock": 9922482,
+      "chunkSize": 1000,
+      "skip": false
+    },
+    "hyperevm": {
+      "deploymentBlock": 4019576,
+      "chunkSize": 1000,
+      "useCustomRPC": true,
+      "skip": true
+    },
+    "ink": {
+      "deploymentBlock": 6517818,
+      "skip": false
+    },
+    "katana": {
+      "deploymentBlock": 3056085,
+      "skip": false
+    },
+    "lens": {
+      "deploymentBlock": 207126,
+      "skip": false
+    },
+    "nibiru": {
+      "deploymentBlock": 23781877,
+      "skip": false
+    },
+    "plume": {
+      "deploymentBlock": 7276840,
+      "skip": false
+    },
+    "rootstock": {
+      "deploymentBlock": 6372871,
+      "useCustomRPC": true,
+      "skip": false
+    },
+    "soneium": {
+      "deploymentBlock": 3136254,
+      "skip": false
+    },
+    "sonic": {
+      "deploymentBlock": 2953910,
+      "skip": false
+    },
+    "superposition": {
+      "deploymentBlock": 1388311,
+      "skip": false
+    },
+    "swellchain": {
+      "deploymentBlock": 5666365,
+      "skip": false
+    },
+    "unichain": {
+      "deploymentBlock": 8575796,
+      "skip": false
+    },
+    "vana": {
+      "deploymentBlock": 3712339,
+      "skip": false
+    },
+    "viction": {
+      "deploymentBlock": 94000000,
+      "skip": false
+    },
+    "xdc": {
+      "deploymentBlock": 88828967,
+      "skip": false
+    }
+  }
+} 

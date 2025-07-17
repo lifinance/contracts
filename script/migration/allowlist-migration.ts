@@ -3,11 +3,29 @@
 /**
  * Allow List Migration Script
  *
- * This script migrates the allow list configuration by:
- * 1. Fetching all ever-whitelisted addresses and selectors from blockchain events
- * 2. Loading current configuration from config files
- * 3. Determining what to remove and what to add
- * 4. Calling the migrate function with the appropriate parameters
+ * This script performs a complete migration of the allow list configuration. Since there's
+ * no way to clear mappings on-chain, we need to explicitly remove all previously approved
+ * selectors and set the new desired state. The process works as follows:
+ *
+ * 1. Loads all historically approved selectors from flattened-selectors.json
+ *    These selectors were previously scanned from on-chain events and represent
+ *    the complete set of selectors that need to be removed to clear the old state
+ *
+ * 2. Loads the desired new state from two config files:
+ *    - whitelistedAddresses.json: Contains contract addresses that should be
+ *      whitelisted after migration for each network
+ *    - whitelistedSelectors.json: Contains function selectors that should be
+ *      whitelisted after migration
+ *
+ * 3. Reads chain-specific configurations from prepareFunctionSelectorsConfig.json:
+ *    - Custom RPC endpoints for more reliable event scanning
+ *    - Chain-specific event chunk sizes to handle RPC limitations
+ *    - Other network-specific scanning parameters
+ *
+ * 4. Executes the migration by calling the migrate function with:
+ *    - All historical selectors to remove (from step 1)
+ *    - New addresses to whitelist (from step 2)
+ *    - New selectors to whitelist (from step 2)
  */
 
 import 'dotenv/config'
@@ -49,24 +67,6 @@ interface IDeploymentData {
 interface IWhitelistedSelectors {
   selectors: string[]
 }
-
-interface INetworkSelectorData {
-  network: string
-  chainId: number
-  diamondAddress: string
-  scanFromBlock: string
-  scanToBlock: string
-  scannedAt: string
-  totalEvents: number
-  selectors: string[]
-}
-
-interface ISelectorsDataFile {
-  version: string
-  generatedAt: string
-  networks: Record<string, INetworkSelectorData>
-}
-
 // WhitelistManagerFacet ABI for events and migration function
 const WHITELIST_MANAGER_ABI = parseAbi([
   'function migrate(bytes4[] calldata selectorsToRemove, address[] calldata contractsToAdd, bytes4[] calldata selectorsToAdd) external',
@@ -102,11 +102,6 @@ const cmd = defineCommand({
       description: 'Override RPC URL for the network',
       required: false,
     },
-    fromBlock: {
-      type: 'string',
-      description: 'Block number to start scanning from (default: earliest)',
-      required: false,
-    },
     environment: {
       type: 'string',
       description: 'Environment to use (staging or production)',
@@ -122,7 +117,6 @@ const cmd = defineCommand({
     const privateKey = args?.privateKey || process.env.PRIVATE_KEY_PRODUCTION
     const isDryRun = Boolean(args?.dryRun)
     const rpcUrlOverride = args?.rpcUrl
-    const fromBlockArg = args?.fromBlock
     const environment =
       args?.environment === EnvironmentEnum[EnvironmentEnum.staging]
         ? EnvironmentEnum.staging
@@ -162,7 +156,6 @@ const cmd = defineCommand({
       privateKey,
       isDryRun,
       rpcUrlOverride,
-      fromBlockArg,
       environment
     )
   },
@@ -173,7 +166,6 @@ async function migrateAllowList(
   privateKey: string,
   isDryRun: boolean,
   rpcUrlOverride?: string,
-  fromBlockArg?: string,
   environment: EnvironmentEnum = EnvironmentEnum.production
 ) {
   // Replace the manual deployment file reading with getDeployments
@@ -238,93 +230,24 @@ async function migrateAllowList(
     throw error
   }
 
-  // Get CREATE3Factory address from networks.json
-  const create3FactoryAddress = networksData[network.name]
-    .create3Factory as Address
-  if (!create3FactoryAddress)
-    consola.warn(
-      'CREATE3Factory address not found in networks.json, falling back to default block range'
-    )
-
-  // Determine block range for event scanning
-  let fromBlock: bigint | 'earliest' = 'earliest'
-  if (fromBlockArg) fromBlock = BigInt(fromBlockArg)
-  else if (create3FactoryAddress)
-    try {
-      fromBlock = await getDiamondDeploymentBlock(
-        publicClient,
-        diamondAddress,
-        create3FactoryAddress
-      )
-      consola.info(`🔍 Diamond deployment block: ${fromBlock}`)
-      consola.info(`🔍 Scanning events from block ${fromBlock} to latest`)
-    } catch (error) {
-      consola.warn(
-        'Failed to get diamond deployment block, using default range:',
-        error
-      )
-      const currentBlock = await publicClient.getBlockNumber()
-      fromBlock = currentBlock > 100000n ? currentBlock - 100000n : 0n
-    }
-  else
-    fromBlock =
-      (await publicClient.getBlockNumber()) > 100000n
-        ? (await publicClient.getBlockNumber()) - 100000n
-        : 0n
-
-  consola.info(`🔍 Scanning events from block ${fromBlock} to latest`)
-
-  // Replace the event scanning section with:
-  const selectorsFilePath = './script/migration/functionSelectors.json'
+  const selectorsFilePath = './script/migration/flattened-selectors.json'
   let selectorsToRemove: string[] = []
 
   if (!existsSync(selectorsFilePath)) {
     consola.error(
-      `❌ Function selectors file not found at ${selectorsFilePath}`
+      `❌ Flattened selectors file not found at ${selectorsFilePath}`
     )
     consola.info(
-      '💡 Please run prepare-function-selectors script first to generate the file'
+      '💡 Please run flatten-selectors script first to generate the file'
     )
     process.exit(1)
   }
 
   try {
     const fileContent = readFileSync(selectorsFilePath, 'utf-8')
-    const selectorsData: ISelectorsDataFile = JSON.parse(fileContent)
-
-    if (!selectorsData.networks[network.name]) {
-      consola.error(
-        `❌ No data found for network ${network.name} in selectors file`
-      )
-      consola.info(
-        '💡 Please run prepare-function-selectors script for this network first'
-      )
-      process.exit(1)
-    }
-
-    const networkData = selectorsData.networks[network.name]
-
-    // Verify diamond address matches
-    if (
-      networkData.diamondAddress.toLowerCase() !== diamondAddress.toLowerCase()
-    ) {
-      consola.error('❌ Diamond address mismatch!')
-      consola.info(`Expected: ${diamondAddress}`)
-      consola.info(`Found in file: ${networkData.diamondAddress}`)
-      consola.info('💡 Please regenerate the selectors file for this network')
-      process.exit(1)
-    }
-
-    selectorsToRemove = networkData.selectors
-    consola.info(`📂 Loaded selectors from prepared file:`)
-    consola.info(`   Network: ${networkData.network}`)
-    consola.info(`   Chain ID: ${networkData.chainId}`)
-    consola.info(
-      `   Scanned blocks: ${networkData.scanFromBlock} to ${networkData.scanToBlock}`
-    )
-    consola.info(`   Data generated: ${networkData.scannedAt}`)
-    consola.info(`   Total events found: ${networkData.totalEvents}`)
-    consola.info(`   Selectors to remove: ${selectorsToRemove.length}`)
+    const { selectors } = JSON.parse(fileContent)
+    selectorsToRemove = selectors
+    consola.info(`📂 Loaded ${selectorsToRemove.length} selectors to remove`)
   } catch (error) {
     consola.error('❌ Failed to load selectors from file:', error)
     process.exit(1)
@@ -338,12 +261,16 @@ async function migrateAllowList(
   const selectorsToAdd = new Set(whitelistedSelectorsFromFile)
   const addressesToAdd = new Set(whitelistedAddresses[network.name] || [])
 
-  consola.info(`Migration plan:`)
+  consola.info(`Migration:`)
   consola.info(
-    `   - Will be ${Array.from(addressesToAdd).length} whitelisted addresses`
+    `   - ${
+      Array.from(addressesToAdd).length
+    } whitelisted addresses will be added`
   )
-  consola.info(`   - Remove ${selectorsToRemove.length} old selectors`)
-  consola.info(`   - Add ${Array.from(selectorsToAdd).length} new selectors`)
+  consola.info(`   - ${selectorsToRemove.length} old selectors will be removed`)
+  consola.info(
+    `   - ${Array.from(selectorsToAdd).length} new selectors will be added`
+  )
 
   // Convert to proper types
   const contractsToAdd = Array.from(addressesToAdd).map(

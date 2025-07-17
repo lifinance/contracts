@@ -3,9 +3,38 @@
 /**
  * Function Selectors Preparation Script
  *
- * This script scans blockchain events to collect all ever-whitelisted function selectors
- * (previously called function signatures) from the old DexManagerFacet and saves them to a file.
- * This prepares the data for the allowListMigration script to use without re-scanning.
+ * This script scans blockchain events to collect historical function selector approvals,
+ * preparing data for the allowlist migration. Since we can't clear mappings on-chain,
+ * we need a complete record of all previously approved selectors to properly reset the state.
+ *
+ * Key Features:
+ * - Parallel Processing: Scans multiple networks concurrently
+ * - RPC Optimization:
+ *   - Configurable chunk sizes per network to handle RPC limitations
+ *   - Support for custom RPC endpoints when public ones are unreliable
+ *   - Automatic retry mechanism with backoff for failed requests
+ *   - Timeout handling for unresponsive RPCs
+ *
+ * Process:
+ * 1. Loads network-specific configurations from prepareFunctionSelectorsConfig.json:
+ *    - Custom chunk sizes for event scanning
+ *    - RPC preferences (custom vs public)
+ *    - Network-specific deployment blocks
+ *    - Skip flags for specific networks
+ *
+ * 2. Scans FunctionSignatureApprovalChanged events from each network:
+ *    - Processes blocks in configurable chunks to handle RPC limitations
+ *    - Tracks only approval events (filters out revocation events)
+ *    - Saves results progressively to handle large datasets
+ *
+ * 3. Generates functionSelectorsResult.json containing:
+ *    - Complete list of approved selectors per network
+ *    - Scanning metadata (blocks, timestamps, duration)
+ *    - Network-specific information (chain IDs, addresses)
+ *
+ * The output from this script is essential for the allowlist migration process,
+ * as it provides the complete set of selectors that need to be explicitly removed
+ * to reset the contract state.
  */
 
 import 'dotenv/config'
@@ -40,7 +69,6 @@ interface INetworkSelectorData {
   scanFromBlock: string
   scanToBlock: string
   scannedAt: string
-  totalEvents: number
   selectors: string[]
   scanDurationSeconds?: number
 }
@@ -51,19 +79,58 @@ interface ISelectorsDataFile {
   networks: Record<string, INetworkSelectorData>
 }
 
+interface IChunkConfig {
+  chunkSize?: number
+  useCustomRPC?: boolean
+  deploymentBlock?: number | null
+  skip?: boolean
+  notes?: string
+}
+
+interface IChunkRangeConfig {
+  version: string
+  description: string
+  lastUpdated: string
+  networks: Record<string, IChunkConfig>
+}
+
+interface IScanResult {
+  success: boolean
+  network: string
+  data?: INetworkSelectorData
+  error?: string
+  duration?: number
+}
+
+interface IScanSummary {
+  totalNetworks: number
+  successfulScans: number
+  failedScans: number
+  totalSelectors: number
+  totalDuration: number
+  successfulNetworks: string[]
+  failedNetworks: { network: string; error: string }[]
+}
+
 async function fetchEventsInChunks(
   publicClient: PublicClient,
   address: Address,
   fromBlock: bigint,
   toBlock: bigint,
-  chunkSize = 10000n
+  networkName: string,
+  chunkSize: bigint
 ) {
   const events = []
   let currentFromBlock = fromBlock
   const totalBlocks = toBlock - fromBlock + 1n
   let processedBlocks = 0n
 
-  consola.info(`🔍 Total blocks to scan: ${totalBlocks.toString()}`)
+  consola.info(
+    `🔍 [${networkName}] Total blocks to scan: ${totalBlocks.toString()}`
+  )
+  consola.info(
+    `🔧 [${networkName}] Using chunk size: ${chunkSize.toString()} blocks`
+  )
 
   while (currentFromBlock <= toBlock) {
     const currentToBlock =
@@ -76,52 +143,117 @@ async function fetchEventsInChunks(
       Number((processedBlocks * 100n) / totalBlocks)
     )
     consola.info(
-      `   [${progress.toFixed(
+      `   [${networkName}] [${progress.toFixed(
         0
       )}%] Fetching events from block ${currentFromBlock} to ${currentToBlock}`
     )
 
-    const maxRetries = 3
-    const retryDelay = 3000 // 3 seconds
+    const maxRetries = 10
+    const baseRetryDelay = 5000 // 5 seconds
     let retryCount = 0
     let success = false
 
     while (!success && retryCount <= maxRetries) {
       try {
-        const chunkEvents = await publicClient.getLogs({
-          address,
-          event: {
-            type: 'event',
-            name: 'FunctionSignatureApprovalChanged',
-            inputs: [
-              { indexed: true, name: 'functionSignature', type: 'bytes4' },
-              { indexed: true, name: 'approved', type: 'bool' },
-            ],
-          },
-          fromBlock: currentFromBlock,
-          toBlock: currentToBlock,
-        })
+        // Add timeout using AbortController
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+
+        const chunkEvents = await publicClient
+          .getLogs({
+            address,
+            event: {
+              type: 'event',
+              name: 'FunctionSignatureApprovalChanged',
+              inputs: [
+                { indexed: true, name: 'functionSignature', type: 'bytes4' },
+                { indexed: true, name: 'approved', type: 'bool' },
+              ],
+            },
+            fromBlock: currentFromBlock,
+            toBlock: currentToBlock,
+          })
+          .finally(() => clearTimeout(timeout))
 
         const blocksCovered = currentToBlock - currentFromBlock + 1n
         processedBlocks += blocksCovered
         events.push(...chunkEvents)
-        consola.info(`   Found ${chunkEvents.length} events in this chunk`)
+        consola.info(
+          `   [${networkName}] Found ${chunkEvents.length} events in this chunk`
+        )
         success = true
-      } catch (error) {
+      } catch (error: any) {
+        // Add ': any' type annotation
         retryCount++
+
+        // Determine error type and appropriate response
+        const errorMessage = error.message?.toLowerCase() || ''
+        const isTimeout =
+          error.name === 'AbortError' ||
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('network error') ||
+          errorMessage.includes('request timed out') ||
+          errorMessage.includes('took too long')
+
+        const isRateLimited =
+          error.status === 429 ||
+          errorMessage.includes('too many requests') ||
+          errorMessage.includes('rate limit')
+
+        const isBlockRangeError =
+          errorMessage.includes('block range') ||
+          errorMessage.includes('too many blocks') ||
+          errorMessage.includes('maximum') ||
+          errorMessage.includes('exceeded')
+
+        const isRPCError =
+          error.status >= 500 ||
+          errorMessage.includes('internal error') ||
+          errorMessage.includes('service unavailable') ||
+          errorMessage.includes('bad gateway')
+
         if (retryCount > maxRetries) {
           consola.error(
-            `   Error fetching chunk ${currentFromBlock}-${currentToBlock} after ${maxRetries} retries:`,
+            `❌ [${networkName}] Error fetching chunk ${currentFromBlock}-${currentToBlock} after ${maxRetries} retries:`,
             error
           )
           throw error
         }
+
+        // Calculate retry delay based on error type
+        let waitTime = baseRetryDelay
+        if (isRateLimited) {
+          waitTime = baseRetryDelay * Math.pow(2, retryCount) // Exponential backoff for rate limits
+        } else if (isTimeout || isRPCError) {
+          waitTime = baseRetryDelay * (retryCount + 1) // Linear increase for timeouts/RPC errors
+        } else if (isBlockRangeError) {
+          // For block range errors, we should probably reduce chunk size instead of retrying
+          consola.error(
+            `❌ [${networkName}] Block range error for chunk ${currentFromBlock}-${currentToBlock}. Consider reducing chunk size.`,
+            error
+          )
+          throw error
+        }
+
+        // Cap maximum wait time at 60 seconds
+        waitTime = Math.min(waitTime, 60000)
+
+        const errorType = isTimeout
+          ? 'Timeout'
+          : isRateLimited
+          ? 'Rate Limited'
+          : isRPCError
+          ? 'RPC Error'
+          : isBlockRangeError
+          ? 'Block Range Error'
+          : 'Network Error'
+
         consola.warn(
-          `   Error fetching chunk ${currentFromBlock}-${currentToBlock}, retry ${retryCount}/${maxRetries} in ${
-            retryDelay / 1000
+          `⚠️  [${networkName}] ${errorType} fetching chunk ${currentFromBlock}-${currentToBlock}, retry ${retryCount}/${maxRetries} in ${
+            waitTime / 1000
           }s...`
         )
-        await new Promise((resolve) => setTimeout(resolve, retryDelay))
+        await new Promise((resolve) => setTimeout(resolve, waitTime))
       }
     }
 
@@ -130,7 +262,7 @@ async function fetchEventsInChunks(
   }
 
   consola.success(
-    `✅ Completed scanning ${totalBlocks.toString()} blocks, found ${
+    `✅ [${networkName}] Completed scanning ${totalBlocks.toString()} blocks, found ${
       events.length
     } total events`
   )
@@ -139,90 +271,178 @@ async function fetchEventsInChunks(
 
 async function scanNetworkSelectors(
   network: INetworkConfig,
+  chunkConfig: IChunkConfig,
   rpcUrlOverride?: string,
-  fromBlockArg?: string,
   environment: EnvironmentEnum = EnvironmentEnum.production
-): Promise<INetworkSelectorData> {
+): Promise<IScanResult> {
   const startTime = Date.now()
-  consola.info(
-    `\n🔍 Processing network: ${network.name} (Chain ID: ${network.chainId})`
-  )
 
-  // Get deployment data
-  let deploymentData: IDeploymentData
   try {
-    deploymentData = await getDeployments(network.name, environment)
+    consola.info(
+      `\n🔍 [${network.name}] Processing network (Chain ID: ${network.chainId})`
+    )
+
+    // Get deployment data
+    let deploymentData: IDeploymentData
+    try {
+      deploymentData = await getDeployments(network.name, environment)
+    } catch (error) {
+      throw new Error(`Error reading deployment data: ${error}`)
+    }
+
+    if (!deploymentData.LiFiDiamond) {
+      throw new Error(`No LiFiDiamond deployed on ${network.name}`)
+    }
+
+    const diamondAddress = deploymentData.LiFiDiamond as Address
+    consola.info(`💎 [${network.name}] Diamond: ${diamondAddress}`)
+
+    // Determine RPC URL to use
+    let rpcUrl = rpcUrlOverride || network.rpcUrl
+
+    // Check if we should use custom RPC from environment variables
+    if (chunkConfig.useCustomRPC && !rpcUrlOverride) {
+      const envVarName = `ETH_NODE_URI_${network.name.toUpperCase()}`
+      const customRpcUrl = process.env[envVarName]
+
+      if (customRpcUrl) {
+        rpcUrl = customRpcUrl
+        consola.info(`🔧 [${network.name}] Using custom RPC from ${envVarName}`)
+      } else {
+        consola.warn(
+          `⚠️  [${network.name}] Custom RPC requested but ${envVarName} not found in environment, using default RPC`
+        )
+      }
+    }
+
+    consola.info(`🔍 [${network.name}] RPC URL: ${rpcUrl}`)
+
+    // Create viem client
+    const { getViemChainForNetworkName } = await import(
+      '../utils/viemScriptHelpers'
+    )
+    const chain = getViemChainForNetworkName(network.name)
+
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(rpcUrl),
+    })
+
+    const latestBlock = await publicClient.getBlockNumber()
+
+    // Use deployment block from config, fallback to last 100k blocks if not specified
+    let fromBlock: bigint
+    if (chunkConfig.deploymentBlock && chunkConfig.deploymentBlock !== null) {
+      fromBlock = BigInt(chunkConfig.deploymentBlock)
+      consola.info(`📊 [${network.name}] Scanning from deployment block`)
+    } else {
+      fromBlock = latestBlock - 100000n // Fallback to last 100k blocks
+      consola.info(
+        `📊 [${network.name}] No deployment block specified, scanning last 100k blocks`
+      )
+    }
+
+    // Get chunk size with default fallback
+    const chunkSize = chunkConfig.chunkSize || 10000 // Default to 10k blocks
+    consola.info(`   From block: ${fromBlock}`)
+    consola.info(`   To block: ${latestBlock}`)
+    consola.info(`   Total blocks to scan: ${latestBlock - fromBlock + 1n}`)
+    consola.info(`   Chunk size: ${chunkSize} blocks`)
+
+    // Fetch events with configured chunk size
+    const selectorApprovalEvents = await fetchEventsInChunks(
+      publicClient,
+      diamondAddress,
+      fromBlock,
+      latestBlock,
+      network.name,
+      BigInt(chunkSize)
+    )
+
+    // Get all ever-whitelisted selectors from events
+    const everWhitelistedSelectors = new Set(
+      selectorApprovalEvents
+        .filter((event) => event.args.approved) // only get events where selectors were approved
+        .map((event) => event.args.functionSignature as string)
+    )
+
+    const selectors = Array.from(everWhitelistedSelectors)
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2)
+
+    consola.success(
+      `✅ [${network.name}] Found ${selectors.length} unique selectors (took ${duration}s)`
+    )
+
+    const networkData: INetworkSelectorData = {
+      network: network.name,
+      chainId: network.chainId,
+      diamondAddress,
+      scanFromBlock: fromBlock.toString(),
+      scanToBlock: latestBlock.toString(),
+      scannedAt: new Date().toISOString(),
+      selectors,
+      scanDurationSeconds: parseFloat(duration),
+    }
+
+    return {
+      success: true,
+      network: network.name,
+      data: networkData,
+      duration: parseFloat(duration),
+    }
   } catch (error) {
-    consola.error(`Error reading deployment data for ${network.name}:`, error)
-    throw error
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    consola.error(
+      `❌ [${network.name}] Failed after ${duration}s: ${errorMessage}`
+    )
+
+    return {
+      success: false,
+      network: network.name,
+      error: errorMessage,
+      duration: parseFloat(duration),
+    }
+  }
+}
+
+function loadDeploymentBlocks(filePath: string): IChunkRangeConfig {
+  if (!existsSync(filePath)) {
+    throw new Error(`Deployment blocks file not found: ${filePath}`)
   }
 
-  if (!deploymentData.LiFiDiamond)
-    throw new Error(`No LiFiDiamond deployed on ${network.name}`)
-
-  const diamondAddress = deploymentData.LiFiDiamond as Address
-  consola.info(`💎 Diamond: ${diamondAddress}`)
-
-  // Create viem client
-  const rpcUrl = rpcUrlOverride || network.rpcUrl
-  consola.info(`🔍 RPC URL: ${rpcUrl}`)
-
-  const { getViemChainForNetworkName } = await import(
-    '../utils/viemScriptHelpers'
-  )
-  const chain = getViemChainForNetworkName(network.name)
-
-  const publicClient = createPublicClient({
-    chain,
-    transport: http(rpcUrl),
-  })
-
-  // Determine block range for event scanning
-  let fromBlock = 0n
-  if (fromBlockArg) {
-    fromBlock = BigInt(fromBlockArg)
-  } else {
-    const currentBlock = await publicClient.getBlockNumber()
-    fromBlock = currentBlock > 100000n ? currentBlock - 100000n : 0n
+  try {
+    const fileContent = readFileSync(filePath, 'utf-8')
+    return JSON.parse(fileContent)
+  } catch (error) {
+    throw new Error(`Failed to parse deployment blocks file: ${error}`)
   }
+}
 
-  const latestBlock = await publicClient.getBlockNumber()
-  consola.info(`📊 Current block: ${latestBlock.toString()}`)
-  consola.info(`🔍 Scanning events from block ${fromBlock} to ${latestBlock}`)
+function generateSummary(results: IScanResult[]): IScanSummary {
+  const successful = results.filter((r) => r.success)
+  const failed = results.filter((r) => !r.success)
 
-  // Fetch events
-  consola.info('📡 Fetching FunctionSignatureApprovalChanged events...')
-  const selectorApprovalEvents = await fetchEventsInChunks(
-    publicClient,
-    diamondAddress,
-    fromBlock,
-    latestBlock
-  )
+  const totalSelectors = successful.reduce((sum, result) => {
+    return sum + (result.data?.selectors.length || 0)
+  }, 0)
 
-  // Get all ever-whitelisted selectors from events
-  const everWhitelistedSelectors = new Set(
-    selectorApprovalEvents
-      .filter((event) => event.args.approved) // only get events where selectors were approved
-      .map((event) => event.args.functionSignature as string)
-  )
-
-  const selectors = Array.from(everWhitelistedSelectors)
-
-  const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-  consola.success(
-    `✅ Found ${selectors.length} unique selectors for ${network.name} (took ${duration}s)`
-  )
+  const totalDuration = results.reduce((sum, result) => {
+    return sum + (result.duration || 0)
+  }, 0)
 
   return {
-    network: network.name,
-    chainId: network.chainId,
-    diamondAddress,
-    scanFromBlock: fromBlock.toString(),
-    scanToBlock: latestBlock.toString(),
-    scannedAt: new Date().toISOString(),
-    totalEvents: selectorApprovalEvents.length,
-    selectors,
-    scanDurationSeconds: parseFloat(duration),
+    totalNetworks: results.length,
+    successfulScans: successful.length,
+    failedScans: failed.length,
+    totalSelectors,
+    totalDuration,
+    successfulNetworks: successful.map((r) => r.network),
+    failedNetworks: failed.map((r) => ({
+      network: r.network,
+      error: r.error || 'Unknown error',
+    })),
   }
 }
 
@@ -231,7 +451,7 @@ const cmd = defineCommand({
   meta: {
     name: 'prepare-function-selectors',
     description:
-      'Scan blockchain events to prepare function selectors data file',
+      'Scan blockchain events in parallel to prepare function selectors data file',
   },
   args: {
     network: {
@@ -242,13 +462,8 @@ const cmd = defineCommand({
     },
     rpcUrl: {
       type: 'string',
-      description: 'Override RPC URL for the network',
-      required: false,
-    },
-    fromBlock: {
-      type: 'string',
       description:
-        'Block number to start scanning from (default: diamond deployment block)',
+        'Override RPC URL for the network (only works with single network)',
       required: false,
     },
     environment: {
@@ -264,28 +479,56 @@ const cmd = defineCommand({
     outputFile: {
       type: 'string',
       description:
-        'Output file path (default: ./script/migration/functionSelectors.json)',
+        'Output file path (default: ./script/migration/functionSelectorsResult.json)',
       required: false,
-      default: './script/migration/functionSelectors.json',
+      default: './script/migration/functionSelectorsResult.json',
+    },
+    deploymentBlocksFile: {
+      type: 'string',
+      description:
+        'Deployment blocks config file (default: ./script/migration/prepareFunctionSelectorsConfig.json)',
+      required: false,
+      default: './script/migration/prepareFunctionSelectorsConfig.json',
+    },
+    maxConcurrency: {
+      type: 'string',
+      description:
+        'Maximum number of networks to scan concurrently (default: 10)',
+      required: false,
+      default: '10',
     },
   },
   async run({ args }) {
     const rpcUrlOverride = args?.rpcUrl
-    const fromBlockArg = args?.fromBlock
     const environment =
       args?.environment === EnvironmentEnum[EnvironmentEnum.staging]
         ? EnvironmentEnum.staging
         : EnvironmentEnum.production
     const outputFile =
-      args?.outputFile || './script/migration/functionSelectors.json'
+      args?.outputFile || './script/migration/functionSelectorsResult.json'
+    const deploymentBlocksFile =
+      args?.deploymentBlocksFile ||
+      './script/migration/prepareFunctionSelectorsConfig.json'
+    const maxConcurrency = parseInt(args?.maxConcurrency || '10')
 
-    consola.info(`🚀 Starting function selectors preparation...`)
+    consola.info(`🚀 Starting parallel function selectors preparation...`)
     consola.info(`📁 Output file: ${outputFile}`)
+    consola.info(`📁 Deployment blocks file: ${deploymentBlocksFile}`)
+    consola.info(`🔧 Max concurrency: ${maxConcurrency}`)
     consola.info(
       `🌍 Environment: ${
         environment === EnvironmentEnum.staging ? 'staging' : 'production'
       }`
     )
+
+    // Load deployment blocks configuration
+    let chunkConfigs: IChunkRangeConfig
+    try {
+      chunkConfigs = loadDeploymentBlocks(deploymentBlocksFile)
+    } catch (error) {
+      consola.error(`Failed to load chunk configurations: ${error}`)
+      process.exit(1)
+    }
 
     // Load existing data if file exists
     let existingData: ISelectorsDataFile = {
@@ -309,7 +552,10 @@ const cmd = defineCommand({
     }
 
     // Determine which networks to scan
-    const networksToScan: INetworkConfig[] = []
+    const networksToScan: {
+      network: INetworkConfig
+      chunkConfig: IChunkConfig
+    }[] = []
 
     if (args.network) {
       const networkName = args.network.toLowerCase()
@@ -322,53 +568,129 @@ const cmd = defineCommand({
         process.exit(1)
       }
 
-      networksToScan.push(networkConfig)
+      const chunkConfig = chunkConfigs.networks[networkName]
+      if (!chunkConfig) {
+        consola.error(`No chunk size configured for network '${networkName}'`)
+        process.exit(1)
+      }
+
+      networksToScan.push({ network: networkConfig, chunkConfig })
     } else {
-      // Scan all networks
-      for (const [, networkConfig] of Object.entries(
+      // Scan all active networks that have chunk sizes configured
+      for (const [networkName, networkConfig] of Object.entries(
         networksData as Record<string, INetworkConfig>
       )) {
         if (networkConfig.status === 'active') {
-          networksToScan.push(networkConfig)
+          const chunkConfig = chunkConfigs.networks[networkName]
+          if (chunkConfig) {
+            // Skip networks that are marked to be skipped
+            if (chunkConfig.skip) {
+              consola.info(
+                `⏭️  Skipping ${networkName}: marked as skip in config`
+              )
+              continue
+            }
+            networksToScan.push({ network: networkConfig, chunkConfig })
+          } else {
+            consola.warn(
+              `⚠️  Skipping ${networkName}: no chunk size configured`
+            )
+          }
         }
       }
     }
 
-    consola.info(`📡 Will scan ${networksToScan.length} network(s)`)
+    consola.info(`📡 Will scan ${networksToScan.length} network(s) in parallel`)
 
-    // Scan each network
-    for (const network of networksToScan) {
-      try {
-        const networkData = await scanNetworkSelectors(
+    // Process networks in batches with concurrency limit
+    const results: IScanResult[] = []
+    const startTime = Date.now()
+
+    for (let i = 0; i < networksToScan.length; i += maxConcurrency) {
+      const batch = networksToScan.slice(i, i + maxConcurrency)
+      consola.info(
+        `\n🔄 Processing batch ${
+          Math.floor(i / maxConcurrency) + 1
+        }/${Math.ceil(networksToScan.length / maxConcurrency)}`
+      )
+
+      const batchPromises = batch.map(({ network, chunkConfig }) =>
+        scanNetworkSelectors(
           network,
-          rpcUrlOverride,
-          fromBlockArg,
+          chunkConfig,
+          args.network ? rpcUrlOverride : undefined, // Only use RPC override for single network
           environment
         )
+      )
 
-        existingData.networks[network.name] = networkData
-        existingData.generatedAt = new Date().toISOString()
+      const batchResults = await Promise.allSettled(batchPromises)
 
-        // Save after each network to avoid losing data
-        writeFileSync(outputFile, JSON.stringify(existingData, null, 2))
-        consola.success(`💾 Saved data for ${network.name}`)
-      } catch (error) {
-        consola.error(`❌ Failed to scan ${network.name}:`, error)
-        // Continue with other networks
+      // Process batch results
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled') {
+          results.push(result.value)
+
+          // Save successful results immediately
+          if (result.value.success && result.value.data) {
+            existingData.networks[result.value.network] = result.value.data
+            existingData.generatedAt = new Date().toISOString()
+
+            try {
+              writeFileSync(outputFile, JSON.stringify(existingData, null, 2))
+              consola.success(`💾 Saved data for ${result.value.network}`)
+            } catch (error) {
+              consola.error(
+                `Failed to save data for ${result.value.network}:`,
+                error
+              )
+            }
+          }
+        } else {
+          // Handle completely failed promises (shouldn't happen with our error handling)
+          results.push({
+            success: false,
+            network: 'unknown',
+            error: result.reason?.message || 'Promise rejected',
+          })
+        }
       }
     }
 
-    consola.success(`🎉 Completed scanning! Data saved to ${outputFile}`)
-    consola.info(
-      `📊 Total networks processed: ${
-        Object.keys(existingData.networks).length
-      }`
-    )
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2)
+    const summary = generateSummary(results)
 
-    // Show summary
-    for (const [networkName, data] of Object.entries(existingData.networks)) {
-      consola.info(`   ${networkName}: ${data.selectors.length} selectors`)
+    // Final save
+    writeFileSync(outputFile, JSON.stringify(existingData, null, 2))
+
+    // Print comprehensive summary
+    consola.success(`\n🎉 Parallel scanning completed in ${totalTime}s!`)
+    consola.info(`📊 SCAN SUMMARY:`)
+    consola.info(`   Networks processed: ${summary.totalNetworks}`)
+    consola.info(`   Successful scans: ${summary.successfulScans}`)
+    consola.info(`   Failed scans: ${summary.failedScans}`)
+    consola.info(`   Total selectors found: ${summary.totalSelectors}`)
+    consola.info(`   Total scan time: ${summary.totalDuration.toFixed(2)}s`)
+
+    if (summary.successfulScans > 0) {
+      consola.success(`\n✅ SUCCESSFUL NETWORKS (${summary.successfulScans}):`)
+      summary.successfulNetworks.forEach((network) => {
+        const data = existingData.networks[network]
+        consola.info(
+          `   ${network}: ${data?.selectors.length ?? 0} selectors (${
+            data?.scanDurationSeconds ?? 0
+          }s)`
+        )
+      })
     }
+
+    if (summary.failedScans > 0) {
+      consola.error(`\n❌ FAILED NETWORKS (${summary.failedScans}):`)
+      summary.failedNetworks.forEach(({ network, error }) => {
+        consola.error(`   ${network}: ${error}`)
+      })
+    }
+
+    process.exit(summary.failedScans > 0 ? 1 : 0)
   },
 })
 
