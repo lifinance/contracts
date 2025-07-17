@@ -712,16 +712,6 @@ async function createSafeProxy(params: {
       const explorerUrl = publicClient.chain?.blockExplorers?.default?.url
       if (explorerUrl) consola.info(`Explorer URL: ${explorerUrl}/tx/${txHash}`)
 
-      const safeAddress = (await consola.prompt(
-        'Enter the deployed Safe address:',
-        {
-          type: 'text',
-          validate: (input: string) =>
-            /^0x[a-fA-F0-9]{40}$/.test(input)
-              ? true
-              : 'Please enter a valid Ethereum address',
-        }
-      )) as Address
       const safeAddress = await consola.prompt(
         'Enter the deployed Safe address:',
         {
@@ -733,10 +723,10 @@ async function createSafeProxy(params: {
         }
       )
 
-      return safeAddress
+      return getAddress(safeAddress)
     }
 
-    const safeAddr = proxyEvent.args.proxy as Address
+    const safeAddr = getAddress(proxyEvent.args.proxy)
     consola.success(`🎉 Safe deployed @ ${safeAddr}`)
 
     // verify on-chain proxy bytecode
