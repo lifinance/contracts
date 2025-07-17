@@ -9,7 +9,8 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 /// @title EmergencyPauseFacet (Admin only)
 /// @author LI.FI (https://li.fi)
-/// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet or pause the diamond in case of emergency
+/// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet
+///         or pause the diamond in case of emergency
 /// @custom:version 1.0.1
 /// @dev Admin-Facet for emergency purposes only
 contract EmergencyPauseFacet {
@@ -85,11 +86,14 @@ contract EmergencyPauseFacet {
         emit EmergencyFacetRemoved(_facetAddress, msg.sender);
     }
 
-    /// @notice Effectively pauses the diamond contract by overwriting the facetAddress-to-function-selector mappings in storage for all facets
-    ///         and redirecting all function selectors to the EmergencyPauseFacet (this will remain as the only registered facet) so that
+    /// @notice Effectively pauses the diamond contract by overwriting the facetAddress-to-function-selector
+    ///         mappings in storage for all facets and redirecting all function selectors to the
+    ///         EmergencyPauseFacet (this will remain as the only registered facet) so that
     ///         a meaningful error message will be returned when third parties try to call the diamond
     /// @dev can only be executed by pauserWallet (non-multisig for fast response time) or by the diamond owner
-    /// @dev This function could potentially run out of gas if too many facets/function selectors are involved. We mitigate this issue by having a test on
+    /// @dev This function could potentially run out of gas if too many facets/function selectors are involved.
+    ///      We mitigate this issue by having a test on forked mainnet (which has most facets)
+    ///      that checks if the diamond can be paused
     /// @dev forked mainnet (which has most facets) that checks if the diamond can be paused
     function pauseDiamond() external OnlyPauserWalletOrOwner {
         Storage storage s = getStorage();
@@ -103,7 +107,8 @@ contract EmergencyPauseFacet {
 
         // go through all facets
         for (uint256 i; i < facets.length; ) {
-            // redirect all function selectors to this facet (i.e. to its fallback function with the DiamondIsPaused() error message)
+            // redirect all function selectors to this facet (i.e. to its fallback function
+            // with the DiamondIsPaused() error message)
             LibDiamond.replaceFunctions(
                 _emergencyPauseFacetAddress,
                 facets[i].functionSelectors
@@ -146,7 +151,8 @@ contract EmergencyPauseFacet {
 
         // go through blacklist and overwrite all function selectors with zero address
         // It would be easier to not reinstate these facets in the first place but
-        //  a) that would leave their function selectors associated with address of EmergencyPauseFacet (=> throws 'DiamondIsPaused() error when called)
+        //  a) that would leave their function selectors associated with address of EmergencyPauseFacet
+        //     (=> throws 'DiamondIsPaused() error when called)
         //  b) it consumes a lot of gas to check every facet address if it's part of the blacklist
         bytes4[] memory currentSelectors;
         for (uint256 i; i < _blacklist.length; ) {
@@ -229,7 +235,8 @@ contract EmergencyPauseFacet {
         }
     }
 
-    // this function will be called when the diamond is paused to return a meaningful error message instead of "FunctionDoesNotExist"
+    // this function will be called when the diamond is paused to return a meaningful error message
+    // instead of "FunctionDoesNotExist"
     fallback() external payable {
         revert DiamondIsPaused();
     }
