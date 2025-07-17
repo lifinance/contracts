@@ -124,6 +124,46 @@ async function prepareTimelockCalldata(
   }
 }
 
+/**
+ * Displays environment configuration and determines execution mode
+ * @param environment - The environment string
+ * @returns The execution mode string
+ */
+function displayEnvironmentConfiguration(environment: string): string {
+  // Show environment variables and decision logic
+  consola.log('\n🔧 Environment Configuration:')
+  consola.log(`   Environment: ${environment}`)
+  consola.log(
+    `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
+      process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
+    }`
+  )
+  consola.log(
+    `   USE_TIMELOCK_CONTROLLER: ${
+      process.env.USE_TIMELOCK_CONTROLLER || 'false'
+    }`
+  )
+
+  // Determine which option will be chosen
+  const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+  const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+  let executionMode = ''
+  if (environment === 'staging' || sendDirectly)
+    executionMode =
+      'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+  else if (useTimelock)
+    executionMode =
+      'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+  else
+    executionMode =
+      'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+
+  consola.log(`   Execution Mode: ${executionMode}`)
+
+  return executionMode
+}
+
 const command = defineCommand({
   meta: {
     name: 'Clean Up Production Diamonds',
@@ -215,36 +255,7 @@ const command = defineCommand({
       consola.info(`📦 Built calldata to remove ${facetNames.length} facets`)
 
       // Show environment variables and decision logic
-      consola.log('\n🔧 Environment Configuration:')
-      consola.log(`   Environment: ${environment}`)
-      consola.log(
-        `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
-          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
-        }`
-      )
-      consola.log(
-        `   USE_TIMELOCK_CONTROLLER: ${
-          process.env.USE_TIMELOCK_CONTROLLER || 'false'
-        }`
-      )
-
-      // Determine which option will be chosen
-      const sendDirectly =
-        process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-      const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
-
-      let executionMode = ''
-      if (environment === 'staging' || sendDirectly)
-        executionMode =
-          'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
-      else if (useTimelock)
-        executionMode =
-          'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
-      else
-        executionMode =
-          'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
-
-      consola.log(`   Execution Mode: ${executionMode}`)
+      displayEnvironmentConfiguration(environment)
 
       // Prepare calldata for timelock if needed
       const { targetAddress, calldata: finalCalldata } =
@@ -281,36 +292,7 @@ const command = defineCommand({
         consola.info(`→ Removing periphery: ${name}`)
 
         // Show environment variables and decision logic
-        consola.log('\n🔧 Environment Configuration:')
-        consola.log(`   Environment: ${environment}`)
-        consola.log(
-          `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
-            process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
-          }`
-        )
-        consola.log(
-          `   USE_TIMELOCK_CONTROLLER: ${
-            process.env.USE_TIMELOCK_CONTROLLER || 'false'
-          }`
-        )
-
-        // Determine which option will be chosen
-        const sendDirectly =
-          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-        const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
-
-        let executionMode = ''
-        if (environment === 'staging' || sendDirectly)
-          executionMode =
-            'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
-        else if (useTimelock)
-          executionMode =
-            'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
-        else
-          executionMode =
-            'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
-
-        consola.log(`   Execution Mode: ${executionMode}`)
+        displayEnvironmentConfiguration(environment)
 
         // Prepare calldata for timelock if needed
         const { targetAddress, calldata: finalCalldata } =
@@ -386,36 +368,7 @@ const command = defineCommand({
       calldata = buildDiamondCutRemoveCalldata(facetDefs)
 
       // Show environment variables and decision logic before confirmation
-      consola.log('\n🔧 Environment Configuration:')
-      consola.log(`   Environment: ${environment}`)
-      consola.log(
-        `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
-          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
-        }`
-      )
-      consola.log(
-        `   USE_TIMELOCK_CONTROLLER: ${
-          process.env.USE_TIMELOCK_CONTROLLER || 'false'
-        }`
-      )
-
-      // Determine which option will be chosen
-      const sendDirectly =
-        process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-      const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
-
-      let executionMode = ''
-      if (environment === 'staging' || sendDirectly)
-        executionMode =
-          'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
-      else if (useTimelock)
-        executionMode =
-          'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
-      else
-        executionMode =
-          'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
-
-      consola.log(`   Execution Mode: ${executionMode}`)
+      displayEnvironmentConfiguration(environment)
 
       // Prepare calldata for timelock if needed
       const { targetAddress, calldata: finalCalldata } =
@@ -469,36 +422,7 @@ const command = defineCommand({
         const data = buildUnregisterPeripheryCalldata(name)
 
         // Show environment variables and decision logic before confirmation
-        consola.log('\n🔧 Environment Configuration:')
-        consola.log(`   Environment: ${environment}`)
-        consola.log(
-          `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
-            process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
-          }`
-        )
-        consola.log(
-          `   USE_TIMELOCK_CONTROLLER: ${
-            process.env.USE_TIMELOCK_CONTROLLER || 'false'
-          }`
-        )
-
-        // Determine which option will be chosen
-        const sendDirectly =
-          process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-        const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
-
-        let executionMode = ''
-        if (environment === 'staging' || sendDirectly)
-          executionMode =
-            'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
-        else if (useTimelock)
-          executionMode =
-            'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
-        else
-          executionMode =
-            'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
-
-        consola.log(`   Execution Mode: ${executionMode}`)
+        displayEnvironmentConfiguration(environment)
 
         // Prepare calldata for timelock if needed
         const { targetAddress, calldata: finalCalldata } =
