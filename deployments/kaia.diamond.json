@@ -66,8 +66,8 @@
         "Version": "1.0.0"
       },
       "0x7AbF00987740d6db0d1180171B6ad41bE2b6b85C": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
@@ -77,7 +77,7 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xE275759e85e5497A1B07EA65529187FD7E987509",
-      "Permit2Proxy": "0x7FB65045175c847C075054CCf91b64B406822766",
+      "Permit2Proxy": "0x56E3B9Cf704991cc554902b16610255568A58B12",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x63f1Ab534d2612702796c44d1728133F0Af56e16",
