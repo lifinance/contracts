@@ -53,9 +53,9 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0xBfc367eedaC8Ad5Bc80869760ce7a777cd8FE11C": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.2"
+      "0x29A56dC0fc91A11F9807b7D82d32706BB85aaF4F": {
+        "Name": "",
+        "Version": ""
       },
       "0x2010a7848E26D3B83038269953305075D65F7141": {
         "Name": "RelayFacet",
@@ -75,12 +75,12 @@
       "Executor": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
       "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
       "GasZipPeriphery": "0x7859570b2196f7c764f400b41C6A0080512219b3",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
-      "Permit2Proxy": "0x4BDB8cb372AeF4047626869dD5580536DBA9b053",
+      "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x65B6093ff981113AC6efb5b77B2D74D96edF4593",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b"
     }
   }
