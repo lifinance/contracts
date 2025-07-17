@@ -10,34 +10,34 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import {
-  parseAbi,
   decodeFunctionData,
-  type Hex,
+  parseAbi,
   type Abi,
-  type Address,
   type Account,
+  type Address,
+  type Hex,
 } from 'viem'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
-  type ISafeTransaction,
-  type ISafeTxDocument,
-  type IAugmentedSafeTxDocument,
   PrivateKeyTypeEnum,
-  initializeSafeTransaction,
-  hasEnoughSignatures,
-  isSignedByCurrentSigner,
-  wouldMeetThreshold,
-  isSignedByProductionWallet,
-  shouldShowSignAndExecuteWithDeployer,
-  getSafeMongoCollection,
-  getPendingTransactionsByNetwork,
-  getNetworksToProcess,
-  getPrivateKey,
-  initializeSafeClient,
   decodeDiamondCut,
   decodeTransactionData,
+  getNetworksToProcess,
+  getPendingTransactionsByNetwork,
+  getPrivateKey,
+  getSafeMongoCollection,
+  hasEnoughSignatures,
+  initializeSafeClient,
+  initializeSafeTransaction,
   isAddressASafeOwner,
+  isSignedByCurrentSigner,
+  isSignedByProductionWallet,
+  shouldShowSignAndExecuteWithDeployer,
+  wouldMeetThreshold,
+  type IAugmentedSafeTxDocument,
+  type ISafeTransaction,
+  type ISafeTxDocument,
 } from './safe-utils'
 dotenv.config()
 
@@ -283,19 +283,19 @@ const processTxs = async (
         )
       }
       // Record error in global arrays
-      if (error.message.toLowerCase().includes('timeout')) 
+      if (error.message.toLowerCase().includes('timeout'))
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
           error: error.message,
         })
-       else 
+      else
         globalFailedExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
           error: error.message,
         })
-      
+
       throw new Error(`Transaction execution failed: ${error.message}`)
     }
   }
@@ -747,30 +747,6 @@ const main = defineCommand({
 
       // Close MongoDB connection
       await mongoClient.close(true)
-      // Print summary of any failed or timed out executions
-      if (
-        globalFailedExecutions.length > 0 ||
-        globalTimeoutExecutions.length > 0
-      ) {
-        consola.info('=== Execution Summary ===')
-        if (globalFailedExecutions.length > 0) {
-          consola.info('Failed Executions:')
-          globalFailedExecutions.forEach((item) => {
-            consola.info(
-              `Chain: ${item.chain}, SafeTxHash: ${item.safeTxHash}, Error: ${item.error}`
-            )
-          })
-        }
-        if (globalTimeoutExecutions.length > 0) {
-          consola.info('Timed Out Executions (saved in MongoDB):')
-          globalTimeoutExecutions.forEach((item) => {
-            consola.info(
-              `Chain: ${item.chain}, SafeTxHash: ${item.safeTxHash}, Error: ${item.error}`
-            )
-          })
-        }
-      }
-
       // Print summary of any failed or timed out executions
       if (
         globalFailedExecutions.length > 0 ||
