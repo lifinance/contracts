@@ -3490,7 +3490,7 @@ contract LiFiDexAggregatorKatanaV3Test is LiFiDexAggregatorTest {
 
     function test_CanSwap_MultiHop() public override {
         // SKIPPED: KatanaV3 multi-hop unsupported due to AS requirement.
-        // KatanaV3 (being a UniV3 fork) does not support a "one-pool" second hop today,
+        // KatanaV3 (being a similar implementation to UniV3) does not support a "one-pool" second hop today,
         // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
         // the pool.swap call. UniV3-style pools immediately revert on
         // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools in a single processRoute invocation.
