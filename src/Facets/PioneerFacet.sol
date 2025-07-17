@@ -14,7 +14,8 @@ import { InvalidConfig, InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @notice Main entry point to send bridge requests to Pioneer
 /// @custom:version 1.0.0
 contract PioneerFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// @notice Emits an address that is used for potential refunds. Will be emitted in any case (also in successful transactions).
+    /// @notice Emits an address that is used for potential refunds.
+    ///         Will be emitted in any case (also in successful transactions).
     /// @param refundTo If transaction failed, send inputs to this address.
     event PioneerRefundAddressRegistered(address indexed refundTo);
 
