@@ -3394,7 +3394,7 @@ contract LiFiDexAggregatorKatanaV3Test is LiFiDexAggregatorTest {
     IERC20 internal constant WRAPPED_RON =
         IERC20(0xe514d9DEB7966c8BE0ca922de8a064264eA6bcd4);
     address internal constant USDC_WRAPPED_RON_POOL =
-        address(0x392d372F2A51610E9AC5b741379D5631Ca9A1c7f);
+        0x392d372F2A51610E9AC5b741379D5631Ca9A1c7f;
 
     function setUp() public override {
         // setup for Viction network

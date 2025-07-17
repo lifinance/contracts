@@ -14,6 +14,7 @@ import { IKatanaV3Pool } from "lifi/Interfaces/KatanaV3/IKatanaV3Pool.sol";
 import { IKatanaV3Governance } from "lifi/Interfaces/KatanaV3/IKatanaV3Governance.sol";
 import { IKatanaV3AggregateRouter } from "lifi/Interfaces/KatanaV3/IKatanaV3AggregateRouter.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -845,9 +846,14 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         if (isV1Pool && target == address(0)) revert InvalidCallData();
 
         if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(msg.sender, target, amountIn);
+            LibAsset.transferFromERC20(tokenIn, msg.sender, target, amountIn);
         } else if (from == address(this)) {
-            IERC20(tokenIn).safeTransfer(target, amountIn);
+            LibAsset.transferFromERC20(
+                tokenIn,
+                address(this),
+                target,
+                amountIn
+            );
         }
         // if from is not msg.sender or address(this), it must be INTERNAL_INPUT_SOURCE
         // which means tokens are already in the vault/pool, no transfer needed
@@ -905,22 +911,23 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // construct the path for V3 swap (tokenIn -> tokenOut with fee)
         bytes memory path = abi.encodePacked(tokenIn, fee, tokenOut);
 
-        // command for V3_SWAP_EXACT_IN (0x00)
-        bytes memory commands = abi.encodePacked(uint8(0x00));
-
         // encode the inputs for V3_SWAP_EXACT_IN
         // set payerIsUser to false since we already transferred tokens to the router
         bytes[] memory inputs = new bytes[](1);
         inputs[0] = abi.encode(
             recipient, // recipient
             amountIn, // amountIn
-            uint256(0), // amountOutMin (0, as we handle slippage at higher level)
+            0, // amountOutMin (0, as we handle slippage at higher level)
             path, // path
             false // payerIsUser (false since tokens are already in router)
         );
 
         // call the router's execute function
-        IKatanaV3AggregateRouter(router).execute(commands, inputs);
+        // first parameter for execute is the command for V3_SWAP_EXACT_IN (0x00)
+        IKatanaV3AggregateRouter(router).execute(
+            abi.encodePacked(uint8(0x00)),
+            inputs
+        );
 
         // katanaV3SwapCallback implementation is in the router contract itself
     }
