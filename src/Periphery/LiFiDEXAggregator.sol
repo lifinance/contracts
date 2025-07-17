@@ -50,7 +50,7 @@ uint8 constant POOL_TYPE_IZUMI_V3 = 8;
 uint8 constant POOL_TYPE_SYNCSWAP = 9;
 uint8 constant POOL_TYPE_KATANA_V3 = 10;
 
-/// @title LiFi DEX Aggregator
+/// @title LiFiDEXAggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
 /// @custom:version 1.12.0
