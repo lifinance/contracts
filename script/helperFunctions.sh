@@ -107,6 +107,30 @@ function logContractDeploymentInfo {
   echoDebug "SALT=$SALT"
   echo ""
 
+  # Create lock file path
+  local LOCK_FILE="${LOG_FILE_PATH}.lock"
+  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_ATTEMPTS=0
+  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+
+  # Wait for lock to be available
+  while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
+    sleep 0.5
+    LOCK_ATTEMPTS=$((LOCK_ATTEMPTS + 1))
+  done
+
+  # If we couldn't get the lock, fail
+  if [[ -f "$LOCK_FILE" ]]; then
+    error "Could not acquire lock for $LOG_FILE_PATH after $LOCK_TIMEOUT seconds. Another process may be stuck."
+    return 1
+  fi
+
+  # Create lock file
+  echo "$$" > "$LOCK_FILE"
+
+  # Ensure lock is released on exit
+  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+
   # Check if log FILE exists, if not create it
   if [ ! -f "$LOG_FILE_PATH" ]; then
     echo "{}" >"$LOG_FILE_PATH"
@@ -119,8 +143,6 @@ function logContractDeploymentInfo {
     --arg VERSION "$VERSION" \
     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
     "$LOG_FILE_PATH")
-
-
 
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
@@ -150,6 +172,9 @@ function logContractDeploymentInfo {
       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
+
+  # Remove lock file
+  rm -f "$LOCK_FILE"
 
   echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
 } # will replace, if entry exists already
@@ -435,22 +460,22 @@ function getContractNameFromDeploymentLogs() {
 }
 function getContractAddressFromDeploymentLogs() {
   # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  CONTRACT=$3
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local CONTRACT=$3
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # load JSON FILE that contains deployment addresses
-  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  local ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
     return 1
   fi
 
   # read address
-  CONTRACT_ADDRESS=$(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT] // "0x"' "$ADDRESSES_FILE")
+  local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT] // "0x"' "$ADDRESSES_FILE")
 
   if [[ "$CONTRACT_ADDRESS" == "0x" || "$CONTRACT_ADDRESS" == "" || "$CONTRACT_ADDRESS" == " " || -z "$CONTRACT_ADDRESS" ]]; then
     # address not found
@@ -560,6 +585,46 @@ function getContractInfoFromDiamondDeploymentLogByName() {
   error "could not find contract info"
   return 1
 }
+function getConstructorArgsFromMasterLog() {
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION=${4:-} # Optional version parameter
+
+  # If version is not provided, get the highest deployed version
+  if [ -z "$VERSION" ]; then
+    VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+    if [ -z "$VERSION" ]; then
+      echo ""
+      return 1
+    fi
+  fi
+
+  # Check if log file exists
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
+    echo ""
+    return 1
+  fi
+
+  # Extract constructor arguments using jq
+  local CONSTRUCTOR_ARGS=$(jq -r --arg CONTRACT "$CONTRACT" \
+    --arg NETWORK "$NETWORK" \
+    --arg ENVIRONMENT "$ENVIRONMENT" \
+    --arg VERSION "$VERSION" \
+    '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0].CONSTRUCTOR_ARGS' \
+    "$LOG_FILE_PATH")
+
+  if [[ "$CONSTRUCTOR_ARGS" == "null" || -z "$CONSTRUCTOR_ARGS" ]]; then
+    echo ""
+    return 1
+  fi
+
+  echo "$CONSTRUCTOR_ARGS"
+  return 0
+}
+
 function saveDiamond_DEPRECATED() {
   :'
   This contract version only saves the facet addresses as an array in the JSON file
@@ -837,6 +902,30 @@ function saveContract() {
     return 1
   fi
 
+  # Create lock file path
+  local LOCK_FILE="${ADDRESSES_FILE}.lock"
+  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_ATTEMPTS=0
+  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+
+  # Wait for lock to be available
+  while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
+    sleep 0.5
+    LOCK_ATTEMPTS=$((LOCK_ATTEMPTS + 1))
+  done
+
+  # If we couldn't get the lock, fail
+  if [[ -f "$LOCK_FILE" ]]; then
+    error "Could not acquire lock for $ADDRESSES_FILE after $LOCK_TIMEOUT seconds. Another process may be stuck."
+    return 1
+  fi
+
+  # Create lock file
+  echo "$$" > "$LOCK_FILE"
+
+  # Ensure lock is released on exit
+  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+
   # create an empty json if it does not exist
   if [[ ! -e $ADDRESSES_FILE ]]; then
     echo "{}" >"$ADDRESSES_FILE"
@@ -845,8 +934,31 @@ function saveContract() {
   # add new address to address log FILE
   RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
   printf %s "$RESULT" >"$ADDRESSES_FILE"
+
+  # Remove lock file
+  rm -f "$LOCK_FILE"
 }
 # <<<<< reading and manipulation of deployment log files
+
+# >>>>> lock file management
+function cleanupStaleLocks() {
+  # Clean up any stale lock files that might be left behind
+  local LOCK_FILES=(
+    "${LOG_FILE_PATH}.lock"
+    "./deployments/"*.lock
+  )
+
+  for lock_file in "${LOCK_FILES[@]}"; do
+    if [[ -f "$lock_file" ]]; then
+      # Check if the process that created the lock is still running
+      local pid=$(cat "$lock_file" 2>/dev/null)
+      if [[ -n "$pid" && ! -d "/proc/$pid" ]]; then
+        echo "[info] Removing stale lock file: $lock_file (PID $pid not running)"
+        rm -f "$lock_file"
+      fi
+    fi
+  done
+}
 
 # >>>>> working with directories and reading other files
 function checkIfFileExists() {
@@ -1451,10 +1563,7 @@ function verifyContract() {
 
   # Handle zkEVM networks
   if isZkEvmNetwork "$NETWORK"; then
-    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH --skip-is-verified-check"
-    if [ "$ARGS" != "0x" ]; then
-      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-    fi
+    VERIFY_CMD="FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract --zksync --watch --chain $CHAIN_ID $ADDRESS $FULL_PATH"
   fi
 
   # Get API key and determine verification method
@@ -1468,6 +1577,11 @@ function verifyContract() {
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD="$VERIFY_CMD --verifier blockscout"
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+    # add constructor args if present
+    if [ "$ARGS" != "0x" ]; then
+      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
+    fi
+
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
       echo "Error: Could not find API key for network $NETWORK"
@@ -1485,9 +1599,25 @@ function verifyContract() {
 
   # Attempt verification with retries
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
-    # execute verification command
-    FOUNDRY_LOG=trace eval "$VERIFY_CMD"
+    # execute verification command and capture output
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace eval "$VERIFY_CMD" 2>&1)
     COMMAND_STATUS=$?
+
+    echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Parse verification response
+    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
+    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+
+    # Check if verification actually succeeded
+    if [[ "$RESPONSE" == "OK" && "$DETAILS" != *"Fail"* && "$DETAILS" != *"Unable to verify"* && "$DETAILS" != *"Pending"* ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+      return 0
+    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
+      # HTTP request succeeded but verification failed
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
+      COMMAND_STATUS=1
+    fi
 
     # increase retry counter
     RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -1496,11 +1626,9 @@ function verifyContract() {
     [ $COMMAND_STATUS -ne 0 ] && sleep 2
   done
 
-  # Check verification status
-  if [ $COMMAND_STATUS -eq 0 ]; then
-    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-    return 0
-  fi
+  # If we get here, verification failed after all retries
+  echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
+  return 1
 
   # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
@@ -2095,6 +2223,55 @@ function getIncludedNetworksArray() {
   # return ARRAY
   printf '%s\n' "${ARRAY[@]}"
 }
+
+function getIncludedNetworksByEvmVersionArray() {
+  # Function: getNetworksByEvmVersionArray
+  # Description: Gets a list of all networks that have a specific EVM version
+  # Arguments:
+  #   $1 - EVM_VERSION: The EVM version to filter by (e.g., "london", "cancun", "shanghai")
+  # Returns:
+  #   Array of network names that match the specified EVM version (excluding networks in EXCLUDE_NETWORKS)
+  # Example:
+  #   getNetworksByEvmVersionArray "london"
+  #   getNetworksByEvmVersionArray "cancun"
+
+  # read function arguments into variables
+  local EVM_VERSION="$1"
+
+  # validate input parameter
+  if [[ -z "$EVM_VERSION" ]]; then
+    error "EVM_VERSION parameter is required for getNetworksByEvmVersionArray function"
+    return 1
+  fi
+
+  # prepare required variables
+  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  local FILE="$NETWORKS_JSON_FILE_PATH"
+  local ARRAY=()
+
+  # extract list of excluded networks from config
+  local EXCLUDED_NETWORKS_REGEXP="^($(echo "$EXCLUDE_NETWORKS" | tr ',' '|'))$"
+
+  # loop through networks list and add each network to ARRAY that matches the EVM version and is not excluded
+  while IFS= read -r network; do
+    # check if network is excluded
+    if [[ "$network" =~ $EXCLUDED_NETWORKS_REGEXP ]]; then
+      continue
+    fi
+
+    # get the EVM version for this network
+    local network_evm_version=$(jq -r --arg network "$network" '.[$network].deployedWithEvmVersion // empty' "$FILE")
+
+    # check if the network's EVM version matches the requested version
+    if [[ "$network_evm_version" == "$EVM_VERSION" ]]; then
+      ARRAY+=("$network")
+    fi
+  done < <(jq -r 'keys[]' "$FILE")
+
+  # return ARRAY
+  printf '%s\n' "${ARRAY[@]}"
+}
+
 function getFileSuffix() {
   # read function arguments into variables
   ENVIRONMENT="$1"
@@ -3624,6 +3801,65 @@ function cleanupBackgroundJobs() {
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
+function updateDiamondLogForNetwork() {
+  # read function arguments into variable
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+
+  # get RPC URL
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+
+  if [[ -z $RPC_URL ]]; then
+    error "[$NETWORK] RPC URL is not set"
+    return 1
+  fi
+
+  # get diamond address
+  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Failed to get LiFiDiamond address on $NETWORK in $ENVIRONMENT environment"
+    return 1
+  fi
+
+  # get list of facets
+  # execute script
+  attempts=1 # initialize attempts to 0
+
+  while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+    # try to execute call
+    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to get facets"
+  fi
+
+  if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+    echo "    no facets found"
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+  else
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
+    # saveDiamondPeriphery is executed as part of saveDiamondFacets
+  fi
+
+  # check result
+  if [[ $? -ne 0 ]]; then
+    echo "    error"
+  else
+    echo "    updated"
+  fi
+}
+
 function updateDiamondLogs() {
   # read function arguments into variable
   local ENVIRONMENT=$1
@@ -3648,92 +3884,59 @@ function updateDiamondLogs() {
     ENVIRONMENTS=("staging")
   fi
 
-  # DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable") # currently disabled since the immutable diamond is unused
-  DIAMONDS=("LiFiDiamond")
+  # Create arrays to store background job PIDs and their corresponding network/environment info
+  local pids=()
+  local job_info=()
+  local job_index=0
 
   # loop through all networks
   for NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "current Network: $NETWORK"
 
-
-    # get RPC URL
-    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-    RPC_URL=${!RPC_URL}
-    echo "RPC_URL: $RPC_URL"
-
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
+      # Call the helper function in background for parallel execution
+      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
 
-      for DIAMOND in "${DIAMONDS[@]}"; do
-        echo "  -----------------------"
-        echo "  current DIAMOND: $DIAMOND"
-
-
-        # define diamond type flag
-        if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then
-          USE_MUTABLE_DIAMOND=false
-        else
-          USE_MUTABLE_DIAMOND=true
-        fi
-
-        # get diamond address
-        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND")
-
-        if [[ $? -ne 0 ]]; then
-          continue
-        else
-          echo "    diamond address: $DIAMOND_ADDRESS"
-        fi
-
-        echo "    RPC_URL: $RPC_URL"
-
-        # get list of facets
-        # execute script
-        attempts=1 # initialize attempts to 0
-
-        while [ $attempts -lt 11 ]; do
-          echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
-          # try to execute call
-          KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-
-          # check the return code the last call
-          if [ $? -eq 0 ]; then
-            break # exit the loop if the operation was successful
-          fi
-
-          attempts=$((attempts + 1)) # increment attempts
-          sleep 1                    # wait for 1 second before trying the operation again
-        done
-
-        if [ $attempts -eq 11 ]; then
-          echo "Failed to get facets"
-        fi
-
-        if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-          echo "    no facets found"
-          saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
-        else
-          saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
-          # saveDiamondPeriphery is executed as part of saveDiamondFacets
-        fi
-
-        # check result
-        if [[ $? -ne 0 ]]; then
-          echo "    error"
-        else
-          echo "    updated"
-        fi
-
-        echo ""
-      done
-      echo ""
+      # Store the PID and job info
+      pids+=($!)
+      job_info+=("$NETWORK:$ENVIRONMENT")
+      job_index=$((job_index + 1))
     done
-    echo ""
   done
-  playNotificationSound
+
+  # Wait for all background jobs to complete and capture exit codes
+  echo "Waiting for all diamond log updates to complete..."
+  local failed_jobs=()
+  local job_count=${#pids[@]}
+
+  for i in "${!pids[@]}"; do
+    local pid="${pids[$i]}"
+    local info="${job_info[$i]}"
+
+    # Wait for this specific job and capture its exit code
+    if wait "$pid"; then
+      echo "[$info] Completed successfully"
+    else
+      echo "[$info] Failed with exit code $?"
+      failed_jobs+=("$info")
+    fi
+  done
+
+  # Check if any jobs failed
+  if [ ${#failed_jobs[@]} -gt 0 ]; then
+    error "Some diamond log updates failed: ${failed_jobs[*]}"
+    echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    playNotificationSound
+    return 1
+  else
+    echo "All diamond log updates completed successfully ($job_count jobs)"
+    playNotificationSound
+    return 0
+  fi
 }
 
 # Function: install_foundry_zksync
@@ -3875,5 +4078,138 @@ install_foundry_zksync() {
   return 0
 }
 
-# <<<<<< helpers to set/update deployment files/logs/etc
+# Function: getContractDeploymentStatusSummary
+# Description: Provides a comprehensive deployment status summary for a contract across all supported networks
+# Arguments:
+#   $1 - Environment (production/staging)
+#   $2 - Contract name
+#   $3 - Version (optional, if not provided will use current version)
+# Returns:
+#   Prints a formatted table summary and lists of networks by status
+# Example:
+#   getContractDeploymentStatusSummary "production" "Permit2Proxy" "1.0.4"
+#   getContractDeploymentStatusSummary "production" "Permit2Proxy"
+getContractDeploymentStatusSummary() {
+  local ENVIRONMENT="$1"
+  local CONTRACT="$2"
+  local VERSION="$3"
+
+  # Validate required parameters
+  if [[ -z "$ENVIRONMENT" || -z "$CONTRACT" ]]; then
+    error "Usage: getContractDeploymentStatusSummary ENVIRONMENT CONTRACT [VERSION]"
+    error "Example: getContractDeploymentStatusSummary production Permit2Proxy 1.0.4"
+    return 1
+  fi
+
+  # If no version provided, get current version
+  if [[ -z "$VERSION" ]]; then
+    VERSION=$(getCurrentContractVersion "$CONTRACT")
+    if [[ -z "$VERSION" ]]; then
+      error "Could not determine version for contract $CONTRACT"
+      return 1
+    fi
+  fi
+
+  # Get list of all supported networks
+  local NETWORKS=($(getIncludedNetworksArray))
+
+  echo ""
+  echo "=========================================="
+  echo "  DEPLOYMENT STATUS SUMMARY"
+  echo "=========================================="
+  echo "Contract: $CONTRACT"
+  echo "Version: $VERSION"
+  echo "Environment: $ENVIRONMENT"
+  echo "Networks to check: ${#NETWORKS[@]}"
+  echo ""
+
+  # Initialize arrays to track results
+  local DEPLOYED_VERIFIED=()
+  local DEPLOYED_UNVERIFIED=()
+  local NOT_DEPLOYED=()
+  local TOTAL_NETWORKS=${#NETWORKS[@]}
+
+  # Print table header
+  printf "%-20s %-10s %-10s %-42s\n" "NETWORK" "DEPLOYED" "VERIFIED" "ADDRESS"
+  printf "%-20s %-10s %-10s %-42s\n" "--------------------" "----------" "----------" "------------------------------------------"
+
+    # Check each network
+  for network in "${NETWORKS[@]}"; do
+    # Check if contract is deployed - use a more robust approach
+    local LOG_ENTRY=""
+    local FIND_RESULT=1
+
+    # Try to find the contract and capture both output and exit code
+    LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
+    FIND_RESULT=$?
+
+    # Additional check: if LOG_ENTRY contains error message, treat as not found
+    if [[ "$LOG_ENTRY" == *"No matching entry found"* ]]; then
+      FIND_RESULT=1
+    fi
+
+    if [[ $FIND_RESULT -eq 0 && -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
+      # Contract is deployed
+      local ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS" 2>/dev/null)
+      local VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED" 2>/dev/null)
+
+      # Handle cases where jq fails or returns null
+      if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
+        ADDRESS="N/A"
+      fi
+      if [[ "$VERIFIED" == "null" || -z "$VERIFIED" ]]; then
+        VERIFIED="false"
+      fi
+
+      if [[ "$VERIFIED" == "true" ]]; then
+        printf "%-20s %-10s %-10s %-42s\n" "$network" "✅" "✅" "$ADDRESS"
+        DEPLOYED_VERIFIED+=("$network")
+      else
+        printf "%-20s %-10s %-10s %-42s\n" "$network" "✅" "❌" "$ADDRESS"
+        DEPLOYED_UNVERIFIED+=("$network")
+      fi
+    else
+      # Contract is not deployed
+      printf "%-20s %-10s %-10s %-42s\n" "$network" "❌" "N/A" "N/A"
+      NOT_DEPLOYED+=("$network")
+    fi
+  done
+
+  echo ""
+  echo "=========================================="
+  echo "  SUMMARY STATISTICS"
+  echo "=========================================="
+  echo "Total networks: $TOTAL_NETWORKS"
+  echo "✅ Deployed & Verified: ${#DEPLOYED_VERIFIED[@]}"
+  echo "⚠️  Deployed but Unverified: ${#DEPLOYED_UNVERIFIED[@]}"
+  echo "❌ Not Deployed: ${#NOT_DEPLOYED[@]}"
+  echo ""
+
+  # Show detailed lists
+  if [[ ${#DEPLOYED_VERIFIED[@]} -gt 0 ]]; then
+    echo "✅ NETWORKS WITH DEPLOYED & VERIFIED CONTRACTS (${#DEPLOYED_VERIFIED[@]}):"
+    printf "  %s\n" "${DEPLOYED_VERIFIED[@]}"
+    echo ""
+  fi
+
+  if [[ ${#DEPLOYED_UNVERIFIED[@]} -gt 0 ]]; then
+    echo "⚠️  NETWORKS WITH DEPLOYED BUT UNVERIFIED CONTRACTS (${#DEPLOYED_UNVERIFIED[@]}):"
+    printf "  %s\n" "${DEPLOYED_UNVERIFIED[@]}"
+    echo ""
+  fi
+
+  if [[ ${#NOT_DEPLOYED[@]} -gt 0 ]]; then
+    echo "❌ NETWORKS WHERE CONTRACT IS NOT DEPLOYED (${#NOT_DEPLOYED[@]}):"
+    printf "  %s\n" "${NOT_DEPLOYED[@]}"
+    echo ""
+
+    # Provide retry command for networks that need deployment
+    echo "🔄 To deploy to remaining networks, use:"
+    echo "  local NETWORKS=($(printf '"%s" ' "${NOT_DEPLOYED[@]}" | sed 's/ $//'))"
+    echo ""
+  fi
+
+  echo "=========================================="
+}
+
 

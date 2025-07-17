@@ -7,13 +7,12 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.3
+/// @custom:version 1.0.4
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
@@ -21,6 +20,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
     ISignatureTransfer public immutable PERMIT2;
 
     string public constant WITNESS_TYPE_STRING =
+        // solhint-disable-next-line max-line-length
         "LiFiCall witness)LiFiCall(address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant WITNESS_TYPEHASH =
         keccak256(
@@ -289,18 +289,24 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes memory diamondCalldata
     ) internal returns (bytes memory) {
         // call diamond with provided calldata
-        SafeTransferLib.safeTransferETH(LIFI_DIAMOND, msg.value);
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = LIFI_DIAMOND.call(diamondCalldata);
+        (bool success, bytes memory data) = LIFI_DIAMOND.call{
+            value: msg.value
+        }(diamondCalldata);
+
         if (!success) {
             revert CallToDiamondFailed(data);
         }
         return data;
     }
 
-    /// The following code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/src/Permit2NonceFinder.sol
+    /// The following code was adapted from
+    // solhint-disable-next-line max-line-length
+    /// https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/src/Permit2NonceFinder.sol
     /// Provides utility functions for determining the next valid Permit2 nonce
 
+    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign
+    ///      but the start one is still valid.
     /// @notice Finds the next valid nonce for a user, starting from 0.
     /// @param owner The owner of the nonces
     /// @return nonce The first valid nonce starting from 0
@@ -309,7 +315,8 @@ contract Permit2Proxy is WithdrawablePeriphery {
     }
 
     /// @notice Finds the next valid nonce for a user, after from a given nonce.
-    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign but the start one is still valid.
+    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign
+    ///      but the start one is still valid.
     /// @param owner The owner of the nonces
     /// @param start The nonce to start from
     /// @return nonce The first valid nonce after the given nonce
