@@ -9,11 +9,10 @@
  *
  * Key Features:
  * - Parallel Processing: Scans multiple networks concurrently
- * - RPC Optimization:
- *   - Configurable chunk sizes per network to handle RPC limitations
- *   - Support for custom RPC endpoints when public ones are unreliable
- *   - Automatic retry mechanism with backoff for failed requests
- *   - Timeout handling for unresponsive RPCs
+ * - Configurable chunk sizes per network to handle RPC limitations
+ * - Support for custom RPC endpoints when public ones are unreliable
+ * - Automatic retry mechanism with backoff for failed requests
+ * - Timeout handling for unresponsive RPCs
  *
  * Process:
  * 1. Loads network-specific configurations from prepareFunctionSelectorsConfig.json:
@@ -32,14 +31,21 @@
  *    - Scanning metadata (blocks, timestamps, duration)
  *    - Network-specific information (chain IDs, addresses)
  *
- * The output from this script is essential for the allowlist migration process,
- * as it provides the complete set of selectors that need to be explicitly removed
- * to reset the contract state.
+ * 4. Creates flattened-selectors.json:
+ *    - Combines selectors from all networks
+ *    - Removes duplicates across networks
+ *    - Sorts selectors for consistency
+ *    - Includes total count of unique selectors
+ *
+ * The output files are essential for the allowlist migration process,
+ * providing both network-specific data and a complete, deduplicated set
+ * of selectors that need to be explicitly removed to reset the contract state.
  */
 
 import 'dotenv/config'
 
 import { writeFileSync, existsSync, readFileSync } from 'fs'
+import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -446,6 +452,38 @@ function generateSummary(results: IScanResult[]): IScanSummary {
   }
 }
 
+function flattenAndSaveSelectors(
+  existingData: ISelectorsDataFile,
+  baseDir: string
+) {
+  // Create a Set to automatically handle deduplication
+  const uniqueSelectors = new Set<string>()
+
+  // Iterate through all networks and add their selectors to the Set
+  Object.values(existingData.networks).forEach((network) => {
+    network.selectors.forEach((selector) => {
+      uniqueSelectors.add(selector)
+    })
+  })
+
+  // Convert Set to sorted array for consistent output
+  const sortedSelectors = Array.from(uniqueSelectors).sort()
+
+  // Create output object
+  const output = {
+    totalUniqueSelectors: sortedSelectors.length,
+    selectors: sortedSelectors,
+  }
+
+  // Write to flattened-selectors.json
+  const outputPath = path.join(baseDir, 'flattened-selectors.json')
+  writeFileSync(outputPath, JSON.stringify(output, null, 2))
+
+  consola.success(`\n📄 Flattened selectors summary:`)
+  consola.info(`   Total unique selectors: ${sortedSelectors.length}`)
+  consola.info(`   Output written to: ${outputPath}`)
+}
+
 // Define the command
 const cmd = defineCommand({
   meta: {
@@ -689,6 +727,10 @@ const cmd = defineCommand({
         consola.error(`   ${network}: ${error}`)
       })
     }
+
+    // Add flattening step
+    consola.info(`\n🔄 Flattening selectors from all networks...`)
+    flattenAndSaveSelectors(existingData, path.dirname(outputFile))
 
     process.exit(summary.failedScans > 0 ? 1 : 0)
   },
