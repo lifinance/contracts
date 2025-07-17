@@ -103,7 +103,12 @@ diamondUpdateFacet() {
   echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
 
   # check if update script exists
-  local FULL_SCRIPT_PATH="$DEPLOY_SCRIPT_DIRECTORY$SCRIPT.s.sol"
+  local FULL_SCRIPT_PATH
+  if isZkEvmNetwork "$NETWORK"; then
+    FULL_SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
+  else
+    FULL_SCRIPT_PATH="$DEPLOY_SCRIPT_DIRECTORY$SCRIPT.s.sol"
+  fi
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find update script for $CONTRACT_NAME in this path: $FULL_SCRIPT_PATH. Aborting update."
     return 1

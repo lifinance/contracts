@@ -410,7 +410,7 @@ async function getPendingOperations(
   timelockAddress: Address,
   networkName: string,
   specificOperationId?: Hex,
-  includeNotReady?: boolean
+  rejectAll?: boolean
 ): Promise<{ readyOperations: any[]; totalPendingCount: number }> {
   // Fetch Safe transactions with schedule data from MongoDB
   consola.info('Fetching Safe transactions with schedule data from MongoDB...')
@@ -488,7 +488,7 @@ async function getPendingOperations(
             salt: salt, // Store the actual salt from the schedule call
             mongoId: tx._id, // Store MongoDB ID for later updates
           })
-        } else if (includeNotReady && status.isPending) {
+        } else if (rejectAll && status.isPending) {
           // Get the timestamp when the operation will be ready
           const timestamp = await publicClient.readContract({
             address: timelockAddress,
@@ -543,7 +543,7 @@ async function getPendingOperations(
     await client.close()
   }
 
-  if (includeNotReady)
+  if (rejectAll)
     consola.info(
       `🚀 Found ${readyOperations.length} operation${
         readyOperations.length === 1 ? '' : 's'
