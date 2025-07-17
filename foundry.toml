@@ -21,6 +21,7 @@ cache = true
 
 [profile.zksync]
 solc_version = '0.8.26'
+zksolc = '1.5.15'
 test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
