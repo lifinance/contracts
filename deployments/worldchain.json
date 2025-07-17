@@ -25,5 +25,6 @@
   "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
   "GasZipFacet": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
   "GasZipPeriphery": "0x76aE215b11797b32397d878e6f3E65081ff58b13",
-  "RelayFacet": "0xeBCC663275cec5F53eebcDb16C0bCFacbAe74128"
+  "RelayFacet": "0xeBCC663275cec5F53eebcDb16C0bCFacbAe74128",
+  "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818"
 }

@@ -146,8 +146,8 @@
         "Version": "1.0.0"
       },
       "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
+        "Name": "",
+        "Version": ""
       },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
@@ -165,7 +165,7 @@
       "GasZipPeriphery": "0xECCD021343d25a58596482781323AE50EF936a01",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xA41c306315e61120C8F50832D84e1EcbE3B564D5",
-      "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",

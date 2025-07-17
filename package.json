@@ -47,6 +47,7 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
+    "tsc-files": "^1.1.4",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
     "zksync-web3": "^0.14.3"
@@ -86,6 +87,15 @@
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
     "test": "forge test --evm-version 'cancun'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
+    "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
+    "mongo-logs:add": "bun script/deploy/update-deployment-logs.ts add",
+    "mongo-logs:update": "bun script/deploy/update-deployment-logs.ts update",
+    "mongo-logs:query": "bun script/deploy/query-deployment-logs.ts",
+    "mongo-logs:latest": "bun script/deploy/query-deployment-logs.ts latest",
+    "mongo-logs:list": "bun script/deploy/query-deployment-logs.ts list --format table",
+    "mongo-logs:find": "bun script/deploy/query-deployment-logs.ts find",
+    "mongo-logs:exists": "bun script/deploy/query-deployment-logs.ts exists",
+    "mongo-logs:get": "bun script/deploy/query-deployment-logs.ts get",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts"
   },
@@ -117,7 +127,8 @@
   "lint-staged": {
     "*.{ts,js}": [
       "prettier --write",
-      "eslint --fix"
+      "eslint --fix",
+      "bunx tsc-files --noEmit"
     ],
     "*.sol": [
       "prettier --write",
