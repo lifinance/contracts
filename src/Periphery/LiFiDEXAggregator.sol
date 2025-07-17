@@ -50,8 +50,13 @@ uint8 constant POOL_TYPE_IZUMI_V3 = 8;
 uint8 constant POOL_TYPE_SYNCSWAP = 9;
 uint8 constant POOL_TYPE_KATANA_V3 = 10;
 
+/// @dev command for V3_SWAP_EXACT_IN (0x00) for KatanaV3
+bytes constant KATANA_V3_SWAP_EXACT_IN = hex"00";
+
 /// @title LiFiDEXAggregator
-/// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
+/// @author Ilya Lyalin (contract copied from:
+///         https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/
+///         protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
 /// @custom:version 1.12.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
@@ -85,7 +90,6 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
     error IzumiV3SwapUnexpected();
     error IzumiV3SwapCallbackUnknownSource();
     error IzumiV3SwapCallbackNotPositiveAmount();
-    error KatanaV3SwapUnexpected();
 
     IBentoBoxMinimal public immutable BENTO_BOX;
     mapping(address => bool) public priviledgedUsers;
@@ -683,10 +687,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     /// @notice Called to `msg.sender` after executing a swap via AgniV3#swap.
     /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
-    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive)
+    ///        by the pool by the end of the swap. If positive, the callback must send that amount of
+    ///        token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive)
+    ///        by the pool by the end of the swap. If positive, the callback must send that amount of
+    ///        token1 to the pool.
     /// @param data Any data passed through by the caller via the AgniV3#swap call
     function agniSwapCallback(
         int256 amount0Delta,
@@ -925,7 +931,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // call the router's execute function
         // first parameter for execute is the command for V3_SWAP_EXACT_IN (0x00)
         IKatanaV3AggregateRouter(router).execute(
-            abi.encodePacked(uint8(0x00)),
+            KATANA_V3_SWAP_EXACT_IN,
             inputs
         );
 
@@ -1148,6 +1154,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
+        // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
         if (from == INTERNAL_INPUT_SOURCE) {
@@ -1187,12 +1194,15 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // - Token transfer safety: SafeERC20 is used to ensure token transfers revert on failure
         // - Expected output verification: The contract calls getAmountOut (including fees) before executing the swap
         // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
-        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut and that the sender's final balance is not less than the initial balance
-        // - Immutable interaction: Velodrome V2 pools and the router are not upgradable, so we can rely on the behavior of getAmountOut and swap
+        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut
+        //      and that the sender's final balance is not less than the initial balance
+        // - Immutable interaction: Velodrome V2 pools and the router are not upgradable,
+        //      so we can rely on the behavior of getAmountOut and swap
 
         // ATTENTION FOR CALLBACKS / HOOKS:
         // - recipient contracts should validate that msg.sender is the Velodrome pool contract who is calling the hook
-        // - recipient contracts must not manipulate their own tokenOut balance (as this may bypass/invalidate the built-in slippage protection)
+        // - recipient contracts must not manipulate their own tokenOut balance
+        //   (as this may bypass/invalidate the built-in slippage protection)
         // - @developers: never trust balance-based slippage protection for callback recipients
         // - @integrators: do not use slippage guarantees when recipient is a contract with side-effects
         IVelodromeV2Pool(pool).swap(
@@ -1218,6 +1228,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
+        // solhint-disable-next-line max-line-length
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
         address recipient = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0; // Any non-zero value enables fee-on-transfer handling

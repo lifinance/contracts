@@ -298,6 +298,17 @@ deploySingleContract() {
   # prepare information for logfile entry
   TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
   OPTIMIZER=$(getOptimizerRuns)
+  
+  # Get compiler versions used for deployment
+  SOLC_VERSION=$(getSolcVersion "$NETWORK")
+  EVM_VERSION=$(getEvmVersion "$NETWORK")
+  
+  # Get zk-solc version for zkEvm networks
+  if isZkEvmNetwork "$NETWORK"; then
+    ZK_SOLC_VERSION=$(getZkSolcVersion "$NETWORK")
+  else
+    ZK_SOLC_VERSION=""
+  fi
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
   if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
@@ -335,7 +346,7 @@ deploySingleContract() {
         TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
 
         # update VERIFIED info in log file
-        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
+        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -343,13 +354,13 @@ deploySingleContract() {
       echoDebug "address of existing log entry does not match with current deployed-to address (=re-deployment)"
 
       # overwrite existing log entry with new deployment info
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
     fi
   else
     echoDebug "log entry does not exist. Log entry will be written now."
 
     # write to logfile
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
   fi
 
   # save contract in network-specific deployment files
