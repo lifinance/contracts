@@ -87,7 +87,7 @@ export async function sendOrPropose({
 
   // ───────────── SAFE PROPOSAL FLOW ───────────── //
   const pk = process.env.PRIVATE_KEY_PRODUCTION
-  if (!pk) throw new Error('Missing SAFE_SIGNER_PRIVATE_KEY in environment')
+  if (!pk) throw new Error('Missing PRIVATE_KEY_PRODUCTION in environment')
 
   const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
   consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
