@@ -335,17 +335,20 @@ async function processNetwork(
 
     const chain = getViemChainForNetworkName(network.name)
 
-    const rpcUrl = rpcUrlOverride || network.rpcUrl
+    // Only use rpcUrlOverride if explicitly provided via --rpc-url flag
+    const transport = rpcUrlOverride
+      ? http(rpcUrlOverride)
+      : http(chain.rpcUrls.default.http[0])
 
     const publicClient = createPublicClient({
       chain,
-      transport: http(rpcUrl),
+      transport,
     })
 
     const walletClient = createWalletClient({
       account,
       chain,
-      transport: http(rpcUrl),
+      transport,
     })
 
     // Get pending operations using new decode-based approach
