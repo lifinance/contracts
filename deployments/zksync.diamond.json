@@ -74,8 +74,8 @@
         "Version": "1.0.0"
       },
       "0xE1f26d5876F854609a067E5B767ACa44a0271F9d": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0xeeDb1De1455911ED49C9C28A8a2Df22401079Ea4": {
         "Name": "GenericSwapFacetV3",

@@ -128,7 +128,7 @@
     "*.{ts,js}": [
       "prettier --write",
       "eslint --fix",
-      "tsc-files --noEmit"
+      "bunx tsc-files --noEmit"
     ],
     "*.sol": [
       "prettier --write",

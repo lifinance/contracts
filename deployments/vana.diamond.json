@@ -50,8 +50,8 @@
         "Version": "1.0.1"
       },
       "0xdEf2DFaAec9CE0DE50efc0663Cd2962C6bc88498": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
