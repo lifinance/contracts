@@ -34,21 +34,14 @@ import { existsSync, readFileSync } from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbi,
-  encodeFunctionData,
-  type Address,
-  type Hex,
-} from 'viem'
+import { parseAbi, encodeFunctionData, type Address, type Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import networksData from '../../config/networks.json'
 import whitelistedAddresses from '../../config/whitelistedAddresses.json'
 import whitelistedSelectors from '../../config/whitelistedSelectors.json'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { setupEnvironment } from '../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../utils/deploymentHelpers'
 
 // Define interfaces
@@ -190,22 +183,14 @@ async function migrateAllowList(
   const rpcUrl = rpcUrlOverride || network.rpcUrl
   consola.info(`🔍 RPC URL: ${rpcUrl}`)
 
-  // Import the chain configuration
-  const { getViemChainForNetworkName } = await import(
-    '../utils/viemScriptHelpers'
+  // Setup environment for viem clients using setupEnvironment
+  // Note: setupEnvironment manages private keys internally based on environment
+  const { publicClient, walletClient } = await setupEnvironment(
+    network.name as SupportedChain,
+    null, // No facet ABI needed for migration
+    environment,
+    rpcUrlOverride
   )
-  const chain = getViemChainForNetworkName(network.name)
-
-  const publicClient = createPublicClient({
-    chain,
-    transport: http(rpcUrl),
-  })
-
-  const walletClient = createWalletClient({
-    account,
-    chain,
-    transport: http(rpcUrl),
-  })
 
   // Check if already migrated
 
@@ -258,9 +243,30 @@ async function migrateAllowList(
   const whitelistedSelectorsFromFile =
     (whitelistedSelectors as IWhitelistedSelectors).selectors || []
 
+  if (!whitelistedSelectorsFromFile.length) {
+    consola.error('❌ No selectors found in whitelistedSelectors.json')
+    consola.info(
+      '💡 Please ensure whitelistedSelectors.json contains the selectors to whitelist'
+    )
+    process.exit(1)
+  }
+
+  // Load addresses for the specific network
+  const networkAddresses = whitelistedAddresses[network.name] || []
+  if (!networkAddresses.length) {
+    consola.error(
+      `❌ No whitelisted addresses found for network ${network.name} in whitelistedAddresses.json`
+    )
+    consola.info(
+      '💡 Please ensure whitelistedAddresses.json contains addresses for this network'
+    )
+    process.exit(1)
+  }
+
+  const addressesToAdd = new Set(networkAddresses)
+
   // Normalize current addresses to lowercase for comparison
   const selectorsToAdd = new Set(whitelistedSelectorsFromFile)
-  const addressesToAdd = new Set(whitelistedAddresses[network.name] || [])
 
   consola.info(`Migration:`)
   consola.info(
