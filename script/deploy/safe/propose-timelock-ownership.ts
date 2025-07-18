@@ -10,10 +10,10 @@
 import 'dotenv/config'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { parseArgs } from 'util'
 
 import { $ } from 'bun'
-import consola from 'consola'
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
 import type { Address } from 'viem'
 import { encodeFunctionData } from 'viem'
 
@@ -32,80 +32,68 @@ interface IDeploymentData {
   [key: string]: string | undefined
 }
 
-// Parse command line arguments
-const { values } = parseArgs({
-  options: {
+const cmd = defineCommand({
+  meta: {
+    name: 'propose-timelock-ownership',
+    description:
+      'Propose transferring ownership of LiFiDiamond to LiFiTimelockController',
+  },
+  args: {
     privateKey: {
       type: 'string',
-      short: 'k',
-    },
-    help: {
-      type: 'boolean',
-      short: 'h',
+      description: 'Private key to use for signing transactions',
+      required: false,
+      shorthand: 'k',
     },
   },
-})
+  async run({ args }) {
+    // Get private key from command line argument or environment variable
+    const privateKey = args.privateKey || process.env.SAFE_SIGNER_PRIVATE_KEY
 
-// Show help if requested
-if (values.help) {
-  console.log(`
-Usage: bun propose-timelock-ownership.ts [options]
+    if (!privateKey) {
+      consola.error(
+        'No private key provided. Use --privateKey or set SAFE_SIGNER_PRIVATE_KEY environment variable.'
+      )
+      process.exit(1)
+    }
 
-Options:
-  -k, --privateKey <key>  Private key to use for signing transactions
-  -h, --help              Show this help message
-  `)
-  process.exit(0)
-}
+    // Load networks configuration
+    const networksConfigPath = join(process.cwd(), 'config', 'networks.json')
+    const networksConfig = JSON.parse(
+      readFileSync(networksConfigPath, 'utf-8')
+    ) as Record<string, INetworkConfig>
 
-// Main function
-async function main() {
-  // Get private key from command line argument or environment variable
-  const privateKey = values.privateKey || process.env.SAFE_SIGNER_PRIVATE_KEY
-
-  if (!privateKey) {
-    consola.error(
-      'No private key provided. Use --privateKey or set SAFE_SIGNER_PRIVATE_KEY environment variable.'
+    // Filter networks that have a safeAddress configured
+    const networksWithSafe = Object.values(networksConfig).filter(
+      (network) => network.safeAddress && network.safeAddress.length > 0
     )
-    process.exit(1)
-  }
 
-  // Load networks configuration
-  const networksConfigPath = join(process.cwd(), 'config', 'networks.json')
-  const networksConfig = JSON.parse(
-    readFileSync(networksConfigPath, 'utf-8')
-  ) as Record<string, INetworkConfig>
+    consola.info(
+      `Found ${networksWithSafe.length} networks with Safe addresses configured`
+    )
 
-  // Filter networks that have a safeAddress configured
-  const networksWithSafe = Object.values(networksConfig).filter(
-    (network) => network.safeAddress && network.safeAddress.length > 0
-  )
+    // Ask for confirmation before proceeding
+    const confirm = await consola.prompt(
+      `Are you sure you want to propose transferring ownership to the timelock controller on ${networksWithSafe.length} networks?`,
+      {
+        type: 'confirm',
+      }
+    )
 
-  consola.info(
-    `Found ${networksWithSafe.length} networks with Safe addresses configured`
-  )
-
-  // Ask for confirmation before proceeding
-  const confirm = await consola.prompt(
-    `Are you sure you want to propose transferring ownership to the timelock controller on ${networksWithSafe.length} networks?`,
-    {
-      type: 'confirm',
+    if (!confirm) {
+      consola.info('Operation cancelled by user')
+      process.exit(0)
     }
-  )
 
-  if (!confirm) {
-    consola.info('Operation cancelled by user')
-    process.exit(0)
-  }
-
-  // Process each network
-  for (const network of networksWithSafe)
-    try {
-      await processNetwork(network, privateKey)
-    } catch (error) {
-      consola.error(`Error processing network ${network.name}:`, error)
-    }
-}
+    // Process each network
+    for (const network of networksWithSafe)
+      try {
+        await processNetwork(network, privateKey)
+      } catch (error) {
+        consola.error(`Error processing network ${network.name}:`, error)
+      }
+  },
+})
 
 async function processNetwork(network: INetworkConfig, privateKey: string) {
   consola.info(`Processing network: ${network.name}`)
@@ -192,7 +180,4 @@ async function processNetwork(network: INetworkConfig, privateKey: string) {
 }
 
 // Run the main function
-main().catch((error) => {
-  consola.error('Error in main execution:', error)
-  process.exit(1)
-})
+runMain(cmd)
