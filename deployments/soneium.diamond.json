@@ -62,8 +62,8 @@
         "Version": "1.0.1"
       },
       "0xA2970826c12EE514EcB737515Cb17296a86A2488": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0xE5b8Ab14A6c7D2b1e8f21050B5504D5b8abf4FcD": {
         "Name": "SymbiosisFacet",
