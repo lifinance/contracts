@@ -5,7 +5,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
-import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title Whitelist Manager Facet
 /// @author LI.FI (https://li.fi)
@@ -147,8 +147,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     }
 
     /// Temporary methods for migration ///
-    /// @dev These methods should be removed after the migration is complete. On the next facet upgrade, this section should be removed.
-
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
     /// @inheritdoc IWhitelistManagerFacet
     function migrate(
         bytes4[] calldata _selectorsToRemove,
@@ -183,12 +182,30 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
         // whitelist contracts
         for (uint256 i = 0; i < _contractsToAdd.length; i++) {
+            if (_contractsToAdd[i] == address(this)) {
+                revert CannotAuthoriseSelf();
+            }
+
+            // check for duplicate contracts in _contractsToAdd
+            // this prevents both duplicates and ensures all contracts were properly reset
+            if (LibAllowList.contractIsAllowed(_contractsToAdd[i])) {
+                revert InvalidConfig();
+            }
+
             LibAllowList.addAllowedContract(_contractsToAdd[i]);
+            emit AddressWhitelisted(_contractsToAdd[i]);
         }
 
         // whitelist selectors
         for (uint256 i = 0; i < _selectorsToAdd.length; i++) {
+            // check for duplicate selectors in _selectorsToAdd or selectors not present in _selectorsToRemove
+            // this prevents both duplicates and ensures all selectors were properly reset
+            if (LibAllowList.selectorIsAllowed(_selectorsToAdd[i])) {
+                revert InvalidConfig();
+            }
+
             LibAllowList.addAllowedSelector(_selectorsToAdd[i]);
+            emit FunctionSelectorApprovalChanged(_selectorsToAdd[i], true);
         }
 
         // Mark as migrated

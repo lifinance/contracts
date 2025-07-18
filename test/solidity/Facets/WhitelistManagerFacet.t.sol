@@ -6,7 +6,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { OwnershipFacet } from "src/Facets/OwnershipFacet.sol";
-import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { InvalidContract, CannotAuthoriseSelf, UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IDexManagerFacet } from "lifi/Interfaces/IDexManagerFacet.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -807,8 +807,8 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     }
 }
 
-//
-/// @notice Test for migrating the allow list configuration during diamond upgrades. Please remove this test after the next facet upgrade with the migration logic.
+/// @notice Test for migrating the allow list configuration during diamond upgrades.
+/// @dev Please remove this test after the next facet upgrade with the migration logic.
 contract WhitelistManagerFacetMigrationTest is TestBase {
     using stdJson for string;
 
@@ -895,7 +895,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             whitelistManagerWithMigrationLogicSelectors
         );
 
-        // add WhitelistManagerFacet to diamond in this test only to read the allow list and then to verify the whitelisted contract addresses and selectors
+        // add WhitelistManagerFacet to diamond for reading and verifying allowlist state
+        // used only in this test for validation purposes
         WhitelistManagerFacet whitelistManagerFacet = new WhitelistManagerFacet();
         bytes4[] memory facetSelectors = new bytes4[](2);
         facetSelectors[0] = WhitelistManagerFacet
@@ -928,7 +929,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         // Call migrate() as the diamond owner to update the allow list configuration with whitelisted addresses and their
         // function selectors. This will:
         // 1. reset the old state to the initial state
-        // 2. add the new contracts and selectors to the allow list one more time in order to have correct mapping of contract addresses and selectors
+        // 2. re-add contracts and selectors to the allow list
+        //    ensures correct mapping of addresses and selectors
         WhitelistManagerFacet(DIAMOND).migrate(
             currentWhitelistedSelectors,
             whitelistedAddresses,
@@ -1004,6 +1006,109 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         address nonOwner = address(0x123);
         vm.prank(nonOwner);
         vm.expectRevert(UnAuthorized.selector);
+        WhitelistManagerFacet(DIAMOND).migrate(
+            selectorsToRemove,
+            contractsToAdd,
+            selectorsToAdd
+        );
+    }
+
+    function test_RevertWhenMigratingWithSelfAddress() public {
+        // deploy facets and set up the diamond
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // add WhitelistManagerFacet to diamond
+        bytes4[] memory migratorSelectors = new bytes4[](2);
+        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
+        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
+        addFacet(
+            LiFiDiamond(payable(DIAMOND)),
+            address(whitelistManagerWithMigrationLogic),
+            migratorSelectors
+        );
+
+        // Try to migrate with diamond address in contractsToAdd
+        bytes4[] memory selectorsToRemove = new bytes4[](0);
+        address[] memory contractsToAdd = new address[](1);
+        contractsToAdd[0] = DIAMOND; // This should cause CannotAuthoriseSelf error
+        bytes4[] memory selectorsToAdd = new bytes4[](0);
+
+        // Call migrate as owner but with invalid config (self-address)
+        address owner = OwnershipFacet(DIAMOND).owner();
+        vm.prank(owner);
+        vm.expectRevert(CannotAuthoriseSelf.selector);
+        WhitelistManagerFacet(DIAMOND).migrate(
+            selectorsToRemove,
+            contractsToAdd,
+            selectorsToAdd
+        );
+    }
+
+    function test_RevertWhenMigratingWithDuplicateContract() public {
+        // deploy facets and set up the diamond
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // add WhitelistManagerFacet to diamond
+        bytes4[] memory migratorSelectors = new bytes4[](2);
+        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
+        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
+        addFacet(
+            LiFiDiamond(payable(DIAMOND)),
+            address(whitelistManagerWithMigrationLogic),
+            migratorSelectors
+        );
+
+        // Set up migration data with duplicate contract
+        bytes4[] memory selectorsToRemove = currentWhitelistedSelectors;
+        address[] memory contractsToAdd = new address[](2);
+        contractsToAdd[0] = address(
+            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        ); // Example contract
+        contractsToAdd[1] = address(
+            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        ); // Same contract again
+        bytes4[] memory selectorsToAdd = new bytes4[](1);
+        selectorsToAdd[0] = bytes4(0x38ed1739);
+
+        // Call migrate as owner but with invalid config (duplicate contract)
+        address owner = OwnershipFacet(DIAMOND).owner();
+        vm.prank(owner);
+        vm.expectRevert(InvalidConfig.selector);
+        WhitelistManagerFacet(DIAMOND).migrate(
+            selectorsToRemove,
+            contractsToAdd,
+            selectorsToAdd
+        );
+    }
+
+    function test_RevertWhenMigratingWithDuplicateSelector() public {
+        // deploy facets and set up the diamond
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // add WhitelistManagerFacet to diamond
+        bytes4[] memory migratorSelectors = new bytes4[](2);
+        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
+        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
+        addFacet(
+            LiFiDiamond(payable(DIAMOND)),
+            address(whitelistManagerWithMigrationLogic),
+            migratorSelectors
+        );
+
+        // Set up migration data with duplicate selector
+        bytes4[] memory selectorsToRemove = currentWhitelistedSelectors;
+        address[] memory contractsToAdd = new address[](1);
+        contractsToAdd[0] = address(
+            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        );
+        bytes4[] memory selectorsToAdd = new bytes4[](2);
+        selectorsToAdd[0] = bytes4(0x38ed1739);
+        selectorsToAdd[1] = bytes4(0x38ed1739); // Same selector again
+
+        // Call migrate as owner but with invalid config (duplicate selector)
+        address owner = OwnershipFacet(DIAMOND).owner();
+        vm.prank(owner);
+        vm.expectRevert(InvalidConfig.selector);
         WhitelistManagerFacet(DIAMOND).migrate(
             selectorsToRemove,
             contractsToAdd,
