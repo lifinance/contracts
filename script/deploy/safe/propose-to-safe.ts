@@ -12,7 +12,7 @@ import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { type Address, type Hex } from 'viem'
+import { getAddress, type Address, type Hex } from 'viem'
 
 import {
   OperationTypeEnum,
@@ -179,7 +179,7 @@ const main = defineCommand({
       const wrappedTransaction = await wrapWithTimelockSchedule(
         args.network,
         args.rpcUrl || '',
-        timelockAddress as Address,
+        getAddress(timelockAddress),
         finalTo,
         finalCalldata
       )
