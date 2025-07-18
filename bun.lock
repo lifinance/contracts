@@ -59,6 +59,7 @@
         "solhint-plugin-prettier": "^0.0.5",
         "solidity-coverage": "^0.8.14",
         "ts-generator": "^0.1.1",
+        "tsc-files": "^1.1.4",
         "typechain": "^8.0.0",
         "typescript": "^5.4.5",
         "zksync-web3": "^0.14.3",
@@ -1966,6 +1967,8 @@
     "ts-essentials": ["ts-essentials@7.0.3", "", { "peerDependencies": { "typescript": ">=3.7.0" } }, "sha512-8+gr5+lqO3G84KdiTSMRLtuyJ+nTBVRKuCrK4lidMPdVeEp0uqC875uE5NMcaA7YYMN7XsNiFQuMvasF8HT/xQ=="],
 
     "ts-generator": ["ts-generator@0.1.1", "", { "dependencies": { "@types/mkdirp": "^0.5.2", "@types/prettier": "^2.1.1", "@types/resolve": "^0.0.8", "chalk": "^2.4.1", "glob": "^7.1.2", "mkdirp": "^0.5.1", "prettier": "^2.1.2", "resolve": "^1.8.1", "ts-essentials": "^1.0.0" }, "bin": { "ts-generator": "dist/cli/run.js" } }, "sha512-N+ahhZxTLYu1HNTQetwWcx3so8hcYbkKBHTr4b4/YgObFTIKkOSSsaa+nal12w8mfrJAyzJfETXawbNjSfP2gQ=="],
+
+    "tsc-files": ["tsc-files@1.1.4", "", { "peerDependencies": { "typescript": ">=3" }, "bin": { "tsc-files": "cli.js" } }, "sha512-RePsRsOLru3BPpnf237y1Xe1oCGta8rmSYzM76kYo5tLGsv5R2r3s64yapYorGTPuuLyfS9NVbh9ydzmvNie2w=="],
 
     "tsconfig-paths": ["tsconfig-paths@3.15.0", "", { "dependencies": { "@types/json5": "^0.0.29", "json5": "^1.0.2", "minimist": "^1.2.6", "strip-bom": "^3.0.0" } }, "sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg=="],
 
