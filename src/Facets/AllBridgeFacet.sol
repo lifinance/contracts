@@ -126,6 +126,9 @@ contract AllBridgeFacet is
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
     ) internal {
+        // we do not validate _allBridgeData.fees here due to gas optimization reasons
+        // our backend ensures that the fees are correct
+
         // make sure destinationChainId matches in bridgeData and allBridgeData
         if (
             _allBridgeData.destinationChainId !=
