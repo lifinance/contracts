@@ -32,6 +32,8 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         IAllBridge(0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e);
     address internal constant ALLBRIDGE_POOL =
         0xa7062bbA94c91d565Ae33B893Ab5dFAF1Fc57C4d;
+    bytes32 internal constant ADDRESS_USDC_SOLANA =
+        hex"c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61";
     uint32 private constant ALLBRIDGE_ID_ETHEREUM = 1;
     uint32 private constant ALLBRIDGE_ID_BSC = 2;
     uint32 private constant ALLBRIDGE_ID_TRON = 3;
@@ -248,6 +250,94 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         usdc.approve(address(allBridgeFacet), bridgeData.minAmount);
 
         vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        allBridgeFacet.startBridgeTokensViaAllBridge(
+            bridgeData,
+            validAllBridgeData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToNonEVMChainAndEmitEvent() public {
+        vm.startPrank(USER_SENDER);
+
+        // update bridgeData for non-EVM destination (Solana)
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validAllBridgeData.destinationChainId = ALLBRIDGE_ID_SOLANA;
+        validAllBridgeData.recipient = bytes32(
+            uint256(uint160(0x1234567890123456789012345678901234567890))
+        );
+
+        // Calculate fees for Solana destination
+        uint256 fees = ALLBRIDGE_ROUTER.getTransactionCost(
+            ALLBRIDGE_ID_SOLANA
+        ) +
+            ALLBRIDGE_ROUTER.getMessageCost(
+                ALLBRIDGE_ID_SOLANA,
+                IAllBridge.MessengerProtocol.Allbridge
+            );
+        validAllBridgeData.fees = fees;
+        validAllBridgeData.receiveToken = ADDRESS_USDC_SOLANA; // Solana USDC
+        addToMessageValue = fees;
+
+        usdc.approve(address(allBridgeFacet), bridgeData.minAmount);
+
+        // expect the BridgeToNonEVMChainBytes32 event to be emitted first
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            validAllBridgeData.destinationChainId,
+            validAllBridgeData.recipient
+        );
+
+        // expect the LiFiTransferStarted event to be emitted second
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        allBridgeFacet.startBridgeTokensViaAllBridge{
+            value: validAllBridgeData.fees
+        }(bridgeData, validAllBridgeData);
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToNonEVMChainWithFeePaidInSendingAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        // update bridgeData for non-EVM destination (Solana)
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validAllBridgeData.destinationChainId = ALLBRIDGE_ID_SOLANA;
+        validAllBridgeData.recipient = bytes32(
+            uint256(uint160(0x1234567890123456789012345678901234567890))
+        );
+
+        // Calculate fees for Solana destination and pay with sending asset
+        uint256 fees = ALLBRIDGE_ROUTER.getBridgingCostInTokens(
+            ALLBRIDGE_ID_SOLANA,
+            IAllBridge.MessengerProtocol.Allbridge,
+            ADDRESS_USDC
+        ) + 1; // add 1 wei to avoid rounding errors
+        validAllBridgeData.fees = fees;
+        validAllBridgeData.receiveToken = ADDRESS_USDC_SOLANA; // Solana USDC
+        validAllBridgeData.payFeeWithSendingAsset = true;
+        addToMessageValue = 0; // no ETH needed when paying with sending asset
+
+        usdc.approve(address(allBridgeFacet), bridgeData.minAmount);
+
+        // expect the BridgeToNonEVMChainBytes32 event to be emitted first
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            validAllBridgeData.destinationChainId,
+            validAllBridgeData.recipient
+        );
+
+        // expect the LiFiTransferStarted event to be emitted second
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
 
         allBridgeFacet.startBridgeTokensViaAllBridge(
             bridgeData,
