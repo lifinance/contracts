@@ -24,7 +24,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 
-import { IEnvironmentEnum, type SupportedChain } from '../common/types'
+import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import { wrapWithTimelockSchedule } from '../deploy/safe/safe-utils'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
@@ -51,13 +51,13 @@ async function prepareTimelockCalldata(
   originalCalldata: `0x${string}`,
   diamondAddress: string,
   network: string,
-  environment: IEnvironmentEnum
+  environment: EnvironmentEnum
 ): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
   const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
   const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
 
   // Determine which option will be chosen
-  if (environment === IEnvironmentEnum.staging || sendDirectly) {
+  if (environment === EnvironmentEnum.staging || sendDirectly) {
     consola.info(
       '🔧 Option chosen: Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
     )
@@ -79,7 +79,7 @@ async function prepareTimelockCalldata(
     const timelockAddress = await getContractAddressForNetwork(
       'LiFiTimelockController',
       network as SupportedChain,
-      IEnvironmentEnum.production // Timelock is always in production deployments
+      EnvironmentEnum.production // Timelock is always in production deployments
     )
 
     if (!timelockAddress || timelockAddress === '0x') {
@@ -459,7 +459,7 @@ async function verifySelectorsExistInDiamond({
   diamondAddress: string
   facetDefs: { name: string; selectors: `0x${string}`[] }[]
   network: string
-  environment: IEnvironmentEnum
+  environment: EnvironmentEnum
 }): Promise<void> {
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({

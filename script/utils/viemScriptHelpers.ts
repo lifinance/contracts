@@ -14,7 +14,7 @@ import {
 
 import networksConfig from '../../config/networks.json'
 import {
-  IEnvironmentEnum,
+  EnvironmentEnum,
   type INetwork,
   type INetworksObject,
   type SupportedChain,
@@ -130,7 +130,7 @@ export const retry = async <T>(
 export const getContractAddressForNetwork = async (
   contractName: string,
   network: SupportedChain,
-  environment: IEnvironmentEnum = IEnvironmentEnum.production
+  environment: EnvironmentEnum = EnvironmentEnum.production
 ): Promise<string> => {
   // get network deploy log file
   const deployments = await getDeployments(network, environment)
@@ -199,10 +199,10 @@ export function getFunctionSelectors(
  */
 export function getDeployLogFile(
   network: string,
-  environment: IEnvironmentEnum
+  environment: EnvironmentEnum
 ): Record<string, string> {
   const suffix =
-    environment === IEnvironmentEnum.production ? '' : `.${environment}`
+    environment === EnvironmentEnum.production ? '' : `.${environment}`
   const filePath = path.resolve(`deployments/${network}${suffix}.json`)
 
   if (!fs.existsSync(filePath))
@@ -259,13 +259,13 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
 }
 
 /**
- * Casts a string environment to IEnvironmentEnum
+ * Casts a string environment to EnvironmentEnum
  * @param environment - The environment string
- * @returns IEnvironmentEnum value
+ * @returns EnvironmentEnumvalue
  */
-export function castEnv(environment: string): IEnvironmentEnum {
-  if (environment === 'production') return IEnvironmentEnum.production
-  if (environment === 'staging') return IEnvironmentEnum.staging
+export function castEnv(environment: string): EnvironmentEnum {
+  if (environment === 'production') return EnvironmentEnum.production
+  if (environment === 'staging') return EnvironmentEnum.staging
   throw new Error(`Invalid environment: ${environment}`)
 }
 

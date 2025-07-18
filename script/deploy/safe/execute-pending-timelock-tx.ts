@@ -8,26 +8,26 @@
  */
 
 import 'dotenv/config'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import type { Address, Hex, PublicClient, WalletClient } from 'viem'
 import {
   createPublicClient,
   createWalletClient,
-  http,
-  parseAbi,
-  formatEther,
-  encodeFunctionData,
   decodeFunctionData,
-  keccak256,
   encodeAbiParameters,
+  encodeFunctionData,
+  formatEther,
+  http,
+  keccak256,
+  parseAbi,
 } from 'viem'
-import type { Address, PublicClient, WalletClient, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
+import { EnvironmentEnum } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
@@ -309,17 +309,12 @@ async function processNetwork(
 ) {
   consola.info(`\n📡 ${network.name} (Chain ID: ${network.chainId})`)
 
-  // Load deployment data for the network
-  const deploymentPath = join(
-    process.cwd(),
-    'deployments',
-    `${network.name}.json`
-  )
-
   try {
-    const deploymentData = JSON.parse(
-      readFileSync(deploymentPath, 'utf-8')
-    ) as IDeploymentData
+    // Load deployment data for the network using getDeployments
+    const deploymentData = (await getDeployments(
+      network.name as any, // Cast to SupportedChain type
+      EnvironmentEnum.production
+    )) as IDeploymentData
 
     // Check if LiFiTimelockController is deployed
     if (!deploymentData.LiFiTimelockController) {
@@ -656,6 +651,8 @@ async function executeOperation(
           operation.predecessor,
           salt,
         ],
+        account: walletClient.account || null,
+        chain: walletClient.chain || null,
       })
 
       consola.info(`   Transaction hash: ${hash}`)
@@ -749,6 +746,8 @@ async function rejectOperation(
         abi: TIMELOCK_ABI,
         functionName: 'cancel',
         args: [operation.id],
+        account: walletClient.account || null,
+        chain: null,
       })
 
       consola.info(`   Transaction hash: ${hash}`)

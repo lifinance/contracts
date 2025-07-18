@@ -73,7 +73,8 @@ import {
 // Local imports last, in alphabetical order
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { IEnvironmentEnum, type SupportedChain } from '../../common/types'
+import type { SupportedChain } from '../../common/types'
+import { EnvironmentEnum } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
 dotenv.config()
@@ -259,7 +260,7 @@ const main = defineCommand({
     //   }
     // )) as unknown as EnvironmentEnum
     // we currently use SAFEs only in production but will keep this code just in case
-    const environment: IEnvironmentEnum = IEnvironmentEnum.production
+    const environment: EnvironmentEnum = EnvironmentEnum.production
 
     // validate network & existing
     const networkName = args.network as SupportedChain

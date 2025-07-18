@@ -12,18 +12,11 @@ import 'dotenv/config'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
+import { $ } from 'bun'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import type {
-  Address,
-  Chain} from 'viem';
-import {
-  createPublicClient,
-  http,
-  encodeFunctionData
-} from 'viem'
-// @ts-ignore
-import { $ } from 'zx'
+import type { Address, Chain } from 'viem'
+import { createPublicClient, encodeFunctionData, http } from 'viem'
 
 // Define interfaces for network configuration
 interface INetworkConfig {
@@ -91,9 +84,8 @@ const main = defineCommand({
     const customDelay = args.delay ? BigInt(args.delay) : undefined
 
     // Validate that we have either a private key or ledger
-    if (!args.privateKey && !args.ledger) 
+    if (!args.privateKey && !args.ledger)
       throw new Error('Either --privateKey or --ledger must be provided')
-    
 
     // Load networks configuration
     const networksConfigPath = join(process.cwd(), 'config', 'networks.json')
@@ -110,9 +102,8 @@ const main = defineCommand({
       `Found ${networksWithSafe.length} networks with Safe addresses configured`
     )
 
-    if (isDryRun) 
+    if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
-    
 
     // Ask for confirmation before proceeding
     const confirm = await consola.prompt(
@@ -128,13 +119,12 @@ const main = defineCommand({
     }
 
     // Process each network
-    for (const network of networksWithSafe) 
+    for (const network of networksWithSafe)
       try {
         await processNetwork(network, args, isDryRun, customDelay)
       } catch (error) {
         consola.error(`Error processing network ${network.name}:`, error)
       }
-    
   },
 })
 
@@ -307,18 +297,15 @@ async function processNetwork(
         // Add signing method arguments
         if (args.ledger) {
           proposeCommand.push('--ledger')
-          if (args.ledgerLive) 
-            proposeCommand.push('--ledgerLive')
-          
-          if (args.accountIndex) 
+          if (args.ledgerLive) proposeCommand.push('--ledgerLive')
+
+          if (args.accountIndex)
             proposeCommand.push('--accountIndex', args.accountIndex)
-          
-          if (args.derivationPath) 
+
+          if (args.derivationPath)
             proposeCommand.push('--derivationPath', args.derivationPath)
-          
-        } else if (args.privateKey) 
+        } else if (args.privateKey)
           proposeCommand.push('--privateKey', args.privateKey)
-        
 
         // Execute the propose-to-safe command
         const result = await $`${proposeCommand}`.quiet()
