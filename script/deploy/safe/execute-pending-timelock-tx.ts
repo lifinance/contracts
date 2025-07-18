@@ -13,22 +13,18 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
 import {
-  createPublicClient,
-  createWalletClient,
   decodeFunctionData,
   encodeAbiParameters,
   encodeFunctionData,
   formatEther,
-  http,
   keccak256,
   parseAbi,
 } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
 import { EnvironmentEnum } from '../../common/types'
+import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 
@@ -88,11 +84,6 @@ const cmd = defineCommand({
         'Network to execute transactions on (default: all active networks)',
       required: false,
     },
-    privateKey: {
-      type: 'string',
-      description: 'Private key to use for signing transactions',
-      required: false,
-    },
     dryRun: {
       type: 'boolean',
       description: 'Simulate transactions without sending them',
@@ -125,8 +116,7 @@ const cmd = defineCommand({
     },
   },
   async run({ args }) {
-    // Get private key from command line argument or environment variable
-    const privateKey = args?.privateKey || process.env.PRIVATE_KEY_PRODUCTION
+    // setupEnvironment handles private key management internally based on environment
     const isDryRun = Boolean(args?.dryRun)
     const specificOperationId = args?.operationId as Hex | undefined
     const executeAll = Boolean(args?.executeAll)
@@ -159,13 +149,6 @@ const cmd = defineCommand({
       consola.info(
         '❌ AUTO REJECT mode - all pending operations will be cancelled automatically'
       )
-
-    if (!privateKey) {
-      consola.error(
-        'No private key provided. Use --privateKey or set PRIVATE_KEY_PRODUCTION environment variable.'
-      )
-      process.exit(1)
-    }
 
     // Load networks configuration
     const networksConfig = data as Record<string, INetworkConfig>
@@ -200,7 +183,6 @@ const cmd = defineCommand({
       try {
         await processNetwork(
           network,
-          privateKey,
           isDryRun,
           specificOperationId,
           executeAll,
@@ -300,7 +282,6 @@ async function fetchPendingTimelockTransactions(
 
 async function processNetwork(
   network: INetworkConfig,
-  privateKey: string,
   isDryRun: boolean,
   specificOperationId?: Hex,
   executeAll?: boolean,
@@ -325,26 +306,14 @@ async function processNetwork(
     const timelockAddress = deploymentData.LiFiTimelockController as Address
     consola.info(`🔒 Timelock: ${timelockAddress}`)
 
-    // Create viem clients
-    const account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
-
-    const chain = getViemChainForNetworkName(network.name)
-
-    // Only use rpcUrlOverride if explicitly provided via --rpc-url flag
-    const transport = rpcUrlOverride
-      ? http(rpcUrlOverride)
-      : http(chain.rpcUrls.default.http[0])
-
-    const publicClient = createPublicClient({
-      chain,
-      transport,
-    })
-
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport,
-    })
+    // Setup environment for viem clients using setupEnvironment
+    // Note: setupEnvironment manages private keys internally based on environment
+    const { publicClient, walletClient } = await setupEnvironment(
+      network.name as any, // Cast to SupportedChain type
+      null, // No facet ABI needed for timelock operations
+      EnvironmentEnum.production,
+      rpcUrlOverride
+    )
 
     // Get pending operations using new decode-based approach
     const { readyOperations, totalPendingCount } = await getPendingOperations(
