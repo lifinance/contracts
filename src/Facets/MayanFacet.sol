@@ -43,14 +43,6 @@ contract MayanFacet is
     error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
     error ProtocolDataTooShort();
 
-    /// Events ///
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes32 receiver
-    );
-
     /// Constructor ///
 
     /// @notice Constructor for the contract.
@@ -196,7 +188,7 @@ contract MayanFacet is
         }
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            emit BridgeToNonEVMChain(
+            emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 _mayanData.nonEVMReceiver

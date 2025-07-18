@@ -23,13 +23,6 @@ contract ChainflipFacet is
     Validatable,
     LiFiData
 {
-    /// Events ///
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes receiver
-    );
-
     /// Errors ///
     error EmptyNonEvmAddress();
     error UnsupportedChainflipChainId();

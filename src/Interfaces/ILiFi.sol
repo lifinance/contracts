@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 /// @title LIFI Interface
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 interface ILiFi {
     /// Structs ///
 
@@ -49,6 +49,18 @@ interface ILiFi {
         address toAssetId,
         uint256 fromAmount,
         uint256 toAmount
+    );
+
+    // this event is emitted when a bridge transction is initiated to a non-EVM chain
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes receiver
+    );
+    event BridgeToNonEVMChainBytes32(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes32 receiver
     );
 
     // Deprecated but kept here to include in ABI to parse historic events
