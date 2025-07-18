@@ -1,3 +1,4 @@
+// solhint-disable max-line-length
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
@@ -38,11 +39,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     event DeBridgeInitialized(DeBridgeDlnFacet.ChainIdConfig[] chainIdConfigs);
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
     event DlnOrderCreated(bytes32 indexed orderId);
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes receiver
-    );
 
     bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 

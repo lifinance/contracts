@@ -12,6 +12,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 // Custom errors from stETH contract
 error ErrorZeroSharesWrap();
@@ -20,7 +21,7 @@ error ErrorZeroSharesUnwrap();
 error ErrorNotEnoughBalance();
 error ErrorNotEnoughAllowance();
 
-contract LidoWrapperTest is TestBase {
+contract LidoWrapperTest is TestBase, LiFiData {
     LidoWrapper private lidoWrapper;
     address private constant ST_ETH_ADDRESS_OPTIMISM =
         0x76A50b8c7349cCDDb7578c6627e79b5d99D24138;
@@ -479,7 +480,7 @@ contract LidoWrapperTest is TestBase {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _bridgeData.destinationChainId,
-                        _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
+                        _bridgeData.receiver == NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
                         _relayData.receivingAssetId

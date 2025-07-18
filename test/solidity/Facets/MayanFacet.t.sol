@@ -1,3 +1,4 @@
+// solhint-disable max-line-length
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
@@ -61,12 +62,7 @@ contract MayanFacetTest is TestBaseFacet {
 
     error InvalidReceiver(address expected, address actual);
     error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes32 receiver
-    );
+    error ProtocolDataTooShort();
 
     function setUp() public {
         customBlockNumberForForking = 19968172;
@@ -439,7 +435,7 @@ contract MayanFacetTest is TestBaseFacet {
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit BridgeToNonEVMChain(
+        emit BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
             bridgeData.destinationChainId,
             validMayanDataNative.nonEVMReceiver
@@ -511,7 +507,7 @@ contract MayanFacetTest is TestBaseFacet {
         bytes memory shortData = new bytes(50); // shorter than 68 bytes (50 bytes)
         uint256 newAmount = 1000;
 
-        vm.expectRevert("protocol data too short");
+        vm.expectRevert(abi.encodeWithSelector(ProtocolDataTooShort.selector));
         testFacet.testReplaceInputAmount(shortData, newAmount);
     }
 
