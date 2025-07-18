@@ -8,11 +8,9 @@ import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
-import { Test } from "forge-std/Test.sol";
+import { BaseDiamondTest } from "./BaseDiamondTest.sol";
 
-contract DiamondTest is Test {
-    LibDiamond.FacetCut[] internal cut;
-
+contract DiamondTest is BaseDiamondTest {
     function createDiamond(
         address _diamondOwner,
         address _pauserWallet
@@ -30,53 +28,16 @@ contract DiamondTest is Test {
             address(diamondCut)
         );
 
-        bytes4[] memory functionSelectors;
+        // Add Diamond Loupe
+        _addDiamondLoupeSelectors(address(diamondLoupe));
 
-        // Diamond Loupe
+        // Add Ownership
+        _addOwnershipSelectors(address(ownership));
 
-        functionSelectors = new bytes4[](5);
-        functionSelectors[0] = DiamondLoupeFacet
-            .facetFunctionSelectors
-            .selector;
-        functionSelectors[1] = DiamondLoupeFacet.facets.selector;
-        functionSelectors[2] = DiamondLoupeFacet.facetAddress.selector;
-        functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
-        functionSelectors[4] = DiamondLoupeFacet.supportsInterface.selector;
-        cut.push(
-            LibDiamond.FacetCut({
-                facetAddress: address(diamondLoupe),
-                action: LibDiamond.FacetCutAction.Add,
-                functionSelectors: functionSelectors
-            })
-        );
-
-        // Ownership Facet
-
-        functionSelectors = new bytes4[](4);
-        functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
-        functionSelectors[1] = OwnershipFacet.cancelOwnershipTransfer.selector;
-        functionSelectors[2] = OwnershipFacet
-            .confirmOwnershipTransfer
-            .selector;
-        functionSelectors[3] = OwnershipFacet.owner.selector;
-
-        cut.push(
-            LibDiamond.FacetCut({
-                facetAddress: address(ownership),
-                action: LibDiamond.FacetCutAction.Add,
-                functionSelectors: functionSelectors
-            })
-        );
-
-        // PeripheryRegistryFacet
-        functionSelectors = new bytes4[](2);
-        functionSelectors[0] = PeripheryRegistryFacet
-            .registerPeripheryContract
-            .selector;
-        functionSelectors[1] = PeripheryRegistryFacet
-            .getPeripheryContract
-            .selector;
-
+        // Add PeripheryRegistry
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = PeripheryRegistryFacet.registerPeripheryContract.selector;
+        functionSelectors[1] = PeripheryRegistryFacet.getPeripheryContract.selector;
         cut.push(
             LibDiamond.FacetCut({
                 facetAddress: address(periphery),
@@ -85,12 +46,11 @@ contract DiamondTest is Test {
             })
         );
 
-        // EmergencyPauseFacet
+        // Add EmergencyPause
         functionSelectors = new bytes4[](3);
         functionSelectors[0] = emergencyPause.removeFacet.selector;
         functionSelectors[1] = emergencyPause.pauseDiamond.selector;
         functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
-
         cut.push(
             LibDiamond.FacetCut({
                 facetAddress: address(emergencyPause),
@@ -100,54 +60,8 @@ contract DiamondTest is Test {
         );
 
         DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
-
         delete cut;
-
         vm.stopPrank();
         return diamond;
-    }
-
-    function addFacet(
-        LiFiDiamond _diamond,
-        address _facet,
-        bytes4[] memory _selectors
-    ) internal {
-        _addFacet(_diamond, _facet, _selectors, address(0), "");
-    }
-
-    function addFacet(
-        LiFiDiamond _diamond,
-        address _facet,
-        bytes4[] memory _selectors,
-        address _init,
-        bytes memory _initCallData
-    ) internal {
-        _addFacet(_diamond, _facet, _selectors, _init, _initCallData);
-    }
-
-    function _addFacet(
-        LiFiDiamond _diamond,
-        address _facet,
-        bytes4[] memory _selectors,
-        address _init,
-        bytes memory _initCallData
-    ) internal {
-        vm.startPrank(OwnershipFacet(address(_diamond)).owner());
-        cut.push(
-            LibDiamond.FacetCut({
-                facetAddress: _facet,
-                action: LibDiamond.FacetCutAction.Add,
-                functionSelectors: _selectors
-            })
-        );
-
-        DiamondCutFacet(address(_diamond)).diamondCut(
-            cut,
-            _init,
-            _initCallData
-        );
-
-        delete cut;
-        vm.stopPrank();
     }
 }

@@ -7,6 +7,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { LdaDiamondTest, LdaDiamond } from "../Periphery/Lda/utils/LdaDiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
@@ -89,7 +90,7 @@ contract ReentrancyChecker is DSTest {
 
 //common utilities for forge tests
 // solhint-disable max-states-count
-abstract contract TestBase is Test, DiamondTest, ILiFi {
+abstract contract TestBase is Test, DiamondTest, LdaDiamondTest, ILiFi {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
@@ -99,6 +100,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     ERC20 internal dai;
     ERC20 internal weth;
     LiFiDiamond internal diamond;
+    LdaDiamond internal ldaDiamond;
     FeeCollector internal feeCollector;
     ILiFi.BridgeData internal bridgeData;
     LibSwap.SwapData[] internal swapData;
@@ -323,6 +325,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
 
         // deploy & configure diamond
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+        ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER);
 
         // deploy feeCollector
         feeCollector = new FeeCollector(USER_DIAMOND_OWNER);
