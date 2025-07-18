@@ -3,15 +3,15 @@ import { fileURLToPath } from 'url'
 
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
 import { config } from 'dotenv'
-import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
+import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
 import {
   createPublicClient,
   createWalletClient,
+  formatEther,
+  formatUnits,
   getContract,
   http,
   parseAbi,
-  formatEther,
-  formatUnits,
   zeroAddress,
   type Narrow,
 } from 'viem'

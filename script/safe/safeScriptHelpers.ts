@@ -8,9 +8,10 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { EnvironmentEnum } from '../common/types'
 import {
-  getSafeMongoCollection,
   getNextNonce,
+  getSafeMongoCollection,
   initializeSafeClient,
   OperationTypeEnum,
   storeTransactionInMongoDB,
@@ -29,12 +30,12 @@ export async function sendOrPropose({
 }: {
   calldata: `0x${string}`
   network: string
-  environment: 'staging' | 'production'
+  environment: EnvironmentEnum
   diamondAddress: string
 }) {
-  const isProd = environment === 'production'
+  const isProd = environment === EnvironmentEnum.production
   const sendDirectly =
-    environment === 'staging' ||
+    environment === EnvironmentEnum.staging ||
     process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
 
   // ───────────── DIRECT TX FLOW ───────────── //
@@ -85,8 +86,8 @@ export async function sendOrPropose({
   }
 
   // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.SAFE_SIGNER_PRIVATE_KEY
-  if (!pk) throw new Error('Missing SAFE_SIGNER_PRIVATE_KEY in environment')
+  const pk = process.env.PRIVATE_KEY_PRODUCTION
+  if (!pk) throw new Error('Missing PRIVATE_KEY_PRODUCTION in environment')
 
   const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
   consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
