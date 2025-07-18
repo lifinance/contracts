@@ -67,12 +67,6 @@ contract DeBridgeDlnFacet is
 
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
 
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes receiver
-    );
-
     /// Modifiers ///
 
     modifier onlyValidReceiverAddress(DeBridgeDlnData calldata _deBridgeData) {

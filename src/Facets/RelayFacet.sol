@@ -48,14 +48,6 @@ contract RelayFacet is
         bytes signature;
     }
 
-    /// Events ///
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes32 receiver
-    );
-
     /// Errors ///
 
     error InvalidQuote();
@@ -216,7 +208,7 @@ contract RelayFacet is
 
         // Emit special event if bridging to non-EVM chain
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            emit BridgeToNonEVMChain(
+            emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _getMappedChainId(_bridgeData.destinationChainId),
                 _relayData.nonEVMReceiver

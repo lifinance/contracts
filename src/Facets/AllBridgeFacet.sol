@@ -138,6 +138,13 @@ contract AllBridgeFacet is
             // make sure it's non-zero (we cannot validate further)
             if (_allBridgeData.recipient == bytes32(0))
                 revert InvalidNonEVMReceiver();
+
+            // emit event for non-EVM chain
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _allBridgeData.destinationChainId,
+                _allBridgeData.recipient
+            );
         } else {
             // destination chain is EVM
             // make sure that bridgeData and allBridgeData receiver addresses match
