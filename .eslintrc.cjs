@@ -14,10 +14,7 @@ module.exports = {
     // and development tooling. Without this, ESLint would incorrectly flag Node.js globals as undefined.
     node: true,
   },
-  plugins: [
-    '@typescript-eslint',
-    'import'
-  ],
+  plugins: ['@typescript-eslint', 'import'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
@@ -29,9 +26,9 @@ module.exports = {
     // General JavaScript rules
     'no-empty': 'off',
     'no-empty-function': 'off',
-    'eqeqeq': ['error', 'always'],
+    eqeqeq: ['error', 'always'],
     'prefer-const': 'error',
-    'curly': ['error', 'multi'], // Allow single-line statements without braces
+    curly: ['error', 'multi'], // Allow single-line statements without braces
     'no-template-curly-in-string': 'error', // Warns about `${var}` in regular strings
     'no-throw-literal': 'error', // Requires throwing Error objects instead of literals
     '@typescript-eslint/return-await': ['error', 'in-try-catch'], // More nuanced control over return await
@@ -44,25 +41,34 @@ module.exports = {
     '@typescript-eslint/no-empty-function': 'off',
     '@typescript-eslint/ban-ts-comment': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
-    '@typescript-eslint/no-non-null-assertion': 'error',  // Allow non-null assertions
-    '@typescript-eslint/no-unused-vars': ['error', {
-      argsIgnorePattern: '^_',
-      varsIgnorePattern: '^_',
-    }],
+    '@typescript-eslint/no-non-null-assertion': 'error', // Allow non-null assertions
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+      },
+    ],
     '@typescript-eslint/no-misused-promises': 'error',
-    '@typescript-eslint/consistent-type-imports': ['error', { // Enforce consistent type imports
-      prefer: 'type-imports'
-    }],
-    '@typescript-eslint/explicit-member-accessibility': ['error', { 
-      accessibility: 'explicit' 
-    }], // Enforce explicit accessibility modifiers
+    '@typescript-eslint/consistent-type-imports': [
+      'error',
+      {
+        // Enforce consistent type imports
+        prefer: 'type-imports',
+      },
+    ],
+    '@typescript-eslint/explicit-member-accessibility': [
+      'error',
+      {
+        accessibility: 'explicit',
+      },
+    ], // Enforce explicit accessibility modifiers
     '@typescript-eslint/await-thenable': 'error', // Ensures await is only used with Promises
 
     // Promise and async/await rules
     'no-async-promise-executor': 'error', // Disallows async functions as Promise executors
 
     // Import/Export rules
-    'no-duplicate-imports': 'error',
     'import/no-cycle': 'error',
     'import/first': 'error', // Ensures all imports are at the top of the file
     'import/no-duplicates': 'error', // Consolidates import statements from the same module
@@ -71,18 +77,21 @@ module.exports = {
     'import/no-unused-modules': 'error',
     'import/no-deprecated': 'error',
     'import/no-extraneous-dependencies': 'error',
-    'import/order': ['error', {
-      'groups': [
-        'builtin',
-        'external',
-        'internal',
-        'parent',
-        'sibling',
-        'index',
-      ],
-      'newlines-between': 'always',
-      'alphabetize': { order: 'asc' }
-    }],
+    'import/order': [
+      'error',
+      {
+        groups: [
+          'builtin',
+          'external',
+          'internal',
+          'parent',
+          'sibling',
+          'index',
+        ],
+        'newlines-between': 'always',
+        alphabetize: { order: 'asc' },
+      },
+    ],
     'import/no-default-export': 'error', // Prefer named exports
     'import/no-mutable-exports': 'error', // Prevents mutable exports
 
@@ -94,25 +103,25 @@ module.exports = {
       {
         selector: 'interface',
         format: ['PascalCase'],
-        prefix: ['I']
+        prefix: ['I'],
       },
       {
         selector: 'typeAlias',
-        format: ['PascalCase']
+        format: ['PascalCase'],
       },
       {
         selector: 'enum',
         format: ['PascalCase'],
-        suffix: ['Enum']
-      }
-    ]
+        suffix: ['Enum'],
+      },
+    ],
   },
   settings: {
     'import/resolver': {
       typescript: {
         alwaysTryTypes: true,
-        project: './tsconfig.eslint.json'
-      }
-    }
+        project: './tsconfig.eslint.json',
+      },
+    },
   },
 }
