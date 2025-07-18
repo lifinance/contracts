@@ -22,17 +22,17 @@ contract AllBridgeFacet is
     Validatable,
     LiFiData
 {
-    uint32 private constant ALLBRIDGE_ID_ETHEREUM = 1;
-    uint32 private constant ALLBRIDGE_ID_BSC = 2;
-    uint32 private constant ALLBRIDGE_ID_TRON = 3;
-    uint32 private constant ALLBRIDGE_ID_SOLANA = 4;
-    uint32 private constant ALLBRIDGE_ID_POLYGON = 5;
-    uint32 private constant ALLBRIDGE_ID_ARBITRUM = 6;
-    uint32 private constant ALLBRIDGE_ID_AVALANCHE = 8;
-    uint32 private constant ALLBRIDGE_ID_BASE = 9;
-    uint32 private constant ALLBRIDGE_ID_OPTIMISM = 10;
-    uint32 private constant ALLBRIDGE_ID_CELO = 11;
-    uint32 private constant ALLBRIDGE_ID_SUI = 13;
+    uint256 private constant ALLBRIDGE_ID_ETHEREUM = 1;
+    uint256 private constant ALLBRIDGE_ID_BSC = 2;
+    uint256 private constant ALLBRIDGE_ID_TRON = 3;
+    uint256 private constant ALLBRIDGE_ID_SOLANA = 4;
+    uint256 private constant ALLBRIDGE_ID_POLYGON = 5;
+    uint256 private constant ALLBRIDGE_ID_ARBITRUM = 6;
+    uint256 private constant ALLBRIDGE_ID_AVALANCHE = 8;
+    uint256 private constant ALLBRIDGE_ID_BASE = 9;
+    uint256 private constant ALLBRIDGE_ID_OPTIMISM = 10;
+    uint256 private constant ALLBRIDGE_ID_CELO = 11;
+    uint256 private constant ALLBRIDGE_ID_SUI = 13;
     uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
     uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
     uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
