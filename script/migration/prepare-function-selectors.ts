@@ -6,6 +6,8 @@
  * This script scans blockchain events to collect historical function selector approvals,
  * preparing data for the allowlist migration. Since we can't clear mappings on-chain,
  * we need a complete record of all previously approved selectors to properly reset the state.
+ * The script also incorporates selectors from the whitelistedSelectors.json configuration file
+ * to ensure a complete set of all required selectors.
  *
  * Key Features:
  * - Parallel Processing: Scans multiple networks concurrently
@@ -13,6 +15,7 @@
  * - Support for custom RPC endpoints when public ones are unreliable
  * - Automatic retry mechanism with backoff for failed requests
  * - Timeout handling for unresponsive RPCs
+ * - Integration with whitelistedSelectors.json for additional selectors
  *
  * Process:
  * 1. Loads network-specific configurations from prepareFunctionSelectorsConfig.json:
@@ -33,13 +36,16 @@
  *
  * 4. Creates flattened-selectors.json:
  *    - Combines selectors from all networks
- *    - Removes duplicates across networks
+ *    - Incorporates selectors from whitelistedSelectors.json
+ *    - Removes duplicates across all sources
  *    - Sorts selectors for consistency
  *    - Includes total count of unique selectors
  *
  * The output files are essential for the allowlist migration process,
  * providing both network-specific data and a complete, deduplicated set
  * of selectors that need to be explicitly removed to reset the contract state.
+ * The inclusion of whitelistedSelectors.json ensures that any manually configured
+ * selectors are preserved in the final output.
  */
 
 import 'dotenv/config'
@@ -465,6 +471,30 @@ function flattenAndSaveSelectors(
       uniqueSelectors.add(selector)
     })
   })
+
+  // Read and add selectors from whitelistedSelectors.json
+  try {
+    const whitelistedSelectorsPath = path.join(
+      process.cwd(),
+      'config',
+      'whitelistedSelectors.json'
+    )
+    if (existsSync(whitelistedSelectorsPath)) {
+      const whitelistedSelectors = JSON.parse(
+        readFileSync(whitelistedSelectorsPath, 'utf-8')
+      )
+      whitelistedSelectors.selectors.forEach((selector: string) => {
+        uniqueSelectors.add(selector)
+      })
+      consola.success(`📄 Added selectors from whitelistedSelectors.json`)
+    } else {
+      consola.warn(
+        `⚠️  whitelistedSelectors.json not found in config directory`
+      )
+    }
+  } catch (error) {
+    consola.error(`❌ Error reading whitelistedSelectors.json:`, error)
+  }
 
   // Convert Set to sorted array for consistent output
   const sortedSelectors = Array.from(uniqueSelectors).sort()
