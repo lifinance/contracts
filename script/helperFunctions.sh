@@ -189,7 +189,7 @@ function logContractDeploymentInfo {
   # Also log to MongoDB if enabled
   if isMongoLoggingEnabled; then
     echoDebug "logging to MongoDB as well"
-    
+
     # Build MongoDB command as array for safe execution
     local MONGO_CMD=(
       bun script/deploy/update-deployment-logs.ts add
@@ -401,7 +401,7 @@ function findContractInMasterLogByAddress() {
         local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
         local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
         local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
-        
+
         if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
           local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
           echo "$JSON_ENTRY"
@@ -462,11 +462,11 @@ function getContractVersionFromMasterLog() {
       --env="$ENVIRONMENT" \
       --network="$NETWORK" \
       --address="$TARGET_ADDRESS" 2>/dev/null)
-    
+
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
       local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
       local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-      
+
       if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
         echo "$VERSION"
         return 0
@@ -524,7 +524,7 @@ function getHighestDeployedContractVersionFromMasterLog() {
       --contract="$CONTRACT" \
       --network="$NETWORK" \
       --limit=50 2>/dev/null)
-    
+
     if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Extract all versions and find the highest one
       local VERSIONS=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
@@ -640,19 +640,19 @@ function getUnverifiedContractsFromMongo() {
 
 function getSolcVersion() {
   local NETWORK="$1"
-  
+
   if isZkEvmNetwork "$NETWORK"; then
     # Extract from zksync profile
     grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
   else
-    # Extract from default profile  
+    # Extract from default profile
     grep -A 10 "^\[profile\.default\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
   fi
 }
 
 function getEvmVersion() {
   local NETWORK="$1"
-  
+
   if isZkEvmNetwork "$NETWORK"; then
     # For zkEVM networks, return appropriate identifier
     echo "zkevm"
@@ -664,7 +664,7 @@ function getEvmVersion() {
 
 function getZkSolcVersion() {
   local NETWORK="$1"
-  
+
   if isZkEvmNetwork "$NETWORK"; then
     # Extract zksolc version from zksync profile
     grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
@@ -1807,7 +1807,7 @@ function verifyContract() {
 
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
-  
+
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
     # Set environment variable for zkEVM
