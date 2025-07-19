@@ -1701,13 +1701,13 @@ function getBytecodeFromArtifact() {
   fi
 }
 
-function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
+function addPeripheryToWhitelistedAddressesJson() {
+  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/whitelistedAddresses.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
-  local FILEPATH_DEXS="config/dexs.json"
+  local FILEPATH_WHITELISTED_ADDRESSES="config/whitelistedAddresses.json"
   local FILEPATH_GLOBAL_CONFIG="config/global.json"
 
   WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
@@ -1720,8 +1720,8 @@ function addPeripheryToDexsJson() {
   local ADD_COUNTER=${#CONTRACTS[@]}
 
 
-  # get number of existing DEX addresses in the file for the given network
-  local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
+  # get number of existing whitelisted addresses in the file for the given network
+  local EXISTING_WHITELISTED_ADDRESSES=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_WHITELISTED_ADDRESSES")
 
   # Iterate through all contracts
   for CONTRACT in "${CONTRACTS[@]}"; do
@@ -1736,35 +1736,35 @@ function addPeripheryToDexsJson() {
       continue
     fi
 
-    # check if address already exists in dexs.json for the given network
-    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_DEXS)
+    # check if address already exists in whitelistedAddresses.json for the given network
+    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_WHITELISTED_ADDRESSES)
 
     if [ "$EXISTS" == "true" ]; then
-      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted DEXs in network $NETWORK."
+      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted addresses in network $NETWORK."
 
       # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
       ((ADD_COUNTER--)) # reduces by 1
     else
-      # add the address to dexs.json
+      # add the address to whitelistedAddresses.json
       local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_WHITELISTED_ADDRESSES > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_WHITELISTED_ADDRESSES
       rm -f "$TMP_FILE"
 
 
-      success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
+      success "$CONTRACT address $CONTRACT_ADDRESS added to whitelistedAddresses.json[$NETWORK]"
     fi
   done
 
-  # check how many DEX addresses are in the dexs.json now
+  # check how many whitelisted addresses are in the whitelistedAddresses.json now
   local ADDRESS_COUNTER=${#CONTRACTS[@]}
 
-  EXPECTED_DEXS=$((EXISTING_DEXS + ADD_COUNTER))
+  EXPECTED_WHITELISTED_ADDRESSES=$((EXISTING_WHITELISTED_ADDRESSES + ADD_COUNTER))
 
-  # make sure dexs.json has been updated correctly
-  if [ $EXPECTED_DEXS -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
-    success "$ADD_COUNTER addresses were added to config/dexs.json"
+  # make sure whitelistedAddresses.json has been updated correctly
+  if [ $EXPECTED_WHITELISTED_ADDRESSES -eq $((EXISTING_WHITELISTED_ADDRESSES + ADD_COUNTER)) ]; then
+    success "$ADD_COUNTER addresses were added to config/whitelistedAddresses.json"
   else
-    error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
+    error "The array in whitelistedAddresses.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
     exit 1
   fi
 }

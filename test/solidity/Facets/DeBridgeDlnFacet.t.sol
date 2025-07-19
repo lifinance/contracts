@@ -2,23 +2,15 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub DeBridgeDlnFacet Contract
-contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
+contract TestDeBridgeDlnFacet is DeBridgeDlnFacet, TestWhitelistManagerBase {
     constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract DeBridgeDlnFacetTest is TestBaseFacet {
@@ -58,9 +50,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[1] = deBridgeDlnFacet
             .swapAndStartBridgeTokensViaDeBridgeDln
             .selector;
-        functionSelectors[2] = deBridgeDlnFacet.addDex.selector;
+        functionSelectors[2] = deBridgeDlnFacet.addToWhitelist.selector;
         functionSelectors[3] = deBridgeDlnFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         functionSelectors[4] = deBridgeDlnFacet.setDeBridgeChainId.selector;
         functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
@@ -68,14 +60,14 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
-        deBridgeDlnFacet.addDex(ADDRESS_UNISWAP);
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
+        deBridgeDlnFacet.addToWhitelist(ADDRESS_UNISWAP);
+        deBridgeDlnFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
+        deBridgeDlnFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
+        deBridgeDlnFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

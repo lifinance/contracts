@@ -91,9 +91,9 @@ contract LidoWrapperTest is TestBase {
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
             .selector;
-        functionSelectors[2] = relayFacet.addDex.selector;
+        functionSelectors[2] = relayFacet.addToWhitelist.selector;
         functionSelectors[3] = relayFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
@@ -122,11 +122,11 @@ contract LidoWrapperTest is TestBase {
         });
 
         // whitelist LidoWrapper as periphery
-        relayFacet.addDex(address(lidoWrapper));
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.addToWhitelist(address(lidoWrapper));
+        relayFacet.setFunctionApprovalBySelector(
             lidoWrapper.wrapStETHToWstETH.selector
         );
-        relayFacet.setFunctionApprovalBySignature(
+        relayFacet.setFunctionApprovalBySelector(
             lidoWrapper.unwrapWstETHToStETH.selector
         );
 
