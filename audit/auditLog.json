@@ -326,7 +326,7 @@
       "auditCompletedOn": "18.07.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.0.1).pdf",
+      "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
       "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
     }
   },
@@ -350,7 +350,7 @@
     },
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
-      "2.0.1": ["audit20250718"]
+      "2.1.0": ["audit20250718"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
