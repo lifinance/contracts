@@ -375,7 +375,9 @@
         "DeBridgeDlnFacet": "1.0.0",
         "GasZipFacet": "2.0.4",
         "RelayFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "GasZipFacet": "2.0.4",
+        "ReceiverChainflip": "1.0.0"
       }
     }
   },
