@@ -1,11 +1,13 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibSwap } from "../Libraries/LibSwap.sol";
+// solhint-disable-next-line no-unused-import
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
+// solhint-disable-next-line no-unused-import
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
@@ -17,7 +19,9 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
     /// Storage ///
+    // solhint-disable-next-line immutable-vars-naming
     IExecutor public immutable executor;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable spokepool;
 
     /// Modifiers ///
@@ -34,6 +38,7 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
         address _executor,
         address _spokepool
     ) WithdrawablePeriphery(_owner) {
+        // TODO: add constructor parameter validation on next contract update
         executor = IExecutor(_executor);
         spokepool = _spokepool;
     }
@@ -76,7 +81,8 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     /// @notice Since Across will always send wrappedNative to contract, we do not need a native handling here
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swapData array of data needed for swaps
-    /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
+    /// @param assetId address of the token received from the source chain
+    ///                (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
     function _swapAndCompleteBridgeTokens(

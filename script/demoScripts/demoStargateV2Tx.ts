@@ -1,28 +1,29 @@
+import { addressToBytes32, Options } from '@layerzerolabs/lz-v2-utilities'
 import { providers, Wallet, utils, Contract, BigNumber } from 'ethers'
+
+import stargateConfig from '../../config/stargateV2.json'
+import deploymentsOPT from '../../deployments/optimism.staging.json'
+import deploymentsPOL from '../../deployments/polygon.staging.json'
 import {
   ERC20__factory,
-  ILiFi,
   IStargate__factory,
-  IStargate,
-  StargateFacetV2,
   StargateFacetV2__factory,
+  type ILiFi,
+  type IStargate,
+  type StargateFacetV2,
 } from '../../typechain'
-import { node_url } from '../../utils/network'
-import deploymentsPOL from '../../deployments/polygon.staging.json'
-import deploymentsOPT from '../../deployments/optimism.staging.json'
-import stargateConfig from '../../config/stargateV2.json'
-import { addressToBytes32, Options } from '@layerzerolabs/lz-v2-utilities'
+import { node_url } from '../utils/network'
 
-type FeeParams = {
-  sender: string
-  dstEid: number
-  amountInSD: string
-  deficitSD: string
-  toOFT: boolean
-  isTaxi: boolean
-}
+// type FeeParams = {
+//   sender: string
+//   dstEid: number
+//   amountInSD: string
+//   deficitSD: string
+//   toOFT: boolean
+//   isTaxi: boolean
+// }
 
-type QuoteOFTResponse = {
+interface IQuoteOFTResponse {
   oftLimit: IStargate.OFTLimitStruct
   feeDetail: IStargate.OFTFeeDetailStruct[]
   oftReceipt: IStargate.OFTReceiptStruct
@@ -41,12 +42,10 @@ const PAYLOAD_ABI = [
   'address', // Receiver
 ]
 
-const FEE_LIBRARY_ABI = [
-  'function applyFeeView((address,uint32,uint64,uint64,bool,bool)) view returns (uint64)',
-]
+// const FEE_LIBRARY_ABI = [
+//   'function applyFeeView((address,uint32,uint64,uint64,bool,bool)) view returns (uint64)',
+// ]
 
-const VALID_EXTRA_OPTIONS_VALUE =
-  '0x000301001303000000000000000000000000000000061a80' // gives 400_000 gas on dstChain
 const SRC_CHAIN = 'polygon'
 const DST_CHAIN_ID = 10
 const DIAMOND_ADDRESS_SRC = deploymentsPOL.LiFiDiamond
@@ -236,13 +235,11 @@ async function main() {
 // For this demo script we are using a hardcoded value that gives 400k gas stipend but ideally that value should be based on
 // the dst payload size/cost
 const getExtraOptions = () => {
-  if (WITH_DEST_CALL) {
+  if (WITH_DEST_CALL)
     return Options.newOptions()
       .addExecutorComposeOption(0, DEFAULT_GAS_STIPEND_FOR_DEST_CALLS, 0)
       .toHex()
-  } else {
-    return '0x'
-  }
+  else return '0x'
 }
 
 // get the amountOut at destination chain for a given amountIn based on sendParams
@@ -254,15 +251,16 @@ const getAmountOutFeeQuoteOFT = async (
   const response = transformQuoteOFTResponse(resp)
 
   if (!response)
-    throw `Could not get quoteOFT response for params: ${JSON.stringify(
-      sendParams,
-      null,
-      2
-    )}`
+    throw new Error(
+      `Could not get quoteOFT response for params: ${JSON.stringify(
+        sendParams,
+        null,
+        2
+      )}`
+    )
 
-  if ((response.oftLimit.maxAmountLD as BigNumber).isZero()) {
+  if ((response.oftLimit.maxAmountLD as BigNumber).isZero())
     throw Error('Route has no credits and cannot be used')
-  }
 
   // console.log(`QuoteOFT response: ${JSON.stringify(response, null, 2)}`)
 
@@ -270,7 +268,7 @@ const getAmountOutFeeQuoteOFT = async (
 }
 
 // Takes a smart contract response and converts it to typed data
-function transformQuoteOFTResponse(response: any[]): QuoteOFTResponse {
+function transformQuoteOFTResponse(response: any[]): IQuoteOFTResponse {
   const oftLimit: IStargate.OFTLimitStruct = {
     minAmountLD: BigNumber.from(response[0][0]),
     maxAmountLD: BigNumber.from(response[0][1]), // if this value is 0 then the route has no credits i.e. cannot be used
@@ -295,20 +293,20 @@ function transformQuoteOFTResponse(response: any[]): QuoteOFTResponse {
 }
 
 // This endpoint returns all tokens, their pools/routers and assetIds
-async function getSupportedTokensAndPools() {
-  const resp = await fetch(
-    'https://d3k4i7b673n27r.cloudfront.net/v1/metadata?version=v2'
-  )
-  const responseJson = await resp.json()
+// async function getSupportedTokensAndPools() {
+//   const resp = await fetch(
+//     'https://d3k4i7b673n27r.cloudfront.net/v1/metadata?version=v2'
+//   )
+//   const responseJson = await resp.json()
 
-  // console.log(`response: ${JSON.stringify(responseJson.data.v2, null, 2)}`)
-  const filtered = responseJson.data.v2.match((pool: any) => {
-    pool.chain
-    pool.tokenMessaging
-  })
+//   // console.log(`response: ${JSON.stringify(responseJson.data.v2, null, 2)}`)
+//   const filtered = responseJson.data.v2.match((pool: any) => {
+//     pool.chain
+//     pool.tokenMessaging
+//   })
 
-  console.log(`filtered: ${JSON.stringify(filtered, null, 2)}`)
-}
+//   console.log(`filtered: ${JSON.stringify(filtered, null, 2)}`)
+// }
 
 // returns the LayerZero Eid (Endpoint ID) for a given chainId
 // Full list here: https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
@@ -356,55 +354,55 @@ function oftCmdHelper() {
 
 // we probably do not need the FeeLib anymore since we can all quote info via quoteOFT() and quoteSend()
 // Keeping this here for reference
-const getAmountOutFeeLib = async (
-  feeLibAddress: string,
-  provider: providers.FallbackProvider,
-  wallet: Wallet,
-  dstEid: number,
-  amountInSD: string,
-  deficitSD: string,
-  toOFT = false,
-  isTaxi = false
-) => {
-  // prepare parameters
-  const feeParams: FeeParams = {
-    sender: wallet.address,
-    // dstEid: dstEid,
-    dstEid,
-    amountInSD,
-    deficitSD,
-    toOFT,
-    isTaxi,
-  }
+// const getAmountOutFeeLib = async (
+//   feeLibAddress: string,
+//   provider: providers.FallbackProvider,
+//   wallet: Wallet,
+//   dstEid: number,
+//   amountInSD: string,
+//   deficitSD: string,
+//   toOFT = false,
+//   isTaxi = false
+// ) => {
+//   // prepare parameters
+//   const feeParams: FeeParams = {
+//     sender: wallet.address,
+//     // dstEid: dstEid,
+//     dstEid,
+//     amountInSD,
+//     deficitSD,
+//     toOFT,
+//     isTaxi,
+//   }
 
-  // prepare FeeLib contract
-  const feeLibrary = new Contract(feeLibAddress, FEE_LIBRARY_ABI, provider)
+//   // prepare FeeLib contract
+//   const feeLibrary = new Contract(feeLibAddress, FEE_LIBRARY_ABI, provider)
 
-  let amountOut
-  try {
-    amountOut = await feeLibrary.callStatic.applyFeeView([
-      feeParams.sender,
-      feeParams.dstEid,
-      feeParams.amountInSD,
-      feeParams.deficitSD,
-      feeParams.toOFT,
-      feeParams.isTaxi,
-    ])
-  } catch (error) {
-    console.error(`Error calling applyFeeView:`, error)
-  }
+//   let amountOut
+//   try {
+//     amountOut = await feeLibrary.callStatic.applyFeeView([
+//       feeParams.sender,
+//       feeParams.dstEid,
+//       feeParams.amountInSD,
+//       feeParams.deficitSD,
+//       feeParams.toOFT,
+//       feeParams.isTaxi,
+//     ])
+//   } catch (error) {
+//     console.error(`Error calling applyFeeView:`, error)
+//   }
 
-  if (!amountOut)
-    throw Error(
-      `Could not get amountOut for params: ${JSON.stringify(
-        feeParams,
-        null,
-        2
-      )}`
-    )
+//   if (!amountOut)
+//     throw Error(
+//       `Could not get amountOut for params: ${JSON.stringify(
+//         feeParams,
+//         null,
+//         2
+//       )}`
+//     )
 
-  return amountOut
-}
+//   return amountOut
+// }
 
 main()
   .then(() => process.exit(0))

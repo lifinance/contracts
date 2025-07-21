@@ -88,14 +88,13 @@ diamondUpdateFacet() {
   # Handle script paths and extensions based on network type
   if isZkEvmNetwork "$NETWORK"; then
     SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
-    # Extract contract name once, will be used multiple times later
-    CONTRACT_NAME=$(basename "$SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//')
     # Check if the foundry-zksync binaries exist, if not fetch them
     install_foundry_zksync
   else
     SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
-    CONTRACT_NAME=""  # Not needed for non-zkEVM networks
   fi
+
+  CONTRACT_NAME=$(basename "$SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//' | sed 's/\.s\.sol$//')
 
   # set flag for mutable/immutable diamond
   USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
@@ -104,9 +103,8 @@ diamondUpdateFacet() {
   echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
 
   # check if update script exists
-  local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
-  if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
-    error "could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
+  if ! checkIfFileExists "$SCRIPT_PATH" >/dev/null; then
+    error "could not find update script for $CONTRACT_NAME in this path: $SCRIPT_PATH. Aborting update."
     return 1
   fi
 
@@ -115,35 +113,47 @@ diamondUpdateFacet() {
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
     # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "false" ]]; then
+    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
 
-      PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
+      PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
       echoDebug "Calculating facet cuts for $SCRIPT..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync)
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        echoDebug $SCRIPT_PATH
+        echoDebug "$SCRIPT_PATH"
 
-        PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
         echoDebug "Calculating facet cuts for $SCRIPT..."
 
         if isZkEvmNetwork "$NETWORK"; then
-          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --slow --zksync --suppress-warnings assemblycreate)
+          RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync)
         else
-          RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --skip-simulation --legacy)
+          RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
         fi
 
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-        FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+        CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
+        FACET_CUT=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns.cutData.value')
 
         if [ "$FACET_CUT" != "0x" ]; then
-          echo "Proposing facet cut for $SCRIPT on network $NETWORK..."
+          echo "Proposing facet cut for $CONTRACT_NAME on network $NETWORK..."
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
           RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+
+          # Check if timelock is enabled and available
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            echo "[info] Using timelock controller for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+          else
+            echo "[info] Using diamond directly for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+          fi
+        else
+          error "FacetCut is empty"
         fi
       fi
     else
@@ -151,9 +161,9 @@ diamondUpdateFacet() {
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f $NETWORK --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --suppress-warnings assemblycreate)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
       else
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --broadcast --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy)
       fi
     fi
     RETURN_CODE=$?
@@ -164,15 +174,15 @@ diamondUpdateFacet() {
       # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
       if [[ "$ENVIRONMENT" != "production" ]]; then
         # extract the "logs" property and its contents from return data
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+        CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
         # echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
 
         # extract the "returns" property and its contents from logs
-        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+        RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
         # echoDebug "RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data
-        FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
+        FACETS=$(echo "$RETURN_DATA" | jq -r '.facets.value')
         if [[ $FACETS != "{}" ]]; then
           break # exit the loop if the operation was successful
         fi
@@ -192,7 +202,7 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # save facet addresses (only if deploying to PROD, otherwise we update the logs before the diamondCut tx gets signed in the SAFE)
+  # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
   if [[ "$ENVIRONMENT" != "production" ]]; then
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
   fi

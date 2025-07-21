@@ -48,19 +48,23 @@
       "0x51Fd4F1cCacDD1bbc92689f1D1eC419addd8529e": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0xF6416dB8f624fFc13c9c35515b8fdBfE52eaCf6D": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x7C25598d46593854904ec28c22A74a5C1d7f0c2A",
       "Executor": "0x3d32d5575C7Cf67C51819AE59a1Af4856f5bF594",
       "FeeCollector": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
-      "GasZipPeriphery": "0x7aB489424AA464681a00aDE625B87538Ce4d5783",
-      "LiFiDEXAggregator": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
-      "Permit2Proxy": "0xEf4d84D82A5B7eAbeeC8F54301B7ea170C13a817",
+      "GasZipPeriphery": "0xa8B0c4165c43690e7d0BA3bFff5f3f13aDAD7bCF",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x12e271e8657C29cbFbc181Ce190BEd8ECB1Aa474",
+      "Permit2Proxy": "0x767cEE938DF7d88D3e880Cbfc35C9cAfee882f4d",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x6fff376d51C4305AA42f4916fa35c3Ac03974CeB",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x94Caf1ed23310Ef981AA60e378ab369D4875a7F7"
     }
   }

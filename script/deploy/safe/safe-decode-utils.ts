@@ -3,77 +3,19 @@
  *
  * This module provides utilities for decoding Safe transaction data,
  * particularly for complex transactions like diamond cuts.
+ *
+ * Note: Main functionality has been moved to safe-utils.ts
  */
 
-import consola from 'consola'
-import { Abi, Hex, parseAbi, toFunctionSelector } from 'viem'
+import * as fs from 'fs'
+import * as path from 'path'
+
+import { consola } from 'consola'
+import type { Hex } from 'viem'
+import { toFunctionSelector } from 'viem'
 
 /**
- * Decodes a diamond cut transaction and displays its details
- * @param diamondCutData - Decoded diamond cut data
- * @param chainId - Chain ID
- */
-export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
-  const actionMap: Record<number, string> = {
-    0: 'Add',
-    1: 'Replace',
-    2: 'Remove',
-  }
-  consola.info('Diamond Cut Details:')
-  consola.info('-'.repeat(80))
-  // diamondCutData.args[0] contains an array of modifications.
-  const modifications = diamondCutData.args[0]
-  for (const mod of modifications) {
-    // Each mod is [facetAddress, action, selectors]
-    const [facetAddress, actionValue, selectors] = mod
-    try {
-      consola.info(
-        `Fetching ABI for Facet Address: \u001b[34m${facetAddress}\u001b[0m`
-      )
-      const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-      const response = await fetch(url)
-      const resData = await response.json()
-      consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
-      if (resData && resData.abi) {
-        consola.info(
-          `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
-        )
-
-        for (const selector of selectors) {
-          try {
-            // Find matching function in ABI
-            const matchingFunction = resData.abi.find((abiItem: any) => {
-              if (abiItem.type !== 'function') return false
-              const calculatedSelector = toFunctionSelector(abiItem)
-              return calculatedSelector === selector
-            })
-
-            if (matchingFunction) {
-              consola.info(
-                `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-              )
-            } else {
-              consola.warn(`Unknown function [${selector}]`)
-            }
-          } catch (error) {
-            consola.warn(`Failed to decode selector: ${selector}`)
-          }
-        }
-      } else {
-        consola.info(`Could not fetch ABI for facet ${facetAddress}`)
-      }
-    } catch (error) {
-      consola.error(`Error fetching ABI for ${facetAddress}:`, error)
-    }
-    consola.info('-'.repeat(80))
-  }
-  // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
-  consola.info(`Init Address: ${diamondCutData.args[1]}`)
-  consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
-}
-
-/**
- * Decodes a transaction's function call
+ * Decodes a transaction's function call using diamond ABI
  * @param data - Transaction data
  * @returns Decoded function name and data if available
  */
@@ -85,6 +27,43 @@ export async function decodeTransactionData(data: Hex): Promise<{
 
   try {
     const selector = data.substring(0, 10)
+
+    // First try to find function in diamond ABI
+    try {
+      const projectRoot = process.cwd()
+      const diamondPath = path.join(projectRoot, 'diamond.json')
+
+      if (fs.existsSync(diamondPath)) {
+        const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
+        if (Array.isArray(abiData))
+          // Search for matching function selector in diamond ABI
+          for (const abiItem of abiData)
+            if (abiItem.type === 'function')
+              try {
+                const calculatedSelector = toFunctionSelector(abiItem)
+                if (calculatedSelector === selector) {
+                  consola.info(
+                    `Using diamond ABI for function: ${abiItem.name}`
+                  )
+                  return {
+                    functionName: abiItem.name,
+                    decodedData: {
+                      functionName: abiItem.name,
+                      contractName: 'Diamond',
+                    },
+                  }
+                }
+              } catch (error) {
+                // Skip invalid ABI items
+                continue
+              }
+      }
+    } catch (error) {
+      consola.warn(`Error reading diamond ABI: ${error}`)
+    }
+
+    // Fallback to external API
+    consola.info('No local ABI found, fetching from openchain.xyz...')
     const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
     const response = await fetch(url)
     const responseData = await response.json()
@@ -96,8 +75,6 @@ export async function decodeTransactionData(data: Hex): Promise<{
       responseData.result.function[selector]
     ) {
       const functionName = responseData.result.function[selector][0].name
-      const fullAbiString = `function ${functionName}`
-      const abiInterface = parseAbi([fullAbiString])
 
       try {
         const decodedData = {

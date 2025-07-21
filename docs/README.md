@@ -57,6 +57,7 @@
 - [Executor](./Executor.md)
 - [FeeCollector](./FeeCollector.md)
 - [LiFuelFeeCollector](./LiFuelFeeCollector.md)
+- [LidoWrapper](./LidoWrapper.md)
 - [Patcher](./Patcher.md)
 - [Receiver](./Receiver.md)
 - [ReceiverStargateV2](./ReceiverStargateV2.md)

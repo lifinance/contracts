@@ -2,6 +2,11 @@ module.exports = {
   singleQuote: true,
   bracketSpacing: true,
   semi: false,
+  trailingComma: 'es5',
+  printWidth: 80,
+  tabWidth: 2,
+  arrowParens: 'always',
+  endOfLine: 'lf',
   overrides: [
     {
       files: '*.sol',
@@ -9,6 +14,12 @@ module.exports = {
         printWidth: 79,
         tabWidth: 4,
         singleQuote: false,
+      },
+    },
+    {
+      files: '*.ts',
+      options: {
+        parser: 'typescript',
       },
     },
   ],
