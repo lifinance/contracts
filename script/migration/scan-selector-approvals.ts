@@ -18,7 +18,7 @@
  * - Integration with whitelistedSelectors.json for additional selectors
  *
  * Process:
- * 1. Loads network-specific configurations from prepareFunctionSelectorsConfig.json:
+ * 1. Loads network-specific configurations from scan-selector-approvals-config.json:
  *    - Custom chunk sizes for event scanning
  *    - RPC preferences (custom vs public)
  *    - Network-specific deployment blocks
@@ -517,9 +517,9 @@ function flattenAndSaveSelectors(
 // Define the command
 const cmd = defineCommand({
   meta: {
-    name: 'prepare-function-selectors',
+    name: 'scan-selector-approvals',
     description:
-      'Scan blockchain events in parallel to prepare function selectors data file',
+      'Scan blockchain events in parallel to scan selector approvals',
   },
   args: {
     network: {
@@ -547,16 +547,16 @@ const cmd = defineCommand({
     outputFile: {
       type: 'string',
       description:
-        'Output file path (default: ./script/migration/functionSelectorsResult.json)',
+        'Output file path (default: ./script/migration/scan-selector-approvals-result.json)',
       required: false,
-      default: './script/migration/functionSelectorsResult.json',
+      default: './script/migration/scan-selector-approvals-result.json',
     },
     deploymentBlocksFile: {
       type: 'string',
       description:
-        'Deployment blocks config file (default: ./script/migration/prepareFunctionSelectorsConfig.json)',
+        'Deployment blocks config file (default: ./script/migration/scan-selector-approvals-config.json)',
       required: false,
-      default: './script/migration/prepareFunctionSelectorsConfig.json',
+      default: './script/migration/scan-selector-approvals-config.json',
     },
     maxConcurrency: {
       type: 'string',
@@ -576,7 +576,7 @@ const cmd = defineCommand({
       args?.outputFile || './script/migration/functionSelectorsResult.json'
     const deploymentBlocksFile =
       args?.deploymentBlocksFile ||
-      './script/migration/prepareFunctionSelectorsConfig.json'
+      './script/migration/scan-selector-approvals-config.json'
     const maxConcurrency = parseInt(args?.maxConcurrency || '10')
 
     consola.info(`🚀 Starting parallel function selectors preparation...`)

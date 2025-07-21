@@ -17,7 +17,7 @@
  *    - whitelistedSelectors.json: Contains function selectors that should be
  *      whitelisted after migration
  *
- * 3. Reads chain-specific configurations from prepareFunctionSelectorsConfig.json:
+ * 3. Reads chain-specific configurations from scan-selector-approvals-config.json:
  *    - Custom RPC endpoints for more reliable event scanning
  *    - Chain-specific event chunk sizes to handle RPC limitations
  *    - Other network-specific scanning parameters

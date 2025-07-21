@@ -5,99 +5,99 @@
   "networks": {
     "mainnet": {
       "deploymentBlock": 15788691,
-      "skip": false
+      "skip": true
     },
     "arbitrum": {
       "deploymentBlock": 30605048,
-      "skip": false
+      "skip": true
     },
     "optimism": {
       "deploymentBlock": 30030524,
       "chunkSize": 1000,
-      "skip": false
+      "skip": true
     },
     "polygon": {
       "deploymentBlock": 34330528,
       "useCustomRPC": true,
-      "skip": false
+      "skip": true
     },
     "bsc": {
       "deploymentBlock": 22255012,
       "chunkSize": 500,
       "useCustomRPC": true,
-      "skip": false
+      "skip": true
     },
     "avalanche": {
       "deploymentBlock": 21219160,
       "chunkSize": 2048,
-      "skip": false
+      "skip": true
     },
     "fantom": {
       "deploymentBlock": null,
       "useCustomRPC": true,
-      "skip": false,
+      "skip": true,
       "notes": "No deployment block available"
     },
     "gnosis": {
       "deploymentBlock": 24656401,
-      "skip": false
+      "skip": true
     },
     "base": {
       "deploymentBlock": 2649729,
-      "skip": false
+      "skip": true
     },
     "linea": {
       "deploymentBlock": 265994,
-      "skip": false
+      "skip": true
     },
     "scroll": {
       "deploymentBlock": 3896849,
-      "skip": false
+      "skip": true
     },
     "polygonzkevm": {
       "deploymentBlock": 2775270,
-      "skip": false
+      "skip": true
     },
     "zksync": {
       "deploymentBlock": 8484794,
-      "skip": false
+      "skip": true
     },
     "mantle": {
       "deploymentBlock": 63599927,
-      "skip": false
+      "skip": true
     },
     "mode": {
       "deploymentBlock": 6380715,
-      "skip": false
+      "skip": true
     },
     "blast": {
       "deploymentBlock": 3561856,
-      "skip": false
+      "skip": true
     },
     "fraxtal": {
       "deploymentBlock": 6069293,
-      "skip": false
+      "skip": true
     },
     "metis": {
       "deploymentBlock": 13043913,
-      "skip": false
+      "skip": true
     },
     "immutablezkevm": {
       "deploymentBlock": 10107103,
       "chunkSize": 5000,
-      "skip": false
+      "skip": true
     },
     "moonbeam": {
       "deploymentBlock": 2106095,
       "chunkSize": 1024,
       "useCustomRPC": true,
-      "skip": false
+      "skip": true
     },
     "moonriver": {
       "deploymentBlock": 2800016,
       "chunkSize": 1024,
       "useCustomRPC": true,
-      "skip": false
+      "skip": true
     },
     "celo": {
       "deploymentBlock": 15686585,
@@ -105,19 +105,19 @@
     },
     "fuse": {
       "deploymentBlock": 19732820,
-      "skip": false
+      "skip": true
     },
     "cronos": {
       "deploymentBlock": 5159585,
-      "skip": false
+      "skip": true
     },
     "kaia": {
       "deploymentBlock": 163541467,
-      "skip": false
+      "skip": true
     },
     "aurora": {
       "deploymentBlock": 76711097,
-      "skip": false
+      "skip": true
     },
     "boba": {
       "deploymentBlock": 845499,
@@ -125,64 +125,64 @@
     },
     "opbnb": {
       "deploymentBlock": 3267081,
-      "skip": false
+      "skip": true
     },
     "lisk": {
       "deploymentBlock": 8896248,
-      "skip": false
+      "skip": true
     },
     "taiko": {
       "deploymentBlock": 264677,
       "chunkSize": 1000,
-      "skip": false
+      "skip": true
     },
     "sei": {
       "deploymentBlock": 81395208,
       "chunkSize": 1000,
-      "skip": false
+      "skip": true
     },
     "flare": {
       "deploymentBlock": 42561614,
       "chunkSize": 30,
-      "skip": false
+      "skip": true
     },
     "gravity": {
       "deploymentBlock": 36127,
-      "skip": false
+      "skip": true
     },
     "worldchain": {
       "deploymentBlock": 6332960,
-      "skip": false
+      "skip": true
     },
     "xlayer": {
       "deploymentBlock": 4984007,
       "chunkSize": 100,
-      "skip": false
+      "skip": true
     },
     "abstract": {
       "deploymentBlock": 160694,
-      "skip": false
+      "skip": true
     },
     "apechain": {
       "deploymentBlock": 8533475,
-      "skip": false
+      "skip": true
     },
     "berachain": {
       "deploymentBlock": 806887,
-      "skip": false
+      "skip": true
     },
     "bob": {
       "deploymentBlock": 17483306,
-      "skip": false
+      "skip": true
     },
     "corn": {
       "deploymentBlock": 388064,
-      "skip": false
+      "skip": true
     },
     "etherlink": {
       "deploymentBlock": 9922482,
       "chunkSize": 1000,
-      "skip": false
+      "skip": true
     },
     "hyperevm": {
       "deploymentBlock": 4019576,
@@ -192,60 +192,60 @@
     },
     "ink": {
       "deploymentBlock": 6517818,
-      "skip": false
+      "skip": true
     },
     "katana": {
       "deploymentBlock": 3056085,
-      "skip": false
+      "skip": true
     },
     "lens": {
       "deploymentBlock": 207126,
-      "skip": false
+      "skip": true
     },
     "nibiru": {
       "deploymentBlock": 23781877,
-      "skip": false
+      "skip": true
     },
     "plume": {
       "deploymentBlock": 7276840,
-      "skip": false
+      "skip": true
     },
     "rootstock": {
       "deploymentBlock": 6372871,
       "useCustomRPC": true,
-      "skip": false
+      "skip": true
     },
     "soneium": {
       "deploymentBlock": 3136254,
-      "skip": false
+      "skip": true
     },
     "sonic": {
       "deploymentBlock": 2953910,
-      "skip": false
+      "skip": true
     },
     "superposition": {
       "deploymentBlock": 1388311,
-      "skip": false
+      "skip": true
     },
     "swellchain": {
       "deploymentBlock": 5666365,
-      "skip": false
+      "skip": true
     },
     "unichain": {
       "deploymentBlock": 8575796,
-      "skip": false
+      "skip": true
     },
     "vana": {
       "deploymentBlock": 3712339,
-      "skip": false
+      "skip": true
     },
     "viction": {
       "deploymentBlock": 94000000,
-      "skip": false
+      "skip": true
     },
     "xdc": {
       "deploymentBlock": 88828967,
-      "skip": false
+      "skip": true
     }
   }
 } 
