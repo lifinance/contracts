@@ -1,11 +1,12 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title Patcher
 /// @author LI.FI (https://li.fi)
-/// @notice A contract that patches calldata with dynamically retrieved values before execution
+/// @notice A contract that patches calldata with dynamically retrieved values at execution time
 /// @dev Designed to be used with both delegate calls and normal calls
 /// @custom:version 1.0.0
 contract Patcher {
@@ -20,6 +21,9 @@ contract Patcher {
 
     /// @notice Error when a call execution fails
     error CallExecutionFailed();
+
+    /// @notice Error when a zero address is provided
+    error ZeroAddress();
 
     /// External Methods ///
 
@@ -241,9 +245,7 @@ contract Patcher {
         if (!success) {
             // Revert with the returned error data if available
             if (returnData.length > 0) {
-                assembly {
-                    revert(add(returnData, 32), mload(returnData))
-                }
+                LibUtil.revertWith(returnData);
             } else {
                 revert CallExecutionFailed();
             }
@@ -260,6 +262,12 @@ contract Patcher {
         uint256[] calldata offsets,
         bool delegateCall
     ) internal returns (bool success, bytes memory returnData) {
+        if (
+            LibUtil.isZeroAddress(valueSource) ||
+            LibUtil.isZeroAddress(finalTarget)
+        ) revert ZeroAddress();
+        if (offsets.length == 0) revert InvalidPatchOffset();
+
         // Get the dynamic value
         uint256 dynamicValue = _getDynamicValue(valueSource, valueGetter);
 
@@ -290,6 +298,11 @@ contract Patcher {
         ) {
             revert MismatchedArrayLengths();
         }
+        if (LibUtil.isZeroAddress(finalTarget)) revert ZeroAddress();
+        for (uint8 i = 0; i < valueSources.length; i++) {
+            if (LibUtil.isZeroAddress(valueSources[i])) revert ZeroAddress();
+            if (offsetGroups[i].length == 0) revert InvalidPatchOffset();
+        }
 
         // Create a mutable copy of the original calldata
         bytes memory patchedData = bytes(data);
@@ -308,7 +321,7 @@ contract Patcher {
         uint256[][] calldata offsetGroups,
         bytes memory patchedData
     ) internal view {
-        for (uint256 i = 0; i < valueSources.length; ) {
+        for (uint8 i = 0; i < valueSources.length; ) {
             // Get the dynamic value for this patch
             uint256 dynamicValue = _getDynamicValue(
                 valueSources[i],

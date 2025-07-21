@@ -428,6 +428,34 @@ contract PatcherTest is TestBase {
         );
     }
 
+    // Tests that empty offsets array is rejected
+    function testRevert_ExecuteWithDynamicPatches_EmptyOffsets() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](0);
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        vm.expectRevert(Patcher.InvalidPatchOffset.selector);
+        patcher.executeWithDynamicPatches(
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
     // Tests input validation for array length mismatches
     function testRevert_ExecuteWithMultiplePatches_MismatchedArrayLengths()
         public
@@ -531,38 +559,6 @@ contract PatcherTest is TestBase {
             offsets,
             false
         );
-    }
-
-    // Tests no-op patching with empty offsets
-    function test_ExecuteWithDynamicPatches_EmptyOffsets() public {
-        uint256 dynamicValue = 12345;
-        valueSource.setValue(dynamicValue);
-
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(99999)
-        );
-
-        uint256[] memory offsets = new uint256[](0);
-
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
-
-        vm.expectEmit(true, true, true, true, address(target));
-        emit CallReceived(99999, address(patcher), 0);
-
-        patcher.executeWithDynamicPatches(
-            address(valueSource),
-            valueGetter,
-            address(target),
-            0,
-            originalCalldata,
-            offsets,
-            false
-        );
-
-        assertEq(target.lastValue(), 99999);
     }
 
     // Tests overwriting same position with multiple patches
