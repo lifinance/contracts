@@ -280,13 +280,6 @@
       "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
       "auditCommitHash": "feab0709941d12efaed8be16fea96f4ff4276544"
     },
-    "audit20250611": {
-      "auditCompletedOn": "11.06.2025",
-      "auditedBy": "Sujith Somraaj (individual security researcher)",
-      "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.06.11_LibAllowList(v1.0.1).pdf",
-      "auditCommitHash": "35c778e178b6a160bd351b5110ef24df26ece226"
-    },
     "audit20250620": {
       "auditCompletedOn": "20.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -462,8 +455,7 @@
       "1.0.0": ["audit20250508"]
     },
     "LibAllowList": {
-      "1.0.0": ["audit20250508"],
-      "1.0.1": ["audit20250529", "audit20250611"]
+      "1.0.0": ["audit20250508"]
     },
     "LibAsset": {
       "1.0.1": ["audit20241202"],
@@ -603,9 +595,6 @@
     "TokenWrapper": {
       "1.0.1": ["audit20250109_3"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
-    },
-    "LiFiTimelockController": {
-      "1.0.0": ["audit20250110_2", "audit20250508"]
     },
     "TransferrableOwnership": {
       "1.0.0": ["audit20250508"]
