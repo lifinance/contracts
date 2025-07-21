@@ -321,6 +321,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.07.06_Permit2Proxy(v1.0.4).pdf",
       "auditCommitHash": "a00deeb45dafe3e5124770c41a7a28ba931361d2"
+    },
+    "audit20250718": {
+      "auditCompletedOn": "18.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.0.1).pdf",
+      "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
     }
   },
   "auditedContracts": {
@@ -342,7 +349,8 @@
       "1.1.0": ["audit20250106", "audit20250508"]
     },
     "AllBridgeFacet": {
-      "2.0.0": ["audit20250508"]
+      "2.0.0": ["audit20250508"],
+      "2.0.1": ["audit20250718"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
