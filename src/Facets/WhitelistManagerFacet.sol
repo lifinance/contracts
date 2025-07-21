@@ -168,13 +168,23 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
         // clear old state
         // reset contractAllowList
-        for (uint256 i = 0; i < als.contracts.length; i++) {
+        uint256 i;
+        uint256 length = als.contracts.length;
+        for (; i < length; ) {
             als.contractAllowList[als.contracts[i]] = false;
+            unchecked {
+                ++i;
+            }
         }
 
         // reset selectorAllowList with external selectors array because new selectors array does not exist yet
-        for (uint256 i = 0; i < _selectorsToRemove.length; i++) {
+        i = 0;
+        length = _selectorsToRemove.length;
+        for (; i < length; ) {
             als.selectorAllowList[_selectorsToRemove[i]] = false;
+            unchecked {
+                ++i;
+            }
         }
 
         // reset contract array
@@ -182,7 +192,9 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         // clearing selectors (als.selectors) is not needed as it's a new variable
 
         // whitelist contracts
-        for (uint256 i = 0; i < _contractsToAdd.length; i++) {
+        i = 0;
+        length = _contractsToAdd.length;
+        for (; i < length; ) {
             if (_contractsToAdd[i] == address(this)) {
                 revert CannotAuthoriseSelf();
             }
@@ -195,10 +207,15 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
             LibAllowList.addAllowedContract(_contractsToAdd[i]);
             emit AddressWhitelisted(_contractsToAdd[i]);
+            unchecked {
+                ++i;
+            }
         }
 
         // whitelist selectors
-        for (uint256 i = 0; i < _selectorsToAdd.length; i++) {
+        i = 0;
+        length = _selectorsToAdd.length;
+        for (; i < length; ) {
             // check for duplicate selectors in _selectorsToAdd or selectors not present in _selectorsToRemove
             // this prevents both duplicates and ensures all selectors were properly reset
             if (LibAllowList.selectorIsAllowed(_selectorsToAdd[i])) {
@@ -207,6 +224,9 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
             LibAllowList.addAllowedSelector(_selectorsToAdd[i]);
             emit FunctionSelectorWhitelistChanged(_selectorsToAdd[i], true);
+            unchecked {
+                ++i;
+            }
         }
 
         // Mark as migrated
