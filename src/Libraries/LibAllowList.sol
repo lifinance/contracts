@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { InvalidContract } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "./LibAsset.sol";
 
-/// @title Lib Allow List
+/// @title LibAllowList
 /// @author LI.FI (https://li.fi)
 /// @notice Library for managing and accessing the contract address allow list
 /// @custom:version 1.0.1

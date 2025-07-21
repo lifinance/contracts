@@ -8,7 +8,6 @@ import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { OwnershipFacet } from "src/Facets/OwnershipFacet.sol";
 import { InvalidContract, CannotAuthoriseSelf, UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { IDexManagerFacet } from "lifi/Interfaces/IDexManagerFacet.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
@@ -837,10 +836,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
 
     WhitelistManagerFacet internal whitelistManagerWithMigrationLogic;
-    // DexManagerFacet is the legacy facet we're migrating from
-    // It used different function names (e.g., approvedDexs vs getWhitelistedAddresses)
-    // and didn't store all selectors onchain
-    IDexManagerFacet internal dexManager;
+
     // mock facet to verify that existing integrations still work after migration
     MockSwapperFacet internal mockSwapperFacet;
 
@@ -859,9 +855,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         currentWhitelistedSelectors[2] = 0x7c025200; // swap
         currentWhitelistedSelectors[3] = 0x7617b389; // exactInputSingle
         currentWhitelistedSelectors[4] = 0x90411a32; // execute
-
-        // get old DexManager interface to read current state
-        dexManager = IDexManagerFacet(DIAMOND);
     }
 
     function test_MigrateAllowListWithSwapperCheck() public {
@@ -894,8 +887,13 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         );
 
         // PHASE 2: Migration
-        // Get current state from old DexManagerFacet
-        address[] memory whitelistedAddresses = dexManager.approvedDexs();
+        // Call approvedDexs() from the legacy DexManagerFacet
+        // This function is being replaced by getWhitelistedAddresses() in the new WhitelistManagerFacet
+        // We use it here only for migration purposes to read the old state
+        (, bytes memory data) = DIAMOND.staticcall(
+            abi.encodeWithSignature("approvedDexs()")
+        );
+        address[] memory whitelistedAddresses = abi.decode(data, (address[]));
 
         // get all selectors that should be whitelisted
         bytes4[] memory selectorsToWhitelist = getAllApprovedSelectors();
@@ -1151,10 +1149,17 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Replace JSON parsing with example selectors
         for (uint256 i = 0; i < currentWhitelistedSelectors.length; i++) {
-            // check if this selector is approved
-            if (
-                dexManager.isFunctionApproved(currentWhitelistedSelectors[i])
-            ) {
+            // Call isFunctionApproved() from the legacy DexManagerFacet
+            // This function is being replaced by isFunctionSelectorWhitelisted() in the new WhitelistManagerFacet
+            // We use it here only for migration purposes to read the old state
+            (, bytes memory data) = DIAMOND.staticcall(
+                abi.encodeWithSignature(
+                    "isFunctionApproved(bytes4)",
+                    currentWhitelistedSelectors[i]
+                )
+            );
+            bool isApproved = abi.decode(data, (bool));
+            if (isApproved) {
                 approvedSelectors[count] = currentWhitelistedSelectors[i];
                 count++;
             }

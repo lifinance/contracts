@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-/// @title Whitelist Manager Facet Interface
+/// @title IWhitelistManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
 /// @custom:version 1.0.0
