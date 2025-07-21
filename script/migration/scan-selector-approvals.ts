@@ -34,7 +34,7 @@
  *    - Scanning metadata (blocks, timestamps, duration)
  *    - Network-specific information (chain IDs, addresses)
  *
- * 4. Creates flattened-selectors.json:
+ * 4. Creates flattened-scan-selector-approvals.json:
  *    - Combines selectors from all networks
  *    - Incorporates selectors from whitelistedSelectors.json
  *    - Removes duplicates across all sources
@@ -505,8 +505,11 @@ function flattenAndSaveSelectors(
     selectors: sortedSelectors,
   }
 
-  // Write to flattened-selectors.json
-  const outputPath = path.join(baseDir, 'flattened-selectors.json')
+  // Write to flattened-scan-selector-approvals.json
+  const outputPath = path.join(
+    baseDir,
+    'flattened-scan-selector-approvals.json'
+  )
   writeFileSync(outputPath, JSON.stringify(output, null, 2))
 
   consola.success(`\n📄 Flattened selectors summary:`)

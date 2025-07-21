@@ -7,7 +7,7 @@
  * no way to clear mappings on-chain, we need to explicitly remove all previously approved
  * selectors and set the new desired state. The process works as follows:
  *
- * 1. Loads all historically approved selectors from flattened-selectors.json
+ * 1. Loads all historically approved selectors from flattened-scan-selector-approvals.json
  *    These selectors were previously scanned from on-chain events and represent
  *    the complete set of selectors that need to be removed to clear the old state
  *
@@ -216,7 +216,7 @@ async function migrateAllowList(
   }
 
   const selectorsToRemoveFilePath =
-    './script/migration/flattened-selectors.json'
+    './script/migration/flattened-scan-selector-approvals.json'
   let selectorsToRemove: string[] = []
 
   if (!existsSync(selectorsToRemoveFilePath)) {
