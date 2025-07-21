@@ -183,18 +183,6 @@ export async function scanEventsInChunks<T>(
     } total events (took ${duration.toFixed(2)}s)`
   )
 
-  console.log('return')
-  console.log({
-    events,
-    scanStats: {
-      totalBlocks,
-      processedBlocks,
-      duration,
-      startTime,
-      endTime,
-    },
-  })
-
   return {
     events,
     scanStats: {
