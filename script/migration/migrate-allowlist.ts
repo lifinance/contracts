@@ -345,16 +345,12 @@ async function migrateAllowList(
     if (isMigrated) {
       consola.info('✅ Allow list already migrated')
       consola.info('🔍 Validating current whitelist state...')
-    }
-
-    await validateWhitelist(
-      whitelistManager,
-      contractsToAdd,
-      selectorsToAddBytes4,
-      selectorsToRemoveBytes4
-    )
-
-    if (isMigrated) {
+      await validateWhitelist(
+        whitelistManager,
+        contractsToAdd,
+        selectorsToAddBytes4,
+        selectorsToRemoveBytes4
+      )
       return
     }
   } catch (error) {
