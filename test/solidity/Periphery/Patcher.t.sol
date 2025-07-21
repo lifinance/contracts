@@ -190,6 +190,7 @@ contract PatcherTest is TestBase {
     address internal relaySolver;
 
     function setUp() public {
+        initTestBase();
         patcher = new Patcher();
         valueSource = new MockValueSource();
         target = new MockTarget();
