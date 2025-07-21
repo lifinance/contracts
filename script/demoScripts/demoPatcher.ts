@@ -16,11 +16,11 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import { setupCowShedPostHooks } from './utils/cowSwapHelpers'
+import arbitrumDeployments from '../../deployments/arbitrum.staging.json'
 
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
-import arbitrumDeployments from '../../deployments/arbitrum.staging.json'
 const LIFI_DIAMOND_ARBITRUM = arbitrumDeployments.LiFiDiamond
 const PATCHER_ARBITRUM = arbitrumDeployments.Patcher
 const VAULT_RELAYER_ARBITRUM = '0xC92E8bdf79f0507f65a392b0ab4667716BFE0110'

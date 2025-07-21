@@ -2,11 +2,14 @@
 
 ## Description
 
-The Patcher is a utility contract that enables dynamic calldata patching before execution. It allows you to retrieve values dynamically from external contracts and use them to patch specific positions in calldata before executing the final call. This is particularly useful for scenarios where exact amounts are only known at execution time, such as token balances after deposits or bridge transfers.
+The Patcher is a utility contract that enables dynamic calldata patching before execution. It allows you to retrieve values dynamically at execution time from external contracts and uses them to replace placeholders (specific positions) in calldata before calling the target contract. This is particularly useful for scenarios where exact amounts are only known at execution time, such as token balances after deposits or bridge transfers.
+
+A common use case is with CoWSwap intent based orders, where the amount to act on (e.g., amountIn) is only determined after the user's funds are bridged to the destination chain.
 
 ## How it works
 
 The Patcher works by:
+
 1. Retrieving dynamic values from external contracts via static calls
 2. Patching these values into predetermined positions in calldata
 3. Executing the final call with the patched data
@@ -14,11 +17,14 @@ The Patcher works by:
 ```mermaid
 graph LR;
     A[User] --> B[Patcher Contract]
-    B --> C[Value Source Contract]
+    B -->|staticcall| C[Value Source Contract, e.g. balanceOf]
     C --> B
-    B --> D[Final Target Contract]
-    B --> E[Patch Calldata]
-    E --> D
+    B -->|Patches Value into Calldata| E[Patch Calldata]
+    E -->|Calls with Patched Calldata| D[Final Target Contract]
+
+    subgraph Internal Logic inside Patcher
+      B --> E
+    end
 ```
 
 ## Public Methods
@@ -59,6 +65,7 @@ graph LR;
 ### Offset Calculation
 
 Offsets specify the exact byte position in the calldata where a 32-byte value should be written. These are typically calculated by:
+
 1. Encoding the target function call with placeholder values
 2. Finding the byte position of the placeholder in the encoded data
 3. Using that position as the offset
@@ -118,7 +125,7 @@ The Patcher is commonly used in bridge receiver contracts to handle variable bri
 function handleBridgeMessage(bytes calldata message) external {
     // Decode swap parameters from message
     SwapData memory swapData = abi.decode(message, (SwapData));
-    
+
     // Use Patcher to deposit received tokens and execute swap with exact balance
     patcher.depositAndExecuteWithDynamicPatches(
         bridgedToken,
