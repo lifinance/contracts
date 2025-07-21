@@ -169,19 +169,17 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         // clear old state
         // reset contractAllowList
         for (uint256 i = 0; i < als.contracts.length; i++) {
-            address contractAddr = als.contracts[i];
-            als.contractAllowList[contractAddr] = false;
+            als.contractAllowList[als.contracts[i]] = false;
         }
 
         // reset selectorAllowList with external selectors array because new selectors array does not exist yet
         for (uint256 i = 0; i < _selectorsToRemove.length; i++) {
-            bytes4 selector = _selectorsToRemove[i];
-            als.selectorAllowList[selector] = false;
+            als.selectorAllowList[_selectorsToRemove[i]] = false;
         }
 
         // reset contract array
         delete als.contracts;
-        // clearing selectors is not needed as it new variable
+        // clearing selectors (als.selectors) is not needed as it's a new variable
 
         // whitelist contracts
         for (uint256 i = 0; i < _contractsToAdd.length; i++) {
