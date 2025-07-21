@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IDlnSource } from "../Interfaces/IDlnSource.sol";
-import { NotInitialized } from "../Errors/GenericErrors.sol";
+import { NotInitialized, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title DeBridgeDLN Facet
@@ -57,7 +57,6 @@ contract DeBridgeDlnFacet is
 
     error UnknownDeBridgeChain();
     error EmptyNonEVMAddress();
-    error InvalidConfig();
 
     /// Events ///
 
@@ -82,6 +81,8 @@ contract DeBridgeDlnFacet is
     /// @notice Constructor for the contract.
     /// @param _dlnSource The address of the DLN order creation contract
     constructor(IDlnSource _dlnSource) {
+        if (address(_dlnSource) == address(0)) revert InvalidConfig();
+
         DLN_SOURCE = _dlnSource;
     }
 

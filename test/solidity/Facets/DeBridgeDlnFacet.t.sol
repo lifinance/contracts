@@ -7,7 +7,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
+import { NotInitialized, OnlyContractOwner, InvalidConfig } from "src/Errors/GenericErrors.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
@@ -136,6 +136,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
                 value: fixedFee
             }(bridgeData, swapData, validDeBridgeDlnData);
         }
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new DeBridgeDlnFacet(IDlnSource(address(0)));
     }
 
     function test_Initialize() public {

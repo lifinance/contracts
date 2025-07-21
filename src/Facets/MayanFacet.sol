@@ -10,6 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -40,13 +41,14 @@ contract MayanFacet is
 
     /// Errors ///
     error InvalidReceiver(address expected, address actual);
-    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
     error ProtocolDataTooShort();
 
     /// Constructor ///
 
     /// @notice Constructor for the contract.
     constructor(IMayan _mayan) {
+        if (address(_mayan) == address(0)) revert InvalidConfig();
+
         MAYAN = _mayan;
     }
 
@@ -143,17 +145,11 @@ contract MayanFacet is
         // Validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
-                revert InvalidNonEVMReceiver(
-                    _mayanData.nonEVMReceiver,
-                    bytes32(0)
-                );
+                revert InvalidNonEVMReceiver();
             }
             bytes32 receiver = _parseReceiver(_mayanData.protocolData);
             if (_mayanData.nonEVMReceiver != receiver) {
-                revert InvalidNonEVMReceiver(
-                    _mayanData.nonEVMReceiver,
-                    receiver
-                );
+                revert InvalidNonEVMReceiver();
             }
         } else {
             address receiver = address(
