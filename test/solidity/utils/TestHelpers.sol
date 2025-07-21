@@ -49,25 +49,25 @@ contract TestHelpers is Test {
         );
         // whitelist DEX & function selector
         TestWhitelistManagerBase(diamond).addToWhitelist(address(mockDex));
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.swapTokensForExactTokens.selector
         );
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.swapExactTokensForTokens.selector
         );
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.swapETHForExactTokens.selector
         );
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.swapExactETHForTokens.selector
         );
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.swapExactTokensForETH.selector
         );
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.swapTokensForExactETH.selector
         );
-        TestWhitelistManagerBase(diamond).setFunctionApprovalBySelector(
+        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }

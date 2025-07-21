@@ -46,7 +46,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
     event AddressWhitelisted(address indexed whitelistedAddress);
     event AddressRemoved(address indexed removedAddress);
-    event FunctionSelectorApprovalChanged(
+    event FunctionSelectorWhitelistChanged(
         bytes4 indexed functionSelector,
         bool indexed approved
     );
@@ -73,19 +73,19 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .getWhitelistedAddresses
             .selector;
         functionSelectors[5] = WhitelistManagerFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         functionSelectors[6] = WhitelistManagerFacet
-            .batchSetFunctionApprovalBySelector
+            .batchSetFunctionWhitelistBySelector
             .selector;
         functionSelectors[7] = WhitelistManagerFacet
-            .isFunctionApproved
+            .isFunctionSelectorWhitelisted
             .selector;
         functionSelectors[8] = WhitelistManagerFacet
             .isAddressWhitelisted
             .selector;
         functionSelectors[9] = WhitelistManagerFacet
-            .getApprovedFunctionSelectors
+            .getWhitelistedFunctionSelectors
             .selector;
 
         addFacet(diamond, address(whitelistMgr), functionSelectors);
@@ -185,10 +185,10 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         bytes4 selector = hex"faceface";
 
         vm.expectEmit(true, true, true, true);
-        emit FunctionSelectorApprovalChanged(selector, true);
+        emit FunctionSelectorWhitelistChanged(selector, true);
 
-        whitelistMgr.setFunctionApprovalBySelector(selector, true);
-        assertTrue(whitelistMgr.isFunctionApproved(selector));
+        whitelistMgr.setFunctionWhitelistBySelector(selector, true);
+        assertTrue(whitelistMgr.isFunctionSelectorWhitelisted(selector));
 
         vm.stopPrank();
     }
@@ -202,9 +202,11 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         selectors[2] = bytes4(hex"deaddead");
         selectors[3] = bytes4(hex"deadface");
         selectors[4] = bytes4(hex"beefbeef");
-        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, true);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(selectors, true);
         for (uint256 i = 0; i < 5; ) {
-            assertTrue(whitelistMgr.isFunctionApproved(selectors[i]));
+            assertTrue(
+                whitelistMgr.isFunctionSelectorWhitelisted(selectors[i])
+            );
             unchecked {
                 ++i;
             }
@@ -329,7 +331,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         whitelistMgr.batchRemoveFromWhitelist(addresses);
     }
 
-    function testRevert_FailsIfNonOwnerTriesToSetFunctionApprovalBySelector()
+    function testRevert_FailsIfNonOwnerTriesTosetFunctionWhitelistBySelector()
         public
     {
         bytes4 selector = hex"faceface";
@@ -337,10 +339,10 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(NOT_DIAMOND_OWNER);
-        whitelistMgr.setFunctionApprovalBySelector(selector, true);
+        whitelistMgr.setFunctionWhitelistBySelector(selector, true);
     }
 
-    function testRevert_FailsIfNonOwnerTriesToBatchSetFunctionApprovalBySelector()
+    function testRevert_FailsIfNonOwnerTriesTobatchSetFunctionWhitelistBySelector()
         public
     {
         bytes4[] memory selectors = new bytes4[](3);
@@ -351,7 +353,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(NOT_DIAMOND_OWNER);
-        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, true);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(selectors, true);
     }
 
     function test_SucceedsIfOwnerSetsFunctionApprovalBySelector() public {
@@ -359,11 +361,11 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
         bytes4 selector = hex"faceface";
 
-        whitelistMgr.setFunctionApprovalBySelector(selector, true);
-        assertTrue(whitelistMgr.isFunctionApproved(selector));
+        whitelistMgr.setFunctionWhitelistBySelector(selector, true);
+        assertTrue(whitelistMgr.isFunctionSelectorWhitelisted(selector));
 
-        whitelistMgr.setFunctionApprovalBySelector(selector, false);
-        assertFalse(whitelistMgr.isFunctionApproved(selector));
+        whitelistMgr.setFunctionWhitelistBySelector(selector, false);
+        assertFalse(whitelistMgr.isFunctionSelectorWhitelisted(selector));
 
         vm.stopPrank();
     }
@@ -376,14 +378,18 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         selectors[1] = bytes4(hex"deadbeef");
         selectors[2] = bytes4(hex"beefbeef");
 
-        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, true);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(selectors, true);
         for (uint256 i = 0; i < 3; i++) {
-            assertTrue(whitelistMgr.isFunctionApproved(selectors[i]));
+            assertTrue(
+                whitelistMgr.isFunctionSelectorWhitelisted(selectors[i])
+            );
         }
 
-        whitelistMgr.batchSetFunctionApprovalBySelector(selectors, false);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(selectors, false);
         for (uint256 i = 0; i < 3; i++) {
-            assertFalse(whitelistMgr.isFunctionApproved(selectors[i]));
+            assertFalse(
+                whitelistMgr.isFunctionSelectorWhitelisted(selectors[i])
+            );
         }
 
         vm.stopPrank();
@@ -482,7 +488,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4[] memory selectors = whitelistMgr
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
         assertEq(selectors.length, 0);
 
         vm.stopPrank();
@@ -492,10 +498,10 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         bytes4 selector = hex"faceface";
-        whitelistMgr.setFunctionApprovalBySelector(selector, true);
+        whitelistMgr.setFunctionWhitelistBySelector(selector, true);
 
         bytes4[] memory selectors = whitelistMgr
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
         assertEq(selectors.length, 1);
         assertEq(selectors[0], selector);
 
@@ -510,10 +516,10 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         testSelectors[1] = bytes4(hex"deadbeef");
         testSelectors[2] = bytes4(hex"beefbeef");
 
-        whitelistMgr.batchSetFunctionApprovalBySelector(testSelectors, true);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(testSelectors, true);
 
         bytes4[] memory selectors = whitelistMgr
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
         assertEq(selectors.length, 3);
 
         bool foundSel0 = false;
@@ -541,13 +547,13 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         testSelectors[1] = bytes4(hex"deadbeef");
         testSelectors[2] = bytes4(hex"beefbeef");
 
-        whitelistMgr.batchSetFunctionApprovalBySelector(testSelectors, true);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(testSelectors, true);
 
         // Remove the middle selector
-        whitelistMgr.setFunctionApprovalBySelector(testSelectors[1], false);
+        whitelistMgr.setFunctionWhitelistBySelector(testSelectors[1], false);
 
         bytes4[] memory selectors = whitelistMgr
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
         assertEq(selectors.length, 2);
 
         bool foundSel0 = false;
@@ -577,20 +583,20 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         testSelectors[3] = bytes4(hex"beefdead");
         testSelectors[4] = bytes4(hex"facedead");
 
-        whitelistMgr.batchSetFunctionApprovalBySelector(testSelectors, true);
+        whitelistMgr.batchSetFunctionWhitelistBySelector(testSelectors, true);
 
         bytes4[] memory removeSelectors = new bytes4[](3);
         removeSelectors[0] = testSelectors[1]; // deadbeef
         removeSelectors[1] = testSelectors[3]; // beefdead
         removeSelectors[2] = testSelectors[4]; // facedead
 
-        whitelistMgr.batchSetFunctionApprovalBySelector(
+        whitelistMgr.batchSetFunctionWhitelistBySelector(
             removeSelectors,
             false
         );
 
         bytes4[] memory selectors = whitelistMgr
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
         assertEq(selectors.length, 2);
 
         // Expected remaining: faceface (0) and beefbeef (2)
@@ -630,15 +636,15 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 
         // Add one selector
         bytes4 selector1 = bytes4(hex"faceface");
-        whitelistMgr.setFunctionApprovalBySelector(selector1, true);
+        whitelistMgr.setFunctionWhitelistBySelector(selector1, true);
 
         // Try to remove a different selector that was never approved
         bytes4 selector2 = bytes4(hex"deadbeef");
-        whitelistMgr.setFunctionApprovalBySelector(selector2, false);
+        whitelistMgr.setFunctionWhitelistBySelector(selector2, false);
 
         // Verify the state is correct
         bytes4[] memory selectors = whitelistMgr
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
         assertEq(selectors.length, 1);
         assertEq(selectors[0], selector1);
 
@@ -720,27 +726,28 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         bytes4 selector2 = hex"deadbeef";
         bytes4 selector3 = hex"cafecafe";
 
-        whitelistMgr.setFunctionApprovalBySelector(selector1, true);
-        assertTrue(whitelistMgr.isFunctionApproved(selector1));
+        whitelistMgr.setFunctionWhitelistBySelector(selector1, true);
+        assertTrue(whitelistMgr.isFunctionSelectorWhitelisted(selector1));
 
-        whitelistMgr.setFunctionApprovalBySelector(selector2, true);
-        assertTrue(whitelistMgr.isFunctionApproved(selector2));
+        whitelistMgr.setFunctionWhitelistBySelector(selector2, true);
+        assertTrue(whitelistMgr.isFunctionSelectorWhitelisted(selector2));
 
-        whitelistMgr.setFunctionApprovalBySelector(selector3, true);
-        assertTrue(whitelistMgr.isFunctionApproved(selector3));
+        whitelistMgr.setFunctionWhitelistBySelector(selector3, true);
+        assertTrue(whitelistMgr.isFunctionSelectorWhitelisted(selector3));
 
         // get all selectors to verify order
-        bytes4[] memory approved = whitelistMgr.getApprovedFunctionSelectors();
+        bytes4[] memory approved = whitelistMgr
+            .getWhitelistedFunctionSelectors();
         assertEq(approved.length, 3);
         assertEq(approved[0], selector1);
         assertEq(approved[1], selector2);
         assertEq(approved[2], selector3);
 
         // remove first selector
-        whitelistMgr.setFunctionApprovalBySelector(selector2, false);
+        whitelistMgr.setFunctionWhitelistBySelector(selector2, false);
 
         // verify selector3 was moved to index 1
-        approved = whitelistMgr.getApprovedFunctionSelectors();
+        approved = whitelistMgr.getWhitelistedFunctionSelectors();
         assertEq(approved.length, 2);
         assertEq(approved[0], selector1);
         assertEq(approved[1], selector3);
@@ -903,7 +910,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             .getWhitelistedAddresses
             .selector;
         facetSelectors[1] = WhitelistManagerFacet
-            .getApprovedFunctionSelectors
+            .getWhitelistedFunctionSelectors
             .selector;
 
         // add the facet to diamond
@@ -944,7 +951,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         address[] memory finalContracts = whitelistManagerWithMigrationLogic
             .getWhitelistedAddresses();
         bytes4[] memory finalSelectors = whitelistManagerWithMigrationLogic
-            .getApprovedFunctionSelectors();
+            .getWhitelistedFunctionSelectors();
 
         // verify data matches
         assertEq(

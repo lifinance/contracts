@@ -56,7 +56,7 @@ contract OptimismBridgeFacetTest is TestBase {
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
         functionSelectors[3] = optimismBridgeFacet.addToWhitelist.selector;
         functionSelectors[4] = optimismBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
@@ -72,10 +72,10 @@ contract OptimismBridgeFacetTest is TestBase {
         );
 
         optimismBridgeFacet.addToWhitelist(address(uniswap));
-        optimismBridgeFacet.setFunctionApprovalBySelector(
+        optimismBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        optimismBridgeFacet.setFunctionApprovalBySelector(
+        optimismBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

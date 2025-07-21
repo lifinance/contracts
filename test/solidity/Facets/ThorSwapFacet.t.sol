@@ -32,20 +32,20 @@ contract ThorSwapFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = thorSwapFacet.addToWhitelist.selector;
         functionSelectors[3] = thorSwapFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
         thorSwapFacet.addToWhitelist(ADDRESS_UNISWAP);
-        thorSwapFacet.setFunctionApprovalBySelector(
+        thorSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        thorSwapFacet.setFunctionApprovalBySelector(
+        thorSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        thorSwapFacet.setFunctionApprovalBySelector(
+        thorSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

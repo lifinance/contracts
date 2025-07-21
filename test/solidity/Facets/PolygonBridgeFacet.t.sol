@@ -45,7 +45,7 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = polygonBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = polygonBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
@@ -53,10 +53,10 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
         polygonBridgeFacet.addToWhitelist(address(uniswap));
-        polygonBridgeFacet.setFunctionApprovalBySelector(
+        polygonBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        polygonBridgeFacet.setFunctionApprovalBySelector(
+        polygonBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 

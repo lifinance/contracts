@@ -14,7 +14,7 @@ contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
         LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
+    function setFunctionWhitelistBySelector(bytes4 _selector) external {
         LibAllowList.addAllowedSelector(_selector);
     }
 }
@@ -42,19 +42,19 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = {{camelCase name}}Facet.addToWhitelist.selector;
         functionSelectors[3] = {{camelCase name}}Facet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address({{camelCase name}}Facet), functionSelectors);
         {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
         {{camelCase name}}Facet.addToWhitelist(ADDRESS_UNISWAP);
-        {{camelCase name}}Facet.setFunctionApprovalBySelector(
+        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        {{camelCase name}}Facet.setFunctionApprovalBySelector(
+        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        {{camelCase name}}Facet.setFunctionApprovalBySelector(
+        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

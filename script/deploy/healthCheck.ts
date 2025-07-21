@@ -247,8 +247,8 @@ const main = defineCommand({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
           'function getWhitelistedAddresses() external view returns (address[])',
-          'function isFunctionApproved(bytes4) external view returns (bool)',
-          'function getApprovedFunctionSelectors() external view returns (bytes4[])',
+          'function isFunctionSelectorWhitelisted(bytes4) external view returns (bool)',
+          'function getWhitelistedFunctionSelectors() external view returns (bytes4[])',
         ]),
         client: publicClient,
       })
@@ -311,7 +311,7 @@ const main = defineCommand({
       )
 
       // Get all approved selectors from contract
-      const approvedSelectors = await getApprovedFunctionSelectors(
+      const approvedSelectors = await getWhitelistedFunctionSelectors(
         whitelistManager
       )
 
@@ -585,16 +585,16 @@ const finish = () => {
   }
 }
 
-const getApprovedFunctionSelectors = async (
+const getWhitelistedFunctionSelectors = async (
   whitelistManager: any
 ): Promise<Hex[]> => {
   try {
     const approvedSelectors =
-      await whitelistManager.read.getApprovedFunctionSelectors()
+      await whitelistManager.read.getWhitelistedFunctionSelectors()
     return approvedSelectors
   } catch (error) {
     logError(
-      'Failed to get approved function selectors (call to getApprovedFunctionSelectors function)'
+      'Failed to get approved function selectors (call to getWhitelistedFunctionSelectors function)'
     )
     return []
   }

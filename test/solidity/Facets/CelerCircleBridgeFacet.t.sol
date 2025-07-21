@@ -46,7 +46,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = celerCircleBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = celerCircleBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
@@ -54,13 +54,13 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
         celerCircleBridgeFacet.addToWhitelist(address(uniswap));
-        celerCircleBridgeFacet.setFunctionApprovalBySelector(
+        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySelector(
+        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySelector(
+        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

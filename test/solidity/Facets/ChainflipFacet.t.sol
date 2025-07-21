@@ -48,19 +48,19 @@ contract ChainflipFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
         functionSelectors[3] = chainflipFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
         chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionApprovalBySelector(
+        chainflipFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        chainflipFacet.setFunctionApprovalBySelector(
+        chainflipFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        chainflipFacet.setFunctionApprovalBySelector(
+        chainflipFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

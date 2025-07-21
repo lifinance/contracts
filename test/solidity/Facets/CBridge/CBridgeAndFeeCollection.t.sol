@@ -33,23 +33,23 @@ contract CBridgeAndFeeCollectionTest is TestBase {
             .swapAndStartBridgeTokensViaCBridge
             .selector;
         functionSelectors[2] = cBridge.addToWhitelist.selector;
-        functionSelectors[3] = cBridge.setFunctionApprovalBySelector.selector;
+        functionSelectors[3] = cBridge.setFunctionWhitelistBySelector.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addToWhitelist(address(uniswap));
         cBridge.addToWhitelist(address(feeCollector));
-        cBridge.setFunctionApprovalBySelector(
+        cBridge.setFunctionWhitelistBySelector(
             bytes4(feeCollector.collectTokenFees.selector)
         );
-        cBridge.setFunctionApprovalBySelector(
+        cBridge.setFunctionWhitelistBySelector(
             bytes4(feeCollector.collectNativeFees.selector)
         );
-        cBridge.setFunctionApprovalBySelector(
+        cBridge.setFunctionWhitelistBySelector(
             bytes4(uniswap.swapExactTokensForTokens.selector)
         );
-        cBridge.setFunctionApprovalBySelector(
+        cBridge.setFunctionWhitelistBySelector(
             bytes4(uniswap.swapETHForExactTokens.selector)
         );
     }

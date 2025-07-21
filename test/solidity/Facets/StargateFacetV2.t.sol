@@ -63,7 +63,7 @@ contract StargateFacetV2Test is TestBaseFacet {
             .selector;
         functionSelectors[2] = stargateFacetV2.addToWhitelist.selector;
         functionSelectors[3] = stargateFacetV2
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
@@ -73,22 +73,22 @@ contract StargateFacetV2Test is TestBaseFacet {
         // whitelist DEX and feeCollector addresses and function selectors in diamond
         stargateFacetV2.addToWhitelist(address(uniswap));
         stargateFacetV2.addToWhitelist(address(feeCollector));
-        stargateFacetV2.setFunctionApprovalBySelector(
+        stargateFacetV2.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        stargateFacetV2.setFunctionApprovalBySelector(
+        stargateFacetV2.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        stargateFacetV2.setFunctionApprovalBySelector(
+        stargateFacetV2.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        stargateFacetV2.setFunctionApprovalBySelector(
+        stargateFacetV2.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        stargateFacetV2.setFunctionApprovalBySelector(
+        stargateFacetV2.setFunctionWhitelistBySelector(
             feeCollector.collectNativeFees.selector
         );
-        stargateFacetV2.setFunctionApprovalBySelector(
+        stargateFacetV2.setFunctionWhitelistBySelector(
             feeCollector.collectTokenFees.selector
         );
 

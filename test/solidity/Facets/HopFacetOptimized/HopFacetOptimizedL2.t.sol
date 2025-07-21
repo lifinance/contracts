@@ -48,23 +48,25 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
         functionSelectors[5] = hopFacet.addToWhitelist.selector;
-        functionSelectors[6] = hopFacet.setFunctionApprovalBySelector.selector;
+        functionSelectors[6] = hopFacet
+            .setFunctionWhitelistBySelector
+            .selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
         hopFacet = TestHopFacet(address(diamond));
 
         hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactETHForTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");

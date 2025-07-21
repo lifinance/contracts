@@ -43,14 +43,14 @@ contract SwapperV2Test is TestBase {
             .addToWhitelist
             .selector;
         functionSelectors[2] = TestWhitelistManagerBase
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addToWhitelist(address(amm));
-        swapper.setFunctionApprovalBySelector(bytes4(amm.swap.selector));
+        swapper.setFunctionWhitelistBySelector(bytes4(amm.swap.selector));
     }
 
     function testSwapCleanup() public {

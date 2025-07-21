@@ -104,19 +104,19 @@ contract MayanFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = mayanBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = mayanBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
         mayanBridgeFacet = TestMayanFacet(address(diamond));
         mayanBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
-        mayanBridgeFacet.setFunctionApprovalBySelector(
+        mayanBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySelector(
+        mayanBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySelector(
+        mayanBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

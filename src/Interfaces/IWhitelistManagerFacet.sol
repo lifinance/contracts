@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title Whitelist Manager Facet Interface
 /// @author LI.FI (https://li.fi)
 /// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 interface IWhitelistManagerFacet {
     /// @notice Emitted when a new address is added to the whitelist.
     event AddressWhitelisted(address indexed whitelistedAddress);
@@ -12,10 +12,10 @@ interface IWhitelistManagerFacet {
     /// @notice Emitted when an address is removed from the whitelist.
     event AddressRemoved(address indexed removedAddress);
 
-    /// @notice Emitted when a function selector approval is changed.
-    event FunctionSelectorApprovalChanged(
+    /// @notice Emitted when a function selector whitelist status is changed.
+    event FunctionSelectorWhitelistChanged(
         bytes4 indexed functionSelector,
-        bool indexed approved
+        bool indexed whitelisted
     );
 
     /// @notice Register an address to be approved for interactions.
@@ -34,28 +34,28 @@ interface IWhitelistManagerFacet {
     /// @param _addresses The addresses to be removed from the whitelist.
     function batchRemoveFromWhitelist(address[] calldata _addresses) external;
 
-    /// @notice Adds or removes a specific function selector to/from the allowlist.
-    /// @param _selector The function selector to allow or disallow.
-    /// @param _approval Whether the function selector should be allowed.
-    function setFunctionApprovalBySelector(
+    /// @notice Adds or removes a specific function selector to/from the whitelist.
+    /// @param _selector The function selector to whitelist or unwhitelist.
+    /// @param _whitelisted Whether the function selector should be whitelisted.
+    function setFunctionWhitelistBySelector(
         bytes4 _selector,
-        bool _approval
+        bool _whitelisted
     ) external;
 
-    /// @notice Batch adds or removes specific function selectors to/from the allowlist.
-    /// @param _selectors The function selectors to allow or disallow.
-    /// @param _approval Whether the function selectors should be allowed.
-    function batchSetFunctionApprovalBySelector(
+    /// @notice Batch adds or removes specific function selectors to/from the whitelist.
+    /// @param _selectors The function selectors to whitelist or unwhitelist.
+    /// @param _whitelisted Whether the function selectors should be whitelisted.
+    function batchSetFunctionWhitelistBySelector(
         bytes4[] calldata _selectors,
-        bool _approval
+        bool _whitelisted
     ) external;
 
     /// @notice Returns whether a function selector is approved.
     /// @param _selector The function selector to query.
-    /// @return approved Approved or not.
-    function isFunctionApproved(
+    /// @return whitelisted Whitelisted or not.
+    function isFunctionSelectorWhitelisted(
         bytes4 _selector
-    ) external view returns (bool approved);
+    ) external view returns (bool whitelisted);
 
     /// @notice Returns a list of all whitelisted addresses.
     /// @dev WARNING: this does a full read of stored addresses.
@@ -69,17 +69,17 @@ interface IWhitelistManagerFacet {
 
     /// @notice Returns whether an address is whitelisted.
     /// @param _address The address to query.
-    /// @return approved Whitelisted or not.
+    /// @return whitelisted Whitelisted or not.
     function isAddressWhitelisted(
         address _address
-    ) external view returns (bool approved);
+    ) external view returns (bool whitelisted);
 
     /// @notice Returns a list of all approved function selectors.
     /// @dev WARNING: this does a full read of stored selectors.
     ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
     ///      the call may run out of gas. Do not rely on it for unbounded iteration.
     /// @return selectors List of approved function selectors.
-    function getApprovedFunctionSelectors()
+    function getWhitelistedFunctionSelectors()
         external
         view
         returns (bytes4[] memory selectors);

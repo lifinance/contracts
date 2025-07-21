@@ -255,11 +255,11 @@ contract GasZipPeripheryTest is TestBase {
 
         // whitelist gasZipPeriphery and FeeCollector
         gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
-        gasZipPeriphery.setFunctionApprovalBySelector(
+        gasZipPeriphery.setFunctionWhitelistBySelector(
             gasZipPeriphery.depositToGasZipERC20.selector
         );
         gasZipPeriphery.addToWhitelist(address(feeCollector));
-        gasZipPeriphery.setFunctionApprovalBySelector(
+        gasZipPeriphery.setFunctionWhitelistBySelector(
             feeCollector.collectTokenFees.selector
         );
 
@@ -347,7 +347,7 @@ contract GasZipPeripheryTest is TestBase {
 
         // whitelist gasZipPeriphery and FeeCollector
         gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
-        gasZipPeriphery.setFunctionApprovalBySelector(
+        gasZipPeriphery.setFunctionWhitelistBySelector(
             gasZipPeriphery.depositToGasZipNative.selector
         );
 
@@ -456,7 +456,7 @@ contract GasZipPeripheryTest is TestBase {
             .selector;
         functionSelectors[2] = _gnosisBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = _gnosisBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(_gnosisBridgeFacet), functionSelectors);
@@ -469,29 +469,29 @@ contract GasZipPeripheryTest is TestBase {
         _gnosisBridgeFacet.addToWhitelist(address(feeCollector));
 
         // add function selectors for GasZipPeriphery
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             gasZipPeriphery.depositToGasZipERC20.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             gasZipPeriphery.depositToGasZipNative.selector
         );
 
         // add function selectors for FeeCollector
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             feeCollector.collectTokenFees.selector
         );
 
         // add function selectors for Uniswap
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        _gnosisBridgeFacet.setFunctionApprovalBySelector(
+        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactETHForTokens.selector
         );
 

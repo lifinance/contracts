@@ -52,7 +52,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = deBridgeDlnFacet.addToWhitelist.selector;
         functionSelectors[3] = deBridgeDlnFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         functionSelectors[4] = deBridgeDlnFacet.setDeBridgeChainId.selector;
         functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
@@ -61,13 +61,13 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
         deBridgeDlnFacet.addToWhitelist(ADDRESS_UNISWAP);
-        deBridgeDlnFacet.setFunctionApprovalBySelector(
+        deBridgeDlnFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        deBridgeDlnFacet.setFunctionApprovalBySelector(
+        deBridgeDlnFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        deBridgeDlnFacet.setFunctionApprovalBySelector(
+        deBridgeDlnFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

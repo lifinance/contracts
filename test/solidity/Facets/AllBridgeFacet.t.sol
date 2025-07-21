@@ -34,19 +34,19 @@ contract AllBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = allBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = allBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
         allBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
-        allBridgeFacet.setFunctionApprovalBySelector(
+        allBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        allBridgeFacet.setFunctionApprovalBySelector(
+        allBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        allBridgeFacet.setFunctionApprovalBySelector(
+        allBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

@@ -42,7 +42,7 @@ contract OmniBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = omniBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = omniBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(omniBridgeFacet), functionSelectors);
@@ -50,13 +50,13 @@ contract OmniBridgeFacetTest is TestBaseFacet {
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
         omniBridgeFacet.addToWhitelist(address(uniswap));
-        omniBridgeFacet.setFunctionApprovalBySelector(
+        omniBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        omniBridgeFacet.setFunctionApprovalBySelector(
+        omniBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
-        omniBridgeFacet.setFunctionApprovalBySelector(
+        omniBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 

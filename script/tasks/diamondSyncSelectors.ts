@@ -75,7 +75,7 @@ const main = defineCommand({
     const whitelistManagerReader = getContract({
       address: deployedContracts['LiFiDiamond'],
       abi: parseAbi([
-        'function isFunctionApproved(bytes4) external view returns (bool)',
+        'function isFunctionSelectorWhitelisted(bytes4) external view returns (bool)',
       ]),
       client: publicClient,
     })
@@ -85,7 +85,7 @@ const main = defineCommand({
     const calls = selectors.map((selector: string) => {
       return {
         ...whitelistManagerReader,
-        functionName: 'isFunctionApproved',
+        functionName: 'isFunctionSelectorWhitelisted',
         args: [selector],
       }
     })
@@ -130,9 +130,9 @@ const main = defineCommand({
         tx = await walletClient.writeContract({
           address: deployedContracts['LiFiDiamond'],
           abi: parseAbi([
-            'function batchSetFunctionApprovalBySelectors(bytes4[],bool) external',
+            'function batchSetFunctionWhitelistBySelectors(bytes4[],bool) external',
           ]),
-          functionName: 'batchSetFunctionApprovalBySelectors',
+          functionName: 'batchSetFunctionWhitelistBySelectors',
           args: [selectorsToApprove, true],
           account,
         })

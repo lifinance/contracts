@@ -54,7 +54,7 @@ contract RelayFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = relayFacet.addToWhitelist.selector;
         functionSelectors[3] = relayFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
@@ -62,13 +62,13 @@ contract RelayFacetTest is TestBaseFacet {
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
         relayFacet.addToWhitelist(ADDRESS_UNISWAP);
-        relayFacet.setFunctionApprovalBySelector(
+        relayFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        relayFacet.setFunctionApprovalBySelector(
+        relayFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        relayFacet.setFunctionApprovalBySelector(
+        relayFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

@@ -52,7 +52,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         functionSelectors[1] = genericSwapFacet.addToWhitelist.selector;
         functionSelectors[2] = genericSwapFacet.removeFromWhitelist.selector;
         functionSelectors[3] = genericSwapFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
@@ -85,48 +85,48 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         // whitelist uniswap dex with function selectors
         // v1
         genericSwapFacet.addToWhitelist(address(uniswap));
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactETHForTokens.selector
         );
         // v3
         genericSwapFacetV3.addToWhitelist(address(uniswap));
-        genericSwapFacetV3.setFunctionApprovalBySelector(
+        genericSwapFacetV3.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        genericSwapFacetV3.setFunctionApprovalBySelector(
+        genericSwapFacetV3.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        genericSwapFacetV3.setFunctionApprovalBySelector(
+        genericSwapFacetV3.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        genericSwapFacetV3.setFunctionApprovalBySelector(
+        genericSwapFacetV3.setFunctionWhitelistBySelector(
             uniswap.swapExactETHForTokens.selector
         );
 
         // whitelist feeCollector with function selectors
         // v1
         genericSwapFacet.addToWhitelist(FEE_COLLECTOR);
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             bytes4(feeCollector.collectTokenFees.selector)
         );
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             feeCollector.collectNativeFees.selector
         );
         // v3
         genericSwapFacetV3.addToWhitelist(FEE_COLLECTOR);
-        genericSwapFacetV3.setFunctionApprovalBySelector(
+        genericSwapFacetV3.setFunctionWhitelistBySelector(
             bytes4(feeCollector.collectTokenFees.selector)
         );
-        genericSwapFacetV3.setFunctionApprovalBySelector(
+        genericSwapFacetV3.setFunctionWhitelistBySelector(
             feeCollector.collectNativeFees.selector
         );
 
@@ -1947,7 +1947,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
 
         // whitelist DEX & function selector
         genericSwapFacet.addToWhitelist(address(mockDex));
-        genericSwapFacet.setFunctionApprovalBySelector(
+        genericSwapFacet.setFunctionWhitelistBySelector(
             mockDex.swapTokensForExactTokens.selector
         );
 

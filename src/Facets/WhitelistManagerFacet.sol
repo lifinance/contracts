@@ -7,10 +7,10 @@ import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
 import { CannotAuthoriseSelf, InvalidConfig } from "../Errors/GenericErrors.sol";
 
-/// @title Whitelist Manager Facet
+/// @title WhitelistManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
@@ -53,37 +53,37 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
     }
 
-    /// @notice Adds or removes a specific function selector to/from the allowlist.
-    /// @param _selector The function selector to allow or disallow.
-    /// @param _approval Whether the function selector should be allowed.
-    function setFunctionApprovalBySelector(
+    /// @notice Adds or removes a specific function selector to/from the whitelist.
+    /// @param _selector The function selector to whitelist or unwhitelist.
+    /// @param _whitelisted Whether the function selector should be whitelisted.
+    function setFunctionWhitelistBySelector(
         bytes4 _selector,
-        bool _approval
+        bool _whitelisted
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        _setFunctionApproval(_selector, _approval);
+        _setFunctionWhitelist(_selector, _whitelisted);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function batchSetFunctionApprovalBySelector(
+    function batchSetFunctionWhitelistBySelector(
         bytes4[] calldata _selectors,
-        bool _approval
+        bool _whitelisted
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
         uint256 length = _selectors.length;
         for (uint256 i = 0; i < length; ++i) {
-            _setFunctionApproval(_selectors[i], _approval);
+            _setFunctionWhitelist(_selectors[i], _whitelisted);
         }
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function isFunctionApproved(
+    function isFunctionSelectorWhitelisted(
         bytes4 _selector
-    ) external view returns (bool approved) {
+    ) external view returns (bool whitelisted) {
         return LibAllowList.selectorIsAllowed(_selector);
     }
 
@@ -99,12 +99,12 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// @inheritdoc IWhitelistManagerFacet
     function isAddressWhitelisted(
         address _address
-    ) external view returns (bool approved) {
+    ) external view returns (bool whitelisted) {
         return LibAllowList.contractIsAllowed(_address);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function getApprovedFunctionSelectors()
+    function getWhitelistedFunctionSelectors()
         external
         view
         returns (bytes4[] memory selectors)
@@ -132,17 +132,20 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         emit AddressRemoved(_address);
     }
 
-    /// @dev Internal function to handle function selector approval logic
-    function _setFunctionApproval(bytes4 _selector, bool _approval) internal {
-        bool currentlyApproved = LibAllowList.selectorIsAllowed(_selector);
+    /// @dev Internal function to handle function selector whitelist logic
+    function _setFunctionWhitelist(
+        bytes4 _selector,
+        bool _whitelisted
+    ) internal {
+        bool currentlyWhitelisted = LibAllowList.selectorIsAllowed(_selector);
 
-        if (_approval != currentlyApproved) {
-            if (_approval) {
+        if (_whitelisted != currentlyWhitelisted) {
+            if (_whitelisted) {
                 LibAllowList.addAllowedSelector(_selector);
             } else {
                 LibAllowList.removeAllowedSelector(_selector);
             }
-            emit FunctionSelectorApprovalChanged(_selector, _approval);
+            emit FunctionSelectorWhitelistChanged(_selector, _whitelisted);
         }
     }
 
@@ -205,7 +208,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
             }
 
             LibAllowList.addAllowedSelector(_selectorsToAdd[i]);
-            emit FunctionSelectorApprovalChanged(_selectorsToAdd[i], true);
+            emit FunctionSelectorWhitelistChanged(_selectorsToAdd[i], true);
         }
 
         // Mark as migrated

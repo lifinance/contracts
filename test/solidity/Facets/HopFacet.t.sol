@@ -42,7 +42,9 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
         functionSelectors[4] = hopFacet.addToWhitelist.selector;
-        functionSelectors[5] = hopFacet.setFunctionApprovalBySelector.selector;
+        functionSelectors[5] = hopFacet
+            .setFunctionWhitelistBySelector
+            .selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
@@ -55,13 +57,13 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet.initHop(configs);
 
         hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySelector(
+        hopFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
@@ -234,7 +236,7 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[3] = hopFacet2.registerBridge.selector;
         functionSelectors[4] = hopFacet2.addToWhitelist.selector;
         functionSelectors[5] = hopFacet2
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);

@@ -53,7 +53,7 @@ contract GasZipFacetTest is TestBaseFacet {
         functionSelectors[3] = gasZipFacet.addToWhitelist.selector;
         functionSelectors[4] = gasZipFacet.removeFromWhitelist.selector;
         functionSelectors[5] = gasZipFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         addFacet(diamond, address(gasZipFacet), functionSelectors);
 
@@ -62,16 +62,16 @@ contract GasZipFacetTest is TestBaseFacet {
         // whitelist uniswap dex with function selectors
         gasZipFacet.addToWhitelist(address(uniswap));
         gasZipFacet.addToWhitelist(address(gasZipFacet));
-        gasZipFacet.setFunctionApprovalBySelector(
+        gasZipFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        gasZipFacet.setFunctionApprovalBySelector(
+        gasZipFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        gasZipFacet.setFunctionApprovalBySelector(
+        gasZipFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        gasZipFacet.setFunctionApprovalBySelector(
+        gasZipFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

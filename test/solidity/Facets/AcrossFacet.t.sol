@@ -39,19 +39,19 @@ contract AcrossFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = acrossFacet.addToWhitelist.selector;
         functionSelectors[3] = acrossFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(acrossFacet), functionSelectors);
         acrossFacet = TestAcrossFacet(address(diamond));
         acrossFacet.addToWhitelist(ADDRESS_UNISWAP);
-        acrossFacet.setFunctionApprovalBySelector(
+        acrossFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacet.setFunctionApprovalBySelector(
+        acrossFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacet.setFunctionApprovalBySelector(
+        acrossFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

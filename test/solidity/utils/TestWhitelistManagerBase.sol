@@ -20,7 +20,7 @@ abstract contract TestWhitelistManagerBase {
 
     /// @notice Adds a function selector to the whitelist
     /// @param _selector The function selector to add to the whitelist
-    function setFunctionApprovalBySelector(bytes4 _selector) external {
+    function setFunctionWhitelistBySelector(bytes4 _selector) external {
         LibAllowList.addAllowedSelector(_selector);
     }
 

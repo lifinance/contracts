@@ -48,19 +48,19 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             .selector;
         functionSelectors[2] = glacisFacet.addToWhitelist.selector;
         functionSelectors[3] = glacisFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
         glacisFacet.addToWhitelist(ADDRESS_UNISWAP);
-        glacisFacet.setFunctionApprovalBySelector(
+        glacisFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        glacisFacet.setFunctionApprovalBySelector(
+        glacisFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        glacisFacet.setFunctionApprovalBySelector(
+        glacisFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         _facetTestContractAddress = address(glacisFacet);

@@ -49,7 +49,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = arbitrumBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = arbitrumBridgeFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
@@ -57,13 +57,13 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
         arbitrumBridgeFacet.addToWhitelist(address(uniswap));
-        arbitrumBridgeFacet.setFunctionApprovalBySelector(
+        arbitrumBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        arbitrumBridgeFacet.setFunctionApprovalBySelector(
+        arbitrumBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        arbitrumBridgeFacet.setFunctionApprovalBySelector(
+        arbitrumBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

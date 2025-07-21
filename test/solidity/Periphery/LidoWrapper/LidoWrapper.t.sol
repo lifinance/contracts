@@ -93,7 +93,7 @@ contract LidoWrapperTest is TestBase {
             .selector;
         functionSelectors[2] = relayFacet.addToWhitelist.selector;
         functionSelectors[3] = relayFacet
-            .setFunctionApprovalBySelector
+            .setFunctionWhitelistBySelector
             .selector;
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
@@ -123,10 +123,10 @@ contract LidoWrapperTest is TestBase {
 
         // whitelist LidoWrapper as periphery
         relayFacet.addToWhitelist(address(lidoWrapper));
-        relayFacet.setFunctionApprovalBySelector(
+        relayFacet.setFunctionWhitelistBySelector(
             lidoWrapper.wrapStETHToWstETH.selector
         );
-        relayFacet.setFunctionApprovalBySelector(
+        relayFacet.setFunctionWhitelistBySelector(
             lidoWrapper.unwrapWstETHToStETH.selector
         );
 
