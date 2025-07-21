@@ -156,12 +156,30 @@ contract TestRelayFacet is RelayFacet {
     }
 }
 
+contract MockSilentFailTarget {
+    bool public shouldFail;
+
+    function setShouldFail(bool _shouldFail) external {
+        shouldFail = _shouldFail;
+    }
+
+    function processValue(uint256) external payable {
+        if (shouldFail) {
+            // Fail silently without error data using assembly
+            assembly {
+                revert(0, 0)
+            }
+        }
+    }
+}
+
 contract PatcherTest is TestBase {
     event CallReceived(uint256 value, address sender, uint256 ethValue);
 
     Patcher internal patcher;
     MockValueSource internal valueSource;
     MockTarget internal target;
+    MockSilentFailTarget internal silentFailTarget;
     ERC20 internal token;
     MockPriceOracle internal priceOracle;
     TestRelayFacet internal relayFacet;
@@ -175,6 +193,7 @@ contract PatcherTest is TestBase {
         patcher = new Patcher();
         valueSource = new MockValueSource();
         target = new MockTarget();
+        silentFailTarget = new MockSilentFailTarget();
         token = new ERC20("Test Token", "TEST", 18);
         priceOracle = new MockPriceOracle();
 
@@ -554,6 +573,38 @@ contract PatcherTest is TestBase {
             address(valueSource),
             valueGetter,
             address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
+    // Tests target contract silent failure (no error data) handling
+    function testRevert_ExecuteWithDynamicPatches_SilentTargetCallFailure()
+        public
+    {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+        silentFailTarget.setShouldFail(true);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            silentFailTarget.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        vm.expectRevert(Patcher.CallExecutionFailed.selector);
+        patcher.executeWithDynamicPatches(
+            address(valueSource),
+            valueGetter,
+            address(silentFailTarget),
             0,
             originalCalldata,
             offsets,

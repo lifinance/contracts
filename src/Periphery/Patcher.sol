@@ -79,19 +79,7 @@ contract Patcher {
         uint256[] calldata offsets,
         bool delegateCall
     ) external payable returns (bool success, bytes memory returnData) {
-        // Get the token balance of msg.sender
-        uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
-
-        // Transfer tokens from msg.sender to this contract
-        LibAsset.transferFromERC20(
-            tokenAddress,
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        // Approve the finalTarget to spend the deposited tokens
-        LibAsset.maxApproveERC20(IERC20(tokenAddress), finalTarget, amount);
+        _depositAndApprove(tokenAddress, finalTarget);
 
         return
             _executeWithDynamicPatches(
@@ -126,19 +114,7 @@ contract Patcher {
         uint256[][] calldata offsetGroups,
         bool delegateCall
     ) external payable returns (bool success, bytes memory returnData) {
-        // Get the token balance of msg.sender
-        uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
-
-        // Transfer tokens from msg.sender to this contract
-        LibAsset.transferFromERC20(
-            tokenAddress,
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        // Approve the finalTarget to spend the deposited tokens
-        LibAsset.maxApproveERC20(IERC20(tokenAddress), finalTarget, amount);
+        _depositAndApprove(tokenAddress, finalTarget);
 
         return
             _executeWithMultiplePatches(
@@ -184,6 +160,29 @@ contract Patcher {
     }
 
     /// Private Methods ///
+
+    /// @notice Helper function to handle token deposit and approval
+    /// @param tokenAddress The ERC20 token to transfer from msg.sender
+    /// @param finalTarget The contract to approve for spending the deposited tokens
+    /// @return amount The amount of tokens transferred and approved
+    function _depositAndApprove(
+        address tokenAddress,
+        address finalTarget
+    ) private returns (uint256 amount) {
+        // Get the token balance of msg.sender
+        amount = IERC20(tokenAddress).balanceOf(msg.sender);
+
+        // Transfer tokens from msg.sender to this contract
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
+
+        // Approve the finalTarget to spend the deposited tokens
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), finalTarget, amount);
+    }
 
     /// @notice Helper function to get a dynamic value from an external contract
     /// @param valueSource The contract to query for the dynamic value
@@ -271,8 +270,11 @@ contract Patcher {
         // Get the dynamic value
         uint256 dynamicValue = _getDynamicValue(valueSource, valueGetter);
 
-        // Create a mutable copy of the original calldata
-        bytes memory patchedData = bytes(data);
+        // Create a mutable copy of the original calldata using calldatacopy for gas efficiency
+        bytes memory patchedData = new bytes(data.length);
+        assembly {
+            calldatacopy(add(patchedData, 0x20), data.offset, data.length)
+        }
 
         // Apply the patches in-place
         _applyPatches(patchedData, offsets, dynamicValue);
@@ -304,8 +306,11 @@ contract Patcher {
             if (offsetGroups[i].length == 0) revert InvalidPatchOffset();
         }
 
-        // Create a mutable copy of the original calldata
-        bytes memory patchedData = bytes(data);
+        // Create a mutable copy of the original calldata using calldatacopy for gas efficiency
+        bytes memory patchedData = new bytes(data.length);
+        assembly {
+            calldatacopy(add(patchedData, 0x20), data.offset, data.length)
+        }
 
         // Process patches in batches to avoid stack too deep
         _processPatches(valueSources, valueGetters, offsetGroups, patchedData);
