@@ -815,27 +815,44 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 }
 
 /// @notice Test for migrating the allow list configuration during diamond upgrades.
-/// @dev Please remove this test after the next facet upgrade with the migration logic.
+/// @dev This test suite validates the migration from DexManagerFacet to WhitelistManagerFacet.
+/// The migration was necessary because:
+/// 1. DexManagerFacet was too specific (only for DEXes) while we whitelist various protocols
+/// 2. Old storage layout in LibAllowList needed updating
+/// 3. Function naming was inconsistent ("approved" vs "whitelist")
+/// 4. Whitelisted function selectors were scattered offchain, now stored onchain
+///
+/// Migration Process:
+/// 1. Deploy new WhitelistManagerFacet with migration logic
+/// 2. Get current state from old DexManagerFacet (approved addresses and selectors)
+/// 3. Migrate to new storage layout while maintaining all permissions
+/// 4. Verify that existing integrations (like SwapperV2) continue working
+///
+/// @dev Remove this test suite after the next facet upgrade when migration is complete
 contract WhitelistManagerFacetMigrationTest is TestBase {
     using stdJson for string;
 
-    // LiFi Diamond on mainnet with old DexManager and AllowList storage layout
+    // LiFi Diamond on mainnet that uses old DexManager and AllowList storage layout
     address internal constant DIAMOND =
         0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
 
     WhitelistManagerFacet internal whitelistManagerWithMigrationLogic;
+    // DexManagerFacet is the legacy facet we're migrating from
+    // It used different function names (e.g., approvedDexs vs getWhitelistedAddresses)
+    // and didn't store all selectors onchain
     IDexManagerFacet internal dexManager;
+    // mock facet to verify that existing integrations still work after migration
     MockSwapperFacet internal mockSwapperFacet;
 
-    // Add this array of example selectors
+    // example selectors that were previously approved in DexManagerFacet
     bytes4[] internal currentWhitelistedSelectors;
 
     function setUp() public {
-        // Fork mainnet
+        // fork mainnet to test with real production state
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
         vm.createSelectFork(rpcUrl, 22888619);
 
-        // Replace JSON loading with hardcoded selectors
+        // example selectors that were previously managed offchain
         currentWhitelistedSelectors = new bytes4[](5);
         currentWhitelistedSelectors[0] = 0x38ed1739; // swapExactTokensForTokens
         currentWhitelistedSelectors[1] = 0x8803dbee; // swapTokensForExactTokens
@@ -843,11 +860,12 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         currentWhitelistedSelectors[3] = 0x7617b389; // exactInputSingle
         currentWhitelistedSelectors[4] = 0x90411a32; // execute
 
-        // get DexManager interface
+        // get old DexManager interface to read current state
         dexManager = IDexManagerFacet(DIAMOND);
     }
 
     function test_MigrateAllowListWithSwapperCheck() public {
+        // Set up mock swapper to verify existing integrations
         mockSwapperFacet = new MockSwapperFacet();
         bytes4[] memory mockSwapperSelectors = new bytes4[](2);
         mockSwapperSelectors[0] = MockSwapperFacet.isContractAllowed.selector;
@@ -860,7 +878,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
 
-        // Using real whitelisted address from mainnet config
+        // Test with real production data from mainnet
         address currentlyApprovedDex = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D; // Uniswap V2 Router
         // Using real whitelisted selector from config
         bytes4 approvedSelector = 0x38ed1739; // One of the whitelisted selectors
@@ -875,8 +893,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             "Selector should be allowed in allow list before migration"
         );
 
-        // MIGRATION STARTS
-        // get current whitelisted addresses (approvedDexs) from mainnet diamond using old DexManager interface
+        // PHASE 2: Migration
+        // Get current state from old DexManagerFacet
         address[] memory whitelistedAddresses = dexManager.approvedDexs();
 
         // get all selectors that should be whitelisted

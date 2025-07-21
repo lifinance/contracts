@@ -11,6 +11,16 @@ import { CannotAuthoriseSelf, InvalidConfig } from "../Errors/GenericErrors.sol"
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
 /// @custom:version 1.0.0
+/// @dev This facet replaces the legacy DexManagerFacet to address several limitations:
+/// 1. Broader Scope: While DexManagerFacet suggested management of only DEX contracts,
+///    this facet accurately reflects its role in managing whitelists for all types of protocols
+///    (DEXes, bridges, etc.)
+/// 2. Storage Improvement: Implements a new LibAllowList storage layout, separating it from
+///    the legacy implementation
+/// 3. Complete onchain Data: Stores all whitelisted function selectors onchain, preventing
+///    fragmented offchain data management that existed in the previous implementation
+/// 4. Consistent Naming: Standardizes terminology around "whitelist" instead of mixing
+///    "approved" and "whitelist"
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
