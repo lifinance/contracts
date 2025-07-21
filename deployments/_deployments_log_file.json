@@ -36598,12 +36598,13 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x2Cd61EeF1A3939c507C57A76925FB0510E805a1e",
+            "ADDRESS": "0x35B861C331858Eaf9d7Be1737EA008820fBB8b50",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-16 08:37:07",
+            "TIMESTAMP": "2025-07-21 08:26:03",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
-            "SALT": "",
-            "VERIFIED": "false"
+            "SALT": "20250721",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
