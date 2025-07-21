@@ -2,6 +2,7 @@
 test = 'test/solidity'
 solc_version = '0.8.29'
 evm_version = 'cancun'
+auto_detect_solc = false
 optimizer = true
 optimizer_runs = 1000000
 # use a known address with a balance so ZkEVM scripts work
@@ -20,6 +21,7 @@ cache = true
 
 [profile.zksync]
 solc_version = '0.8.26'
+zksolc = '1.5.15'
 test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
@@ -103,7 +105,7 @@ base = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v
 berachain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=80094", chain = "80094" }
 blast = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=81457", chain = "81457" }
 bob = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.gobob.xyz/api", verifier = "blockscout", chain = "60808" }
-boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api", chain = "288" }
+boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/288/etherscan", chain = "288" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
 corn = { key = "${CORN_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan", chain = "21000000" }
@@ -111,7 +113,7 @@ cronos = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io
 fantom = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=250", chain = "250" }
 flare = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan", chain = "14" }
 fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=252", chain = "252" }
-fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
+fuse = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.fuse.io/api?", chain = "122" , verifier = "blockscout"}
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
 hyperevm = { key = "${BLOCKSCOUT_API_KEY}", url = "https://www.hyperscan.com/api", chain = "999", verifier = "blockscout" }

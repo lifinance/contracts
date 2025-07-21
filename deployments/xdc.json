@@ -19,5 +19,6 @@
   "Permit2Proxy": "0x767cEE938DF7d88D3e880Cbfc35C9cAfee882f4d",
   "ReceiverStargateV2": "0x6fff376d51C4305AA42f4916fa35c3Ac03974CeB",
   "TokenWrapper": "0x94Caf1ed23310Ef981AA60e378ab369D4875a7F7",
-  "GasZipPeriphery": "0xa8B0c4165c43690e7d0BA3bFff5f3f13aDAD7bCF"
+  "GasZipPeriphery": "0xa8B0c4165c43690e7d0BA3bFff5f3f13aDAD7bCF",
+  "LiFiTimelockController": "0x987132D1fcbC7eE02a7e8e947b64c91F9d619693"
 }
