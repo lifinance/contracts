@@ -54,8 +54,8 @@
         "Version": "1.0.1"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x0d2ea2aDb2212846a0F0E28C20175298F3283d2D": {
         "Name": "RelayFacet",
