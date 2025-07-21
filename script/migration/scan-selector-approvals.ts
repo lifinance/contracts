@@ -13,7 +13,7 @@
  * - Parallel Processing: Scans multiple networks concurrently
  * - Configurable chunk sizes per network to handle RPC limitations
  * - Support for custom RPC endpoints when public ones are unreliable
- * - Automatic retry mechanism with backoff for failed requests
+ * - Automatic retry mechanism with backoff for failed requests (via eventScanner utility)
  * - Timeout handling for unresponsive RPCs
  * - Integration with whitelistedSelectors.json for additional selectors
  *
@@ -24,10 +24,11 @@
  *    - Network-specific deployment blocks
  *    - Skip flags for specific networks
  *
- * 2. Scans FunctionSignatureApprovalChanged events from each network:
+ * 2. Scans FunctionSignatureApprovalChanged events from each network using eventScanner:
  *    - Processes blocks in configurable chunks to handle RPC limitations
  *    - Tracks only approval events (filters out revocation events)
  *    - Saves results progressively to handle large datasets
+ *    - Provides detailed scanning statistics and error handling
  *
  * 3. Generates functionSelectorsResult.json containing:
  *    - Complete list of approved selectors per network
@@ -55,11 +56,12 @@ import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { createPublicClient, http, type Address, type PublicClient } from 'viem'
+import { createPublicClient, http, type Address } from 'viem'
 
 import networksData from '../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import { getDeployments } from '../utils/deploymentHelpers'
+import { scanEventsInChunks } from '../utils/eventScanner'
 
 // Define interfaces
 interface INetworkConfig {
@@ -122,163 +124,6 @@ interface IScanSummary {
   totalDuration: number
   successfulNetworks: string[]
   failedNetworks: { network: string; error: string }[]
-}
-
-async function fetchEventsInChunks(
-  publicClient: PublicClient,
-  address: Address,
-  fromBlock: bigint,
-  toBlock: bigint,
-  networkName: string,
-  chunkSize: bigint
-) {
-  const events = []
-  let currentFromBlock = fromBlock
-  const totalBlocks = toBlock - fromBlock + 1n
-  let processedBlocks = 0n
-
-  consola.info(
-    `🔍 [${networkName}] Total blocks to scan: ${totalBlocks.toString()}`
-  )
-  consola.info(
-    `🔧 [${networkName}] Using chunk size: ${chunkSize.toString()} blocks`
-  )
-
-  while (currentFromBlock <= toBlock) {
-    const currentToBlock =
-      currentFromBlock + chunkSize - 1n > toBlock
-        ? toBlock
-        : currentFromBlock + chunkSize - 1n
-
-    const progress = Math.min(
-      100,
-      Number((processedBlocks * 100n) / totalBlocks)
-    )
-    consola.info(
-      `   [${networkName}] [${progress.toFixed(
-        0
-      )}%] Fetching events from block ${currentFromBlock} to ${currentToBlock}`
-    )
-
-    const maxRetries = 10
-    const baseRetryDelay = 5000 // 5 seconds
-    let retryCount = 0
-    let success = false
-
-    while (!success && retryCount <= maxRetries) {
-      try {
-        // Add timeout using AbortController
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 60000) // 60 second timeout
-
-        const chunkEvents = await publicClient
-          .getLogs({
-            address,
-            event: {
-              type: 'event',
-              name: 'FunctionSignatureApprovalChanged',
-              inputs: [
-                { indexed: true, name: 'functionSignature', type: 'bytes4' },
-                { indexed: true, name: 'approved', type: 'bool' },
-              ],
-            },
-            fromBlock: currentFromBlock,
-            toBlock: currentToBlock,
-          })
-          .finally(() => clearTimeout(timeout))
-
-        const blocksCovered = currentToBlock - currentFromBlock + 1n
-        processedBlocks += blocksCovered
-        events.push(...chunkEvents)
-        consola.info(
-          `   [${networkName}] Found ${chunkEvents.length} events in this chunk`
-        )
-        success = true
-      } catch (error: any) {
-        // Add ': any' type annotation
-        retryCount++
-
-        // Determine error type and appropriate response
-        const errorMessage = error.message?.toLowerCase() || ''
-        const isTimeout =
-          error.name === 'AbortError' ||
-          errorMessage.includes('timeout') ||
-          errorMessage.includes('network error') ||
-          errorMessage.includes('request timed out') ||
-          errorMessage.includes('took too long')
-
-        const isRateLimited =
-          error.status === 429 ||
-          errorMessage.includes('too many requests') ||
-          errorMessage.includes('rate limit')
-
-        const isBlockRangeError =
-          errorMessage.includes('block range') ||
-          errorMessage.includes('too many blocks') ||
-          errorMessage.includes('maximum') ||
-          errorMessage.includes('exceeded')
-
-        const isRPCError =
-          error.status >= 500 ||
-          errorMessage.includes('internal error') ||
-          errorMessage.includes('service unavailable') ||
-          errorMessage.includes('bad gateway')
-
-        if (retryCount > maxRetries) {
-          consola.error(
-            `❌ [${networkName}] Error fetching chunk ${currentFromBlock}-${currentToBlock} after ${maxRetries} retries:`,
-            error
-          )
-          throw error
-        }
-
-        // Calculate retry delay based on error type
-        let waitTime = baseRetryDelay
-        if (isRateLimited) {
-          waitTime = baseRetryDelay * Math.pow(2, retryCount) // Exponential backoff for rate limits
-        } else if (isTimeout || isRPCError) {
-          waitTime = baseRetryDelay * (retryCount + 1) // Linear increase for timeouts/RPC errors
-        } else if (isBlockRangeError) {
-          // For block range errors, we should probably reduce chunk size instead of retrying
-          consola.error(
-            `❌ [${networkName}] Block range error for chunk ${currentFromBlock}-${currentToBlock}. Consider reducing chunk size.`,
-            error
-          )
-          throw error
-        }
-
-        // Cap maximum wait time at 60 seconds
-        waitTime = Math.min(waitTime, 60000)
-
-        const errorType = isTimeout
-          ? 'Timeout'
-          : isRateLimited
-          ? 'Rate Limited'
-          : isRPCError
-          ? 'RPC Error'
-          : isBlockRangeError
-          ? 'Block Range Error'
-          : 'Network Error'
-
-        consola.warn(
-          `⚠️  [${networkName}] ${errorType} fetching chunk ${currentFromBlock}-${currentToBlock}, retry ${retryCount}/${maxRetries} in ${
-            waitTime / 1000
-          }s...`
-        )
-        await new Promise((resolve) => setTimeout(resolve, waitTime))
-      }
-    }
-
-    // Update currentFromBlock for next chunk
-    currentFromBlock = currentToBlock + 1n
-  }
-
-  consola.success(
-    `✅ [${networkName}] Completed scanning ${totalBlocks.toString()} blocks, found ${
-      events.length
-    } total events`
-  )
-  return events
 }
 
 async function scanNetworkSelectors(
@@ -361,21 +206,28 @@ async function scanNetworkSelectors(
     consola.info(`   Total blocks to scan: ${latestBlock - fromBlock + 1n}`)
     consola.info(`   Chunk size: ${chunkSize} blocks`)
 
-    // Fetch events with configured chunk size
-    const selectorApprovalEvents = await fetchEventsInChunks(
+    const { events: selectorApprovalEvents } = await scanEventsInChunks({
       publicClient,
-      diamondAddress,
+      address: diamondAddress,
+      event: {
+        type: 'event',
+        name: 'FunctionSignatureApprovalChanged',
+        inputs: [
+          { indexed: true, name: 'functionSignature', type: 'bytes4' },
+          { indexed: true, name: 'approved', type: 'bool' },
+        ],
+      },
       fromBlock,
-      latestBlock,
-      network.name,
-      BigInt(chunkSize)
-    )
+      toBlock: latestBlock,
+      networkName: network.name,
+      chunkSize: BigInt(chunkSize),
+    })
 
     // Get all ever-whitelisted selectors from events
     const everWhitelistedSelectors = new Set(
       selectorApprovalEvents
-        .filter((event) => event.args.approved) // only get events where selectors were approved
-        .map((event) => event.args.functionSignature as string)
+        .filter((event: any) => event.args.approved) // only get events where selectors were approved
+        .map((event: any) => event.args.functionSignature as string)
     )
 
     const selectors = Array.from(everWhitelistedSelectors)
@@ -544,7 +396,7 @@ const cmd = defineCommand({
       default: EnvironmentEnum[EnvironmentEnum.production],
       options: [
         EnvironmentEnum[EnvironmentEnum.staging],
-        EnvironmentEnum[EnvironmentEnum.production],
+        EnvironmentEnum.production,
       ],
     },
     outputFile: {

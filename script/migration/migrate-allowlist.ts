@@ -34,7 +34,14 @@ import { existsSync, readFileSync } from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { parseAbi, encodeFunctionData, type Address, type Hex } from 'viem'
+import {
+  parseAbi,
+  encodeFunctionData,
+  type Address,
+  type Hex,
+  getContract,
+  getAddress,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import networksData from '../../config/networks.json'
@@ -154,6 +161,65 @@ const cmd = defineCommand({
   },
 })
 
+async function validateWhitelist(
+  whitelistManager: any,
+  contractsToAdd: Address[],
+  selectorsToAddBytes4: Hex[],
+  selectorsToRemoveBytes4: Hex[]
+) {
+  // Validate whitelisted addresses
+  const onChainWhitelisted =
+    await whitelistManager.read.getWhitelistedAddresses()
+  const missingAddresses = contractsToAdd.filter(
+    (addr) => !onChainWhitelisted.includes(getAddress(addr))
+  )
+
+  if (missingAddresses.length > 0) {
+    consola.error('❌ Some addresses were not properly whitelisted:')
+    missingAddresses.forEach((addr) => consola.error(`   ${addr}`))
+    throw new Error(
+      'Migration validation failed: Missing whitelisted addresses'
+    )
+  }
+
+  // Validate whitelisted selectors
+  const onChainSelectors =
+    await whitelistManager.read.getWhitelistedFunctionSelectors()
+  const missingSelectors = selectorsToAddBytes4.filter(
+    (selector) => !onChainSelectors.includes(selector)
+  )
+
+  if (missingSelectors.length > 0) {
+    consola.error('❌ Some selectors were not properly whitelisted:')
+    missingSelectors.forEach((selector) => consola.error(`   ${selector}`))
+    throw new Error(
+      'Migration validation failed: Missing whitelisted selectors'
+    )
+  }
+
+  // Validate that old selectors were removed (except those that should be re-added)
+  const unexpectedSelectors = selectorsToRemoveBytes4.filter(
+    (selector) =>
+      onChainSelectors.includes(selector) &&
+      !selectorsToAddBytes4.includes(selector)
+  )
+
+  if (unexpectedSelectors.length > 0) {
+    consola.error(
+      '❌ Some old selectors that should have been removed are still present:'
+    )
+    unexpectedSelectors.forEach((selector) => consola.error(`   ${selector}`))
+    throw new Error(
+      'Migration validation failed: Unexpected old selectors still present'
+    )
+  }
+
+  consola.success('✅ Migration validation successful:')
+  consola.info(`   - ${onChainWhitelisted.length} addresses whitelisted`)
+  consola.info(`   - ${onChainSelectors.length} selectors whitelisted`)
+  consola.info(`   - All old selectors successfully removed`)
+}
+
 async function migrateAllowList(
   network: INetworkConfig,
   privateKey: string,
@@ -192,29 +258,7 @@ async function migrateAllowList(
     rpcUrlOverride
   )
 
-  // Check if already migrated
-
-  try {
-    const isMigrated = await publicClient.readContract({
-      address: diamondAddress,
-      abi: WHITELIST_MANAGER_ABI,
-      functionName: 'isMigrated',
-    })
-
-    if (isMigrated) {
-      consola.info('✅ Allow list already migrated')
-      return
-    }
-  } catch (error) {
-    consola.error(
-      '❌ Most probably: WhitelistManagerFacet not found on diamond. Please ensure the facet is added to the diamond first.'
-    )
-    consola.info(
-      '💡 The WhitelistManagerFacet needs to be deployed and added to the diamond before running the migration.'
-    )
-    throw error
-  }
-
+  // Load selectors file first
   const selectorsToRemoveFilePath =
     './script/migration/flattened-scan-selector-approvals.json'
   let selectorsToRemove: string[] = []
@@ -268,6 +312,61 @@ async function migrateAllowList(
   // Normalize current addresses to lowercase for comparison
   const selectorsToAdd = new Set(whitelistedSelectorsFromFile)
 
+  // Now convert types after we have all the data
+  const contractsToAdd = Array.from(addressesToAdd).map(
+    (addr) => addr as Address
+  )
+  const selectorsToRemoveBytes4 = selectorsToRemove.map(
+    (selector) => selector as Hex
+  )
+  const selectorsToAddBytes4 = Array.from(selectorsToAdd).map(
+    (selector: string) => selector as Hex
+  )
+
+  // Create contract instance for validation checks
+  const whitelistManager = getContract({
+    address: diamondAddress,
+    abi: parseAbi([
+      'function getWhitelistedAddresses() external view returns (address[])',
+      'function isFunctionSelectorWhitelisted(bytes4) external view returns (bool)',
+      'function getWhitelistedFunctionSelectors() external view returns (bytes4[])',
+    ]),
+    client: publicClient,
+  })
+
+  // Check if already migrated
+  try {
+    const isMigrated = await publicClient.readContract({
+      address: diamondAddress,
+      abi: WHITELIST_MANAGER_ABI,
+      functionName: 'isMigrated',
+    })
+
+    if (isMigrated) {
+      consola.info('✅ Allow list already migrated')
+      consola.info('🔍 Validating current whitelist state...')
+    }
+
+    await validateWhitelist(
+      whitelistManager,
+      contractsToAdd,
+      selectorsToAddBytes4,
+      selectorsToRemoveBytes4
+    )
+
+    if (isMigrated) {
+      return
+    }
+  } catch (error) {
+    consola.error(
+      '❌ Most probably: WhitelistManagerFacet not found on diamond. Please ensure the facet is added to the diamond first.'
+    )
+    consola.info(
+      '💡 The WhitelistManagerFacet needs to be deployed and added to the diamond before running the migration.'
+    )
+    throw error
+  }
+
   consola.info(`Migration:`)
   consola.info(
     `   - ${
@@ -277,17 +376,6 @@ async function migrateAllowList(
   consola.info(`   - ${selectorsToRemove.length} old selectors will be removed`)
   consola.info(
     `   - ${Array.from(selectorsToAdd).length} new selectors will be added`
-  )
-
-  // Convert to proper types
-  const contractsToAdd = Array.from(addressesToAdd).map(
-    (addr) => addr as Address
-  )
-  const selectorsToRemoveBytes4 = selectorsToRemove.map(
-    (selector) => selector as Hex
-  )
-  const selectorsToAddBytes4 = Array.from(selectorsToAdd).map(
-    (selector: string) => selector as Hex
   )
 
   if (isDryRun) {
@@ -334,6 +422,17 @@ async function migrateAllowList(
     } catch (error) {
       consola.error('❌ Migration failed:', error)
     }
+  }
+
+  // After migration (if not dry run)
+  if (!isDryRun) {
+    consola.info('🔍 Validating migration results...')
+    await validateWhitelist(
+      whitelistManager,
+      contractsToAdd,
+      selectorsToAddBytes4,
+      selectorsToRemoveBytes4
+    )
   }
 }
 
