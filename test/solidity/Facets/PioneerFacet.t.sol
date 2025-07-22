@@ -22,14 +22,14 @@ contract TestPioneerFacet is PioneerFacet {
 }
 
 contract PioneerFacetTest is TestBaseFacet {
+    event PioneerRefundAddressRegistered(address indexed refundTo);
+
     TestPioneerFacet internal basePioneerFacet;
     TestPioneerFacet internal pioneerFacet;
 
     address payable internal destination;
 
     PioneerFacet.PioneerData internal pioneerData;
-
-    event PioneerRefundAddressRegistered(address indexed refundTo);
 
     function setUp() public {
         customBlockNumberForForking = 17130542;
