@@ -5,7 +5,7 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
-import { InvalidConfig, InvalidCallData, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 // Stub AllBridgeFacet Contract
@@ -106,7 +106,6 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         validAllBridgeData = AllBridgeFacet.AllBridgeData({
             fees: fees,
             recipient: bytes32(uint256(uint160(USER_RECEIVER))),
-            destinationChainId: 5,
             receiveToken: 0x0000000000000000000000002791Bca1f2de4661ED88A30C99A7a9449Aa84174,
             nonce: 40953790744158426077674476975877556494233328003707004662889959804198145032447,
             messenger: IAllBridge.MessengerProtocol.Allbridge,
@@ -208,22 +207,6 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         initiateSwapAndBridgeTxWithFacet(false);
     }
 
-    function testRevert_WhenDestinationChainIdDoesNotMatch() public {
-        vm.startPrank(USER_SENDER);
-
-        // update bridgeData
-        validAllBridgeData.destinationChainId = 10; // optimism
-
-        usdc.approve(address(allBridgeFacet), bridgeData.minAmount);
-
-        vm.expectRevert(InvalidCallData.selector);
-
-        allBridgeFacet.startBridgeTokensViaAllBridge(
-            bridgeData,
-            validAllBridgeData
-        );
-    }
-
     function testRevert_WhenReceiverDoesNotMatch() public {
         vm.startPrank(USER_SENDER);
 
@@ -265,7 +248,6 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         // update bridgeData for non-EVM destination (Solana)
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
-        validAllBridgeData.destinationChainId = ALLBRIDGE_ID_SOLANA;
         validAllBridgeData.recipient = bytes32(
             uint256(uint160(0x1234567890123456789012345678901234567890))
         );
@@ -288,7 +270,7 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
-            validAllBridgeData.destinationChainId,
+            ALLBRIDGE_ID_SOLANA,
             validAllBridgeData.recipient
         );
 
@@ -309,7 +291,6 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         // update bridgeData for non-EVM destination (Solana)
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
-        validAllBridgeData.destinationChainId = ALLBRIDGE_ID_SOLANA;
         validAllBridgeData.recipient = bytes32(
             uint256(uint160(0x1234567890123456789012345678901234567890))
         );
@@ -331,7 +312,7 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
-            validAllBridgeData.destinationChainId,
+            ALLBRIDGE_ID_SOLANA,
             validAllBridgeData.recipient
         );
 

@@ -12,7 +12,7 @@ import { IDlnSource } from "../Interfaces/IDlnSource.sol";
 import { NotInitialized, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
-/// @title DeBridgeDLN Facet
+/// @title DeBridgeDLNFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through DeBridge DLN
 /// @custom:version 1.0.1

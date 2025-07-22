@@ -8,7 +8,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { InvalidConfig, InvalidCallData, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title Allbridge Facet
@@ -49,7 +49,6 @@ contract AllBridgeFacet is
     /// @notice The struct for the AllBridge data.
     /// @param recipient The address of the token receiver after bridging.
     /// @param fees The amount of token to pay the messenger and the bridge
-    /// @param destinationChainId The destination chain id.
     /// @param receiveToken The token to receive on the destination chain.
     /// @param nonce A random nonce to associate with the tx.
     /// @param messenger The messenger protocol enum
@@ -57,7 +56,6 @@ contract AllBridgeFacet is
     struct AllBridgeData {
         bytes32 recipient;
         uint256 fees;
-        uint256 destinationChainId;
         bytes32 receiveToken;
         uint256 nonce;
         IAllBridge.MessengerProtocol messenger;
@@ -129,11 +127,10 @@ contract AllBridgeFacet is
         // we do not validate _allBridgeData.fees here due to gas optimization reasons
         // our backend ensures that the fees are correct
 
-        // make sure destinationChainId matches in bridgeData and allBridgeData
-        if (
-            _allBridgeData.destinationChainId !=
-            _getAllBridgeChainId(_bridgeData.destinationChainId)
-        ) revert InvalidCallData();
+        // get allbridge (custom) destination chain id
+        uint256 destinationChainId = _getAllBridgeChainId(
+            _bridgeData.destinationChainId
+        );
 
         // validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
@@ -145,7 +142,7 @@ contract AllBridgeFacet is
             // emit event for non-EVM chain
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
-                _allBridgeData.destinationChainId,
+                destinationChainId,
                 _allBridgeData.recipient
             );
         } else {
@@ -171,7 +168,7 @@ contract AllBridgeFacet is
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
-                _allBridgeData.destinationChainId,
+                destinationChainId,
                 _allBridgeData.receiveToken,
                 _allBridgeData.nonce,
                 _allBridgeData.messenger,
@@ -183,7 +180,7 @@ contract AllBridgeFacet is
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
-                _allBridgeData.destinationChainId,
+                destinationChainId,
                 _allBridgeData.receiveToken,
                 _allBridgeData.nonce,
                 _allBridgeData.messenger,
@@ -201,8 +198,6 @@ contract AllBridgeFacet is
     function _getAllBridgeChainId(
         uint256 _destinationChainId
     ) internal pure returns (uint256) {
-        // split possible values in half for more efficient search/matching
-
         // first try to match cases where chainId is the same and does not need to be mapped
         if (
             _destinationChainId == ALLBRIDGE_ID_ETHEREUM ||
