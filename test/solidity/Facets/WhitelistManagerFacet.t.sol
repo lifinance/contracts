@@ -10,6 +10,8 @@ import { InvalidContract, CannotAuthoriseSelf, UnAuthorized, InvalidConfig } fro
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 contract Foo {}
 
@@ -1136,6 +1138,213 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             selectorsToRemove,
             contractsToAdd,
             selectorsToAdd
+        );
+    }
+
+    function test_DiamondCutWithInitCallDataThatCallsMigrate() public {
+        // et up mock swapper and get initial state
+        (
+            ,
+            address[] memory currentWhitelistedAddresses
+        ) = _setupInitialState();
+
+        // Get currently approved selectors (simulating reading from config)
+        bytes4[] memory selectorsToWhitelist = getAllApprovedSelectors();
+
+        // Deploy new WhitelistManagerFacet and prepare diamond cut
+        (
+            LibDiamond.FacetCut[] memory cuts,
+            bytes memory initCallData
+        ) = _prepareDiamondCut(
+                currentWhitelistedAddresses,
+                selectorsToWhitelist
+            );
+
+        // Execute diamond cut with init calldata
+        _executeDiamondCut(cuts, initCallData);
+
+        // Verify final state
+        _verifyFinalState(currentWhitelistedAddresses, selectorsToWhitelist);
+    }
+
+    function _setupInitialState()
+        internal
+        returns (MockSwapperFacet, address[] memory)
+    {
+        // Set up mock swapper
+        mockSwapperFacet = new MockSwapperFacet();
+        bytes4[] memory mockSwapperSelectors = new bytes4[](2);
+        mockSwapperSelectors[0] = MockSwapperFacet.isContractAllowed.selector;
+        mockSwapperSelectors[1] = MockSwapperFacet.isSelectorAllowed.selector;
+        addFacet(
+            LiFiDiamond(payable(DIAMOND)),
+            address(mockSwapperFacet),
+            mockSwapperSelectors
+        );
+
+        MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
+
+        // Get current state from legacy DexManagerFacet
+        (, bytes memory data) = DIAMOND.staticcall(
+            abi.encodeWithSignature("approvedDexs()")
+        );
+        address[] memory currentWhitelistedAddresses = abi.decode(
+            data,
+            (address[])
+        );
+
+        // Verify pre-migration state
+        address currentlyApprovedDex = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+        bytes4 approvedSelector = 0x38ed1739;
+        assertTrue(
+            mockSwapper.isContractAllowed(currentlyApprovedDex),
+            "Contract should be allowed before migration"
+        );
+        assertTrue(
+            mockSwapper.isSelectorAllowed(approvedSelector),
+            "Selector should be allowed before migration"
+        );
+
+        return (mockSwapper, currentWhitelistedAddresses);
+    }
+
+    function _prepareDiamondCut(
+        address[] memory currentWhitelistedAddresses,
+        bytes4[] memory selectorsToWhitelist
+    )
+        internal
+        returns (LibDiamond.FacetCut[] memory cuts, bytes memory initCallData)
+    {
+        // Deploy new WhitelistManagerFacet
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // Build selectors array excluding migrate()
+        bytes4[] memory allSelectors = new bytes4[](11);
+        allSelectors[0] = WhitelistManagerFacet.addToWhitelist.selector;
+        allSelectors[1] = WhitelistManagerFacet.removeFromWhitelist.selector;
+        allSelectors[2] = WhitelistManagerFacet.batchAddToWhitelist.selector;
+        allSelectors[3] = WhitelistManagerFacet
+            .batchRemoveFromWhitelist
+            .selector;
+        allSelectors[4] = WhitelistManagerFacet
+            .getWhitelistedAddresses
+            .selector;
+        allSelectors[5] = WhitelistManagerFacet
+            .setFunctionWhitelistBySelector
+            .selector;
+        allSelectors[6] = WhitelistManagerFacet
+            .batchSetFunctionWhitelistBySelector
+            .selector;
+        allSelectors[7] = WhitelistManagerFacet
+            .isFunctionSelectorWhitelisted
+            .selector;
+        allSelectors[8] = WhitelistManagerFacet.isAddressWhitelisted.selector;
+        allSelectors[9] = WhitelistManagerFacet
+            .getWhitelistedFunctionSelectors
+            .selector;
+        allSelectors[10] = WhitelistManagerFacet.isMigrated.selector;
+
+        // Prepare init calldata
+        initCallData = abi.encodeWithSelector(
+            WhitelistManagerFacet.migrate.selector,
+            currentWhitelistedSelectors, // selectorsToRemove
+            currentWhitelistedAddresses, // contractsToAdd
+            selectorsToWhitelist // selectorsToAdd
+        );
+
+        // Build diamond cut
+        cuts = new LibDiamond.FacetCut[](1);
+        cuts[0] = LibDiamond.FacetCut({
+            facetAddress: address(whitelistManagerWithMigrationLogic),
+            action: LibDiamond.FacetCutAction.Add,
+            functionSelectors: allSelectors
+        });
+
+        return (cuts, initCallData);
+    }
+
+    function _executeDiamondCut(
+        LibDiamond.FacetCut[] memory cuts,
+        bytes memory initCallData
+    ) internal {
+        // Verify migration hasn't happened yet
+        vm.expectRevert(); // isMigrated() doesn't exist yet
+        WhitelistManagerFacet(DIAMOND).isMigrated();
+
+        // Execute diamond cut with init calldata
+        address owner = OwnershipFacet(DIAMOND).owner();
+        vm.prank(owner);
+        DiamondCutFacet(DIAMOND).diamondCut(
+            cuts,
+            address(whitelistManagerWithMigrationLogic),
+            initCallData
+        );
+
+        // Verify migration completed
+        bool isMigrated = WhitelistManagerFacet(DIAMOND).isMigrated();
+        assertTrue(
+            isMigrated,
+            "Migration should be completed after diamond cut"
+        );
+    }
+
+    function _verifyFinalState(
+        address[] memory expectedAddresses,
+        bytes4[] memory expectedSelectors
+    ) internal {
+        // Get final state
+        address[] memory finalContracts = WhitelistManagerFacet(DIAMOND)
+            .getWhitelistedAddresses();
+        bytes4[] memory finalSelectors = WhitelistManagerFacet(DIAMOND)
+            .getWhitelistedFunctionSelectors();
+
+        // Verify lengths match
+        assertEq(
+            finalContracts.length,
+            expectedAddresses.length,
+            "Whitelisted addresses length mismatch"
+        );
+        assertEq(
+            finalSelectors.length,
+            expectedSelectors.length,
+            "Whitelisted selectors length mismatch"
+        );
+
+        // Verify each address is correctly migrated
+        for (uint256 i = 0; i < expectedAddresses.length; i++) {
+            bool found = false;
+            for (uint256 j = 0; j < finalContracts.length; j++) {
+                if (finalContracts[j] == expectedAddresses[i]) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found, "Address not found in final contracts");
+        }
+
+        // Verify each selector is correctly migrated
+        for (uint256 i = 0; i < expectedSelectors.length; i++) {
+            bool found = false;
+            for (uint256 j = 0; j < finalSelectors.length; j++) {
+                if (finalSelectors[j] == expectedSelectors[i]) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found, "Selector not found in final selectors");
+        }
+
+        // Verify existing integrations still work
+        address currentlyApprovedDex = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+        bytes4 approvedSelector = 0x38ed1739;
+        MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
+        assertTrue(
+            mockSwapper.isContractAllowed(currentlyApprovedDex),
+            "Contract should still be allowed after diamond cut migration"
+        );
+        assertTrue(
+            mockSwapper.isSelectorAllowed(approvedSelector),
+            "Selector should still be allowed after diamond cut migration"
         );
     }
 
