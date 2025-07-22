@@ -134,8 +134,8 @@
         "Version": "1.0.0"
       },
       "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",

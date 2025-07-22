@@ -1834,6 +1834,8 @@ function verifyContract() {
     )
   fi
 
+  echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
+
   # Add constructor args if present
   if [ "$ARGS" != "0x" ]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
@@ -1850,11 +1852,6 @@ function verifyContract() {
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
-    # add constructor args if present
-    if [ "$ARGS" != "0x" ]; then
-      VERIFY_CMD="$VERIFY_CMD --constructor-args $ARGS"
-    fi
-
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
       echo "Error: Could not find API key for network $NETWORK"
@@ -1864,16 +1861,16 @@ function verifyContract() {
     # some block explorers require to pass a string "verifyContract" instead of an API key (e.g. https://explorer.metis.io/documentation/recipes/foundry-verification)
     if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
       # add API key to verification command"
-      VERIFY_CMD="$VERIFY_CMD -e 'verifyContract'"
+      VERIFY_CMD+=("-e" "verifyContract")
     fi
   fi
 
-  echoDebug "VERIFY_CMD: $VERIFY_CMD"
+    echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
   # Attempt verification with retries
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     # execute verification command and capture output
-    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace eval "$VERIFY_CMD" 2>&1)
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1)
     COMMAND_STATUS=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
