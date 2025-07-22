@@ -81,9 +81,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0xB3D1fB435af4E8a185a9bC68f1Cf142EF82D213E": {
         "Name": "RelayFacet",
@@ -102,9 +102,9 @@
       "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-      "GasZipPeriphery": "0x0c9a1471790D1E4cb67c9FCB48c054024F4466cA",
+      "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "0x67D6DC9A8d0D97FD4d51f8755636aCE06e3D578F",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "Permit2Proxy": "0xBDfF0c1C8B0b779581C4aC3bA1F29667C366C56e",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverChainflip": "",

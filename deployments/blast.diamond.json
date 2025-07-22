@@ -74,8 +74,8 @@
         "Version": "1.2.0"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
-        "Name": "",
-        "Version": ""
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
         "Name": "AcrossFacetV3",
