@@ -22,17 +22,17 @@ contract DeployScript is UpdateScriptBase {
         return excludes;
     }
 
-    function getCallData() internal override returns (bytes memory) {
-        // Read selectors to remove from flattened scan results
+    function getCallData() internal view override returns (bytes memory) {
+        // Read selectors to remove from whitelistManager config
         string memory selectorsToRemovePath = string.concat(
             root,
-            "/script/migration/flattened-scan-selector-approvals.json"
+            "/config/whitelistManager.json"
         );
         string memory selectorsToRemoveJson = vm.readFile(
             selectorsToRemovePath
         );
         bytes memory rawSelectorsToRemove = selectorsToRemoveJson.parseRaw(
-            ".selectors"
+            ".functionSelectorsToRemove"
         );
         bytes4[] memory selectorsToRemove = abi.decode(
             rawSelectorsToRemove,
