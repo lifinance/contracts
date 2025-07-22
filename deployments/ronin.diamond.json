@@ -48,6 +48,10 @@
       "0x20F6BcAdd0e285816b6FF301e6cBe1601fc2e4Fd": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
+      },
+      "0x35B861C331858Eaf9d7Be1737EA008820fBB8b50": {
+        "Name": "GlacisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -61,7 +65,6 @@
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0xc07c6BF7b8de75c53E4E341863cfe10955Bf298b"
     }
   }

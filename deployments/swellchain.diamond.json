@@ -52,6 +52,10 @@
       "0xe81aB8385FA41d7789c89c802eaB76EB7Dc06066": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x058000bDa8D33d3338baD7244879382178C35930": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {

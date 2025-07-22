@@ -3,26 +3,26 @@ import { $ } from 'bun'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  type Address,
-  type Hex,
-  type PublicClient,
   createPublicClient,
-  getAddress,
   formatEther,
+  getAddress,
   getContract,
   http,
   parseAbi,
+  type Address,
+  type Hex,
+  type PublicClient,
 } from 'viem'
 
 import {
+  autoWhitelistPeripheryContracts,
   coreFacets,
   corePeriphery,
-  autoWhitelistPeripheryContracts,
   pauserWallet,
 } from '../../config/global.json'
 import {
-  networks,
   getViemChainForNetworkName,
+  networks,
   type Network,
 } from '../utils/viemScriptHelpers'
 
@@ -358,13 +358,13 @@ const main = defineCommand({
         )
       else consola.success('ERC20Proxy owner is correct')
 
-      // Check that Diamond is owned by SAFE
-      if (networksConfig[network.toLowerCase()].safeAddress) {
-        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
+      // Check that Diamond is owned by Timelock
+      if (deployedContracts.LiFiTimelockController) {
+        const timelockAddress = deployedContracts.LiFiTimelockController
 
         await checkOwnership(
           'LiFiDiamond',
-          safeAddress,
+          timelockAddress,
           deployedContracts,
           publicClient
         )
