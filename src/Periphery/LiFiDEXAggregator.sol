@@ -852,14 +852,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         if (isV1Pool && target == address(0)) revert InvalidCallData();
 
         if (from == msg.sender) {
-            LibAsset.transferFromERC20(tokenIn, msg.sender, target, amountIn);
+            IERC20(tokenIn).safeTransferFrom(msg.sender, target, amountIn);
         } else if (from == address(this)) {
-            LibAsset.transferFromERC20(
-                tokenIn,
-                address(this),
-                target,
-                amountIn
-            );
+            IERC20(tokenIn).safeTransfer(target, amountIn);
         }
         // if from is not msg.sender or address(this), it must be INTERNAL_INPUT_SOURCE
         // which means tokens are already in the vault/pool, no transfer needed
@@ -909,9 +904,9 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
         // transfer tokens to the router
         if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(msg.sender, router, amountIn);
+            LibAsset.transferFromERC20(tokenIn, msg.sender, router, amountIn);
         } else if (from == address(this)) {
-            IERC20(tokenIn).safeTransfer(router, amountIn);
+            LibAsset.transferERC20(tokenIn, router, amountIn);
         }
 
         // construct the path for V3 swap (tokenIn -> tokenOut with fee)

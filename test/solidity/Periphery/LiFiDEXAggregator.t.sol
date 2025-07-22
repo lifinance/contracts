@@ -350,7 +350,8 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
                 tokenIn: ADDRESS_USDC,
                 amountIn: IERC20(ADDRESS_USDC).balanceOf(
                     address(liFiDEXAggregator)
-                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
+                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance
+                // isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
@@ -3399,7 +3400,7 @@ contract LiFiDexAggregatorKatanaV3Test is LiFiDexAggregatorTest {
     function setUp() public override {
         // setup for Viction network
         customRpcUrlForForking = "ETH_NODE_URI_RONIN";
-        customBlockNumberForForking = 46939387;
+        customBlockNumberForForking = 47105304;
         fork();
 
         _initializeDexAggregator(USER_DIAMOND_OWNER);
