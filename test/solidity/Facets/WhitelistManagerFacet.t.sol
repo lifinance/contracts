@@ -6,12 +6,13 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { OwnershipFacet } from "src/Facets/OwnershipFacet.sol";
-import { InvalidContract, CannotAuthoriseSelf, UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
+import { DeployScript } from "../../../script/deploy/facets/UpdateWhitelistManagerFacet.s.sol";
 
 contract Foo {}
 
@@ -833,33 +834,41 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
 contract WhitelistManagerFacetMigrationTest is TestBase {
     using stdJson for string;
 
-    // LiFi Diamond on mainnet that uses old DexManager and AllowList storage layout
+    // LiFi Diamond on staging base that uses old DexManager and AllowList storage layout
     address internal constant DIAMOND =
-        0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
+        0x947330863B5BA5E134fE8b73e0E1c7Eed90446C7;
 
     WhitelistManagerFacet internal whitelistManagerWithMigrationLogic;
-
-    // mock facet to verify that existing integrations still work after migration
     MockSwapperFacet internal mockSwapperFacet;
-
-    // example selectors that were previously approved in DexManagerFacet
-    bytes4[] internal currentWhitelistedSelectors;
+    ExposedUpdateWhitelistManagerFacetDeployScript internal deployScript;
 
     function setUp() public {
         // fork mainnet to test with real production state
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        vm.createSelectFork(rpcUrl, 22888619);
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_BASE");
+        vm.createSelectFork(rpcUrl, 33206380);
 
-        // example selectors that were previously managed offchain
-        currentWhitelistedSelectors = new bytes4[](5);
-        currentWhitelistedSelectors[0] = 0x38ed1739; // swapExactTokensForTokens
-        currentWhitelistedSelectors[1] = 0x8803dbee; // swapTokensForExactTokens
-        currentWhitelistedSelectors[2] = 0x7c025200; // swap
-        currentWhitelistedSelectors[3] = 0x7617b389; // exactInputSingle
-        currentWhitelistedSelectors[4] = 0x90411a32; // execute
+        // Set required environment variables for deployment script
+        vm.setEnv("NETWORK", "base");
+        vm.setEnv("FILE_SUFFIX", "staging.");
+        vm.setEnv("USE_DEF_DIAMOND", "true");
+
+        // Create instance of deployment script to access getCallData
+        deployScript = new ExposedUpdateWhitelistManagerFacetDeployScript();
     }
 
-    function test_MigrateAllowListWithSwapperCheck() public {
+    /// @notice Test that simulates the diamond cut with initialization calldata from the actual deployment script
+    /// @dev This test:
+    /// 1. Sets up a mock swapper to verify existing integrations
+    /// 2. Gets current state from legacy DexManagerFacet using approvedDexs()
+    /// 3. Verifies pre-migration state with mock swapper
+    /// 4. Loads config data from the same files used in production (prepared staging environment for it)
+    /// 5. Gets initialization calldata directly from UpdateWhitelistManagerFacet.s.sol script
+    /// 6. Executes diamond cut with that calldata
+    /// 7. Verifies post-migration state matches expected values
+    function test_DiamondCutWithInitCallDataThatCallsMigrate() public {
+        // Deploy WhitelistManagerFacet first
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
         // Set up mock swapper to verify existing integrations
         mockSwapperFacet = new MockSwapperFacet();
         bytes4[] memory mockSwapperSelectors = new bytes4[](2);
@@ -871,307 +880,92 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             mockSwapperSelectors
         );
 
-        MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
-
-        // Test with real production data from mainnet
-        address currentlyApprovedDex = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D; // Uniswap V2 Router
-        // Using real whitelisted selector from config
-        bytes4 approvedSelector = 0x38ed1739; // One of the whitelisted selectors
-
-        // BEFORE: FACET WITH SWAPPERV2 LOGIC SHOULD BE ABLE TO DO A SWAP BEFORE MIGRATION
-        assertTrue(
-            mockSwapper.isContractAllowed(currentlyApprovedDex),
-            "Contract should be allowed in allow list before migration"
-        );
-        assertTrue(
-            mockSwapper.isSelectorAllowed(approvedSelector),
-            "Selector should be allowed in allow list before migration"
-        );
-
-        // PHASE 2: Migration
-        // Call approvedDexs() from the legacy DexManagerFacet
-        // This function is being replaced by getWhitelistedAddresses() in the new WhitelistManagerFacet
-        // We use it here only for migration purposes to read the old state
+        // Get current state from legacy DexManagerFacet
         (, bytes memory data) = DIAMOND.staticcall(
             abi.encodeWithSignature("approvedDexs()")
         );
-        address[] memory whitelistedAddresses = abi.decode(data, (address[]));
-
-        // get all selectors that should be whitelisted
-        bytes4[] memory selectorsToWhitelist = getAllApprovedSelectors();
-
-        // deploy facets
-        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
-
-        // add WhitelistManagerFacet to diamond
-        bytes4[]
-            memory whitelistManagerWithMigrationLogicSelectors = new bytes4[](
-                2
-            );
-        whitelistManagerWithMigrationLogicSelectors[0] = WhitelistManagerFacet
-            .migrate
-            .selector;
-        whitelistManagerWithMigrationLogicSelectors[1] = WhitelistManagerFacet
-            .isMigrated
-            .selector;
-        addFacet(
-            LiFiDiamond(payable(DIAMOND)),
-            address(whitelistManagerWithMigrationLogic),
-            whitelistManagerWithMigrationLogicSelectors
+        address[] memory currentWhitelistedAddresses = abi.decode(
+            data,
+            (address[])
         );
 
-        // add WhitelistManagerFacet to diamond for reading and verifying allowlist state
-        // used only in this test for validation purposes
-        WhitelistManagerFacet whitelistManagerFacet = new WhitelistManagerFacet();
-        bytes4[] memory facetSelectors = new bytes4[](2);
-        facetSelectors[0] = WhitelistManagerFacet
-            .getWhitelistedAddresses
-            .selector;
-        facetSelectors[1] = WhitelistManagerFacet
-            .getWhitelistedFunctionSelectors
-            .selector;
+        // Test with real production data from mainnet
+        address currentlyApprovedDex = currentWhitelistedAddresses[0]; // Use first whitelisted DEX
+        bytes4 approvedSelector = 0x38ed1739; // One of the whitelisted selectors
 
-        // add the facet to diamond
-        addFacet(
-            LiFiDiamond(payable(DIAMOND)),
-            address(whitelistManagerFacet),
-            facetSelectors
-        );
-
-        // now we can read through the diamond
-        whitelistManagerWithMigrationLogic = WhitelistManagerFacet(DIAMOND);
-
-        bool isMigrated = WhitelistManagerFacet(DIAMOND).isMigrated();
-        assertTrue(
-            !isMigrated,
-            "WhitelistManagerFacet initially should not be migrated"
-        );
-
-        // initialize the allow list through the diamond
-        address owner = OwnershipFacet(DIAMOND).owner();
-        vm.prank(owner);
-
-        // Call migrate() as the diamond owner to update the allow list configuration with whitelisted addresses and their
-        // function selectors. This will:
-        // 1. reset the old state to the initial state
-        // 2. re-add contracts and selectors to the allow list
-        //    ensures correct mapping of addresses and selectors
-        WhitelistManagerFacet(DIAMOND).migrate(
-            currentWhitelistedSelectors,
-            whitelistedAddresses,
-            selectorsToWhitelist
-        );
-
-        isMigrated = WhitelistManagerFacet(DIAMOND).isMigrated();
-        assertTrue(isMigrated, "WhitelistManagerFacet should be migrated");
-
-        // verify final state
-        address[] memory finalContracts = whitelistManagerWithMigrationLogic
-            .getWhitelistedAddresses();
-        bytes4[] memory finalSelectors = whitelistManagerWithMigrationLogic
-            .getWhitelistedFunctionSelectors();
-
-        // verify data matches
-        assertEq(
-            finalContracts.length,
-            whitelistedAddresses.length,
-            "whitelistedAddresses length mismatch"
-        );
-        assertEq(
-            finalSelectors.length,
-            selectorsToWhitelist.length,
-            "whitelistedSelectors length mismatch"
-        );
-
-        // verify each selector matches
-        for (uint256 i = 0; i < selectorsToWhitelist.length; i++) {
-            assertEq(
-                finalSelectors[i],
-                selectorsToWhitelist[i],
-                string(
-                    abi.encodePacked(
-                        "Selector mismatch at index ",
-                        vm.toString(i)
-                    )
-                )
-            );
-        }
-        // MIGRATION ENDS
-
-        // AFTER: FACET WITH SWAPPERV2 LOGIC SHOULD BE ABLE TO DO A SWAP AFTER MIGRATION
+        // Verify pre-migration state with mock swapper
+        MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
         assertTrue(
             mockSwapper.isContractAllowed(currentlyApprovedDex),
-            "Contract should still be allowed in allow list after migration"
+            "Contract should be allowed before migration"
         );
         assertTrue(
             mockSwapper.isSelectorAllowed(approvedSelector),
-            "Selector should still be allowed in allow list after migration"
-        );
-    }
-
-    function test_RevertWhenNotOwner() public {
-        // deploy facets and set up the diamond like in the main test
-        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
-
-        // add WhitelistManagerFacet to diamond
-        bytes4[] memory migratorSelectors = new bytes4[](2);
-        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
-        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
-        addFacet(
-            LiFiDiamond(payable(DIAMOND)),
-            address(whitelistManagerWithMigrationLogic),
-            migratorSelectors
+            "Selector should be allowed before migration"
         );
 
-        bytes4[] memory selectorsToRemove = new bytes4[](0);
-        address[] memory contractsToAdd = new address[](0);
-        bytes4[] memory selectorsToAdd = new bytes4[](0);
-
-        // try to call migrate as non-owner
-        address nonOwner = address(0x123);
-        vm.prank(nonOwner);
-        vm.expectRevert(UnAuthorized.selector);
-        WhitelistManagerFacet(DIAMOND).migrate(
-            selectorsToRemove,
-            contractsToAdd,
-            selectorsToAdd
-        );
-    }
-
-    function test_RevertWhenMigratingWithSelfAddress() public {
-        // deploy facets and set up the diamond
-        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
-
-        // add WhitelistManagerFacet to diamond
-        bytes4[] memory migratorSelectors = new bytes4[](2);
-        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
-        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
-        addFacet(
-            LiFiDiamond(payable(DIAMOND)),
-            address(whitelistManagerWithMigrationLogic),
-            migratorSelectors
-        );
-
-        // Try to migrate with diamond address in contractsToAdd
-        bytes4[] memory selectorsToRemove = new bytes4[](0);
-        address[] memory contractsToAdd = new address[](1);
-        contractsToAdd[0] = DIAMOND; // This should cause CannotAuthoriseSelf error
-        bytes4[] memory selectorsToAdd = new bytes4[](0);
-
-        // Call migrate as owner but with invalid config (self-address)
-        address owner = OwnershipFacet(DIAMOND).owner();
-        vm.prank(owner);
-        vm.expectRevert(CannotAuthoriseSelf.selector);
-        WhitelistManagerFacet(DIAMOND).migrate(
-            selectorsToRemove,
-            contractsToAdd,
-            selectorsToAdd
-        );
-    }
-
-    function test_RevertWhenMigratingWithDuplicateContract() public {
-        // deploy facets and set up the diamond
-        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
-
-        // add WhitelistManagerFacet to diamond
-        bytes4[] memory migratorSelectors = new bytes4[](2);
-        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
-        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
-        addFacet(
-            LiFiDiamond(payable(DIAMOND)),
-            address(whitelistManagerWithMigrationLogic),
-            migratorSelectors
-        );
-
-        // Set up migration data with duplicate contract
-        bytes4[] memory selectorsToRemove = currentWhitelistedSelectors;
-        address[] memory contractsToAdd = new address[](2);
-        contractsToAdd[0] = address(
-            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-        ); // Example contract
-        contractsToAdd[1] = address(
-            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-        ); // Same contract again
-        bytes4[] memory selectorsToAdd = new bytes4[](1);
-        selectorsToAdd[0] = bytes4(0x38ed1739);
-
-        // Call migrate as owner but with invalid config (duplicate contract)
-        address owner = OwnershipFacet(DIAMOND).owner();
-        vm.prank(owner);
-        vm.expectRevert(InvalidConfig.selector);
-        WhitelistManagerFacet(DIAMOND).migrate(
-            selectorsToRemove,
-            contractsToAdd,
-            selectorsToAdd
-        );
-    }
-
-    function test_RevertWhenMigratingWithDuplicateSelector() public {
-        // deploy facets and set up the diamond
-        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
-
-        // add WhitelistManagerFacet to diamond
-        bytes4[] memory migratorSelectors = new bytes4[](2);
-        migratorSelectors[0] = WhitelistManagerFacet.migrate.selector;
-        migratorSelectors[1] = WhitelistManagerFacet.isMigrated.selector;
-        addFacet(
-            LiFiDiamond(payable(DIAMOND)),
-            address(whitelistManagerWithMigrationLogic),
-            migratorSelectors
-        );
-
-        // Set up migration data with duplicate selector
-        bytes4[] memory selectorsToRemove = currentWhitelistedSelectors;
-        address[] memory contractsToAdd = new address[](1);
-        contractsToAdd[0] = address(
-            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-        );
-        bytes4[] memory selectorsToAdd = new bytes4[](2);
-        selectorsToAdd[0] = bytes4(0x38ed1739);
-        selectorsToAdd[1] = bytes4(0x38ed1739); // Same selector again
-
-        // Call migrate as owner but with invalid config (duplicate selector)
-        address owner = OwnershipFacet(DIAMOND).owner();
-        vm.prank(owner);
-        vm.expectRevert(InvalidConfig.selector);
-        WhitelistManagerFacet(DIAMOND).migrate(
-            selectorsToRemove,
-            contractsToAdd,
-            selectorsToAdd
-        );
-    }
-
-    function test_DiamondCutWithInitCallDataThatCallsMigrate() public {
-        // et up mock swapper and get initial state
+        // Read config data and verify it's loaded correctly
         (
-            ,
-            address[] memory currentWhitelistedAddresses
-        ) = _setupInitialState();
+            address[] memory contractsToAdd,
+            bytes4[] memory selectorsToAdd
+        ) = _loadAndVerifyConfigData();
 
-        // Get currently approved selectors (simulating reading from config)
-        bytes4[] memory selectorsToWhitelist = getAllApprovedSelectors();
-
-        // Deploy new WhitelistManagerFacet and prepare diamond cut
-        (
-            LibDiamond.FacetCut[] memory cuts,
-            bytes memory initCallData
-        ) = _prepareDiamondCut(
-                currentWhitelistedAddresses,
-                selectorsToWhitelist
-            );
-
-        // Execute diamond cut with init calldata
+        // Prepare and execute diamond cut
+        LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
+        bytes memory initCallData = deployScript.exposed_getCallData();
         _executeDiamondCut(cuts, initCallData);
 
         // Verify final state
-        _verifyFinalState(currentWhitelistedAddresses, selectorsToWhitelist);
+        _verifyFinalState(
+            contractsToAdd,
+            selectorsToAdd,
+            mockSwapper,
+            currentlyApprovedDex,
+            approvedSelector
+        );
     }
 
-    function _setupInitialState()
+    function _loadAndVerifyConfigData()
         internal
-        returns (MockSwapperFacet, address[] memory)
+        returns (
+            address[] memory contractsToAdd,
+            bytes4[] memory selectorsToAdd
+        )
     {
-        // Set up mock swapper
+        // Read addresses to add for the current network
+        string memory addressesPath = string.concat(
+            vm.projectRoot(),
+            "/config/whitelistedAddresses.json"
+        );
+        string memory addressesJson = vm.readFile(addressesPath);
+        string[] memory rawAddresses = vm.parseJsonStringArray(
+            addressesJson,
+            string.concat(".", "base") // <== base network
+        );
+        contractsToAdd = new address[](rawAddresses.length);
+        for (uint256 i = 0; i < rawAddresses.length; i++) {
+            contractsToAdd[i] = vm.parseAddress(rawAddresses[i]);
+        }
+
+        // Read selectors to add
+        string memory selectorsToAddPath = string.concat(
+            vm.projectRoot(),
+            "/config/whitelistedSelectors.json"
+        );
+        string memory selectorsToAddJson = vm.readFile(selectorsToAddPath);
+        string[] memory rawSelectorsToAdd = vm.parseJsonStringArray(
+            selectorsToAddJson,
+            ".selectors"
+        );
+        selectorsToAdd = new bytes4[](rawSelectorsToAdd.length);
+        for (uint256 i = 0; i < rawSelectorsToAdd.length; i++) {
+            selectorsToAdd[i] = bytes4(vm.parseBytes(rawSelectorsToAdd[i]));
+        }
+    }
+
+    function _setupMockSwapper(
+        address approvedDex
+    ) internal returns (MockSwapperFacet) {
         mockSwapperFacet = new MockSwapperFacet();
         bytes4[] memory mockSwapperSelectors = new bytes4[](2);
         mockSwapperSelectors[0] = MockSwapperFacet.isContractAllowed.selector;
@@ -1184,20 +978,10 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
 
-        // Get current state from legacy DexManagerFacet
-        (, bytes memory data) = DIAMOND.staticcall(
-            abi.encodeWithSignature("approvedDexs()")
-        );
-        address[] memory currentWhitelistedAddresses = abi.decode(
-            data,
-            (address[])
-        );
-
         // Verify pre-migration state
-        address currentlyApprovedDex = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
         bytes4 approvedSelector = 0x38ed1739;
         assertTrue(
-            mockSwapper.isContractAllowed(currentlyApprovedDex),
+            mockSwapper.isContractAllowed(approvedDex),
             "Contract should be allowed before migration"
         );
         assertTrue(
@@ -1205,19 +989,14 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             "Selector should be allowed before migration"
         );
 
-        return (mockSwapper, currentWhitelistedAddresses);
+        return mockSwapper;
     }
 
-    function _prepareDiamondCut(
-        address[] memory currentWhitelistedAddresses,
-        bytes4[] memory selectorsToWhitelist
-    )
+    function _prepareDiamondCut()
         internal
-        returns (LibDiamond.FacetCut[] memory cuts, bytes memory initCallData)
+        view
+        returns (LibDiamond.FacetCut[] memory cuts)
     {
-        // Deploy new WhitelistManagerFacet
-        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
-
         // Build selectors array excluding migrate()
         bytes4[] memory allSelectors = new bytes4[](11);
         allSelectors[0] = WhitelistManagerFacet.addToWhitelist.selector;
@@ -1244,14 +1023,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             .selector;
         allSelectors[10] = WhitelistManagerFacet.isMigrated.selector;
 
-        // Prepare init calldata
-        initCallData = abi.encodeWithSelector(
-            WhitelistManagerFacet.migrate.selector,
-            currentWhitelistedSelectors, // selectorsToRemove
-            currentWhitelistedAddresses, // contractsToAdd
-            selectorsToWhitelist // selectorsToAdd
-        );
-
         // Build diamond cut
         cuts = new LibDiamond.FacetCut[](1);
         cuts[0] = LibDiamond.FacetCut({
@@ -1259,8 +1030,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             action: LibDiamond.FacetCutAction.Add,
             functionSelectors: allSelectors
         });
-
-        return (cuts, initCallData);
     }
 
     function _executeDiamondCut(
@@ -1290,7 +1059,10 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
     function _verifyFinalState(
         address[] memory expectedAddresses,
-        bytes4[] memory expectedSelectors
+        bytes4[] memory expectedSelectors,
+        MockSwapperFacet mockSwapper,
+        address currentlyApprovedDex,
+        bytes4 approvedSelector
     ) internal {
         // Get final state
         address[] memory finalContracts = WhitelistManagerFacet(DIAMOND)
@@ -1334,52 +1106,20 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             assertTrue(found, "Selector not found in final selectors");
         }
 
-        // Verify existing integrations still work
-        address currentlyApprovedDex = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-        bytes4 approvedSelector = 0x38ed1739;
-        MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
+        // Verify existing integrations still work after migration
         assertTrue(
             mockSwapper.isContractAllowed(currentlyApprovedDex),
-            "Contract should still be allowed after diamond cut migration"
+            "Contract should still be allowed after migration"
         );
         assertTrue(
             mockSwapper.isSelectorAllowed(approvedSelector),
-            "Selector should still be allowed after diamond cut migration"
+            "Selector should still be allowed after migration"
         );
     }
+}
 
-    function getAllApprovedSelectors()
-        internal
-        view
-        returns (bytes4[] memory)
-    {
-        bytes4[] memory approvedSelectors = new bytes4[](5); // Changed from 165 to 5
-        uint256 count = 0;
-
-        // Replace JSON parsing with example selectors
-        for (uint256 i = 0; i < currentWhitelistedSelectors.length; i++) {
-            // Call isFunctionApproved() from the legacy DexManagerFacet
-            // This function is being replaced by isFunctionSelectorWhitelisted() in the new WhitelistManagerFacet
-            // We use it here only for migration purposes to read the old state
-            (, bytes memory data) = DIAMOND.staticcall(
-                abi.encodeWithSignature(
-                    "isFunctionApproved(bytes4)",
-                    currentWhitelistedSelectors[i]
-                )
-            );
-            bool isApproved = abi.decode(data, (bool));
-            if (isApproved) {
-                approvedSelectors[count] = currentWhitelistedSelectors[i];
-                count++;
-            }
-        }
-
-        // create a new array with the exact size of the approved selectors
-        bytes4[] memory result = new bytes4[](count);
-        for (uint256 i = 0; i < count; i++) {
-            result[i] = approvedSelectors[i];
-        }
-
-        return result;
+contract ExposedUpdateWhitelistManagerFacetDeployScript is DeployScript {
+    function exposed_getCallData() public returns (bytes memory) {
+        return getCallData();
     }
 }

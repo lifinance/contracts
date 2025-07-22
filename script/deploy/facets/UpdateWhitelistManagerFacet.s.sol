@@ -22,7 +22,7 @@ contract DeployScript is UpdateScriptBase {
         return excludes;
     }
 
-    function getCallData() internal view override returns (bytes memory) {
+    function getCallData() internal override returns (bytes memory) {
         // Read selectors to remove from whitelistManager config
         string memory selectorsToRemovePath = string.concat(
             root,
@@ -31,13 +31,18 @@ contract DeployScript is UpdateScriptBase {
         string memory selectorsToRemoveJson = vm.readFile(
             selectorsToRemovePath
         );
-        bytes memory rawSelectorsToRemove = selectorsToRemoveJson.parseRaw(
+        string[] memory rawSelectorsToRemove = vm.parseJsonStringArray(
+            selectorsToRemoveJson,
             ".functionSelectorsToRemove"
         );
-        bytes4[] memory selectorsToRemove = abi.decode(
-            rawSelectorsToRemove,
-            (bytes4[])
+        bytes4[] memory selectorsToRemove = new bytes4[](
+            rawSelectorsToRemove.length
         );
+        for (uint256 i = 0; i < rawSelectorsToRemove.length; i++) {
+            selectorsToRemove[i] = bytes4(
+                vm.parseBytes(rawSelectorsToRemove[i])
+            );
+        }
 
         // Read addresses to add for the current network
         string memory addressesPath = string.concat(
@@ -59,13 +64,16 @@ contract DeployScript is UpdateScriptBase {
             "/config/whitelistedSelectors.json"
         );
         string memory selectorsToAddJson = vm.readFile(selectorsToAddPath);
-        bytes memory rawSelectorsToAdd = selectorsToAddJson.parseRaw(
+        string[] memory rawSelectorsToAdd = vm.parseJsonStringArray(
+            selectorsToAddJson,
             ".selectors"
         );
-        bytes4[] memory selectorsToAdd = abi.decode(
-            rawSelectorsToAdd,
-            (bytes4[])
+        bytes4[] memory selectorsToAdd = new bytes4[](
+            rawSelectorsToAdd.length
         );
+        for (uint256 i = 0; i < rawSelectorsToAdd.length; i++) {
+            selectorsToAdd[i] = bytes4(vm.parseBytes(rawSelectorsToAdd[i]));
+        }
 
         bytes memory callData = abi.encodeWithSelector(
             WhitelistManagerFacet.migrate.selector,
