@@ -835,7 +835,7 @@
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://api.roninchain.com/rpc",
-    "verificationType": "blockscout",
+    "verificationType": "sourcify",
     "explorerUrl": "https://app.roninchain.com/explorer",
     "explorerApiUrl": "https://sourcify.roninchain.com/server",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
