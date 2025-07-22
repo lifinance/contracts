@@ -8,10 +8,6 @@ import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct SelectorsConfig {
-        bytes4[] selectors;
-    }
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
