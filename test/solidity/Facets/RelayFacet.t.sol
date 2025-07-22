@@ -2,9 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 contract Reverter {
@@ -33,7 +34,7 @@ contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
     }
 }
 
-contract RelayFacetTest is TestBaseFacet {
+contract RelayFacetTest is TestBaseFacet, LiFiData {
     RelayFacet.RelayData internal validRelayData;
     TestRelayFacet internal relayFacet;
     address internal constant RELAY_RECEIVER =
@@ -116,6 +117,17 @@ contract RelayFacetTest is TestBaseFacet {
         }
     }
 
+    function testRevert_WhenUsingInvalidConfig() public {
+        // invalid relay solver
+        vm.expectRevert(InvalidConfig.selector);
+        new RelayFacet(RELAY_RECEIVER, address(0));
+
+        // invalid relay receiver
+        vm.expectRevert(InvalidConfig.selector);
+
+        new RelayFacet(address(0), relaySolver);
+    }
+
     function test_CanDeployFacet() public virtual {
         new RelayFacet(RELAY_RECEIVER, relaySolver);
     }
@@ -145,7 +157,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -176,7 +188,7 @@ contract RelayFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenUsingEmptyNonEVMAddress() public virtual {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -201,7 +213,7 @@ contract RelayFacetTest is TestBaseFacet {
 
     function testRevert_WhenReplayingTransactionIds() public virtual {
         relayFacet.setConsumedId(validRelayData.requestId);
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -240,7 +252,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -283,7 +295,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -336,7 +348,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 1151111081099710;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -437,7 +449,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 20000000000001;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -475,7 +487,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 20000000000001;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -514,7 +526,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 20000000000001;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -564,7 +576,7 @@ contract RelayFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 20000000000001;
         validRelayData = RelayFacet.RelayData({
             requestId: bytes32("1234"),
@@ -732,7 +744,7 @@ contract RelayFacetTest is TestBaseFacet {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _getMappedChainId(_bridgeData.destinationChainId),
-                        _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
+                        _bridgeData.receiver == NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
                         _relayData.receivingAssetId

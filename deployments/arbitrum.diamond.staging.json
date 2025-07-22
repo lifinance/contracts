@@ -153,7 +153,15 @@
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
       },
-      "0x371E61d9DC497C506837DFA47B8dccEF1da30459]": {
+      "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
+      },
+      "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C]": {
         "Name": "",
         "Version": ""
       }

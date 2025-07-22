@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ChainflipFacet Contract
@@ -16,7 +16,7 @@ contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
 }
 
-contract ChainflipFacetTest is TestBaseFacet {
+contract ChainflipFacetTest is TestBaseFacet, LiFiData {
     ChainflipFacet.ChainflipData internal validChainflipData;
     TestChainflipFacet internal chainflipFacet;
     address internal chainflipVault;
@@ -116,7 +116,7 @@ contract ChainflipFacetTest is TestBaseFacet {
             -int256(defaultUSDCAmount)
         )
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
         validChainflipData.nonEVMReceiver = bytes(
@@ -145,7 +145,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         )
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
         validChainflipData.dstToken = 6;
         validChainflipData.nonEVMReceiver = bytes(
@@ -398,7 +398,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // Test Solana mapping
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         validChainflipData.nonEVMReceiver = bytes(
             "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
         );
@@ -422,7 +422,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenUsingEmptyNonEVMAddress() public {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
         validChainflipData.nonEVMReceiver = bytes(""); // Empty address should fail

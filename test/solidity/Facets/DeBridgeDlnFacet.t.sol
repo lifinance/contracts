@@ -1,11 +1,12 @@
+// solhint-disable max-line-length
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
+import { NotInitialized, OnlyContractOwner, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub DeBridgeDlnFacet Contract
@@ -30,11 +31,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     event DeBridgeInitialized(DeBridgeDlnFacet.ChainIdConfig[] chainIdConfigs);
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
     event DlnOrderCreated(bytes32 indexed orderId);
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes receiver
-    );
 
     bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
@@ -132,6 +128,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
                 value: fixedFee
             }(bridgeData, swapData, validDeBridgeDlnData);
         }
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new DeBridgeDlnFacet(IDlnSource(address(0)));
     }
 
     function test_Initialize() public {
