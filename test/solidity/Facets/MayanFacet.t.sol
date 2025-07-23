@@ -1,3 +1,4 @@
+// solhint-disable max-line-length
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
@@ -7,6 +8,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "src/Errors/GenericErrors.sol";
 
 // Stub MayanFacet Contract
 contract TestMayanFacet is MayanFacet {
@@ -60,13 +62,7 @@ contract MayanFacetTest is TestBaseFacet {
     bytes32 internal constant EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
 
     error InvalidReceiver(address expected, address actual);
-    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes32 receiver
-    );
+    error ProtocolDataTooShort();
 
     function setUp() public {
         customBlockNumberForForking = 19968172;
@@ -162,6 +158,12 @@ contract MayanFacetTest is TestBaseFacet {
                 validMayanData
             );
         }
+    }
+
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestMayanFacet(IMayan(address(0)));
     }
 
     function testBase_CanSwapAndBridgeNativeTokens()
@@ -329,13 +331,11 @@ contract MayanFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, type(uint256).max);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                MayanFacet.InvalidNonEVMReceiver.selector,
-                EXPECTED_SOL_ADDR,
-                ACTUAL_SOL_ADDR
-            )
+            abi.encodeWithSelector(InvalidNonEVMReceiver.selector)
         );
+
         mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
+
         vm.stopPrank();
     }
 
@@ -439,7 +439,7 @@ contract MayanFacetTest is TestBaseFacet {
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit BridgeToNonEVMChain(
+        emit BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
             bridgeData.destinationChainId,
             validMayanDataNative.nonEVMReceiver
@@ -462,11 +462,7 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS; // nonEVMAddress
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                InvalidNonEVMReceiver.selector,
-                bytes32(0),
-                bytes32(0)
-            )
+            abi.encodeWithSelector(InvalidNonEVMReceiver.selector)
         );
 
         initiateBridgeTxWithFacet(false);
@@ -506,18 +502,19 @@ contract MayanFacetTest is TestBaseFacet {
 
     function testRevert_WhenProtocolDataTooShort() public {
         TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(address(0))
+            IMayan(MAYAN_FORWARDER)
         );
         bytes memory shortData = new bytes(50); // shorter than 68 bytes (50 bytes)
         uint256 newAmount = 1000;
 
-        vm.expectRevert("protocol data too short");
+        vm.expectRevert(abi.encodeWithSelector(ProtocolDataTooShort.selector));
+
         testFacet.testReplaceInputAmount(shortData, newAmount);
     }
 
     function test_ParseReceiver() public {
         TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(address(0))
+            IMayan(MAYAN_FORWARDER)
         );
 
         address expectedReceiver = 0x1eB6638dE8c571c787D7bC24F98bFA735425731C;

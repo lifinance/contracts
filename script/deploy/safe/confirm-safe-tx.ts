@@ -18,12 +18,14 @@ import {
   type Hex,
 } from 'viem'
 
+import networksData from '../../../config/networks.json'
+
 import type { ILedgerAccountResult } from './ledger'
 import {
   PrivateKeyTypeEnum,
   decodeDiamondCut,
   decodeTransactionData,
-  getNetworksToProcess,
+  getNetworksWithPendingTransactions,
   getPendingTransactionsByNetwork,
   getPrivateKey,
   getSafeMongoCollection,
@@ -39,6 +41,7 @@ import {
   type ISafeTransaction,
   type ISafeTxDocument,
 } from './safe-utils'
+
 dotenv.config()
 
 const storedResponses: Record<string, string> = {}
@@ -657,8 +660,6 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const networks = getNetworksToProcess(args.network)
-
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
@@ -719,9 +720,39 @@ const main = defineCommand({
       }
 
     try {
-      // Connect to MongoDB and fetch ALL pending transactions
+      // Connect to MongoDB early to use it for network detection
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
+
+      let networks: string[]
+
+      if (args.network) {
+        // If a specific network is provided, validate it exists and is active
+        const networkConfig =
+          networksData[args.network.toLowerCase() as keyof typeof networksData]
+        if (!networkConfig) 
+          throw new Error(`Network ${args.network} not found in networks.json`)
+        
+        if (networkConfig.status !== 'active') 
+          throw new Error(`Network ${args.network} is not active`)
+        
+        networks = [args.network]
+      } else {
+        // Get only networks with pending transactions
+        networks = await getNetworksWithPendingTransactions(pendingTransactions)
+
+        if (networks.length === 0) {
+          consola.info('No networks have pending transactions')
+          await mongoClient.close(true)
+          return
+        }
+
+        consola.info(
+          `Found pending transactions on ${
+            networks.length
+          } network(s): ${networks.join(', ')}`
+        )
+      }
 
       // Fetch all pending transactions for the networks we're processing
       const txsByNetwork = await getPendingTransactionsByNetwork(
@@ -731,7 +762,11 @@ const main = defineCommand({
 
       // Process transactions for each network
       for (const network of networks) {
-        const networkTxs = txsByNetwork[network.toLowerCase()] || []
+        const networkTxs = txsByNetwork[network.toLowerCase()]
+        if (!networkTxs || networkTxs.length === 0) 
+          // This should not happen with our new approach, but keep as safety check
+          continue
+        
         await processTxs(
           network,
           privateKey,

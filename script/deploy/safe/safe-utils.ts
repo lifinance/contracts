@@ -1094,6 +1094,28 @@ export function getNetworksToProcess(networkArg?: string): string[] {
 }
 
 /**
+ * Gets networks that have pending transactions and exist in networks.json
+ * @param pendingTransactions - MongoDB collection
+ * @returns List of network names with pending transactions
+ */
+export async function getNetworksWithPendingTransactions(
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<string[]> {
+  // Query MongoDB to get distinct networks that have pending transactions
+  const networksWithPendingTxs = await pendingTransactions.distinct('network', {
+    status: 'pending',
+  })
+
+  // Filter to only include networks that exist in networks.json and are active
+  const validNetworks = networksWithPendingTxs.filter((network: string) => {
+    const networkConfig = networks[network.toLowerCase()]
+    return networkConfig && networkConfig.status === 'active'
+  })
+
+  return validNetworks
+}
+
+/**
  * Gets contract name from deployment log file by address
  * @param address - Contract address
  * @returns Contract name or "Unknown"
