@@ -20,6 +20,11 @@ import {
 
 import networksData from '../../../config/networks.json'
 
+import {
+  formatTransactionDisplay,
+  formatSafeTransactionDetails,
+  type ISafeTransactionDetails,
+} from './confirm-safe-tx-utils'
 import type { ILedgerAccountResult } from './ledger'
 import {
   type IDecodedTransaction,
@@ -431,58 +436,91 @@ const processTxs = async (
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
 
-    if (decodedTx && decodedTx.functionName) {
-      consola.info(`Function: \u001b[34m${decodedTx.functionName}\u001b[0m`)
-      if (decodedTx.contractName)
-        consola.info(`Contract: ${decodedTx.contractName}`)
+    // Use the new display function
+    const displayData = formatTransactionDisplay(decodedTx, decoded)
 
-      consola.info(`Decoded via: ${decodedTx.decodedVia}`)
+    // Display the formatted lines with appropriate coloring
+    displayData.lines.forEach((line) => {
+      if (line.startsWith('Function:')) 
+        consola.info(`Function: \u001b[34m${line.substring(10)}\u001b[0m`)
+       else if (line.startsWith('Unknown function with selector:')) {
+        const selector = line.substring(32)
+        consola.info(
+          `Unknown function with selector: \u001b[33m${selector}\u001b[0m`
+        )
+      } else if (line.includes('[') && line.includes(']:')) {
+        // Argument lines
+        const match = line.match(/^(\s*\[\d+\]:\s*)(.*)$/)
+        if (match) 
+          consola.info(`${match[1]}\u001b[33m${match[2]}\u001b[0m`)
+         else 
+          consola.info(line)
+        
+      } else 
+        consola.info(line)
+      
+    })
 
-      if (decoded && decoded.functionName === 'diamondCut')
-        await decodeDiamondCut(decoded, chain.id)
-      else if (decodedTx.functionName === 'schedule')
-        await displayNestedTimelockCall(decodedTx, chain.id)
-      else if (decoded) {
-        consola.info('Function Name:', decoded.functionName)
-        if (decoded.args && decoded.args.length > 0) {
-          consola.info('Decoded Arguments:')
-          decoded.args.forEach((arg: unknown, index: number) => {
-            // Handle different types of arguments
-            let displayValue = arg
-            if (typeof arg === 'bigint') displayValue = arg.toString()
-            else if (typeof arg === 'object' && arg !== null)
-              displayValue = JSON.stringify(arg)
+    // Handle special cases that need additional processing
+    if (displayData.type === 'diamondCut' && decoded) 
+      await decodeDiamondCut(decoded, chain.id)
+     else if (displayData.type === 'schedule' && decodedTx) 
+      await displayNestedTimelockCall(decodedTx, chain.id)
+     else if (
+      displayData.type === 'regular' &&
+      decoded &&
+      decoded.args === undefined
+    ) 
+      // Only show full decoded data if it contains useful information beyond what we've already shown
+      consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
+    
 
-            consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
-          })
-        } else consola.info('No arguments or failed to decode arguments')
-
-        // Only show full decoded data if it contains useful information beyond what we've already shown
-        if (decoded.args === undefined)
-          consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
-      }
-    } else if (decodedTx) {
-      // Function not found but we have a selector
-      consola.info(
-        `Unknown function with selector: \u001b[33m${decodedTx.selector}\u001b[0m`
-      )
-      consola.info(`Decoded via: ${decodedTx.decodedVia}`)
+    // Format and display Safe transaction details
+    const safeDetails: ISafeTransactionDetails = {
+      nonce: Number(tx.safeTx.data.nonce),
+      to: tx.safeTx.data.to,
+      value: tx.safeTx.data.value.toString(),
+      operation: tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall',
+      data: tx.safeTx.data.data,
+      proposer: tx.proposer,
+      safeTxHash: tx.safeTxHash,
+      signatures: `${tx.safeTransaction.signatures.size}/${tx.threshold} required`,
+      executionReady: tx.canExecute,
     }
 
-    consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
-    To:              \u001b[32m${tx.safeTx.data.to}\u001b[0m
-    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
-    Operation:       \u001b[32m${
-      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
-    }\u001b[0m
-    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
-    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
-    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
-      tx.threshold
-    }\u001b[0m required
-    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
+    const safeDetailsLines = formatSafeTransactionDetails(safeDetails)
+    safeDetailsLines.forEach((line, index) => {
+      if (index === 0) 
+        // Header line
+        consola.info(line)
+       else if (line.includes('Safe Tx Hash:')) {
+        // Safe Tx Hash in cyan
+        const parts = line.split('Safe Tx Hash:')
+        consola.info(
+          `${parts[0]}Safe Tx Hash:    \u001b[36m${
+            parts[1]?.trim() || ''
+          }\u001b[0m`
+        )
+      } else if (line.includes('Execution Ready:')) {
+        // Execution Ready with colored checkmark/cross
+        const parts = line.split('Execution Ready:')
+        const symbol = parts[1]?.trim() || ''
+        const color = symbol === '✓' ? '32m' : '31m'
+        consola.info(
+          `${parts[0]}Execution Ready: \u001b[${color}${symbol}\u001b[0m`
+        )
+      } else {
+        // All other lines in green
+        const colonIndex = line.indexOf(':')
+        if (colonIndex > -1) {
+          const label = line.substring(0, colonIndex + 1)
+          const value = line.substring(colonIndex + 1)
+          consola.info(`${label}\u001b[32m${value}\u001b[0m`)
+        } else 
+          consola.info(line)
+        
+      }
+    })
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]
