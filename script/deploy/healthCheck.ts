@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { $ } from 'bun'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
@@ -136,8 +135,10 @@ const main = defineCommand({
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
         const rpcUrl: string = chain.rpcUrls.default.http
-        const rawString =
-          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`.text()
+        const rawString = execSync(
+          `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
+          { encoding: 'utf8' }
+        )
 
         const jsonCompatibleString = rawString
           .replace(/\(/g, '[')
