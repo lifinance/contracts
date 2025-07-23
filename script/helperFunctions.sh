@@ -1820,7 +1820,6 @@ function verifyContract() {
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
       "$FULL_PATH"
-      "--skip-is-verified-check"
     )
   else
     VERIFY_CMD=(
@@ -1830,7 +1829,6 @@ function verifyContract() {
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
       "$FULL_PATH"
-      "--skip-is-verified-check"
     )
   fi
 
@@ -1875,6 +1873,13 @@ function verifyContract() {
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
 
+    # Check if contract is already verified
+    if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
+      COMMAND_STATUS=0
+      return 0
+    fi
+
     # Parse verification response
     local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
     local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | cut -d'`' -f2)
@@ -1882,6 +1887,7 @@ function verifyContract() {
     # Check if verification actually succeeded
     if [[ "$RESPONSE" == "OK" && "$DETAILS" != *"Fail"* && "$DETAILS" != *"Unable to verify"* && "$DETAILS" != *"Pending"* ]]; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+      COMMAND_STATUS=0
       return 0
     elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
       # HTTP request succeeded but verification failed
