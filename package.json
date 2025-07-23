@@ -86,6 +86,7 @@
     "postinstall": "patch-package",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
     "test": "forge test --evm-version 'cancun'",
+    "test:ts": "find script -name '*.test.ts' -type f -exec bun test {} +",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
     "mongo-logs:add": "bun script/deploy/update-deployment-logs.ts add",

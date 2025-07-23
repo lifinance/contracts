@@ -33,6 +33,8 @@ import data from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
+// eslint-disable-next-line import/no-deprecated
+import { decodeTransactionDataLegacy } from './safe-decode-utils'
 
 config()
 
@@ -1288,54 +1290,6 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
 }
 
 /**
- * Decodes a transaction's function call
- * @param data - Transaction data
- * @returns Decoded function name and data if available
- */
-export async function decodeTransactionData(data: Hex): Promise<{
-  functionName?: string
-  decodedData?: any
-}> {
-  if (!data || data === '0x') return {}
-
-  try {
-    const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
-
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    ) {
-      const functionName = responseData.result.function[selector][0].name
-
-      try {
-        const decodedData = {
-          functionName,
-          args: responseData.result.function[selector][0].args,
-        }
-
-        return {
-          functionName,
-          decodedData,
-        }
-      } catch (error) {
-        consola.warn(`Could not decode function data: ${error}`)
-        return { functionName }
-      }
-    }
-
-    return {}
-  } catch (error) {
-    consola.warn(`Error decoding transaction data: ${error}`)
-    return {}
-  }
-}
-
-/**
  * Obtains a safe
  * @param data - Transaction data
  * @returns Decoded function name and data if available
@@ -1446,3 +1400,7 @@ export async function wrapWithTimelockSchedule(
     targetAddress: timelockAddress,
   }
 }
+
+// Re-export decodeTransactionData from safe-decode-utils
+// eslint-disable-next-line import/no-deprecated
+export { decodeTransactionDataLegacy as decodeTransactionData }
