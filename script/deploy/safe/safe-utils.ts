@@ -49,7 +49,7 @@ export enum PrivateKeyTypeEnum {
   DEPLOYER,
 }
 
-export interface ISafeTransactionData {
+interface ISafeTransactionData {
   to: Address
   value: bigint
   data: Hex
@@ -62,7 +62,7 @@ export interface ISafeTransaction {
   signatures: Map<string, ISafeSignature>
 }
 
-export interface ISafeSignature {
+interface ISafeSignature {
   signer: Address
   data: Hex
 }
@@ -91,10 +91,7 @@ export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
  * @param retries - Number of retries remaining
  * @returns The result of the function
  */
-export const retry = async <T>(
-  func: () => Promise<T>,
-  retries = 3
-): Promise<T> => {
+const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
   try {
     const result = await func()
     return result
@@ -1076,21 +1073,6 @@ export function getPrivateKey(
     )
 
   return privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey
-}
-
-/**
- * Gets the list of networks to process
- * @param networkArg - Network argument from command line
- * @returns List of networks to process
- */
-export function getNetworksToProcess(networkArg?: string): string[] {
-  if (networkArg) return [networkArg]
-
-  return Object.keys(networks).filter(
-    (network) =>
-      network !== 'localanvil' &&
-      networks[network.toLowerCase()]?.status === 'active'
-  )
 }
 
 /**
