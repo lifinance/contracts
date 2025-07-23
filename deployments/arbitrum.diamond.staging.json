@@ -178,9 +178,7 @@
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
-    }
   }
 }
