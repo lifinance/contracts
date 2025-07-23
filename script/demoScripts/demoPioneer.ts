@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto'
+
 import { config } from 'dotenv'
 import { parseUnits, zeroAddress, type Narrow } from 'viem'
 
@@ -18,6 +20,7 @@ config()
 const PIONEER_FACET_ABI = pioneerFacetArtifact.abi as Narrow<
   typeof pioneerFacetArtifact.abi
 >
+
 // #endregion
 
 async function main() {
@@ -59,6 +62,7 @@ async function main() {
   } else console.info(`Balance: ${balance}`)
 
   // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
+  const transactionId = `0x${randomBytes(32).toString('hex')}`
 
   const query: {
     fromChain: string
@@ -68,6 +72,7 @@ async function main() {
     toAddress: string
     fromAmount: string
     slippage: string
+    externalId: string
   } = {
     fromChain: chain.id.toString(),
     toChain: destinationChainId.toString(),
@@ -76,6 +81,7 @@ async function main() {
     toAddress: signerAddress,
     fromAmount: amount.toString(),
     slippage: 0n.toString(),
+    externalId: transactionId,
   }
   const queryParams = new URLSearchParams(
     query as Record<string, string>
@@ -121,10 +127,7 @@ async function main() {
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
     // Edit fields as needed
-    transactionId: `0x${quote.quoteId
-      .toString()
-      .replace(/-/g, '')
-      .padEnd(64, '0')}`,
+    transactionId,
     bridge: 'Pioneer',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
