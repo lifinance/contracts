@@ -422,24 +422,3 @@ export async function decodeNestedCall(
 
   return decoded
 }
-
-/**
- * Legacy function for backward compatibility
- * @deprecated Use decodeTransactionData with proper return type handling
- */
-export async function decodeTransactionDataLegacy(data: Hex): Promise<{
-  functionName?: string
-  decodedData?: any
-}> {
-  const result = await decodeTransactionData(data)
-  return {
-    functionName: result.functionName,
-    decodedData: result.functionName
-      ? {
-          functionName: result.functionName,
-          contractName: result.contractName || 'Unknown',
-          args: result.args,
-        }
-      : undefined,
-  }
-}

@@ -33,8 +33,6 @@ import data from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
-// eslint-disable-next-line import/no-deprecated
-import { decodeTransactionDataLegacy } from './safe-decode-utils'
 
 config()
 
@@ -1400,7 +1398,3 @@ export async function wrapWithTimelockSchedule(
     targetAddress: timelockAddress,
   }
 }
-
-// Re-export decodeTransactionData from safe-decode-utils
-// eslint-disable-next-line import/no-deprecated
-export { decodeTransactionDataLegacy as decodeTransactionData }
