@@ -5,6 +5,7 @@ WORKDIR /app
 # Copy the repo
 COPY . .
 
+# Install deps
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -26,9 +27,9 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="/root/.foundry/bin:$PATH"
 RUN /root/.foundry/bin/foundryup
 
-RUN bun install
-
-RUN bun add tsx --dev
+# Initialise project
+RUN bun install --frozen-lockfile --production
+RUN bun run typechain
 RUN forge install
 
 ENTRYPOINT ["bun", "run", "script/deploy/safe/execute-pending-timelock-tx.ts"]
