@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { IAcrossSpokePool } from "../Interfaces/IAcrossSpokePool.sol";
@@ -6,6 +6,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { AcrossFacet } from "./AcrossFacet.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+// solhint-disable-next-line no-unused-import
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
@@ -23,9 +24,11 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IAcrossSpokePool private immutable spokePool;
 
     /// @notice The WETH address on the current chain.
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable wrappedNative;
 
     /// Events ///
@@ -214,8 +217,9 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         uint256 maxCount,
         bytes calldata message
     ) external pure returns (bytes memory) {
-        // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
-        // we feel comfortable using this approach to save further gas
+        // there are already existing networks with chainIds outside uint32 range but since we not
+        // support either of them yet, we feel comfortable using this approach to save further gas
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
@@ -257,13 +261,15 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         bytes calldata message,
         uint256 maxCount
     ) external pure returns (bytes memory) {
-        // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
-        // we feel comfortable using this approach to save further gas
+        // there are already existing networks with chainIds outside uint32 range but since we not
+        // support either of them yet, we feel comfortable using this approach to save further gas
+        // solhint-disable-next-line gas-custom-errors
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
 
+        // solhint-disable-next-line gas-custom-errors
         require(
             minAmount <= type(uint128).max,
             "minAmount value passed too big to fit in uint128"
@@ -298,6 +304,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             AcrossFacet.AcrossData memory acrossData
         )
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             data.length >= 108,
             "invalid calldata (must have length > 108)"
@@ -332,6 +339,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             AcrossFacet.AcrossData memory acrossData
         )
     {
+        // solhint-disable-next-line gas-custom-errors
         require(
             data.length >= 144,
             "invalid calldata (must have length > 144)"

@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+//solhint-disable-next-line no-unused-import
 import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized, WithdrawFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -46,6 +47,7 @@ contract RelayerCelerIM is ILiFi, WithdrawablePeriphery {
         address _owner,
         address _diamondAddress
     ) WithdrawablePeriphery(_owner) {
+        // TODO: add constructor parameter validation on next contract update
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;
     }

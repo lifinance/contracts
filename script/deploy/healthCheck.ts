@@ -1,28 +1,28 @@
 // @ts-nocheck
+import { $ } from 'bun'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  type Address,
-  type Hex,
-  type PublicClient,
   createPublicClient,
-  getAddress,
   formatEther,
+  getAddress,
   getContract,
   http,
   parseAbi,
+  type Address,
+  type Hex,
+  type PublicClient,
 } from 'viem'
-import { $ } from 'zx'
 
 import {
+  autoWhitelistPeripheryContracts,
   coreFacets,
   corePeriphery,
-  autoWhitelistPeripheryContracts,
   pauserWallet,
 } from '../../config/global.json'
 import {
-  networks,
   getViemChainForNetworkName,
+  networks,
   type Network,
 } from '../utils/viemScriptHelpers'
 
@@ -131,15 +131,13 @@ const main = defineCommand({
     //          │          Check that all facets are registered           │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking facets registered in diamond...')
-    $.quiet = true
 
     let registeredFacets: string[] = []
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
         const rpcUrl: string = chain.rpcUrls.default.http
-        const facetsResult =
-          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`
-        const rawString = facetsResult.stdout
+        const rawString =
+          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`.text()
 
         const jsonCompatibleString = rawString
           .replace(/\(/g, '[')
@@ -360,13 +358,13 @@ const main = defineCommand({
         )
       else consola.success('ERC20Proxy owner is correct')
 
-      // Check that Diamond is owned by SAFE
-      if (networksConfig[network.toLowerCase()].safeAddress) {
-        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
+      // Check that Diamond is owned by Timelock
+      if (deployedContracts.LiFiTimelockController) {
+        const timelockAddress = deployedContracts.LiFiTimelockController
 
         await checkOwnership(
           'LiFiDiamond',
-          safeAddress,
+          timelockAddress,
           deployedContracts,
           publicClient
         )

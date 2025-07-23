@@ -6,21 +6,26 @@
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
+
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { MongoClient, type InsertOneResult, type Collection } from 'mongodb'
+import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
 import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  http,
+  parseAbi,
+  toFunctionSelector,
   type Account,
   type Address,
   type Chain,
   type Hex,
   type PublicClient,
+  type TransactionReceipt,
   type WalletClient,
-  createPublicClient,
-  createWalletClient,
-  encodeFunctionData,
-  http,
-  toFunctionSelector,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -66,22 +71,7 @@ export interface ISafeTxDocument {
   safeAddress: string
   network: string
   chainId: number
-  safeTx: {
-    data: {
-      to: string
-      value: string
-      data: string
-      operation: number
-      nonce: number
-    }
-    signatures?: Record<
-      string,
-      {
-        signer: string
-        data: string
-      }
-    >
-  }
+  safeTx: ISafeTransaction
   safeTxHash: string
   proposer: string
   timestamp: Date
@@ -173,9 +163,16 @@ export class ViemSafe {
       ledgerLive?: boolean
       accountIndex?: number
     }
+    account?: Account
   }): Promise<ViemSafe> {
-    const { privateKey, safeAddress, provider, useLedger, ledgerOptions } =
-      options
+    const {
+      privateKey,
+      safeAddress,
+      provider,
+      useLedger,
+      ledgerOptions,
+      account: preCreatedAccount,
+    } = options
 
     // Create provider with Viem
     let publicClient: PublicClient
@@ -193,15 +190,20 @@ export class ViemSafe {
       })
     }
 
-    // Get account - either from private key or Ledger
+    // Get account - either use pre-created, from private key, or create new Ledger connection
     let account
-    if (useLedger) {
+    if (preCreatedAccount) account = preCreatedAccount
+    else if (useLedger) {
       // Dynamically import the Ledger module to avoid dependency issues
       const { getLedgerAccount } = await import('./ledger')
-      account = await getLedgerAccount(ledgerOptions)
+      const ledgerResult = await getLedgerAccount(ledgerOptions)
+      account = ledgerResult.account
     } else if (privateKey)
       account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
-    else throw new Error('Either privateKey or useLedger must be provided')
+    else
+      throw new Error(
+        'Either privateKey, useLedger, or account must be provided'
+      )
 
     // Create wallet client with the account and chain
     const walletClient = createWalletClient({
@@ -562,16 +564,16 @@ export class ViemSafe {
   /**
    * Executes a Safe transaction
    * @param safeTx - The transaction to execute
-   * @returns Object containing the transaction hash
+   * @returns Object containing the transaction hash and optional receipt
    * @throws Error if execution fails
    */
   public async executeTransaction(
     safeTx: ISafeTransaction
-  ): Promise<{ hash: Hex }> {
+  ): Promise<{ hash: Hex; receipt?: TransactionReceipt }> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      // First, prepare the transaction data
+      // Submit the transaction
       const txHash = await this.walletClient.writeContract({
         account: this.account,
         chain: null,
@@ -592,21 +594,71 @@ export class ViemSafe {
         ],
       })
 
-      // Wait for transaction receipt with better error handling
-      try {
-        await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-      } catch (waitError: any) {
-        throw new Error(
-          `Transaction submitted (${txHash}) but failed to confirm: ${waitError.message}`
-        )
-      }
+      consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
 
-      return { hash: txHash }
+      // Try to get receipt with 30 second timeout
+      let receipt: TransactionReceipt | null = null
+
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
+        )
+
+        const receiptPromise = this.publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        })
+
+        receipt = (await Promise.race([
+          receiptPromise,
+          timeoutPromise,
+        ])) as TransactionReceipt
+
+        // If we got a receipt, check its status
+        if (receipt.status === 'success') return { hash: txHash, receipt }
+        else
+          throw new Error(`Transaction failed with status: ${receipt.status}`)
+      } catch (timeoutError: any) {
+        if (timeoutError.message.includes('timeout')) {
+          // Timeout reached - return optimistically with warning
+          consola.warn(
+            `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
+          )
+          consola.warn(`   Transaction hash: ${txHash}`)
+          consola.warn(`   Please manually verify transaction status later`)
+          return { hash: txHash }
+        }
+        // Some other error occurred
+        else throw timeoutError
+      }
     } catch (error: any) {
       if (error.message?.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${error.message}`)
 
       throw new Error(`Error executing transaction: ${error.message || error}`)
+    }
+  }
+
+  /**
+   * Cleanup method to close transport connections and prevent hanging processes
+   */
+  public async cleanup(): Promise<void> {
+    try {
+      // Close public client transport if it has a close method
+      if (
+        this.publicClient?.transport &&
+        'close' in this.publicClient.transport
+      )
+        await (this.publicClient.transport as any).close?.()
+
+      // Close wallet client transport if it has a close method
+      if (
+        this.walletClient?.transport &&
+        'close' in this.walletClient.transport
+      )
+        await (this.walletClient.transport as any).close?.()
+    } catch (error: any) {
+      // Don't throw on cleanup errors, just log them
+      consola.warn(`Warning during ViemSafe cleanup: ${error.message}`)
     }
   }
 }
@@ -713,6 +765,71 @@ export const wouldMeetThreshold = (
 }
 
 /**
+ * Checks if the PRIVATE_KEY_PRODUCTION wallet has already signed the transaction
+ * @param safeTx - The transaction to check
+ * @returns True if the PRIVATE_KEY_PRODUCTION wallet has already signed
+ */
+export const isSignedByProductionWallet = (
+  safeTx: ISafeTransaction
+): boolean => {
+  if (!safeTx?.signatures) return false
+
+  try {
+    const productionPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+    const productionAccount = privateKeyToAccount(
+      `0x${productionPrivateKey}` as Hex
+    )
+    const productionAddress = productionAccount.address
+
+    const signers = Array.from(safeTx.signatures.values()).map((sig) =>
+      sig.signer.toLowerCase()
+    )
+    return signers.includes(productionAddress.toLowerCase())
+  } catch (error) {
+    // If we can't get the production key, assume it hasn't signed
+    return false
+  }
+}
+
+/**
+ * Determines if the "Sign and Execute With Deployer" option should be shown
+ * @param safeTx - The Safe transaction
+ * @param threshold - The signature threshold required
+ * @param currentSignerAddress - Address of the current signer
+ * @returns True if the option should be shown
+ */
+export const shouldShowSignAndExecuteWithDeployer = (
+  safeTx: ISafeTransaction,
+  threshold: number,
+  currentSignerAddress: Address
+): boolean => {
+  const currentSignatures = safeTx?.signatures?.size || 0
+  const isCurrentSignerAlreadySigned = isSignedByCurrentSigner(
+    safeTx,
+    currentSignerAddress
+  )
+  const isDeployerAlreadySigned = isSignedByProductionWallet(safeTx)
+
+  // Don't show if current signer has already signed
+  if (isCurrentSignerAlreadySigned) return false
+
+  // Calculate signatures after current signer signs
+  const signaturesAfterCurrentSigner = currentSignatures + 1
+
+  // Two scenarios:
+  // 1. If deployer already signed: check if current user's signature would meet threshold
+  // 2. If deployer hasn't signed: check if current user + deployer would meet threshold
+  if (isDeployerAlreadySigned)
+    // Deployer already signed, just need current user to potentially meet threshold
+    return signaturesAfterCurrentSigner >= threshold
+  else {
+    // Deployer hasn't signed, need both current user + deployer to meet threshold
+    const signaturesAfterBoth = signaturesAfterCurrentSigner + 1
+    return signaturesAfterBoth >= threshold
+  }
+}
+
+/**
  * Gets Safe information directly from the contract
  * @param publicClient - Viem public client
  * @param safeAddress - Address of the Safe
@@ -775,16 +892,7 @@ export async function storeTransactionInMongoDB(
     safeAddress,
     network: network.toLowerCase(),
     chainId,
-    safeTx: {
-      data: {
-        to: safeTx.data.to,
-        value: safeTx.data.value.toString(),
-        data: safeTx.data.data,
-        operation: Number(safeTx.data.operation),
-        nonce: Number(safeTx.data.nonce),
-      },
-      signatures: Object.fromEntries(safeTx.signatures),
-    },
+    safeTx,
     safeTxHash,
     proposer,
     timestamp: new Date(),
@@ -911,16 +1019,19 @@ export async function initializeSafeClient(
     derivationPath?: string
     ledgerLive?: boolean
     accountIndex?: number
-  }
+  },
+  safeAddress?: Address,
+  account?: Account
 ): Promise<{
   safe: ViemSafe
   chain: Chain
   safeAddress: Address
 }> {
   const chain = getViemChainForNetworkName(network)
-  const safeAddress = networks[network.toLowerCase()]?.safeAddress as Address
+  const finalSafeAddress =
+    safeAddress || (networks[network.toLowerCase()]?.safeAddress as Address)
 
-  if (!safeAddress)
+  if (!finalSafeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
@@ -930,12 +1041,13 @@ export async function initializeSafeClient(
     const safe = await ViemSafe.init({
       provider: parsedRpcUrl as string,
       privateKey,
-      safeAddress,
+      safeAddress: finalSafeAddress,
       useLedger,
       ledgerOptions,
+      account,
     })
 
-    return { safe, chain, safeAddress }
+    return { safe, chain, safeAddress: finalSafeAddress }
   } catch (error: any) {
     consola.error(`Error encountered while setting up Safe: ${error}`)
     throw new Error(
@@ -982,6 +1094,120 @@ export function getNetworksToProcess(networkArg?: string): string[] {
 }
 
 /**
+ * Gets networks that have pending transactions and exist in networks.json
+ * @param pendingTransactions - MongoDB collection
+ * @returns List of network names with pending transactions
+ */
+export async function getNetworksWithPendingTransactions(
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<string[]> {
+  // Query MongoDB to get distinct networks that have pending transactions
+  const networksWithPendingTxs = await pendingTransactions.distinct('network', {
+    status: 'pending',
+  })
+
+  // Filter to only include networks that exist in networks.json and are active
+  const validNetworks = networksWithPendingTxs.filter((network: string) => {
+    const networkConfig = networks[network.toLowerCase()]
+    return networkConfig && networkConfig.status === 'active'
+  })
+
+  return validNetworks
+}
+
+/**
+ * Gets contract name from deployment log file by address
+ * @param address - Contract address
+ * @returns Contract name or "Unknown"
+ */
+function getContractNameFromDeploymentLog(address: string): string {
+  try {
+    const projectRoot = process.cwd()
+    const deploymentLogPath = path.join(
+      projectRoot,
+      'deployments',
+      '_deployments_log_file.json'
+    )
+
+    if (!fs.existsSync(deploymentLogPath)) return 'Unknown'
+
+    const logData = JSON.parse(fs.readFileSync(deploymentLogPath, 'utf8'))
+    const normalizedAddress = address.toLowerCase()
+
+    // Search through the nested structure: ContractName -> network -> environment -> version -> deployments[]
+    for (const [contractName, networks] of Object.entries(logData))
+      if (typeof networks === 'object' && networks !== null)
+        for (const [_networkName, environments] of Object.entries(
+          networks as Record<string, unknown>
+        ))
+          if (typeof environments === 'object' && environments !== null)
+            for (const [_envName, versions] of Object.entries(
+              environments as Record<string, unknown>
+            ))
+              if (typeof versions === 'object' && versions !== null)
+                for (const [_version, deployments] of Object.entries(
+                  versions as Record<string, unknown>
+                ))
+                  if (Array.isArray(deployments))
+                    for (const deployment of deployments)
+                      if (
+                        deployment.ADDRESS &&
+                        deployment.ADDRESS.toLowerCase() === normalizedAddress
+                      )
+                        return contractName
+
+    return 'Unknown'
+  } catch (error) {
+    consola.warn(`Error reading deployment log: ${error}`)
+    return 'Unknown'
+  }
+}
+
+/**
+ * Creates a mapping of function selectors to function names from diamond ABI
+ * @returns Map of selector to function info
+ */
+async function createSelectorMap(): Promise<Map<
+  string,
+  { name: string; signature: string }
+> | null> {
+  try {
+    const projectRoot = process.cwd()
+    const diamondPath = path.join(projectRoot, 'diamond.json')
+
+    if (!fs.existsSync(diamondPath)) return null
+
+    const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
+    if (!Array.isArray(abiData)) return null
+
+    const selectorMap = new Map<string, { name: string; signature: string }>()
+
+    for (const abiItem of abiData)
+      if (abiItem.type === 'function')
+        try {
+          const selector = toFunctionSelector(abiItem)
+          const inputs =
+            abiItem.inputs?.map((input: any) => input.type).join(',') || ''
+          const signature = `${abiItem.name}(${inputs})`
+
+          selectorMap.set(selector, {
+            name: abiItem.name,
+            signature: signature,
+          })
+        } catch (error) {
+          // Skip invalid ABI items
+          continue
+        }
+
+    consola.info(`Created selector map with ${selectorMap.size} functions`)
+    return selectorMap
+  } catch (error) {
+    consola.warn(`Error creating selector map: ${error}`)
+    return null
+  }
+}
+
+/**
  * Decodes a diamond cut transaction and displays its details
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
@@ -992,6 +1218,10 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     1: 'Replace',
     2: 'Remove',
   }
+
+  // Create selector map for efficient lookup
+  const selectorMap = await createSelectorMap()
+
   consola.info('Diamond Cut Details:')
   consola.info('-'.repeat(80))
   // diamondCutData.args[0] contains an array of modifications.
@@ -1000,38 +1230,55 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
-      consola.info(
-        `Fetching ABI for Facet Address: \u001b[34m${facetAddress}\u001b[0m`
-      )
-      const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-      const response = await fetch(url)
-      const resData = await response.json()
+      consola.info(`Facet Address: \u001b[34m${facetAddress}\u001b[0m`)
       consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
-      if (resData && resData.abi) {
-        consola.info(
-          `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
-        )
 
-        for (const selector of selectors)
-          try {
-            // Find matching function in ABI
-            const matchingFunction = resData.abi.find((abiItem: any) => {
-              if (abiItem.type !== 'function') return false
-              const calculatedSelector = toFunctionSelector(abiItem)
-              return calculatedSelector === selector
-            })
+      // Use selector map for efficient lookup
+      if (selectorMap) {
+        const contractName = getContractNameFromDeploymentLog(facetAddress)
+        consola.info(`Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
-            if (matchingFunction)
-              consola.info(
-                `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-              )
-            else consola.warn(`Unknown function [${selector}]`)
-          } catch (error) {
-            consola.warn(`Failed to decode selector: ${selector}`)
-          }
-      } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+        for (const selector of selectors) {
+          const functionInfo = selectorMap.get(selector)
+          if (functionInfo)
+            consola.info(
+              `Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
+            )
+          else consola.warn(`Unknown function [${selector}]`)
+        }
+      } else {
+        // Fallback to external API if selector map not available
+        consola.info('No diamond ABI found, fetching from anyabi.xyz...')
+        const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
+        const response = await fetch(url)
+        const resData = await response.json()
+
+        if (resData && resData.abi) {
+          consola.info(
+            `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
+          )
+
+          for (const selector of selectors)
+            try {
+              // Find matching function in ABI
+              const matchingFunction = resData.abi.find((abiItem: any) => {
+                if (abiItem.type !== 'function') return false
+                const calculatedSelector = toFunctionSelector(abiItem)
+                return calculatedSelector === selector
+              })
+
+              if (matchingFunction)
+                consola.info(
+                  `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
+                )
+              else consola.warn(`Unknown function [${selector}]`)
+            } catch (error) {
+              consola.warn(`Failed to decode selector: ${selector}`)
+            }
+        } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+      }
     } catch (error) {
-      consola.error(`Error fetching ABI for ${facetAddress}:`, error)
+      consola.error(`Error processing facet ${facetAddress}:`, error)
     }
     consola.info('-'.repeat(80))
   }
@@ -1116,4 +1363,86 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   }
 
   return safeInfo
+}
+
+/**
+ * Helper function to wrap calldata in a timelock schedule call
+ */
+export async function wrapWithTimelockSchedule(
+  network: string,
+  rpcUrl: string,
+  timelockAddress: Address,
+  targetAddress: Address,
+  originalCalldata: Hex
+): Promise<{ calldata: Hex; targetAddress: Address }> {
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  })
+
+  // Get the minimum delay from the timelock controller
+  const timelockAbi = parseAbi([
+    'function getMinDelay() view returns (uint256)',
+  ])
+
+  let minDelay: bigint
+  try {
+    minDelay = await client.readContract({
+      address: timelockAddress,
+      abi: timelockAbi,
+      functionName: 'getMinDelay',
+    })
+  } catch (error) {
+    consola.warn(
+      'Failed to get minimum delay from timelock, reading from config file'
+    )
+
+    // Read from config file as fallback
+    try {
+      const configPath = path.join(
+        process.cwd(),
+        'config',
+        'timelockController.json'
+      )
+      const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      minDelay = BigInt(configData.minDelay || 3600)
+      consola.info(`Using minimum delay from config: ${minDelay} seconds`)
+    } catch (configError) {
+      consola.warn(
+        'Failed to read timelockController.json config file, using default 1 hour'
+      )
+      minDelay = 3600n // Default to 1 hour
+    }
+  }
+
+  // Create a unique salt based on the current timestamp
+  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+
+  // Encode the schedule function call
+  const scheduleAbi = parseAbi([
+    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
+  ])
+
+  const scheduleCalldata = encodeFunctionData({
+    abi: scheduleAbi,
+    functionName: 'schedule',
+    args: [
+      targetAddress, // target
+      0n, // value
+      originalCalldata, // data
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
+      salt, // salt
+      minDelay, // delay
+    ],
+  })
+
+  consola.info(
+    `Wrapped transaction in timelock schedule call with minimum delay of ${minDelay} seconds`
+  )
+
+  return {
+    calldata: scheduleCalldata,
+    targetAddress: timelockAddress,
+  }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -7,7 +7,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { ContractCallNotAllowed, NoSwapDataProvided, CumulativeSlippageTooHigh } from "../Errors/GenericErrors.sol";
 
-/// @title Swapper V2
+/// @title SwapperV2
 /// @author LI.FI (https://li.fi)
 /// @notice Abstract contract to provide swap functionality with leftover token handling
 /// @custom:version 1.1.0
@@ -68,7 +68,7 @@ contract SwapperV2 is ILiFi {
 
         if (finalBalance > initialBalance) {
             LibAsset.transferAsset(
-                LibAsset.NATIVE_ASSETID,
+                LibAsset.NULL_ADDRESS,
                 _refundReceiver,
                 finalBalance - initialBalance
             );

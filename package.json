@@ -20,6 +20,8 @@
     "@mayanfinance/swap-sdk": "^8.5.0",
     "@solana/web3.js": "^1.95.4",
     "@typechain/ethers-v5": "^10.2.0",
+    "@types/bun": "^1.2.18",
+    "@types/minimatch": "^6.0.0",
     "@types/node": "^17.0.23",
     "@types/pino": "^7.0.5",
     "@typescript-eslint/eslint-plugin": "^5.16.0",
@@ -28,8 +30,8 @@
     "dotenv": "^16.0.0",
     "eslint": "^8.11.0",
     "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-import": "^2.27.5",
     "eslint-import-resolver-typescript": "^4.4.2",
+    "eslint-plugin-import": "^2.32.0",
     "ethers": "^5.7.0",
     "ethers6": "npm:ethers@^6.12.1",
     "fs-extra": "^10.0.1",
@@ -45,6 +47,7 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
+    "tsc-files": "^1.1.4",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
     "zksync-web3": "^0.14.3"
@@ -54,22 +57,22 @@
   },
   "scripts": {
     "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && bun tasks/generateDiamondABI.ts",
-    "abi:removeDuplicateEvents": "bun script/removeDuplicateEventsFromABI.ts",
-    "add-network-rpc": "bun ./script/mongoDb/add-network-rpc.ts",
-    "add-safe-owners-and-threshold": "bun ./script/deploy/safe/add-safe-owners-and-threshold.ts",
+    "abi:removeDuplicateEvents": "bunx tsx ./script/removeDuplicateEventsFromABI.ts",
+    "add-network-rpc": "bunx tsx ./script/mongoDb/add-network-rpc.ts",
+    "add-safe-owners-and-threshold": "bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "codegen": "plop",
     "compile": "forge build",
-    "confirm-safe-tx": "bun ./script/deploy/safe/confirm-safe-tx.ts",
-    "deploy-safe": "bun ./script/deploy/safe/deploy-safe.ts",
+    "confirm-safe-tx": "bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
+    "deploy-safe": "bunx tsx ./script/deploy/safe/deploy-safe.ts",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
-    "detect-evm-version": "bun ./script/deploy/detect-evm-version.ts",
+    "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
     "execute": "node ./_scripts.js run",
-    "fetch-rpcs": "bun ./script/mongoDb/fetch-rpcs.ts",
+    "fetch-rpcs": "bunx tsx ./script/mongoDb/fetch-rpcs.ts",
     "flatten": "forge flatten --output",
     "format": "prettier --check \"**/*.{ts,js,sol}\"",
     "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
-    "healthcheck": "bun ./script/deploy/healthCheck.ts",
+    "healthcheck": "bunx tsx ./script/deploy/healthCheck.ts",
     "lint:js": "eslint \"**/*.{js,ts,tsx}\"",
     "lint:js:fix": "eslint \"**/*.{js,ts,tsx}\" --fix",
     "lint:sol": "solhint \"src/**/*.sol\"",
@@ -79,13 +82,22 @@
     "preinstall": "bash preinstall.sh",
     "prepare": "bun prepare:husky",
     "prepare:husky": "husky install",
-    "propose-safe-tx": "bun ./script/deploy/safe/propose-to-safe.ts",
+    "propose-safe-tx": "bunx tsx ./script/deploy/safe/propose-to-safe.ts",
     "postinstall": "patch-package",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
     "test": "forge test --evm-version 'cancun'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
+    "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
+    "mongo-logs:add": "bun script/deploy/update-deployment-logs.ts add",
+    "mongo-logs:update": "bun script/deploy/update-deployment-logs.ts update",
+    "mongo-logs:query": "bun script/deploy/query-deployment-logs.ts",
+    "mongo-logs:latest": "bun script/deploy/query-deployment-logs.ts latest",
+    "mongo-logs:list": "bun script/deploy/query-deployment-logs.ts list --format table",
+    "mongo-logs:find": "bun script/deploy/query-deployment-logs.ts find",
+    "mongo-logs:exists": "bun script/deploy/query-deployment-logs.ts exists",
+    "mongo-logs:get": "bun script/deploy/query-deployment-logs.ts get",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
-    "unpause-all-diamonds": "bun ./script/tasks/unpauseAllDiamonds.ts"
+    "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
@@ -110,17 +122,17 @@
     "mongodb": "^6.13.0",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "viem": "^2.22.16",
-    "zx": "^8.2.2"
+    "viem": "^2.22.16"
   },
   "lint-staged": {
     "*.{ts,js}": [
       "prettier --write",
-      "eslint --fix"
+      "eslint --fix",
+      "bunx tsc-files --noEmit"
     ],
     "*.sol": [
       "prettier --write",
-      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt --fix \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
+      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ]
   }
 }

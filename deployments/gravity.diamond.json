@@ -57,9 +57,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0x49e93F6A99c590a8E70138D2710B9eDd88C077FF": {
         "Name": "CBridgeFacetPacked",
@@ -83,13 +83,12 @@
       "Executor": "0xCdE9376F284d5CA9aaec69dD4D0761278b4ae034",
       "FeeCollector": "0x79540403cdE176Ca5f1fb95bE84A7ec91fFDEF76",
       "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "LiFuelFeeCollector": "0x134f525AC05E4724e55C363A9C4FA35ceB13F88d",
-      "Permit2Proxy": "",
-      "Receiver": "0x2DeB3bFa2b19024A0c1Ba299b6b79276f1F77b14",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x6A3d6652fb7be72200a47313C092342218aAeb72",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C"
     }
   }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibAsset } from "./LibAsset.sol";
@@ -77,7 +77,8 @@ library LibSwap {
 
         // we used to have a sending asset balance check here (initialSendingAssetBalance >= _swap.fromAmount)
         // this check was removed to allow for more flexibility with rebasing/fee-taking tokens
-        // the general assumption is that if not enough tokens are available to execute the calldata, the transaction will fail anyway
+        // the general assumption is that if not enough tokens are available to execute the calldata,
+        // the transaction will fail anyway
         // the error message might not be as explicit though
 
         // execute the swap

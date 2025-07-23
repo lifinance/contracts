@@ -99,14 +99,6 @@ function deployFacetAndAddToDiamond() {
 
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
-  #-----------------------------------------------------------
-  # special handling for CelerIMFacet
-  if [[ "$FACET_CONTRACT_NAME" == *"CelerIMFacet"* ]]; then
-    # replace "CelerIMFacetImmutable/CelerIMFacetMutable" with "CelerIMFacet" to find the right updateScript
-    FACET_CONTRACT_NAME="CelerIMFacet"
-  fi
-  #-----------------------------------------------------------
-
   # deploy facet
   deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
 
@@ -128,14 +120,6 @@ function deployFacetAndAddToDiamond() {
     warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
     return 1
   fi
-
-  #-----------------------------------------------------------
-  # special handling for CelerIMFacet
-  # add RelayerCelerIM as periphery to diamond
-  if [[ "$FACET_CONTRACT_NAME" == *"CelerIMFacet"* ]]; then
-    diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "RelayerCelerIM"
-  fi
-  #-----------------------------------------------------------
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
   return 0
