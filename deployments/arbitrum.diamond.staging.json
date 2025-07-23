@@ -21,7 +21,7 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x603f0c31B37E5ca3eA75D5730CCfaBCFF6D17aa3": {
+      "0x9c3C2a13a5dd24D078D247EEC09Cebf2fC4E4686": {
         "Name": "",
         "Version": ""
       },
@@ -156,6 +156,14 @@
       "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
         "Name": "PioneerFacet",
         "Version": "1.0.0"
+      },
+      "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C]": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -171,7 +179,8 @@
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
-      "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691"
+      "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
+      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
 }

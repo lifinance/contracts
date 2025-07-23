@@ -143,6 +143,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
   ```
 
 - **Design Patterns:**
+
   - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard)
   - Favor modular design for reusability and security
   - Follow security best practices:
@@ -151,6 +152,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
     - Optimize for gas efficiency
 
 - **Error Handling:**
+
   - All custom errors must be defined in `src/Errors/GenericErrors.sol`
   - Error names should be descriptive and follow PascalCase
   - Errors should not include error messages (gas optimization)
@@ -345,9 +347,9 @@ We use Foundry as our primary development and testing framework. Foundry provide
       );
   }
   ```
-- Use `LibAsset.NON_EVM_ADDRESS` for `bridgeData.receiver`:
+- Use `NON_EVM_ADDRESS` (src/Helpers/LiFiData.sol) for `bridgeData.receiver`:
   ```solidity
-  if (bridgeData.receiver != LibAsset.NON_EVM_ADDRESS) {
+  if (bridgeData.receiver != NON_EVM_ADDRESS) {
       revert InvalidCallData();
   }
   ```
@@ -420,6 +422,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 #### General Structure
 
 - **Shebang and Organization:**
+
   - Begin with `#!/bin/bash`
   - Organize into modular functions with clear sections:
     - "Logging"
@@ -438,6 +441,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 #### Environment Configuration
 
 - **Environment Loading:**
+
   - Load from `.env` or `config.sh`
   - Declare global variables in config files
   - Update `.env.example` accordingly
@@ -449,6 +453,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 #### Error Handling and Logging
 
 - **Error Handling:**
+
   - Use helper functions for logging (e.g., `echoDebug`, `error`, `warning`, `success`)
   - Validate inputs and environment early
   - Check function exit status with `checkFailure`
@@ -462,6 +467,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 #### Deployment and Utility Functions
 
 - **Deployment Framework:**
+
   - Provide automated retry mechanisms for RPC issues
   - Wrap Foundry's deployment functionality
   - Handle deployment challenges with robust error recovery
@@ -475,6 +481,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 #### User Interaction
 
 - **Interface Design:**
+
   - Use clear prompts with descriptive instructions
   - Use tools like `gum choose` for enhanced usability
   - Provide helpful feedback and status updates
@@ -489,6 +496,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 #### Conventions and Best Practices
 
 - **Integration:**
+
   - Scripts should integrate seamlessly with the overall deployment pipeline
   - Use consistent patterns across all bash scripts
   - Follow project-wide naming conventions
@@ -505,13 +513,16 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 ### Deployment Scripts
 
 - **Location and Organization:**
+
   - Base location: `script/deploy/facets/`
   - ZKSync-specific scripts: `script/deploy/zksync/`
   - Deployment: `Deploy{ContractName}.s.sol`
   - Update: `Update{ContractName}.s.sol`
 
 - **Script Structure:**
+
   - **Deployment Scripts:**
+
     - Inherit `DeployScriptBase`
     - Use JSON config with `stdJson`
     - Define `getConstructorArgs()` if needed
@@ -535,6 +546,7 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 ### Configuration Files
 
 - **deployRequirements.json:**
+
   - Location: `script/deploy/resources/deployRequirements.json`
   - Purpose: Dictates deployment rules and dependencies
   - Features:
@@ -599,10 +611,12 @@ Bash scripts provide the robust deployment framework with automated retry mechan
 ### GitHub Workflows
 
 - **Sensitive Data:**
+
   - Use GitHub Secrets for sensitive data
   - Reference with `${{ secrets.SECRET_NAME }}`
 
 - **File Structure and Comments:**
+
   - Begin with clear description (YAML comments)
   - Include descriptive comments throughout
   - Define triggers explicitly
@@ -617,4 +631,3 @@ Bash scripts provide the robust deployment framework with automated retry mechan
   - Set explicit permissions
   - Include notifications
   - Document permission requirements
-

@@ -21,6 +21,13 @@ import {
   MongoClient,
 } from 'mongodb'
 
+// Interface for index specifications with old names
+interface IIndexSpec {
+  key: IndexSpecification
+  name: string
+  oldNames?: string[]
+}
+
 // TypeScript interface for deployment records
 interface IDeploymentRecord {
   _id?: ObjectId
@@ -134,36 +141,73 @@ class DeploymentLogManager {
       return
     }
 
-    const indexSpecs = [
+    const indexSpecs: IIndexSpec[] = [
       {
         key: { contractName: 1, network: 1, version: 1 } as IndexSpecification,
         name: 'contract_network_version',
+        oldNames: ['contractName_1_network_1_version_1'], // Known old name
       },
       {
         key: { contractNetworkKey: 1, version: 1 } as IndexSpecification,
         name: 'contract_network_key_version',
+        oldNames: ['contractNetworkKey_1_version_1'], // Known old name
       },
-      { key: { timestamp: -1 } as IndexSpecification, name: 'timestamp_desc' },
-      { key: { address: 1 } as IndexSpecification, name: 'address' },
+      {
+        key: { timestamp: -1 } as IndexSpecification,
+        name: 'timestamp_desc',
+        oldNames: ['timestamp_-1'], // Known old name
+      },
+      {
+        key: { address: 1 } as IndexSpecification,
+        name: 'address',
+        oldNames: ['address_1'], // Known old name
+      },
     ]
-
     try {
       const existingIndexes = await this.collection.listIndexes().toArray()
       const existingIndexNames = new Set(existingIndexes.map((idx) => idx.name))
 
-      for (const indexSpec of indexSpecs)
-        if (!existingIndexNames.has(indexSpec.name))
+      for (const indexSpec of indexSpecs) {
+        // Check if we need to drop old indexes
+        if (indexSpec.oldNames) 
+          for (const oldName of indexSpec.oldNames) 
+            if (existingIndexNames.has(oldName)) 
+              try {
+                await this.collection.dropIndex(oldName)
+                consola.info(`Dropped old index: ${oldName}`)
+              } catch (error) {
+                consola.warn(`Failed to drop old index ${oldName}:`, error)
+              }
+            
+          
+        
+
+        // Create the new index if it doesn't exist
+        if (!existingIndexNames.has(indexSpec.name)) 
           try {
             await this.collection.createIndex(indexSpec.key, {
               name: indexSpec.name,
             })
             consola.info(`Created index: ${indexSpec.name}`)
-          } catch (error) {
-            consola.warn(`Failed to create index ${indexSpec.name}:`, error)
+          } catch (error: any) {
+            // If it fails due to duplicate key pattern, that's okay
+            if (
+              error.code === 85 ||
+              error.message?.includes('already exists')
+            ) 
+              consola.debug(
+                `Index with same key pattern as ${indexSpec.name} already exists`
+              )
+             else 
+              consola.warn(`Failed to create index ${indexSpec.name}:`, error)
+            
           }
-        else consola.debug(`Index ${indexSpec.name} already exists`)
+         else 
+          consola.debug(`Index ${indexSpec.name} already exists`)
+        
+      }
     } catch (error) {
-      consola.warn('Failed to list existing indexes:', error)
+      consola.warn('Failed to manage indexes:', error)
     }
   }
 
