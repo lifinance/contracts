@@ -1,4 +1,6 @@
 // @ts-nocheck
+import { execSync } from 'child_process'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
