@@ -258,7 +258,9 @@ const main = defineCommand({
         onChainWhitelisted =
           await whitelistManager.read.getWhitelistedAddresses()
       } catch (error) {
-        logError('Failed to get whitelisted addresses from chain')
+        logError(
+          'Failed to get whitelisted addresses from chain, most probably because facet is not deployed and WhitelistManagerFacet is not added to diamond'
+        )
         // Don't skip the checks - we'll still check against the config
       }
 
