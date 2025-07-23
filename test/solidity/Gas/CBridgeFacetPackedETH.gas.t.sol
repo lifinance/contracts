@@ -71,7 +71,7 @@ contract CBridgeGasETHTest is TestBase {
             .encode_startBridgeTokensViaCBridgeERC20Packed
             .selector;
 
-        addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
+        addFacet(address(diamond), address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare CBridgeFacet
@@ -82,7 +82,7 @@ contract CBridgeGasETHTest is TestBase {
             .startBridgeTokensViaCBridge
             .selector;
 
-        addFacet(diamond, address(cBridgeFacet), functionSelectors2);
+        addFacet(address(diamond), address(cBridgeFacet), functionSelectors2);
         cBridgeFacet = CBridgeFacet(address(diamond));
 
         /// Perpare parameters
@@ -170,7 +170,7 @@ contract CBridgeGasETHTest is TestBase {
             .setApprovalForBridges
             .selector;
         addFacet(
-            diamond,
+            address(diamond),
             address(hopFacetOptimized),
             functionSelectorsApproval
         );

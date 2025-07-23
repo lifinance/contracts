@@ -20,7 +20,7 @@ contract UniV3StyleFacetTest is BaseDexFacetTest {
             .uniswapV3SwapCallback
             .selector;
 
-        addFacet(ldaDiamond, address(uniV3StyleFacet), functionSelectors);
+        addFacet(address(ldaDiamond), address(uniV3StyleFacet), functionSelectors);
         uniV3StyleFacet = UniV3StyleFacet(address(ldaDiamond));
 
         setFacetAddressInTestBase(address(uniV3StyleFacet), "UniV3StyleFacet");

@@ -45,12 +45,11 @@ abstract contract BaseDiamondTest is Test {
         );
     }
 
-    // Common function to add a facet
     function addFacet(
         address _diamond,
         address _facet,
         bytes4[] memory _selectors
-    ) internal {
+    ) public virtual {
         _addFacet(_diamond, _facet, _selectors, address(0), "");
     }
 
@@ -60,7 +59,7 @@ abstract contract BaseDiamondTest is Test {
         bytes4[] memory _selectors,
         address _init,
         bytes memory _initCallData
-    ) internal {
+    ) public virtual {
         _addFacet(_diamond, _facet, _selectors, _init, _initCallData);
     }
 
@@ -70,7 +69,7 @@ abstract contract BaseDiamondTest is Test {
         bytes4[] memory _selectors,
         address _init,
         bytes memory _initCallData
-    ) internal {
+    ) internal virtual {
         vm.startPrank(OwnershipFacet(_diamond).owner());
         cut.push(
             LibDiamond.FacetCut({

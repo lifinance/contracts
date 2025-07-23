@@ -59,7 +59,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(glacisFacet), functionSelectors);
+        addFacet(address(diamond), address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
         glacisFacet.addDex(ADDRESS_UNISWAP);
         glacisFacet.setFunctionApprovalBySignature(

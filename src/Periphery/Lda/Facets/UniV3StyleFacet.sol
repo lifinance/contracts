@@ -10,6 +10,7 @@ import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
 /// @notice Handles Uniswap V3 swaps with callback management
 /// @custom:version 1.0.0
 contract UniV3StyleFacet {
+    using LibCallbackManager for *;
     using LibInputStream for uint256;
 
     /// @notice Executes a UniswapV3 swap
@@ -28,6 +29,120 @@ contract UniV3StyleFacet {
 
     /// @notice Callback for UniswapV3 swaps
     function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        LibCallbackManager.verifyCallbackSender();
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+        LibCallbackManager.clear();
+    }
+
+    function pancakeV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function ramsesV2SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function xeiV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function dragonswapV2SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function agniSwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function fusionXV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function vvsV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function supV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function zebraV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function hyperswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function laminarV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function xswapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function rabbitSwapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external LibCallbackManager.onlyExpectedCallback {
+        LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function enosysdexV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data

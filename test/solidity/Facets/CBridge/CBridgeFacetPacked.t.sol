@@ -86,7 +86,7 @@ contract CBridgeFacetPackedTest is TestBase {
             .selector;
         functionSelectors[8] = cBridgeFacetPacked.triggerRefund.selector;
 
-        addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
+        addFacet(address(diamond), address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare parameters

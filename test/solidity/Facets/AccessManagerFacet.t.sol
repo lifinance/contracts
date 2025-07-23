@@ -29,11 +29,11 @@ contract AccessManagerFacetTest is TestBase {
         allowedFunctionSelectors[1] = accessMgr
             .addressCanExecuteMethod
             .selector;
-        addFacet(diamond, address(accessMgr), allowedFunctionSelectors);
+        addFacet(address(diamond), address(accessMgr), allowedFunctionSelectors);
 
         bytes4[] memory restrictedFunctionSelectors = new bytes4[](1);
         restrictedFunctionSelectors[0] = restricted.restrictedMethod.selector;
-        addFacet(diamond, address(restricted), restrictedFunctionSelectors);
+        addFacet(address(diamond), address(restricted), restrictedFunctionSelectors);
 
         accessMgr = AccessManagerFacet(address(diamond));
         restricted = RestrictedContract(address(diamond));
