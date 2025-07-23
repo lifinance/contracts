@@ -6,7 +6,7 @@
  *
  * Implements a comprehensive selector resolution strategy:
  * 1. Check local diamond.json
- * 2. Check local known selectors mapping
+ * 2. Check critical selectors (diamondCut, schedule, etc.)
  * 3. Check deployment logs for contract names
  * 4. Fall back to external API (openchain.xyz)
  */
@@ -40,35 +40,22 @@ export interface IDecodeOptions {
 }
 
 /**
- * Known selectors mapping - loaded from config file
+ * Critical function selectors we need to decode
  */
-let knownSelectors: Record<string, { name: string; abi?: string }> = {}
-
-/**
- * Load known selectors from config file
- */
-function loadKnownSelectors(): void {
-  try {
-    const projectRoot = process.cwd()
-    const knownSelectorsPath = path.join(
-      projectRoot,
-      'config',
-      'knownSelectors.json'
-    )
-
-    if (fs.existsSync(knownSelectorsPath)) {
-      knownSelectors = JSON.parse(fs.readFileSync(knownSelectorsPath, 'utf8'))
-      consola.debug(
-        `Loaded ${Object.keys(knownSelectors).length} known selectors`
-      )
-    }
-  } catch (error) {
-    consola.debug(`Could not load known selectors: ${error}`)
-  }
+const CRITICAL_SELECTORS: Record<string, { name: string; abi?: string }> = {
+  '0x1f931c1c': {
+    name: 'diamondCut',
+    abi: 'function diamondCut((address,uint8,bytes4[])[],address,bytes)',
+  },
+  '0x01d5062a': {
+    name: 'schedule',
+    abi: 'function schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
+  },
+  '0x7200b829': {
+    name: 'confirmOwnershipTransfer',
+    abi: 'function confirmOwnershipTransfer()',
+  },
 }
-
-// Load known selectors on module initialization
-loadKnownSelectors()
 
 /**
  * Try to find function in diamond ABI
@@ -77,33 +64,37 @@ async function tryDiamondABI(
   selector: string
 ): Promise<Partial<IDecodedTransaction> | null> {
   try {
-    const projectRoot = process.cwd()
-    const diamondPath = path.join(projectRoot, 'diamond.json')
+    const diamondPath = path.join(__dirname, '../../../diamond.json')
 
-    if (!fs.existsSync(diamondPath)) return null
+    if (fs.existsSync(diamondPath)) {
+      const diamondData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
 
-    const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
-    if (!Array.isArray(abiData)) return null
+      // Search through all contracts in diamond.json
+      for (const [contractName, contractData] of Object.entries(
+        diamondData.contracts || {}
+      )) {
+        const abi = (contractData as any).abi
+        if (!abi) continue
 
-    // Search for matching function selector in diamond ABI
-    for (const abiItem of abiData)
-      if (abiItem.type === 'function')
-        try {
-          const calculatedSelector = toFunctionSelector(abiItem)
-          if (calculatedSelector === selector) {
-            consola.debug(`Found in diamond ABI: ${abiItem.name}`)
-            return {
-              functionName: abiItem.name,
-              contractName: 'Diamond',
-              decodedVia: 'diamond',
-            }
+        // Find function with matching selector
+        const func = abi.find((item: any) => {
+          if (item.type !== 'function') return false
+          const funcSelector = toFunctionSelector(item)
+          return funcSelector === selector
+        })
+
+        if (func) {
+          consola.debug(`Found in diamond ABI: ${func.name} (${contractName})`)
+          return {
+            functionName: func.name,
+            contractName,
+            decodedVia: 'diamond',
           }
-        } catch (error) {
-          // Skip invalid ABI items
-          continue
         }
+      }
+    }
   } catch (error) {
-    consola.debug(`Error reading diamond ABI: ${error}`)
+    consola.debug(`Error reading diamond.json: ${error}`)
   }
 
   return null
@@ -117,127 +108,135 @@ async function tryDeploymentLogs(
   network?: string
 ): Promise<Partial<IDecodedTransaction> | null> {
   try {
-    const projectRoot = process.cwd()
-    const deploymentsDir = path.join(projectRoot, 'deployments')
+    const deploymentsPath = path.join(__dirname, '../../../deployments')
 
-    // If network is specified, check that specific file first
-    const filesToCheck = network
-      ? [
-          `${network}.json`,
-          `${network}.diamond.json`,
-          `${network}.staging.json`,
-        ]
-      : fs.readdirSync(deploymentsDir).filter((f) => f.endsWith('.json'))
+    // If network is specified, check that specific file
+    if (network) {
+      const networkFiles = [
+        `${network}.json`,
+        `${network}.diamond.json`,
+        `${network}.staging.json`,
+        `${network}.diamond.staging.json`,
+      ]
 
-    for (const file of filesToCheck)
-      try {
-        const deploymentPath = path.join(deploymentsDir, file)
-        if (!fs.existsSync(deploymentPath)) continue
-
-        const deploymentData = JSON.parse(
-          fs.readFileSync(deploymentPath, 'utf8')
-        )
-
-        // Check each deployed contract
-        for (const [contractName, address] of Object.entries(deploymentData)) {
-          if (typeof address !== 'string') continue
-
-          // Try to find the contract's ABI
-          const contractAbiPath = path.join(
-            projectRoot,
-            'out',
-            `${contractName}.sol`,
-            `${contractName}.json`
-          )
-
-          if (fs.existsSync(contractAbiPath)) {
-            const contractData = JSON.parse(
-              fs.readFileSync(contractAbiPath, 'utf8')
-            )
-            if (contractData.abi && Array.isArray(contractData.abi))
-              for (const abiItem of contractData.abi)
-                if (abiItem.type === 'function')
-                  try {
-                    const calculatedSelector = toFunctionSelector(abiItem)
-                    if (calculatedSelector === selector) {
-                      consola.debug(
-                        `Found in deployment logs: ${abiItem.name} (${contractName})`
-                      )
-                      return {
-                        functionName: abiItem.name,
-                        contractName,
-                        decodedVia: 'deployment',
-                      }
-                    }
-                  } catch (error) {
-                    continue
-                  }
-          }
+      for (const file of networkFiles) {
+        const filePath = path.join(deploymentsPath, file)
+        if (fs.existsSync(filePath)) {
+          const result = await checkDeploymentFile(filePath, selector)
+          if (result) return result
         }
-      } catch (error) {
-        consola.debug(`Error reading deployment file ${file}: ${error}`)
       }
+    } else {
+      // Check all deployment files
+      const files = fs
+        .readdirSync(deploymentsPath)
+        .filter((f) => f.endsWith('.json'))
+
+      for (const file of files) {
+        const filePath = path.join(deploymentsPath, file)
+        const result = await checkDeploymentFile(filePath, selector)
+        if (result) return result
+      }
+    }
   } catch (error) {
-    consola.debug(`Error reading deployment logs: ${error}`)
+    consola.debug(`Error checking deployment logs: ${error}`)
   }
 
   return null
 }
 
 /**
- * Try to find function in known selectors
+ * Check a specific deployment file for the selector
  */
-async function tryKnownSelectors(
+async function checkDeploymentFile(
+  filePath: string,
   selector: string
 ): Promise<Partial<IDecodedTransaction> | null> {
-  // Ensure selectors are loaded
-  if (Object.keys(knownSelectors).length === 0) loadKnownSelectors()
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'))
 
-  if (knownSelectors[selector]) {
-    consola.debug(`Found in known selectors: ${knownSelectors[selector].name}`)
+    // Search through all contracts
+    for (const [contractName, contractData] of Object.entries(data)) {
+      const abi = (contractData as any).abi
+      if (!abi) continue
+
+      // Find function with matching selector
+      const func = abi.find((item: any) => {
+        if (item.type !== 'function') return false
+        const funcSelector = toFunctionSelector(item)
+        return funcSelector === selector
+      })
+
+      if (func) {
+        consola.debug(
+          `Found in deployment logs: ${func.name} (${contractName})`
+        )
+        return {
+          functionName: func.name,
+          contractName,
+          decodedVia: 'deployment',
+        }
+      }
+    }
+  } catch (error) {
+    consola.debug(`Error reading deployment file ${filePath}: ${error}`)
+  }
+
+  return null
+}
+
+/**
+ * Try to find function in critical selectors
+ */
+async function tryCriticalSelectors(
+  selector: string
+): Promise<Partial<IDecodedTransaction> | null> {
+  if (CRITICAL_SELECTORS[selector]) {
+    consola.debug(
+      `Found in critical selectors: ${CRITICAL_SELECTORS[selector].name}`
+    )
     return {
-      functionName: knownSelectors[selector].name,
+      functionName: CRITICAL_SELECTORS[selector].name,
       decodedVia: 'known',
     }
   }
+
   return null
 }
 
 /**
- * Try to find function using external API
+ * Try to resolve selector using external API
  */
 async function tryExternalAPI(
   selector: string
 ): Promise<Partial<IDecodedTransaction> | null> {
   try {
-    consola.debug('Fetching from openchain.xyz...')
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
+    consola.debug(`Trying external API for selector ${selector}`)
+    const response = await fetch(
+      `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
+    )
 
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    ) {
-      const functionData = responseData.result.function[selector][0]
-      consola.debug(`Found in external API: ${functionData.name}`)
-      return {
-        functionName: functionData.name,
-        decodedVia: 'external',
+    if (response.ok) {
+      const data = await response.json()
+      if (data.result?.function?.[selector]?.[0]?.name) {
+        const functionName = data.result.function[selector][0].name
+        consola.debug(`Found via external API: ${functionName}`)
+        return {
+          functionName: functionName.split('(')[0], // Extract just the function name
+          decodedVia: 'external',
+        }
       }
     }
   } catch (error) {
-    consola.debug(`Error fetching from external API: ${error}`)
+    consola.debug(`External API lookup failed: ${error}`)
   }
 
   return null
 }
 
 /**
- * Decodes a transaction's function call using comprehensive selector resolution
- * @param data - Transaction data
+ * Main function to decode transaction data
+ * @param data - The transaction data to decode
  * @param options - Decoding options
  * @returns Decoded transaction information
  */
@@ -257,7 +256,7 @@ export async function decodeTransactionData(
   // Try resolution strategies in order
   const strategies = [
     () => tryDiamondABI(selector),
-    () => tryKnownSelectors(selector),
+    () => tryCriticalSelectors(selector),
     () => tryDeploymentLogs(selector, options?.network),
     () => tryExternalAPI(selector),
   ]
@@ -268,21 +267,22 @@ export async function decodeTransactionData(
     rawData: data,
   }
 
+  // Try each strategy until one succeeds
   for (const strategy of strategies) {
-    const strategyResult = await strategy()
-    if (strategyResult && strategyResult.functionName) {
-      result = { ...result, ...strategyResult } as IDecodedTransaction
+    const decoded = await strategy()
+    if (decoded) {
+      result = { ...result, ...decoded } as IDecodedTransaction
       break
     }
   }
 
-  // Try to decode arguments if we found the function
-  if (result.functionName)
+  // Try to decode function arguments if we found the function
+  if (result.functionName) 
     try {
-      // First try known selectors ABI
-      if (knownSelectors[selector]?.abi) {
+      // Check if we have an ABI for this function
+      if (CRITICAL_SELECTORS[selector]?.abi) {
         consola.debug(`Decoding args with known ABI for ${selector}`)
-        const abi = knownSelectors[selector].abi
+        const abi = CRITICAL_SELECTORS[selector].abi
         if (!abi) throw new Error('ABI not found')
         const abiInterface = parseAbi([abi])
         const decoded = decodeFunctionData({
@@ -310,115 +310,120 @@ export async function decodeTransactionData(
     } catch (error) {
       consola.debug(`Could not decode function arguments: ${error}`)
     }
+  
 
-  // Check for nested calls if this is a known wrapper function
-  if (
-    result.functionName &&
-    ['schedule', 'scheduleBatch', 'execute', 'executeBatch'].includes(
-      result.functionName
-    ) &&
-    options?.maxDepth !== 0
-  ) {
-    const nestedData = await extractNestedCallData(result, data)
-    if (nestedData)
+  // Try to decode nested calls if applicable
+  if (result.args && options?.maxDepth !== 0) {
+    const nestedData = extractNestedCallData(result)
+    if (nestedData) 
       result.nestedCall = await decodeNestedCall(
         nestedData,
         1,
-        options?.maxDepth || 5,
-        options
+        options?.maxDepth
       )
+    
   }
 
   return result
 }
 
 /**
- * Extract nested call data from known wrapper functions
+ * Decode a nested call with depth limiting
+ * @param data - The nested call data
+ * @param currentDepth - Current recursion depth
+ * @param maxDepth - Maximum recursion depth (default 3)
+ * @returns Decoded nested transaction
  */
-async function extractNestedCallData(
-  decoded: IDecodedTransaction,
-  originalData: Hex
-): Promise<Hex | null> {
-  try {
-    if (!decoded.functionName) return null
-
-    // Handle timelock schedule function
-    if (decoded.functionName === 'schedule' && decoded.args) {
-      // schedule(address target, uint256 value, bytes data, bytes32 predecessor, bytes32 salt, uint256 delay)
-      const data = decoded.args[2]
-      if (data && data !== '0x') return data as Hex
+export async function decodeNestedCall(
+  data: Hex,
+  currentDepth = 1,
+  maxDepth = 3
+): Promise<IDecodedTransaction> {
+  if (currentDepth > maxDepth) 
+    return {
+      selector: data.substring(0, 10) as Hex,
+      decodedVia: 'unknown',
+      rawData: data,
     }
+  
 
-    // Try to decode based on known function signatures
-    const selectorAbi = decoded.selector
-      ? knownSelectors[decoded.selector]?.abi
-      : undefined
-    if (selectorAbi) {
-      const abiInterface = parseAbi([selectorAbi])
-      const decodedData = decodeFunctionData({
-        abi: abiInterface,
-        data: originalData,
-      })
+  const decoded = await decodeTransactionData(data, {
+    maxDepth: maxDepth - currentDepth,
+  })
 
-      // Look for common data parameter names
-      const dataParamNames = ['data', 'callData', '_data', '_callData']
-      for (const paramName of dataParamNames)
-        if (decodedData.args && paramName in decodedData.args) {
-          const data = (decodedData.args as any)[paramName]
-          if (data && data !== '0x') return data as Hex
-        }
+  // Check for further nested calls
+  if (decoded.args && currentDepth < maxDepth) {
+    const nestedData = extractNestedCallData(decoded)
+    if (nestedData) 
+      decoded.nestedCall = await decodeNestedCall(
+        nestedData,
+        currentDepth + 1,
+        maxDepth
+      )
+    
+  }
 
-      // Check by index for common patterns
-      if (decodedData.args && Array.isArray(decodedData.args)) {
-        // For schedule-like functions, data is usually at index 2
-        if (decoded.functionName.includes('schedule') && decodedData.args[2])
-          return decodedData.args[2] as Hex
+  return decoded
+}
 
-        // For execute-like functions, data might be at different positions
-        if (decoded.functionName.includes('execute'))
-          for (const arg of decodedData.args)
-            if (
-              typeof arg === 'string' &&
-              arg.startsWith('0x') &&
-              arg.length > 10
-            )
-              return arg as Hex
+/**
+ * Extract nested call data from decoded transaction
+ * Handles various patterns like timelock schedule, multicall, etc.
+ */
+function extractNestedCallData(decoded: IDecodedTransaction): Hex | null {
+  if (!decoded.args || !decoded.functionName) return null
+
+  // Handle timelock schedule pattern
+  if (decoded.functionName === 'schedule' && decoded.args.length >= 3) {
+    // In schedule(target, value, data, ...), data is at index 2
+    const data = decoded.args[2]
+    if (typeof data === 'string' && data.startsWith('0x') && data.length > 10) 
+      return data as Hex
+    
+  }
+
+  // Handle multicall pattern
+  if (decoded.functionName === 'multicall' && Array.isArray(decoded.args[0])) {
+    // Return first call for now
+    const firstCall = decoded.args[0][0]
+    if (typeof firstCall === 'string' && firstCall.startsWith('0x')) 
+      return firstCall as Hex
+    
+  }
+
+  // Generic pattern: look for hex data in args
+  try {
+    for (const arg of decoded.args) {
+      // Check if arg looks like call data
+      if (typeof arg === 'string' && arg.startsWith('0x') && arg.length > 10) {
+        // Try to parse it as a selector
+        const potentialSelector = arg.substring(0, 10)
+        // Basic validation: should be hex
+        if (/^0x[a-fA-F0-9]{8}$/.test(potentialSelector)) 
+          return arg as Hex
+        
       }
+      // Check nested arrays (common in multicall patterns)
+      if (Array.isArray(arg)) 
+        for (const item of arg)
+          if (
+            typeof item === 'object' &&
+            item !== null &&
+            'data' in item &&
+            typeof item.data === 'string'
+          ) 
+            return item.data as Hex
+           else if (
+            typeof item === 'string' &&
+            item.startsWith('0x') &&
+            item.length > 10
+          )
+            return item as Hex
+      
     }
   } catch (error) {
     consola.debug(`Error extracting nested call data: ${error}`)
   }
 
   return null
-}
-
-/**
- * Recursively decode nested calls
- * @param data - Transaction data to decode
- * @param currentDepth - Current recursion depth
- * @param maxDepth - Maximum recursion depth
- * @param options - Decoding options
- * @returns Decoded transaction information
- */
-export async function decodeNestedCall(
-  data: Hex,
-  currentDepth = 0,
-  maxDepth = 5,
-  options?: IDecodeOptions
-): Promise<IDecodedTransaction> {
-  if (currentDepth >= maxDepth) {
-    consola.debug(`Max recursion depth (${maxDepth}) reached`)
-    return {
-      selector: data.substring(0, 10) as Hex,
-      decodedVia: 'unknown',
-      rawData: data,
-    }
-  }
-
-  const decoded = await decodeTransactionData(data, {
-    ...options,
-    maxDepth: maxDepth - currentDepth,
-  })
-
-  return decoded
 }

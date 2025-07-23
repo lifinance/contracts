@@ -26,17 +26,18 @@ describe('safe-decode-utils', () => {
     expect(result.decodedVia).toBe('unknown')
   })
 
-  test('should decode known selector from knownSelectors.json', async () => {
+  test('should decode ERC20 transfer via external API', async () => {
     const result = await decodeTransactionData(
       sampleTransactions.erc20Transfer.data
     )
     expect(result.selector).toBe(
       sampleTransactions.erc20Transfer.expectedSelector
     )
+    // Since we removed knownSelectors, this will be resolved via external API
     expect(result.functionName).toBe(
       sampleTransactions.erc20Transfer.expectedFunction
     )
-    expect(result.decodedVia).toBe('known')
+    expect(result.decodedVia).toBe('external')
   })
 
   test('should decode diamondCut selector', async () => {
@@ -48,6 +49,15 @@ describe('safe-decode-utils', () => {
     )
     // Function name will be resolved based on available data sources
     expect(result.functionName).toBeDefined()
+  })
+
+  test('should decode critical selector (schedule)', async () => {
+    const result = await decodeTransactionData(
+      sampleTransactions.timelockSchedule.data
+    )
+    expect(result.selector).toBe('0x01d5062a')
+    expect(result.functionName).toBe('schedule')
+    expect(result.decodedVia).toBe('known') // Critical selectors are marked as 'known'
   })
 
   test('should decode nested timelock schedule call', async () => {
