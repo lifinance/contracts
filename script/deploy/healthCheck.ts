@@ -172,7 +172,7 @@ const main = defineCommand({
       else consola.success(`Facet ${facet} registered in Diamond`)
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │      Check that core periphery facets are deployed      │
+    //          │      Check that core periphery contracts are deployed   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking deploy status of periphery contracts...')
     for (const contract of corePeriphery) {
