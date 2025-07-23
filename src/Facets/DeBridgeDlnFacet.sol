@@ -9,22 +9,27 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IDlnSource } from "../Interfaces/IDlnSource.sol";
-import { NotInitialized } from "../Errors/GenericErrors.sol";
+import { NotInitialized, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
-/// @title DeBridgeDLN Facet
+/// @title DeBridgeDLNFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through DeBridge DLN
-/// @custom:version 1.0.0
-contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @custom:version 1.0.1
+contract DeBridgeDlnFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.debridgedln");
     uint32 internal constant REFERRAL_CODE = 30729;
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
-    // solhint-disable-next-line immutable-vars-naming
-    IDlnSource public immutable dlnSource;
+
+    IDlnSource public immutable DLN_SOURCE;
 
     /// Types ///
 
@@ -52,7 +57,6 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     error UnknownDeBridgeChain();
     error EmptyNonEVMAddress();
-    error InvalidConfig();
 
     /// Events ///
 
@@ -61,12 +65,6 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     event DlnOrderCreated(bytes32 indexed orderId);
 
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes receiver
-    );
 
     /// Modifiers ///
 
@@ -83,7 +81,9 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Constructor for the contract.
     /// @param _dlnSource The address of the DLN order creation contract
     constructor(IDlnSource _dlnSource) {
-        dlnSource = _dlnSource;
+        if (address(_dlnSource) == address(0)) revert InvalidConfig();
+
+        DLN_SOURCE = _dlnSource;
     }
 
     /// Init ///
@@ -132,7 +132,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(
             _bridgeData,
             _deBridgeData,
-            dlnSource.globalFixedNativeFee()
+            DLN_SOURCE.globalFixedNativeFee()
         );
     }
 
@@ -154,7 +154,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         onlyValidReceiverAddress(_deBridgeData)
     {
-        uint256 fee = dlnSource.globalFixedNativeFee();
+        uint256 fee = DLN_SOURCE.globalFixedNativeFee();
         address assetId = _bridgeData.sendingAssetId;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -203,11 +203,11 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // Give the DLN Source approval to bridge tokens
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(dlnSource),
+                address(DLN_SOURCE),
                 _bridgeData.minAmount
             );
 
-            orderId = dlnSource.createOrder{ value: _fee }(
+            orderId = DLN_SOURCE.createOrder{ value: _fee }(
                 orderCreation,
                 "",
                 REFERRAL_CODE,
@@ -215,7 +215,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             orderCreation.giveAmount = orderCreation.giveAmount - _fee;
-            orderId = dlnSource.createOrder{ value: _bridgeData.minAmount }(
+            orderId = DLN_SOURCE.createOrder{ value: _bridgeData.minAmount }(
                 orderCreation,
                 "",
                 REFERRAL_CODE,
