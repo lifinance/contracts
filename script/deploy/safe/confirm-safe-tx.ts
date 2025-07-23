@@ -826,6 +826,7 @@ const main = defineCommand({
         // If a specific network is provided, validate it exists and is active
         const networkConfig =
           networksData[args.network.toLowerCase() as keyof typeof networksData]
+
         if (!networkConfig)
           throw new Error(`Network ${args.network} not found in networks.json`)
 
@@ -859,6 +860,7 @@ const main = defineCommand({
       // Process transactions for each network
       for (const network of networks) {
         const networkTxs = txsByNetwork[network.toLowerCase()]
+
         if (!networkTxs || networkTxs.length === 0)
           // This should not happen with our new approach, but keep as safety check
           continue
