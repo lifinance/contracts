@@ -851,7 +851,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         vm.setEnv("NETWORK", "base");
         vm.setEnv("FILE_SUFFIX", "staging.");
         vm.setEnv("USE_DEF_DIAMOND", "true");
-        // Use a dummy private key for testing (32 bytes)
+        // Use a dummy private key for testing (32 bytes) - needed for github action
         vm.setEnv(
             "PRIVATE_KEY",
             "0x1234567890123456789012345678901234567890123456789012345678901234"
