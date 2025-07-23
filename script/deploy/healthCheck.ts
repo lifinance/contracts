@@ -230,9 +230,11 @@ const main = defineCommand({
       const peripheryAddress = deployedContracts[periphery]
       if (!peripheryAddress)
         logError(`Periphery contract ${periphery} not deployed `)
-      else if (!addresses.includes(getAddress(peripheryAddress)))
+      else if (!addresses.includes(getAddress(peripheryAddress))) {
+        // skip the registration check for LiFiTimelockController (no need to register it)
+        if (periphery === 'LiFiTimelockController') continue
         logError(`Periphery contract ${periphery} not registered in Diamond`)
-      else
+      } else
         consola.success(`Periphery contract ${periphery} registered in Diamond`)
     }
 
