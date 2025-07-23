@@ -28,7 +28,7 @@ import {
 import type { ILedgerAccountResult } from './ledger'
 import {
   type IDecodedTransaction,
-  decodeTransactionData as decodeTransactionDataNew,
+  decodeTransactionData,
   CRITICAL_SELECTORS,
 } from './safe-decode-utils'
 import {
@@ -405,7 +405,7 @@ const processTxs = async (
     try {
       if (tx.safeTx.data) {
         // Use the new decoding system
-        decodedTx = await decodeTransactionDataNew(tx.safeTx.data.data as Hex, {
+        decodedTx = await decodeTransactionData(tx.safeTx.data.data as Hex, {
           network,
         })
 
@@ -441,9 +441,9 @@ const processTxs = async (
 
     // Display the formatted lines with appropriate coloring
     displayData.lines.forEach((line) => {
-      if (line.startsWith('Function:')) 
+      if (line.startsWith('Function:'))
         consola.info(`Function: \u001b[34m${line.substring(10)}\u001b[0m`)
-       else if (line.startsWith('Unknown function with selector:')) {
+      else if (line.startsWith('Unknown function with selector:')) {
         const selector = line.substring(32)
         consola.info(
           `Unknown function with selector: \u001b[33m${selector}\u001b[0m`
@@ -451,29 +451,23 @@ const processTxs = async (
       } else if (line.includes('[') && line.includes(']:')) {
         // Argument lines
         const match = line.match(/^(\s*\[\d+\]:\s*)(.*)$/)
-        if (match) 
-          consola.info(`${match[1]}\u001b[33m${match[2]}\u001b[0m`)
-         else 
-          consola.info(line)
-        
-      } else 
-        consola.info(line)
-      
+        if (match) consola.info(`${match[1]}\u001b[33m${match[2]}\u001b[0m`)
+        else consola.info(line)
+      } else consola.info(line)
     })
 
     // Handle special cases that need additional processing
-    if (displayData.type === 'diamondCut' && decoded) 
+    if (displayData.type === 'diamondCut' && decoded)
       await decodeDiamondCut(decoded, chain.id)
-     else if (displayData.type === 'schedule' && decodedTx) 
+    else if (displayData.type === 'schedule' && decodedTx)
       await displayNestedTimelockCall(decodedTx, chain.id)
-     else if (
+    else if (
       displayData.type === 'regular' &&
       decoded &&
       decoded.args === undefined
-    ) 
+    )
       // Only show full decoded data if it contains useful information beyond what we've already shown
       consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
-    
 
     // Format and display Safe transaction details
     const safeDetails: ISafeTransactionDetails = {
@@ -490,10 +484,10 @@ const processTxs = async (
 
     const safeDetailsLines = formatSafeTransactionDetails(safeDetails)
     safeDetailsLines.forEach((line, index) => {
-      if (index === 0) 
+      if (index === 0)
         // Header line
         consola.info(line)
-       else if (line.includes('Safe Tx Hash:')) {
+      else if (line.includes('Safe Tx Hash:')) {
         // Safe Tx Hash in cyan
         const parts = line.split('Safe Tx Hash:')
         consola.info(
@@ -516,9 +510,7 @@ const processTxs = async (
           const label = line.substring(0, colonIndex + 1)
           const value = line.substring(colonIndex + 1)
           consola.info(`${label}\u001b[32m${value}\u001b[0m`)
-        } else 
-          consola.info(line)
-        
+        } else consola.info(line)
       }
     })
 
