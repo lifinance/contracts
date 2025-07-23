@@ -851,7 +851,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         vm.setEnv("NETWORK", "base");
         vm.setEnv("FILE_SUFFIX", "staging.");
         vm.setEnv("USE_DEF_DIAMOND", "true");
-        vm.setEnv("PRIVATE_KEY", "test");
+        // Use a dummy private key for testing (32 bytes)
+        vm.setEnv(
+            "PRIVATE_KEY",
+            "0x1234567890123456789012345678901234567890123456789012345678901234"
+        );
 
         // Create instance of deployment script to access getCallData
         deployScript = new ExposedUpdateWhitelistManagerFacetDeployScript();
