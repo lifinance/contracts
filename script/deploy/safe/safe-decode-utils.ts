@@ -29,6 +29,7 @@ export interface IDecodedTransaction {
   decodedVia: 'diamond' | 'deployment' | 'known' | 'external' | 'unknown'
   nestedCall?: IDecodedTransaction
   rawData?: Hex
+  abi?: string
 }
 
 /**
@@ -42,7 +43,10 @@ export interface IDecodeOptions {
 /**
  * Critical function selectors we need to decode
  */
-const CRITICAL_SELECTORS: Record<string, { name: string; abi?: string }> = {
+export const CRITICAL_SELECTORS: Record<
+  string,
+  { name: string; abi?: string }
+> = {
   '0x1f931c1c': {
     name: 'diamondCut',
     abi: 'function diamondCut((address,uint8,bytes4[])[],address,bytes)',
@@ -197,6 +201,7 @@ async function tryCriticalSelectors(
     )
     return {
       functionName: CRITICAL_SELECTORS[selector].name,
+      abi: CRITICAL_SELECTORS[selector].abi,
       decodedVia: 'known',
     }
   }
@@ -277,7 +282,7 @@ export async function decodeTransactionData(
   }
 
   // Try to decode function arguments if we found the function
-  if (result.functionName) 
+  if (result.functionName)
     try {
       // Check if we have an ABI for this function
       if (CRITICAL_SELECTORS[selector]?.abi) {
@@ -310,18 +315,16 @@ export async function decodeTransactionData(
     } catch (error) {
       consola.debug(`Could not decode function arguments: ${error}`)
     }
-  
 
   // Try to decode nested calls if applicable
   if (result.args && options?.maxDepth !== 0) {
     const nestedData = extractNestedCallData(result)
-    if (nestedData) 
+    if (nestedData)
       result.nestedCall = await decodeNestedCall(
         nestedData,
         1,
         options?.maxDepth
       )
-    
   }
 
   return result
@@ -339,13 +342,12 @@ export async function decodeNestedCall(
   currentDepth = 1,
   maxDepth = 3
 ): Promise<IDecodedTransaction> {
-  if (currentDepth > maxDepth) 
+  if (currentDepth > maxDepth)
     return {
       selector: data.substring(0, 10) as Hex,
       decodedVia: 'unknown',
       rawData: data,
     }
-  
 
   const decoded = await decodeTransactionData(data, {
     maxDepth: maxDepth - currentDepth,
@@ -354,13 +356,12 @@ export async function decodeNestedCall(
   // Check for further nested calls
   if (decoded.args && currentDepth < maxDepth) {
     const nestedData = extractNestedCallData(decoded)
-    if (nestedData) 
+    if (nestedData)
       decoded.nestedCall = await decodeNestedCall(
         nestedData,
         currentDepth + 1,
         maxDepth
       )
-    
   }
 
   return decoded
@@ -377,18 +378,16 @@ function extractNestedCallData(decoded: IDecodedTransaction): Hex | null {
   if (decoded.functionName === 'schedule' && decoded.args.length >= 3) {
     // In schedule(target, value, data, ...), data is at index 2
     const data = decoded.args[2]
-    if (typeof data === 'string' && data.startsWith('0x') && data.length > 10) 
+    if (typeof data === 'string' && data.startsWith('0x') && data.length > 10)
       return data as Hex
-    
   }
 
   // Handle multicall pattern
   if (decoded.functionName === 'multicall' && Array.isArray(decoded.args[0])) {
     // Return first call for now
     const firstCall = decoded.args[0][0]
-    if (typeof firstCall === 'string' && firstCall.startsWith('0x')) 
+    if (typeof firstCall === 'string' && firstCall.startsWith('0x'))
       return firstCall as Hex
-    
   }
 
   // Generic pattern: look for hex data in args
@@ -399,27 +398,24 @@ function extractNestedCallData(decoded: IDecodedTransaction): Hex | null {
         // Try to parse it as a selector
         const potentialSelector = arg.substring(0, 10)
         // Basic validation: should be hex
-        if (/^0x[a-fA-F0-9]{8}$/.test(potentialSelector)) 
-          return arg as Hex
-        
+        if (/^0x[a-fA-F0-9]{8}$/.test(potentialSelector)) return arg as Hex
       }
       // Check nested arrays (common in multicall patterns)
-      if (Array.isArray(arg)) 
+      if (Array.isArray(arg))
         for (const item of arg)
           if (
             typeof item === 'object' &&
             item !== null &&
             'data' in item &&
             typeof item.data === 'string'
-          ) 
+          )
             return item.data as Hex
-           else if (
+          else if (
             typeof item === 'string' &&
             item.startsWith('0x') &&
             item.length > 10
           )
             return item as Hex
-      
     }
   } catch (error) {
     consola.debug(`Error extracting nested call data: ${error}`)

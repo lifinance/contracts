@@ -24,6 +24,7 @@ import type { ILedgerAccountResult } from './ledger'
 import {
   type IDecodedTransaction,
   decodeTransactionData as decodeTransactionDataNew,
+  CRITICAL_SELECTORS,
 } from './safe-decode-utils'
 import {
   PrivateKeyTypeEnum,
@@ -104,11 +105,31 @@ async function displayNestedTimelockCall(
 
       consola.info(`Decoded via: ${nested.decodedVia}`)
 
-      // If the nested call is diamondCut, decode it further
-      if (nested.functionName?.includes('diamondCut') && nested.rawData)
+      // If the nested call is diamondCut, use the already decoded data
+      if (nested.functionName === 'diamondCut' && nested.args) {
+        consola.info('Nested Diamond Cut detected - decoding...')
+        await decodeDiamondCut(
+          {
+            functionName: 'diamondCut',
+            args: nested.args,
+          },
+          chainId
+        )
+      } else if (
+        nested.functionName?.includes('diamondCut') &&
+        nested.rawData &&
+        !nested.args
+      )
+        // Only try to decode if args weren't already decoded
         try {
-          const fullAbiString = `function ${nested.functionName}`
-          const abiInterface = parseAbi([fullAbiString])
+          // Use the ABI from the decoded transaction or fall back to CRITICAL_SELECTORS
+          const abi = nested.abi || CRITICAL_SELECTORS[nested.selector]?.abi
+          if (!abi) {
+            consola.warn('No ABI found for diamondCut function')
+            return
+          }
+
+          const abiInterface = parseAbi([abi])
           const nestedDecodedData = decodeFunctionData({
             abi: abiInterface,
             data: nested.rawData,
