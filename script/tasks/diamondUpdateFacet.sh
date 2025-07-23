@@ -126,8 +126,6 @@ diamondUpdateFacet() {
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
 
-        UPDATE_RETURN_CODE=$?
-
         CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
         FACET_CUT=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns.cutData.value')
         echo "FACET_CUT: ($FACET_CUT)"

@@ -35390,6 +35390,21 @@
           }
         ]
       }
+    },
+    "ronin": {
+      "production": {
+        "2.0.5": [
+          {
+            "ADDRESS": "0xC7fF0661C9fF1Da5472e71e5ee6dAdB6afa87d02",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-23 09:33:57",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000031030df252cb281d8b94863af6af4af8774adb7e",
+            "SALT": "2025072211",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
