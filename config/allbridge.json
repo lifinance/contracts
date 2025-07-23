@@ -1,4 +1,5 @@
 {
+  "LinkToDeployedToAddresses": "https://github.com/allbridge-io/allbridge-core-docs",
   "mainnet": {
     "allBridge": "0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e"
   },
