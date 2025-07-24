@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { TestBase } from "../utils/TestBase.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-//solhint-disable max-line-length
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "lifi/Errors/GenericErrors.sol";
 
 contract LibAssetImplementer {

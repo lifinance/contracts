@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../../utils/TestBase.sol";
-//solhint-disable max-line-length
 import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";

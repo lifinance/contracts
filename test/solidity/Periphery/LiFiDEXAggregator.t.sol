@@ -349,7 +349,6 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
                 tokenIn: ADDRESS_USDC,
                 amountIn: IERC20(ADDRESS_USDC).balanceOf(
                     address(liFiDEXAggregator)
-                    // solhint-disable-next-line max-line-length
                 ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,

@@ -525,7 +525,6 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    // solhint-disable max-line-length
     /// The following test code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/test/Permit2NonceFinder.t.sol
 
     function test_can_find_nonce() public {

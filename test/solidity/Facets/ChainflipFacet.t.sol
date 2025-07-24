@@ -6,7 +6,6 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-//solhint-disable max-line-length
 import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 

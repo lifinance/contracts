@@ -1,4 +1,3 @@
-//solhint-disable max-line-length
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
