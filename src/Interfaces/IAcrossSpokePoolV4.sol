@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.1.0
 interface IAcrossSpokePoolV4 {
-    // this function was updated with AcrossV4 to support bytes32 instead of address
+    // the parameters of the existing deposit() function were updated with AcrossV4 to support bytes32 instead of address
     function deposit(
         // The address that made the deposit on the origin chain
         bytes32 depositor,
@@ -30,22 +30,6 @@ interface IAcrossSpokePoolV4 {
         // The timestamp on the destination chain after which any relayer can fill the deposit
         uint32 exclusivityDeadline,
         // Arbitrary data that can be used to pass additional information to the recipient along with the tokens
-        bytes calldata message
-    ) external payable;
-
-    function depositV3(
-        address depositor,
-        address recipient,
-        address inputToken,
-        address outputToken,
-        uint256 inputAmount,
-        // replaces fees
-        uint256 outputAmount,
-        uint256 destinationChainId,
-        address exclusiveRelayer,
-        uint32 quoteTimestamp,
-        uint32 fillDeadline,
-        uint32 exclusivityDeadline,
         bytes calldata message
     ) external payable;
 }
