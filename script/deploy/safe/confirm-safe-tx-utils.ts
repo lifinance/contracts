@@ -129,11 +129,11 @@ export function formatTransactionDisplay(
   const lines: string[] = []
   let type: ITransactionDisplayData['type'] = 'regular'
 
-  if (decodedTx && decodedTx.functionName) {
+  if (decodedTx?.functionName) {
     lines.push(`Function: ${decodedTx.functionName}`)
-    if (decodedTx.contractName) 
+    if (decodedTx.contractName) {
       lines.push(`Contract: ${decodedTx.contractName}`)
-    
+    }
     lines.push(`Decoded via: ${decodedTx.decodedVia}`)
 
     // Determine type
