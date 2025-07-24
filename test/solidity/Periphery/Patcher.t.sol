@@ -6,7 +6,7 @@ import { Patcher } from "../../../src/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { RelayFacet } from "../../../src/Facets/RelayFacet.sol";
-import { LibAsset } from "../../../src/Libraries/LibAsset.sol";
+import { LiFiData } from "../../../src/Helpers/LiFiData.sol";
 import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
 
 error MockFailure();
@@ -173,7 +173,7 @@ contract MockSilentFailTarget {
     }
 }
 
-contract PatcherTest is TestBase {
+contract PatcherTest is TestBase, LiFiData {
     event CallReceived(uint256 value, address sender, uint256 ethValue);
 
     Patcher internal patcher;
@@ -950,7 +950,7 @@ contract PatcherTest is TestBase {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _getMappedChainId(_bridgeData.destinationChainId),
-                        _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
+                        _bridgeData.receiver == LiFiData.NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
                         _relayData.receivingAssetId
