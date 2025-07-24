@@ -46,6 +46,7 @@ EXCLUDED_PATHS=(
   "safe/london/out/"
   "bun.lock"
   ".bun/"
+  "script/deploy/safe/fixtures/"
 )
 
 # Load secrets from .env file

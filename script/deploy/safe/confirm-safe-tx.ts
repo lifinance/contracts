@@ -9,10 +9,10 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
+import type { Collection } from 'mongodb'
 import {
   decodeFunctionData,
   parseAbi,
-  type Abi,
   type Account,
   type Address,
   type Hex,
@@ -20,11 +20,21 @@ import {
 
 import networksData from '../../../config/networks.json'
 
+import {
+  formatTransactionDisplay,
+  formatSafeTransactionDetails,
+  type ISafeTransactionDetails,
+} from './confirm-safe-tx-utils'
 import type { ILedgerAccountResult } from './ledger'
 import {
-  PrivateKeyTypeEnum,
-  decodeDiamondCut,
+  type IDecodedTransaction,
   decodeTransactionData,
+  CRITICAL_SELECTORS,
+} from './safe-decode-utils'
+import {
+  PrivateKeyTypeEnum,
+  type ViemSafe,
+  decodeDiamondCut,
   getNetworksWithPendingTransactions,
   getPendingTransactionsByNetwork,
   getPrivateKey,
@@ -59,17 +69,22 @@ const globalTimeoutExecutions: Array<{
 }> = []
 
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
-;(BigInt.prototype as any).toJSON = function () {
+// @ts-expect-error - Adding toJSON to BigInt prototype for serialization
+;(BigInt.prototype as { toJSON: () => string }).toJSON = function () {
   return this.toString()
 }
 
 /**
- * Decodes nested timelock schedule calls that may contain diamondCut
- * @param decoded - The decoded schedule function data
+ * Decodes and displays nested timelock schedule calls
+ * @param decoded - The decoded transaction data
  * @param chainId - Chain ID for ABI fetching
+ * @param network - Network name for better resolution
  */
-async function decodeNestedTimelockCall(decoded: any, chainId: number) {
-  if (decoded.functionName === 'schedule') {
+async function displayNestedTimelockCall(
+  decoded: IDecodedTransaction,
+  chainId: number
+) {
+  if (decoded.functionName === 'schedule' && decoded.args) {
     consola.info('Timelock Schedule Details:')
     consola.info('-'.repeat(80))
 
@@ -82,74 +97,81 @@ async function decodeNestedTimelockCall(decoded: any, chainId: number) {
     consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
     consola.info('-'.repeat(80))
 
-    // Try to decode the nested data
-    if (data && data !== '0x')
-      try {
-        const nestedDecoded = await decodeTransactionData(data as Hex)
-        if (nestedDecoded.functionName) {
-          consola.info(
-            `Nested Function: \u001b[34m${nestedDecoded.functionName}\u001b[0m`
-          )
+    // The nested call should already be decoded
+    if (decoded.nestedCall) {
+      const nested = decoded.nestedCall
+      consola.info(
+        `Nested Function: \u001b[34m${
+          nested.functionName || nested.selector
+        }\u001b[0m`
+      )
 
-          // If the nested call is diamondCut, decode it further
-          if (nestedDecoded.functionName.includes('diamondCut')) {
-            const fullAbiString = `function ${nestedDecoded.functionName}`
-            const abiInterface = parseAbi([fullAbiString])
-            const nestedDecodedData = decodeFunctionData({
-              abi: abiInterface,
-              data: data as Hex,
-            })
+      if (nested.contractName) consola.info(`Contract: ${nested.contractName}`)
 
-            if (nestedDecodedData.functionName === 'diamondCut') {
-              consola.info('Nested Diamond Cut detected - decoding...')
-              await decodeDiamondCut(nestedDecodedData, chainId)
-            } else
-              consola.info(
-                'Nested Data:',
-                JSON.stringify(nestedDecodedData, null, 2)
-              )
+      consola.info(`Decoded via: ${nested.decodedVia}`)
+
+      // If the nested call is diamondCut, use the already decoded data
+      if (nested.functionName === 'diamondCut' && nested.args) {
+        consola.info('Nested Diamond Cut detected - decoding...')
+        await decodeDiamondCut(
+          {
+            functionName: 'diamondCut',
+            args: nested.args,
+          },
+          chainId
+        )
+      } else if (
+        nested.functionName?.includes('diamondCut') &&
+        nested.rawData &&
+        !nested.args
+      )
+        // Only try to decode if args weren't already decoded
+        try {
+          // Use the ABI from the decoded transaction or fall back to CRITICAL_SELECTORS
+          const abi = nested.abi || CRITICAL_SELECTORS[nested.selector]?.abi
+          if (!abi) {
+            consola.warn('No ABI found for diamondCut function')
+            return
           }
-          // Decode the nested function arguments properly
-          else
-            try {
-              const fullAbiString = `function ${nestedDecoded.functionName}`
-              const abiInterface = parseAbi([fullAbiString])
-              const nestedDecodedData = decodeFunctionData({
-                abi: abiInterface,
-                data: data as Hex,
-              })
 
-              if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
-                consola.info('Nested Decoded Arguments:')
-                nestedDecodedData.args.forEach((arg: any, index: number) => {
-                  // Handle different types of arguments
-                  let displayValue = arg
-                  if (typeof arg === 'bigint') displayValue = arg.toString()
-                  else if (typeof arg === 'object' && arg !== null)
-                    displayValue = JSON.stringify(arg)
+          const abiInterface = parseAbi([abi])
+          const nestedDecodedData = decodeFunctionData({
+            abi: abiInterface,
+            data: nested.rawData,
+          })
 
-                  consola.info(
-                    `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
-                  )
-                })
-              } else
-                consola.info(
-                  'No nested arguments or failed to decode nested arguments'
-                )
-            } catch (decodeError: any) {
-              consola.warn(
-                `Failed to decode nested function arguments: ${decodeError.message}`
-              )
-              consola.info(
-                'Nested Data:',
-                JSON.stringify(nestedDecoded.decodedData, null, 2)
-              )
-            }
-        } else consola.info(`Nested Data: ${data}`)
-      } catch (error: any) {
-        consola.warn(`Failed to decode nested data: ${error.message}`)
+          if (nestedDecodedData.functionName === 'diamondCut') {
+            consola.info('Nested Diamond Cut detected - decoding...')
+            await decodeDiamondCut(nestedDecodedData, chainId)
+          } else
+            consola.info(
+              'Nested Data:',
+              JSON.stringify(nestedDecodedData, null, 2)
+            )
+        } catch (error) {
+          consola.warn(
+            `Failed to decode diamondCut: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+      else if (nested.args && nested.args.length > 0) {
+        consola.info('Nested Decoded Arguments:')
+        nested.args.forEach((arg: unknown, index: number) => {
+          // Handle different types of arguments
+          let displayValue = arg
+          if (typeof arg === 'bigint') displayValue = arg.toString()
+          else if (typeof arg === 'object' && arg !== null)
+            displayValue = JSON.stringify(arg)
+
+          consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+        })
+      } else if (!nested.functionName) {
+        consola.info(`Unknown function with selector: ${nested.selector}`)
         consola.info(`Raw nested data: ${data}`)
       }
+    } else if (data && data !== '0x')
+      consola.info(`Nested Data (not decoded): ${data}`)
   }
 }
 
@@ -169,7 +191,7 @@ const processTxs = async (
   privateKey: string | undefined,
   privKeyType: PrivateKeyTypeEnum,
   pendingTxs: ISafeTxDocument[],
-  pendingTransactions: any,
+  pendingTransactions: Collection<ISafeTxDocument>,
   rpcUrl?: string,
   useLedger?: boolean,
   ledgerOptions?: {
@@ -210,8 +232,12 @@ const processTxs = async (
       consola.error('Cannot sign or execute transactions - exiting')
       return
     }
-  } catch (error: any) {
-    consola.error(`Failed to check if signer is an owner: ${error.message}`)
+  } catch (error) {
+    consola.error(
+      `Failed to check if signer is an owner: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
     consola.error('Skipping this network and moving to the next one')
     return
   }
@@ -227,9 +253,13 @@ const processTxs = async (
       const signedTx = await safe.signTransaction(safeTransaction)
       consola.success('Transaction signed')
       return signedTx
-    } catch (error: any) {
+    } catch (error) {
       consola.error('Error signing transaction:', error)
-      throw new Error(`Failed to sign transaction: ${error.message}`)
+      throw new Error(
+        `Failed to sign transaction: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
     }
   }
 
@@ -240,7 +270,7 @@ const processTxs = async (
    */
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
-    safeClient: any = safe
+    safeClient: ViemSafe = safe
   ) {
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
@@ -274,10 +304,14 @@ const processTxs = async (
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
-    } catch (error: any) {
+    } catch (error) {
       consola.error('❌ Error executing Safe transaction:')
-      consola.error(`   ${error.message}`)
-      if (error.message.includes('GS026')) {
+      consola.error(
+        `   ${error instanceof Error ? error.message : String(error)}`
+      )
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      if (errorMessage.includes('GS026')) {
         consola.error(
           '   This appears to be a signature validation error (GS026).'
         )
@@ -286,20 +320,20 @@ const processTxs = async (
         )
       }
       // Record error in global arrays
-      if (error.message.toLowerCase().includes('timeout'))
+      if (errorMessage.toLowerCase().includes('timeout'))
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
-          error: error.message,
+          error: errorMessage,
         })
       else
         globalFailedExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
-          error: error.message,
+          error: errorMessage,
         })
 
-      throw new Error(`Transaction execution failed: ${error.message}`)
+      throw new Error(`Transaction execution failed: ${errorMessage}`)
     }
   }
 
@@ -307,8 +341,12 @@ const processTxs = async (
   let threshold
   try {
     threshold = Number(await safe.getThreshold())
-  } catch (error: any) {
-    consola.error(`Failed to get threshold: ${error.message}`)
+  } catch (error) {
+    consola.error(
+      `Failed to get threshold: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
     throw new Error(
       `Could not get threshold for Safe ${safeAddress} on ${network}`
     )
@@ -360,75 +398,121 @@ const processTxs = async (
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
   })) {
-    let abi
-    let abiInterface: Abi
-    let decoded
+    let decodedTx: IDecodedTransaction | null = null
+    let decoded: { functionName: string; args?: readonly unknown[] } | null =
+      null
 
     try {
       if (tx.safeTx.data) {
-        const { functionName } = await decodeTransactionData(
-          tx.safeTx.data.data as Hex
-        )
-        if (functionName) {
-          abi = functionName
-          const fullAbiString = `function ${abi}`
-          abiInterface = parseAbi([fullAbiString])
-          decoded = decodeFunctionData({
-            abi: abiInterface,
-            data: tx.safeTx.data.data as Hex,
-          })
-        }
+        // Use the new decoding system
+        decodedTx = await decodeTransactionData(tx.safeTx.data.data as Hex, {
+          network,
+        })
+
+        // For backward compatibility, try to decode with viem if we found a function name
+        if (decodedTx.functionName)
+          try {
+            const fullAbiString = `function ${decodedTx.functionName}`
+            const abiInterface = parseAbi([fullAbiString])
+            const decodedData = decodeFunctionData({
+              abi: abiInterface,
+              data: tx.safeTx.data.data as Hex,
+            })
+            decoded = decodedData
+          } catch (error) {
+            // If viem decoding fails, we'll still have the basic info from decodedTx
+            consola.debug(`Viem decoding failed: ${error}`)
+          }
       }
-    } catch (error: any) {
-      consola.warn(`Failed to decode transaction data: ${error.message}`)
+    } catch (error) {
+      consola.warn(
+        `Failed to decode transaction data: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
     }
 
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
 
-    if (abi)
-      if (decoded && decoded.functionName === 'diamondCut')
-        await decodeDiamondCut(decoded, chain.id)
-      else if (decoded && decoded.functionName === 'schedule')
-        await decodeNestedTimelockCall(decoded, chain.id)
-      else {
-        consola.info('Method:', abi)
-        if (decoded) {
-          consola.info('Function Name:', decoded.functionName)
-          if (decoded.args && decoded.args.length > 0) {
-            consola.info('Decoded Arguments:')
-            decoded.args.forEach((arg: any, index: number) => {
-              // Handle different types of arguments
-              let displayValue = arg
-              if (typeof arg === 'bigint') displayValue = arg.toString()
-              else if (typeof arg === 'object' && arg !== null)
-                displayValue = JSON.stringify(arg)
+    // Use the new display function
+    const displayData = formatTransactionDisplay(decodedTx, decoded)
 
-              consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
-            })
-          } else consola.info('No arguments or failed to decode arguments')
+    // Display the formatted lines with appropriate coloring
+    displayData.lines.forEach((line) => {
+      if (line.startsWith('Function:'))
+        consola.info(`Function: \u001b[34m${line.substring(10)}\u001b[0m`)
+      else if (line.startsWith('Unknown function with selector:')) {
+        const selector = line.substring(32)
+        consola.info(
+          `Unknown function with selector: \u001b[33m${selector}\u001b[0m`
+        )
+      } else if (line.includes('[') && line.includes(']:')) {
+        // Argument lines
+        const match = line.match(/^(\s*\[\d+\]:\s*)(.*)$/)
+        if (match) consola.info(`${match[1]}\u001b[33m${match[2]}\u001b[0m`)
+        else consola.info(line)
+      } else consola.info(line)
+    })
 
-          // Only show full decoded data if it contains useful information beyond what we've already shown
-          if (decoded.args === undefined)
-            consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
-        }
+    // Handle special cases that need additional processing
+    if (displayData.type === 'diamondCut' && decoded)
+      await decodeDiamondCut(decoded, chain.id)
+    else if (displayData.type === 'schedule' && decodedTx)
+      await displayNestedTimelockCall(decodedTx, chain.id)
+    else if (
+      displayData.type === 'regular' &&
+      decoded &&
+      decoded.args === undefined
+    )
+      // Only show full decoded data if it contains useful information beyond what we've already shown
+      consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
+
+    // Format and display Safe transaction details
+    const safeDetails: ISafeTransactionDetails = {
+      nonce: Number(tx.safeTx.data.nonce),
+      to: tx.safeTx.data.to,
+      value: tx.safeTx.data.value.toString(),
+      operation: tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall',
+      data: tx.safeTx.data.data,
+      proposer: tx.proposer,
+      safeTxHash: tx.safeTxHash,
+      signatures: `${tx.safeTransaction.signatures.size}/${tx.threshold} required`,
+      executionReady: tx.canExecute,
+    }
+
+    const safeDetailsLines = formatSafeTransactionDetails(safeDetails)
+    safeDetailsLines.forEach((line, index) => {
+      if (index === 0)
+        // Header line
+        consola.info(line)
+      else if (line.includes('Safe Tx Hash:')) {
+        // Safe Tx Hash in cyan
+        const parts = line.split('Safe Tx Hash:')
+        consola.info(
+          `${parts[0]}Safe Tx Hash:    \u001b[36m${
+            parts[1]?.trim() || ''
+          }\u001b[0m`
+        )
+      } else if (line.includes('Execution Ready:')) {
+        // Execution Ready with colored checkmark/cross
+        const parts = line.split('Execution Ready:')
+        const symbol = parts[1]?.trim() || ''
+        const color = symbol === '✓' ? '32m' : '31m'
+        consola.info(
+          `${parts[0]}Execution Ready: \u001b[${color}${symbol}\u001b[0m`
+        )
+      } else {
+        // All other lines in green
+        const colonIndex = line.indexOf(':')
+        if (colonIndex > -1) {
+          const label = line.substring(0, colonIndex + 1)
+          const value = line.substring(colonIndex + 1)
+          consola.info(`${label}\u001b[32m${value}\u001b[0m`)
+        } else consola.info(line)
       }
-
-    consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
-    To:              \u001b[32m${tx.safeTx.data.to}\u001b[0m
-    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
-    Operation:       \u001b[32m${
-      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
-    }\u001b[0m
-    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
-    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
-    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
-      tx.threshold
-    }\u001b[0m required
-    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
+    })
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]
@@ -714,8 +798,12 @@ const main = defineCommand({
         const { getLedgerAccount } = await import('./ledger')
         ledgerResult = await getLedgerAccount(ledgerOptions)
         consola.success('Ledger connected successfully for all networks')
-      } catch (error: any) {
-        consola.error(`Failed to connect to Ledger: ${error.message}`)
+      } catch (error) {
+        consola.error(
+          `Failed to connect to Ledger: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
         throw error
       }
 
@@ -730,12 +818,13 @@ const main = defineCommand({
         // If a specific network is provided, validate it exists and is active
         const networkConfig =
           networksData[args.network.toLowerCase() as keyof typeof networksData]
-        if (!networkConfig) 
+
+        if (!networkConfig)
           throw new Error(`Network ${args.network} not found in networks.json`)
-        
-        if (networkConfig.status !== 'active') 
+
+        if (networkConfig.status !== 'active')
           throw new Error(`Network ${args.network} is not active`)
-        
+
         networks = [args.network]
       } else {
         // Get only networks with pending transactions
@@ -763,10 +852,11 @@ const main = defineCommand({
       // Process transactions for each network
       for (const network of networks) {
         const networkTxs = txsByNetwork[network.toLowerCase()]
-        if (!networkTxs || networkTxs.length === 0) 
+
+        if (!networkTxs || networkTxs.length === 0)
           // This should not happen with our new approach, but keep as safety check
           continue
-        
+
         await processTxs(
           network,
           privateKey,

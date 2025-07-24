@@ -50,10 +50,13 @@ jobs:
           done < ".env"
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          
+
       - name: Run forge tests (with auto-repeat in case of error)
         uses: Wandalen/wretry.action@v3.8.0
         with:
           command: forge test
           attempt_limit: 10
           attempt_delay: 15000
+
+      - name: Run TypeScript tests
+        run: bun test:ts

@@ -415,6 +415,48 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 - **Execution Environment:**
   - All scripts should use `bunx tsx` for TypeScript execution
 
+### TypeScript Test Conventions
+
+- **Testing Framework:**
+
+  - Use the Bun built-in testing framework exclusively
+  - Import test utilities from `bun:test` (e.g., `import { describe, test, expect } from 'bun:test'`)
+  - Do not use other testing frameworks like Jest, Mocha, or Vitest
+
+- **File Naming and Location:**
+
+  - Test files must have a `.test.ts` extension
+  - Tests should live next to the file under test in the same directory
+  - Example: `foo.ts` will have a corresponding `foo.test.ts` file in the same directory
+  - This co-location makes it easier to find and maintain tests
+
+- **Test Structure:**
+
+  - Use `describe` blocks to group related tests
+  - Use `test` for individual test cases
+  - Test names should be descriptive and explain what is being tested
+  - Follow the pattern: "should [expected behavior] when [condition]"
+
+- **Test Organization:**
+
+  - Group tests by the function or module being tested
+  - Order tests from simple to complex scenarios
+  - Include both positive and negative test cases
+  - Test edge cases and error conditions
+
+- **Running Tests:**
+
+  - Use `bun test:ts` to run all tests
+  - Use `bun test <path>` to run specific test files
+  - Example: `bun test script/deploy/safe/confirm-safe-tx.test.ts`
+
+- **Best Practices:**
+  - Keep tests focused and test one thing at a time
+  - Use descriptive variable names in tests
+  - Avoid complex logic in tests - tests should be simple and readable
+  - Mock external dependencies when necessary
+  - Ensure tests are deterministic and don't depend on external state
+
 ### Bash Scripts
 
 Bash scripts provide the robust deployment framework with automated retry mechanisms for handling RPC issues and other deployment challenges. These scripts wrap Foundry's deployment functionality to add reliability and automation.

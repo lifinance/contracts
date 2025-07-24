@@ -49,7 +49,7 @@ export enum PrivateKeyTypeEnum {
   DEPLOYER,
 }
 
-export interface ISafeTransactionData {
+interface ISafeTransactionData {
   to: Address
   value: bigint
   data: Hex
@@ -62,7 +62,7 @@ export interface ISafeTransaction {
   signatures: Map<string, ISafeSignature>
 }
 
-export interface ISafeSignature {
+interface ISafeSignature {
   signer: Address
   data: Hex
 }
@@ -91,10 +91,7 @@ export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
  * @param retries - Number of retries remaining
  * @returns The result of the function
  */
-export const retry = async <T>(
-  func: () => Promise<T>,
-  retries = 3
-): Promise<T> => {
+const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
   try {
     const result = await func()
     return result
@@ -1079,21 +1076,6 @@ export function getPrivateKey(
 }
 
 /**
- * Gets the list of networks to process
- * @param networkArg - Network argument from command line
- * @returns List of networks to process
- */
-export function getNetworksToProcess(networkArg?: string): string[] {
-  if (networkArg) return [networkArg]
-
-  return Object.keys(networks).filter(
-    (network) =>
-      network !== 'localanvil' &&
-      networks[network.toLowerCase()]?.status === 'active'
-  )
-}
-
-/**
  * Gets networks that have pending transactions and exist in networks.json
  * @param pendingTransactions - MongoDB collection
  * @returns List of network names with pending transactions
@@ -1285,54 +1267,6 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
   // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
   consola.info(`Init Address: ${diamondCutData.args[1]}`)
   consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
-}
-
-/**
- * Decodes a transaction's function call
- * @param data - Transaction data
- * @returns Decoded function name and data if available
- */
-export async function decodeTransactionData(data: Hex): Promise<{
-  functionName?: string
-  decodedData?: any
-}> {
-  if (!data || data === '0x') return {}
-
-  try {
-    const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
-
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    ) {
-      const functionName = responseData.result.function[selector][0].name
-
-      try {
-        const decodedData = {
-          functionName,
-          args: responseData.result.function[selector][0].args,
-        }
-
-        return {
-          functionName,
-          decodedData,
-        }
-      } catch (error) {
-        consola.warn(`Could not decode function data: ${error}`)
-        return { functionName }
-      }
-    }
-
-    return {}
-  } catch (error) {
-    consola.warn(`Error decoding transaction data: ${error}`)
-    return {}
-  }
 }
 
 /**
