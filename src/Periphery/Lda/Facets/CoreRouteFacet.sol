@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { LibAccess } from "lifi/Libraries/LibAccess.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
-import { InvalidCallData, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
 
 /// @title Core Route Facet
 /// @author LI.FI (https://li.fi)
@@ -20,7 +17,8 @@ contract CoreRouteFacet is ReentrancyGuard {
     using LibInputStream for uint256;
 
     /// Constants ///
-    address internal constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant NATIVE_ADDRESS =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
     /// Events ///
@@ -58,7 +56,15 @@ contract CoreRouteFacet is ReentrancyGuard {
         address to,
         bytes calldata route
     ) external payable nonReentrant returns (uint256 amountOut) {
-        return _processRouteInternal(tokenIn, amountIn, tokenOut, amountOutMin, to, route);
+        return
+            _processRouteInternal(
+                tokenIn,
+                amountIn,
+                tokenOut,
+                amountOutMin,
+                to,
+                route
+            );
     }
 
     /// Internal Methods ///
@@ -155,13 +161,17 @@ contract CoreRouteFacet is ReentrancyGuard {
     }
 
     /// @notice Processes native coin
-    function _processNative(uint256 stream) private returns (uint256 amountTotal) {
+    function _processNative(
+        uint256 stream
+    ) private returns (uint256 amountTotal) {
         amountTotal = address(this).balance;
         _distributeAndSwap(stream, address(this), NATIVE_ADDRESS, amountTotal);
     }
 
     /// @notice Processes ERC20 token from this contract balance
-    function _processMyERC20(uint256 stream) private returns (uint256 amountTotal) {
+    function _processMyERC20(
+        uint256 stream
+    ) private returns (uint256 amountTotal) {
         address token = stream.readAddress();
         amountTotal = IERC20(token).balanceOf(address(this));
         unchecked {
@@ -210,20 +220,26 @@ contract CoreRouteFacet is ReentrancyGuard {
     ) private {
         // Read the function selector from the stream
         bytes4 selector = stream.readBytes4();
-        
-        // Look up facet address directly from Diamond storage
-        address facet = LibDiamond.facetAddress(selector);
+
+        // Look up facet address using LibDiamondLoupe
+        address facet = LibDiamondLoupe.facetAddress(selector);
         if (facet == address(0)) revert UnknownSelector();
 
         // Prepare calldata: selector + remaining stream + additional parameters
-        bytes memory data = abi.encodePacked(selector, stream, from, tokenIn, amountIn);
-        
+        bytes memory data = abi.encodePacked(
+            selector,
+            stream,
+            from,
+            tokenIn,
+            amountIn
+        );
+
         // Execute the swap via delegatecall to the facet
-        (bool success, bytes memory result) = facet.delegatecall(data);
+        (bool success, ) = facet.delegatecall(data);
         if (!success) {
             revert SwapFailed();
         }
-        
+
         // Note: Individual facets can return amounts if needed, but for now we rely on balance checks
     }
 }
