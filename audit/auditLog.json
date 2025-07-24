@@ -301,6 +301,13 @@
       "auditReportPath": "./audit/reports/2025.06.29_CalldataVerificationFacet(v1.3.1).pdf",
       "auditCommitHash": "8840d8b41a894c46a444c5b2db2ca34babee753f"
     },
+    "audit20250629_1": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_SwapperV2(v1.1.0).pdf",
+      "auditCommitHash": "4af7030dd8676d892c0bd63cdb2f43cbb7aae4cd"
+    },
     "audit20250630": {
       "auditCompletedOn": "30.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -592,7 +599,8 @@
     },
     "SwapperV2": {
       "1.0.0": ["audit20250508"],
-      "1.0.1": ["audit20250718"]
+      "1.0.1": ["audit20250718"],
+      "1.1.0": ["audit20250629_1"]
     },
     "SymbiosisFacet": {
       "1.0.0": ["audit20250508"]
