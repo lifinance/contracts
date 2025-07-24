@@ -104,7 +104,7 @@ describe('confirm-safe-tx utilities', () => {
         args: ['0x742d35cc6634c0532925a3b844bc9e7595f8e2dc', '100'],
       }
 
-      const result = await prepareNestedCallDisplay(nested, 1)
+      const result = await prepareNestedCallDisplay(nested)
 
       expect(result.functionName).toBe('transfer')
       expect(result.contractName).toBe('ERC20')
@@ -127,7 +127,7 @@ describe('confirm-safe-tx utilities', () => {
         ],
       }
 
-      const result = await prepareNestedCallDisplay(nested, 1)
+      const result = await prepareNestedCallDisplay(nested)
 
       expect(result.functionName).toBe('diamondCut')
       expect(result.diamondCutData).toBeDefined()
@@ -141,7 +141,7 @@ describe('confirm-safe-tx utilities', () => {
         decodedVia: 'unknown',
       }
 
-      const result = await prepareNestedCallDisplay(nested, 1)
+      const result = await prepareNestedCallDisplay(nested)
 
       expect(result.functionName).toBe('0x12345678')
       expect(result.decodedVia).toBe('unknown')
@@ -156,7 +156,7 @@ describe('confirm-safe-tx utilities', () => {
         // No args, so it will try to decode
       }
 
-      const result = await prepareNestedCallDisplay(nested, 1)
+      const result = await prepareNestedCallDisplay(nested)
 
       expect(result.error).toBeDefined()
       expect(result.error).toContain('Failed to decode diamondCut')
@@ -170,7 +170,7 @@ describe('confirm-safe-tx utilities', () => {
         rawData: '0x1234' as Hex,
       }
 
-      const result = await prepareNestedCallDisplay(nested, 1)
+      const result = await prepareNestedCallDisplay(nested)
 
       expect(result.error).toBe(
         'Failed to decode diamondCut: Unknown signature'

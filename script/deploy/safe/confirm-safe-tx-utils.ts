@@ -41,12 +41,10 @@ export function extractTimelockDetails(
 /**
  * Prepares nested call data for display
  * @param nested - The nested decoded transaction
- * @param chainId - Chain ID for additional decoding
  * @returns Prepared display data
  */
 export async function prepareNestedCallDisplay(
-  nested: IDecodedTransaction,
-  _chainId: number
+  nested: IDecodedTransaction
 ): Promise<{
   functionName: string
   contractName?: string
@@ -129,9 +127,9 @@ export function formatTransactionDisplay(
 
   if (decodedTx?.functionName) {
     lines.push(`Function: ${decodedTx.functionName}`)
-    if (decodedTx.contractName) 
+    if (decodedTx.contractName)
       lines.push(`Contract: ${decodedTx.contractName}`)
-    
+
     lines.push(`Decoded via: ${decodedTx.decodedVia}`)
 
     // Determine type
