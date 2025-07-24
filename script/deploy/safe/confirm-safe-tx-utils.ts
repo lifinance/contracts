@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: LGPL-3.0-only
-
 import type { IDecodedTransaction } from './safe-decode-utils'
 
 export interface ITimelockDetails {
@@ -131,17 +129,14 @@ export function formatTransactionDisplay(
 
   if (decodedTx?.functionName) {
     lines.push(`Function: ${decodedTx.functionName}`)
-    if (decodedTx.contractName) {
+    if (decodedTx.contractName) 
       lines.push(`Contract: ${decodedTx.contractName}`)
-    }
+    
     lines.push(`Decoded via: ${decodedTx.decodedVia}`)
 
     // Determine type
-    if (decodedTx.functionName === 'diamondCut') 
-      type = 'diamondCut'
-     else if (decodedTx.functionName === 'schedule') 
-      type = 'schedule'
-    
+    if (decodedTx.functionName === 'diamondCut') type = 'diamondCut'
+    else if (decodedTx.functionName === 'schedule') type = 'schedule'
 
     // For regular functions (not diamondCut or schedule)
     if (type === 'regular' && decoded) {
@@ -152,9 +147,7 @@ export function formatTransactionDisplay(
           const displayValue = formatArgument(arg)
           lines.push(`  [${index}]: ${displayValue}`)
         })
-      } else 
-        lines.push('No arguments or failed to decode arguments')
-      
+      } else lines.push('No arguments or failed to decode arguments')
     }
   } else if (decodedTx) {
     // Function not found but we have a selector
@@ -176,11 +169,9 @@ export function formatTransactionDisplay(
  * @returns Formatted string representation
  */
 export function formatArgument(arg: unknown): string {
-  if (typeof arg === 'bigint') 
-    return arg.toString()
-   else if (typeof arg === 'object' && arg !== null) 
-    return JSON.stringify(arg)
-  
+  if (typeof arg === 'bigint') return arg.toString()
+  else if (typeof arg === 'object' && arg !== null) return JSON.stringify(arg)
+
   return String(arg)
 }
 
