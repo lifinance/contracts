@@ -156,15 +156,19 @@
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x756Be848a6636D618B94f3196CBD89645eBa71c2": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "GasZipPeriphery": "0xECCD021343d25a58596482781323AE50EF936a01",
+      "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "0xA41c306315e61120C8F50832D84e1EcbE3B564D5",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",

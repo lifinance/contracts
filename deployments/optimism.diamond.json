@@ -152,6 +152,10 @@
       "0x007f2d2DDd83c12c73E9324F34493141a5d567d1": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
+      },
+      "0x756Be848a6636D618B94f3196CBD89645eBa71c2": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
