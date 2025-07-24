@@ -490,7 +490,28 @@ scriptMaster() {
   #---------------------------------------------------------------------------------------------------------------------
   # use case 10: Create updated target state from Google Docs
   elif [[ "$SELECTION" == "10)"* ]]; then
-    parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
+    # ask user if target state should be updated for all networks or one specific network
+    echo "Would you like to update target state for all networks or one specific network?"
+    SELECTION_NETWORK=$(
+      gum choose \
+        "1) All networks" \
+        "2) One specific network (selection in next screen)"
+    )
+    echo "[info] selected option: $SELECTION_NETWORK"
+
+    if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
+      # call parse target state function for all networks
+      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
+    else
+      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+      # get user-selected network from list
+      local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
+
+      echo "[info] selected network: $NETWORK"
+
+      # call parse target state function for specific network
+      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" "$NETWORK"
+    fi
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 11: Update all diamond log files
