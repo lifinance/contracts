@@ -6,11 +6,12 @@ import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title Core Route Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles route processing and selector-based swap dispatching for LDA 2.0
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 contract CoreRouteFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
@@ -200,9 +201,13 @@ contract CoreRouteFacet is ReentrancyGuard {
         uint256 amountTotal
     ) private {
         uint8 num = stream.readUint8();
+        console2.log("num222");
+        console2.log(num);
         unchecked {
             for (uint256 i = 0; i < num; ++i) {
                 uint16 share = stream.readUint16();
+                console2.log("share222");
+                console2.log(share);
                 uint256 amount = (amountTotal * share) / type(uint16).max;
                 amountTotal -= amount;
                 _dispatchSwap(stream, from, tokenIn, amount);
@@ -218,24 +223,35 @@ contract CoreRouteFacet is ReentrancyGuard {
         address tokenIn,
         uint256 amountIn
     ) private {
-        // Read the function selector from the stream
-        bytes4 selector = stream.readBytes4();
-
-        // Look up facet address using LibDiamondLoupe
-        address facet = LibDiamondLoupe.facetAddress(selector);
-        if (facet == address(0)) revert UnknownSelector();
-
-        // Prepare calldata: selector + remaining stream + additional parameters
-        bytes memory data = abi.encodePacked(
-            selector,
-            stream,
-            from,
-            tokenIn,
-            amountIn
+        // Read the function selector from the stream (4 bytes in reverse order)
+        bytes4 selector = bytes4(
+            uint32(stream.readUint8()) |
+            (uint32(stream.readUint8()) << 8) |
+            (uint32(stream.readUint8()) << 16) |
+            (uint32(stream.readUint8()) << 24)
         );
 
+        // Look up facet address using LibDiamondLoupe
+        console2.log("selector222");
+        console2.logBytes4(selector);
+        address facet = LibDiamondLoupe.facetAddress(selector);
+        console2.log("facet222");
+        console2.logAddress(facet);
+        if (facet == address(0)) revert UnknownSelector();
+
+        // Skip over the selector in the stream
+        stream.readBytes4();  // Skip the selector
+
         // Execute the swap via delegatecall to the facet
-        (bool success, ) = facet.delegatecall(data);
+        (bool success, ) = facet.delegatecall(
+            abi.encodeWithSelector(
+                selector,
+                stream,
+                from,
+                tokenIn,
+                amountIn
+            )
+        );
         if (!success) {
             revert SwapFailed();
         }

@@ -13,6 +13,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ReentrancyError, ETHTransferFailed } from "src/Errors/GenericErrors.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { console2 } from "forge-std/console2.sol";
 
 using stdJson for string;
 
@@ -325,7 +326,9 @@ abstract contract TestBase is Test, DiamondTest, LdaDiamondTest, ILiFi {
 
         // deploy & configure diamond
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+        console2.log("diamond", address(diamond));
         ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER);
+        console2.log("ldaDiamond", address(ldaDiamond));
 
         // deploy feeCollector
         feeCollector = new FeeCollector(USER_DIAMOND_OWNER);

@@ -6,6 +6,7 @@ import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title VelodromeV2 Facet
 /// @author LI.FI (https://li.fi)
@@ -33,9 +34,19 @@ contract VelodromeV2Facet {
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
+        console2.log("swapVelodromeV222 here");
+        console2.log("stream before reading:");
+        console2.logBytes(abi.encode(stream));  // Add this to see the raw stream data
+        
         address pool = stream.readAddress();
+        console2.log("pool222");
+        console2.logAddress(pool);
         uint8 direction = stream.readUint8();
+        console2.log("direction222");
+        console2.log(direction);
         address to = stream.readAddress();
+        console2.log("to222");
+        console2.logAddress(to);
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
         // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
