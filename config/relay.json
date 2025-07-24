@@ -1,123 +1,95 @@
 {
   "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/resources/contract-addresses",
+  "--- alternative (API) ---": "https://api.relay.link/chains?includeChains=562da1f0-bffe-4208-a3d8-143c2fbdb380",
+  "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
   "mainnet": {
-    "chainId": 1,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "abstract": {
-    "relayReceiver": "0x634e831ce6d460c2cd5067af98d6452eb280e374",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x634e831ce6d460c2cd5067af98d6452eb280e374"
   },
   "arbitrum": {
-    "chainId": 42161,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "arbitrumnova": {
-    "chainId": 42170,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "avalanche": {
-    "chainId": 43114,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "apechain": {
-    "chainId": 33139,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "berachain": {
-    "chainId": 80094,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "base": {
-    "chainId": 8453,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "blast": {
-    "chainId": 81457,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "boba": {
-    "chainId": 288,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "bob": {
-    "chainId": 60808,
-    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
   },
   "bsc": {
-    "chainId": 56,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+  },
+  "celo": {
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "corn": {
-    "chainId": 21000000,
-    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec"
+  },
+  "cronos": {
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
   },
   "gnosis": {
-    "chainId": 100,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "gravity": {
-    "chainId": 1625,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "hyperevm": {
-    "chainId": 999,
-    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec"
   },
   "ink": {
-    "chainId": 13371,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+  },
+  "katana": {
+    "relayReceiver": "0x9ff28846cd0640ba4aac04d3ebbe651cac5fe609"
   },
   "lisk": {
-    "chainId": 1135,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "linea": {
-    "chainId": 59144,
-    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
   },
   "mantle": {
-    "chainId": 5000,
-    "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e"
+  },
+  "metis": {
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
   },
   "mode": {
-    "chainId": 34443,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "optimism": {
-    "chainId": 10,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+  },
+  "plume": {
+    "chainId": 98866,
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
   "polygon": {
-    "chainId": 137,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "polygonzkevm": {
-    "chainId": 1101,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "ronin": {
     "chainId": 2020,
@@ -125,58 +97,36 @@
     "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
   },
   "scroll": {
-    "chainId": 534352,
-    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
   },
   "sei": {
-    "chainId": 1329,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "soneium": {
-    "chainId": 1868,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "sonic": {
-    "chainId": 146,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "superposition": {
-    "chainId": 55244,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "swellchain": {
-    "chainId": 1923,
-    "relayReceiver": "0xf042fcc6bd5cb48b2862d9f22d3de5b342e94f4c",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xf042fcc6bd5cb48b2862d9f22d3de5b342e94f4c"
   },
   "taiko": {
-    "chainId": 167000,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "unichain": {
-    "chainId": 130,
-    "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd"
   },
   "worldchain": {
-    "chainId": 480,
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "zksync": {
-    "chainId": 324,
-    "relayReceiver": "0xebd1e414ebb98522cfd932104ba41fac10a4ef35",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xebd1e414ebb98522cfd932104ba41fac10a4ef35"
   },
   "zora": {
-    "chainId": 7777777,
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -12,7 +12,8 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
+/// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step
+///         (https://www.gas.zip/)
 /// @custom:version 1.0.1
 contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
@@ -83,7 +84,8 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         if (_gasZipData.receiverAddress == bytes32(0))
             revert InvalidCallData();
 
-        // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
+        // We are depositing to a new contract that supports deposits for EVM chains + Solana
+        // (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _amount }(
             _gasZipData.destinationChains,
             _gasZipData.receiverAddress
@@ -98,7 +100,8 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     }
 
     /// @dev Returns a value that signals to Gas.zip to which chains gas should be sent in equal parts
-    /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds), see https://dev.gas.zip/gas/chain-support/outbound
+    /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds),
+    ///                 see https://dev.gas.zip/gas/chain-support/outbound
     function getDestinationChainsValue(
         uint8[] calldata _chainIds
     ) external pure returns (uint256 destinationChains) {

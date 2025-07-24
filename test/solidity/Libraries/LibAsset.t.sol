@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../utils/TestBase.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+//solhint-disable max-line-length
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "lifi/Errors/GenericErrors.sol";
 
 contract LibAssetImplementer {
@@ -14,6 +15,7 @@ contract LibAssetImplementer {
     ) public {
         LibAsset.transferAsset(assetId, recipient, amount);
     }
+
     function transferFromERC20(
         address assetId,
         address from,
@@ -22,6 +24,7 @@ contract LibAssetImplementer {
     ) public {
         LibAsset.transferFromERC20(assetId, from, recipient, amount);
     }
+
     function approveERC20(
         address assetId,
         address spender,
@@ -88,6 +91,7 @@ contract LibAssetTest is TestBase {
             defaultUSDCAmount
         );
     }
+
     function testRevert_transferFromERC20ToZeroAddress() public {
         vm.expectRevert(InvalidReceiver.selector);
 
@@ -121,6 +125,7 @@ contract LibAssetTest is TestBase {
 
         assertEq(result, true);
     }
+
     function test_isNotAContract() public {
         bool result = implementer.isContract(address(0));
 
@@ -144,33 +149,6 @@ contract LibAssetTest is TestBase {
         vm.etch(USER_SENDER, aaCode); // inject the delegation designator into the USER_SENDER address
 
         bool result = implementer.isContract(USER_SENDER);
-        assertTrue(result, "delegationDesignator prefix was not detected");
-    }
-
-    function test_isContractWithInvalidDelegation() public {
-        // create a delegation to address(0), which is not a valid delegate
-        bytes memory invalidCode = abi.encodePacked(
-            hex"ef0100",
-            bytes20(address(0))
-        );
-
-        vm.etch(USER_SENDER, invalidCode);
-
-        bool result = implementer.isContract(USER_SENDER);
-        assertFalse(
-            result,
-            "Delegation to invalid delegate should return false"
-        );
-
-        // create a delegation to a valid contract address
-        bytes memory validCode = abi.encodePacked(
-            hex"ef0100",
-            bytes20(address(implementer))
-        );
-
-        vm.etch(USER_SENDER, validCode);
-
-        result = implementer.isContract(USER_SENDER);
-        assertTrue(result, "Delegation to valid delegate should return true");
+        assertFalse(result, "Delegated EOA is not a contract");
     }
 }

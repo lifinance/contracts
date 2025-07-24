@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -16,9 +16,11 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the foreign omni bridge on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IOmniBridge private immutable foreignOmniBridge;
 
     /// @notice The contract address of the weth omni bridge on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IOmniBridge private immutable wethOmniBridge;
 
     /// Constructor ///

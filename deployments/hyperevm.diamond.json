@@ -33,9 +33,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xe1E3633263F0aC18693942b761371762967f8B05": {
+      "0xa12D48dBf4248d702D5b41e271742914D7d8A321": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "1.0.2"
       },
       "0xB2Cc198b18Eda93e4ac90F446EE499b7f4935F8a": {
         "Name": "CalldataVerificationFacet",
@@ -56,6 +56,10 @@
       "0xd1059C492eC2472220fca8Dc358a7A587500b1Ab": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x75325E9f1E8a6f26a590e2c2F4e5976a5e74F6Aa": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
@@ -65,11 +69,10 @@
       "GasZipPeriphery": "0x718e4C256271417C0e1237c3586BE6d79449fdD8",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
-      "Permit2Proxy": "0xb86740605118F50f4af9A97D3dA11cdEBa300d05",
+      "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0xdD73C6B0387018314FFBd4CB0b9F382771BB541A"
     }
   }

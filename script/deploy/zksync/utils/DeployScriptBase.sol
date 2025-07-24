@@ -60,7 +60,11 @@ contract DeployScriptBase is ScriptBase {
                 constructorArgs
             );
 
-        if (isContract(predicted)) {
+        emit log_named_address("LI.FI: Predicted Address: ", predicted);
+
+        if (LibAsset.isContract(predicted)) {
+            emit log("LI.FI: Contract is already deployed");
+
             return payable(predicted);
         }
 
@@ -72,15 +76,5 @@ contract DeployScriptBase is ScriptBase {
         }
 
         vm.stopBroadcast();
-    }
-
-    /// @notice Checks if the given address is a contract (including EIP‑7702 AA‑wallets)
-    ///         Returns true for any account with runtime code or with the 0xef0100 prefix (EIP‑7702).
-    ///         Limitations:
-    ///         - Still returns false during construction phase of a contract
-    ///         - Cannot distinguish between EOA and self-destructed contract
-    /// @param _contractAddr The address to be checked
-    function isContract(address _contractAddr) internal view returns (bool) {
-        return LibAsset.isContract(_contractAddr);
     }
 }

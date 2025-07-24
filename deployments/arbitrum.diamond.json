@@ -61,9 +61,9 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
-      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
-        "Name": "CelerIMFacetMutable",
-        "Version": "2.0.0"
+      "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
+        "Name": "ChainflipFacet",
+        "Version": "1.0.0"
       },
       "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
         "Name": "HopFacetPacked",
@@ -145,9 +145,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+      "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
         "Name": "RelayFacet",
@@ -156,10 +156,6 @@
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
-      },
-      "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
-        "Name": "ChainflipFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -167,12 +163,12 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "GasZipPeriphery": "0xECCD021343d25a58596482781323AE50EF936a01",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xA41c306315e61120C8F50832D84e1EcbE3B564D5",
-      "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
