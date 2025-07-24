@@ -1889,12 +1889,12 @@ function verifyContract() {
       COMMAND_STATUS=1
     fi
 
-      # increase retry counter
-      RETRY_COUNT=$((RETRY_COUNT + 1))
+    # increase retry counter
+    RETRY_COUNT=$((RETRY_COUNT + 1))
 
-      # sleep for 2 seconds before trying again
-      [ $COMMAND_STATUS -ne 0 ] && sleep 2
-    done
+    # sleep for 2 seconds before trying again
+    [ $COMMAND_STATUS -ne 0 ] && sleep 2
+  done
 
   # If we get here, verification failed after all retries
   echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
@@ -1910,37 +1910,11 @@ function verifyContract() {
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   else
-    echo "here"
-    # forge verify-contract \
-    #   "$ADDRESS" \
-    #   "$CONTRACT" \
-    #   --chain-id "$CHAIN_ID" \
-    #   --verifier sourcify \
-
-    # if forge verify-contract --verifier sourcify --verifier-url https://sourcify.roninchain.com/server/ --chain-id "$CHAIN_ID" "$ADDRESS" "$CONTRACT"; then
-    #   echo "Success"
-    # else
-    #   echo "Failed"
-    # fi
-
-  forge verify-contract --verifier sourcify --verifier-url https://sourcify.roninchain.com/server/ --chain-id "$CHAIN_ID" "$ADDRESS" "$CONTRACT"
-
-  # FROM DOCS:
-  #forge verify-contract --verifier sourcify --verifier-url https://sourcify.roninchain.com/server/ --chain-id <CHAIN> <ADDRESS> <CONTRACT>
-
-  # tried with URLS:
-  # https://sourcify.roninchain.com/server/
-  # https://sourcify.dev/server/
-  # https://sourcify.roninchain.com/server/verify
-  # https://sourcify.roninchain.com/server/verify/create2
-
-  # tried with Foundry versions:
-  # 1.0.0
-  # 1.2.3
-
-  SOURCIFY_RETURN_CODE=$?
-  echo "SOURCIFY_RETURN_CODE: $SOURCIFY_RETURN_CODE"
-
+    forge verify-contract \
+      "$ADDRESS" \
+      "$CONTRACT" \
+      --chain-id "$CHAIN_ID" \
+      --verifier sourcify
   fi
 
   # Check Sourcify verification
@@ -1955,7 +1929,7 @@ function verifyContract() {
       --verifier sourcify
   fi
 
-  if [ $SOURCIFY_RETURN_CODE -eq 0 ]; then
+  if [ $? -eq 0 ]; then
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 1
   else

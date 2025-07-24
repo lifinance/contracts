@@ -81,9 +81,7 @@
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
   },
   "plume": {
-    "chainId": 98866,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "polygon": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
@@ -92,9 +90,7 @@
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
   },
   "ronin": {
-    "chainId": 2020,
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
-    "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
   },
   "scroll": {
     "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
