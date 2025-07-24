@@ -1720,12 +1720,14 @@ function processNetworkLine() {
     # get current contract version and save in variable
     local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
+    # make sure version was returned properly
+    if [[ -z "$CURRENT_VERSION" ]]; then
+      warning "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT" >&2
+    fi
+
     # check if cell value is "latest" >> find version
     if [[ "$CELL_VALUE" == "latest" ]]; then
-      # make sure version was returned properly
-      if [[ "$?" -ne 0 ]]; then
-        echo "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT" >&2
-      fi
+
 
       # echo warning that sheet needs to be updated
       echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
