@@ -143,8 +143,6 @@ contract AcrossFacetV4 is
         if (_acrossData.message.length > 0 != _bridgeData.hasDestinationCall)
             revert InformationMismatch();
 
-        // TODO: should we add a check here that in case receiver == NON_EVM_ADDRESS then destinationCall must be false?
-
         // get across (custom) destination chain id, if applicable
         uint256 destinationChainId = _getAcrossChainId(
             _bridgeData.destinationChainId
@@ -160,25 +158,20 @@ contract AcrossFacetV4 is
             // emit event for non-EVM chain
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
-                destinationChainId,
+                _bridgeData.destinationChainId,
                 _acrossData.receiverAddress
             );
         } else {
             // destination chain is EVM
-            // make sure that bridgeData and acrossData receiver addresses match
+            // make sure that bridgeData and acrossData receiver addresses match, but only
+            // if there is no destination call, cause in case of destination call the receiver
+            // address is the our receiver contract address and not the user-defined receiver address
             if (
-                _bridgeData.receiver !=
-                address(uint160(uint256(_acrossData.receiverAddress)))
+                !_bridgeData.hasDestinationCall &&
+                _convertAddressToBytes32(_bridgeData.receiver) !=
+                _acrossData.receiverAddress
             ) revert InvalidReceiver();
         }
-
-        // ensure that receiver addresses match in case of no destination call
-        if (
-            !_bridgeData.hasDestinationCall &&
-            _bridgeData.receiver != NON_EVM_ADDRESS &&
-            (_convertAddressToBytes32(_bridgeData.receiver) !=
-                _acrossData.receiverAddress)
-        ) revert InformationMismatch();
 
         // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
