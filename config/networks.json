@@ -1133,7 +1133,7 @@
     "chainId": 728126428,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "TRX",
-    "wrappedNativeAddress": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
+    "wrappedNativeAddress": "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb",
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://api.trongrid.io",
