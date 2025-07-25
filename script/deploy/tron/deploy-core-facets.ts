@@ -3,7 +3,7 @@
 import { consola } from 'consola'
 
 import { TronContractDeployer } from './TronContractDeployer.js'
-import type { ITronDeploymentConfig } from './types.js'
+import type { ITronDeploymentConfig } from './types'
 import {
   loadForgeArtifact,
   getCoreFacets,
