@@ -124,13 +124,13 @@ contract AcrossFacetV4 is
 
         // Since the minAmount / inputAmount was updated, we also need to adjust the outputAmount.
         // In case any of different decimals between input and output, we will adjust the outputAmount
-        // with the outputAmountMultiplier to account for the difference in decimals. We divide by 1e30
+        // with the outputAmountMultiplier to account for the difference in decimals. We divide by 1e18
         // to allow room for adjustment in both directions, i.e. from 6 > 18 decimals and vice versa.
-        // 1e30 = 1e18 * 1e12
+        // The multiplier should be calculated as: 1e18 * 10^(outputDecimals - inputDecimals)
         AcrossV4Data memory modifiedAcrossData = _acrossData;
         modifiedAcrossData.outputAmount =
             (_bridgeData.minAmount * _acrossData.outputAmountMultiplier) /
-            1e30;
+            1e18;
 
         _startBridge(_bridgeData, modifiedAcrossData);
     }
