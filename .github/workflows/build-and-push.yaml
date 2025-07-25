@@ -34,7 +34,7 @@ jobs:
       context: .
       dockerfile: script/deploy/safe/ExecutePendingTimelock.Dockerfile
     secrets:
-      deploy_key: ${{ secrets.deploy_ssh }}
+      deploy_key: ${{ secrets.DEPLOY_SSH }}
 
   build-branch-dockerfile:
     if: github.ref != 'refs/heads/main'
