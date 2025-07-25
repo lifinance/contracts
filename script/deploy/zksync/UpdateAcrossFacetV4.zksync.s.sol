@@ -8,7 +8,7 @@ contract DeployScript is UpdateScriptBase {
     function getExcludes() internal view override returns (bytes4[] memory) {
         AcrossFacetV4 acrossV4;
         bytes4[] memory excludes = new bytes4[](2);
-        excludes[0] = acrossV4.SPOKE_POOL.selector;
+        excludes[0] = acrossV4.SPOKEPOOL.selector;
         excludes[1] = acrossV4.WRAPPED_NATIVE.selector;
 
         return excludes;

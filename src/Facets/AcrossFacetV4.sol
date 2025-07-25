@@ -26,7 +26,7 @@ contract AcrossFacetV4 is
     /// Storage ///
 
     /// @notice The contract address of the spoke pool on the source chain.
-    IAcrossSpokePoolV4 public immutable SPOKE_POOL;
+    IAcrossSpokePoolV4 public immutable SPOKEPOOL;
 
     /// @notice The WETH address on the current chain.
     bytes32 public immutable WRAPPED_NATIVE;
@@ -66,7 +66,7 @@ contract AcrossFacetV4 is
     /// @param _spokePool The contract address of the spoke pool on the source chain.
     /// @param _wrappedNative The address of the wrapped native token on the source chain.
     constructor(IAcrossSpokePoolV4 _spokePool, bytes32 _wrappedNative) {
-        SPOKE_POOL = _spokePool;
+        SPOKEPOOL = _spokePool;
         WRAPPED_NATIVE = _wrappedNative;
     }
 
@@ -175,7 +175,7 @@ contract AcrossFacetV4 is
         // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // NATIVE
-            SPOKE_POOL.deposit{ value: _bridgeData.minAmount }(
+            SPOKEPOOL.deposit{ value: _bridgeData.minAmount }(
                 _acrossData.refundAddress, // depositor (also acts as refund address in case release tx cannot be executed)
                 _acrossData.receiverAddress, // recipient (on dst)
                 WRAPPED_NATIVE, // inputToken
@@ -193,10 +193,10 @@ contract AcrossFacetV4 is
             // ERC20
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(SPOKE_POOL),
+                address(SPOKEPOOL),
                 _bridgeData.minAmount
             );
-            SPOKE_POOL.deposit(
+            SPOKEPOOL.deposit(
                 _acrossData.refundAddress, // depositor (also acts as refund address in case release tx cannot be executed)
                 _acrossData.receiverAddress, // recipient (on dst)
                 _convertAddressToBytes32(_bridgeData.sendingAssetId), // inputToken
