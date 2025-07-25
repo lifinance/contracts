@@ -9,7 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidNonEVMReceiver, InvalidReceiver, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title AcrossFacetV4
@@ -66,6 +66,12 @@ contract AcrossFacetV4 is
     /// @param _spokePool The contract address of the spoke pool on the source chain.
     /// @param _wrappedNative The address of the wrapped native token on the source chain.
     constructor(IAcrossSpokePoolV4 _spokePool, bytes32 _wrappedNative) {
+        if (
+            address(_spokePool) == address(0) || _wrappedNative == bytes32(0)
+        ) {
+            revert InvalidConfig();
+        }
+
         SPOKEPOOL = _spokePool;
         WRAPPED_NATIVE = _wrappedNative;
     }
