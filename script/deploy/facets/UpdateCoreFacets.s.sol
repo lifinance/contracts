@@ -27,6 +27,7 @@ contract DeployScript is UpdateScriptBase {
             path,
             ".PeripheryRegistryFacet"
         );
+        address gasZip = _getConfigContractAddress(path, ".GasZipFacet");
         address genSwapAddress = _getConfigContractAddress(
             path,
             ".GenericSwapFacet"
@@ -108,6 +109,14 @@ contract DeployScript is UpdateScriptBase {
             buildDiamondCut(selectors, peripheryRgs);
         } else {
             buildInitialCut(selectors, peripheryRgs);
+        }
+
+        // GasZipFacet
+        selectors = getSelectors("GasZipFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, gasZip);
+        } else {
+            buildInitialCut(selectors, gasZip);
         }
 
         // GenericSwapFacet
