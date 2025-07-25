@@ -122,6 +122,7 @@
     "mongodb": "^6.13.0",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
+    "tronweb": "^6.0.3",
     "viem": "^2.22.16"
   },
   "lint-staged": {
