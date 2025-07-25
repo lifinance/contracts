@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.17;
+
+import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
+import { stdJson } from "forge-std/Script.sol";
+import { ReceiverAcrossV4 } from "lifi/Periphery/ReceiverAcrossV4.sol";
+
+contract DeployScript is DeployScriptBase {
+    using stdJson for string;
+
+    constructor() DeployScriptBase("ReceiverAcrossV4") {}
+
+    function run()
+        public
+        returns (ReceiverAcrossV4 deployed, bytes memory constructorArgs)
+    {
+        constructorArgs = getConstructorArgs();
+
+        deployed = ReceiverAcrossV4(
+            deploy(type(ReceiverAcrossV4).creationCode)
+        );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        // get path of global config file
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
+
+        // read file into json variable
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract refundWallet address
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
+        // obtain address of Across's Spokepool contract in current network from config file
+        string memory path = string.concat(root, "/config/across.json");
+
+        address acrossSpokePool = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".acrossSpokePool")
+        );
+
+        // get Executor address from deploy log
+        path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
+        address executor = _getConfigContractAddress(path, ".Executor");
+
+        uint256 recoverGas = 100000;
+
+        return
+            abi.encode(
+                refundWalletAddress,
+                executor,
+                acrossSpokePool,
+                recoverGas
+            );
+    }
+}

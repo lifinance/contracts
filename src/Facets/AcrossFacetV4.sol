@@ -32,7 +32,6 @@ contract AcrossFacetV4 is
     bytes32 public immutable WRAPPED_NATIVE;
 
     /// @notice The Across custom chain ID for Solana
-    // TODO: this needs to be updated with Across' actual custom chainId for Solana
     uint256 public constant ACROSS_CHAIN_ID_SOLANA = 34268394551451;
 
     /// Types ///
@@ -200,7 +199,7 @@ contract AcrossFacetV4 is
             SPOKE_POOL.deposit(
                 _acrossData.refundAddress, // depositor (also acts as refund address in case release tx cannot be executed)
                 _acrossData.receiverAddress, // recipient (on dst)
-                bytes32(uint256(uint160(_bridgeData.sendingAssetId))), // inputToken
+                _convertAddressToBytes32(_bridgeData.sendingAssetId), // inputToken
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount
                 _acrossData.outputAmount, // outputAmount
@@ -222,12 +221,14 @@ contract AcrossFacetV4 is
     function _getAcrossChainId(
         uint256 _destinationChainId
     ) internal pure returns (uint256) {
+        // currently only Solana has a custom chainId
         if (_destinationChainId == LIFI_CHAIN_ID_SOLANA)
             return ACROSS_CHAIN_ID_SOLANA;
-        // TODO: do we need to add more chains?
         else return _destinationChainId;
     }
 
+    /// @notice Converts an address to a bytes32
+    /// @param _address The address to convert
     function _convertAddressToBytes32(
         address _address
     ) internal pure returns (bytes32) {
