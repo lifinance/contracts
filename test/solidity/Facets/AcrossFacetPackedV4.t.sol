@@ -30,6 +30,10 @@ contract TestClaimContract {
 contract AcrossFacetPackedV4Test is TestBase {
     using SafeERC20 for IERC20;
 
+    error InvalidDestinationChainId();
+    error InvalidInputAmount();
+    error InvalidCalldataLength();
+
     address internal constant ACROSS_SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
     address internal constant ACROSS_MERKLE_DISTRIBUTOR =
@@ -66,7 +70,7 @@ contract AcrossFacetPackedV4Test is TestBase {
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
     function setUp() public {
-        customBlockNumberForForking = 19960294;
+        customBlockNumberForForking = 22993652;
 
         initTestBase();
 
@@ -123,12 +127,12 @@ contract AcrossFacetPackedV4Test is TestBase {
         destinationChainId = 137;
 
         // define valid AcrossData
-        uint32 quoteTimestamp = uint32(block.timestamp);
+        uint32 quoteTimestamp = uint32(block.timestamp - 1);
         validAcrossData = AcrossFacetV4.AcrossV4Data({
             receiverAddress: _convertAddressToBytes32(USER_RECEIVER),
             refundAddress: _convertAddressToBytes32(USER_SENDER), // Set to match the depositor
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
-            outputAmount: (defaultUSDCAmount * 9) / 10,
+            outputAmount: (defaultUSDCAmount * 99) / 100, // 99%
             outputAmountMultiplier: uint64(1000000000000000000), // 100.00%
             exclusiveRelayer: bytes32(0),
             quoteTimestamp: quoteTimestamp,
@@ -142,7 +146,7 @@ contract AcrossFacetPackedV4Test is TestBase {
             receiver: _convertAddressToBytes32(USER_RECEIVER),
             destinationChainId: destinationChainId,
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
-            outputAmount: (defaultUSDCAmount * 9) / 10,
+            outputAmount: (defaultUSDCAmount * 99) / 100,
             exclusiveRelayer: bytes32(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
@@ -174,7 +178,7 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         // usdc params
         amountUSDC = 100 * 10 ** usdc.decimals();
-        packedParameters.outputAmount = (amountUSDC * 9) / 10;
+        packedParameters.outputAmount = (amountUSDC * 99) / 100;
         packedUSDCCalldata = acrossFacetPackedV4
             .encode_startBridgeTokensViaAcrossV4ERC20Packed(
                 packedParameters,
@@ -450,7 +454,11 @@ contract AcrossFacetPackedV4Test is TestBase {
 
     function assertEqBridgeData(BridgeData memory original) public {
         assertEq(original.transactionId == transactionId, true);
-        assertEq(original.receiver == USER_RECEIVER, true);
+        assertEq(
+            _convertAddressToBytes32(original.receiver) ==
+                _convertAddressToBytes32(USER_RECEIVER),
+            true
+        );
         assertEq(original.destinationChainId == destinationChainId, true);
     }
 
@@ -493,7 +501,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
 
         vm.expectRevert(
-            "destinationChainId value passed too big to fit in uint32"
+            AcrossFacetPackedV4.InvalidDestinationChainId.selector
         );
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4NativePacked(
@@ -507,7 +515,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
 
         vm.expectRevert(
-            "destinationChainId value passed too big to fit in uint32"
+            AcrossFacetPackedV4.InvalidDestinationChainId.selector
         );
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
@@ -520,7 +528,7 @@ contract AcrossFacetPackedV4Test is TestBase {
     function test_revert_cannotUseMinAmountAboveUint128Max_ERC20() public {
         uint256 invalidInputAmount = uint256(type(uint128).max) + 1;
 
-        vm.expectRevert("inputAmount value passed too big to fit in uint128");
+        vm.expectRevert(AcrossFacetPackedV4.InvalidInputAmount.selector);
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
             packedParameters,
@@ -589,5 +597,15 @@ contract AcrossFacetPackedV4Test is TestBase {
         address _address
     ) internal pure returns (bytes32) {
         return bytes32(uint256(uint160(_address)));
+    }
+
+    /// @notice  Compare two bytes32 values
+    /// @param _a The first bytes32 to compare
+    /// @param _b The second bytes32 to compare
+    function _compareBytes32(
+        bytes32 _a,
+        bytes32 _b
+    ) internal pure returns (bool) {
+        return keccak256(abi.encode(_a)) == keccak256(abi.encode(_b));
     }
 }
