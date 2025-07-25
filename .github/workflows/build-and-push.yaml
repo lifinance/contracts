@@ -27,7 +27,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: lifinance/github-actions/blob/main/.github/workflows/build-and-push-docker.yaml
+    uses: lifinance/github-actions/blob/main/.github/workflows/build-and-push-docker.yaml@main
     with:
       registry: 403372804574.dkr.ecr.us-east-2.amazonaws.com/lifi-docker-repo
       image-name: sc/execute-timelock
