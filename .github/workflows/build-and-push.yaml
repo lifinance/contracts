@@ -1,0 +1,58 @@
+name: build & deploy
+
+on:
+  push:
+    branches:
+      - main
+      - '*'
+    paths:
+      - 'script/deploy/safe/ExecutePendingTimelock.Dockerfile'
+      - 'script/deploy/safe/execute-pending-timelock-tx.ts'
+      # Add other dependency paths as needed
+      - 'package.json'  # If Node.js dependencies change
+      - 'package-lock.json'  # If Node.js dependencies change
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'script/deploy/safe/ExecutePendingTimelock.Dockerfile'
+      - 'script/deploy/safe/execute-pending-timelock-tx.ts'
+      # Add other dependency paths as needed
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    uses: lifinance/github-actions/.github/workflows/build-and-push-docker.yaml@main
+    with:
+      registry: 403372804574.dkr.ecr.us-east-2.amazonaws.com/lifi-docker-repo
+      image-name: sc/execute-timelock
+      context: .
+      dockerfile: script/deploy/safe/ExecutePendingTimelock.Dockerfile
+    secrets:
+      deploy_key: ${{ secrets.deploy_ssh }}
+
+  build-branch-dockerfile:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: get short sha
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: build docker image
+        run: |
+          docker buildx build \
+            --no-cache \
+            -f script/deploy/safe/ExecutePendingTimelock.Dockerfile \
+            -t image-test:${{ steps.vars.outputs.sha_short }} .
