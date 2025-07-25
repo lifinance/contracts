@@ -33,7 +33,7 @@ contract AcrossFacetV4 is
 
     /// @notice The Across custom chain ID for Solana
     // TODO: this needs to be updated with Across' actual custom chainId for Solana
-    uint256 public constant ACROSS_CHAIN_ID_SOLANA = 100000;
+    uint256 public constant ACROSS_CHAIN_ID_SOLANA = 34268394551451;
 
     /// Types ///
 
