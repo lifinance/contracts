@@ -169,21 +169,18 @@ class DeploymentLogManager {
 
       for (const indexSpec of indexSpecs) {
         // Check if we need to drop old indexes
-        if (indexSpec.oldNames) 
-          for (const oldName of indexSpec.oldNames) 
-            if (existingIndexNames.has(oldName)) 
+        if (indexSpec.oldNames)
+          for (const oldName of indexSpec.oldNames)
+            if (existingIndexNames.has(oldName))
               try {
                 await this.collection.dropIndex(oldName)
                 consola.info(`Dropped old index: ${oldName}`)
               } catch (error) {
                 consola.warn(`Failed to drop old index ${oldName}:`, error)
               }
-            
-          
-        
 
         // Create the new index if it doesn't exist
-        if (!existingIndexNames.has(indexSpec.name)) 
+        if (!existingIndexNames.has(indexSpec.name))
           try {
             await this.collection.createIndex(indexSpec.key, {
               name: indexSpec.name,
@@ -191,20 +188,14 @@ class DeploymentLogManager {
             consola.info(`Created index: ${indexSpec.name}`)
           } catch (error: any) {
             // If it fails due to duplicate key pattern, that's okay
-            if (
-              error.code === 85 ||
-              error.message?.includes('already exists')
-            ) 
+            if (error.code === 85 || error.message?.includes('already exists'))
               consola.debug(
                 `Index with same key pattern as ${indexSpec.name} already exists`
               )
-             else 
+            else
               consola.warn(`Failed to create index ${indexSpec.name}:`, error)
-            
           }
-         else 
-          consola.debug(`Index ${indexSpec.name} already exists`)
-        
+        else consola.debug(`Index ${indexSpec.name} already exists`)
       }
     } catch (error) {
       consola.warn('Failed to manage indexes:', error)
