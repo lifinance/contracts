@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-import type { IForgeArtifact } from './types.js'
+import type { IForgeArtifact } from './types'
 
 // Constants
 export const ENERGY_PRICE = 0.00021 // TRX per energy unit

@@ -5,13 +5,13 @@ import type {
   ITronCostEstimate,
   ITronDeploymentResult,
   IForgeArtifact,
-} from './types.js'
+} from './types'
 import {
   ENERGY_PRICE,
   BANDWIDTH_PRICE,
   DEFAULT_SAFETY_MARGIN,
   calculateTransactionBandwidth,
-} from './utils.js'
+} from './utils'
 
 export class TronContractDeployer {
   private tronWeb: any
