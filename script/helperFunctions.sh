@@ -1780,7 +1780,12 @@ function addContractVersionToNetworkJSON() {
      --arg CONTRACT "$CONTRACT" \
      --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
      --arg VERSION "$VERSION" \
-     '.[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE][$CONTRACT] = $VERSION' \
+     '
+       .[$NETWORK]                 //= {}
+       | .[$NETWORK][$ENVIRONMENT] //= {}
+       | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE] //= {}
+       | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE][$CONTRACT] = $VERSION
+     ' \
      "$JSON_FILE" > "${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
 }
 
