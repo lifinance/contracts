@@ -6,7 +6,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InformationMismatch, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub AcrossFacetV4 Contract
 contract TestAcrossFacetV4 is AcrossFacetV4 {
@@ -29,6 +29,10 @@ contract TestAcrossFacetV4 is AcrossFacetV4 {
 contract AcrossFacetV4Test is TestBaseFacet {
     address internal constant SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
+    bytes32 internal constant USDC_ADDRESS_SOLANA =
+        0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61;
+    bytes32 internal constant USER_RECEIVER_SOLANA =
+        0x98e43fd4b1f88564e7ecfa1dd5059e0ab4a8126fcdd31927f1db9eb51dd74b12;
 
     // -----
     AcrossFacetV4.AcrossV4Data internal validAcrossData;
@@ -37,7 +41,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
     error InvalidQuoteTimestamp();
 
     function setUp() public {
-        customBlockNumberForForking = 19960294;
+        customBlockNumberForForking = 22989702;
         initTestBase();
 
         acrossFacetV4 = new TestAcrossFacetV4(IAcrossSpokePoolV4(SPOKE_POOL));
@@ -71,7 +75,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
         // adjust bridgeData
         bridgeData.bridge = "across";
         // bridgeData.destinationChainId = 137;
-        bridgeData.destinationChainId = 42161;
+        bridgeData.destinationChainId = 1151111081099710;
 
         // produce valid AcrossData
         uint32 quoteTimestamp = uint32(block.timestamp);
@@ -119,6 +123,29 @@ contract AcrossFacetV4Test is TestBaseFacet {
                 validAcrossData
             );
         }
+    }
+
+    function testBase_CanBridgeTokensToSolana() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // Set parameters
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        validAcrossData.receiverAddress = _convertAddressToBytes32(
+            NON_EVM_ADDRESS
+        );
+        validAcrossData.receivingAssetId = USDC_ADDRESS_SOLANA;
+        bridgeData.minAmount = 1 * 10 ** usdc.decimals();
+        validAcrossData.outputAmount = (bridgeData.minAmount * 99) / 100;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function test_canSwapAndBridgeTokensWithOutputAmountMultiplier()
@@ -285,7 +312,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         bridgeData.receiver = address(0x123); // does not match with USER_RECEIVER
 
-        vm.expectRevert(InformationMismatch.selector);
+        vm.expectRevert(InvalidReceiver.selector);
 
         acrossFacetV4.startBridgeTokensViaAcrossV4(
             bridgeData,

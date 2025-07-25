@@ -26,7 +26,7 @@ contract ReceiverAcrossV4Test is TestBase {
     event ExecutorSet(address indexed executor);
 
     function setUp() public {
-        customBlockNumberForForking = 20024274;
+        customBlockNumberForForking = 22989702;
         initTestBase();
 
         erc20Proxy = new ERC20Proxy(address(this));
