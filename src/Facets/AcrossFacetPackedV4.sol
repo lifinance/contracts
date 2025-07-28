@@ -5,7 +5,6 @@ import { IAcrossSpokePoolV4 } from "../Interfaces/IAcrossSpokePoolV4.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { AcrossFacetV4 } from "./AcrossFacetV4.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
 /// @title AcrossFacetPackedV4
@@ -13,8 +12,6 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 /// @notice Provides functionality for bridging through Across in a gas-optimized way
 /// @custom:version 1.0.0
 contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
-    using SafeTransferLib for ERC20;
-
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
@@ -162,7 +159,8 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         bytes32 sendingAssetId = bytes32(msg.data[76:108]);
         uint256 inputAmount = uint256(uint128(bytes16(msg.data[108:124])));
 
-        ERC20(address(uint160(uint256(sendingAssetId)))).safeTransferFrom(
+        LibAsset.transferFromERC20(
+            address(uint160(uint256(sendingAssetId))),
             msg.sender,
             address(this),
             inputAmount
@@ -196,7 +194,8 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         uint256 inputAmount
     ) external {
         // Deposit assets
-        ERC20(sendingAssetId).safeTransferFrom(
+        LibAsset.transferFromERC20(
+            sendingAssetId,
             msg.sender,
             address(this),
             inputAmount
