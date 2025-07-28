@@ -1617,6 +1617,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
   # Create temporary directory for parallel processing
   local TEMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$TEMP_DIR"' EXIT
 
   # Process networks in parallel with concurrency control
   for LINE in "${NETWORK_LINES[@]}"; do
