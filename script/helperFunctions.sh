@@ -1481,8 +1481,26 @@ function removeExistingEntriesFromTargetStateJSON() {
 
 }
 function parseTargetStateGoogleSpreadsheet() {
+  # Function: parseTargetStateGoogleSpreadsheet
+  # Description: Parses Google Spreadsheet and updates target state JSON file (parallelized version)
+  # Arguments:
+  #   $1 - ENVIRONMENT: The environment to process (e.g., "production", "staging")
+  #   $2 - NETWORK: (Optional) Specific network to update. If provided, only updates that network.
+  # Returns:
+  #   None - updates the target state JSON file
+  # Example:
+  #   parseTargetStateGoogleSpreadsheet "production"                    # Update all networks
+  #   parseTargetStateGoogleSpreadsheet "production" "mainnet"         # Update only mainnet
+
   # read function arguments into variables
   local ENVIRONMENT="$1"
+  local SPECIFIC_NETWORK="$2"
+
+  # Check if MAX_CONCURRENT_JOBS is configured
+  if [[ -z $MAX_CONCURRENT_JOBS ]]; then
+    error "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    exit 1
+  fi
 
   # ensure spreadsheet ID is available
   if [[ "$ENVIRONMENT" == "production" ]]; then
@@ -1514,11 +1532,21 @@ function parseTargetStateGoogleSpreadsheet() {
   CSV_FILE_PATH="newTest.csv"
   curl -L "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH 2>/dev/null
 
-  echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
-  echo ""
+  if [[ -n "$SPECIFIC_NETWORK" ]]; then
+    echo "Updating $ENVIRONMENT target state for network '$SPECIFIC_NETWORK' from this Google sheet now: $SPREADSHEET_URL"
+    echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
+    echo ""
 
-  # remove existing entries from target state JSON file
-  removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT"
+    # Remove only the specific network from target state
+    removeNetworkFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" "$SPECIFIC_NETWORK"
+  else
+    echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
+    echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
+    echo ""
+
+    # remove existing entries from target state JSON file
+    removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT"
+  fi
 
   # make sure existing entries were removed properly (to prevent corrupted target state)
   if [[ $? -ne 0 ]]; then
@@ -1526,20 +1554,19 @@ function parseTargetStateGoogleSpreadsheet() {
     exit 1
   fi
 
-  NETWORKS_START_AT_LINE=0
-  FACETS_STARTS_AT_COLUMN=3 # this value is hardcoded and not expected to change
+  # Parse the CSV to extract contract names and network data
+  local CONTRACTS_ARRAY=()
+  local NETWORK_LINES=()
+  local NETWORKS_START_AT_LINE=0
+  local FACETS_STARTS_AT_COLUMN=3
 
-  # process the CSV file line by line
-  LINE_NUMBER=0
+  # First pass: extract contract names and collect network lines
+  local LINE_NUMBER=0
   while IFS= read -r LINE; do
-    # Increment the line number
     ((LINE_NUMBER++))
 
-    #    echoDebug "LINE $LINE_NUMBER: $LINE"
-
-    # find and store the row that contains all the contract names (determined by recognizing hardcoded value in cell A1)
+    # find and store the row that contains all the contract names
     if [[ "$LINE" == *"Blue = Periphery"* ]]; then
-      # Remove the unneeded values from the line
       STRING_TO_REMOVE='  Blue = Periphery",EXAMPLE,,'
       CONTRACTS_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
 
@@ -1547,134 +1574,255 @@ function parseTargetStateGoogleSpreadsheet() {
       IFS=',' read -ra LINE_ARRAY <<<"$CONTRACTS_LINE"
 
       # Create an iterable array that only contains facet names
-      CONTRACTS_ARRAY=()
       for ((i = 0; i < ${#LINE_ARRAY[@]}; i += 2)); do
-        # extract contract name (might include "" or the values "FACETS"/"PERIPHERY/END")
         CONTRACT_NAME=${LINE_ARRAY[i]}
-
-        # add contract name to array
         CONTRACTS_ARRAY+=("$CONTRACT_NAME")
       done
-      #        break
     fi
 
-    # find row with the first network ('mainnet'), do not execute again once it has been found
+    # find row with the first network ('mainnet')
     if [[ "$NETWORKS_START_AT_LINE" == 0 && $LINE == "mainnet"* ]]; then
       NETWORKS_START_AT_LINE=$LINE_NUMBER
     fi
 
-    # lines containing network-specific data will start earliest in line 130
+    # collect network lines for parallel processing
     if [[ $NETWORKS_START_AT_LINE != 0 && $((LINE_NUMBER)) -ge "$NETWORKS_START_AT_LINE" ]]; then
-
-      # extract network name
       NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
       if [[ "$NETWORK" == "<placeholder>" ]]; then
-        echoDebug "skipping network (placeholder)"
         continue
       fi
 
       if [[ "$NETWORK" == "DEACTIVATED" ]]; then
-        echoDebug "reached deactivated network2 - ending script parsing now"
         break
       fi
 
-      # check if this line contains data (=starts with a network name), otherwise skip to next line
       if [[ ! -z "$NETWORK" ]]; then
-        echo ""
-        echo "NETWORK: $NETWORK"
-
-        # Split the line by comma into an array
-        IFS=',' read -ra LINE_ARRAY <<<"$LINE"
-
-        CONTRACT_INDEX=0
-        # iterate through the array (start with index 5 to skip network name and EXAMPLE columns)
-        for ((INDEX = "$FACETS_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
-          # read cell value and current contract into variables
-          CELL_VALUE=${LINE_ARRAY[$INDEX]}
-          CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
-
-          # increase facet index for next iteration
-          if ((INDEX % 2 == 0)); then
-            ((CONTRACT_INDEX += 1))
-          fi
-
-          # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
-          if [[ -z "$CONTRACT" ]]; then
-            echoDebug "skipping iteration (no contract name in column)"
-            continue
-          fi
-
-          # skip the iteration if contract is placeholder
-          if [[ "$CONTRACT" == "<placeholder>" ]]; then
-            echoDebug "skipping iteration (placeholder)"
-            continue
-          fi
-
-          # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
-          if [[ -z "$CELL_VALUE" ]]; then
-            echoDebug "skipping iteration (no value in cell)"
-            continue
-          fi
-
-          # end the loop if contract is empty (=reached the end of the facet columns)
-          if [[ "$CONTRACT" == "END" ]]; then
-            break
-          fi
-
-          # determine diamond type based on odd/even column index
-          if ((INDEX % 2 == 0)); then
-            DIAMOND_TYPE="LiFiDiamondImmutable"
-          else
-            DIAMOND_TYPE="LiFiDiamond"
-          fi
-
-          # get current contract version and save in variable
-          CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-
-          # check if cell value is "latest" >> find version
-          if [[ "$CELL_VALUE" == "latest" ]]; then
-
-            # make sure version was returned properly
-            if [[ "$?" -ne 0 ]]; then
-              warning "could not find current contract version for contract $CONTRACT"
-            fi
-
-            # echo warning that sheet needs to be updated
-            warning "the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet"
-
-            # use current version for target state
-            VERSION=$CURRENT_VERSION
-          else
-            # check if cell value looks like a version tag
-            if isVersionTag "$CELL_VALUE"; then
-
-              # check if current version in repo is higher than version in target state
-              if [[ "$CURRENT_VERSION" != "$CELL_VALUE" ]]; then
-                warning "Requested version ($CELL_VALUE) of $CONTRACT in $NETWORK for $DIAMOND_TYPE differs from current version ($CURRENT_VERSION). Update target state file?"
-              fi
-
-              # store cell value as target version
-              VERSION=$CELL_VALUE
-            else
-              continue
-            fi
-          fi
-
-          # if code reached here that means we should have a valid target state entry that needs to be added
-          addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true
-          echo "addContractVersionToTargetState ""$NETWORK"" ""$ENVIRONMENT"" ""$CONTRACT"" "$DIAMOND_TYPE" ""$VERSION"" true"
-
-        done
+        # If specific network is requested, only process that network
+        if [[ -n "$SPECIFIC_NETWORK" && "$NETWORK" != "$SPECIFIC_NETWORK" ]]; then
+          continue
+        fi
+        NETWORK_LINES+=("$LINE")
       fi
     fi
   done <"$CSV_FILE_PATH"
 
+  if [[ -n "$SPECIFIC_NETWORK" ]]; then
+    echo "Found ${#NETWORK_LINES[@]} matching networks for '$SPECIFIC_NETWORK'"
+  else
+    echo "Found ${#NETWORK_LINES[@]} networks to process"
+  fi
+  echo "Found ${#CONTRACTS_ARRAY[@]} contracts to process"
+  echo ""
+
+  # Create temporary directory for parallel processing
+  local TEMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$TEMP_DIR"' EXIT
+
+  # Process networks in parallel with concurrency control
+  for LINE in "${NETWORK_LINES[@]}"; do
+    # Extract network name
+    NETWORK=$(echo "$LINE" | cut -d',' -f1)
+
+    # Wait if we've reached the maximum number of concurrent jobs
+    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+      sleep 1
+    done
+
+    # Start processing this network in background
+    processNetworkLine "$NETWORK" "$LINE" "$ENVIRONMENT" "$TEMP_DIR" "$FACETS_STARTS_AT_COLUMN" "$(printf '%s\n' "${CONTRACTS_ARRAY[@]}")" &
+  done
+
+  # Wait for all background jobs and check for failures
+  wait
+  if [ $? -ne 0 ]; then
+      error "One or more network processing jobs failed"
+      rm -rf "$TEMP_DIR"
+      return 1
+  fi
+
+  echo ""
+  echo "All network processing completed. Merging results..."
+
+  # Merge all temporary JSON files into the main target state file
+  mergeNetworkResults "$TEMP_DIR" "$TARGET_STATE_PATH" "$ENVIRONMENT"
+
+  # Clean up temporary directory
+  rm -rf "$TEMP_DIR"
+
   # delete CSV file
   rm $CSV_FILE_PATH
 
+  echo "Processing completed successfully!"
   return 0
 }
+
+
+
+function processNetworkLine() {
+  # Function: processNetworkLine
+  # Description: Processes a single network line from the CSV in parallel
+  # Arguments:
+  #   $1 - NETWORK: The network name
+  #   $2 - LINE: The CSV line for this network
+  #   $3 - ENVIRONMENT: The environment
+  #   $4 - TEMP_DIR: Temporary directory for output
+  #   $5 - FACETS_STARTS_AT_COLUMN: Starting column for facets
+  #   $6 - CONTRACTS_ARRAY: Array of contract names (newline-separated)
+
+  local NETWORK="$1"
+  local LINE="$2"
+  local ENVIRONMENT="$3"
+  local TEMP_DIR="$4"
+  local FACETS_STARTS_AT_COLUMN="$5"
+  local CONTRACTS_ARRAY_STR="$6"
+
+  # Convert contracts array string back to array
+  IFS=$'\n' read -d '' -r -a CONTRACTS_ARRAY <<< "$CONTRACTS_ARRAY_STR"
+
+  echo "[$NETWORK] Starting processing..."
+
+  # Create temporary JSON file for this network
+  local NETWORK_JSON_FILE="$TEMP_DIR/${NETWORK}.json"
+  echo "{}" > "$NETWORK_JSON_FILE"
+
+  # Split the line by comma into an array
+  IFS=',' read -ra LINE_ARRAY <<<"$LINE"
+
+  local CONTRACT_INDEX=0
+  # iterate through the array (start with index to skip network name and EXAMPLE columns)
+  for ((INDEX = "$FACETS_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
+    # read cell value and current contract into variables
+    local CELL_VALUE=${LINE_ARRAY[$INDEX]}
+    local CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
+
+    # increase facet index for next iteration
+    if ((INDEX % 2 == 0)); then
+      ((CONTRACT_INDEX += 1))
+    fi
+
+    # skip the iteration if the contract is empty or placeholder
+    if [[ -z "$CONTRACT" || "$CONTRACT" == "<placeholder>" ]]; then
+      continue
+    fi
+
+    # skip the iteration if the cell value is empty
+    if [[ -z "$CELL_VALUE" ]]; then
+      continue
+    fi
+
+    # end the loop if contract is empty (=reached the end of the facet columns)
+    if [[ "$CONTRACT" == "END" ]]; then
+      break
+    fi
+
+    # determine diamond type based on odd/even column index
+    if ((INDEX % 2 == 0)); then
+      local DIAMOND_TYPE="LiFiDiamondImmutable"
+    else
+      local DIAMOND_TYPE="LiFiDiamond"
+    fi
+
+    # get current contract version and save in variable
+    local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+
+    # make sure version was returned properly
+    if [[ -z "$CURRENT_VERSION" ]]; then
+      warning "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT" >&2
+    fi
+
+    # check if cell value is "latest" >> find version
+    if [[ "$CELL_VALUE" == "latest" ]]; then
+
+
+      # echo warning that sheet needs to be updated
+      echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
+
+      # use current version for target state
+      local VERSION=$CURRENT_VERSION
+    else
+      # check if cell value looks like a version tag
+      if isVersionTag "$CELL_VALUE"; then
+        # check if current version in repo is higher than version in target state
+        if [[ "$CURRENT_VERSION" != "$CELL_VALUE" ]]; then
+          echo "[$NETWORK] Warning: Requested version ($CELL_VALUE) of $CONTRACT differs from current version ($CURRENT_VERSION). Update target state file?" >&2
+        fi
+
+        # store cell value as target version
+        local VERSION=$CELL_VALUE
+      else
+        continue
+      fi
+    fi
+
+    # Add to network-specific JSON file
+    addContractVersionToNetworkJSON "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" "$NETWORK_JSON_FILE"
+  done
+
+  echo "[$NETWORK] Processing completed"
+}
+
+function addContractVersionToNetworkJSON() {
+  # Function: addContractVersionToNetworkJSON
+  # Description: Adds a contract version to a network-specific JSON file
+  # Arguments:
+  #   $1 - NETWORK: The network name
+  #   $2 - ENVIRONMENT: The environment
+  #   $3 - CONTRACT: The contract name
+  #   $4 - DIAMOND_TYPE: The diamond type
+  #   $5 - VERSION: The version
+  #   $6 - JSON_FILE: The JSON file to update
+
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT="$3"
+  local DIAMOND_TYPE="$4"
+  local VERSION="$5"
+  local JSON_FILE="$6"
+
+  # Use jq to add the contract version to the network JSON file
+  jq --arg NETWORK "$NETWORK" \
+     --arg ENVIRONMENT "$ENVIRONMENT" \
+     --arg CONTRACT "$CONTRACT" \
+     --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
+     --arg VERSION "$VERSION" \
+     '
+       .[$NETWORK]                 //= {}
+       | .[$NETWORK][$ENVIRONMENT] //= {}
+       | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE] //= {}
+       | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE][$CONTRACT] = $VERSION
+     ' \
+     "$JSON_FILE" > "${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
+}
+
+function mergeNetworkResults() {
+  # Function: mergeNetworkResults
+  # Description: Merges all network-specific JSON files into the main target state file
+  # Arguments:
+  #   $1 - TEMP_DIR: Directory containing network JSON files
+  #   $2 - TARGET_STATE_PATH: Path to the main target state file
+  #   $3 - ENVIRONMENT: The environment
+
+  local TEMP_DIR="$1"
+  local TARGET_STATE_PATH="$2"
+  local ENVIRONMENT="$3"
+
+  # Start with the existing target state file
+  local MERGED_JSON="$TARGET_STATE_PATH"
+
+  # Merge each network JSON file
+  for NETWORK_JSON in "$TEMP_DIR"/*.json; do
+    if [[ -f "$NETWORK_JSON" ]]; then
+      # Merge this network's data into the main target state file
+      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" > "${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
+    fi
+  done
+
+  echo "All network results merged into $TARGET_STATE_PATH"
+}
+
+
+
 function getBytecodeFromArtifact() {
   # read function arguments into variables
   local contract="$1"
@@ -4486,4 +4634,38 @@ getContractDeploymentStatusSummary() {
   echo "=========================================="
 }
 
+function removeNetworkFromTargetStateJSON() {
+  # Function: removeNetworkFromTargetStateJSON
+  # Description: Removes a specific network from the target state JSON file for a given environment
+  # Arguments:
+  #   $1 - FILE_PATH: Path to the target state JSON file
+  #   $2 - ENVIRONMENT: The environment (e.g., "production", "staging")
+  #   $3 - NETWORK: The specific network to remove
+  # Returns:
+  #   None - updates the target state JSON file
+  # Example:
+  #   removeNetworkFromTargetStateJSON "script/deploy/_targetState.json" "production" "mainnet"
 
+  # read function arguments into variables
+  local FILE_PATH="$1"
+  local ENVIRONMENT="$2"
+  local NETWORK="$3"
+
+  # Check if the file exists
+  if [ ! -f "$FILE_PATH" ]; then
+    error "file not found: $FILE_PATH"
+    return 1
+  fi
+
+  # remove the specific network for the specified environment from the target state JSON file
+  jq --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" 'del(.[$NETWORK][$ENVIRONMENT])' "$FILE_PATH" >"$FILE_PATH.tmp" && mv "$FILE_PATH.tmp" "$FILE_PATH"
+
+  if [ $? -eq 0 ]; then
+    echo "[info] existing '$NETWORK' entries for '$ENVIRONMENT' removed successfully from target state file ($FILE_PATH)"
+    return 0
+  else
+    error "failed to remove entries for network '$NETWORK' in environment '$ENVIRONMENT'."
+    rm "$FILE_PATH.tmp" >/dev/null 2>&1
+    return 1
+  fi
+}
