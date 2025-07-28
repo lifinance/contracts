@@ -6,8 +6,8 @@ import { AcrossFacetPacked } from "lifi/Facets/AcrossFacetPacked.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { TestBase } from "../utils/TestBase.sol";
-import { MockFailingContract } from "../utils/MockFailingContract.sol";
+import { TestBase } from "../../../utils/TestBase.sol";
+import { MockFailingContract } from "../../../utils/MockFailingContract.sol";
 
 import { UnAuthorized } from "src/Errors/GenericErrors.sol";
 
