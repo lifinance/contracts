@@ -895,12 +895,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address router = IKatanaV3Governance(governance).getRouter();
 
         // get pool info for constructing the path
-        address token0 = IKatanaV3Pool(pool).token0();
-        address token1 = IKatanaV3Pool(pool).token1();
         uint24 fee = IKatanaV3Pool(pool).fee();
 
         // determine tokenOut based on swap direction
-        address tokenOut = direction ? token1 : token0;
+        address tokenOut = direction
+            ? IKatanaV3Pool(pool).token1()
+            : IKatanaV3Pool(pool).token0();
 
         // transfer tokens to the router
         if (from == msg.sender) {
