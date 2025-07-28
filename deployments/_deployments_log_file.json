@@ -37357,6 +37357,19 @@
             "VERIFIED": "false"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x756Be848a6636D618B94f3196CBD89645eBa71c2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-23 17:03:53",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000083d7eb35c3f79b660512769c25642166b91f336f",
+            "SALT": "20250723",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "soneium": {
@@ -37371,6 +37384,19 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa8deab5134FBA01820E802c0F16337756E0f2a5E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-23 17:07:09",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000083d7eb35c3f79b660512769c25642166b91f336f",
+            "SALT": "20250723",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "optimism": {
@@ -37383,6 +37409,19 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e92ed34fd131d5480f56ccb5f73dc799dba8f459",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x756Be848a6636D618B94f3196CBD89645eBa71c2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-23 17:02:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000083d7eb35c3f79b660512769c25642166b91f336f",
+            "SALT": "20250723",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
