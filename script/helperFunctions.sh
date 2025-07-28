@@ -4246,10 +4246,10 @@ function updateDiamondLogForNetwork() {
 
   # get list of facets
   # execute script
-  attempts=1 # initialize attempts to 0
+  attempts=0 # initialize attempts to 0
 
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+    echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts+1))"
     # try to execute call
     local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
 
@@ -4262,12 +4262,12 @@ function updateDiamondLogForNetwork() {
     sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq 11 ]; then
-    echo "Failed to get facets"
+  if [ $attempts -eq "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+    echo "[$NETWORK] Failed to get facets"
   fi
 
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-    echo "    no facets found"
+    warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
   else
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
@@ -4276,9 +4276,9 @@ function updateDiamondLogForNetwork() {
 
   # check result
   if [[ $? -ne 0 ]]; then
-    echo "    error"
+    error "[$NETWORK] Failed to update diamond log"
   else
-    echo "    updated"
+    success "[$NETWORK] Updated diamond log"
   fi
 }
 
