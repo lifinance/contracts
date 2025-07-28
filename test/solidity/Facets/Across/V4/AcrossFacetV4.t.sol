@@ -82,7 +82,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
         validAcrossData = AcrossFacetV4.AcrossV4Data({
             receiverAddress: _convertAddressToBytes32(USER_RECEIVER),
             refundAddress: _convertAddressToBytes32(USER_REFUND),
-            sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
+            sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC),
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             outputAmount: (defaultUSDCAmount * 9) / 10,
             outputAmountMultiplier: 1000000000000000000, // 100.00% (1e18)
@@ -126,6 +126,59 @@ contract AcrossFacetV4Test is TestBaseFacet {
         }
     }
 
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.startPrank(USER_SENDER);
+
+        vm.assume(amount > 0 && amount < 100_000);
+        amount = amount * 10 ** usdc.decimals();
+
+        logFilePath = "./test/logs/"; // works but is not really a proper file
+        // logFilePath = "./test/logs/fuzz_test.txt"; // throws error "failed to write to
+        // "....../test/logs/fuzz_test.txt": No such file or directory"
+
+        vm.writeLine(logFilePath, vm.toString(amount));
+        // approval
+        usdc.approve(_facetTestContractAddress, amount);
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = amount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokens()
+        public
+        override
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // Set the bridge data sendingAssetId to match the Across data
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testBase_CanBridgeTokensToSolana() public {
         vm.startPrank(USER_SENDER);
 
@@ -146,6 +199,50 @@ contract AcrossFacetV4Test is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_CanSwapAndBridgeTokens()
+        public
+        override
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(swapData[0].fromAmount)
+        )
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC; // USDC is the asset that will be bridged
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
