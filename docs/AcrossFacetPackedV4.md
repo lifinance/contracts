@@ -1,4 +1,4 @@
-# Across Facet Packed V4
+# AcrossFacetPackedV4
 
 ## How it works
 
