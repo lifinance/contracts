@@ -539,7 +539,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
             ADDRESS_USDC,
             uint8(1),
             FULL_SHARE,
-            uint8(PoolType.VelodromeV2),
+            VelodromeV2Facet.swapVelodromeV2.selector,
             address(0),
             uint8(SwapDirection.Token1ToToken0),
             USER_SENDER,
@@ -564,7 +564,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
             ADDRESS_USDC,
             uint8(1),
             FULL_SHARE,
-            uint8(PoolType.VelodromeV2),
+            VelodromeV2Facet.swapVelodromeV2.selector,
             validPool,
             uint8(SwapDirection.Token1ToToken0),
             address(0),
@@ -726,6 +726,8 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
         //     amounts[1]
         // );
 
+        console2.log("route222:");
+        console2.logBytes(route);
         // execute the swap
         coreRouteFacet.processRoute(
             params.tokenIn,
@@ -832,11 +834,11 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
-                VelodromeV2Facet.swapVelodromeV2.selector,
                 uint8(CommandType.ProcessUserERC20),
                 tokenIn,
                 uint8(1),
                 FULL_SHARE,
+                VelodromeV2Facet.swapVelodromeV2.selector,
                 pool1,
                 direction,
                 pool2,
@@ -853,9 +855,9 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
-                VelodromeV2Facet.swapVelodromeV2.selector,
                 uint8(CommandType.ProcessOnePool),
                 tokenMid,
+                VelodromeV2Facet.swapVelodromeV2.selector,
                 pool2,
                 direction,
                 recipient,

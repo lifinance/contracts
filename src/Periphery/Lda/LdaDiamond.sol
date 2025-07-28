@@ -5,6 +5,7 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 // solhint-disable-next-line no-unused-import
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title LDA Diamond
 /// @author LI.FI (https://li.fi)
@@ -29,42 +30,45 @@ contract LdaDiamond {
     // Find facet for function that is called and execute the
     // function if a facet is found and return any value.
     // solhint-disable-next-line no-complex-fallback
-    fallback() external payable {
-        LibDiamond.DiamondStorage storage ds;
-        bytes32 position = LibDiamond.DIAMOND_STORAGE_POSITION;
+fallback() external payable {
+    LibDiamond.DiamondStorage storage ds;
+    bytes32 position = LibDiamond.DIAMOND_STORAGE_POSITION;
 
-        // get diamond storage
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            ds.slot := position
+    // get diamond storage
+    assembly {
+        ds.slot := position
+    }
+
+    // get facet from function selector
+    address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
+
+    if (facet == address(0)) {
+        revert LibDiamond.FunctionDoesNotExist();
+    }
+
+    // Execute external function from facet using delegatecall and return any value.
+    assembly {
+        // Forward all calldata to the facet
+        calldatacopy(0, 0, calldatasize())
+
+        // Perform the delegatecall
+        let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)
+
+        // Copy the returned data
+        returndatacopy(0, 0, returndatasize())
+
+        // Bubble up the result using the correct opcode
+        switch result
+        case 0 {
+            // Revert with the data if the call failed
+            revert(0, returndatasize())
         }
-
-        // get facet from function selector
-        address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
-
-        if (facet == address(0)) {
-            revert LibDiamond.FunctionDoesNotExist();
-        }
-
-        // Execute external function from facet using delegatecall and return any value.
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            // copy function selector and any arguments
-            calldatacopy(0, 0, calldatasize())
-            // execute function call using the facet
-            let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)
-            // get any return value
-            returndatacopy(0, 0, returndatasize())
-            // return any return value or error back to the caller
-            switch result
-            case 0 {
-                revert(0, returndatasize())
-            }
-            default {
-                return(0, returndatasize())
-            }
+        default {
+            // Return the data if the call succeeded
+            return(0, returndatasize())
         }
     }
+}
 
     // Able to receive ether
     // solhint-disable-next-line no-empty-blocks

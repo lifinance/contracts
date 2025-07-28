@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
+import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -13,7 +13,7 @@ import { console2 } from "forge-std/console2.sol";
 /// @notice Handles VelodromeV2 swaps with callback management
 /// @custom:version 1.0.0
 contract VelodromeV2Facet {
-    using LibInputStream for uint256;
+    using LibInputStream2 for uint256;
     using SafeERC20 for IERC20;
 
     uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
@@ -24,29 +24,21 @@ contract VelodromeV2Facet {
 
     /// @notice Performs a swap through VelodromeV2 pools
     /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
-    /// @param stream [pool, direction, to, callback]
+    /// @param swapData [pool, direction, to, callback]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
     function swapVelodromeV2(
-        uint256 stream,
+        bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
-        console2.log("swapVelodromeV222 here");
-        console2.log("stream before reading:");
-        console2.logBytes(abi.encode(stream));  // Add this to see the raw stream data
+        uint256 stream = LibInputStream2.createStream(swapData);
         
         address pool = stream.readAddress();
-        console2.log("pool222");
-        console2.logAddress(pool);
         uint8 direction = stream.readUint8();
-        console2.log("direction222");
-        console2.log(direction);
         address to = stream.readAddress();
-        console2.log("to222");
-        console2.logAddress(to);
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
         // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee

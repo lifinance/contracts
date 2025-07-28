@@ -11,6 +11,7 @@ import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
 import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { console2 } from "forge-std/console2.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -1070,9 +1071,23 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         address tokenIn,
         uint256 amountIn
     ) private {
+        console2.log("swapVelodromeV2");
+                console2.log("stream before reading:");
+        console2.logBytes(abi.encode(stream));  // Add this to see the raw stream data
+        
+        console2.log("from");
+        console2.logAddress(from);
+        console2.log("tokenIn");
+        console2.logAddress(tokenIn);
         address pool = stream.readAddress();
+        console2.log("pool");
+        console2.logAddress(pool);
         uint8 direction = stream.readUint8();
+        console2.log("direction");
+        console2.log(direction);
         address to = stream.readAddress();
+        console2.log("to");
+        console2.logAddress(to);
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
         // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee

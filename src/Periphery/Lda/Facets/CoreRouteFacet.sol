@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
+import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
@@ -15,7 +15,7 @@ import { console2 } from "forge-std/console2.sol";
 contract CoreRouteFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
-    using LibInputStream for uint256;
+    using LibInputStream2 for uint256;
 
     /// Constants ///
     address internal constant NATIVE_ADDRESS =
@@ -89,9 +89,11 @@ contract CoreRouteFacet is ReentrancyGuard {
         uint256 realAmountIn = amountIn;
         {
             uint256 step = 0;
-            uint256 stream = LibInputStream.createStream(route);
+            uint256 stream = LibInputStream2.createStream(route);
             while (stream.isNotEmpty()) {
                 uint8 commandCode = stream.readUint8();
+                console2.log("commandCode222");
+                console2.log(commandCode);
                 if (commandCode == 1) {
                     uint256 usedAmount = _processMyERC20(stream);
                     if (step == 0) realAmountIn = usedAmount;
@@ -124,6 +126,16 @@ contract CoreRouteFacet is ReentrancyGuard {
         uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
+        console2.log("tokenOut222");
+        console2.log(tokenOut);
+        console2.log("to222");
+        console2.log(to);
+        console2.log("balanceOutFinal222");
+        console2.log(balanceOutFinal);
+        console2.log("balanceOutInitial222");
+        console2.log(balanceOutInitial);
+        console2.log("amountOutMin222");
+        console2.log(amountOutMin);
         if (balanceOutFinal < balanceOutInitial + amountOutMin) {
             revert MinimalOutputBalanceViolation(
                 balanceOutFinal - balanceOutInitial
@@ -224,12 +236,7 @@ contract CoreRouteFacet is ReentrancyGuard {
         uint256 amountIn
     ) private {
         // Read the function selector from the stream (4 bytes in reverse order)
-        bytes4 selector = bytes4(
-            uint32(stream.readUint8()) |
-            (uint32(stream.readUint8()) << 8) |
-            (uint32(stream.readUint8()) << 16) |
-            (uint32(stream.readUint8()) << 24)
-        );
+        bytes4 selector = stream.readBytes4();
 
         // Look up facet address using LibDiamondLoupe
         console2.log("selector222");
@@ -238,15 +245,30 @@ contract CoreRouteFacet is ReentrancyGuard {
         console2.log("facet222");
         console2.logAddress(facet);
         if (facet == address(0)) revert UnknownSelector();
+            console2.log("stream222:");
+            console2.logBytes(abi.encode(stream));
 
-        // Skip over the selector in the stream
-        stream.readBytes4();  // Skip the selector
+        // Add logging for VelodromeV2Facet calls
+        if (selector == 0x334b26d9) { // VelodromeV2Facet.swapVelodromeV2.selector
+            console2.log("=== VelodromeV2Facet call detected in CoreRouteFacet _dispatchSwap ===");
+            console2.log("calldatasize:");
+            console2.log(msg.data.length);
+            console2.log("calldata:");
+            console2.logBytes(msg.data);
+            console2.log("stream:");
+            console2.logBytes(abi.encode(stream));
+        }
+
+        // Read ALL remaining data into a single bytes variable
+        bytes memory remainingData = stream.readRemainingBytes();
+        console2.log("remainingData222");
+        console2.logBytes(remainingData);
 
         // Execute the swap via delegatecall to the facet
         (bool success, ) = facet.delegatecall(
             abi.encodeWithSelector(
                 selector,
-                stream,
+                remainingData,
                 from,
                 tokenIn,
                 amountIn
