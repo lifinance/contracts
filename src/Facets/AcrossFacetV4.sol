@@ -39,6 +39,7 @@ contract AcrossFacetV4 is
     /// @param receiverAddress The address that will receive the token on dst chain
     ///                        (our Receiver contract or the user-defined receiver address)
     /// @param refundAddress The address that will be used for potential bridge refunds
+    /// @param sendingAssetId The address of the token to be sent from source chain (as bytes32)
     /// @param receivingAssetId The address of the token to be received at destination chain
     /// @param outputAmount The amount to be received at destination chain (after fees)
     /// @param outputAmountMultiplier In case of pre-bridge swaps we need to adjust the output amount
@@ -50,6 +51,7 @@ contract AcrossFacetV4 is
     struct AcrossV4Data {
         bytes32 receiverAddress;
         bytes32 refundAddress;
+        bytes32 sendingAssetId;
         bytes32 receivingAssetId;
         uint256 outputAmount;
         uint128 outputAmountMultiplier;
@@ -205,7 +207,7 @@ contract AcrossFacetV4 is
             SPOKEPOOL.deposit(
                 _acrossData.refundAddress, // depositor (also acts as refund address in case release tx cannot be executed)
                 _acrossData.receiverAddress, // recipient (on dst)
-                _convertAddressToBytes32(_bridgeData.sendingAssetId), // inputToken
+                _acrossData.sendingAssetId, // inputToken (now from acrossData)
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount
                 _acrossData.outputAmount, // outputAmount

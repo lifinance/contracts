@@ -82,6 +82,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
         validAcrossData = AcrossFacetV4.AcrossV4Data({
             receiverAddress: _convertAddressToBytes32(USER_RECEIVER),
             refundAddress: _convertAddressToBytes32(USER_REFUND),
+            sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             outputAmount: (defaultUSDCAmount * 9) / 10,
             outputAmountMultiplier: 1000000000000000000, // 100.00% (1e18)

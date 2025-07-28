@@ -38,6 +38,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         bytes32 transactionId;
         bytes32 receiver;
         bytes32 depositor;
+        bytes32 sendingAssetId;
         uint64 destinationChainId;
         bytes32 receivingAssetId;
         uint256 outputAmount;
@@ -87,29 +88,29 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [4:12] - transactionId
     /// [12:44] - receiver
     /// [44:76] - depositor
-    /// [76:108] - receivingAssetId
+    /// [76:108] - sendingAssetId (bytes32)
     /// [108:140] - outputAmount
-    /// [140:144] - destinationChainId
-    /// [144:176] - exclusiveRelayer
-    /// [176:180] - quoteTimestamp
-    /// [180:184] - fillDeadline
-    /// [184:188] - exclusivityDeadline
-    /// [188:] - message
+    /// [140:172] - destinationChainId
+    /// [172:204] - exclusiveRelayer
+    /// [204:208] - quoteTimestamp
+    /// [208:212] - fillDeadline
+    /// [212:216] - exclusivityDeadline
+    /// [216:] - message
     function startBridgeTokensViaAcrossV4NativePacked() external payable {
         // call Across spoke pool to bridge assets
         SPOKEPOOL.deposit{ value: msg.value }(
             bytes32(msg.data[44:76]), // depositor
             bytes32(msg.data[12:44]), // recipient
-            WRAPPED_NATIVE, // inputToken
-            bytes32(msg.data[76:108]), // outputToken
+            WRAPPED_NATIVE, // inputToken (native is always wrapped)
+            bytes32(msg.data[108:140]), // outputToken (receivingAssetId)
             msg.value, // inputAmount
-            uint256(bytes32(msg.data[108:140])), // outputAmount
-            uint64(uint32(bytes4(msg.data[140:144]))), // destinationChainId
-            bytes32(msg.data[144:176]), // exclusiveRelayer
-            uint32(bytes4(msg.data[176:180])), // quoteTimestamp
-            uint32(bytes4(msg.data[180:184])), // fillDeadline
-            uint32(bytes4(msg.data[184:188])), // exclusivityDeadline
-            msg.data[188:msg.data.length]
+            uint256(bytes32(msg.data[140:172])), // outputAmount
+            uint64(uint32(bytes4(msg.data[172:176]))), // destinationChainId
+            bytes32(msg.data[176:208]), // exclusiveRelayer
+            uint32(bytes4(msg.data[208:212])), // quoteTimestamp
+            uint32(bytes4(msg.data[212:216])), // fillDeadline
+            uint32(bytes4(msg.data[216:220])), // exclusivityDeadline
+            msg.data[220:msg.data.length]
         );
 
         emit LiFiAcrossTransfer(bytes8(msg.data[4:12]));
@@ -170,7 +171,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             bytes32(msg.data[44:76]), // depositor
             bytes32(msg.data[12:44]), // recipient
             sendingAssetId, // inputToken
-            bytes32(msg.data[128:160]), // outputToken
+            bytes32(msg.data[128:160]), // outputToken (receivingAssetId)
             inputAmount, // inputAmount
             uint256(bytes32(msg.data[160:192])), // outputAmount
             uint64(uint32(bytes4(msg.data[124:128]))), // destinationChainId
@@ -186,13 +187,16 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
 
     /// @notice Bridges ERC20 tokens via Across (minimal implementation)
     /// @param _parameters Contains all base parameters required for bridging with AcrossV4
-    /// @param sendingAssetId The address of the asset/token to be bridged
     /// @param inputAmount The amount to be bridged (including fees)
     function startBridgeTokensViaAcrossV4ERC20Min(
         PackedParameters calldata _parameters,
-        address sendingAssetId,
         uint256 inputAmount
     ) external {
+        // Convert bytes32 sendingAssetId back to address for ERC20 operations
+        address sendingAssetId = address(
+            uint160(uint256(_parameters.sendingAssetId))
+        );
+
         // Deposit assets
         LibAsset.transferFromERC20(
             sendingAssetId,
@@ -205,7 +209,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         SPOKEPOOL.deposit(
             _parameters.depositor, // depositor
             _parameters.receiver,
-            bytes32(uint256(uint160(sendingAssetId))), // inputToken
+            _parameters.sendingAssetId, // inputToken (now from parameters)
             _parameters.receivingAssetId, // outputToken
             inputAmount,
             _parameters.outputAmount,
@@ -239,6 +243,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
                 bytes8(_parameters.transactionId),
                 _parameters.receiver,
                 _parameters.depositor,
+                _parameters.sendingAssetId,
                 _parameters.receivingAssetId,
                 bytes32(_parameters.outputAmount),
                 bytes4(uint32(_parameters.destinationChainId)),
@@ -252,11 +257,9 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
 
     /// @notice Encodes calldata that can be used to call the ERC20 'packed' function
     /// @param _parameters Contains all base parameters required for bridging with AcrossV4
-    /// @param sendingAssetId The address of the asset/token to be bridged
     /// @param inputAmount The amount to be bridged (including fees)
     function encode_startBridgeTokensViaAcrossV4ERC20Packed(
         PackedParameters calldata _parameters,
-        address sendingAssetId,
         uint256 inputAmount
     ) external pure returns (bytes memory) {
         // there are already existing networks with chainIds outside uint32 range but since we not
@@ -277,7 +280,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             bytes8(_parameters.transactionId),
             _parameters.receiver,
             _parameters.depositor,
-            bytes32(uint256(uint160(sendingAssetId)))
+            _parameters.sendingAssetId
         );
 
         bytes memory part2 = bytes.concat(
@@ -317,17 +320,18 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         // extract bridgeData
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(uint160(uint256(bytes32(data[12:44]))));
-        bridgeData.destinationChainId = uint64(uint32(bytes4(data[140:144])));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(data[172:176])));
 
         // extract acrossData
         acrossData.refundAddress = bytes32(data[44:76]); // depositor
-        acrossData.receivingAssetId = bytes32(data[76:108]);
-        acrossData.outputAmount = uint256(bytes32(data[108:140]));
-        acrossData.exclusiveRelayer = bytes32(data[144:176]);
-        acrossData.quoteTimestamp = uint32(bytes4(data[176:180]));
-        acrossData.fillDeadline = uint32(bytes4(data[180:184]));
-        acrossData.exclusivityDeadline = uint32(bytes4(data[184:188]));
-        acrossData.message = data[188:];
+        acrossData.sendingAssetId = bytes32(data[76:108]); // sendingAssetId
+        acrossData.receivingAssetId = bytes32(data[108:140]);
+        acrossData.outputAmount = uint256(bytes32(data[140:172]));
+        acrossData.exclusiveRelayer = bytes32(data[176:208]);
+        acrossData.quoteTimestamp = uint32(bytes4(data[208:212]));
+        acrossData.fillDeadline = uint32(bytes4(data[212:216]));
+        acrossData.exclusivityDeadline = uint32(bytes4(data[216:220]));
+        acrossData.message = data[220:];
 
         return (bridgeData, acrossData);
     }
@@ -351,6 +355,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(uint160(uint256(bytes32(data[12:44]))));
         acrossData.refundAddress = bytes32(data[44:76]); // depositor
+        acrossData.sendingAssetId = bytes32(data[76:108]); // sendingAssetId
         bridgeData.sendingAssetId = address(
             uint160(uint256(bytes32(data[76:108])))
         );

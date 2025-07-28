@@ -95,6 +95,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         validAcrossData = AcrossFacetV4.AcrossV4Data({
             receiverAddress: _convertAddressToBytes32(USER_RECEIVER),
             refundAddress: _convertAddressToBytes32(USER_REFUND),
+            sendingAssetId: _convertAddressToBytes32(address(usdc)),
             receivingAssetId: _convertAddressToBytes32(address(usdc)),
             outputAmount: 0, // Will be calculated by the contract
             outputAmountMultiplier: 1000000000000000000, // 100% (1e18)

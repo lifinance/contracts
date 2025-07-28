@@ -131,6 +131,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         validAcrossData = AcrossFacetV4.AcrossV4Data({
             receiverAddress: _convertAddressToBytes32(USER_RECEIVER),
             refundAddress: _convertAddressToBytes32(USER_SENDER), // Set to match the depositor
+            sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             outputAmount: (defaultUSDCAmount * 99) / 100, // 99%
             outputAmountMultiplier: uint64(1000000000000000000), // 100.00%
@@ -144,6 +145,8 @@ contract AcrossFacetPackedV4Test is TestBase {
         packedParameters = AcrossFacetPackedV4.PackedParameters({
             transactionId: transactionId,
             receiver: _convertAddressToBytes32(USER_RECEIVER),
+            depositor: _convertAddressToBytes32(USER_SENDER),
+            sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             destinationChainId: destinationChainId,
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             outputAmount: (defaultUSDCAmount * 99) / 100,
@@ -151,8 +154,7 @@ contract AcrossFacetPackedV4Test is TestBase {
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
             exclusivityDeadline: 0,
-            message: "",
-            depositor: _convertAddressToBytes32(USER_SENDER) // Add depositor field
+            message: ""
         });
 
         vm.label(ACROSS_SPOKE_POOL, "SpokePool_PROX");
@@ -170,7 +172,6 @@ contract AcrossFacetPackedV4Test is TestBase {
         packedUSDTCalldata = acrossFacetPackedV4
             .encode_startBridgeTokensViaAcrossV4ERC20Packed(
                 packedParameters,
-                ADDRESS_USDT,
                 amountUSDT
             );
 
@@ -182,7 +183,6 @@ contract AcrossFacetPackedV4Test is TestBase {
         packedUSDCCalldata = acrossFacetPackedV4
             .encode_startBridgeTokensViaAcrossV4ERC20Packed(
                 packedParameters,
-                ADDRESS_USDC,
                 amountUSDC
             );
 
@@ -366,7 +366,6 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossFacetPackedV4.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
-            ADDRESS_USDC,
             amountUSDC
         );
 
@@ -386,7 +385,6 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossFacetPackedV4.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
-            ADDRESS_USDT,
             amountUSDT
         );
 
@@ -406,7 +404,6 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
-            ADDRESS_USDC,
             amountUSDC
         );
 
@@ -429,7 +426,6 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
-            ADDRESS_USDT,
             amountUSDT
         );
 
@@ -520,7 +516,6 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
             packedParameters,
-            ADDRESS_USDC,
             amountUSDC
         );
     }
@@ -532,7 +527,6 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
             packedParameters,
-            ADDRESS_USDC,
             invalidInputAmount
         );
     }
