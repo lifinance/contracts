@@ -165,8 +165,12 @@
         "Name": "AllBridgeFacet",
         "Version": "2.1.0"
       },
-      "0xd1993bfB9A6023cf6Ad954BcA8cC659C0Ed55DB7": {
+      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
         "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       }
     },

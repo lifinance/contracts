@@ -1012,20 +1012,6 @@
           }
         ]
       }
-    },
-    "ronin": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:53:27",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "DiamondLoupeFacet": {
@@ -34272,20 +34258,6 @@
           }
         ]
       }
-    },
-    "ronin": {
-      "production": {
-        "1.0.3": [
-          {
-            "ADDRESS": "0xfeD71074954d4cb8f1D2A8ca317d72c75e3E0559",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:59:54",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000452cf1b8597e6319cd21abd847312bf17e26d8d1000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000d8383fd32cca007ec8e51290ee3b5dd196ecc0df",
-            "SALT": "",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "GasZipFacet": {
@@ -38203,9 +38175,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xd1993bfB9A6023cf6Ad954BcA8cC659C0Ed55DB7",
+            "ADDRESS": "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-28 12:19:50",
+            "TIMESTAMP": "2025-07-28 16:35:12",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e35e9842fceaca96570b734083f4a58e8f7c5f2a00000000000000000000000082af49447d8a07e3bd95bd0d56f35241523fbab1",
             "SALT": "",
             "VERIFIED": "false",
@@ -38218,9 +38190,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xd1993bfB9A6023cf6Ad954BcA8cC659C0Ed55DB7",
+            "ADDRESS": "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-28 12:21:21",
+            "TIMESTAMP": "2025-07-28 16:52:43",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006f26bf09b1c792e3228e5467807a900a503c02810000000000000000000000004200000000000000000000000000000000000006",
             "SALT": "",
             "VERIFIED": "false",
@@ -38252,7 +38224,7 @@
           {
             "ADDRESS": "0x1d5bD612Ce761060A4bEd77b606ab7e723D4E91E",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-28 12:25:12",
+            "TIMESTAMP": "2025-07-28 16:53:15",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000023f882ba2fa54a358d8599465eb471f58cc267510000000000000000000000006f26bf09b1c792e3228e5467807a900a503c028100000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "false",
@@ -38267,9 +38239,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x60Fa287321F4171a57F72ee1A2216034165b467b",
+            "ADDRESS": "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-28 12:28:59",
+            "TIMESTAMP": "2025-07-28 16:35:28",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e35e9842fceaca96570b734083f4a58e8f7c5f2a00000000000000000000000082af49447d8a07e3bd95bd0d56f35241523fbab10000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
             "SALT": "",
             "VERIFIED": "false",
@@ -38282,9 +38254,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x60Fa287321F4171a57F72ee1A2216034165b467b",
+            "ADDRESS": "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-28 12:29:31",
+            "TIMESTAMP": "2025-07-28 16:53:45",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006f26bf09b1c792e3228e5467807a900a503c028100000000000000000000000042000000000000000000000000000000000000060000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
             "SALT": "",
             "VERIFIED": "false",
