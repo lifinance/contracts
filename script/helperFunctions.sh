@@ -1633,8 +1633,13 @@ function parseTargetStateGoogleSpreadsheet() {
     processNetworkLine "$NETWORK" "$LINE" "$ENVIRONMENT" "$TEMP_DIR" "$FACETS_STARTS_AT_COLUMN" "$(printf '%s\n' "${CONTRACTS_ARRAY[@]}")" &
   done
 
-  # Wait for all background jobs to complete
+  # Wait for all background jobs and check for failures
   wait
+  if [ $? -ne 0 ]; then
+      error "One or more network processing jobs failed"
+      rm -rf "$TEMP_DIR"
+      return 1
+  fi
 
   echo ""
   echo "All network processing completed. Merging results..."
