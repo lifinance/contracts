@@ -148,6 +148,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Setup: Direct bridge USDC (6 decimals) to USDC (6 decimals)
         bridgeData.sendingAssetId = address(usdc);
+        validAcrossData.sendingAssetId = _convertAddressToBytes32(
+            address(usdc)
+        );
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC
         validAcrossData.receivingAssetId = _convertAddressToBytes32(
             address(usdc)
@@ -171,6 +174,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Setup: Direct bridge DAI (18 decimals) to DAI (18 decimals)
         bridgeData.sendingAssetId = address(dai);
+        validAcrossData.sendingAssetId = _convertAddressToBytes32(
+            address(dai)
+        );
         bridgeData.minAmount = 100 * 10 ** 18; // 100 DAI
         validAcrossData.receivingAssetId = _convertAddressToBytes32(
             address(dai)
@@ -195,6 +201,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = address(usdc); // USDC is the asset that will be bridged
+        validAcrossData.sendingAssetId = _convertAddressToBytes32(
+            address(usdc)
+        );
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC (expected output amount)
 
         // Setup mock DEX to return exactly 100 USDC (6 decimals) to avoid slippage issues
@@ -267,6 +276,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = address(usdc); // USDC is the asset that will be bridged
+        validAcrossData.sendingAssetId = _convertAddressToBytes32(
+            address(usdc)
+        );
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC (expected output amount)
 
         // Setup mock DEX to return exactly 100 USDC (6 decimals)
@@ -339,6 +351,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = address(usdc); // USDC is the asset that will be bridged
+        validAcrossData.sendingAssetId = _convertAddressToBytes32(
+            address(usdc)
+        );
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC (expected output amount)
 
         // Setup mock DEX to return exactly 100 USDC (6 decimals)
