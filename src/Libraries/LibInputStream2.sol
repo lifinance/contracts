@@ -9,20 +9,19 @@ library LibInputStream2 {
     /** @notice Creates stream from data
      * @param data data
      */
-function createStream(
-    bytes memory data
-) internal pure returns (uint256 stream) {
-    assembly {
-        stream := mload(0x40)
-        mstore(0x40, add(stream, 64))
-        let dataContentPtr := add(data, 32)
-        mstore(stream, dataContentPtr)
-        let length := mload(data)
-        let endPtr := add(dataContentPtr, length)
-        mstore(add(stream, 32), endPtr)
+    function createStream(
+        bytes memory data
+    ) internal pure returns (uint256 stream) {
+        assembly {
+            stream := mload(0x40)
+            mstore(0x40, add(stream, 64))
+            let dataContentPtr := add(data, 32)
+            mstore(stream, dataContentPtr)
+            let length := mload(data)
+            let endPtr := add(dataContentPtr, length)
+            mstore(add(stream, 32), endPtr)
+        }
     }
-}
-
 
     /** @notice Checks if stream is not empty
      * @param stream stream
@@ -103,48 +102,39 @@ function createStream(
         }
     }
 
-/** @notice Reads address from the stream
- * @param stream stream
- */
-function readAddress(uint256 stream) internal pure returns (address res) {
-    assembly {
-        let pos := mload(stream)
-        // CORRECT: Load a 32-byte word. The address is the first 20 bytes.
-        // To get it, we must shift the word right by (32-20)*8 = 96 bits.
-        res := shr(96, mload(pos)) 
-        // Then, advance the pointer by the size of an address
-        mstore(stream, add(pos, 20))
-    }
-}
-
-// In LibInputStream2.sol
-
-/** @notice Reads all remaining bytes from the stream into a new bytes array
- * @param stream stream
- */
-function readRemainingBytes(
-    uint256 stream
-) internal view returns (bytes memory res) {
-    uint256 pos;
-    uint256 finish;
-    assembly {
-        pos := mload(stream)
-        finish := mload(add(stream, 32))
-    }
-
-    uint256 len = finish - pos;
-
-    if (len > 0) {
+    /** @notice Reads address from the stream
+     * @param stream stream
+     */
+    function readAddress(uint256 stream) internal pure returns (address res) {
         assembly {
-            res := mload(0x40)
-            mstore(0x40, add(res, add(len, 32)))
-            mstore(res, len)
-            pop(staticcall(gas(), 4, pos, len, add(res, 32), len))
+            let pos := mload(stream)
+            // CORRECT: Load a 32-byte word. The address is the first 20 bytes.
+            // To get it, we must shift the word right by (32-20)*8 = 96 bits.
+            res := shr(96, mload(pos))
+            // Then, advance the pointer by the size of an address
+            mstore(stream, add(pos, 20))
         }
     }
-    
-    assembly {
-        mstore(stream, finish)
+
+    /** @notice Reads a uint16 length prefix, then that many bytes. */
+    function readBytesWithLength(
+        uint256 stream
+    ) internal view returns (bytes memory res) {
+        uint16 len = LibInputStream2.readUint16(stream); // Read the 2-byte length
+
+        if (len > 0) {
+            uint256 pos;
+            assembly {
+                pos := mload(stream)
+            }
+            assembly {
+                res := mload(0x40)
+                mstore(0x40, add(res, add(len, 32)))
+                mstore(res, len)
+                pop(staticcall(gas(), 4, pos, len, add(res, 32), len))
+                // IMPORTANT: Update the stream's position pointer
+                mstore(stream, add(pos, len))
+            }
+        }
     }
-}
 }

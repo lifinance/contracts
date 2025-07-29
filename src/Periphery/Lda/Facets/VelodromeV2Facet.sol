@@ -6,7 +6,6 @@ import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title VelodromeV2 Facet
 /// @author LI.FI (https://li.fi)
@@ -35,7 +34,6 @@ contract VelodromeV2Facet {
         uint256 amountIn
     ) external returns (uint256) {
         uint256 stream = LibInputStream2.createStream(swapData);
-        
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();

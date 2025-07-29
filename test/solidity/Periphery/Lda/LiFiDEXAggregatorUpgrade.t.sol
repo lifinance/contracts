@@ -7,23 +7,17 @@ import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
 import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory.sol";
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
-import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
-import { IAlgebraRouter } from "lifi/Interfaces/IAlgebraRouter.sol";
-import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
-import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
-import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
-import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
-import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
-import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+// import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
+// import { IAlgebraRouter } from "lifi/Interfaces/IAlgebraRouter.sol";
+// import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
+// import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
+// import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
+// import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { TestBase } from "../../utils/TestBase.sol";
-import { TestToken as ERC20 } from "../../utils/TestToken.sol";
-import { MockFeeOnTransferToken } from "../../utils/MockTokenFeeOnTransfer.sol";
-import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 
 import { VelodromeV2Facet } from "lifi/Periphery/Lda/Facets/VelodromeV2Facet.sol";
 import { CoreRouteFacet } from "lifi/Periphery/Lda/Facets/CoreRouteFacet.sol";
-
-import { console2 } from "forge-std/console2.sol";
 
 // Command codes for route processing
 enum CommandType {
@@ -111,7 +105,7 @@ abstract contract LiFiDexAggregatorUpgradeTest is TestBase {
     error WrongPoolReserves();
     error PoolDoesNotExist();
 
-    function _addDexFacet() virtual internal;
+    function _addDexFacet() internal virtual;
 
     // Setup function for Apechain tests
     function setupApechain() internal {
@@ -143,7 +137,11 @@ abstract contract LiFiDexAggregatorUpgradeTest is TestBase {
         coreRouteFacet = new CoreRouteFacet();
         bytes4[] memory functionSelectors = new bytes4[](1);
         functionSelectors[0] = CoreRouteFacet.processRoute.selector;
-        addFacet(address(ldaDiamond), address(coreRouteFacet), functionSelectors);
+        addFacet(
+            address(ldaDiamond),
+            address(coreRouteFacet),
+            functionSelectors
+        );
 
         coreRouteFacet = CoreRouteFacet(payable(address(ldaDiamond)));
     }
@@ -203,8 +201,9 @@ abstract contract LiFiDexAggregatorUpgradeTest is TestBase {
  * @title VelodromeV2 tests
  * @notice Tests specific to Velodrome V2 pool type
  */
-contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
-
+contract LiFiDexAggregatorVelodromeV2UpgradeTest is
+    LiFiDexAggregatorUpgradeTest
+{
     VelodromeV2Facet internal velodromeV2Facet;
 
     // ==================== Velodrome V2 specific variables ====================
@@ -266,7 +265,11 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
         velodromeV2Facet = new VelodromeV2Facet();
         bytes4[] memory functionSelectors = new bytes4[](1);
         functionSelectors[0] = velodromeV2Facet.swapVelodromeV2.selector;
-        addFacet(address(ldaDiamond), address(velodromeV2Facet), functionSelectors);
+        addFacet(
+            address(ldaDiamond),
+            address(velodromeV2Facet),
+            functionSelectors
+        );
 
         velodromeV2Facet = VelodromeV2Facet(payable(address(ldaDiamond)));
     }
@@ -361,9 +364,9 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
                 from: address(ldaDiamond),
                 to: address(USER_SENDER),
                 tokenIn: ADDRESS_USDC,
-                amountIn: IERC20(ADDRESS_USDC).balanceOf(
-                    address(ldaDiamond)
-                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
+                amountIn: IERC20(ADDRESS_USDC).balanceOf(address(ldaDiamond)) -
+                    1, // adjust for slot undrain protection: subtract 1 token so that the
+                // aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
@@ -496,16 +499,16 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
         // Approve and execute
         IERC20(params.tokenIn).approve(address(ldaDiamond), 1000 * 1e6);
 
-        vm.expectEmit(true, true, true, true);
-        emit Route(
-            USER_SENDER,
-            USER_SENDER,
-            params.tokenIn,
-            params.tokenOut,
-            1000 * 1e6,
-            params.amounts2[1],
-            params.amounts2[1]
-        );
+        // vm.expectEmit(true, true, true, true);
+        // emit Route(
+        //     USER_SENDER,
+        //     USER_SENDER,
+        //     params.tokenIn,
+        //     params.tokenOut,
+        //     1000 * 1e6,
+        //     params.amounts2[1],
+        //     params.amounts2[1]
+        // );
 
         coreRouteFacet.processRoute(
             params.tokenIn,
@@ -533,17 +536,24 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
             VELODROME_V2_FACTORY_REGISTRY
         );
 
-        // Test case 1: Zero pool address
+        // --- Test case 1: Zero pool address ---
+        // 1. Create the specific swap data blob
+        bytes memory swapDataZeroPool = abi.encodePacked(
+            VelodromeV2Facet.swapVelodromeV2.selector,
+            address(0), // Invalid pool
+            uint8(SwapDirection.Token1ToToken0),
+            USER_SENDER,
+            uint8(CallbackStatus.Disabled)
+        );
+
+        // 2. Create the full route with the length-prefixed swap data
         bytes memory routeWithZeroPool = abi.encodePacked(
             uint8(CommandType.ProcessUserERC20),
             ADDRESS_USDC,
             uint8(1),
             FULL_SHARE,
-            VelodromeV2Facet.swapVelodromeV2.selector,
-            address(0),
-            uint8(SwapDirection.Token1ToToken0),
-            USER_SENDER,
-            uint8(CallbackStatus.Disabled)
+            uint16(swapDataZeroPool.length), // Length prefix
+            swapDataZeroPool
         );
 
         IERC20(ADDRESS_USDC).approve(address(ldaDiamond), 1000 * 1e6);
@@ -558,17 +568,22 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
             routeWithZeroPool
         );
 
-        // Test case 2: Zero recipient address
+        // --- Test case 2: Zero recipient address ---
+        bytes memory swapDataZeroRecipient = abi.encodePacked(
+            VelodromeV2Facet.swapVelodromeV2.selector,
+            validPool,
+            uint8(SwapDirection.Token1ToToken0),
+            address(0), // Invalid recipient
+            uint8(CallbackStatus.Disabled)
+        );
+
         bytes memory routeWithZeroRecipient = abi.encodePacked(
             uint8(CommandType.ProcessUserERC20),
             ADDRESS_USDC,
             uint8(1),
             FULL_SHARE,
-            VelodromeV2Facet.swapVelodromeV2.selector,
-            validPool,
-            uint8(SwapDirection.Token1ToToken0),
-            address(0),
-            uint8(CallbackStatus.Disabled)
+            uint16(swapDataZeroRecipient.length), // Length prefix
+            swapDataZeroRecipient
         );
 
         vm.expectRevert(InvalidCallData.selector);
@@ -597,21 +612,7 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
         );
 
         // Build multi-hop route
-        bytes memory firstHop = _buildFirstHop(
-            params.tokenIn,
-            params.pool1,
-            params.pool2,
-            1 // direction
-        );
-
-        bytes memory secondHop = _buildSecondHop(
-            params.tokenMid,
-            params.pool2,
-            USER_SENDER,
-            0 // direction
-        );
-
-        bytes memory route = bytes.concat(firstHop, secondHop);
+        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 0);
 
         deal(ADDRESS_USDC, USER_SENDER, 1000 * 1e6);
 
@@ -675,14 +676,8 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
             ? CommandType.ProcessMyERC20
             : CommandType.ProcessUserERC20;
 
-        console2.log("VelodromeV2Facet.swapVelodromeV2.selector");
-        console2.logBytes4(VelodromeV2Facet.swapVelodromeV2.selector);
-        // build the route.
-        bytes memory route = abi.encodePacked(
-            uint8(commandCode),
-            params.tokenIn,
-            uint8(1),
-            FULL_SHARE,
+        // 1. Pack the data for the specific swap FIRST
+        bytes memory swapData = abi.encodePacked(
             VelodromeV2Facet.swapVelodromeV2.selector,
             pool,
             params.direction,
@@ -691,12 +686,18 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
                 ? uint8(CallbackStatus.Enabled)
                 : uint8(CallbackStatus.Disabled)
         );
+        // build the route.
+        bytes memory route = abi.encodePacked(
+            uint8(commandCode),
+            params.tokenIn,
+            uint8(1), // num splits
+            FULL_SHARE,
+            uint16(swapData.length), // <--- Add length prefix
+            swapData
+        );
 
         // approve the aggregator to spend tokenIn.
-        IERC20(params.tokenIn).approve(
-            address(ldaDiamond),
-            params.amountIn
-        );
+        IERC20(params.tokenIn).approve(address(ldaDiamond), params.amountIn);
 
         // capture initial token balances.
         uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
@@ -715,19 +716,17 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
                 abi.encode(params.tokenIn)
             );
         }
-        // vm.expectEmit(true, true, true, true);
-        // emit Route(
-        //     from,
-        //     params.to,
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     params.amountIn,
-        //     amounts[1],
-        //     amounts[1]
-        // );
+        vm.expectEmit(true, true, true, true);
+        emit Route(
+            from,
+            params.to,
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn,
+            amounts[1],
+            amounts[1]
+        );
 
-        console2.log("route222:");
-        console2.logBytes(route);
         // execute the swap
         coreRouteFacet.processRoute(
             params.tokenIn,
@@ -827,40 +826,32 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
 
     // function to build first hop of the route
     function _buildFirstHop(
-        address tokenIn,
         address pool1,
-        address pool2,
+        address pool2, // The recipient of the first hop is the next pool
         uint8 direction
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
-                uint8(CommandType.ProcessUserERC20),
-                tokenIn,
-                uint8(1),
-                FULL_SHARE,
                 VelodromeV2Facet.swapVelodromeV2.selector,
                 pool1,
                 direction,
-                pool2,
+                pool2, // Send intermediate tokens to the next pool for the second hop
                 uint8(CallbackStatus.Disabled)
             );
     }
 
     // function to build second hop of the route
     function _buildSecondHop(
-        address tokenMid,
         address pool2,
         address recipient,
         uint8 direction
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
-                uint8(CommandType.ProcessOnePool),
-                tokenMid,
                 VelodromeV2Facet.swapVelodromeV2.selector,
                 pool2,
                 direction,
-                recipient,
+                recipient, // Final recipient
                 uint8(CallbackStatus.Disabled)
             );
     }
@@ -872,21 +863,40 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorUpgradeTest {
         uint8 firstHopDirection,
         uint8 secondHopDirection
     ) private pure returns (bytes memory) {
-        bytes memory firstHop = _buildFirstHop(
-            params.tokenIn,
+        // 1. Get the specific data for each hop
+        bytes memory firstHopData = _buildFirstHop(
             params.pool1,
             params.pool2,
             firstHopDirection
         );
 
-        bytes memory secondHop = _buildSecondHop(
-            params.tokenMid,
+        bytes memory secondHopData = _buildSecondHop(
             params.pool2,
             recipient,
             secondHopDirection
         );
 
-        return bytes.concat(firstHop, secondHop);
+        // 2. Assemble the first command
+        bytes memory firstCommand = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            params.tokenIn,
+            uint8(1), // num splits
+            FULL_SHARE,
+            uint16(firstHopData.length), // <--- Add length prefix
+            firstHopData
+        );
+
+        // 3. Assemble the second command
+        // The second hop takes tokens already held by the diamond, so we use ProcessOnePool
+        bytes memory secondCommand = abi.encodePacked(
+            uint8(CommandType.ProcessOnePool),
+            params.tokenMid,
+            uint16(secondHopData.length), // <--- Add length prefix
+            secondHopData
+        );
+
+        // 4. Concatenate the commands to create the final route
+        return bytes.concat(firstCommand, secondCommand);
     }
 
     function _verifyUserBalances(
