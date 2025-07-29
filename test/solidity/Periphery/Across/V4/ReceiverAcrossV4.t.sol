@@ -49,6 +49,10 @@ contract ReceiverAcrossV4Test is TestBase {
         // Test with zero spokepool
         vm.expectRevert(InvalidConfig.selector);
         new ReceiverAcrossV4(address(this), address(executor), address(0));
+
+        // Test with zero owner
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverAcrossV4(address(0), address(executor), SPOKEPOOL_MAINNET);
     }
 
     function test_contractIsSetUpCorrectly() public {

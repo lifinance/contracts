@@ -62,7 +62,9 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         address _owner
     ) TransferrableOwnership(_owner) {
         if (
-            address(_spokePool) == address(0) || _wrappedNative == bytes32(0)
+            address(_spokePool) == address(0) ||
+            _wrappedNative == bytes32(0) ||
+            _owner == address(0)
         ) {
             revert InvalidConfig();
         }

@@ -228,6 +228,14 @@ contract AcrossFacetPackedV4Test is TestBase {
             bytes32(0),
             address(this)
         );
+
+        // Test with zero owner
+        vm.expectRevert(InvalidConfig.selector);
+        new AcrossFacetPackedV4(
+            IAcrossSpokePoolV4(ACROSS_SPOKE_POOL),
+            _convertAddressToBytes32(ADDRESS_WRAPPED_NATIVE),
+            address(0)
+        );
     }
 
     function test_canBridgeNativeTokensViaPackedFunction_Facet() public {

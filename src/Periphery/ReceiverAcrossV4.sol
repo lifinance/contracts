@@ -34,8 +34,11 @@ contract ReceiverAcrossV4 is ILiFi, WithdrawablePeriphery {
         address _executor,
         address _spokepool
     ) WithdrawablePeriphery(_owner) {
-        if (_executor == address(0) || _spokepool == address(0))
-            revert InvalidConfig();
+        if (
+            _executor == address(0) ||
+            _spokepool == address(0) ||
+            _owner == address(0)
+        ) revert InvalidConfig();
 
         EXECUTOR = IExecutor(_executor);
         SPOKEPOOL = _spokepool;
