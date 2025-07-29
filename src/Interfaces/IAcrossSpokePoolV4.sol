@@ -3,33 +3,39 @@ pragma solidity ^0.8.17;
 
 /// @title IAcrossSpokePoolV4
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 interface IAcrossSpokePoolV4 {
-    // the parameters of the existing deposit() function were updated with AcrossV4 to support bytes32 instead of address
+    /// @notice Initiates a cross-chain token transfer via Across Protocol V4
+    /// @dev This function allows users to deposit tokens on the origin chain for bridging to a destination chain.
+    ///      The function supports both EVM and non-EVM chains through the use of bytes32 addresses.
+    ///      The deposit can be filled by relayers on the destination chain within the specified deadlines.
+    /// @param depositor The address that made the deposit on the origin chain (bytes32 format for cross-chain compatibility)
+    /// @param recipient The recipient address on the destination chain (bytes32 format for cross-chain compatibility)
+    /// @param inputToken The token address that is deposited on the origin chain by the depositor (bytes32 format)
+    /// @param outputToken The token address that will be received on the destination chain by the recipient (bytes32 format)
+    /// @param inputAmount The amount of input token deposited by the depositor on the origin chain
+    /// @param outputAmount The amount of output token to be received by the recipient on the destination chain (after fees)
+    /// @param destinationChainId The chain ID of the destination chain where the tokens will be received
+    /// @param exclusiveRelayer The exclusive relayer address who can fill the deposit before the exclusivity deadline.
+    ///                         Set to zero bytes32 if no exclusive relayer is specified
+    /// @param quoteTimestamp The timestamp when the quote was created, used for fee calculation and validation
+    /// @param fillDeadline The timestamp on the destination chain after which this deposit can no longer be filled by any relayer
+    /// @param exclusivityDeadline The timestamp on the destination chain after which any relayer can fill the deposit.
+    ///                           Before this deadline, only the exclusive relayer can fill the deposit
+    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
+    ///                This can include swap instructions, destination call data, or other cross-chain messages
     function deposit(
-        // The address that made the deposit on the origin chain
         bytes32 depositor,
-        // The recipient on the destination chain
         bytes32 recipient,
-        // Token that is deposited on origin chain by depositor
         bytes32 inputToken,
-        // Token that is received on destination chain by recipient
         bytes32 outputToken,
-        // The amount of input token deposited by depositor on origin chain
         uint256 inputAmount,
-        // The amount of output token to be received by recipient on destination chain
         uint256 outputAmount,
-        // Destination chain id
         uint256 destinationChainId,
-        // This is the exclusive relayer who can fill the deposit before the exclusivity deadline
         bytes32 exclusiveRelayer,
-        // Timestamp for the quote creation
         uint32 quoteTimestamp,
-        // The timestamp on the destination chain after which this deposit can no longer be filled
         uint32 fillDeadline,
-        // The timestamp on the destination chain after which any relayer can fill the deposit
         uint32 exclusivityDeadline,
-        // Arbitrary data that can be used to pass additional information to the recipient along with the tokens
         bytes calldata message
     ) external payable;
 }
