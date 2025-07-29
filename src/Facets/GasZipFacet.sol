@@ -10,21 +10,26 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the gas.zip protocol
 ///         (https://www.gas.zip/)
-/// @custom:version 2.0.4
-contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @custom:version 2.0.5
+contract GasZipFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     using SafeTransferLib for address;
 
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
-    /// State ///
-    address public constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
+    /// State ///;
     IGasZip public immutable GAS_ZIP_ROUTER;
     uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 16;
 

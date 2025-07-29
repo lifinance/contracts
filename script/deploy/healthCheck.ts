@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { $ } from 'bun'
+import { execSync } from 'child_process'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
@@ -136,8 +137,10 @@ const main = defineCommand({
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
         const rpcUrl: string = chain.rpcUrls.default.http
-        const rawString =
-          await $`cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`.text()
+        const rawString = execSync(
+          `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
+          { encoding: 'utf8' }
+        )
 
         const jsonCompatibleString = rawString
           .replace(/\(/g, '[')
@@ -172,7 +175,7 @@ const main = defineCommand({
       else consola.success(`Facet ${facet} registered in Diamond`)
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │      Check that core periphery facets are deployed      │
+    //          │      Check that core periphery contracts are deployed   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking deploy status of periphery contracts...')
     for (const contract of corePeriphery) {
@@ -230,9 +233,11 @@ const main = defineCommand({
       const peripheryAddress = deployedContracts[periphery]
       if (!peripheryAddress)
         logError(`Periphery contract ${periphery} not deployed `)
-      else if (!addresses.includes(getAddress(peripheryAddress)))
+      else if (!addresses.includes(getAddress(peripheryAddress))) {
+        // skip the registration check for LiFiTimelockController (no need to register it)
+        if (periphery === 'LiFiTimelockController') continue
         logError(`Periphery contract ${periphery} not registered in Diamond`)
-      else
+      } else
         consola.success(`Periphery contract ${periphery} registered in Diamond`)
     }
 

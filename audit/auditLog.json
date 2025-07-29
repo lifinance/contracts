@@ -301,6 +301,13 @@
       "auditReportPath": "./audit/reports/2025.06.29_CalldataVerificationFacet(v1.3.1).pdf",
       "auditCommitHash": "8840d8b41a894c46a444c5b2db2ca34babee753f"
     },
+    "audit20250629_1": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_SwapperV2(v1.1.0).pdf",
+      "auditCommitHash": "4af7030dd8676d892c0bd63cdb2f43cbb7aae4cd"
+    },
     "audit20250630": {
       "auditCompletedOn": "30.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -321,6 +328,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.07.06_Permit2Proxy(v1.0.4).pdf",
       "auditCommitHash": "a00deeb45dafe3e5124770c41a7a28ba931361d2"
+    },
+    "audit20250718": {
+      "auditCompletedOn": "18.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
+      "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
     }
   },
   "auditedContracts": {
@@ -342,7 +356,8 @@
       "1.1.0": ["audit20250106", "audit20250508"]
     },
     "AllBridgeFacet": {
-      "2.0.0": ["audit20250508"]
+      "2.0.0": ["audit20250508"],
+      "2.1.0": ["audit20250718"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
@@ -375,10 +390,12 @@
       "2.0.0": ["audit20250508"]
     },
     "ChainflipFacet": {
-      "1.0.0": ["audit20250305", "audit20250508"]
+      "1.0.0": ["audit20250305", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "DeBridgeDlnFacet": {
-      "1.0.0": ["audit20241205", "audit20250508"]
+      "1.0.0": ["audit20241205", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "DexManagerFacet": {
       "1.0.2": ["audit20250413", "audit20250508"]
@@ -406,14 +423,16 @@
       "2.0.0": ["audit20241107"],
       "2.0.2": ["audit20250110_1"],
       "2.0.3": ["audit20250416", "audit20250508"],
-      "2.0.4": ["audit20250515"]
+      "2.0.4": ["audit20250515"],
+      "2.0.5": ["audit20250718"]
     },
     "GasZipPeriphery": {
       "1.0.0": ["audit20241107"],
       "1.0.1": ["audit20250110_1", "audit20250508"]
     },
     "GenericErrors": {
-      "1.0.1": ["audit20250506", "audit20250508"]
+      "1.0.1": ["audit20250506", "audit20250508"],
+      "1.0.2": ["audit20250718"]
     },
     "GenericSwapFacet": {
       "1.0.0": ["audit20250508"]
@@ -439,18 +458,6 @@
     "HopFacetPacked": {
       "1.0.6": ["audit20250508"]
     },
-    "IAcrossSpokePool": {
-      "1.0.0": ["audit20250106", "audit20250508"]
-    },
-    "IChainflip": {
-      "1.0.0": ["audit20250305", "audit20250508"]
-    },
-    "IGasZip": {
-      "1.0.0": ["audit20241107", "audit20250508"]
-    },
-    "IGlacisAirlift": {
-      "1.0.0": ["audit20250219", "audit20250508"]
-    },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
     },
@@ -461,7 +468,8 @@
       "1.0.1": ["audit20241202"],
       "1.0.2": ["audit20250110_1", "audit20250508"],
       "2.0.0": ["audit20250506"],
-      "2.1.0": ["audit20250620"]
+      "2.1.0": ["audit20250620"],
+      "2.1.1": ["audit20250718"]
     },
     "LibBytes": {
       "1.0.0": ["audit20250508"]
@@ -478,6 +486,9 @@
     },
     "LibUtil": {
       "1.0.0": ["audit20250508"]
+    },
+    "LiFiData": {
+      "1.0.0": ["audit20250718"]
     },
     "LiFiDiamond": {
       "1.0.0": ["audit20250508"]
@@ -497,15 +508,15 @@
       "1.10.0": ["audit20250608"],
       "1.11.0": ["audit20250630"]
     },
+    "LiFiTimelockController": {
+      "1.0.0": ["audit20250110_2", "audit20250508"],
+      "1.0.1": ["audit20250706"]
+    },
     "LiFuelFeeCollector": {
       "1.0.2": ["audit20250109_3", "audit20250508"]
     },
     "LIFuelFacet": {
       "1.0.1": ["audit20250508"]
-    },
-    "LiFiTimelockController": {
-      "1.0.0": ["audit20250110_2", "audit20250508"],
-      "1.0.1": ["audit20250706"]
     },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
@@ -513,7 +524,8 @@
     "MayanFacet": {
       "1.0.0": ["audit20250508"],
       "1.1.0": ["audit20250228"],
-      "1.2.0": ["audit20250327"]
+      "1.2.0": ["audit20250327"],
+      "1.2.1": ["audit20250718"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
@@ -554,14 +566,16 @@
       "1.1.0": ["audit20250109_2", "audit20250508"]
     },
     "ReceiverChainflip": {
-      "1.0.0": ["audit20250305", "audit20250508"]
+      "1.0.0": ["audit20250305", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
     },
     "RelayFacet": {
-      "1.0.0": ["audit20241202", "audit20250508"]
+      "1.0.0": ["audit20241202", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "RelayerCelerIM": {
       "1.0.3": ["audit20250109_3"],
@@ -584,7 +598,9 @@
       "1.0.1": ["audit20240814", "audit20250508"]
     },
     "SwapperV2": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.0.1": ["audit20250718"],
+      "1.1.0": ["audit20250629_1"]
     },
     "SymbiosisFacet": {
       "1.0.0": ["audit20250508"]

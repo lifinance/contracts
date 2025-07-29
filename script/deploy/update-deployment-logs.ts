@@ -21,6 +21,13 @@ import {
   MongoClient,
 } from 'mongodb'
 
+// Interface for index specifications with old names
+interface IIndexSpec {
+  key: IndexSpecification
+  name: string
+  oldNames?: string[]
+}
+
 // TypeScript interface for deployment records
 interface IDeploymentRecord {
   _id?: ObjectId
@@ -111,8 +118,6 @@ class DeploymentLogManager {
         const collectionName = this.environment
         this.collection = this.db.collection<IDeploymentRecord>(collectionName)
 
-        // Create indexes on first connection
-        await this.createIndexes()
         consola.info(`Connected to MongoDB collection: ${collectionName}`)
         return
       } catch (error) {
@@ -128,42 +133,70 @@ class DeploymentLogManager {
       }
   }
 
-  private async createIndexes(): Promise<void> {
+  public async createIndexes(): Promise<void> {
     if (!this.collection) {
       consola.error('Collection not initialized')
       return
     }
 
-    const indexSpecs = [
+    const indexSpecs: IIndexSpec[] = [
       {
         key: { contractName: 1, network: 1, version: 1 } as IndexSpecification,
         name: 'contract_network_version',
+        oldNames: ['contractName_1_network_1_version_1'], // Known old name
       },
       {
         key: { contractNetworkKey: 1, version: 1 } as IndexSpecification,
         name: 'contract_network_key_version',
+        oldNames: ['contractNetworkKey_1_version_1'], // Known old name
       },
-      { key: { timestamp: -1 } as IndexSpecification, name: 'timestamp_desc' },
-      { key: { address: 1 } as IndexSpecification, name: 'address' },
+      {
+        key: { timestamp: -1 } as IndexSpecification,
+        name: 'timestamp_desc',
+        oldNames: ['timestamp_-1'], // Known old name
+      },
+      {
+        key: { address: 1 } as IndexSpecification,
+        name: 'address',
+        oldNames: ['address_1'], // Known old name
+      },
     ]
-
     try {
       const existingIndexes = await this.collection.listIndexes().toArray()
       const existingIndexNames = new Set(existingIndexes.map((idx) => idx.name))
 
-      for (const indexSpec of indexSpecs)
+      for (const indexSpec of indexSpecs) {
+        // Check if we need to drop old indexes
+        if (indexSpec.oldNames)
+          for (const oldName of indexSpec.oldNames)
+            if (existingIndexNames.has(oldName))
+              try {
+                await this.collection.dropIndex(oldName)
+                consola.info(`Dropped old index: ${oldName}`)
+              } catch (error) {
+                consola.warn(`Failed to drop old index ${oldName}:`, error)
+              }
+
+        // Create the new index if it doesn't exist
         if (!existingIndexNames.has(indexSpec.name))
           try {
             await this.collection.createIndex(indexSpec.key, {
               name: indexSpec.name,
             })
             consola.info(`Created index: ${indexSpec.name}`)
-          } catch (error) {
-            consola.warn(`Failed to create index ${indexSpec.name}:`, error)
+          } catch (error: any) {
+            // If it fails due to duplicate key pattern, that's okay
+            if (error.code === 85 || error.message?.includes('already exists'))
+              consola.debug(
+                `Index with same key pattern as ${indexSpec.name} already exists`
+              )
+            else
+              consola.warn(`Failed to create index ${indexSpec.name}:`, error)
           }
         else consola.debug(`Index ${indexSpec.name} already exists`)
+      }
     } catch (error) {
-      consola.warn('Failed to list existing indexes:', error)
+      consola.warn('Failed to manage indexes:', error)
     }
   }
 
@@ -963,6 +996,45 @@ const updateCommand = defineCommand({
   },
 })
 
+// Define create-indexes command
+const createIndexesCommand = defineCommand({
+  meta: {
+    name: 'create-indexes',
+    description: 'Create or update MongoDB indexes for deployment collections',
+  },
+  args: {
+    env: {
+      type: 'string',
+      description: 'Environment (staging or production)',
+      default: 'production',
+    },
+  },
+  async run({ args }) {
+    // Validate environment
+    if (args.env !== 'staging' && args.env !== 'production') {
+      consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    const manager = new DeploymentLogManager(
+      config,
+      args.env as 'staging' | 'production'
+    )
+
+    try {
+      await manager.connect()
+      consola.info('Creating/updating indexes...')
+      await manager.createIndexes()
+      consola.success('Indexes created/updated successfully')
+    } catch (error) {
+      consola.error('Failed to create indexes:', error)
+      process.exit(1)
+    } finally {
+      await manager.disconnect()
+    }
+  },
+})
+
 // Main command with subcommands
 const main = defineCommand({
   meta: {
@@ -975,6 +1047,7 @@ const main = defineCommand({
     sync: syncCommand,
     add: addCommand,
     update: updateCommand,
+    'create-indexes': createIndexesCommand,
   },
 })
 

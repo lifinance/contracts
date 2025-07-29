@@ -156,6 +156,10 @@
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x756Be848a6636D618B94f3196CBD89645eBa71c2": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
