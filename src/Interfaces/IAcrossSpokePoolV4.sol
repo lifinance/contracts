@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 /// @title IAcrossSpokePoolV4
+/// @notice Interface for interacting with Across Protocol V4 Spoke Pool
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 interface IAcrossSpokePoolV4 {

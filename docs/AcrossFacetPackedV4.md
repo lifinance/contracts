@@ -95,30 +95,11 @@ The packed version optimizes gas usage by encoding parameters directly into call
 
 ### Native Packed Calldata Mapping
 
-```
+```text
 [0:4]   - function selector
-[4:12]  - transactionId
-[12:44] - receiver (bytes32)
-[32:64] - depositor (bytes32)
-[44:48] - destinationChainId (uint32)
-[56:88] - receivingAssetId (bytes32)
-[88:120] - outputAmount (uint256)
-[120:152] - exclusiveRelayer (bytes32)
-[152:156] - quoteTimestamp (uint32)
-[156:160] - fillDeadline (uint32)
-[160:164] - exclusivityDeadline (uint32)
-[164:]   - message
-```
-
-### ERC20 Packed Calldata Mapping
-
-```
-[0:4]   - function selector
-[4:12]  - transactionId
-[12:44] - receiver (bytes32)
-[32:64] - depositor (bytes32)
-[64:84] - sendingAssetId (address)
-[84:100] - inputAmount (uint128)
+[4:36]  - transactionId (bytes32)
+[36:68] - receiver (bytes32)
+[68:100] - depositor (bytes32)
 [100:104] - destinationChainId (uint32)
 [104:136] - receivingAssetId (bytes32)
 [136:168] - outputAmount (uint256)
@@ -127,6 +108,25 @@ The packed version optimizes gas usage by encoding parameters directly into call
 [204:208] - fillDeadline (uint32)
 [208:212] - exclusivityDeadline (uint32)
 [212:]   - message
+```
+
+### ERC20 Packed Calldata Mapping
+
+```
+[0:4]   - function selector
+[4:36]  - transactionId (bytes32)
+[36:68] - receiver (bytes32)
+[68:100] - depositor (bytes32)
+[100:120] - sendingAssetId (address) + 12 bytes padding
+[120:136] - inputAmount (uint128)
+[136:140] - destinationChainId (uint32)
+[140:172] - receivingAssetId (bytes32)
+[172:204] - outputAmount (uint256)
+[204:236] - exclusiveRelayer (bytes32)
+[236:240] - quoteTimestamp (uint32)
+[240:244] - fillDeadline (uint32)
+[244:248] - exclusivityDeadline (uint32)
+[248:]   - message
 ```
 
 ## Usage Examples

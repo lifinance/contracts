@@ -1,4 +1,4 @@
-// // SPDX-License-Identifier: LGPL-3.0-only
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
