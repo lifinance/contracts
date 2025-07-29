@@ -1012,20 +1012,6 @@
           }
         ]
       }
-    },
-    "ronin": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:53:27",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "DiamondLoupeFacet": {
@@ -19914,6 +19900,21 @@
           }
         ]
       }
+    },
+    "sonic": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x92b0DDb3466F908f39e3FA2A65055EC78e452791",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-07-29 12:58:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000801217549ab4b0860bb506b1cbff90f42819a116",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
@@ -34343,20 +34344,6 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3b20515d9b193531c48e47c18af16d1e5d28f9a0000000000000000000000000000000000225e31d15943971f47ad3022f714fa00000000000000000000000021e9d62a31ec8f89966ff548c69adfc94e82b57b",
             "SALT": "20250714",
             "VERIFIED": "true"
-          }
-        ]
-      }
-    },
-    "ronin": {
-      "production": {
-        "1.0.3": [
-          {
-            "ADDRESS": "0xfeD71074954d4cb8f1D2A8ca317d72c75e3E0559",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:59:54",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000452cf1b8597e6319cd21abd847312bf17e26d8d1000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000d8383fd32cca007ec8e51290ee3b5dd196ecc0df",
-            "SALT": "",
-            "VERIFIED": "false"
           }
         ]
       }
