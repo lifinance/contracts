@@ -286,11 +286,8 @@ contract Patcher {
         // Get the dynamic value
         uint256 dynamicValue = _getDynamicValue(valueSource, valueGetter);
 
-        // Create a mutable copy of the original calldata using calldatacopy for gas efficiency
-        bytes memory patchedData = new bytes(data.length);
-        assembly {
-            calldatacopy(add(patchedData, 0x20), data.offset, data.length)
-        }
+        // Create a mutable copy of the original calldata
+        bytes memory patchedData = data;
 
         // Apply the patches in-place
         _applyPatches(patchedData, offsets, dynamicValue);
@@ -322,11 +319,8 @@ contract Patcher {
             if (offsetGroups[i].length == 0) revert InvalidPatchOffset();
         }
 
-        // Create a mutable copy of the original calldata using calldatacopy for gas efficiency
-        bytes memory patchedData = new bytes(data.length);
-        assembly {
-            calldatacopy(add(patchedData, 0x20), data.offset, data.length)
-        }
+        // Create a mutable copy of the original calldata
+        bytes memory patchedData = data;
 
         // Process patches in batches to avoid stack too deep
         _processPatches(valueSources, valueGetters, offsetGroups, patchedData);
