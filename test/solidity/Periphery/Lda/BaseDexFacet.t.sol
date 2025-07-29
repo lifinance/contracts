@@ -1,174 +1,175 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
-import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
-import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory.sol";
-import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
-import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
-import { IAlgebraRouter } from "lifi/Interfaces/IAlgebraRouter.sol";
-import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
-import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
-import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
-import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
-import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
-import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { TestBase } from "../../utils/TestBase.sol";
-import { TestToken as ERC20 } from "../../utils/TestToken.sol";
-import { MockFeeOnTransferToken } from "../../utils/MockTokenFeeOnTransfer.sol";
+// import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+// import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
+// import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
+// import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory.sol";
+// import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
+// import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
+// import { IAlgebraRouter } from "lifi/Interfaces/IAlgebraRouter.sol";
+// import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
+// import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
+// import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
+// import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
+// import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
+// import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+// import { TestBase } from "../../utils/TestBase.sol";
+// import { TestToken as ERC20 } from "../../utils/TestToken.sol";
+// import { MockFeeOnTransferToken } from "../../utils/MockTokenFeeOnTransfer.sol";
+// import { LdaDiamondTest } from "./utils/LdaDiamondTest.sol";
 
-// Command codes for route processing
-enum CommandType {
-    None, // 0 - not used
-    ProcessMyERC20, // 1 - processMyERC20
-    ProcessUserERC20, // 2 - processUserERC20
-    ProcessNative, // 3 - processNative
-    ProcessOnePool, // 4 - processOnePool
-    ProcessInsideBento, // 5 - processInsideBento
-    ApplyPermit // 6 - applyPermit
-}
+// // Command codes for route processing
+// enum CommandType {
+//     None, // 0 - not used
+//     ProcessMyERC20, // 1 - processMyERC20
+//     ProcessUserERC20, // 2 - processUserERC20
+//     ProcessNative, // 3 - processNative
+//     ProcessOnePool, // 4 - processOnePool
+//     ProcessInsideBento, // 5 - processInsideBento
+//     ApplyPermit // 6 - applyPermit
+// }
 
-// Pool type identifiers
-enum PoolType {
-    UniV2, // 0
-    UniV3, // 1
-    WrapNative, // 2
-    BentoBridge, // 3
-    Trident, // 4
-    Curve, // 5
-    VelodromeV2, // 6
-    Algebra, // 7
-    iZiSwap, // 8
-    SyncSwapV2 // 9
-}
+// // Pool type identifiers
+// enum PoolType {
+//     UniV2, // 0
+//     UniV3, // 1
+//     WrapNative, // 2
+//     BentoBridge, // 3
+//     Trident, // 4
+//     Curve, // 5
+//     VelodromeV2, // 6
+//     Algebra, // 7
+//     iZiSwap, // 8
+//     SyncSwapV2 // 9
+// }
 
-// Direction constants
-enum SwapDirection {
-    Token1ToToken0, // 0
-    Token0ToToken1 // 1
-}
+// // Direction constants
+// enum SwapDirection {
+//     Token1ToToken0, // 0
+//     Token0ToToken1 // 1
+// }
 
-// Callback constants
-enum CallbackStatus {
-    Disabled, // 0
-    Enabled // 1
-}
+// // Callback constants
+// enum CallbackStatus {
+//     Disabled, // 0
+//     Enabled // 1
+// }
 
-// Other constants
-uint16 constant FULL_SHARE = 65535; // 100% share for single pool swaps
+// // Other constants
+// uint16 constant FULL_SHARE = 65535; // 100% share for single pool swaps
 
-contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
-    event HookCalled(
-        address sender,
-        uint256 amount0,
-        uint256 amount1,
-        bytes data
-    );
+// contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
+//     event HookCalled(
+//         address sender,
+//         uint256 amount0,
+//         uint256 amount1,
+//         bytes data
+//     );
 
-    function hook(
-        address sender,
-        uint256 amount0,
-        uint256 amount1,
-        bytes calldata data
-    ) external {
-        emit HookCalled(sender, amount0, amount1, data);
-    }
-}
-/**
- * @title BaseDexFacetTest
- * @notice Base test contract with common functionality and abstractions for DEX-specific tests
- */
-abstract contract BaseDexFacetTest is TestBase {
-    using SafeERC20 for IERC20;
+//     function hook(
+//         address sender,
+//         uint256 amount0,
+//         uint256 amount1,
+//         bytes calldata data
+//     ) external {
+//         emit HookCalled(sender, amount0, amount1, data);
+//     }
+// }
+// /**
+//  * @title BaseDexFacetTest
+//  * @notice Base test contract with common functionality and abstractions for DEX-specific tests
+//  */
+// abstract contract BaseDexFacetTest is LdaDiamondTest {
+//     using SafeERC20 for IERC20;
 
-    // Common variables
-    LiFiDEXAggregator internal liFiDEXAggregator;
-    address[] internal privileged;
+//     // Common variables
+//     LiFiDEXAggregator internal liFiDEXAggregator;
+//     address[] internal privileged;
 
-    // Common events and errors
-    event Route(
-        address indexed from,
-        address to,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256 amountOut
-    );
-    event HookCalled(
-        address sender,
-        uint256 amount0,
-        uint256 amount1,
-        bytes data
-    );
+//     // Common events and errors
+//     event Route(
+//         address indexed from,
+//         address to,
+//         address indexed tokenIn,
+//         address indexed tokenOut,
+//         uint256 amountIn,
+//         uint256 amountOutMin,
+//         uint256 amountOut
+//     );
+//     event HookCalled(
+//         address sender,
+//         uint256 amount0,
+//         uint256 amount1,
+//         bytes data
+//     );
 
-    error WrongPoolReserves();
-    error PoolDoesNotExist();
+//     error WrongPoolReserves();
+//     error PoolDoesNotExist();
 
-    // helper function to initialize the aggregator
-    function _initializeDexAggregator(address owner) internal {
-        privileged = new address[](1);
-        privileged[0] = owner;
+//     // helper function to initialize the aggregator
+//     function _initializeDexAggregator(address owner) internal {
+//         privileged = new address[](1);
+//         privileged[0] = owner;
 
-        liFiDEXAggregator = new LiFiDEXAggregator(
-            address(0xCAFE),
-            privileged,
-            owner
-        );
-        vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
-    }
+//         liFiDEXAggregator = new LiFiDEXAggregator(
+//             address(0xCAFE),
+//             privileged,
+//             owner
+//         );
+//         vm.label(address(liFiDEXAggregator), "LiFiDEXAggregator");
+//     }
 
-    // Setup function for Apechain tests
-    function setupApechain() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_APECHAIN";
-        customBlockNumberForForking = 12912470;
-        fork();
+//     // Setup function for Apechain tests
+//     function setupApechain() internal {
+//         customRpcUrlForForking = "ETH_NODE_URI_APECHAIN";
+//         customBlockNumberForForking = 12912470;
+//         fork();
 
-        _initializeDexAggregator(address(USER_DIAMOND_OWNER));
-    }
+//         _initializeDexAggregator(address(USER_DIAMOND_OWNER));
+//     }
 
-    function setupHyperEVM() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
-        customBlockNumberForForking = 4433562;
-        fork();
+//     function setupHyperEVM() internal {
+//         customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
+//         customBlockNumberForForking = 4433562;
+//         fork();
 
-        _initializeDexAggregator(USER_DIAMOND_OWNER);
-    }
+//         _initializeDexAggregator(USER_DIAMOND_OWNER);
+//     }
 
 
-    // ============================ Abstract DEX Tests ============================
-    /**
-     * @notice Abstract test for basic token swapping functionality
-     * Each DEX implementation should override this
-     */
-    function test_CanSwap() public virtual {
-        // Each DEX implementation must override this
-        // solhint-disable-next-line gas-custom-errors
-        revert("test_CanSwap: Not implemented");
-    }
+//     // ============================ Abstract DEX Tests ============================
+//     /**
+//      * @notice Abstract test for basic token swapping functionality
+//      * Each DEX implementation should override this
+//      */
+//     function test_CanSwap() public virtual {
+//         // Each DEX implementation must override this
+//         // solhint-disable-next-line gas-custom-errors
+//         revert("test_CanSwap: Not implemented");
+//     }
 
-    /**
-     * @notice Abstract test for swapping tokens from the DEX aggregator
-     * Each DEX implementation should override this
-     */
-    function test_CanSwap_FromDexAggregator() public virtual {
-        // Each DEX implementation must override this
-        // solhint-disable-next-line gas-custom-errors
-        revert("test_CanSwap_FromDexAggregator: Not implemented");
-    }
+//     /**
+//      * @notice Abstract test for swapping tokens from the DEX aggregator
+//      * Each DEX implementation should override this
+//      */
+//     function test_CanSwap_FromDexAggregator() public virtual {
+//         // Each DEX implementation must override this
+//         // solhint-disable-next-line gas-custom-errors
+//         revert("test_CanSwap_FromDexAggregator: Not implemented");
+//     }
 
-    /**
-     * @notice Abstract test for multi-hop swapping
-     * Each DEX implementation should override this
-     */
-    function test_CanSwap_MultiHop() public virtual {
-        // Each DEX implementation must override this
-        // solhint-disable-next-line gas-custom-errors
-        revert("test_CanSwap_MultiHop: Not implemented");
-    }
-}
+//     /**
+//      * @notice Abstract test for multi-hop swapping
+//      * Each DEX implementation should override this
+//      */
+//     function test_CanSwap_MultiHop() public virtual {
+//         // Each DEX implementation must override this
+//         // solhint-disable-next-line gas-custom-errors
+//         revert("test_CanSwap_MultiHop: Not implemented");
+//     }
+// }
 
 // /**
 //  * @title VelodromeV2 tests

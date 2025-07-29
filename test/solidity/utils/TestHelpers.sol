@@ -13,6 +13,9 @@ interface DexManager {
 
 //common utilities for forge tests
 contract TestHelpers is Test {
+    uint256 internal customBlockNumberForForking;
+    string internal customRpcUrlForForking;
+
     /// @notice will deploy and fund a mock DEX that can simulate the following behaviour for both ERC20/Native:
     ///         positive slippage#1: uses less input tokens as expected
     ///         positive slippage#2: returns more output tokens as expected
@@ -76,6 +79,17 @@ contract TestHelpers is Test {
         DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.mockSwapWillRevertWithReason.selector
         );
+    }
+
+    function fork() internal virtual {
+        string memory rpcUrl = bytes(customRpcUrlForForking).length > 0
+            ? vm.envString(customRpcUrlForForking)
+            : vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = customBlockNumberForForking > 0
+            ? customBlockNumberForForking
+            : 14847528;
+
+        vm.createSelectFork(rpcUrl, blockNumber);
     }
 }
 

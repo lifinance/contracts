@@ -6,8 +6,16 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
+import { TestHelpers } from "../../../utils/TestHelpers.sol";
+import { TestBaseRandomConstants } from "../../../utils/TestBaseRandomConstants.sol";
 
-contract LdaDiamondTest is BaseDiamondTest {
+contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
+    LdaDiamond internal ldaDiamond;
+
+    function setUp() public virtual {
+        ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER);
+    }
+
     function createLdaDiamond(
         address _diamondOwner
     ) internal returns (LdaDiamond) {

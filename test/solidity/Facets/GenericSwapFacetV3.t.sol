@@ -39,7 +39,7 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetV3Test is TestBase, TestHelpers {
+contract GenericSwapFacetV3Test is TestBase {
     using SafeTransferLib for ERC20;
 
     // These values are for Mainnet
