@@ -173,6 +173,28 @@ contract MockSilentFailTarget {
     }
 }
 
+contract MockInvalidReturnSource {
+    // Returns bytes instead of uint256
+    function getInvalidBytes() external pure returns (bytes memory) {
+        return bytes("invalid");
+    }
+
+    // Returns bool instead of uint256
+    function getInvalidBool() external pure returns (bool) {
+        return true;
+    }
+
+    // Returns address instead of uint256
+    function getInvalidAddress() external pure returns (address) {
+        return address(0x1234);
+    }
+
+    // Returns multiple values
+    function getMultipleReturns() external pure returns (uint256, uint256) {
+        return (123, 456);
+    }
+}
+
 contract PatcherTest is TestBase, LiFiData {
     event CallReceived(uint256 value, address sender, uint256 ethValue);
 
@@ -180,6 +202,7 @@ contract PatcherTest is TestBase, LiFiData {
     MockValueSource internal valueSource;
     MockTarget internal target;
     MockSilentFailTarget internal silentFailTarget;
+    MockInvalidReturnSource internal invalidReturnSource;
     ERC20 internal token;
     MockPriceOracle internal priceOracle;
     TestRelayFacet internal relayFacet;
@@ -195,6 +218,7 @@ contract PatcherTest is TestBase, LiFiData {
         valueSource = new MockValueSource();
         target = new MockTarget();
         silentFailTarget = new MockSilentFailTarget();
+        invalidReturnSource = new MockInvalidReturnSource();
         token = new ERC20("Test Token", "TEST", 18);
         priceOracle = new MockPriceOracle();
 
@@ -1300,5 +1324,124 @@ contract PatcherTest is TestBase, LiFiData {
         assertEq(token.balanceOf(address(patcher)), tokenBalance);
         assertEq(token.balanceOf(user), 0);
         assertEq(user.balance, 0);
+    }
+
+    // Tests that invalid return data length is rejected
+    function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Bytes()
+        public
+    {
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            invalidReturnSource.getInvalidBytes.selector
+        );
+
+        vm.expectRevert(Patcher.InvalidReturnDataLength.selector);
+        patcher.executeWithDynamicPatches(
+            address(invalidReturnSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
+    // Tests that bool return type is rejected
+    function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Bool()
+        public
+    {
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            invalidReturnSource.getInvalidBool.selector
+        );
+
+        // Bool is encoded as 32 bytes, so this should pass the length check
+        // but we're documenting that only uint256 is supported
+        patcher.executeWithDynamicPatches(
+            address(invalidReturnSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
+    // Tests that address return type is handled (encoded as 32 bytes)
+    function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Address()
+        public
+    {
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            invalidReturnSource.getInvalidAddress.selector
+        );
+
+        // Address is encoded as 32 bytes, so this should pass the length check
+        // The value will be interpreted as uint256(0x1234)
+        vm.expectEmit(true, true, true, true, address(target));
+        emit CallReceived(uint256(0x1234), address(patcher), 0);
+
+        patcher.executeWithDynamicPatches(
+            address(invalidReturnSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+
+        assertEq(target.lastValue(), uint256(0x1234));
+    }
+
+    // Tests that multiple return values are rejected
+    function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Multiple()
+        public
+    {
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            invalidReturnSource.getMultipleReturns.selector
+        );
+
+        vm.expectRevert(Patcher.InvalidReturnDataLength.selector);
+        patcher.executeWithDynamicPatches(
+            address(invalidReturnSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
     }
 }

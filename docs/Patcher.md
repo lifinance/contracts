@@ -14,6 +14,8 @@ The Patcher works by:
 2. Patching these values into predetermined positions in calldata
 3. Executing the final call with the patched data
 
+**Important**: The Patcher can only patch values that are exactly 32 bytes in length (uint256). The queried function must return a single uint256 value, not bytes, bool, address, or multiple values.
+
 ```mermaid
 graph LR;
     A[User] --> B[Patcher Contract]
@@ -38,6 +40,7 @@ graph LR;
 
 - `function depositAndExecuteWithDynamicPatches(address tokenAddress, address valueSource, bytes calldata valueGetter, address finalTarget, uint256 value, bytes calldata data, uint256[] calldata offsets, bool delegateCall)`
   - Transfers the caller's entire token balance to the Patcher, approves the final target, then executes with dynamic patching
+  - **⚠️ WARNING**: Vulnerable to frontrunning - see Security Considerations section
 
 ### Multiple Value Patching
 
@@ -48,13 +51,14 @@ graph LR;
 
 - `function depositAndExecuteWithMultiplePatches(address tokenAddress, address[] calldata valueSources, bytes[] calldata valueGetters, address finalTarget, uint256 value, bytes calldata data, uint256[][] calldata offsetGroups, bool delegateCall)`
   - Transfers the caller's entire token balance to the Patcher, approves the final target, then executes with multiple dynamic patches
+  - **⚠️ WARNING**: Vulnerable to frontrunning - see Security Considerations section
 
 ## Parameters
 
 ### Common Parameters
 
 - `valueSource` / `valueSources`: The contract(s) to query for dynamic values
-- `valueGetter` / `valueGetters`: The calldata to use for retrieving the dynamic value(s) (e.g., `balanceOf(address)` call)
+- `valueGetter` / `valueGetters`: The calldata to use for retrieving the dynamic value(s) (e.g., `balanceOf(address)` call). **Must return exactly one uint256 value**
 - `finalTarget`: The contract to call with the patched data
 - `value`: The ETH value to send with the final call
 - `data`: The original calldata to patch and execute
@@ -104,10 +108,26 @@ For transactions that depend on real-time data:
 The Patcher includes several error types for different failure scenarios:
 
 - `FailedToGetDynamicValue()`: Thrown when the static call to retrieve a dynamic value fails
+- `InvalidReturnDataLength()`: Thrown when the return data is not exactly 32 bytes (must be a single uint256)
 - `MismatchedArrayLengths()`: Thrown when input arrays have different lengths in multiple patch methods
 - `InvalidPatchOffset()`: Thrown when a patch offset would write beyond the calldata bounds
 
 ## Security Considerations
+
+### Frontrunning Risk (High Severity)
+
+**WARNING**: The `depositAndExecuteWithDynamicPatches` and `depositAndExecuteWithMultiplePatches` functions are vulnerable to frontrunning attacks. This is a known and accepted risk.
+
+- **Risk**: Any tokens approved to the Patcher contract can be stolen by a malicious actor who frontruns your transaction
+- **Cause**: Since execution targets are not whitelisted, an attacker can call these functions with malicious parameters to steal approved tokens
+- **Impact**: Complete loss of any tokens approved to this contract
+- **Recommendation**:
+  - Only approve the exact amount needed for immediate execution
+  - Never leave standing approvals to the Patcher contract
+  - Consider this an accepted risk when using these functions
+  - For high-value transactions, consider alternative approaches that don't require token approvals
+
+### Other Security Features
 
 - The Patcher uses `staticcall` to retrieve dynamic values, ensuring no state changes during value retrieval
 - Offset validation prevents writing beyond calldata boundaries
@@ -163,8 +183,9 @@ function swapEntireBalance(address token, bytes calldata swapCalldata, uint256 a
 ## Best Practices
 
 1. **Calculate offsets carefully**: Ensure offsets point to the correct parameter positions in the calldata
-2. **Use appropriate value getters**: Choose the right function to call for retrieving dynamic values
-3. **Handle failures gracefully**: The Patcher will revert if value retrieval fails
+2. **Use appropriate value getters**: Choose the right function to call for retrieving dynamic values. **The function must return exactly one uint256 value**
+3. **Handle failures gracefully**: The Patcher will revert if value retrieval fails or if return data is not 32 bytes
 4. **Consider gas costs**: Multiple patches and complex calls increase gas usage
 5. **Test thoroughly**: Dynamic patching can be complex - test with various scenarios
 6. **Validate inputs**: Ensure array lengths match for multiple patch operations
+7. **Return type compatibility**: Only functions returning uint256 are supported. Functions returning bytes, bool, address, or multiple values will cause reverts

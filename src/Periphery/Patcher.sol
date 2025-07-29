@@ -25,6 +25,9 @@ contract Patcher {
     /// @notice Error when a zero address is provided
     error ZeroAddress();
 
+    /// @notice Error when return data is not 32 bytes
+    error InvalidReturnDataLength();
+
     /// External Methods ///
 
     /// @notice Retrieves a value dynamically and uses it to patch calldata before execution
@@ -59,6 +62,11 @@ contract Patcher {
     }
 
     /// @notice Deposits tokens and retrieves a value dynamically to patch calldata before execution
+    /// @dev WARNING: This function is vulnerable to frontrunning attacks. Any tokens approved to this
+    /// contract can be stolen by a malicious actor who frontruns the transaction. Since execution
+    /// targets are not whitelisted, users should be aware that approving tokens to this contract
+    /// poses a significant risk of fund loss. Only use this function if you understand and accept
+    /// this risk.
     /// @param tokenAddress The ERC20 token to transfer from msg.sender
     /// @param valueSource The contract to query for the dynamic value
     /// @param valueGetter The calldata to use to get the dynamic value (e.g., balanceOf call)
@@ -94,6 +102,11 @@ contract Patcher {
     }
 
     /// @notice Deposits tokens and retrieves multiple values dynamically to patch calldata at different offsets
+    /// @dev WARNING: This function is vulnerable to frontrunning attacks. Any tokens approved to this
+    /// contract can be stolen by a malicious actor who frontruns the transaction. Since execution
+    /// targets are not whitelisted, users should be aware that approving tokens to this contract
+    /// poses a significant risk of fund loss. Only use this function if you understand and accept
+    /// this risk.
     /// @param tokenAddress The ERC20 token to transfer from msg.sender
     /// @param valueSources Array of contracts to query for dynamic values
     /// @param valueGetters Array of calldata to use to get each dynamic value
@@ -185,6 +198,7 @@ contract Patcher {
     }
 
     /// @notice Helper function to get a dynamic value from an external contract
+    /// @dev The return data must be exactly 32 bytes (a single uint256 value)
     /// @param valueSource The contract to query for the dynamic value
     /// @param valueGetter The calldata to use to get the dynamic value
     /// @return dynamicValue The uint256 value retrieved from the call
@@ -196,6 +210,9 @@ contract Patcher {
             valueGetter
         );
         if (!valueSuccess) revert FailedToGetDynamicValue();
+
+        // Validate that return data is exactly 32 bytes
+        if (valueData.length != 32) revert InvalidReturnDataLength();
 
         dynamicValue = abi.decode(valueData, (uint256));
     }
