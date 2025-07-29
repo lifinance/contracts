@@ -219,7 +219,9 @@ contract CoreRouteFacet is ReentrancyGuard {
         address tokenIn,
         uint256 amountIn
     ) private {
-        bytes memory swapDataForThisHop = stream.readBytesWithLength();
+        // Read the length-prefixed data blob for this specific swap step.
+        // This data blob contains the target function selector and its arguments.
+        bytes memory swapDataForCurrentHop = stream.readBytesWithLength();
 
         bytes4 selector;
         // We need to slice the data to separate the selector from the rest of the payload
@@ -227,14 +229,14 @@ contract CoreRouteFacet is ReentrancyGuard {
 
         assembly {
             // Read the selector from the first 4 bytes of the data
-            selector := mload(add(swapDataForThisHop, 32))
+            selector := mload(add(swapDataForCurrentHop, 32))
 
             // Create a new memory slice for the payload that starts 4 bytes after the
-            // beginning of swapDataForThisHop's content.
+            // beginning of swapDataForCurrentHop's content.
             // It points to the same underlying data, just with a different start and length.
-            payload := add(swapDataForThisHop, 4)
+            payload := add(swapDataForCurrentHop, 4)
             // Adjust the length of the new slice
-            mstore(payload, sub(mload(swapDataForThisHop), 4))
+            mstore(payload, sub(mload(swapDataForCurrentHop), 4))
         }
 
         address facet = LibDiamondLoupe.facetAddress(selector);
