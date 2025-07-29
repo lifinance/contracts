@@ -80,7 +80,7 @@ contract ReceiverAcrossV4Test is TestBase {
         assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
-    function test_WithdrawTokenWillRevertIfExternalCallFails() public {
+    function testRevert_WithdrawTokenWillRevertIfExternalCallFails() public {
         vm.deal(address(receiver), 1 ether);
 
         // deploy contract that cannot receive ETH
@@ -97,13 +97,13 @@ contract ReceiverAcrossV4Test is TestBase {
         );
     }
 
-    function test_revert_WithdrawTokenNonOwner() public {
+    function testRevert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
         receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
-    function test_revert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
+    function testRevert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
