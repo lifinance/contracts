@@ -8,6 +8,10 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice A contract that patches calldata with dynamically retrieved values at execution time
 /// @dev Designed to be used with both delegate calls and normal calls
+/// @dev IMPORTANT: This contract does NOT refund excess tokens or ETH. Any tokens or ETH sent in
+/// excess of what is needed for execution will remain in the contract and can be stolen by anyone.
+/// This includes: excess tokens when the target doesn't use all approved tokens, excess ETH when
+/// msg.value > value parameter, and any tokens/ETH from failed transactions.
 /// @custom:version 1.0.0
 contract Patcher {
     /// @notice Error when getting a dynamic value fails
@@ -104,6 +108,10 @@ contract Patcher {
     /// targets are not whitelisted, users should be aware that approving tokens to this contract
     /// poses a significant risk of fund loss. Only use this function if you understand and accept
     /// this risk.
+    /// @dev IMPORTANT: This function transfers the ENTIRE token balance of msg.sender, regardless of
+    /// the amount needed for the transaction. Any excess tokens remain in the Patcher contract and
+    /// are NOT refunded. These excess tokens can be stolen by anyone. Only use if you intend to
+    /// transfer your entire balance.
     /// @param tokenAddress The ERC20 token to transfer from msg.sender
     /// @param valueSource The contract to query for the dynamic value
     /// @param valueGetter The calldata to use to get the dynamic value (e.g., balanceOf call)
@@ -155,6 +163,10 @@ contract Patcher {
     /// targets are not whitelisted, users should be aware that approving tokens to this contract
     /// poses a significant risk of fund loss. Only use this function if you understand and accept
     /// this risk.
+    /// @dev IMPORTANT: This function transfers the ENTIRE token balance of msg.sender, regardless of
+    /// the amount needed for the transaction. Any excess tokens remain in the Patcher contract and
+    /// are NOT refunded. These excess tokens can be stolen by anyone. Only use if you intend to
+    /// transfer your entire balance.
     /// @param tokenAddress The ERC20 token to transfer from msg.sender
     /// @param valueSources Array of contracts to query for dynamic values
     /// @param valueGetters Array of calldata to use to get each dynamic value

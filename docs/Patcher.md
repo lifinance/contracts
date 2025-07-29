@@ -39,8 +39,9 @@ graph LR;
 ### Token Deposit with Single Value Patching
 
 - `function depositAndExecuteWithDynamicPatches(address tokenAddress, address valueSource, bytes calldata valueGetter, address finalTarget, uint256 value, bytes calldata data, uint256[] calldata offsets, bool delegateCall)`
-  - Transfers the caller's entire token balance to the Patcher, approves the final target, then executes with dynamic patching
+  - Transfers the caller's **ENTIRE** token balance to the Patcher, approves the final target, then executes with dynamic patching
   - **⚠️ WARNING**: Vulnerable to frontrunning - see Security Considerations section
+  - **⚠️ WARNING**: Transfers entire balance regardless of amount needed - see Important Limitations section
 
 ### Multiple Value Patching
 
@@ -50,8 +51,9 @@ graph LR;
 ### Token Deposit with Multiple Value Patching
 
 - `function depositAndExecuteWithMultiplePatches(address tokenAddress, address[] calldata valueSources, bytes[] calldata valueGetters, address finalTarget, uint256 value, bytes calldata data, uint256[][] calldata offsetGroups, bool delegateCall)`
-  - Transfers the caller's entire token balance to the Patcher, approves the final target, then executes with multiple dynamic patches
+  - Transfers the caller's **ENTIRE** token balance to the Patcher, approves the final target, then executes with multiple dynamic patches
   - **⚠️ WARNING**: Vulnerable to frontrunning - see Security Considerations section
+  - **⚠️ WARNING**: Transfers entire balance regardless of amount needed - see Important Limitations section
 
 ## Parameters
 
@@ -111,6 +113,28 @@ The Patcher includes several error types for different failure scenarios:
 - `InvalidReturnDataLength()`: Thrown when the return data is not exactly 32 bytes (must be a single uint256)
 - `MismatchedArrayLengths()`: Thrown when input arrays have different lengths in multiple patch methods
 - `InvalidPatchOffset()`: Thrown when a patch offset would write beyond the calldata bounds
+
+## Important Limitations
+
+### No Refunds Policy
+
+**WARNING**: The Patcher contract does NOT refund any excess tokens or ETH. This is a critical limitation that users must understand:
+
+1. **Excess Tokens**: If you send more tokens than needed for the transaction, the excess remains in the Patcher contract
+2. **Excess ETH**: If `msg.value` is greater than the `value` parameter, the excess ETH remains in the contract
+3. **Unused Approvals**: If the target contract doesn't use all approved tokens, the remainder stays in the Patcher
+4. **Failed Transactions**: Tokens and ETH from failed transactions are not returned
+
+**These excess funds can be stolen by anyone** since the contract has no access controls. Only send the exact amounts needed.
+
+### Entire Balance Transfer
+
+The `depositAndExecuteWithDynamicPatches` and `depositAndExecuteWithMultiplePatches` functions transfer the **ENTIRE** token balance of the caller, not just the amount needed for the transaction. This behavior:
+
+- Is intentional for use cases that require processing entire balances
+- Cannot be configured to transfer partial amounts
+- Means you should only use these functions when you want to transfer your entire balance
+- Results in any excess being subject to the no-refunds policy above
 
 ## Security Considerations
 
@@ -189,3 +213,6 @@ function swapEntireBalance(address token, bytes calldata swapCalldata, uint256 a
 5. **Test thoroughly**: Dynamic patching can be complex - test with various scenarios
 6. **Validate inputs**: Ensure array lengths match for multiple patch operations
 7. **Return type compatibility**: Only functions returning uint256 are supported. Functions returning bytes, bool, address, or multiple values will cause reverts
+8. **Send exact amounts**: Never send more tokens or ETH than needed - excess funds are NOT refunded and can be stolen
+9. **Understand balance transfers**: Deposit functions transfer your ENTIRE token balance, not partial amounts
+10. **Immediate execution**: Execute transactions immediately after approval to minimize frontrunning risk
