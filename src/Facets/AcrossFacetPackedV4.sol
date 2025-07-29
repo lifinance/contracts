@@ -6,6 +6,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { AcrossFacetV4 } from "./AcrossFacetV4.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title AcrossFacetPackedV4
 /// @author LI.FI (https://li.fi)
@@ -60,6 +61,12 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         bytes32 _wrappedNative,
         address _owner
     ) TransferrableOwnership(_owner) {
+        if (
+            address(_spokePool) == address(0) || _wrappedNative == bytes32(0)
+        ) {
+            revert InvalidConfig();
+        }
+
         SPOKEPOOL = _spokePool;
         WRAPPED_NATIVE = _wrappedNative;
     }

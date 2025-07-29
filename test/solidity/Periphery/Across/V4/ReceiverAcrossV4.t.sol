@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestBase, LibSwap } from "../../../utils/TestBase.sol";
-import { UnAuthorized } from "src/Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidConfig } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverAcrossV4 } from "lifi/Periphery/ReceiverAcrossV4.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -39,6 +39,16 @@ contract ReceiverAcrossV4Test is TestBase {
         vm.label(address(receiver), "ReceiverAcrossV4");
         vm.label(address(executor), "Executor");
         vm.label(address(erc20Proxy), "ERC20Proxy");
+    }
+
+    function testRevert_WhenInvalidConfig() public {
+        // Test with zero executor
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverAcrossV4(address(this), address(0), SPOKEPOOL_MAINNET);
+
+        // Test with zero spokepool
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverAcrossV4(address(this), address(executor), address(0));
     }
 
     function test_contractIsSetUpCorrectly() public {
