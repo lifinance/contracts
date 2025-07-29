@@ -153,16 +153,31 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 - **Error Handling:**
 
-  - All custom errors must be defined in `src/Errors/GenericErrors.sol`
+  - **Generic errors** must be defined in `src/Errors/GenericErrors.sol`
+    - Use for common validation errors that apply across multiple contracts
+    - When adding new generic errors, increment the version in `@custom:version` comment
+    - Examples: `InvalidAmount()`, `InvalidCallData()`, `UnAuthorized()`
+  - **Facet-specific errors** should be defined within the facet itself
+    - Use for business logic errors specific to that protocol integration
+    - Examples: `InvalidQuote()`, `BridgeNotSupported()`, `ProtocolSpecificError()`
   - Error names should be descriptive and follow PascalCase
   - Errors should not include error messages (gas optimization)
   - Use custom error types rather than generic `revert()` statements
 
 - **Interface Design Standards:**
+
   - All interfaces must start with `I` prefix (e.g., `ILiFi`, `IStargate`)
   - Use consistent parameter naming across similar interfaces
   - All interfaces must be placed in separate files in the `src/Interfaces` directory
   - Do not define interfaces in the same file as their implementation
+
+- **Variable Naming Conventions:**
+  - **State variables**: Use camelCase (e.g., `userBalance`, `tokenAddress`)
+  - **Function parameters**: Use camelCase with underscore prefix (e.g., `_amount`, `_recipient`)
+  - **Constants**: Use CONSTANT_CASE with underscores (e.g., `MAX_FEE`, `DEFAULT_TIMEOUT`)
+  - **Immutable variables**: Use CONSTANT_CASE with underscores (e.g., `RELAY_DEPOSITORY`, `CHAIN_ID`)
+  - **Private/internal variables**: Use camelCase (e.g., `internalState`, `helperValue`)
+  - **Function names**: Use camelCase (e.g., `startBridge`, `validateInput`)
 
 ## Code Style and Documentation
 
@@ -524,11 +539,38 @@ Bash scripts provide the robust deployment framework with automated retry mechan
   - **Deployment Scripts:**
 
     - Inherit `DeployScriptBase`
-    - Use JSON config with `stdJson`
-    - Define `getConstructorArgs()` if needed
-    - Encode constructor arguments
+    - Use JSON config with `stdJson` (if constructor args needed)
     - Call `deploy()` with `type({ContractName}).creationCode`
-    - Example JSON handling:
+
+    **Constructor Arguments Pattern:**
+
+    - **Facets WITHOUT constructor arguments:**
+
+      ```solidity
+      function run() public returns (FacetName deployed) {
+        deployed = FacetName(deploy(type(FacetName).creationCode));
+      }
+      // NO getConstructorArgs() function needed
+      ```
+
+    - **Facets WITH constructor arguments:**
+
+      ```solidity
+      function run()
+        public
+        returns (FacetName deployed, bytes memory constructorArgs)
+      {
+        constructorArgs = getConstructorArgs();
+        deployed = FacetName(deploy(type(FacetName).creationCode));
+      }
+
+      function getConstructorArgs() internal override returns (bytes memory) {
+        // Read from config, encode arguments
+        return abi.encode(arg1, arg2);
+      }
+      ```
+
+    - Example JSON handling for constructor args:
       ```solidity
       string memory path = string.concat(root, "/config/{facetName}.json");
       address configValue = _getConfigContractAddress(

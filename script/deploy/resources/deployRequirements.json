@@ -584,6 +584,15 @@
       }
     }
   },
+  "RelayDepositoryFacet": {
+    "configData": {
+      "_relayDepository": {
+        "configFileName": "relay.json",
+        "keyInConfigFile": ".<NETWORK>.relayDepository",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ReceiverChainflip": {
     "configData": {
       "_owner": {
