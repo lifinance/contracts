@@ -89,16 +89,20 @@ contract Patcher {
     ) external payable returns (bool success, bytes memory returnData) {
         _depositAndApprove(tokenAddress, finalTarget);
 
-        return
-            _executeWithDynamicPatches(
-                valueSource,
-                valueGetter,
-                finalTarget,
-                value,
-                data,
-                offsets,
-                delegateCall
-            );
+        (success, returnData) = _executeWithDynamicPatches(
+            valueSource,
+            valueGetter,
+            finalTarget,
+            value,
+            data,
+            offsets,
+            delegateCall
+        );
+
+        // Reset approval to 0 after execution
+        IERC20(tokenAddress).approve(finalTarget, 0);
+
+        return (success, returnData);
     }
 
     /// @notice Deposits tokens and retrieves multiple values dynamically to patch calldata at different offsets
@@ -129,16 +133,20 @@ contract Patcher {
     ) external payable returns (bool success, bytes memory returnData) {
         _depositAndApprove(tokenAddress, finalTarget);
 
-        return
-            _executeWithMultiplePatches(
-                valueSources,
-                valueGetters,
-                finalTarget,
-                value,
-                data,
-                offsetGroups,
-                delegateCall
-            );
+        (success, returnData) = _executeWithMultiplePatches(
+            valueSources,
+            valueGetters,
+            finalTarget,
+            value,
+            data,
+            offsetGroups,
+            delegateCall
+        );
+
+        // Reset approval to 0 after execution
+        IERC20(tokenAddress).approve(finalTarget, 0);
+
+        return (success, returnData);
     }
 
     /// @notice Retrieves multiple values dynamically and uses them to patch calldata at different offsets
@@ -175,6 +183,7 @@ contract Patcher {
     /// Private Methods ///
 
     /// @notice Helper function to handle token deposit and approval
+    /// @dev Approves the maximum amount for gas efficiency. The approval is reset to 0 after execution
     /// @param tokenAddress The ERC20 token to transfer from msg.sender
     /// @param finalTarget The contract to approve for spending the deposited tokens
     function _depositAndApprove(

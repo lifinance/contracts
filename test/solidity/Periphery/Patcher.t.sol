@@ -1326,6 +1326,126 @@ contract PatcherTest is TestBase, LiFiData {
         assertEq(user.balance, 0);
     }
 
+    // Tests that approval is reset after execution
+    function test_DepositAndExecuteWithDynamicPatches_ResetsApproval() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0x1234);
+        uint256 tokenBalance = 1000 ether;
+        token.mint(user, tokenBalance);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        vm.prank(user);
+        token.approve(address(patcher), tokenBalance);
+
+        // Check approval before execution
+        assertEq(
+            token.allowance(address(patcher), address(target)),
+            0,
+            "Initial allowance should be 0"
+        );
+
+        vm.prank(user);
+        patcher.depositAndExecuteWithDynamicPatches(
+            address(token),
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+
+        // Check that approval was reset after execution
+        assertEq(
+            token.allowance(address(patcher), address(target)),
+            0,
+            "Allowance should be reset to 0 after execution"
+        );
+    }
+
+    // Tests that approval is reset after execution with multiple patches
+    function test_DepositAndExecuteWithMultiplePatches_ResetsApproval()
+        public
+    {
+        uint256 value1 = 11111;
+        uint256 value2 = 22222;
+
+        MockValueSource valueSource2 = new MockValueSource();
+        valueSource.setValue(value1);
+        valueSource2.setValue(value2);
+
+        address user = address(0x5678);
+        uint256 tokenBalance = 500 ether;
+        token.mint(user, tokenBalance);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processMultipleValues.selector,
+            uint256(0),
+            uint256(0)
+        );
+
+        address[] memory valueSources = new address[](2);
+        valueSources[0] = address(valueSource);
+        valueSources[1] = address(valueSource2);
+
+        bytes[] memory valueGetters = new bytes[](2);
+        valueGetters[0] = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+        valueGetters[1] = abi.encodeWithSelector(
+            valueSource2.getValue.selector
+        );
+
+        uint256[][] memory offsetGroups = new uint256[][](2);
+        offsetGroups[0] = new uint256[](1);
+        offsetGroups[0][0] = 4;
+        offsetGroups[1] = new uint256[](1);
+        offsetGroups[1][0] = 36;
+
+        vm.prank(user);
+        token.approve(address(patcher), tokenBalance);
+
+        // Check approval before execution
+        assertEq(
+            token.allowance(address(patcher), address(target)),
+            0,
+            "Initial allowance should be 0"
+        );
+
+        vm.prank(user);
+        patcher.depositAndExecuteWithMultiplePatches(
+            address(token),
+            valueSources,
+            valueGetters,
+            address(target),
+            0,
+            originalCalldata,
+            offsetGroups,
+            false
+        );
+
+        // Check that approval was reset after execution
+        assertEq(
+            token.allowance(address(patcher), address(target)),
+            0,
+            "Allowance should be reset to 0 after execution"
+        );
+    }
+
     // Tests that invalid return data length is rejected
     function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Bytes()
         public
