@@ -177,13 +177,12 @@ contract Patcher {
     /// @notice Helper function to handle token deposit and approval
     /// @param tokenAddress The ERC20 token to transfer from msg.sender
     /// @param finalTarget The contract to approve for spending the deposited tokens
-    /// @return amount The amount of tokens transferred and approved
     function _depositAndApprove(
         address tokenAddress,
         address finalTarget
-    ) private returns (uint256 amount) {
+    ) private {
         // Get the token balance of msg.sender
-        amount = IERC20(tokenAddress).balanceOf(msg.sender);
+        uint256 amount = IERC20(tokenAddress).balanceOf(msg.sender);
 
         // Transfer tokens from msg.sender to this contract
         LibAsset.transferFromERC20(
