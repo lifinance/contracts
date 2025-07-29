@@ -234,10 +234,9 @@ const getAcrossQuote = async (
   // Use regular addresses for API calls (API expects regular addresses, not bytes32)
   const inputTokenAddress = inputTokenAddressRaw
 
-  // For Solana, we need to use a regular address format for the API
-  // The API doesn't support bytes32 format for Solana addresses
+  //
   const outputTokenAddress = isSolana
-    ? '0x0000000000000000000000000000000000000000' // Use zero address for Solana in API calls
+    ? ADDRESS_USDC_SOL_BYTES32 // TODO: update once we know in which format to supply the output token address for Solana
     : receivingAssetId
 
   const fullURL = `${ACROSS_API_BASE_URL}${endpointURL}?inputToken=${inputTokenAddress}&outputToken=${outputTokenAddress}&originChainId=${fromChainId}&destinationChainId=${toChainId}&amount=${amount}&recipient=${receiverAddress}&message=${payload}`
