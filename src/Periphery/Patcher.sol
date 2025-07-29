@@ -343,7 +343,7 @@ contract Patcher {
         uint256[][] calldata offsetGroups,
         bytes memory patchedData
     ) internal view {
-        for (uint8 i = 0; i < valueSources.length; ) {
+        for (uint8 i = 0; i < valueSources.length; i++) {
             // Get the dynamic value for this patch
             uint256 dynamicValue = _getDynamicValue(
                 valueSources[i],
@@ -353,10 +353,6 @@ contract Patcher {
             // Apply the patches for this value
             uint256[] calldata offsets = offsetGroups[i];
             _applyPatches(patchedData, offsets, dynamicValue);
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -369,12 +365,8 @@ contract Patcher {
         uint256[] calldata offsets,
         uint256 dynamicValue
     ) internal pure {
-        for (uint256 j = 0; j < offsets.length; ) {
+        for (uint256 j = 0; j < offsets.length; j++) {
             _applyPatch(patchedData, offsets[j], dynamicValue);
-
-            unchecked {
-                ++j;
-            }
         }
     }
 }
