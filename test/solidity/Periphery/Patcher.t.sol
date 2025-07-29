@@ -103,6 +103,23 @@ contract MockTarget {
         lastCalldata = msg.data;
         emit CallReceived(_amount + _deadline, msg.sender, msg.value);
     }
+
+    // Function that returns data for testing return data length
+    function processValueWithReturn(
+        uint256 _value
+    ) external payable returns (uint256 result, bool success) {
+        if (shouldFail) {
+            revert TargetFailure();
+        }
+        lastValue = _value;
+        lastSender = msg.sender;
+        lastEthValue = msg.value;
+        lastCalldata = msg.data;
+        emit CallReceived(_value, msg.sender, msg.value);
+
+        // Return the processed value multiplied by 2 and success status
+        return (_value * 2, true);
+    }
 }
 
 contract MockPriceOracle {
@@ -1670,5 +1687,64 @@ contract PatcherTest is TestBase, LiFiData {
             offsets,
             false
         );
+    }
+
+    // Tests that events correctly capture return data length
+    function test_ExecuteWithDynamicPatches_EmitsEventsWithReturnData()
+        public
+    {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValueWithReturn.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // Expect PatchExecuted event with 64 bytes return data (uint256 + bool)
+        vm.expectEmit(true, true, true, true, address(patcher));
+        emit PatchExecuted(
+            address(this),
+            address(target),
+            0,
+            true,
+            64 // processValueWithReturn returns (uint256, bool) = 32 + 32 = 64 bytes
+        );
+
+        (bool success, bytes memory returnData) = patcher
+            .executeWithDynamicPatches(
+                address(valueSource),
+                valueGetter,
+                address(target),
+                0,
+                originalCalldata,
+                offsets,
+                false
+            );
+
+        // Verify the call succeeded
+        assertTrue(success);
+
+        // Verify return data length
+        assertEq(returnData.length, 64, "Return data should be 64 bytes");
+
+        // Decode and verify the return values
+        (uint256 returnedValue, bool returnedSuccess) = abi.decode(
+            returnData,
+            (uint256, bool)
+        );
+        assertEq(
+            returnedValue,
+            dynamicValue * 2,
+            "Returned value should be double the input"
+        );
+        assertTrue(returnedSuccess, "Returned success should be true");
     }
 }
