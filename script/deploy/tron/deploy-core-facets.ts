@@ -13,6 +13,7 @@ import {
   getContractVersion,
   getEnvironment,
   getPrivateKey,
+  getNetworkConfig,
 } from './utils.js'
 
 /**
@@ -26,11 +27,22 @@ async function deployCoreFacets() {
   const environment = await getEnvironment()
 
   // Load environment variables
-  const network = process.env.TRON_NETWORK || 'https://api.trongrid.io'
   const dryRun = process.env.DRY_RUN === 'true'
   const verbose = process.env.VERBOSE === 'true'
 
-  // Get the correct private key based on environment
+  // Get network configuration from networks.json
+  let tronConfig
+  try {
+    tronConfig = getNetworkConfig('tron')
+  } catch (error: any) {
+    consola.error(`❌ ${error.message}`)
+    consola.error(
+      'Please ensure "tron" network is configured in config/networks.json'
+    )
+    process.exit(1)
+  }
+
+  const network = tronConfig.rpcUrl // Get the correct private key based on environment
   let privateKey: string
   try {
     privateKey = await getPrivateKey()
@@ -50,6 +62,11 @@ async function deployCoreFacets() {
     privateKey,
     verbose,
     dryRun,
+    // Energy configuration:
+    // - feeLimit: Maximum TRX to spend (in SUN, 1 TRX = 1,000,000 SUN)
+    // - originEnergyLimit: Maximum energy units to consume
+    feeLimit: 200000000, // 200 TRX in SUN (enough for ~950k energy at 0.00021 TRX/energy)
+    originEnergyLimit: 500000, // Set fixed energy limit to 500k
     safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
@@ -62,6 +79,7 @@ async function deployCoreFacets() {
     const networkInfo = await deployer.getNetworkInfo()
     consola.info('🌐 Network Info:', {
       network: network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet',
+      rpcUrl: network,
       environment: environment.toUpperCase(),
       address: networkInfo.address,
       balance: `${networkInfo.balance} TRX`,
@@ -92,7 +110,7 @@ async function deployCoreFacets() {
     }
 
     // Get core facets from config
-    const coreFacets = await getCoreFacets()
+    const coreFacets = getCoreFacets()
     consola.info('📦 Core facets to deploy:', coreFacets)
 
     const deployedFacets: Record<string, string> = {}

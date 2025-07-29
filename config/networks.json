@@ -1136,7 +1136,7 @@
     "wrappedNativeAddress": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://api.trongrid.io",
+    "rpcUrl": "https://api.shasta.trongrid.io",
     "verificationType": "tronscan",
     "explorerUrl": "https://tronscan.org",
     "explorerApiUrl": "https://apilist.tronscan.org/api",
@@ -1146,7 +1146,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": ""
+    "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs"
   },
   "zksync": {
     "name": "zksync",

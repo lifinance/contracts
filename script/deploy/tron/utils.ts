@@ -1,5 +1,8 @@
 import { resolve } from 'path'
 
+import globalConfig from '../../../config/global.json'
+import networks from '../../../config/networks.json'
+
 import type { IForgeArtifact } from './types'
 
 // Constants
@@ -36,10 +39,8 @@ export async function loadForgeArtifact(
 /**
  * Get core facets list from config/global.json
  */
-export async function getCoreFacets(): Promise<string[]> {
-  const configPath = resolve(process.cwd(), 'config/global.json')
-  const config = await Bun.file(configPath).json()
-  return config.coreFacets || []
+export function getCoreFacets(): string[] {
+  return (globalConfig as any).coreFacets || []
 }
 
 /**
@@ -168,6 +169,18 @@ export async function saveDiamondDeployment(
     }
 
   await Bun.write(diamondFile, JSON.stringify(diamondData, null, 2))
+}
+
+/**
+ * Get network configuration from config/networks.json
+ */
+export function getNetworkConfig(networkName: string): any {
+  const networkConfig = (networks as any)[networkName]
+  if (!networkConfig) 
+    throw new Error(`Network configuration not found for: ${networkName}`)
+  
+
+  return networkConfig
 }
 
 /**
