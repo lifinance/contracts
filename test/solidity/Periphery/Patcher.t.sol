@@ -197,6 +197,19 @@ contract MockInvalidReturnSource {
 
 contract PatcherTest is TestBase, LiFiData {
     event CallReceived(uint256 value, address sender, uint256 ethValue);
+    event PatchExecuted(
+        address indexed caller,
+        address indexed finalTarget,
+        uint256 value,
+        bool success,
+        uint256 returnDataLength
+    );
+    event TokensDeposited(
+        address indexed caller,
+        address indexed tokenAddress,
+        uint256 amount,
+        address indexed finalTarget
+    );
 
     Patcher internal patcher;
     MockValueSource internal valueSource;
@@ -1556,6 +1569,100 @@ contract PatcherTest is TestBase, LiFiData {
         vm.expectRevert(Patcher.InvalidReturnDataLength.selector);
         patcher.executeWithDynamicPatches(
             address(invalidReturnSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
+    // Tests that events are emitted correctly
+    function test_ExecuteWithDynamicPatches_EmitsEvents() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        // Expect PatchExecuted event
+        vm.expectEmit(true, true, true, true, address(patcher));
+        emit PatchExecuted(
+            address(this),
+            address(target),
+            0,
+            true,
+            0 // MockTarget.processValue returns no data
+        );
+
+        patcher.executeWithDynamicPatches(
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
+    }
+
+    // Tests that deposit events are emitted correctly
+    function test_DepositAndExecuteWithDynamicPatches_EmitsEvents() public {
+        uint256 dynamicValue = 12345;
+        valueSource.setValue(dynamicValue);
+
+        address user = address(0x1234);
+        uint256 tokenBalance = 1000 ether;
+        token.mint(user, tokenBalance);
+
+        bytes memory originalCalldata = abi.encodeWithSelector(
+            target.processValue.selector,
+            uint256(0)
+        );
+
+        uint256[] memory offsets = new uint256[](1);
+        offsets[0] = 4;
+
+        bytes memory valueGetter = abi.encodeWithSelector(
+            valueSource.getValue.selector
+        );
+
+        vm.prank(user);
+        token.approve(address(patcher), tokenBalance);
+
+        // Expect TokensDeposited event
+        vm.expectEmit(true, true, true, true, address(patcher));
+        emit TokensDeposited(
+            user,
+            address(token),
+            tokenBalance,
+            address(target)
+        );
+
+        // Expect PatchExecuted event
+        vm.expectEmit(true, true, true, true, address(patcher));
+        emit PatchExecuted(
+            user,
+            address(target),
+            0,
+            true,
+            0 // MockTarget.processValue returns no data
+        );
+
+        vm.prank(user);
+        patcher.depositAndExecuteWithDynamicPatches(
+            address(token),
+            address(valueSource),
             valueGetter,
             address(target),
             0,

@@ -28,6 +28,34 @@ contract Patcher {
     /// @notice Error when return data is not 32 bytes
     error InvalidReturnDataLength();
 
+    /// Events ///
+
+    /// @notice Emitted when a patch and execute operation is performed
+    /// @param caller The address that initiated the operation
+    /// @param finalTarget The contract that was called with patched data
+    /// @param value The ETH value sent with the call
+    /// @param success Whether the execution succeeded
+    /// @param returnDataLength The length of data returned from the call
+    event PatchExecuted(
+        address indexed caller,
+        address indexed finalTarget,
+        uint256 value,
+        bool success,
+        uint256 returnDataLength
+    );
+
+    /// @notice Emitted when tokens are deposited before patch and execute
+    /// @param caller The address that initiated the operation
+    /// @param tokenAddress The ERC20 token that was deposited
+    /// @param amount The amount of tokens deposited
+    /// @param finalTarget The contract that received approval
+    event TokensDeposited(
+        address indexed caller,
+        address indexed tokenAddress,
+        uint256 amount,
+        address indexed finalTarget
+    );
+
     /// External Methods ///
 
     /// @notice Retrieves a value dynamically and uses it to patch calldata before execution
@@ -49,16 +77,25 @@ contract Patcher {
         uint256[] calldata offsets,
         bool delegateCall
     ) external payable returns (bool success, bytes memory returnData) {
-        return
-            _executeWithDynamicPatches(
-                valueSource,
-                valueGetter,
-                finalTarget,
-                value,
-                data,
-                offsets,
-                delegateCall
-            );
+        (success, returnData) = _executeWithDynamicPatches(
+            valueSource,
+            valueGetter,
+            finalTarget,
+            value,
+            data,
+            offsets,
+            delegateCall
+        );
+
+        emit PatchExecuted(
+            msg.sender,
+            finalTarget,
+            value,
+            success,
+            returnData.length
+        );
+
+        return (success, returnData);
     }
 
     /// @notice Deposits tokens and retrieves a value dynamically to patch calldata before execution
@@ -102,6 +139,13 @@ contract Patcher {
         // Reset approval to 0 after execution
         IERC20(tokenAddress).approve(finalTarget, 0);
 
+        emit PatchExecuted(
+            msg.sender,
+            finalTarget,
+            value,
+            success,
+            returnData.length
+        );
         return (success, returnData);
     }
 
@@ -146,6 +190,13 @@ contract Patcher {
         // Reset approval to 0 after execution
         IERC20(tokenAddress).approve(finalTarget, 0);
 
+        emit PatchExecuted(
+            msg.sender,
+            finalTarget,
+            value,
+            success,
+            returnData.length
+        );
         return (success, returnData);
     }
 
@@ -168,16 +219,25 @@ contract Patcher {
         uint256[][] calldata offsetGroups,
         bool delegateCall
     ) external payable returns (bool success, bytes memory returnData) {
-        return
-            _executeWithMultiplePatches(
-                valueSources,
-                valueGetters,
-                finalTarget,
-                value,
-                data,
-                offsetGroups,
-                delegateCall
-            );
+        (success, returnData) = _executeWithMultiplePatches(
+            valueSources,
+            valueGetters,
+            finalTarget,
+            value,
+            data,
+            offsetGroups,
+            delegateCall
+        );
+
+        emit PatchExecuted(
+            msg.sender,
+            finalTarget,
+            value,
+            success,
+            returnData.length
+        );
+
+        return (success, returnData);
     }
 
     /// Private Methods ///
@@ -203,6 +263,9 @@ contract Patcher {
 
         // Approve the finalTarget to spend the deposited tokens
         LibAsset.maxApproveERC20(IERC20(tokenAddress), finalTarget, amount);
+
+        // Emit deposit event
+        emit TokensDeposited(msg.sender, tokenAddress, amount, finalTarget);
     }
 
     /// @notice Helper function to get a dynamic value from an external contract
