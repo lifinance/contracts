@@ -164,7 +164,7 @@ jobs:
                     if [[ "$OLD_VERSION" == "0.0.0" ]]; then
                       echo -e "\033[32m New contract added with version v${VERSION}.\033[0m"
                     else
-                      echo -e "\033[32m Version correctly upgraded from v${OLD_VERSION} to v${VERSION}.\033[0m"
+                      echo -e "\033[32m Version changed from v${OLD_VERSION} to v${VERSION}.\033[0m"
                     fi
 
                     CONTRACTS_FOR_TITLE+=("${FILENAME} v${VERSION}")
