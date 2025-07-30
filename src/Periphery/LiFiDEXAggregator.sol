@@ -58,7 +58,7 @@ bytes constant KATANA_V3_SWAP_EXACT_IN = hex"00";
 ///         https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/
 ///         protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.12.0
+/// @custom:version 1.11.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
