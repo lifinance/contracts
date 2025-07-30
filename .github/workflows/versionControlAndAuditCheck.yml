@@ -157,10 +157,11 @@ jobs:
                     OLD_VERSION="0.0.0"
                   fi
 
-                  # Compare the current version from the file with the old version from the diff.
-                  if [[ "$VERSION" != "$OLD_VERSION" ]]; then
-                    # This is a valid version bump.
-                    echo -e "\033[32mFile version was correctly updated from v${OLD_VERSION} to v${VERSION}\033[0m"
+                  # The new version must be greater than the old version.
+                  # This check passes if it's a new file (OLD_VERSION is 0.0.0) OR if the new version is a valid semantic upgrade.
+                  if [[ "$OLD_VERSION" == "0.0.0" ]] || \
+                     ([[ "$(printf '%s\n' "$OLD_VERSION" "$VERSION" | sort -V | tail -n1)" == "$VERSION" ]] && [[ "$VERSION" != "$OLD_VERSION" ]]); then
+                    echo -e "\033[32m File version was correctly updated from v${OLD_VERSION} to v${VERSION}\033[0m"
                     CONTRACTS_FOR_TITLE+=("${FILENAME} v${VERSION}")
 
                     # Mark for audit, unless it's an interface.
