@@ -131,15 +131,15 @@ jobs:
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
-              ##### Get all changes of the current file/contract
+              # First, check if there are any relevant changes besides the version tag itself.
+              # This prevents the action from demanding a version bump if only comments were changed.
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
-              ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
-                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
+                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma|/// @custom:version)" \
                 | grep -vE '^(\+\+\+|---)' \
                 | grep -vE '^([\+\-])[[:space:]]*$' || true)
 
-              ##### Decide if audit/version update is needed
+              # If there are relevant changes, we must verify the version was bumped.
               if [[ -n "$RELEVANT_CHANGES" ]]; then
                   ##### Log what is considered relevant (if anything)
                   echo "--------------------"
@@ -166,21 +166,20 @@ jobs:
                     echo -e "\033[32mFile version was correctly updated from v${OLD_VERSION} to v${VERSION}\033[0m"
                     CONTRACTS_FOR_TITLE+=("${FILENAME} v${VERSION}")
 
-                    ###### interfaces do not required to be audited, so check if this is an interface first
+                    # Mark for audit, unless it's an interface.
                     if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
-                        ###### we only need to add the contract to these arrays if version was updated cause otherwise the action will fail anyway
                         CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
                         echo -e "$FILE_PATH marked for audit.\033[0m"
                     else
                         echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
                     fi
                   else
-                    ###### The version number is the same, but the code changed — needs fixing
+                    # The version number is the same, but the code changed. This is an error.
                     echo -e "\033[31mThe file has relevant changes but the version (v${VERSION}) was not updated.\033[0m"
                     MISSING_VERSION_UPDATE+=("$FILE_PATH")
                   fi
               else
-                  ###### No relevant changes were found.
+                  # No relevant changes were found.
                   echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
