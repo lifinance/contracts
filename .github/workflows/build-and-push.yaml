@@ -26,7 +26,7 @@ env:
 jobs:
   build:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-arm
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
@@ -81,7 +81,7 @@ jobs:
 
   build-branch-dockerfile:
     if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-arm
+    runs-on: ubuntu-latest
     steps:
       - name: checkout code
         uses: actions/checkout@v4
