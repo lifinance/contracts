@@ -12,6 +12,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ReentrancyError, ETHTransferFailed } from "src/Errors/GenericErrors.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { LiFiData } from "src/Helpers/LiFiData.sol";
 
 using stdJson for string;
 
@@ -89,7 +90,7 @@ contract ReentrancyChecker is DSTest {
 
 //common utilities for forge tests
 // solhint-disable max-states-count
-abstract contract TestBase is Test, DiamondTest, ILiFi {
+abstract contract TestBase is Test, DiamondTest, ILiFi, LiFiData {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));

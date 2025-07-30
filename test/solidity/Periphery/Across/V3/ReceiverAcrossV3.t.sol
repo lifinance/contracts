@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBase, LibSwap } from "../utils/TestBase.sol";
+import { TestBase, LibSwap } from "../../../utils/TestBase.sol";
 import { UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverAcrossV3 } from "lifi/Periphery/ReceiverAcrossV3.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
+import { MockUniswapDEX, NonETHReceiver } from "../../../utils/TestHelpers.sol";
 
 address constant SPOKEPOOL_MAINNET = 0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
 

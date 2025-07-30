@@ -161,9 +161,17 @@
         "Name": "",
         "Version": ""
       },
-      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C]": {
-        "Name": "",
-        "Version": ""
+      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.0"
+      },
+      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -175,6 +183,7 @@
       "LiFiDEXAggregator": "",
       "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
+      "ReceiverAcrossV4": "0x1d5bD612Ce761060A4bEd77b606ab7e723D4E91E",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
