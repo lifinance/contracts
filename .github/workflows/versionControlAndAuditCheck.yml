@@ -133,24 +133,21 @@ jobs:
 
               # First, check if there are any relevant changes besides the version tag itself.
               # This prevents the action from demanding a version bump if only comments were changed.
-              DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
+              DIFF_OUTPUT=$(git diff "origin/${{ github.event.pull_request.base.ref }}" HEAD -- "$FILE_PATH")
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
-                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma|/// @custom:version)" \
+                | grep -vE "^[\+\-][[:space:]]*(//|/\*|\*|pragma|/// @custom:version)" \
                 | grep -vE '^(\+\+\+|---)' \
                 | grep -vE '^([\+\-])[[:space:]]*$' || true)
 
-              # If there are relevant changes, we must verify the version was bumped.
               if [[ -n "$RELEVANT_CHANGES" ]]; then
-                  ##### Log what is considered relevant (if anything)
                   echo "--------------------"
                   echo "The following lines were identified as audit-relevant code changes:"
                   echo "$RELEVANT_CHANGES"
                   echo "--------------------"
                   echo "Checking if version was updated..."
 
-                  # Extract the old version number from the deleted lines in the diff.
-                  # This will be empty if it's a new file or if the version line wasn't touched.
-                  OLD_VERSION=$(echo "$DIFF_OUTPUT" | grep -oE "^\- /// @custom:version ([0-9]+\.[0-9]+\.[0-9]+)" | sed -E 's/.* //')
+                  OLD_FILE_CONTENT=$(git show "origin/${{ github.event.pull_request.base.ref }}:${FILE_PATH}" 2>/dev/null || echo "")
+                  OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
 
                   # If there was no old version line in the diff, it's a new file.
                   # We set a default old version to ensure the comparison works correctly.
