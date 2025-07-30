@@ -131,15 +131,16 @@ jobs:
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
-              # First, check if there are any relevant changes besides the version tag itself.
-              # This prevents the action from demanding a version bump if only comments were changed.
+              ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
               DIFF_OUTPUT=$(git diff "origin/${{ github.event.pull_request.base.ref }}" HEAD -- "$FILE_PATH")
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
-                | grep -vE "^[\+\-][[:space:]]*(//|/\*|\*|pragma|/// @custom:version)" \
+                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
                 | grep -vE '^(\+\+\+|---)' \
                 | grep -vE '^([\+\-])[[:space:]]*$' || true)
 
+              ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then
+                  ##### Log what is considered relevant (if anything)
                   echo "--------------------"
                   echo "The following lines were identified as audit-relevant code changes:"
                   echo "$RELEVANT_CHANGES"
@@ -177,12 +178,12 @@ jobs:
                         echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
                     fi
                   else
-                    # The version number is the same, but the code changed. This is an error.
+                    ##### Relevant changes but no version update — needs fixing
                     echo -e "\033[31mThe file has relevant changes but the version (v${VERSION}) was not updated.\033[0m"
                     MISSING_VERSION_UPDATE+=("$FILE_PATH")
                   fi
               else
-                  # No relevant changes were found.
+                  ##### No relevant changes — only comments or pragma touched
                   echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
