@@ -88,7 +88,6 @@
     "scan-selector-approvals": "bunx tsx ./script/migration/scan-selector-approvals.ts",
     "test": "forge test --evm-version 'cancun'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
-    "migrate-allowlist": "bunx tsx ./script/migration/migrate-allowlist.ts",
     "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
     "mongo-logs:add": "bun script/deploy/update-deployment-logs.ts add",
     "mongo-logs:update": "bun script/deploy/update-deployment-logs.ts update",
