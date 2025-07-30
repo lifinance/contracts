@@ -8,37 +8,80 @@ on:
     paths:
       - 'script/deploy/safe/ExecutePendingTimelock.Dockerfile'
       - 'script/deploy/safe/execute-pending-timelock-tx.ts'
-      # Add other dependency paths as needed
-      - 'package.json'  # If Node.js dependencies change
-      - 'package-lock.json'  # If Node.js dependencies change
+      - 'package.json'
+      - 'package-lock.json'
   pull_request:
     branches:
       - main
     paths:
       - 'script/deploy/safe/ExecutePendingTimelock.Dockerfile'
       - 'script/deploy/safe/execute-pending-timelock-tx.ts'
-      # Add other dependency paths as needed
       - 'package.json'
       - 'package-lock.json'
 
+env:
+  context: .
+  dockerfile: script/deploy/safe/ExecutePendingTimelock.Dockerfile
+
 jobs:
-  deploy:
+  build:
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-arm
     permissions:
       id-token: write
       contents: read
-    uses: lifinance/github-actions/.github/workflows/build-and-push-docker.yaml@main
-    with:
-      registry: 403372804574.dkr.ecr.us-east-2.amazonaws.com/lifi-docker-repo
-      image-name: sc/execute-timelock
-      context: .
-      dockerfile: script/deploy/safe/ExecutePendingTimelock.Dockerfile
-    secrets:
-      deploy_key: ${{ secrets.DEPLOY_SSH }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-actions-role-session
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Amazon ECR login
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: "true"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set current date as env variable
+        shell: bash
+        run: echo "UNIQ_ID=$(date +'%y%m%d')-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.ECR_REGISTRY }}/${{ secrets.TIMELOCK_IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ env.UNIQ_ID }}-main
+            type=ref,event=branch
+            type=ref,event=branch,prefix=${{ env.UNIQ_ID }}-
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.context }}
+          file: ${{ env.dockerfile }}
+          push: true
+          platforms: linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ secrets.ECR_REGISTRY }}/${{ secrets.TIMELOCK_IMAGE_NAME }}:${{ env.UNIQ_ID }}-main
 
   build-branch-dockerfile:
     if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-arm
     steps:
       - name: checkout code
         uses: actions/checkout@v4
@@ -50,9 +93,10 @@ jobs:
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: build docker image
+      - name: build docker image (test only)
         run: |
           docker buildx build \
             --no-cache \
+            --platform linux/arm64 \
             -f script/deploy/safe/ExecutePendingTimelock.Dockerfile \
             -t image-test:${{ steps.vars.outputs.sha_short }} .
