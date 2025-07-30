@@ -38404,7 +38404,7 @@
             "TIMESTAMP": "2025-07-21 18:09:21",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -38419,7 +38419,7 @@
             "TIMESTAMP": "2025-07-22 15:52:01",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
