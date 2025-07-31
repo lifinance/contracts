@@ -178,20 +178,60 @@ const cmd = defineCommand({
     if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
 
-    // Process each network
-    for (const network of networksToProcess)
-      try {
-        await processNetwork(
-          network,
-          isDryRun,
-          specificOperationId,
-          executeAll,
-          rejectAll,
-          rpcUrlOverride
-        )
-      } catch (error) {
-        consola.error(`Error processing network ${network.name}:`, error)
-      }
+    // Process networks - sequentially for interactive mode, parallel for auto-execute mode
+    if (executeAll || rejectAll) {
+      consola.info('🚀 Processing networks in parallel for auto-execution mode')
+
+      // Process all networks in parallel
+      const networkPromises = networksToProcess.map(async (network) => {
+        try {
+          return await processNetwork(
+            network,
+            isDryRun,
+            specificOperationId,
+            executeAll,
+            rejectAll,
+            rpcUrlOverride
+          )
+        } catch (error) {
+          consola.error(`Error processing network ${network.name}:`, error)
+          return { network: network.name, success: false, error }
+        }
+      })
+
+      // Wait for all networks to complete
+      const results = await Promise.all(networkPromises)
+
+      // Log summary
+      const successfulNetworks = results.filter(
+        (r) => r && r.success !== false
+      ).length
+      const failedNetworks = results.filter(
+        (r) => r && r.success === false
+      ).length
+
+      consola.info(`\n📊 Parallel execution summary:`)
+      consola.info(`   ✅ Successful networks: ${successfulNetworks}`)
+      consola.info(`   ❌ Failed networks: ${failedNetworks}`)
+      consola.info(`   📋 Total networks processed: ${results.length}`)
+    } else {
+      consola.info('🔄 Processing networks sequentially for interactive mode')
+
+      // Process networks sequentially for interactive mode
+      for (const network of networksToProcess)
+        try {
+          await processNetwork(
+            network,
+            isDryRun,
+            specificOperationId,
+            executeAll,
+            rejectAll,
+            rpcUrlOverride
+          )
+        } catch (error) {
+          consola.error(`Error processing network ${network.name}:`, error)
+        }
+    }
   },
 })
 
@@ -287,8 +327,15 @@ async function processNetwork(
   executeAll?: boolean,
   rejectAll?: boolean,
   rpcUrlOverride?: string
-) {
-  consola.info(`\n📡 ${network.name} (Chain ID: ${network.chainId})`)
+): Promise<{
+  network: string
+  success: boolean
+  operationsProcessed?: number
+  error?: any
+}> {
+  consola.info(
+    `\n[${network.name}] 📡 ${network.name} (Chain ID: ${network.chainId})`
+  )
 
   try {
     // Load deployment data for the network using getDeployments
@@ -299,12 +346,17 @@ async function processNetwork(
 
     // Check if LiFiTimelockController is deployed
     if (!deploymentData.LiFiTimelockController) {
-      consola.warn(`⚠️  No timelock controller deployed on ${network.name}`)
-      return
+      consola.warn(
+        `[${network.name}] ⚠️  No timelock controller deployed on ${network.name}`
+      )
+      return {
+        network: network.name,
+        success: true,
+        operationsProcessed: 0,
+      }
     }
 
     const timelockAddress = deploymentData.LiFiTimelockController as Address
-    consola.info(`🔒 Timelock: ${timelockAddress}`)
 
     // Setup environment for viem clients using setupEnvironment
     // Note: setupEnvironment manages private keys internally based on environment
@@ -326,23 +378,28 @@ async function processNetwork(
 
     if (readyOperations.length === 0) {
       if (totalPendingCount === 0)
-        consola.info(`✅ No pending operations found`)
+        consola.info(`[${network.name}] ✅ No pending operations found`)
       else
         consola.info(
-          `✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
+          `[${network.name}] ✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
         )
 
-      return
+      return {
+        network: network.name,
+        success: true,
+        operationsProcessed: 0,
+      }
     }
 
     consola.info(
-      `📋 Found ${readyOperations.length} pending operation${
+      `[${network.name}] 📋 Found ${readyOperations.length} pending operation${
         readyOperations.length === 1 ? '' : 's'
       }`
     )
 
     // Execute or reject each ready operation
-    for (const operation of readyOperations)
+    let operationsProcessed = 0
+    for (const operation of readyOperations) {
       if (rejectAll)
         await rejectOperation(
           publicClient,
@@ -361,14 +418,32 @@ async function processNetwork(
           timelockAddress,
           operation,
           isDryRun,
-          isInteractive
+          isInteractive,
+          network.name
         )
 
         // Log the result for interactive mode
-        if (isInteractive) consola.info(`Operation ${operation.id}: ${result}`)
+        if (isInteractive)
+          consola.info(`[${network.name}] Operation ${operation.id}: ${result}`)
       }
+      operationsProcessed++
+    }
+
+    return {
+      network: network.name,
+      success: true,
+      operationsProcessed,
+    }
   } catch (error) {
-    consola.error(`Error reading deployment data for ${network.name}:`, error)
+    consola.error(
+      `[${network.name}] Error reading deployment data for ${network.name}:`,
+      error
+    )
+    return {
+      network: network.name,
+      success: false,
+      error,
+    }
   }
 }
 
@@ -380,15 +455,21 @@ async function getPendingOperations(
   isCancellingOperations?: boolean
 ): Promise<{ readyOperations: any[]; totalPendingCount: number }> {
   // Fetch Safe transactions with schedule data from MongoDB
-  consola.info('Fetching Safe transactions with schedule data from MongoDB...')
+  consola.info(
+    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with schedule data from MongoDB...`
+  )
   const safeTxs = await fetchPendingTimelockTransactions(networkName)
 
   if (safeTxs.length === 0) {
-    consola.info('No Safe transactions with schedule data found')
+    consola.info(
+      `[${networkName}] No Safe transactions with schedule data found`
+    )
     return { readyOperations: [], totalPendingCount: 0 }
   }
 
-  consola.info(`Found ${safeTxs.length} Safe transaction(s) with schedule data`)
+  consola.info(
+    `[${networkName}] Found ${safeTxs.length} Safe transaction(s) with schedule data`
+  )
 
   const readyOperations = []
   const { client, pendingTransactions } = await getSafeMongoCollection()
@@ -398,7 +479,9 @@ async function getPendingOperations(
       try {
         const dataField: Hex | undefined = tx.safeTx?.data?.data
         if (!dataField) {
-          consola.warn(`Transaction ${tx._id} has no data field; skipping.`)
+          consola.warn(
+            `[${networkName}] Transaction ${tx._id} has no data field; skipping.`
+          )
           continue
         }
 
@@ -433,7 +516,7 @@ async function getPendingOperations(
 
         if (status.isDone) {
           consola.info(
-            `Operation ${opId} is already executed. Marking tx ${tx._id} as timelock executed.`
+            `[${networkName}] Operation ${opId} is already executed. Marking tx ${tx._id} as timelock executed.`
           )
           await pendingTransactions.updateOne(
             { _id: tx._id },
@@ -443,7 +526,9 @@ async function getPendingOperations(
         }
 
         if (status.isReady) {
-          consola.info(`✅ Operation ${opId} is ready for execution`)
+          consola.info(
+            `[${networkName}] ✅ Operation ${opId} is ready for execution`
+          )
           readyOperations.push({
             id: opId,
             target: target as Address,
@@ -468,7 +553,7 @@ async function getPendingOperations(
           const remainingTime = timestamp - currentTimestamp
 
           consola.info(
-            `⏰ Operation ${opId} is pending (${formatTimeRemaining(
+            `[${networkName}] ⏰ Operation ${opId} is pending (${formatTimeRemaining(
               remainingTime
             )} remaining) - will be cancelled`
           )
@@ -496,14 +581,14 @@ async function getPendingOperations(
           const remainingTime = timestamp - currentTimestamp
 
           consola.info(
-            `⏰ Operation ${opId} not ready yet (${formatTimeRemaining(
+            `[${networkName}] ⏰ Operation ${opId} not ready yet (${formatTimeRemaining(
               remainingTime
             )} remaining)`
           )
         }
       } catch (error: any) {
         consola.error(
-          `Error processing transaction ${tx._id}: ${error.message}`
+          `[${networkName}] Error processing transaction ${tx._id}: ${error.message}`
         )
       }
   } finally {
@@ -514,7 +599,7 @@ async function getPendingOperations(
     ? 'to cancel'
     : 'ready to execute'
   consola.info(
-    `🚀 Found ${readyOperations.length} operation${
+    `[${networkName}] 🚀 Found ${readyOperations.length} operation${
       readyOperations.length === 1 ? '' : 's'
     } ${operationAction}`
   )
@@ -538,12 +623,14 @@ async function executeOperation(
     mongoId?: any
   },
   isDryRun: boolean,
-  interactive?: boolean
+  interactive?: boolean,
+  networkName?: string
 ): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
-  consola.info(`\n⚡ Processing operation: ${operation.id}`)
-  consola.info(`   Target: ${operation.target}`)
-  consola.info(`   Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`   Data: ${operation.data}`)
+  const networkPrefix = networkName ? `[${networkName}]` : ''
+  consola.info(`\n${networkPrefix} ⚡ Processing operation: ${operation.id}`)
+  consola.info(`${networkPrefix}    Target: ${operation.target}`)
+  consola.info(`${networkPrefix}    Value: ${formatEther(operation.value)} ETH`)
+  consola.info(`${networkPrefix}    Data: ${operation.data}`)
 
   // If interactive mode, show choice prompt
   if (interactive) {
@@ -575,7 +662,8 @@ async function executeOperation(
   try {
     // Try to decode the function call
     const functionName = await decodeFunctionCall(operation.data)
-    if (functionName) consola.info(`   Function: ${functionName}`)
+    if (functionName)
+      consola.info(`${networkPrefix}    Function: ${functionName}`)
 
     // Use the salt from the operation if available, otherwise use default
     const salt =
@@ -584,7 +672,7 @@ async function executeOperation(
 
     if (isDryRun) {
       // Simulate the transaction
-      consola.info(`🔍 [DRY RUN] Simulating execution...`)
+      consola.info(`${networkPrefix} 🔍 [DRY RUN] Simulating execution...`)
 
       // Try to simulate the transaction
       const gasEstimate = await publicClient.estimateGas({
@@ -604,11 +692,13 @@ async function executeOperation(
         value: 0n,
       })
 
-      consola.info(`   Estimated gas: ${gasEstimate}`)
-      consola.success(`✅ [DRY RUN] Transaction simulation successful`)
+      consola.info(`${networkPrefix}    Estimated gas: ${gasEstimate}`)
+      consola.success(
+        `${networkPrefix} ✅ [DRY RUN] Transaction simulation successful`
+      )
     } else {
       // Send the actual transaction
-      consola.info(`📤 Submitting transaction...`)
+      consola.info(`${networkPrefix} 📤 Submitting transaction...`)
       const hash = await walletClient.writeContract({
         address: timelockAddress,
         abi: TIMELOCK_ABI,
@@ -624,13 +714,15 @@ async function executeOperation(
         chain: walletClient.chain || null,
       })
 
-      consola.info(`   Transaction hash: ${hash}`)
-      consola.info(`   Waiting for confirmation...`)
+      consola.info(`${networkPrefix}    Transaction hash: ${hash}`)
+      consola.info(`${networkPrefix}    Waiting for confirmation...`)
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
       if (receipt.status === 'success') {
-        consola.success(`✅ Operation ${operation.id} executed successfully`)
+        consola.success(
+          `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
+        )
 
         // Update MongoDB to mark the operation as executed
         if (operation.mongoId)
@@ -643,21 +735,28 @@ async function executeOperation(
                 { $set: { timelockIsExecuted: true } }
               )
               consola.info(
-                `Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
+                `${networkPrefix} Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
               )
             } finally {
               await client.close()
             }
           } catch (error) {
-            consola.warn(`Failed to update MongoDB document: ${error}`)
+            consola.warn(
+              `${networkPrefix} Failed to update MongoDB document: ${error}`
+            )
           }
       } else
-        consola.error(`❌ Transaction failed for operation ${operation.id}`)
+        consola.error(
+          `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
+        )
     }
 
     return 'executed'
   } catch (error) {
-    consola.error(`Failed to execute operation ${operation.id}:`, error)
+    consola.error(
+      `${networkPrefix} Failed to execute operation ${operation.id}:`,
+      error
+    )
     return 'failed'
   }
 }
