@@ -41,7 +41,8 @@ enum PoolType {
     VelodromeV2, // 6
     Algebra, // 7
     iZiSwap, // 8
-    SyncSwapV2 // 9
+    SyncSwapV2, // 9
+    KatanaV3 // 10
 }
 
 // Direction constants
@@ -349,7 +350,8 @@ contract LiFiDexAggregatorVelodromeV2Test is LiFiDexAggregatorTest {
                 tokenIn: ADDRESS_USDC,
                 amountIn: IERC20(ADDRESS_USDC).balanceOf(
                     address(liFiDEXAggregator)
-                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance isn't completely drained, matching the contract's safeguard
+                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the aggregator's balance
+                // isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
@@ -3375,6 +3377,185 @@ contract LiFiDexAggregatorSyncSwapV2Test is LiFiDexAggregatorTest {
             0,
             USER_SENDER,
             routeWithInvalidWithdrawMode
+        );
+
+        vm.stopPrank();
+    }
+}
+
+// -----------------------------------------------------------------------------
+//  KatanaV3 on Ronin
+// -----------------------------------------------------------------------------
+contract LiFiDexAggregatorKatanaV3Test is LiFiDexAggregatorTest {
+    using SafeERC20 for IERC20;
+
+    // Constants for KatanaV3 on Ronin
+    IERC20 internal constant USDC =
+        IERC20(0x0B7007c13325C48911F73A2daD5FA5dCBf808aDc);
+    IERC20 internal constant WRAPPED_RON =
+        IERC20(0xe514d9DEB7966c8BE0ca922de8a064264eA6bcd4);
+    address internal constant USDC_WRAPPED_RON_POOL =
+        0x392d372F2A51610E9AC5b741379D5631Ca9A1c7f;
+
+    function setUp() public override {
+        // setup for Viction network
+        customRpcUrlForForking = "ETH_NODE_URI_RONIN";
+        customBlockNumberForForking = 47105304;
+        fork();
+
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
+    }
+
+    function test_CanSwap() public override {
+        uint256 amountIn = 1 * 1e6;
+
+        // fund the user with USDC
+        deal(address(USDC), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        USDC.approve(address(liFiDEXAggregator), amountIn);
+
+        // build a single-pool UniV3-style route
+        bool zeroForOne = address(USDC) > address(WRAPPED_RON);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(USDC),
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint8(PoolType.KatanaV3), // KatanaV3
+            USDC_WRAPPED_RON_POOL,
+            uint8(zeroForOne ? 0 : 1),
+            address(USER_SENDER)
+        );
+
+        // record balances before swap
+        uint256 inBefore = USDC.balanceOf(USER_SENDER);
+        uint256 outBefore = WRAPPED_RON.balanceOf(USER_SENDER);
+
+        // execute swap (minOut = 0 for test)
+        liFiDEXAggregator.processRoute(
+            address(USDC),
+            amountIn,
+            address(WRAPPED_RON),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // verify balances after swap
+        uint256 inAfter = USDC.balanceOf(USER_SENDER);
+        uint256 outAfter = WRAPPED_RON.balanceOf(USER_SENDER);
+        assertEq(inBefore - inAfter, amountIn, "USDC spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive WRAPPED_RON");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        uint256 amountIn = 1 * 1e6;
+
+        // fund the aggregator directly
+        deal(address(USDC), address(liFiDEXAggregator), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bool zeroForOne = address(USDC) > address(WRAPPED_RON);
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            address(USDC),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.KatanaV3),
+            USDC_WRAPPED_RON_POOL,
+            uint8(zeroForOne ? 0 : 1),
+            address(USER_SENDER)
+        );
+
+        uint256 outBefore = WRAPPED_RON.balanceOf(USER_SENDER);
+
+        // withdraw 1 wei less to avoid slot-undrain protection
+        liFiDEXAggregator.processRoute(
+            address(USDC),
+            amountIn - 1,
+            address(WRAPPED_RON),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 outAfter = WRAPPED_RON.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive WRAPPED_RON");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: KatanaV3 multi-hop unsupported due to AS requirement.
+        // KatanaV3 (being a similar implementation to UniV3) does not support a "one-pool" second hop today,
+        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. UniV3-style pools immediately revert on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools in a single processRoute invocation.
+    }
+
+    function testRevert_KatanaV3InvalidPool() public {
+        uint256 amountIn = 1_000 * 1e6;
+        deal(address(USDC), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        USDC.approve(address(liFiDEXAggregator), amountIn);
+
+        // build route with invalid pool address
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(USDC),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.KatanaV3),
+            address(0), // invalid pool address
+            uint8(0),
+            USER_SENDER
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(USDC),
+            amountIn,
+            address(WRAPPED_RON),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_KatanaV3InvalidRecipient() public {
+        uint256 amountIn = 1_000 * 1e6;
+        deal(address(USDC), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        USDC.approve(address(liFiDEXAggregator), amountIn);
+
+        // build route with invalid recipient
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(USDC),
+            uint8(1),
+            FULL_SHARE,
+            uint8(PoolType.KatanaV3),
+            USDC_WRAPPED_RON_POOL,
+            uint8(0),
+            address(0) // invalid recipient
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        liFiDEXAggregator.processRoute(
+            address(USDC),
+            amountIn,
+            address(WRAPPED_RON),
+            0,
+            USER_SENDER,
+            route
         );
 
         vm.stopPrank();
