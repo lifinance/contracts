@@ -29,28 +29,57 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Get added, renamed, modified Solidity Files
+      - name: Get Solidity Files
+        id: get-files
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual run: get all Solidity files in src/
+            echo "Manual trigger detected - analyzing all Solidity files in src/"
+            ALL_FILES=$(find src/ -name "*.sol" -type f | tr '\n' ' ')
+            echo "FILES_CHANGED=true" >> $GITHUB_ENV
+          else
+            # PR trigger: get changed files only
+            echo "PR trigger detected - analyzing changed Solidity files only"
+            # This will be handled by the changed-files action below
+            echo "FILES_CHANGED=false" >> $GITHUB_ENV
+          fi
+          echo "ALL_SOL_FILES=$ALL_FILES" >> $GITHUB_ENV
+
+      - name: Get added, renamed, modified Solidity Files (PR only)
+        if: github.event_name != 'workflow_dispatch'
         id: changed-files
         uses: tj-actions/changed-files@v45
         with:
           files: |
             src/**/*.sol
 
-      - name: Convert Changed Files to Args
-        if: steps.changed-files.outputs.any_changed == 'true'
+      - name: Convert Files to Args
         id: format-args
-        env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual run: use all files
+            files="$ALL_SOL_FILES"
+            echo "SHOULD_RUN=true" >> $GITHUB_ENV
+          else
+            # PR run: use changed files
+            if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
+              files="${{ steps.changed-files.outputs.all_changed_files }}"
+              echo "SHOULD_RUN=true" >> $GITHUB_ENV
+            else
+              echo "SHOULD_RUN=false" >> $GITHUB_ENV
+              exit 0
+            fi
+          fi
+          
           # Convert relative paths to absolute paths and format as --path arguments
           args=""
-          for file in $ALL_CHANGED_FILES; do
+          for file in $files; do
             args="$args --path $GITHUB_WORKSPACE/$file"
           done
           echo "ARGS=$args" >> $GITHUB_ENV
 
       - name: Run Olympix Mutation Testing
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: env.SHOULD_RUN == 'true'
         uses: olympix/integrated-security@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
