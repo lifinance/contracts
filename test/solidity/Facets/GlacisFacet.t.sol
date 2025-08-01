@@ -3,23 +3,15 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
 import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GlacisFacet Contract
-contract TestGlacisFacet is GlacisFacet {
+contract TestGlacisFacet is GlacisFacet, TestWhitelistManagerBase {
     constructor(IGlacisAirlift _airlift) GlacisFacet(_airlift) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 abstract contract GlacisFacetTestBase is TestBaseFacet {
@@ -54,21 +46,21 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         functionSelectors[1] = glacisFacet
             .swapAndStartBridgeTokensViaGlacis
             .selector;
-        functionSelectors[2] = glacisFacet.addDex.selector;
+        functionSelectors[2] = glacisFacet.addToWhitelist.selector;
         functionSelectors[3] = glacisFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
-        glacisFacet.addDex(ADDRESS_UNISWAP);
-        glacisFacet.setFunctionApprovalBySignature(
+        glacisFacet.addToWhitelist(ADDRESS_UNISWAP);
+        glacisFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        glacisFacet.setFunctionApprovalBySignature(
+        glacisFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        glacisFacet.setFunctionApprovalBySignature(
+        glacisFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         _facetTestContractAddress = address(glacisFacet);
