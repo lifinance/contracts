@@ -71,10 +71,10 @@ jobs:
             fi
           fi
           
-          # Convert relative paths to absolute paths and format as --path arguments
+          # Convert relative paths to --path arguments (use relative paths, not absolute)
           args=""
           for file in $files; do
-            args="$args --path $GITHUB_WORKSPACE/$file"
+            args="$args --path $file"
           done
           echo "ARGS=$args" >> $GITHUB_ENV
 
@@ -87,7 +87,7 @@ jobs:
           OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
           OPIX_DEBUG: true
         with:
-          args: generate-mutation-tests -w $GITHUB_WORKSPACE ${{ env.ARGS }} --timeout 300 --include-dot-env
+          args: generate-mutation-tests -w /github/workspace ${{ env.ARGS }} --timeout 300 --include-dot-env
 
       - name: Wait for Mutation Testing Results
         if: steps.changed-files.outputs.any_changed == 'true'
