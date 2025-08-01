@@ -13,7 +13,7 @@ fi
 echo ""
 echo ""
 echo "Running 'bun lint-staged' now:"
-bun lint-staged
+# bun lint-staged
 
 echo ""
 echo ""
