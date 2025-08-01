@@ -1,19 +1,19 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x2dEdef334e59B1Aa0f3b951BC1aFafBc46Ea694e": {
+      "0xdBe380424F69655ecE19c870D78B457a7a90a67A": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
       "0x0f5A08dD38e9D4Fb354f2aCd1020645De5e2c131": {
-        "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
-      "0xCc4d70B9e43b1222603A971B5e1380b18B402faf": {
+      "0x1c46a92e3E6d9388Fdb410d15F07E02287a348AB": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xEf804312Dd1a18C35F27dc21658878B5F2F4586B": {
+      "0x625794939bA0066Eb93D2Fb5A0EEA31172A3659c": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
@@ -21,33 +21,37 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.2"
       },
-      "0x9172C1BBCEc21cBC413Da5227266e02B6D3D1734": {
+      "0x333f97797c13c93377fA67a8B552A11f01AAf1Cc": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xA0F00cE4B703e2507aaFcdB22abC08123e43b282": {
+      "0x21B0806989E75FF6dDacdf46a17C70B290Bfd4C3": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x26B2e7605F9b8f3deD70b8DA8E8cCD1f251B6C7E": {
+      "0x47a0f306c264b228CbF49E03d6C686f8Cb5BD6C7": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xf368A6559D90e6D01298B9343122641F1Af4fFe1": {
+      "0x4670156b64Da83A40Ac6407bbFF0F2e3703E1083": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x0aee670680d5358418532f297a19cd885Ab01c21": {
+      "0x07e2ac0992bc010a5A435D5751582530f40bC10e": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x70f7D9c1c19dc7AD4c019B1bF3A1fa88daA83B7d": {
+      "0x38a683d091a6ad10F36737A912B5F93305f168DD": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x6629682FbDEED31AB5b609708F15585391EB88af": {
+      "0xDB6Ac6ce41d04d8c0A8DB26CB2F7e244D5e93ef3": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0xF6A2B104c63709c8F5D07516a8f1d18a177d6c10": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
