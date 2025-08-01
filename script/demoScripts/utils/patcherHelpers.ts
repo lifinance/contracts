@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+
 import { encodeFunctionData, parseAbi, type Hex } from 'viem'
 
 /**
@@ -30,9 +31,7 @@ export const findHexValueOccurrences = (
   ): readonly number[] => {
     const foundPos = cleanHaystack.indexOf(cleanNeedle, startPos)
 
-    if (foundPos === -1) {
-      return acc
-    }
+    if (foundPos === -1) return acc
 
     const byteOffset = foundPos / 2
     return findRec(foundPos + cleanNeedle.length, [...acc, byteOffset])
@@ -53,17 +52,20 @@ export function generateNeedle(): Hex {
 export function findNeedleOffset(calldata: string, needle: Hex): bigint {
   const positions = findHexValueOccurrences(calldata, needle)
 
-  if (positions.length === 0) {
+  if (positions.length === 0)
     throw new Error(`Could not find needle ${needle} in calldata`)
-  }
 
-  if (positions.length > 1) {
+  if (positions.length > 1)
     throw new Error(
       `Found multiple occurrences of needle ${needle} in calldata`
     )
-  }
 
-  return BigInt(positions[0])
+  // At this point we know positions has exactly one element
+  const firstPosition = positions[0]
+  if (firstPosition === undefined)
+    throw new Error('Unexpected undefined position')
+
+  return BigInt(firstPosition)
 }
 
 /**

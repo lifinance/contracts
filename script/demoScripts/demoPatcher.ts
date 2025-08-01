@@ -1,22 +1,24 @@
 #!/usr/bin/env bun
 
+import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import { ethers } from 'ethers'
+import type { Hex } from 'viem'
 import {
   parseUnits,
   createWalletClient,
   http,
   getContract,
-  Hex,
   getAddress,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
-import { ethers } from 'ethers'
-import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
-import { defineCommand, runMain } from 'citty'
-import { consola } from 'consola'
-import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import { setupCowShedPostHooks } from './utils/cowSwapHelpers'
+
 import arbitrumDeployments from '../../deployments/arbitrum.staging.json'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+
+import { setupCowShedPostHooks } from './utils/cowSwapHelpers'
 
 const ARBITRUM_WETH = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
@@ -59,7 +61,7 @@ async function executeCowSwapDemo(options: {
     client: { public: walletClient, wallet: walletClient },
   })
 
-  const wethBalance = (await wethContract.read.balanceOf([
+  const wethBalance = (await wethContract.read?.balanceOf?.([
     walletAddress,
   ])) as bigint
   consola.info(`WETH balance: ${wethBalance}`)
@@ -70,7 +72,7 @@ async function executeCowSwapDemo(options: {
   }
 
   // Check allowance
-  const allowance = (await wethContract.read.allowance([
+  const allowance = (await wethContract.read?.allowance?.([
     walletAddress,
     VAULT_RELAYER_ARBITRUM,
   ])) as bigint
@@ -79,16 +81,14 @@ async function executeCowSwapDemo(options: {
   if (allowance < swapAmount) {
     consola.info('Approving WETH for CoW Protocol VaultRelayer...')
     if (!options.dryRun) {
-      const approveTx = await wethContract.write.approve([
+      const approveTx = await wethContract.write?.approve?.([
         VAULT_RELAYER_ARBITRUM as `0x${string}`,
         BigInt(
           '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
         ), // Max uint256
       ])
       consola.success(`Approval transaction sent: ${approveTx}`)
-    } else {
-      consola.info(`[DRY RUN] Would approve WETH for VaultRelayer`)
-    }
+    } else consola.info(`[DRY RUN] Would approve WETH for VaultRelayer`)
   }
 
   // Set up CowShed post hooks
@@ -162,9 +162,9 @@ async function executeCowSwapDemo(options: {
         )
       } catch (error) {
         clearTimeout(timeoutId)
-        if (abortController.signal.aborted) {
+        if (abortController.signal.aborted)
           throw new Error('Order submission timed out after 30 seconds')
-        }
+
         throw error
       }
     } catch (error) {
