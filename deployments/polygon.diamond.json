@@ -69,9 +69,9 @@
         "Name": "HopFacet",
         "Version": "2.0.0"
       },
-      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
+      "0xAE5325C02b87ff1D3752a1d3100Ec82537605B72": {
         "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+        "Version": "2.1.0"
       },
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
@@ -138,8 +138,8 @@
         "Version": "1.2.0"
       },
       "0x6e00e0a7685Ca22c288d56D9E7924746B5043Ee7": {
-        "Name": "",
-        "Version": ""
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
       },
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",

@@ -1968,7 +1968,6 @@ function verifyContract() {
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
       "$FULL_PATH"
-      "--skip-is-verified-check"
     )
   else
     VERIFY_CMD=(
@@ -1978,7 +1977,6 @@ function verifyContract() {
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
       "$FULL_PATH"
-      "--skip-is-verified-check"
     )
   fi
 
@@ -2022,6 +2020,13 @@ function verifyContract() {
     COMMAND_STATUS=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Check if contract is already verified
+    if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
+      COMMAND_STATUS=0
+      return 0
+    fi
 
     # Parse verification response
     local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
