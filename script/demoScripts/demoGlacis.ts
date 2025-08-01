@@ -1,7 +1,14 @@
 import { randomBytes } from 'crypto'
 
 import { config as dotenvConfig } from 'dotenv'
-import { parseEther, parseUnits, zeroAddress, type Narrow } from 'viem'
+import {
+  encodeFunctionData,
+  getAddress,
+  parseEther,
+  parseUnits,
+  zeroAddress,
+  type Narrow,
+} from 'viem'
 
 import glacisConfig from '../../config/glacis.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
@@ -41,8 +48,9 @@ async function main() {
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
-  const SRC_TOKEN_ADDRESS =
-    '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91' as `0x${string}`
+  const SRC_TOKEN_ADDRESS = getAddress(
+    '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91'
+  )
   const AIRLIFT_ADDRESS = getConfigElement(glacisConfig, srcChain, 'airlift')
 
   // === Read token metadata ===
@@ -74,14 +82,39 @@ async function main() {
   if (!signerAddress) throw new Error('Signer address is required')
   if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
 
-  await ensureBalance(
-    { address: SRC_TOKEN_ADDRESS, abi: ERC20_ABI },
-    signerAddress,
-    amount
-  )
+  // Create contract objects that work with the existing helper functions
+  const srcTokenContract = {
+    read: {
+      balanceOf: async (args: [string]) =>
+        publicClient.readContract({
+          address: SRC_TOKEN_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args,
+        }),
+      allowance: async (args: [string, string]) =>
+        publicClient.readContract({
+          address: SRC_TOKEN_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'allowance',
+          args,
+        }),
+    },
+    write: {
+      approve: async (args: [string, bigint]) =>
+        walletClient.writeContract({
+          address: SRC_TOKEN_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: 'approve',
+          args,
+        }),
+    },
+  }
+
+  await ensureBalance(srcTokenContract, signerAddress, amount, publicClient)
 
   await ensureAllowance(
-    { address: SRC_TOKEN_ADDRESS, abi: ERC20_ABI },
+    srcTokenContract,
     signerAddress,
     lifiDiamondAddress,
     amount,
@@ -147,6 +180,70 @@ async function main() {
     refundAddress: signerAddress,
     nativeFee,
   }
+
+  // === Debug: Print all parameters ===
+  console.info('\n=== DEBUG: All Parameters ===')
+  console.info('LiFi Diamond Address:', lifiDiamondAddress)
+  console.info('Airlift Address:', AIRLIFT_ADDRESS)
+  console.info('Source Token Address:', SRC_TOKEN_ADDRESS)
+  console.info('Source Token Name:', srcTokenName)
+  console.info('Source Token Symbol:', srcTokenSymbol)
+  console.info('Source Token Decimals:', srcTokenDecimals)
+  console.info('Amount:', amount.toString())
+  console.info(
+    'Amount (formatted):',
+    `${amount / BigInt(10 ** Number(srcTokenDecimals))} ${srcTokenSymbol}`
+  )
+  console.info('Destination Chain ID:', destinationChainId)
+  console.info('Signer Address:', signerAddress)
+  console.info('Native Fee:', nativeFee.toString())
+  console.info('Native Fee (ETH):', `${Number(nativeFee) / 1e18} ETH`)
+
+  console.info('\n=== Bridge Data ===')
+  console.info('Transaction ID:', bridgeData.transactionId)
+  console.info('Bridge:', bridgeData.bridge)
+  console.info('Integrator:', bridgeData.integrator)
+  console.info('Referrer:', bridgeData.referrer)
+  console.info('Sending Asset ID:', bridgeData.sendingAssetId)
+  console.info('Receiver:', bridgeData.receiver)
+  console.info('Destination Chain ID:', bridgeData.destinationChainId)
+  console.info('Min Amount:', bridgeData.minAmount.toString())
+  console.info('Has Source Swaps:', bridgeData.hasSourceSwaps)
+  console.info('Has Destination Call:', bridgeData.hasDestinationCall)
+
+  console.info('\n=== Glacis Data ===')
+  console.info('Receiver Address:', glacisData.receiverAddress)
+  console.info('Refund Address:', glacisData.refundAddress)
+  console.info('Native Fee:', glacisData.nativeFee.toString())
+
+  console.info('\n=== Fee Breakdown ===')
+  console.info('GMP Fee (native):', structuredFees.gmpFee.nativeFee.toString())
+  console.info(
+    'Airlift Fee (native):',
+    structuredFees.airliftFee.nativeFee.toString()
+  )
+  console.info('Total Native Fee:', nativeFee.toString())
+
+  console.info('\n=== Contract Call Parameters ===')
+  console.info('Function: startBridgeTokensViaGlacis')
+  console.info('Contract Address:', lifiDiamondAddress)
+  console.info('Value (ETH):', `${Number(nativeFee) / 1e18} ETH`)
+
+  // === Generate and print calldata ===
+  const calldata = encodeFunctionData({
+    abi: GLACIS_FACET_ABI,
+    functionName: 'startBridgeTokensViaGlacis',
+    args: [bridgeData, glacisData],
+  })
+
+  console.info('\n=== Calldata ===')
+  console.info(
+    'Function Signature: startBridgeTokensViaGlacis((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,address,uint256))'
+  )
+  console.info('Calldata:', calldata)
+  console.info('Calldata Length:', calldata.length, 'characters')
+
+  console.info('\n=== Executing Transaction ===')
 
   // === Start bridging ===
   if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
