@@ -22,9 +22,11 @@ graph LR;
 The methods listed above take a variable labeled `_glacisData`. This data is specific to glacis and is represented as the following struct type:
 
 ```solidity
+/// @param receiverAddress The address that would receive the tokens on the destination chain
 /// @param refundAddress The address that would receive potential refunds on source chain
 /// @param nativeFee The fee amount in native token required by the Glacis Airlift
 struct GlacisData {
+    bytes32 receiverAddress;
     address refundAddress;
     uint256 nativeFee;
 }

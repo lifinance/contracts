@@ -8,24 +8,25 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IGlacisAirlift } from "../Interfaces/IGlacisAirlift.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidCallData } from "../Errors/GenericErrors.sol";
 
-/// @title Glacis Facet
+/// @title GlacisFacet
 /// @author LI.FI (https://li.fi/)
 /// @notice Integration of the Glacis airlift (wrapper for native token bridging standards)
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the glacis airlift on the source chain.
-    // solhint-disable-next-line immutable-vars-naming
-    IGlacisAirlift public immutable airlift;
+    IGlacisAirlift public immutable AIRLIFT;
 
     /// Types ///
 
+    /// @param receiverAddress The address that would receive the tokens on the destination chain
     /// @param refundAddress The address that would receive potential refunds on source chain
     /// @param nativeFee The fee amount in native token required by the Glacis Airlift
     struct GlacisData {
+        bytes32 receiverAddress;
         address refundAddress;
         uint256 nativeFee;
     }
@@ -37,12 +38,10 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (address(_airlift) == address(0)) {
             revert InvalidConfig();
         }
-        airlift = _airlift;
+        AIRLIFT = _airlift;
     }
 
     /// Errors ///
-
-    error InvalidRefundAddress();
 
     /// External Methods ///
 
@@ -106,24 +105,27 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        if (_glacisData.refundAddress == address(0))
-            revert InvalidRefundAddress();
+        if (
+            _glacisData.refundAddress == address(0) ||
+            _glacisData.receiverAddress == bytes32(0)
+        ) revert InvalidCallData();
+
         // Approve the Airlift contract to spend the required amount of tokens.
         // The `send` function assumes that the caller has already approved the token transfer,
         // ensuring that the cross-chain transaction and token transfer happen atomically.
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
-            address(airlift),
+            address(AIRLIFT),
             _bridgeData.minAmount
         );
 
-        // solhint detects this as an Ether `send` call, but this is a function from GlacisAirlift
+        // solhint detects this as an Ether `send` call, but this is a function from GlacisAIRLIFT
         // that does not return a value, so checking the return value is unnecessary.
         // solhint-disable-next-line check-send-result
-        airlift.send{ value: _glacisData.nativeFee }(
+        AIRLIFT.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
-            bytes32(uint256(uint160(_bridgeData.receiver))),
+            _glacisData.receiverAddress,
             _bridgeData.destinationChainId,
             _glacisData.refundAddress
         );

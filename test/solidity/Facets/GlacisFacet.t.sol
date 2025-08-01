@@ -7,7 +7,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -124,6 +124,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
         // produce valid GlacisData
         glacisData = GlacisFacet.GlacisData({
+            receiverAddress: bytes32(uint256(uint160(bridgeData.receiver))),
             refundAddress: REFUND_WALLET,
             nativeFee: addToMessageValue
         });
@@ -132,7 +133,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function test_WillStoreConstructorParametersCorrectly() public {
         glacisFacet = new TestGlacisFacet(airliftContract);
 
-        assertEq(address(glacisFacet.airlift()), address(airliftContract));
+        assertEq(address(glacisFacet.AIRLIFT()), address(airliftContract));
     }
 
     function testRevert_WhenConstructedWithZeroAddress() public {
@@ -383,6 +384,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         glacisData = GlacisFacet.GlacisData({
+            receiverAddress: bytes32(uint256(uint160(bridgeData.receiver))),
             refundAddress: address(0),
             nativeFee: addToMessageValue
         });
@@ -392,9 +394,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             defaultSrcTokenAmount
         );
 
-        vm.expectRevert(
-            abi.encodeWithSelector(GlacisFacet.InvalidRefundAddress.selector)
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
 
         initiateBridgeTxWithFacet(false);
 
@@ -424,6 +424,54 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         vm.expectRevert(
             abi.encodeWithSelector(NativeAssetNotSupported.selector)
         );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidReceiverAddress() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set receiverAddress to bytes32(0) which should trigger the InvalidCallData revert
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(0),
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidReceiverAddress_SwapAndBridge() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set receiverAddress to bytes32(0) which should trigger the InvalidCallData revert
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(0),
+            nativeFee: addToMessageValue
+        });
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoSourceToken();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
 
         initiateSwapAndBridgeTxWithFacet(false);
 

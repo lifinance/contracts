@@ -21,7 +21,7 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x9c3C2a13a5dd24D078D247EEC09Cebf2fC4E4686": {
+      "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A": {
         "Name": "",
         "Version": ""
       },
@@ -161,9 +161,21 @@
         "Name": "",
         "Version": ""
       },
-      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C]": {
-        "Name": "",
-        "Version": ""
+      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.0"
+      },
+      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
+      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
