@@ -53,6 +53,9 @@ jobs:
         uses: olympix/integrated-security@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
+          GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+          OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
+          OPIX_DEBUG: true
         with:
           args: generate-mutation-tests -w $GITHUB_WORKSPACE ${{ env.ARGS }} --timeout 300 --include-dot-env
 
