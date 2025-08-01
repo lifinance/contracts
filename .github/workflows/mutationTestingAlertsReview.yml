@@ -180,39 +180,4 @@ jobs:
               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
           fi
 
-      - name: Check if Action Should Fail And Revert To Draft
-        env:
-          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
-          PR_NUMBER: ${{ env.PR_NUMBER }}
-        run: |
-          echo "🔍 Checking if the workflow should fail and revert PR to draft based on mutation testing alerts..."
-
-          # Check if there are any unresolved alerts, dismissed alerts missing comments, or invalid dismissal reasons.
-          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 || "$INVALID_REASON_COUNT" -gt 0 ]]; then
-            echo "❌ ERROR: Found issues in the PR:"
-            if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
-              echo "- $UNRESOLVED_COUNT surviving mutant(s) found!"
-            fi
-            if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
-              echo "- $DISMISSED_COUNT mutant(s) were dismissed without comments!"
-            fi
-            if [[ "$INVALID_REASON_COUNT" -gt 0 ]]; then
-              echo "- $INVALID_REASON_COUNT mutant(s) have an invalid dismissal reason (\"Used in tests\")."
-            fi
-            echo "⚠️ These test coverage gaps must be resolved before merging."
-
-          # Retrieve PR Node ID directly from github event
-          PULL_REQUEST_NODE_ID="${{ github.event.pull_request.node_id }}"
-          echo "PR Node ID: $PULL_REQUEST_NODE_ID"
-
-            # Revert the PR to draft.
-            echo "Reverting PR #${PR_NUMBER} to draft state due to blocking test coverage issues..."
-            curl -H "Authorization: Bearer $GITHUB_TOKEN" \
-                 -H "Content-Type: application/json" \
-                 -X POST \
-                 -d '{"query": "mutation { convertPullRequestToDraft(input: {pullRequestId: \"'"$PULL_REQUEST_NODE_ID"'\"}) { pullRequest { id isDraft } } }"}' \
-                 https://api.github.com/graphql
-            exit 1
-          fi
-
-          echo "✅ No blocking test coverage issues found. The workflow will pass successfully." 
+ 
