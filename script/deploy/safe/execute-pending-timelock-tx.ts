@@ -184,31 +184,22 @@ const cmd = defineCommand({
 
       // Process all networks in parallel
       const networkPromises = networksToProcess.map(async (network) => {
-        try {
-          return await processNetwork(
-            network,
-            isDryRun,
-            specificOperationId,
-            executeAll,
-            rejectAll,
-            rpcUrlOverride
-          )
-        } catch (error) {
-          consola.error(`Error processing network ${network.name}:`, error)
-          return { network: network.name, success: false, error }
-        }
+        return processNetwork(
+          network,
+          isDryRun,
+          specificOperationId,
+          executeAll,
+          rejectAll,
+          rpcUrlOverride
+        )
       })
 
       // Wait for all networks to complete
       const results = await Promise.all(networkPromises)
 
       // Log summary
-      const successfulNetworks = results.filter(
-        (r) => r && r.success !== false
-      ).length
-      const failedNetworks = results.filter(
-        (r) => r && r.success === false
-      ).length
+      const successfulNetworks = results.filter((r) => r.success).length
+      const failedNetworks = results.filter((r) => !r.success).length
 
       consola.info(`\n📊 Parallel execution summary:`)
       consola.info(`   ✅ Successful networks: ${successfulNetworks}`)
@@ -333,9 +324,12 @@ async function processNetwork(
   operationsProcessed?: number
   error?: any
 }> {
-  consola.info(
-    `\n[${network.name}] 📡 ${network.name} (Chain ID: ${network.chainId})`
-  )
+  // Only show network header in sequential mode (when not using auto-execute flags)
+  const isSequentialMode = !executeAll && !rejectAll
+  if (isSequentialMode)
+    consola.info(
+      `\n[${network.name}] 📡 ${network.name} (Chain ID: ${network.chainId})`
+    )
 
   try {
     // Load deployment data for the network using getDeployments
