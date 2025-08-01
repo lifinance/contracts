@@ -130,9 +130,9 @@ const main = defineCommand({
         tx = await walletClient.writeContract({
           address: deployedContracts['LiFiDiamond'],
           abi: parseAbi([
-            'function batchSetFunctionWhitelistBySelectors(bytes4[],bool) external',
+            'function batchSetFunctionWhitelistBySelector(bytes4[],bool) external',
           ]),
-          functionName: 'batchSetFunctionWhitelistBySelectors',
+          functionName: 'batchSetFunctionWhitelistBySelector',
           args: [selectorsToApprove, true],
           account,
         })

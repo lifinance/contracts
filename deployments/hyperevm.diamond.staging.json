@@ -1,51 +1,51 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x15b26777594dE1752b9Ddf4f3955e153074365E7": {
+      "0xCf40a9e4Cf4c7463F4F69E581462c2b1A0b6A3a3": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
       "0xd730eDebab73fE97BD0a4BDC28A39E0C8CeA394D": {
-        "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
-      "0x56Dc24919eA85B1fc4feF2c875cA5d4EeD814019": {
+      "0x922DFbE954B64f7215e51bCbbd96a0112b8F9D6a": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x8E134120Ddb0dF4bD01b45C852678B335184e439": {
+      "0xbeb6B1DCEc15565630C46Ef25546791d1F0afdc2": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xf5BB8eBde20185fb4B08435A2d1f315e09066192": {
+      "0xFD132C31f90f6969AeBDfdf0E29a4c324bF6d51e": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x73E499fC89A030a71960587B6D386d012963186f": {
+      "0x87De15cE8D49b7837e97C4ad2B3AaC9f6F78cdB9": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xfe411D280C12baF8885a679F0d34F29d50E15f7F": {
+      "0x2961309e9C98f4FC7BdA963177f4cdEd53772Ecb": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x70D83821494B72A79f2B7c23284F75cdD9c2F829": {
+      "0xFBc48Bc8456e83eD4eCA8b27930a7CDDe93C75a7": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x9E9F0f8cd2DcF5EeB825123CE37729FFFe9336A5": {
+      "0x2A059455dbD63f2Ce8eb5a2f2353CB3A1A3A49f1": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x56FfCac6C600b3A3858E2b11d5a51e51420FaF06": {
+      "0xe40867FeAb1031e0873E99b9727DBa81F36EbB53": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x8a7293369C0d205484639D346307BBc797aF7294": {
+      "0xCf83e7373D03f02D0b9e706b28609713F6e2c1bD": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x30C9eca684d90F9fF34236AF511AF09C4FF2ff0c": {
+      "0x954FF239eEEF244dBF0e49989CD7f595Dc52c899": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       }
@@ -56,7 +56,7 @@
       "FeeCollector": "",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "",
+      "LiFiDEXAggregator": "0xeCa6ED5Fbd7c06cccaf66BFd9625dbE23b589952",
       "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",

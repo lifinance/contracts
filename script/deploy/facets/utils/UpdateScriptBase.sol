@@ -15,7 +15,7 @@ contract UpdateScriptBase is ScriptBase {
 
     struct FunctionSelector {
         string name;
-        bytes4 selector;
+        bytes selector;
     }
 
     struct Approval {
@@ -233,14 +233,22 @@ contract UpdateScriptBase is ScriptBase {
             ".approvedSelectorsForRefundWallet"
         );
 
+        emit log("rawConfig: ");
+        emit log_bytes(rawConfig);
+
         // parse raw data from config into FunctionSelector array
         FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
             rawConfig,
             (FunctionSelector[])
         );
 
+        emit log("funcSelectorsToBeApproved: ");
+        emit log_uint(funcSelectorsToBeApproved.length);
+
         // go through array with function selectors
         for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
+            emit log("funcSelectorsToBeApproved: ");
+            emit log(funcSelectorsToBeApproved[i].name);
             // Register refundWallet as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
                 bytes4(funcSelectorsToBeApproved[i].selector),
