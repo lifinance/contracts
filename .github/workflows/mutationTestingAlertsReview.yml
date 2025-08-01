@@ -1,0 +1,218 @@
+name: Mutation Testing PR Summary
+
+# - generates a PR comment summary of mutation testing results from GitHub Code Scanning
+# - lists surviving mutants (test coverage gaps) found in the changed files
+# - shows how many mutants were dismissed with proper justification
+# - reports net unresolved findings that need attention
+# - provides a clear overview of test coverage quality for the PR
+# - leaves a summary comment starting with "🧪 Mutation Testing Summary"
+
+on:
+  pull_request:
+    types:
+      - ready_for_review
+    paths:
+      - 'src/**/*.sol'
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to post, update PR comments & revert PR to draft
+  issues: write # required to post comments via the GitHub Issues API (used for PR comments)
+
+jobs:
+  mutation-testing-summary:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: jwalton/gh-find-current-pr@master
+        id: findPr
+
+      - name: Validate and set PR Number
+        id: fetch_pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          if [ -z "${{ steps.findPr.outputs.number }}" ]; then
+            echo "Error: No pull request found for this push." >&2
+            exit 1
+          fi
+          echo "Found PR number: ${{ steps.findPr.outputs.number }}"
+          PR_NUMBER=${{ steps.findPr.outputs.number }}
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "Pull Request Number is: $PR_NUMBER"
+
+      - name: Fetch Mutation Testing Results for PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          echo "Fetching mutation testing results for PR #${PR_NUMBER}..."
+
+          # Fetch mutation testing results from GitHub Code Scanning
+          MUTATIONS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
+
+          echo "Filtering to Olympix Mutation Testing results only"
+          MUTATIONS=$(echo "$MUTATIONS" | jq -c '[ .[] | select(.tool.name == "Olympix Mutation Testing") ]' || echo "[]")
+
+          # Extract surviving mutants (open - test coverage gaps)
+          SURVIVING_MUTANTS=$(echo "$MUTATIONS" | jq -c '[.[] | select(.state == "open") ]' || echo "[]")
+          # Extract dismissed mutants (acknowledged coverage gaps)
+          DISMISSED_MUTANTS=$(echo "$MUTATIONS" | jq -c '[.[] | select(.state == "dismissed")]' || echo "[]")
+
+          SURVIVING_COUNT=$(echo "$SURVIVING_MUTANTS" | jq -r 'length')
+          DISMISSED_COUNT=$(echo "$DISMISSED_MUTANTS" | jq -r 'length')
+          TOTAL_MUTANTS=$((SURVIVING_COUNT + DISMISSED_COUNT))
+
+          # Output for debugging
+          echo "SURVIVING_MUTANTS: $SURVIVING_MUTANTS"
+          echo "DISMISSED_MUTANTS: $DISMISSED_MUTANTS"
+          echo "SURVIVING_COUNT: $SURVIVING_COUNT"
+          echo "DISMISSED_COUNT: $DISMISSED_COUNT"
+          echo "TOTAL_MUTANTS: $TOTAL_MUTANTS"
+
+          # Save values in the environment
+          echo "SURVIVING_MUTANTS=$SURVIVING_MUTANTS" >> $GITHUB_ENV
+          echo "DISMISSED_MUTANTS=$DISMISSED_MUTANTS" >> $GITHUB_ENV
+          echo "SURVIVING_COUNT=$SURVIVING_COUNT" >> $GITHUB_ENV
+          echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
+          echo "TOTAL_MUTANTS=$TOTAL_MUTANTS" >> $GITHUB_ENV
+
+      - name: Find Existing PR Comment
+        id: find_comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          echo "Searching for existing PR comment..."
+
+          COMMENT_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" | jq -r \
+            '.[] | select(.body | startswith("## 🧪 Mutation Testing Summary")) | .id')
+
+          if [[ -n "$COMMENT_ID" && "$COMMENT_ID" != "null" ]]; then
+            echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> $GITHUB_ENV
+          fi
+
+          echo "Found comment ID: $COMMENT_ID"
+
+      - name: Post or Update PR Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          COMMENT_BODY="## 🧪 Mutation Testing Summary\n\n"
+
+          # Summary stats
+          if [[ "$TOTAL_MUTANTS" -gt 0 ]]; then
+            COMMENT_BODY+="📊 **Results Overview:**\n"
+            COMMENT_BODY+="- **Total Mutants:** $TOTAL_MUTANTS\n"
+            COMMENT_BODY+="- **Surviving Mutants:** $SURVIVING_COUNT (test coverage gaps)\n"
+            COMMENT_BODY+="- **Dismissed Mutants:** $DISMISSED_COUNT (acknowledged)\n\n"
+
+            # Calculate mutation score if we have data
+            if [[ "$TOTAL_MUTANTS" -gt 0 ]]; then
+              KILLED_COUNT=$((TOTAL_MUTANTS - SURVIVING_COUNT))
+              MUTATION_SCORE=$(( (KILLED_COUNT * 100) / TOTAL_MUTANTS ))
+              COMMENT_BODY+="🎯 **Mutation Score:** ${MUTATION_SCORE}% (${KILLED_COUNT}/${TOTAL_MUTANTS} mutants killed)\n\n"
+            fi
+          else
+            COMMENT_BODY+="ℹ️ No mutation testing results found for this PR.\n\n"
+          fi
+
+          # List surviving mutants
+          if [[ "$SURVIVING_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="### 🔴 Surviving Mutants (Test Coverage Gaps)\n\n"
+            while IFS= read -r row; do
+              MUTANT_URL=$(echo "$row" | jq -r '.html_url')
+              MUTANT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
+              MUTANT_LINE=$(echo "$row" | jq -r '.most_recent_instance.location.start_line')
+              MUTANT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
+
+              COMMENT_BODY+="- [\`$MUTANT_FILE:$MUTANT_LINE\`]($MUTANT_URL)\n"
+              COMMENT_BODY+="  $MUTANT_DESCRIPTION\n\n"
+            done < <(echo "$SURVIVING_MUTANTS" | jq -c '.[]')
+          fi
+
+          # List dismissed mutants
+          if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="### ✅ Dismissed Mutants\n\n"
+            while IFS= read -r row; do
+              MUTANT_URL=$(echo "$row" | jq -r '.html_url')
+              MUTANT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
+              MUTANT_LINE=$(echo "$row" | jq -r '.most_recent_instance.location.start_line')
+              DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason // "No reason"')
+              DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment // "No comment"')
+
+              COMMENT_BODY+="- [\`$MUTANT_FILE:$MUTANT_LINE\`]($MUTANT_URL) - **$DISMISS_REASON**\n"
+              if [[ "$DISMISS_COMMENT" != "No comment" ]]; then
+                COMMENT_BODY+="  _${DISMISS_COMMENT}_\n\n"
+              else
+                COMMENT_BODY+="\n"
+              fi
+            done < <(echo "$DISMISSED_MUTANTS" | jq -c '.[]')
+          fi
+
+          # Net unresolved findings
+          COMMENT_BODY+="### 📋 Net Unresolved Findings\n\n"
+          if [[ "$SURVIVING_COUNT" -gt 0 ]]; then
+            COMMENT_BODY+="⚠️ **${SURVIVING_COUNT} test coverage gap(s)** need attention\n\n"
+            COMMENT_BODY+="**Next Steps:**\n"
+            COMMENT_BODY+="1. Review surviving mutants above\n"
+            COMMENT_BODY+="2. Add tests to kill these mutants or dismiss with justification\n"
+            COMMENT_BODY+="3. Aim for high mutation score to ensure robust test coverage\n"
+          else
+            COMMENT_BODY+="🎉 **No unresolved test coverage gaps!**\n"
+            COMMENT_BODY+="All mutants were either killed by tests or properly dismissed.\n"
+          fi
+
+          # Update existing comment if found; otherwise, post a new one.
+          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
+            echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
+            curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
+          else
+            echo "Posting new comment to PR..."
+            curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+          fi
+
+      - name: Check if Action Should Fail And Revert To Draft
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        run: |
+          echo "🔍 Checking if the workflow should fail and revert PR to draft based on mutation testing alerts..."
+
+          # Check if there are any unresolved alerts, dismissed alerts missing comments, or invalid dismissal reasons.
+          if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 || "$INVALID_REASON_COUNT" -gt 0 ]]; then
+            echo "❌ ERROR: Found issues in the PR:"
+            if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
+              echo "- $UNRESOLVED_COUNT surviving mutant(s) found!"
+            fi
+            if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
+              echo "- $DISMISSED_COUNT mutant(s) were dismissed without comments!"
+            fi
+            if [[ "$INVALID_REASON_COUNT" -gt 0 ]]; then
+              echo "- $INVALID_REASON_COUNT mutant(s) have an invalid dismissal reason (\"Used in tests\")."
+            fi
+            echo "⚠️ These test coverage gaps must be resolved before merging."
+
+          # Retrieve PR Node ID directly from github event
+          PULL_REQUEST_NODE_ID="${{ github.event.pull_request.node_id }}"
+          echo "PR Node ID: $PULL_REQUEST_NODE_ID"
+
+            # Revert the PR to draft.
+            echo "Reverting PR #${PR_NUMBER} to draft state due to blocking test coverage issues..."
+            curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+                 -H "Content-Type: application/json" \
+                 -X POST \
+                 -d '{"query": "mutation { convertPullRequestToDraft(input: {pullRequestId: \"'"$PULL_REQUEST_NODE_ID"'\"}) { pullRequest { id isDraft } } }"}' \
+                 https://api.github.com/graphql
+            exit 1
+          fi
+
+          echo "✅ No blocking test coverage issues found. The workflow will pass successfully." 

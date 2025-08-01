@@ -1,0 +1,64 @@
+name: Olympix Mutation Testing
+
+# - runs the olympix mutation testing on newly added or modified solidity contracts inside the src/ folder in a pull request
+# - evaluates test suite quality by introducing code mutations and checking if tests catch them
+# - only scans diff (added, renamed, modified) solidity files in src/ instead of the whole repository
+# - uploads mutation testing results to github code scanning for review and discussion within the PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths:
+      - 'src/**/*.sol'
+
+permissions:
+  contents: read # required to fetch repository contents
+  security-events: write # required to upload SARIF results to GitHub Code Scanning
+
+jobs:
+  mutation-testing:
+    name: Mutation Testing Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get added, renamed, modified Solidity Files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            src/**/*.sol
+
+      - name: Convert Changed Files to Args
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: format-args
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          # Convert relative paths to absolute paths and format as --path arguments
+          args=""
+          for file in $ALL_CHANGED_FILES; do
+            args="$args --path $GITHUB_WORKSPACE/$file"
+          done
+          echo "ARGS=$args" >> $GITHUB_ENV
+
+      - name: Run Olympix Mutation Testing
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: olympix/integrated-security@main
+        env:
+          OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
+        with:
+          args: generate-mutation-tests -w $GITHUB_WORKSPACE ${{ env.ARGS }} --timeout 300 --include-dot-env
+
+      - name: Wait for Mutation Testing Results
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "✅ Mutation testing initiated successfully"
+          echo "📊 Results will be uploaded to GitHub Code Scanning automatically"
+          echo "🔍 Check the Security tab for mutation testing alerts" 
