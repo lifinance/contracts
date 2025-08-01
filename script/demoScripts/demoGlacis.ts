@@ -1,13 +1,7 @@
 import { randomBytes } from 'crypto'
 
 import { config as dotenvConfig } from 'dotenv'
-import {
-  getContract,
-  parseUnits,
-  zeroAddress,
-  parseEther,
-  type Narrow,
-} from 'viem'
+import { parseEther, parseUnits, zeroAddress, type Narrow } from 'viem'
 
 import glacisConfig from '../../config/glacis.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
@@ -17,11 +11,11 @@ import type { GlacisFacet, ILiFi } from '../../typechain'
 import type { SupportedChain } from '../common/types'
 
 import {
-  ensureBalance,
   ensureAllowance,
+  ensureBalance,
   executeTransaction,
-  setupEnvironment,
   getConfigElement,
+  setupEnvironment,
   zeroPadAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
@@ -42,13 +36,8 @@ async function main() {
   const srcChain: SupportedChain = 'arbitrum'
   const destinationChainId = 10
 
-  const {
-    client,
-    publicClient,
-    walletAccount,
-    lifiDiamondAddress,
-    lifiDiamondContract,
-  } = await setupEnvironment(srcChain, GLACIS_FACET_ABI)
+  const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
+    await setupEnvironment(srcChain, GLACIS_FACET_ABI)
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
@@ -56,22 +45,25 @@ async function main() {
     '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91' as `0x${string}`
   const AIRLIFT_ADDRESS = getConfigElement(glacisConfig, srcChain, 'airlift')
 
-  // === Instantiate contracts ===
-  const srcTokenContract = getContract({
+  // === Read token metadata ===
+  const srcTokenName = await publicClient.readContract({
     address: SRC_TOKEN_ADDRESS,
     abi: ERC20_ABI,
-    client,
+    functionName: 'name',
   })
 
-  const airliftContract = getContract({
-    address: AIRLIFT_ADDRESS,
-    abi: AIRLIFT_ABI,
-    client,
+  const srcTokenSymbol = await publicClient.readContract({
+    address: SRC_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'symbol',
   })
 
-  const srcTokenName = await srcTokenContract.read.name()
-  const srcTokenSymbol = await srcTokenContract.read.symbol()
-  const srcTokenDecimals = await srcTokenContract.read.decimals()
+  const srcTokenDecimals = await publicClient.readContract({
+    address: SRC_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+  })
+
   const amount = parseUnits('1', Number(srcTokenDecimals))
 
   console.info(
@@ -79,10 +71,17 @@ async function main() {
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureBalance(srcTokenContract, signerAddress, amount)
+  if (!signerAddress) throw new Error('Signer address is required')
+  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
+
+  await ensureBalance(
+    { address: SRC_TOKEN_ADDRESS, abi: ERC20_ABI },
+    signerAddress,
+    amount
+  )
 
   await ensureAllowance(
-    srcTokenContract,
+    { address: SRC_TOKEN_ADDRESS, abi: ERC20_ABI },
     signerAddress,
     lifiDiamondAddress,
     amount,
@@ -92,14 +91,19 @@ async function main() {
   let estimatedFees
   try {
     estimatedFees = (
-      await airliftContract.simulate.quoteSend([
-        SRC_TOKEN_ADDRESS,
-        amount,
-        zeroPadAddressToBytes32(signerAddress),
-        BigInt(destinationChainId),
-        signerAddress,
-        parseEther('1'),
-      ])
+      await publicClient.simulateContract({
+        address: AIRLIFT_ADDRESS,
+        abi: AIRLIFT_ABI,
+        functionName: 'quoteSend',
+        args: [
+          SRC_TOKEN_ADDRESS,
+          amount,
+          zeroPadAddressToBytes32(signerAddress),
+          BigInt(destinationChainId),
+          signerAddress,
+          parseEther('1'),
+        ],
+      })
     ).result as any
 
     if (!estimatedFees)
@@ -139,17 +143,22 @@ async function main() {
   }
 
   const glacisData: GlacisFacet.GlacisDataStruct = {
+    receiverAddress: zeroPadAddressToBytes32(signerAddress),
     refundAddress: signerAddress,
     nativeFee,
   }
 
   // === Start bridging ===
+  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.startBridgeTokensViaGlacis(
-        [bridgeData, glacisData],
-        { value: nativeFee }
-      ),
+      walletClient.writeContract({
+        address: lifiDiamondAddress,
+        abi: GLACIS_FACET_ABI,
+        functionName: 'startBridgeTokensViaGlacis',
+        args: [bridgeData, glacisData],
+        value: nativeFee,
+      }),
     'Starting bridge tokens via Glacis',
     publicClient,
     true
