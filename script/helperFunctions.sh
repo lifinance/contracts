@@ -4268,8 +4268,8 @@ function updateDiamondLogForNetwork() {
     sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[$NETWORK] Failed to get facets"
+  if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION+1)) ]; then
+    warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
   fi
 
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
@@ -4282,9 +4282,9 @@ function updateDiamondLogForNetwork() {
 
   # check result
   if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to update diamond log"
+    error "[$NETWORK] failed to update diamond log"
   else
-    success "[$NETWORK] Updated diamond log"
+    success "[$NETWORK] updated diamond log"
   fi
 }
 
