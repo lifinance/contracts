@@ -68,5 +68,6 @@
   "GlacisFacet": "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611",
   "ChainflipFacet": "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4",
   "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
-  "LiFiTimelockController": "0x55117ECcC867Db72aEb25f728CCf57C3C3B4faEe"
+  "LiFiTimelockController": "0x55117ECcC867Db72aEb25f728CCf57C3C3B4faEe",
+  "Patcher": "0xD0D1222a437e73F845e94a37098619B72be1540b"
 }
