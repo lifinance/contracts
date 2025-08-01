@@ -14,6 +14,7 @@ on:
       - ready_for_review
     paths:
       - 'src/**/*.sol'
+  workflow_dispatch:
 
 permissions:
   contents: read # required to fetch repository contents
