@@ -1012,20 +1012,6 @@
           }
         ]
       }
-    },
-    "ronin": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:53:27",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "DiamondLoupeFacet": {
@@ -34272,20 +34258,6 @@
           }
         ]
       }
-    },
-    "ronin": {
-      "production": {
-        "1.0.3": [
-          {
-            "ADDRESS": "0xfeD71074954d4cb8f1D2A8ca317d72c75e3E0559",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:59:54",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000452cf1b8597e6319cd21abd847312bf17e26d8d1000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000d8383fd32cca007ec8e51290ee3b5dd196ecc0df",
-            "SALT": "",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "GasZipFacet": {
@@ -36837,6 +36809,17 @@
             "SALT": "",
             "VERIFIED": "false"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x36e1375B0755162d720276dFF6893DF02bd49225",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 12:50:40",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000023fa838682c115c2cfba96ef3791cb5bd931fc7",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       },
       "production": {
@@ -36932,6 +36915,19 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000568c2c0c94b85b23e1c3cf3e79d51b1566c8f663",
             "SALT": "20250618",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "staging": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x36e1375B0755162d720276dFF6893DF02bd49225",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 12:50:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000568c2c0c94b85b23e1c3cf3e79d51b1566c8f663",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
