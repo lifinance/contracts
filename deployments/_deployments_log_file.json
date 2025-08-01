@@ -31934,9 +31934,9 @@
         ],
         "1.1.0": [
           {
-            "ADDRESS": "0x08BfAc22A3B41637edB8A7920754fDb30B18f740",
+            "ADDRESS": "0xF336cc028Fc5328472f96e377d32Fd32F8eE1750",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-12-31 12:23:04",
+            "TIMESTAMP": "2025-05-27 13:50:22",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e35e9842fceaca96570b734083f4a58e8f7c5f2a00000000000000000000000082af49447d8a07e3bd95bd0d56f35241523fbab1",
             "SALT": "",
             "VERIFIED": "true"
@@ -36414,9 +36414,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x3cf7dE0e31e13C93c8Aada774ADF1C7eD58157f5",
+            "ADDRESS": "0x681a3409c35F12224c436D50Ce14F25f954B6Ea2",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-11-07 14:15:11",
+            "TIMESTAMP": "2025-05-23 17:41:51",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a5f565650890fba1824ee0f21ebbbf660a179934000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
             "SALT": "",
             "VERIFIED": "true"
@@ -38528,6 +38528,52 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-07-02 09:55:55",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000002a3000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000db877c7834091bfdb25a62242a20bd6c70ae259a0000000000000000000000004f8c9056bb8a3616693a76922fa35d53c056e5b30000000000000000000000000000000000000000000000000000000000000001000000000000000000000000db877c7834091bfdb25a62242a20bd6c70ae259a00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "WhitelistManagerFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x603f0c31B37E5ca3eA75D5730CCfaBCFF6D17aa3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-05-16 14:32:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "Patcher": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-04 12:55:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-03 16:39:25",
+            "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
           }
