@@ -19910,7 +19910,7 @@
             "TIMESTAMP": "2025-07-29 12:58:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000801217549ab4b0860bb506b1cbff90f42819a116",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]

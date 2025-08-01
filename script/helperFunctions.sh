@@ -2035,7 +2035,6 @@ function verifyContract() {
     # Check if verification actually succeeded
     if [[ "$RESPONSE" == "OK" && "$DETAILS" != *"Fail"* && "$DETAILS" != *"Unable to verify"* && "$DETAILS" != *"Pending"* ]]; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-      COMMAND_STATUS=0
       return 0
     elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
       # HTTP request succeeded but verification failed
