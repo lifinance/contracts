@@ -71,23 +71,19 @@ jobs:
             fi
           fi
           
-          # Convert relative paths to --path arguments (use relative paths, not absolute)
-          args=""
-          for file in $files; do
-            args="$args --path $file"
-          done
+          # Use same format as static analysis: -p arguments
+          args=$(echo "$files" | xargs -n 1 printf -- "-p %s ")
           echo "ARGS=$args" >> $GITHUB_ENV
 
       - name: Run Olympix Mutation Testing
         if: env.SHOULD_RUN == 'true'
-        uses: olympix/integrated-security@main
+        uses: olympix/mutation-test-generator@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
           GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
           OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
-          OPIX_DEBUG: true
         with:
-          args: generate-mutation-tests -w /github/workspace ${{ env.ARGS }} --timeout 300 --include-dot-env
+          args: ${{ env.ARGS }}
 
       - name: Wait for Mutation Testing Results
         if: steps.changed-files.outputs.any_changed == 'true'
