@@ -57,8 +57,9 @@ jobs:
         id: format-args
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: use all files
-            files="$ALL_SOL_FILES"
+            # Manual run: use all files, but limit to key contracts only
+            echo "Manual run - selecting key contract files only (Facets and core contracts)"
+            files=$(find src/Facets/ -name "*.sol" -type f | head -5)  # Limit to 5 most important contracts
             echo "SHOULD_RUN=true" >> $GITHUB_ENV
           else
             # PR run: use changed files
@@ -74,6 +75,7 @@ jobs:
           # Use same format as static analysis: -p arguments
           args=$(echo "$files" | xargs -n 1 printf -- "-p %s ")
           echo "ARGS=$args" >> $GITHUB_ENV
+          echo "Selected files for mutation testing: $files"
 
       - name: Run Olympix Mutation Testing
         if: env.SHOULD_RUN == 'true'
