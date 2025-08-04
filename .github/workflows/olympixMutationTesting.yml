@@ -81,7 +81,7 @@ jobs:
           echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
           echo "Selected files for mutation testing: $files"
 
-  # Process each file individually 
+  # Process each file individually (sequential to avoid server overload)
   mutation-testing-matrix:
     name: Mutation Test
     runs-on: ubuntu-latest
@@ -90,6 +90,7 @@ jobs:
     strategy:
       matrix:
         file: ${{ fromJson(needs.mutation-testing.outputs.FILES_JSON) }}
+      max-parallel: 1  # Queue one at a time to protect server resources
       fail-fast: false  # Continue testing other files even if one fails
     
     steps:
