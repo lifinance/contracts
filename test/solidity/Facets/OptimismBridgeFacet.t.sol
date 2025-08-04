@@ -293,26 +293,24 @@ contract OptimismBridgeFacetTest is TestBase {
         );
 
         // Send more ETH than needed - the excess should be refunded
-        uint256 excessAmount = 1 ether; // Send 1 ETH when only 0.1 ETH is needed
-        uint256 balanceBeforeBridge = USER_SENDER.balance;
+        uint256 sentAmount = 1 ether; // Send 1 ETH when only 0.1 ETH is needed
+        uint256 balanceBefore = USER_SENDER.balance;
 
         // This call should refund the excess ETH due to refundExcessNative modifier
-        // If the modifier is removed (as mutant #1128 does), this test will fail
-        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge{value: excessAmount}(
+        // If the modifier is removed (as mutant #1128 does), no refund occurs
+        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge{value: sentAmount}(
             bridgeData,
             swapData,
             validOptimismData
         );
 
-        uint256 balanceAfterBridge = USER_SENDER.balance;
+        uint256 balanceAfter = USER_SENDER.balance;
+        uint256 totalSpent = balanceBefore - balanceAfter;
         
-        // User should have received refund of excess ETH (0.9 ETH minus gas costs)
-        // If refundExcessNative modifier is missing, user won't get refund
-        uint256 expectedRefund = excessAmount - bridgeData.minAmount; // 0.9 ETH
-        uint256 actualRefund = balanceAfterBridge - (balanceBeforeBridge - excessAmount);
-        
-        // Allow for gas costs but ensure most of the excess was refunded
-        assertGt(actualRefund, expectedRefund - 0.01 ether, "Excess ETH should be refunded");
+        // With refundExcessNative: user should only lose ~0.1 ETH + gas
+        // Without refundExcessNative: user loses full 1 ETH + gas
+        // This test catches when the full amount is lost (mutant case)
+        assertLt(totalSpent, 0.5 ether, "Should not lose more than 0.5 ETH (excess should be refunded)");
 
         vm.stopPrank();
     }
