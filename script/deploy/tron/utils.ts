@@ -140,6 +140,29 @@ export async function saveContractAddress(
 }
 
 /**
+ * Get contract address from deployments file
+ */
+export async function getContractAddress(
+  network: string,
+  contract: string
+): Promise<string | null> {
+  const environment = await getEnvironment()
+  const fileSuffix = environment === 'production' ? '' : 'staging.'
+  const deploymentFile = resolve(
+    process.cwd(),
+    `deployments/${network}.${fileSuffix}json`
+  )
+
+  try {
+    const deployments = await Bun.file(deploymentFile).json()
+    return deployments[contract] || null
+  } catch {
+    // File doesn't exist or can't be read
+    return null
+  }
+}
+
+/**
  * Save diamond deployment information
  */
 export async function saveDiamondDeployment(
@@ -176,9 +199,8 @@ export async function saveDiamondDeployment(
  */
 export function getNetworkConfig(networkName: string): any {
   const networkConfig = (networks as any)[networkName]
-  if (!networkConfig) 
+  if (!networkConfig)
     throw new Error(`Network configuration not found for: ${networkName}`)
-  
 
   return networkConfig
 }

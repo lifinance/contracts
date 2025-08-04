@@ -14,6 +14,7 @@ import {
   getEnvironment,
   getPrivateKey,
   getNetworkConfig,
+  getContractAddress,
 } from './utils.js'
 
 /**
@@ -63,10 +64,8 @@ async function deployCoreFacets() {
     verbose,
     dryRun,
     // Energy configuration:
-    // - feeLimit: Maximum TRX to spend (in SUN, 1 TRX = 1,000,000 SUN)
-    // - originEnergyLimit: Maximum energy units to consume
-    feeLimit: 200000000, // 200 TRX in SUN (enough for ~950k energy at 0.00021 TRX/energy)
-    originEnergyLimit: 500000, // Set fixed energy limit to 500k
+    // - feeLimit: Will be dynamically calculated per contract
+    // - originEnergyLimit: Will be dynamically calculated per contract
     safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
@@ -121,6 +120,37 @@ async function deployCoreFacets() {
       consola.info(`\n🔨 Deploying ${facetName}...`)
 
       try {
+        // Check if facet is already deployed
+        const existingAddress = await getContractAddress('tron', facetName)
+        if (existingAddress && !dryRun) {
+          consola.warn(
+            `⚠️  ${facetName} is already deployed at: ${existingAddress}`
+          )
+          const shouldRedeploy = await consola.prompt(
+            `Redeploy ${facetName}?`,
+            {
+              type: 'confirm',
+              initial: false,
+            }
+          )
+
+          if (!shouldRedeploy) {
+            consola.info(`✓ Using existing ${facetName} at: ${existingAddress}`)
+            deployedFacets[facetName] = existingAddress
+
+            // Get version for existing contract
+            const version = await getContractVersion(facetName)
+            deploymentResults.push({
+              contract: facetName,
+              address: existingAddress,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+            continue
+          }
+        }
+
         // Load artifact
         const artifact = await loadForgeArtifact(facetName)
 
@@ -172,6 +202,87 @@ async function deployCoreFacets() {
     consola.info('\n🔨 Deploying LiFiDiamond...')
 
     try {
+      // Check if LiFiDiamond is already deployed
+      const existingDiamondAddress = await getContractAddress(
+        'tron',
+        'LiFiDiamond'
+      )
+      if (existingDiamondAddress && !dryRun) {
+        consola.warn(
+          `⚠️  LiFiDiamond is already deployed at: ${existingDiamondAddress}`
+        )
+        const shouldRedeploy = await consola.prompt('Redeploy LiFiDiamond?', {
+          type: 'confirm',
+          initial: false,
+        })
+
+        if (!shouldRedeploy) {
+          consola.info(
+            `✓ Using existing LiFiDiamond at: ${existingDiamondAddress}`
+          )
+
+          // Get version for existing contract
+          const diamondVersion = await getContractVersion('LiFiDiamond')
+          deploymentResults.push({
+            contract: 'LiFiDiamond',
+            address: existingDiamondAddress,
+            txId: 'existing',
+            cost: 0,
+            version: diamondVersion,
+          })
+
+          // Still save the diamond deployment file with current facet info
+          const facetsInfo: Record<
+            string,
+            { address: string; version: string }
+          > = {}
+          for (const result of deploymentResults)
+            if (result.contract.includes('Facet'))
+              facetsInfo[result.contract] = {
+                address: result.address,
+                version: result.version,
+              }
+
+          await saveDiamondDeployment(
+            'tron',
+            existingDiamondAddress,
+            facetsInfo
+          )
+          consola.success('📄 Diamond deployment file updated')
+
+          // Skip to summary
+          consola.success('\n🎉 Deployment Complete!')
+          consola.info('========================\n')
+          console.table(
+            deploymentResults.map((r) => ({
+              Contract: r.contract,
+              Address:
+                r.address.length > 20
+                  ? `${r.address.slice(0, 10)}...${r.address.slice(-8)}`
+                  : r.address,
+              Version: r.version,
+              Cost:
+                r.txId === 'existing' ? 'existing' : `${r.cost.toFixed(4)} TRX`,
+            }))
+          )
+
+          const totalCost = deploymentResults.reduce(
+            (sum, r) => sum + r.cost,
+            0
+          )
+          consola.info(
+            `\n💰 Total deployment cost: ${totalCost.toFixed(4)} TRX`
+          )
+
+          if (dryRun)
+            consola.info(
+              '\n🧪 This was a DRY RUN - no contracts were actually deployed'
+            )
+
+          return
+        }
+      }
+
       const diamondArtifact = await loadForgeArtifact('LiFiDiamond')
       const diamondVersion = await getContractVersion('LiFiDiamond')
 
@@ -256,7 +367,7 @@ async function deployCoreFacets() {
             ? `${r.address.slice(0, 10)}...${r.address.slice(-8)}`
             : r.address,
         Version: r.version,
-        Cost: `${r.cost.toFixed(4)} TRX`,
+        Cost: r.txId === 'existing' ? 'existing' : `${r.cost.toFixed(4)} TRX`,
       }))
     )
 

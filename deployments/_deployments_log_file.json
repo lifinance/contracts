@@ -1012,20 +1012,6 @@
           }
         ]
       }
-    },
-    "ronin": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:53:27",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "DiamondLoupeFacet": {
@@ -5399,6 +5385,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TEg6EhaFYDZ5zdrT2CuqwPLS4BXtwEco9t",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-01 09:22:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -24500,6 +24501,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "1.3.1": [
+          {
+            "ADDRESS": "THMxtRwL14KUJHTqbMTvLTtbkjRPouGvPZ",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 04:09:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -34255,20 +34271,6 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3b20515d9b193531c48e47c18af16d1e5d28f9a0000000000000000000000000000000000225e31d15943971f47ad3022f714fa00000000000000000000000021e9d62a31ec8f89966ff548c69adfc94e82b57b",
             "SALT": "20250714",
             "VERIFIED": "true"
-          }
-        ]
-      }
-    },
-    "ronin": {
-      "production": {
-        "1.0.3": [
-          {
-            "ADDRESS": "0xfeD71074954d4cb8f1D2A8ca317d72c75e3E0559",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-06-20 07:59:54",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000452cf1b8597e6319cd21abd847312bf17e26d8d1000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000d8383fd32cca007ec8e51290ee3b5dd196ecc0df",
-            "SALT": "",
-            "VERIFIED": "false"
           }
         ]
       }
