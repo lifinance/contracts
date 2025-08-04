@@ -3073,6 +3073,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TQUULuNv3JQ5dNCCaoRsr5Nu9My4Z1NTUf",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:11:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -6435,6 +6450,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TEUbqHsDJp9EdCNbDH2bJHUEsRfBkaMbSM",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:13:13",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "PeripheryRegistryFacet": {
@@ -7447,6 +7477,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TTP9wygi5uH4HQdrYj6mvSZ5KAyaL6Kcow",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:12:10",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -10484,6 +10529,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TQqXQbTRbMy9tbbcVKHtf3mu45Z3k6NmzX",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:09:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -28669,6 +28729,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "TGir7NiePQhJAwsAGaLVjGkkhuyLwzr9kN",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:25:57",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -31966,6 +32041,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "TF4Qe21LQuV3X4V1PsS8vnVK8uAd2mUBVA",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:24:45",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }

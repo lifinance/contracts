@@ -198,9 +198,43 @@ async function deployCoreFacets() {
           const tronHexAddress = pauserWallet.replace('0x', '41')
           const tronBase58 = tronWebInstance.address.fromHex(tronHexAddress)
 
-          // Use base58 format for constructor args - TronWeb will handle conversion
-          constructorArgs = [tronBase58]
-          consola.info(`📝 Using pauserWallet: ${tronBase58}`)
+          // Use original hex format (0x...) for constructor args
+          // The ABI encoder needs this format for proper encoding
+          constructorArgs = [pauserWallet]
+          consola.info(
+            `📝 Using pauserWallet: ${tronBase58} (hex: ${pauserWallet})`
+          )
+        } else if (facetName === 'GenericSwapFacetV3') {
+          // GenericSwapFacetV3 requires native token address
+          const networksConfig = await Bun.file('config/networks.json').json()
+          const nativeAddress = networksConfig.tron?.nativeAddress
+
+          if (!nativeAddress) 
+            throw new Error(
+              'nativeAddress not found for tron in config/networks.json'
+            )
+          
+
+          // For display purposes
+          const tronWeb = (await import('tronweb')).TronWeb
+          const tronWebInstance = new tronWeb({
+            fullHost: network,
+            privateKey,
+          })
+          const tronNativeAddress =
+            nativeAddress === '0x0000000000000000000000000000000000000000'
+              ? tronWebInstance.address.fromHex(
+                  '410000000000000000000000000000000000000000'
+                )
+              : tronWebInstance.address.fromHex(
+                  nativeAddress.replace('0x', '41')
+                )
+
+          // Use original hex format (0x...) for constructor args
+          constructorArgs = [nativeAddress]
+          consola.info(
+            `📝 Using nativeAddress: ${tronNativeAddress} (hex: ${nativeAddress})`
+          )
         }
 
         // Deploy with constructor arguments
