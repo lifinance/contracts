@@ -379,6 +379,36 @@ We use Foundry as our primary development and testing framework. Foundry provide
 - Any contract inheriting from `TestBase.sol` must call `initTestBase()` in `setUp()`
 - Use `vm.startPrank(address)` and `vm.stopPrank()` for user simulation
 
+### Test Inheritance and Whitelist Management
+
+- For facets that require whitelist functionality:
+  - Test contracts should inherit from `TestWhitelistManagerBase`
+  - This provides standard whitelist management functions:
+    - `addToWhitelist(address)`
+    - `removeFromWhitelist(address)`
+    - `setFunctionWhitelistBySelector(bytes4)`
+    - `removeFunctionApprovalBySelector(bytes4)`
+  - Example pattern:
+    ```solidity
+    contract TestFacet is TestWhitelistManagerBase {
+        constructor() {}
+    }
+
+    contract FacetTest is TestBase {
+        TestFacet internal facet;
+
+        function setUp() public {
+            initTestBase();
+            facet = new TestFacet();
+            // Add required whitelist approvals
+            facet.addToWhitelist(ADDRESS_UNISWAP);
+            facet.setFunctionWhitelistBySelector(
+                uniswap.swapExactTokensForTokens.selector
+            );
+        }
+    }
+    ```
+
 ### Assertions and Event Testing
 
 - Use `assertEq()` for checking equality of values
