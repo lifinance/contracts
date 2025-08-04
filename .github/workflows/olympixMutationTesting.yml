@@ -24,6 +24,9 @@ jobs:
   mutation-testing:
     name: Mutation Testing Quality Check
     runs-on: ubuntu-latest
+    outputs:
+      SHOULD_RUN: ${{ steps.get-files-list.outputs.SHOULD_RUN }}
+      FILES_JSON: ${{ steps.get-files-list.outputs.FILES_JSON }}
 
     steps:
       - name: Checkout Repository
@@ -53,13 +56,13 @@ jobs:
           files: |
             src/**/*.sol
 
-      - name: Convert Files to Args
-        id: format-args
+      - name: Get Files List
+        id: get-files-list
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: use all files, but limit to key contracts only
-            echo "Manual run - selecting key contract files only (Facets and core contracts)"
-            files=$(find src/Facets/ -name "*.sol" -type f | head -5)  # Limit to 5 most important contracts
+            # Manual run: process all contracts in src/
+            echo "Manual run - processing all contracts in src/"
+            files=$(find src/ -name "*.sol" -type f)
             echo "SHOULD_RUN=true" >> $GITHUB_ENV
           else
             # PR run: use changed files
@@ -67,29 +70,44 @@ jobs:
               files="${{ steps.changed-files.outputs.all_changed_files }}"
               echo "SHOULD_RUN=true" >> $GITHUB_ENV
             else
-              echo "SHOULD_RUN=false" >> $GITHUB_ENV
+              echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
               exit 0
             fi
           fi
           
-          # Use same format as static analysis: -p arguments
-          args=$(echo "$files" | xargs -n 1 printf -- "-p %s ")
-          echo "ARGS=$args" >> $GITHUB_ENV
+          # Convert to JSON array for matrix strategy
+          file_array=$(echo "$files" | jq -R -s -c 'split("\n")[:-1]')
+          echo "FILES_JSON=$file_array" >> $GITHUB_OUTPUT
+          echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
           echo "Selected files for mutation testing: $files"
 
-      - name: Run Olympix Mutation Testing
-        if: env.SHOULD_RUN == 'true'
+  # Process each file individually 
+  mutation-testing-matrix:
+    name: Mutation Test
+    runs-on: ubuntu-latest
+    needs: mutation-testing
+    if: needs.mutation-testing.outputs.SHOULD_RUN == 'true' && needs.mutation-testing.outputs.FILES_JSON != '[]'
+    strategy:
+      matrix:
+        file: ${{ fromJson(needs.mutation-testing.outputs.FILES_JSON) }}
+      fail-fast: false  # Continue testing other files even if one fails
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Olympix Mutation Testing for ${{ matrix.file }}
         uses: olympix/mutation-test-generator@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
           GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
           OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
+          OPIX_DEBUG: true
         with:
-          args: ${{ env.ARGS }}
+          args: generate-mutation-tests -p ${{ matrix.file }}
 
-      - name: Wait for Mutation Testing Results
-        if: steps.changed-files.outputs.any_changed == 'true'
+      - name: Summary
         run: |
-          echo "✅ Mutation testing initiated successfully"
-          echo "📊 Results will be uploaded to GitHub Code Scanning automatically"
-          echo "🔍 Check the Security tab for mutation testing alerts" 
+          echo "✅ File discovery completed"
+          echo "📝 Files will be processed individually in parallel jobs"
+          echo "🔍 Check the Security tab for mutation testing alerts after completion" 
