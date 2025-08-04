@@ -264,4 +264,56 @@ contract OptimismBridgeFacetTest is TestBase {
 
         vm.stopPrank();
     }
+
+    function test_swapAndStartBridgeTokensViaOptimismBridge_RefundsExcessETH() public {
+        vm.startPrank(USER_SENDER);
+        
+        // Set up bridge data for native ETH with swaps
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0); // Native ETH
+        bridgeData.minAmount = 0.1 ether;
+
+        // Create swap data that swaps ETH to USDC
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            address(0), // from ETH
+            USDC_ADDRESS, // to USDC
+            0.1 ether,
+            abi.encodeWithSelector(
+                uniswap.swapExactETHForTokens.selector,
+                0,
+                validTokenAddresses,
+                address(optimismBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Send more ETH than needed - the excess should be refunded
+        uint256 excessAmount = 1 ether; // Send 1 ETH when only 0.1 ETH is needed
+        uint256 balanceBeforeBridge = USER_SENDER.balance;
+
+        // This call should refund the excess ETH due to refundExcessNative modifier
+        // If the modifier is removed (as mutant #1128 does), this test will fail
+        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge{value: excessAmount}(
+            bridgeData,
+            swapData,
+            validOptimismData
+        );
+
+        uint256 balanceAfterBridge = USER_SENDER.balance;
+        
+        // User should have received refund of excess ETH (0.9 ETH minus gas costs)
+        // If refundExcessNative modifier is missing, user won't get refund
+        uint256 expectedRefund = excessAmount - bridgeData.minAmount; // 0.9 ETH
+        uint256 actualRefund = balanceAfterBridge - (balanceBeforeBridge - excessAmount);
+        
+        // Allow for gas costs but ensure most of the excess was refunded
+        assertGt(actualRefund, expectedRefund - 0.01 ether, "Excess ETH should be refunded");
+
+        vm.stopPrank();
+    }
 }
