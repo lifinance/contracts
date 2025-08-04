@@ -7,7 +7,7 @@ import { LibAsset } from "./LibAsset.sol";
 /// @title LibAllowList
 /// @author LI.FI (https://li.fi)
 /// @notice Library for managing and accessing the contract address allow list
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 library LibAllowList {
     /// Storage ///
     bytes32 internal constant NAMESPACE =
