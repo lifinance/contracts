@@ -81,9 +81,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0x9b3C5C83b0E1415BA91bBc9486102e80362F0629": {
+      "0xAE5325C02b87ff1D3752a1d3100Ec82537605B72": {
         "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+        "Version": "2.1.0"
       },
       "0x3F95b05a77FDC6D82162D86A72b156b55030627f": {
         "Name": "AmarokFacet",
@@ -154,9 +154,9 @@
       "ERC20Proxy": "0x74a55CaDb12501A3707E9F3C5dfd8b563C6A5940",
       "Executor": "0x4DaC9d1769b9b304cb04741DCDEb2FC14aBdF110",
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
-      "GasZipPeriphery": "0xCBe2f01682BE0a12Fc5e6E8B86a834e4AdbB16c4",
+      "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "0x9Caab1750104147c9872772b3d0bE3D4290e1e86",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverChainflip": "",
