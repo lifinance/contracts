@@ -54,20 +54,18 @@ export class TronContractDeployer {
       // Estimate deployment cost
       const costEstimate = await this.estimateCost(artifact, constructorParams)
 
-      if (this.config.verbose) 
+      if (this.config.verbose)
         console.log('💰 Estimated deployment cost:', {
           energy: costEstimate.energy,
           bandwidth: costEstimate.bandwidth,
           totalTrx: costEstimate.totalTrx.toFixed(4),
         })
-      
 
       // Validate account balance
       await this.validateAccountBalance(costEstimate.totalTrx)
 
-      if (this.config.dryRun) 
+      if (this.config.dryRun)
         return this.simulateDeployment(artifact, costEstimate)
-      
 
       // Execute deployment with dynamic energy limit
       const deploymentResult = await this.executeDeployment(
@@ -116,12 +114,30 @@ export class TronContractDeployer {
 
       const energyCost = estimatedEnergy * ENERGY_PRICE
       const bandwidthCost = estimatedBandwidth * BANDWIDTH_PRICE
+      const totalCost = energyCost + bandwidthCost
+
+      // Ensure fee limit is an integer (Tron requires integer SUN values)
+      // Use Math.ceil to round up to avoid underestimating
+      const feeLimitSun = Math.ceil(
+        Number(this.tronWeb.toSun(totalCost.toString()))
+      )
+
+      if (this.config.verbose) 
+        console.log('📊 Fee calculation:', {
+          estimatedEnergy,
+          estimatedBandwidth,
+          energyCost: `${energyCost} TRX`,
+          bandwidthCost: `${bandwidthCost} TRX`,
+          totalCost: `${totalCost} TRX`,
+          feeLimitSun: `${feeLimitSun} SUN (integer)`,
+        })
+      
 
       return {
         energy: estimatedEnergy,
         bandwidth: estimatedBandwidth,
-        totalTrx: energyCost + bandwidthCost,
-        feeLimit: this.tronWeb.toSun((energyCost + bandwidthCost).toString()),
+        totalTrx: totalCost,
+        feeLimit: feeLimitSun,
         breakdown: {
           energyCost,
           bandwidthCost,
@@ -129,8 +145,8 @@ export class TronContractDeployer {
           safetyMargin: this.config.safetyMargin ?? DEFAULT_SAFETY_MARGIN,
         },
       }
-    } catch (error) {
-      return this.fallbackCostEstimation(artifact, constructorParams)
+    } catch (error: any) {
+      throw new Error(`Cost estimation failed: ${error.message}`)
     }
   }
 
@@ -180,12 +196,11 @@ export class TronContractDeployer {
         const constructorAbi = artifact.abi.find(
           (item) => item.type === 'constructor'
         )
-        if (constructorAbi && constructorAbi.inputs) 
+        if (constructorAbi && constructorAbi.inputs)
           encodedParams = this.tronWeb.utils.abi.encodeParams(
             constructorAbi.inputs,
             constructorParams
           )
-        
       }
 
       // Combine bytecode with encoded constructor params
@@ -241,13 +256,12 @@ export class TronContractDeployer {
 
       const result = await response.json()
 
-      if (result.result?.result === false || result.energy_used === 0) 
+      if (result.result?.result === false || result.energy_used === 0)
         throw new Error(
           `Contract deployment estimation failed. Please check your parameters. Response: ${JSON.stringify(
             result
           )}`
         )
-      
 
       if (result.energy_used) {
         if (this.config.verbose)
@@ -267,49 +281,13 @@ export class TronContractDeployer {
 
       throw new Error('No energy estimation returned')
     } catch (error: any) {
-      console.warn(
-        '⚠️  Failed to estimate energy via triggerConstantContract:',
+      console.error(
+        '❌ Failed to estimate energy via triggerConstantContract:',
         error.message
       )
-      // Fall back to bytecode-based estimation
-      const bytecodeSize = artifact.bytecode.object.length / 2
-      const baseEnergy = Math.max(50000, bytecodeSize * 2)
-      const safetyMargin = this.config.safetyMargin ?? DEFAULT_SAFETY_MARGIN
-      return Math.ceil(baseEnergy * safetyMargin)
-    }
-  }
-
-  /**
-   * Fallback cost estimation
-   */
-  private fallbackCostEstimation(
-    artifact: IForgeArtifact,
-    _constructorParams: any[]
-  ): ITronCostEstimate {
-    const bytecodeSize = artifact.bytecode.object.length / 2
-
-    const baseEnergy = Math.max(50000, bytecodeSize * 2)
-    const safetyMargin = this.config.safetyMargin ?? DEFAULT_SAFETY_MARGIN
-    const estimatedEnergy = Math.ceil(baseEnergy * safetyMargin)
-    const estimatedBandwidth = Math.ceil((bytecodeSize + 300) * 1.2)
-
-    const energyCost = estimatedEnergy * ENERGY_PRICE
-    const bandwidthCost = estimatedBandwidth * BANDWIDTH_PRICE
-
-    if (this.config.verbose)
-      console.log('📊 Using fallback estimation based on bytecode size')
-
-    return {
-      energy: estimatedEnergy,
-      bandwidth: estimatedBandwidth,
-      totalTrx: energyCost + bandwidthCost,
-      feeLimit: this.tronWeb.toSun((energyCost + bandwidthCost).toString()),
-      breakdown: {
-        energyCost,
-        bandwidthCost,
-        energyFactor: 0.2,
-        safetyMargin,
-      },
+      throw new Error(
+        `Energy estimation failed: ${error.message}. Cannot proceed with deployment.`
+      )
     }
   }
 
@@ -323,11 +301,10 @@ export class TronContractDeployer {
       )
       const balanceTrx = this.tronWeb.fromSun(balance)
 
-      if (balanceTrx < requiredTrx) 
+      if (balanceTrx < requiredTrx)
         throw new Error(
           `Insufficient balance: ${balanceTrx} TRX available, ${requiredTrx} TRX required`
         )
-      
 
       if (this.config.verbose)
         console.log(`✅ Balance check passed: ${balanceTrx} TRX available`)

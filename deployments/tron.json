@@ -1,4 +1,7 @@
 {
   "AccessManagerFacet": "TEg6EhaFYDZ5zdrT2CuqwPLS4BXtwEco9t",
-  "CalldataVerificationFacet": "THMxtRwL14KUJHTqbMTvLTtbkjRPouGvPZ"
+  "CalldataVerificationFacet": "THMxtRwL14KUJHTqbMTvLTtbkjRPouGvPZ",
+  "DexManagerFacet": "TU7wacaHMRhJ9QLueMV8Nd7ottM28oJViL",
+  "DiamondCutFacet": "TVo2iNh9YjoDVgxWLzRaymmsqymwg1adJG",
+  "DiamondLoupeFacet": "TU1XjUGVfCwhtr1QmvidUiMgW1G7GusRsL"
 }

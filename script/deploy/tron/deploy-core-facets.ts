@@ -29,7 +29,7 @@ async function deployCoreFacets() {
 
   // Load environment variables
   const dryRun = process.env.DRY_RUN === 'true'
-  const verbose = process.env.VERBOSE === 'true'
+  const verbose = process.env.VERBOSE !== 'false' // Default to true for debugging
 
   // Get network configuration from networks.json
   let tronConfig
@@ -98,14 +98,26 @@ async function deployCoreFacets() {
       consola.warn(
         '🚨 WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
       )
-      consola.info(
-        'Press Ctrl+C to cancel, or wait 10 seconds to continue...\n'
-      )
-      await Bun.sleep(10000)
+      const shouldContinue = await consola.prompt('Do you want to continue?', {
+        type: 'confirm',
+        initial: false,
+      })
+
+      if (!shouldContinue) {
+        consola.info('Deployment cancelled')
+        process.exit(0)
+      }
     } else if (!dryRun) {
       consola.warn('⚠️  This will deploy contracts to Tron mainnet in STAGING!')
-      consola.info('Press Ctrl+C to cancel, or wait 5 seconds to continue...\n')
-      await Bun.sleep(5000)
+      const shouldContinue = await consola.prompt('Do you want to continue?', {
+        type: 'confirm',
+        initial: true,
+      })
+
+      if (!shouldContinue) {
+        consola.info('Deployment cancelled')
+        process.exit(0)
+      }
     }
 
     // Get core facets from config
@@ -158,8 +170,35 @@ async function deployCoreFacets() {
         const version = await getContractVersion(facetName)
         consola.info(`📌 Version: ${version}`)
 
-        // Deploy
-        const result = await deployer.deployContract(artifact, [])
+        // Prepare constructor arguments based on facet type
+        let constructorArgs: any[] = []
+
+        if (facetName === 'EmergencyPauseFacet') {
+          // EmergencyPauseFacet requires pauserWallet address
+          const globalConfig = await Bun.file('config/global.json').json()
+          const pauserWallet = globalConfig.pauserWallet // This is 0x...
+
+          if (!pauserWallet) 
+            throw new Error('pauserWallet not found in config/global.json')
+          
+
+          // TronWeb expects the base58 address format for constructor parameters
+          // It will handle the conversion internally
+          const tronWeb = (await import('tronweb')).TronWeb
+          const tronWebInstance = new tronWeb({
+            fullHost: network,
+            privateKey,
+          })
+          const tronHexAddress = pauserWallet.replace('0x', '41')
+          const tronBase58 = tronWebInstance.address.fromHex(tronHexAddress)
+
+          // Use base58 format for constructor args - TronWeb will handle conversion
+          constructorArgs = [tronBase58]
+          consola.info(`📝 Using pauserWallet: ${tronBase58}`)
+        }
+
+        // Deploy with constructor arguments
+        const result = await deployer.deployContract(artifact, constructorArgs)
 
         deployedFacets[facetName] = result.contractAddress
         deploymentResults.push({
