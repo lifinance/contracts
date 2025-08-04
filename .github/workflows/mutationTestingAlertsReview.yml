@@ -74,10 +74,36 @@ jobs:
           echo "Fetching mutation testing results for PR #${PR_NUMBER}..."
 
           # Fetch mutation testing results from GitHub Code Scanning
-          MUTATIONS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+          echo "Fetching alerts for PR #${PR_NUMBER}..."
+          MUTATIONS_PR=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
+          
+          echo "PR-specific API response:"
+          echo "$MUTATIONS_PR" | head -10
+          
+          # Also fetch all recent alerts to compare
+          echo "Fetching all recent alerts..."
+          MUTATIONS_ALL=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?per_page=10")
+          
+          echo "All alerts API response:"
+          echo "$MUTATIONS_ALL" | head -10
+          
+          # Use PR-specific results if available, otherwise check all alerts
+          if echo "$MUTATIONS_PR" | jq -e '. | type == "array" and length > 0' > /dev/null 2>&1; then
+            MUTATIONS="$MUTATIONS_PR"
+            echo "Using PR-specific alerts"
+          else
+            MUTATIONS="$MUTATIONS_ALL"
+            echo "Using all alerts (PR filter returned no results)"
+          fi
 
           echo "Filtering to Olympix Mutation Testing results only"
+          
+          # Debug: Show what tools are available
+          echo "Available tools in alerts:"
+          echo "$MUTATIONS" | jq -r '.[] | .tool.name' | sort | uniq -c || echo "No tools found"
+          
           MUTATIONS=$(echo "$MUTATIONS" | jq -c '[ .[] | select(.tool.name == "Olympix Mutation Testing") ]' || echo "[]")
 
           # Extract surviving mutants (open - test coverage gaps)
