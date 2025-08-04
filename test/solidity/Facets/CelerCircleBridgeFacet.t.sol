@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
 import { ICircleBridgeProxy } from "lifi/Interfaces/ICircleBridgeProxy.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CelerCircleBridgeFacet Contract
-contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
+contract TestCelerCircleBridgeFacet is
+    CelerCircleBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         ICircleBridgeProxy _circleBridgeProxy,
         address _usdc
     ) CelerCircleBridgeFacet(_circleBridgeProxy, _usdc) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract CelerCircleBridgeFacetTest is TestBaseFacet {
@@ -49,23 +44,23 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = celerCircleBridgeFacet
             .swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[2] = celerCircleBridgeFacet.addDex.selector;
+        functionSelectors[2] = celerCircleBridgeFacet.addToWhitelist.selector;
         functionSelectors[3] = celerCircleBridgeFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
-        celerCircleBridgeFacet.addDex(address(uniswap));
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.addToWhitelist(address(uniswap));
+        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
+        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

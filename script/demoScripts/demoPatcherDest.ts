@@ -21,7 +21,6 @@ import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
 import {
   generateNeedle,
   findNeedleOffset,
-  generateExecuteWithDynamicPatchesCalldata,
   generateBalanceOfCalldata,
 } from './utils/patcherHelpers'
 
