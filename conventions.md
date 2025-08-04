@@ -412,6 +412,45 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 - Environment variables should be validated using `getEnvVar()` helper
 - Scripts should exit with appropriate exit codes (0 for success, 1 for error)
 
+#### Helper Function Usage
+
+- **Always use existing helper functions** when available instead of reimplementing functionality
+- Common helper functions to check for:
+  - `getDeployments()` from `script/utils/deploymentHelpers.ts` for loading deployment files
+  - `getProvider()` and `getWalletFromPrivateKeyInDotEnv()` from `script/demoScripts/utils/demoScriptHelpers.ts`
+  - `sendTransaction()` for transaction execution
+  - `ensureBalanceAndAllowanceToDiamond()` for token approvals
+  - `getUniswapData*()` functions for swap data generation
+- Before implementing new functionality, search the codebase for existing helper functions
+- Helper functions provide consistent error handling, logging, and type safety across the project
+
+#### Code Quality and Linting Standards
+
+- **Pre-Change Verification:**
+
+  - Verify all imports and types exist before making changes
+  - Check if typechain has been generated for new contracts
+  - Ensure all referenced variables and functions are available
+
+- **Comprehensive Changes:**
+
+  - Make all related changes in a single update, not incrementally
+  - Update all variable references consistently throughout the file
+  - Ensure import statements match the actual available exports
+
+- **Post-Change Validation:**
+
+  - Run TypeScript compilation to catch type errors
+  - Verify no unused imports remain
+  - Check that all variable names are consistently updated
+  - Ensure function signatures match their usage
+
+- **Type Safety:**
+
+  - Always use proper TypeScript types instead of `any`
+  - Verify interface compatibility before using imported types
+  - Use type guards when dealing with dynamic data
+
 - **Execution Environment:**
   - All scripts should use `bunx tsx` for TypeScript execution
 

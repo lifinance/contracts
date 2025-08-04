@@ -1,9 +1,9 @@
 import { BigNumber, constants, utils } from 'ethers'
 
-import deploymentsARB from '../../deployments/arbitrum.staging.json'
-import deploymentsOPT from '../../deployments/optimism.staging.json'
 import { type AcrossFacetV4, AcrossFacetV4__factory } from '../../typechain'
-import type { LibSwap } from '../../typechain/AcrossFacetV3'
+import type { LibSwap } from '../../typechain/AcrossFacetV4'
+import { EnvironmentEnum } from '../common/types'
+import { getDeployments } from '../utils/deploymentHelpers'
 
 import {
   ADDRESS_DEV_WALLET_SOLANA_BYTES32,
@@ -276,7 +276,7 @@ const getMinAmountOut = (quote: IAcrossV4Quote, fromAmount: string) => {
 }
 
 const createDestCallPayload = (
-  bridgeData: any,
+  bridgeData: { transactionId: Uint8Array },
   swapData: LibSwap.SwapDataStruct[],
   receiverAddress: string
 ): string => {
@@ -329,13 +329,9 @@ const WITH_DEST_CALL =
 const WITH_EXCLUSIVE_RELAYER = false
 const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
-const DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
-
-const RECEIVER_ADDRESS_DST = isSolana
-  ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
-  : WITH_DEST_CALL
-  ? deploymentsARB.ReceiverAcrossV4
-  : ADDRESS_DEV_WALLET_V4
+// These will be set in main() after getting deployments
+let DIAMOND_ADDRESS_SRC: string
+let RECEIVER_ADDRESS_DST: string
 const EXPLORER_BASE_URL = 'https://optimistic.etherscan.io/tx/'
 
 // ############################################################################################################
@@ -345,6 +341,24 @@ async function main() {
   const wallet = getWalletFromPrivateKeyInDotEnv(provider)
   const walletAddress = await wallet.getAddress()
   console.log('you are using this wallet address: ', walletAddress)
+
+  // get deployments dynamically
+  const deploymentsOPT = await getDeployments(
+    'optimism',
+    EnvironmentEnum.staging
+  )
+  const deploymentsARB = await getDeployments(
+    'arbitrum',
+    EnvironmentEnum.staging
+  )
+
+  // Set the addresses that depend on deployments
+  DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
+  RECEIVER_ADDRESS_DST = isSolana
+    ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
+    : WITH_DEST_CALL
+    ? deploymentsARB.ReceiverAcrossV3
+    : ADDRESS_DEV_WALLET_V4
 
   // make sure facet is deployed
   let isAcrossFacetV4Deployed = false

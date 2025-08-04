@@ -51,7 +51,7 @@ export const isNativeTX = (type: ITransactionTypeEnum): boolean => {
   )
 }
 
-// Common token addresses on various mainnets
+// Common token addresses on various chains
 export const ADDRESS_USDC_ETH = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 export const ADDRESS_USDT_ETH = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
 export const ADDRESS_USDC_POL = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'
@@ -70,7 +70,7 @@ export const ADDRESS_WETH_POL = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
 export const ADDRESS_WETH_ARB = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 export const ADDRESS_WMATIC_POL = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270 '
 
-// common uniswap addresses on various mainnets
+// common uniswap addresses on various chains
 export const ADDRESS_UNISWAP_ETH = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 export const ADDRESS_UNISWAP_BSC = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 export const ADDRESS_UNISWAP_POL = '0xedf6066a2b290C185783862C7F4776A2C8077AD1'
