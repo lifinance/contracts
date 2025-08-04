@@ -767,6 +767,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "plasma": {
+    "name": "plasma",
+    "chainId": 9745,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "PLUME",
+    "wrappedNativeAddress": "0xEa237441c92CAe6FC17Caaf9a7acB3f953be4bd1",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.plasma.to",
+    "verificationType": "routescan",
+    "explorerUrl": "https://plasmascan.to",
+    "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/9745/etherscan",
+    "multicallAddress": "",
+    "safeAddress": "",
+    "gasZipChainId": ,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": ""
+  },
   "plume": {
     "name": "plume",
     "chainId": 98866,
