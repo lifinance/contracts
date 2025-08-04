@@ -209,11 +209,10 @@ async function deployCoreFacets() {
           const networksConfig = await Bun.file('config/networks.json').json()
           const nativeAddress = networksConfig.tron?.nativeAddress
 
-          if (!nativeAddress) 
+          if (!nativeAddress)
             throw new Error(
               'nativeAddress not found for tron in config/networks.json'
             )
-          
 
           // For display purposes
           const tronWeb = (await import('tronweb')).TronWeb
@@ -378,13 +377,32 @@ async function deployCoreFacets() {
       const diamondVersion = await getContractVersion('LiFiDiamond')
 
       // Prepare constructor arguments
-      const ownerAddress = networkInfo.address
-      const diamondCutFacetAddress = deployedFacets['DiamondCutFacet']
+      const ownerAddress = networkInfo.address // This is base58 format (T...)
+      const diamondCutFacetAddress = deployedFacets['DiamondCutFacet'] // This is also base58
 
       if (!diamondCutFacetAddress)
         throw new Error('DiamondCutFacet address not found')
 
-      const constructorArgs = [ownerAddress, diamondCutFacetAddress]
+      // Convert base58 addresses to hex for ABI encoding
+      const tronWeb = (await import('tronweb')).TronWeb
+      const tronWebInstance = new tronWeb({
+        fullHost: network,
+        privateKey,
+      })
+
+      // Convert to hex format (0x...) for constructor args
+      const ownerHex =
+        '0x' + tronWebInstance.address.toHex(ownerAddress).substring(2)
+      const diamondCutHex =
+        '0x' +
+        tronWebInstance.address.toHex(diamondCutFacetAddress).substring(2)
+
+      const constructorArgs = [ownerHex, diamondCutHex]
+
+      consola.info(`📝 Using owner: ${ownerAddress} (hex: ${ownerHex})`)
+      consola.info(
+        `📝 Using DiamondCutFacet: ${diamondCutFacetAddress} (hex: ${diamondCutHex})`
+      )
 
       const diamondResult = await deployer.deployContract(
         diamondArtifact,

@@ -8471,6 +8471,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TWs2nyh5LoXhJjHKefyafL4k4GkbG5vJQc",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 05:34:36",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LiFiDiamondImmutable": {
