@@ -57,9 +57,10 @@ jobs:
         id: format-args
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: process all contracts in src/
-            echo "Manual run - processing all contracts in src/"
-            files=$(find src/ -name "*.sol" -type f)
+            # Manual run: process contracts in src/ (limited to 95 files to stay under 100 limit)
+            echo "Manual run - processing contracts in src/ (max 95 files)"
+            # Prioritize: Facets first, then main contracts, then helpers, skip interfaces
+            files=$(find src/Facets/ src/Periphery/ src/Helpers/ src/ -maxdepth 1 -name "*.sol" -type f 2>/dev/null | grep -v "/Interfaces/" | head -95)
             echo "SHOULD_RUN=true" >> $GITHUB_ENV
           else
             # PR run: use changed files
