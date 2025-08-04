@@ -6,7 +6,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { OwnershipFacet } from "src/Facets/OwnershipFacet.sol";
-import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { InvalidContract, InvalidCallData, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
@@ -220,7 +220,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     function testRevert_FailsIfAddingWithZeroAddress() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(InvalidContract.selector);
+        vm.expectRevert(InvalidCallData.selector);
 
         whitelistMgr.addToWhitelist(address(0));
 
@@ -245,7 +245,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         addresses[1] = address(c2);
         addresses[2] = address(0);
 
-        vm.expectRevert(InvalidContract.selector);
+        vm.expectRevert(InvalidCallData.selector);
 
         whitelistMgr.batchAddToWhitelist(addresses);
 

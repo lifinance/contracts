@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { InvalidContract } from "../Errors/GenericErrors.sol";
+import { InvalidContract, InvalidCallData } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "./LibAsset.sol";
 
 /// @title LibAllowList
@@ -27,7 +27,7 @@ library LibAllowList {
     /// @param _contract the contract address to add
     function addAllowedContract(address _contract) internal {
         // validate contract address is not zero address
-        if (_contract == address(0)) revert InvalidContract();
+        if (_contract == address(0)) revert InvalidCallData();
         // ensure address is actually a contract (including EIP-7702 AA wallets)
         if (!LibAsset.isContract(_contract)) revert InvalidContract();
 
