@@ -2,7 +2,14 @@
 
 ## Description
 
-Periphery contract used for arbitrary cross-chain destination calls via AcrossV4
+Periphery contract used for arbitrary cross-chain destination calls via AcrossV4. This contract is an updated version of ReceiverAcrossV3 with improved constructor validation, better error handling, and consistent naming conventions.
+
+## Key Differences from V3
+
+- **Constructor Validation**: Validates that all constructor parameters are non-zero addresses
+- **Variable Naming**: Uses UPPERCASE for immutable variables (EXECUTOR, SPOKEPOOL)
+- **Error Handling**: Uses `LibAsset.transferERC20` for more consistent token transfers
+- **Function Name**: Currently uses `handleV3AcrossMessage` (same as V3) - this may be updated in future versions
 
 ## How To Use
 
@@ -11,15 +18,16 @@ The contract has one method which will (and can only) be called through the Acro
 ```solidity
     /// @notice Completes an AcrossV4 cross-chain transaction on the receiving chain
     /// @dev Token transfer and message execution will happen in one atomic transaction
-    /// @dev This function can only be called the Across SpokePool on this network
+    /// @dev This function can only be called by the Across SpokePool on this network
+    /// @dev Note: Function name is currently handleV3AcrossMessage (same as V3) for compatibility
     /// @param tokenSent The address of the token that was received
     /// @param amount The amount of tokens received
-    /// @param * - unused(relayer) The address of the relayer who is executing this message
+    /// @param relayer The address of the relayer who is executing this message (unused)
     /// @param message The composed message payload in bytes
-    function handleV4AcrossMessage(
+    function handleV3AcrossMessage(
         address tokenSent,
         uint256 amount,
-        address,
+        address relayer,
         bytes memory message
     )
 ```
