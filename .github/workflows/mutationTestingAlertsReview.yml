@@ -10,9 +10,16 @@ name: Mutation Testing PR Summary
 on:
   pull_request:
     types:
+      - opened
+      - synchronize
+      - reopened
       - ready_for_review
     paths:
       - 'src/**/*.sol'
+  workflow_run:
+    workflows: ["Olympix Mutation Testing"]
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
