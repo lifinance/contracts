@@ -419,6 +419,109 @@ contract AcrossFacetV4Test is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_WillFailIfAcrossDataReceiverDoesNotMatchWithBridgeData()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
+
+        // Set AcrossData receiver to a different address than bridgeData.receiver
+        validAcrossData.receiverAddress = _convertAddressToBytes32(
+            address(0x456)
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_WillFailIfBothReceiverAddressesAreDifferent() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
+
+        // Set both to different addresses
+        bridgeData.receiver = address(0x123);
+        validAcrossData.receiverAddress = _convertAddressToBytes32(
+            address(0x456)
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_WillFailIfAcrossDataReceiverIsZeroAddress() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
+
+        // Set AcrossData receiver to zero address
+        validAcrossData.receiverAddress = _convertAddressToBytes32(address(0));
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_WillFailIfBridgeDataReceiverIsZeroAddress() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
+
+        // Set bridgeData receiver to zero address
+        bridgeData.receiver = address(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
+    function test_SuccessfulValidationWhenReceiverAddressesMatch()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // Ensure both receiver addresses match
+        bridgeData.receiver = USER_RECEIVER;
+        validAcrossData.receiverAddress = _convertAddressToBytes32(
+            USER_RECEIVER
+        );
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // This should succeed without reverting
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
 

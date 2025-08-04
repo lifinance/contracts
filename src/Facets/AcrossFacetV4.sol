@@ -178,6 +178,13 @@ contract AcrossFacetV4 is
                 _convertAddressToBytes32(_bridgeData.receiver) !=
                 _acrossData.receiverAddress
             ) revert InvalidReceiver();
+
+            if (
+                _acrossData.receiverAddress !=
+                _convertAddressToBytes32(_bridgeData.receiver)
+            ) {
+                revert InvalidReceiver();
+            }
         }
 
         // check if sendingAsset is native or ERC20
