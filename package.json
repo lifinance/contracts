@@ -85,7 +85,6 @@
     "propose-safe-tx": "bunx tsx ./script/deploy/safe/propose-to-safe.ts",
     "postinstall": "patch-package",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
-    "scan-selector-approvals": "bunx tsx ./script/migration/scan-selector-approvals.ts",
     "test": "forge test --evm-version 'cancun'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
