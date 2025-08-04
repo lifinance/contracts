@@ -948,6 +948,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "sophon": {
+    "name": "sophon",
+    "chainId": 50104,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "SOPH",
+    "wrappedNativeAddress": "0x2b1A859dE6A55c553520D7780Bc5805712B128F9",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.sophon.xyz",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://sophscan.xyz",
+    "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=50104",
+    "multicallAddress": "0x5f4867441d2416cA88B1b3fd38f21811680CD2C8",
+    "safeAddress": "",
+    "gasZipChainId": 484,
+    "isZkEVM": true,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
+    "create3Factory": ""
+  },
   "superposition": {
     "name": "superposition",
     "chainId": 55244,
