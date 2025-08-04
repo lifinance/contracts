@@ -735,7 +735,7 @@
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://mainnet.optimism.ioo",
+    "rpcUrl": "https://mainnet.optimism.io",
     "verificationType": "etherscan",
     "explorerUrl": "https://optimistic.etherscan.io",
     "explorerApiUrl": "https://api-optimistic.etherscan.io/api",
