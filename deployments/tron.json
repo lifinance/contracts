@@ -1,0 +1,18 @@
+{
+  "AccessManagerFacet": "TLqbL8MKosbLxrJ9iTDTpZTzcXRWq8bFJ3",
+  "CalldataVerificationFacet": "TFJLkNo9rHYTkp6w5G5ETnTBzzybRTqwQf",
+  "DexManagerFacet": "TPDdY4Qqy9gU8eD3bJ63pUFhHr4WWnabks",
+  "DiamondCutFacet": "TNGUuj9GYbeUDn4GbTH2711kNyE4WcMbb4",
+  "DiamondLoupeFacet": "TSFek3JXzdwPHH6bs9TBF7wviJ71ZxRC5j",
+  "EmergencyPauseFacet": "TGyX2ysGYjKG8PLWiW7exXv3gesV8DJEA4",
+  "GenericSwapFacet": "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS",
+  "GenericSwapFacetV3": "TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz",
+  "OwnershipFacet": "TVofq5iFiwsDf4M3xcucpV7HCX5M6XpcHW",
+  "PeripheryRegistryFacet": "TA9z2Lmg6g4tAwn31CK57ekjpmVXCr8kum",
+  "WithdrawFacet": "TZ35GFtD5rw1YGBbqaeWUW4dgPGpphUrAw",
+  "LiFiDiamond": "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt",
+  "ERC20Proxy": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
+  "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
+  "FeeCollector": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
+  "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
+}
