@@ -644,4 +644,26 @@ contract AcrossFacetPackedV4Test is TestBase {
     ) internal pure returns (bool) {
         return keccak256(abi.encode(_a)) == keccak256(abi.encode(_b));
     }
+
+    function testRevert_WillFailIfNativeCalldataLengthIsTooShort() public {
+        // Create calldata that is shorter than the required 188 bytes
+        bytes memory shortCalldata = new bytes(187); // 1 byte short
+
+        vm.expectRevert(InvalidCalldataLength.selector);
+
+        acrossFacetPackedV4.decode_startBridgeTokensViaAcrossV4NativePacked(
+            shortCalldata
+        );
+    }
+
+    function testRevert_WillFailIfERC20CalldataLengthIsTooShort() public {
+        // Create calldata that is shorter than the required 236 bytes
+        bytes memory shortCalldata = new bytes(235); // 1 byte short
+
+        vm.expectRevert(InvalidCalldataLength.selector);
+
+        acrossFacetPackedV4.decode_startBridgeTokensViaAcrossV4ERC20Packed(
+            shortCalldata
+        );
+    }
 }
