@@ -421,8 +421,89 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
   - `sendTransaction()` for transaction execution
   - `ensureBalanceAndAllowanceToDiamond()` for token approvals
   - `getUniswapData*()` functions for swap data generation
+  - `createDefaultBridgeData()` from `script/demoScripts/utils/bridgeDataHelpers.ts` for bridge data creation
 - Before implementing new functionality, search the codebase for existing helper functions
 - Helper functions provide consistent error handling, logging, and type safety across the project
+
+#### Type Safety for Bridge Data
+
+- **Always use proper typechain types** instead of `any` or custom types
+- Use `ILiFi.BridgeDataStruct` from typechain for bridge data
+- Use `createDefaultBridgeData()` helper function for consistent bridge data creation
+- Import `BridgeData` type alias from `bridgeDataHelpers.ts` for better readability
+- Never use `any` types for bridge data or other contract-related structures
+
+#### Testing Requirements for Helper Functions
+
+- **100% unit test coverage required** for all new TypeScript helper functions
+- Test files should be named `{helperName}.test.ts` and placed in the same directory as the helper
+- **Use Bun's built-in test runner** with Jest-like syntax (`describe`, `it`, `expect`)
+- Tests should cover:
+  - All function parameters and return values
+  - Edge cases and error conditions
+  - Type safety verification
+  - Default parameter behavior
+  - All possible input combinations
+- Include both positive and negative test cases
+- Test files should be comprehensive and well-documented
+
+#### TypeScript Test Setup
+
+We use Bun's built-in test runner for TypeScript helper functions. Bun provides Jest-like syntax with `describe`, `it`, and `expect`.
+
+**File Structure:**
+
+```
+script/
+├── runTypescriptTests.ts    # Main test runner script
+├── utils/
+│   └── someHelper.ts
+├── demoScripts/
+│   └── utils/
+│       ├── bridgeDataHelpers.ts
+│       └── bridgeDataHelpers.test.ts  # Test file in same directory
+```
+
+**Test File Template:**
+
+```typescript
+import { functionToTest } from './helperFile'
+
+describe('functionToTest', () => {
+  it('should do something', () => {
+    const result = functionToTest()
+    expect(result).toBe(expectedValue)
+  })
+})
+```
+
+**Available Assertions:**
+
+Bun's test runner provides Jest-compatible assertions:
+
+- `expect(value).toBe(expected)` - Strict equality
+- `expect(value).toBeInstanceOf(constructor)` - Type checking
+- `expect(value).toBeDefined()` - Existence check
+- `expect(value).toEqual(expected)` - Deep equality
+- `expect(value).toHaveLength(length)` - Array/string length
+- `expect(value).toMatchObject(object)` - Partial object matching
+- `expect(fn).toThrow()` - Function throws error
+- `expect(value).not.toEqual(expected)` - Negation
+
+**Running Tests:**
+
+- Single test file: `bun test path/to/test.test.ts`
+- All TypeScript tests: `npm run test:ts` (automatically finds and runs all `.test.ts` files in `script/` directory)
+- Specific test: `bun test path/to/specific.test.ts`
+
+**Best Practices:**
+
+- Test files should be self-contained and executable
+- Use descriptive test names that explain the expected behavior
+- Group related tests logically using `describe` blocks
+- Test both success and failure scenarios
+- Verify type safety where applicable
+- Keep tests simple and focused on one aspect at a time
 
 #### Code Quality and Linting Standards
 

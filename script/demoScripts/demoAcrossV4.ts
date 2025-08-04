@@ -1,10 +1,14 @@
 import { BigNumber, constants, utils } from 'ethers'
 
-import { type AcrossFacetV4, AcrossFacetV4__factory } from '../../typechain'
+import { AcrossFacetV4__factory, type AcrossFacetV4 } from '../../typechain'
 import type { LibSwap } from '../../typechain/AcrossFacetV4'
 import { EnvironmentEnum } from '../common/types'
 import { getDeployments } from '../utils/deploymentHelpers'
 
+import {
+  createDefaultBridgeData,
+  type BridgeData,
+} from './utils/bridgeDataHelpers'
 import {
   ADDRESS_DEV_WALLET_SOLANA_BYTES32,
   ADDRESS_DEV_WALLET_V4,
@@ -276,7 +280,7 @@ const getMinAmountOut = (quote: IAcrossV4Quote, fromAmount: string) => {
 }
 
 const createDestCallPayload = (
-  bridgeData: { transactionId: Uint8Array },
+  bridgeData: BridgeData,
   swapData: LibSwap.SwapDataStruct[],
   receiverAddress: string
 ): string => {
@@ -398,26 +402,20 @@ async function main() {
   console.log(`Across currently supports ${routes.length} routes`)
 
   // prepare bridgeData first
-  const bridgeData = {
-    transactionId: utils.randomBytes(32),
-    bridge: 'acrossV4',
-    integrator: 'demoScript',
-    referrer: '0x0000000000000000000000000000000000000000',
-    sendingAssetId: isNativeTX(TRANSACTION_TYPE)
-      ? constants.AddressZero
-      : sendingAssetIdSrc,
-    receiver: isSolana
+  const bridgeData = createDefaultBridgeData(
+    'acrossV4',
+    isNativeTX(TRANSACTION_TYPE) ? constants.AddressZero : sendingAssetIdSrc,
+    isSolana
       ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
       : WITH_DEST_CALL
       ? RECEIVER_ADDRESS_DST
       : walletAddress,
-    minAmount: fromAmount,
-    destinationChainId: toChainId,
-    hasSourceSwaps:
-      TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC ||
+    fromAmount,
+    toChainId,
+    TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC ||
       TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_SRC,
-    hasDestinationCall: WITH_DEST_CALL,
-  }
+    WITH_DEST_CALL
+  )
   console.log('bridgeData prepared: ')
   console.log(JSON.stringify(bridgeData, null, 2))
   console.log('--------------------------------')
