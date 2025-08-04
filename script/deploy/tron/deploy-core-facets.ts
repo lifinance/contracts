@@ -131,6 +131,14 @@ async function deployCoreFacets() {
     for (const facetName of coreFacets) {
       consola.info(`\n🔨 Deploying ${facetName}...`)
 
+      // Get version first (outside try block so we have it for error tracking)
+      let version = '0.0.0'
+      try {
+        version = await getContractVersion(facetName)
+      } catch {
+        consola.warn(`⚠️  Could not get version for ${facetName}`)
+      }
+
       try {
         // Check if facet is already deployed
         const existingAddress = await getContractAddress('tron', facetName)
@@ -166,8 +174,7 @@ async function deployCoreFacets() {
         // Load artifact
         const artifact = await loadForgeArtifact(facetName)
 
-        // Get version
-        const version = await getContractVersion(facetName)
+        // Display version
         consola.info(`📌 Version: ${version}`)
 
         // Prepare constructor arguments based on facet type
@@ -178,9 +185,8 @@ async function deployCoreFacets() {
           const globalConfig = await Bun.file('config/global.json').json()
           const pauserWallet = globalConfig.pauserWallet // This is 0x...
 
-          if (!pauserWallet) 
+          if (!pauserWallet)
             throw new Error('pauserWallet not found in config/global.json')
-          
 
           // TronWeb expects the base58 address format for constructor parameters
           // It will handle the conversion internally
@@ -233,7 +239,19 @@ async function deployCoreFacets() {
         if (!dryRun) await Bun.sleep(3000)
       } catch (error: any) {
         consola.error(`❌ Failed to deploy ${facetName}:`, error.message)
-        if (!dryRun) process.exit(1)
+
+        // Track failed deployment
+        deploymentResults.push({
+          contract: facetName,
+          address: 'FAILED',
+          txId: 'FAILED',
+          cost: 0,
+          version,
+        })
+
+        // Continue to next facet instead of exiting
+        consola.warn(`⚠️  Continuing to next facet...`)
+        continue
       }
     }
 
@@ -402,16 +420,37 @@ async function deployCoreFacets() {
       deploymentResults.map((r) => ({
         Contract: r.contract,
         Address:
-          r.address.length > 20
+          r.address === 'FAILED'
+            ? '❌ FAILED'
+            : r.address.length > 20
             ? `${r.address.slice(0, 10)}...${r.address.slice(-8)}`
             : r.address,
         Version: r.version,
-        Cost: r.txId === 'existing' ? 'existing' : `${r.cost.toFixed(4)} TRX`,
+        Cost:
+          r.txId === 'existing'
+            ? 'existing'
+            : r.txId === 'FAILED'
+            ? 'N/A'
+            : `${r.cost.toFixed(4)} TRX`,
       }))
     )
 
     const totalCost = deploymentResults.reduce((sum, r) => sum + r.cost, 0)
     consola.info(`\n💰 Total deployment cost: ${totalCost.toFixed(4)} TRX`)
+
+    // Check for failed deployments
+    const failedDeployments = deploymentResults.filter(
+      (r) => r.txId === 'FAILED'
+    )
+    if (failedDeployments.length > 0) {
+      consola.error(`\n❌ Failed deployments (${failedDeployments.length}):`)
+      failedDeployments.forEach((f) => {
+        consola.error(`   - ${f.contract}`)
+      })
+      consola.warn(
+        '\nPlease review the errors above and retry failed deployments individually.'
+      )
+    }
 
     if (dryRun)
       consola.info(
