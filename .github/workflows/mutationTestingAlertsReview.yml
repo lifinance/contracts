@@ -35,22 +35,36 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - uses: jwalton/gh-find-current-pr@master
-        id: findPr
-
-      - name: Validate and set PR Number
-        id: fetch_pr
+      - name: Get PR Number
+        id: get_pr
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
-          if [ -z "${{ steps.findPr.outputs.number }}" ]; then
-            echo "Error: No pull request found for this push." >&2
+          # Try to get PR number from different contexts
+          PR_NUMBER=""
+          
+          # If triggered by pull_request event
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            PR_NUMBER="${{ github.event.number }}"
+            echo "PR number from pull_request event: $PR_NUMBER"
+          
+          # If triggered by workflow_run or workflow_dispatch, search for PR
+          elif [ -n "${{ github.sha }}" ]; then
+            echo "Searching for PR associated with commit ${{ github.sha }}"
+            SEARCH_RESULT=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${{ github.ref_name }}")
+            
+            PR_NUMBER=$(echo "$SEARCH_RESULT" | jq -r '.[0].number // empty')
+            echo "PR number from API search: $PR_NUMBER"
+          fi
+          
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" == "null" ]; then
+            echo "Error: No pull request found for this trigger." >&2
             exit 1
           fi
-          echo "Found PR number: ${{ steps.findPr.outputs.number }}"
-          PR_NUMBER=${{ steps.findPr.outputs.number }}
+          
+          echo "Using PR number: $PR_NUMBER"
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
-          echo "Pull Request Number is: $PR_NUMBER"
 
       - name: Fetch Mutation Testing Results for PR
         env:
@@ -95,15 +109,28 @@ jobs:
         run: |
           echo "Searching for existing PR comment..."
 
-          COMMENT_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" | jq -r \
-            '.[] | select(.body | startswith("## 🧪 Mutation Testing Summary")) | .id')
+          # Get comments with error handling
+          COMMENTS_RESPONSE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments")
+          
+          echo "Comments API response:"
+          echo "$COMMENTS_RESPONSE" | head -20
+          
+          # Check if response is valid JSON array
+          if echo "$COMMENTS_RESPONSE" | jq -e '. | type == "array"' > /dev/null 2>&1; then
+            COMMENT_ID=$(echo "$COMMENTS_RESPONSE" | jq -r \
+              '.[] | select(.body | startswith("## 🧪 Mutation Testing Summary")) | .id // empty' | head -1)
+          else
+            echo "Warning: Invalid JSON response from comments API"
+            COMMENT_ID=""
+          fi
 
           if [[ -n "$COMMENT_ID" && "$COMMENT_ID" != "null" ]]; then
             echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> $GITHUB_ENV
+            echo "Found existing comment ID: $COMMENT_ID"
+          else
+            echo "No existing comment found"
           fi
-
-          echo "Found comment ID: $COMMENT_ID"
 
       - name: Post or Update PR Comment
         env:
