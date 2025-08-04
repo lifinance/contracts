@@ -21,9 +21,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x9c3C2a13a5dd24D078D247EEC09Cebf2fC4E4686": {
+      "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.1"
+        "Version": "1.0.0"
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
