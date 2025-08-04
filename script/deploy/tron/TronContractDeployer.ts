@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 import type {
@@ -37,7 +38,7 @@ export class TronContractDeployer {
     })
 
     if (this.config.verbose)
-      console.log('🔧 TronWeb initialized:', {
+      consola.debug('TronWeb initialized:', {
         network: this.config.fullHost,
         address: this.tronWeb.defaultAddress.base58,
       })
@@ -55,7 +56,7 @@ export class TronContractDeployer {
       const costEstimate = await this.estimateCost(artifact, constructorParams)
 
       if (this.config.verbose)
-        console.log('💰 Estimated deployment cost:', {
+        consola.debug('Estimated deployment cost:', {
           energy: costEstimate.energy,
           bandwidth: costEstimate.bandwidth,
           totalTrx: costEstimate.totalTrx.toFixed(4),
@@ -122,8 +123,8 @@ export class TronContractDeployer {
         Number(this.tronWeb.toSun(totalCost.toString()))
       )
 
-      if (this.config.verbose) 
-        console.log('📊 Fee calculation:', {
+      if (this.config.verbose)
+        consola.debug('Fee calculation:', {
           estimatedEnergy,
           estimatedBandwidth,
           energyCost: `${energyCost} TRX`,
@@ -131,7 +132,6 @@ export class TronContractDeployer {
           totalCost: `${totalCost} TRX`,
           feeLimitSun: `${feeLimitSun} SUN (integer)`,
         })
-      
 
       return {
         energy: estimatedEnergy,
@@ -188,7 +188,7 @@ export class TronContractDeployer {
   ): Promise<number> {
     try {
       if (this.config.verbose)
-        console.log('🔍 Estimating energy using triggerConstantContract...')
+        consola.debug('Estimating energy using triggerConstantContract...')
 
       // Encode constructor parameters if any
       let encodedParams = ''
@@ -228,10 +228,10 @@ export class TronContractDeployer {
       }
 
       if (this.config.verbose) {
-        console.log(
-          '📡 Calling triggerconstantcontract API for energy estimation...'
+        consola.debug(
+          'Calling triggerconstantcontract API for energy estimation...'
         )
-        console.log(
+        consola.debug(
           'Bytecode size:',
           artifact.bytecode.object.length / 2,
           'bytes'
@@ -265,15 +265,15 @@ export class TronContractDeployer {
 
       if (result.energy_used) {
         if (this.config.verbose)
-          console.log(`📊 Estimated energy usage: ${result.energy_used}`)
+          consola.debug(`Estimated energy usage: ${result.energy_used}`)
 
         // Add safety margin to the estimated energy
         const safetyMargin = this.config.safetyMargin || DEFAULT_SAFETY_MARGIN
         const estimatedEnergy = Math.ceil(result.energy_used * safetyMargin)
 
         if (this.config.verbose)
-          console.log(
-            `📊 Energy with ${safetyMargin}x safety margin: ${estimatedEnergy}`
+          consola.debug(
+            `Energy with ${safetyMargin}x safety margin: ${estimatedEnergy}`
           )
 
         return estimatedEnergy
@@ -281,8 +281,8 @@ export class TronContractDeployer {
 
       throw new Error('No energy estimation returned')
     } catch (error: any) {
-      console.error(
-        '❌ Failed to estimate energy via triggerConstantContract:',
+      consola.error(
+        ' Failed to estimate energy via triggerConstantContract:',
         error.message
       )
       throw new Error(
@@ -307,7 +307,7 @@ export class TronContractDeployer {
         )
 
       if (this.config.verbose)
-        console.log(`✅ Balance check passed: ${balanceTrx} TRX available`)
+        consola.debug(`Balance check passed: ${balanceTrx} TRX available`)
     } catch (error: any) {
       throw new Error(`Balance validation failed: ${error.message}`)
     }
@@ -322,7 +322,7 @@ export class TronContractDeployer {
     costEstimate: ITronCostEstimate
   ): Promise<Omit<ITronDeploymentResult, 'receipt' | 'actualCost'>> {
     try {
-      if (this.config.verbose) console.log('🚀 Deploying contract...')
+      if (this.config.verbose) consola.debug('Deploying contract...')
 
       // Use the estimated energy as originEnergyLimit
       const deployTx =
@@ -376,7 +376,7 @@ export class TronContractDeployer {
     const mockTxId = `DRY_RUN_${Date.now()}`
     const mockAddress = 'T' + 'X'.repeat(33)
 
-    console.log('🧪 DRY RUN - Simulated deployment:', {
+    consola.info(' DRY RUN - Simulated deployment:', {
       contractAddress: mockAddress,
       transactionId: mockTxId,
       estimatedCost: costEstimate.totalTrx.toFixed(4) + ' TRX',
@@ -418,7 +418,7 @@ export class TronContractDeployer {
     let retries = 0
 
     if (this.config.verbose)
-      console.log(`⏳ Waiting for transaction confirmation: ${transactionId}`)
+      consola.info(` Waiting for transaction confirmation: ${transactionId}`)
 
     while (Date.now() - startTime < timeoutMs) {
       try {
@@ -431,7 +431,7 @@ export class TronContractDeployer {
             )
 
           if (this.config.verbose)
-            console.log('✅ Transaction confirmed:', {
+            consola.debug('Transaction confirmed:', {
               blockNumber: receipt.blockNumber,
               energyUsed: receipt.receipt?.energy_usage_total || 0,
               result: receipt.result,
@@ -448,9 +448,7 @@ export class TronContractDeployer {
           )
 
         if (this.config.verbose)
-          console.log(
-            `⚠️  Retry ${retries}/${maxRetries} for transaction receipt`
-          )
+          consola.warn(`Retry ${retries}/${maxRetries} for transaction receipt`)
       }
 
       await this.sleep(pollInterval)

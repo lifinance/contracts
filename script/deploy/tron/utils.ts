@@ -1,5 +1,7 @@
 import { resolve } from 'path'
 
+import { consola } from 'consola'
+
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 
@@ -29,7 +31,7 @@ export async function loadForgeArtifact(
         `Invalid artifact for ${contractName}: missing ABI or bytecode`
       )
 
-    console.log(`📁 Loaded ${contractName} from: ${artifactPath}`)
+    consola.info(`Loaded ${contractName} from: ${artifactPath}`)
     return artifact
   } catch (error: any) {
     throw new Error(`Failed to load ${contractName} artifact: ${error.message}`)

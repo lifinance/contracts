@@ -95,7 +95,7 @@ async function estimateDiamondCutEnergy(
 ): Promise<number> {
   try {
     consola.info(
-      '📡 Calling triggerconstantcontract API for energy estimation...'
+      ' Calling triggerconstantcontract API for energy estimation...'
     )
 
     // Diamond address should stay in base58 for Tron API
@@ -153,7 +153,7 @@ async function estimateDiamondCutEnergy(
 
     const result = await response.json()
 
-    consola.info('📊 Estimation API response:', JSON.stringify(result, null, 2))
+    consola.info(' Estimation API response:', JSON.stringify(result, null, 2))
 
     if (result.result?.result === false)
       throw new Error(
@@ -163,15 +163,15 @@ async function estimateDiamondCutEnergy(
       )
 
     if (result.energy_used) {
-      consola.info(`📊 Raw energy estimate: ${result.energy_used}`)
+      consola.info(` Raw energy estimate: ${result.energy_used}`)
       // The actual transaction uses much more energy than the estimate
       // Multiply by 10x for safety (actual usage was ~16x the estimate)
       const safetyMultiplier = 10
       const estimatedEnergy = Math.ceil(result.energy_used * safetyMultiplier)
       consola.info(
-        `📊 Energy with ${safetyMultiplier}x safety margin: ${estimatedEnergy}`
+        ` Energy with ${safetyMultiplier}x safety margin: ${estimatedEnergy}`
       )
-      consola.warn(`⚠️ Note: Actual energy usage may be higher than estimate`)
+      consola.warn(` Note: Actual energy usage may be higher than estimate`)
       return estimatedEnergy
     }
 
@@ -179,7 +179,7 @@ async function estimateDiamondCutEnergy(
       `No energy estimation returned. Full response: ${JSON.stringify(result)}`
     )
   } catch (error: any) {
-    consola.error('❌ Failed to estimate energy:', error.message)
+    consola.error(' Failed to estimate energy:', error.message)
     throw error
   }
 }
@@ -201,7 +201,7 @@ async function registerFacetsBatch(
   for (const facetName of facetNames) {
     const facetAddress = deployments[facetName]
     if (!facetAddress) {
-      consola.warn(`⚠️ ${facetName} not found in deployments, skipping`)
+      consola.warn(` ${facetName} not found in deployments, skipping`)
       continue
     }
 
@@ -227,7 +227,7 @@ async function registerFacetsBatch(
     }
 
     if (isRegistered) {
-      consola.info(`✅ ${facetName} already registered: ${facetAddress}`)
+      consola.info(` ${facetName} already registered: ${facetAddress}`)
       continue
     }
 
@@ -244,7 +244,7 @@ async function registerFacetsBatch(
     ])
 
     consola.info(
-      `📦 Prepared ${facetName}: ${facetAddress} with ${
+      ` Prepared ${facetName}: ${facetAddress} with ${
         FACET_SELECTORS[facetName]?.length || 0
       } selectors`
     )
@@ -269,16 +269,16 @@ async function registerFacetsBatch(
     )
 
     estimatedCost = (estimatedEnergy * ENERGY_PRICE) / 1000000
-    consola.info(`💰 Estimated cost: ${estimatedCost.toFixed(4)} TRX`)
+    consola.info(` Estimated cost: ${estimatedCost.toFixed(4)} TRX`)
   } catch (error: any) {
     consola.error(
-      '❌ Energy estimation failed. Cannot proceed without estimation.'
+      ' Energy estimation failed. Cannot proceed without estimation.'
     )
     consola.error('Error details:', error.message)
     return false
   }
   if (dryRun) {
-    consola.info('🔍 Dry run mode - not executing transaction')
+    consola.info(' Dry run mode - not executing transaction')
     // Format for display
     const displayCuts = facetCuts.map((cut) => ({
       facetAddress: cut[0],
@@ -299,7 +299,7 @@ async function registerFacetsBatch(
       `Insufficient balance. Have: ${balanceTRX} TRX, Need: at least ${requiredTRX} TRX`
     )
   // Execute diamondCut
-  consola.info(`🚀 Executing diamondCut for ${facetCuts.length} facets...`)
+  consola.info(` Executing diamondCut for ${facetCuts.length} facets...`)
 
   try {
     // First, let's verify the diamond has the diamondCut function
@@ -313,9 +313,9 @@ async function registerFacetsBatch(
         )
 
       if (testResult.result?.result)
-        consola.info('✅ Diamond has diamondCut function registered')
+        consola.info(' Diamond has diamondCut function registered')
     } catch (e) {
-      consola.warn('⚠️ Could not verify diamondCut function')
+      consola.warn(' Could not verify diamondCut function')
     }
 
     // TronWeb contract calls - facetCuts is already formatted as arrays
@@ -333,10 +333,10 @@ async function registerFacetsBatch(
         shouldPollResponse: true,
       })
 
-    consola.success(`✅ Transaction successful: ${tx}`)
+    consola.success(` Transaction successful: ${tx}`)
     return true
   } catch (error: any) {
-    consola.error('❌ diamondCut failed:', error.message || error)
+    consola.error(' diamondCut failed:', error.message || error)
 
     // Log more details about the error
     if (error.error) consola.error('Error details:', error.error)
@@ -395,7 +395,7 @@ async function registerFacetsToDiamond(
       privateKey,
     })
 
-    consola.info(`🌐 Connected to: ${fullHost}`)
+    consola.info(` Connected to: ${fullHost}`)
     consola.info(`👛 Deployer: ${tronWeb.defaultAddress.base58}`)
 
     // 3. Get LiFiDiamond contract
@@ -459,7 +459,7 @@ async function registerFacetsToDiamond(
         : facetsResponse
       loupeExists = true
       consola.success(
-        `✅ DiamondLoupe already registered, found ${facets.length} facets`
+        ` DiamondLoupe already registered, found ${facets.length} facets`
       )
 
       // List existing facets
@@ -477,20 +477,19 @@ async function registerFacetsToDiamond(
         const facetName = Object.entries(deployments).find(
           ([_, addr]) => addr === facetBase58
         )?.[0]
-        if (facetName) 
+        if (facetName)
           consola.info(
             `  - ${facetName}: ${facetBase58} (${selectors.length} selectors)`
           )
-        
       }
     } catch (error) {
-      consola.info('📝 DiamondLoupe not registered yet')
+      consola.info(' DiamondLoupe not registered yet')
     }
 
     // 5. Determine registration strategy
     if (options.splitMode) {
       // Register in groups
-      consola.info('📦 Using split registration mode...')
+      consola.info(' Using split registration mode...')
 
       for (let i = 0; i < FACET_GROUPS.length; i++) {
         const group = FACET_GROUPS[i]
@@ -498,12 +497,12 @@ async function registerFacetsToDiamond(
 
         // Skip DiamondLoupe group if already exists
         if (i === 0 && loupeExists) {
-          consola.info('⏭️ Skipping DiamondLoupe group (already registered)')
+          consola.info(' Skipping DiamondLoupe group (already registered)')
           continue
         }
 
         consola.info(
-          `\n📋 Processing group ${i + 1}/${FACET_GROUPS.length}: ${group.join(
+          `\n Processing group ${i + 1}/${FACET_GROUPS.length}: ${group.join(
             ', '
           )}`
         )
@@ -523,13 +522,13 @@ async function registerFacetsToDiamond(
 
         // Small delay between groups
         if (i < FACET_GROUPS.length - 1 && !options.dryRun) {
-          consola.info('⏳ Waiting 3 seconds before next group...')
+          consola.info(' Waiting 3 seconds before next group...')
           await new Promise((resolve) => setTimeout(resolve, 3000))
         }
       }
     } else {
       // Register all at once
-      consola.info('📦 Using batch registration mode...')
+      consola.info(' Using batch registration mode...')
 
       const allFacets = [
         'DiamondLoupeFacet',
@@ -560,14 +559,14 @@ async function registerFacetsToDiamond(
       )
 
       if (!success && !options.dryRun) {
-        consola.warn('⚠️ Batch registration failed. Try using --split mode.')
+        consola.warn(' Batch registration failed. Try using --split mode.')
         throw new Error('Batch registration failed')
       }
     }
 
     // 6. Final verification (if not dry run)
     if (!options.dryRun) {
-      consola.info('\n🔍 Verifying final facet registration...')
+      consola.info('\n Verifying final facet registration...')
 
       try {
         // Call facets() to get the full list with selectors
@@ -578,7 +577,7 @@ async function registerFacetsToDiamond(
           ? facetsResponse[0]
           : facetsResponse
 
-        consola.success(`📋 Total registered facets: ${facets.length}`)
+        consola.success(` Total registered facets: ${facets.length}`)
 
         // Map addresses to names and display
         const facetList: string[] = []
@@ -602,11 +601,9 @@ async function registerFacetsToDiamond(
           if (facetName) {
             facetList.push(facetName)
             consola.info(
-              `  ✅ ${facetName}: ${facetBase58} (${selectors.length} functions)`
+              `   ${facetName}: ${facetBase58} (${selectors.length} functions)`
             )
-          } else 
-            consola.warn(`  ⚠️ Unknown facet: ${facetBase58}`)
-          
+          } else consola.warn(`   Unknown facet: ${facetBase58}`)
         }
 
         // Check if all expected facets are registered
@@ -620,26 +617,26 @@ async function registerFacetsToDiamond(
         )
 
         if (missingFacets.length > 0)
-          consola.warn(`⚠️ Missing facets: ${missingFacets.join(', ')}`)
+          consola.warn(` Missing facets: ${missingFacets.join(', ')}`)
         else consola.success('✨ All expected facets are registered!')
 
         // Test a basic function call
-        consola.info('\n🧪 Testing basic function calls...')
+        consola.info('\n Testing basic function calls...')
 
         try {
           const owner = await diamond.owner().call()
-          consola.success(`  ✅ owner(): ${owner}`)
+          consola.success(`   owner(): ${owner}`)
         } catch (error) {
           consola.warn(
-            '  ⚠️ Could not call owner() - OwnershipFacet might not be registered'
+            '   Could not call owner() - OwnershipFacet might not be registered'
           )
         }
       } catch (error: any) {
-        consola.error('❌ Verification failed:', error.message)
+        consola.error(' Verification failed:', error.message)
       }
     }
   } catch (error: any) {
-    consola.error('💥 Registration failed:', error.message || error)
+    consola.error(' Registration failed:', error.message || error)
     throw error
   }
 }
@@ -653,10 +650,10 @@ if (import.meta.main) {
   }
 
   if (options.dryRun)
-    consola.info('🔍 Running in DRY RUN mode - no transactions will be sent')
+    consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
   if (options.splitMode)
-    consola.info('📦 Using SPLIT mode - facets will be registered in groups')
+    consola.info(' Using SPLIT mode - facets will be registered in groups')
 
   consola.start('Starting facet registration...')
 
@@ -666,7 +663,7 @@ if (import.meta.main) {
       process.exit(0)
     })
     .catch((error) => {
-      consola.error('💥 Registration failed:', error.message || error)
+      consola.error(' Registration failed:', error.message || error)
       process.exit(1)
     })
 }

@@ -21,7 +21,7 @@ import {
  * Deploy core facets to Tron
  */
 async function deployCoreFacets() {
-  consola.start('🚀 TRON Core Facets Deployment')
+  consola.start('TRON Core Facets Deployment')
   consola.info('================================\n')
 
   // Get environment from config.sh
@@ -36,7 +36,7 @@ async function deployCoreFacets() {
   try {
     tronConfig = getNetworkConfig('tron')
   } catch (error: any) {
-    consola.error(`❌ ${error.message}`)
+    consola.error(` ${error.message}`)
     consola.error(
       'Please ensure "tron" network is configured in config/networks.json'
     )
@@ -48,7 +48,7 @@ async function deployCoreFacets() {
   try {
     privateKey = await getPrivateKey()
   } catch (error: any) {
-    consola.error(`❌ ${error.message}`)
+    consola.error(` ${error.message}`)
     consola.error(
       `Please ensure ${
         environment === 'production' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
@@ -76,7 +76,7 @@ async function deployCoreFacets() {
   try {
     // Get network info
     const networkInfo = await deployer.getNetworkInfo()
-    consola.info('🌐 Network Info:', {
+    consola.info('Network Info:', {
       network: network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet',
       rpcUrl: network,
       environment: environment.toUpperCase(),
@@ -86,9 +86,9 @@ async function deployCoreFacets() {
     })
 
     if (networkInfo.balance < 100)
-      consola.warn('⚠️  Low balance detected. Deployment may fail.')
+      consola.warn('Low balance detected. Deployment may fail.')
 
-    consola.info('\n📋 Deployment Plan:')
+    consola.info('\n Deployment Plan:')
     consola.info('1. Deploy DiamondCutFacet')
     consola.info('2. Deploy DiamondLoupeFacet')
     consola.info('3. Deploy OwnershipFacet')
@@ -96,7 +96,7 @@ async function deployCoreFacets() {
 
     if (!dryRun && environment === 'production') {
       consola.warn(
-        '🚨 WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
+        ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
       )
       const shouldContinue = await consola.prompt('Do you want to continue?', {
         type: 'confirm',
@@ -108,7 +108,7 @@ async function deployCoreFacets() {
         process.exit(0)
       }
     } else if (!dryRun) {
-      consola.warn('⚠️  This will deploy contracts to Tron mainnet in STAGING!')
+      consola.warn('This will deploy contracts to Tron mainnet in STAGING!')
       const shouldContinue = await consola.prompt('Do you want to continue?', {
         type: 'confirm',
         initial: true,
@@ -122,21 +122,21 @@ async function deployCoreFacets() {
 
     // Get core facets from config
     const coreFacets = getCoreFacets()
-    consola.info('📦 Core facets to deploy:', coreFacets)
+    consola.info('Core facets to deploy:', coreFacets)
 
     const deployedFacets: Record<string, string> = {}
     const deploymentResults = []
 
     // Deploy each core facet
     for (const facetName of coreFacets) {
-      consola.info(`\n🔨 Deploying ${facetName}...`)
+      consola.info(`\n Deploying ${facetName}...`)
 
       // Get version first (outside try block so we have it for error tracking)
       let version = '0.0.0'
       try {
         version = await getContractVersion(facetName)
       } catch {
-        consola.warn(`⚠️  Could not get version for ${facetName}`)
+        consola.warn(`  Could not get version for ${facetName}`)
       }
 
       try {
@@ -144,7 +144,7 @@ async function deployCoreFacets() {
         const existingAddress = await getContractAddress('tron', facetName)
         if (existingAddress && !dryRun) {
           consola.warn(
-            `⚠️  ${facetName} is already deployed at: ${existingAddress}`
+            `  ${facetName} is already deployed at: ${existingAddress}`
           )
           const shouldRedeploy = await consola.prompt(
             `Redeploy ${facetName}?`,
@@ -155,7 +155,7 @@ async function deployCoreFacets() {
           )
 
           if (!shouldRedeploy) {
-            consola.info(`✓ Using existing ${facetName} at: ${existingAddress}`)
+            consola.info(`Using existing ${facetName} at: ${existingAddress}`)
             deployedFacets[facetName] = existingAddress
 
             // Get version for existing contract
@@ -175,7 +175,7 @@ async function deployCoreFacets() {
         const artifact = await loadForgeArtifact(facetName)
 
         // Display version
-        consola.info(`📌 Version: ${version}`)
+        consola.info(`Version: ${version}`)
 
         // Prepare constructor arguments based on facet type
         let constructorArgs: any[] = []
@@ -202,7 +202,7 @@ async function deployCoreFacets() {
           // The ABI encoder needs this format for proper encoding
           constructorArgs = [pauserWallet]
           consola.info(
-            `📝 Using pauserWallet: ${tronBase58} (hex: ${pauserWallet})`
+            ` Using pauserWallet: ${tronBase58} (hex: ${pauserWallet})`
           )
         } else if (facetName === 'GenericSwapFacetV3') {
           // GenericSwapFacetV3 requires native token address
@@ -232,7 +232,7 @@ async function deployCoreFacets() {
           // Use original hex format (0x...) for constructor args
           constructorArgs = [nativeAddress]
           consola.info(
-            `📝 Using nativeAddress: ${tronNativeAddress} (hex: ${nativeAddress})`
+            ` Using nativeAddress: ${tronNativeAddress} (hex: ${nativeAddress})`
           )
         }
 
@@ -248,11 +248,9 @@ async function deployCoreFacets() {
           version,
         })
 
-        consola.success(
-          `✅ ${facetName} deployed to: ${result.contractAddress}`
-        )
-        consola.info(`🔗 Transaction: ${result.transactionId}`)
-        consola.info(`💰 Cost: ${result.actualCost.trxCost} TRX`)
+        consola.success(` ${facetName} deployed to: ${result.contractAddress}`)
+        consola.info(`Transaction: ${result.transactionId}`)
+        consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
         // Log deployment (skip in dry run)
         if (!dryRun) {
@@ -271,7 +269,7 @@ async function deployCoreFacets() {
         // Wait between deployments
         if (!dryRun) await Bun.sleep(3000)
       } catch (error: any) {
-        consola.error(`❌ Failed to deploy ${facetName}:`, error.message)
+        consola.error(` Failed to deploy ${facetName}:`, error.message)
 
         // Track failed deployment
         deploymentResults.push({
@@ -283,13 +281,13 @@ async function deployCoreFacets() {
         })
 
         // Continue to next facet instead of exiting
-        consola.warn(`⚠️  Continuing to next facet...`)
+        consola.warn(`  Continuing to next facet...`)
         continue
       }
     }
 
     // Deploy LiFiDiamond
-    consola.info('\n🔨 Deploying LiFiDiamond...')
+    consola.info('\n Deploying LiFiDiamond...')
 
     try {
       // Check if LiFiDiamond is already deployed
@@ -299,7 +297,7 @@ async function deployCoreFacets() {
       )
       if (existingDiamondAddress && !dryRun) {
         consola.warn(
-          `⚠️  LiFiDiamond is already deployed at: ${existingDiamondAddress}`
+          `  LiFiDiamond is already deployed at: ${existingDiamondAddress}`
         )
         const shouldRedeploy = await consola.prompt('Redeploy LiFiDiamond?', {
           type: 'confirm',
@@ -308,7 +306,7 @@ async function deployCoreFacets() {
 
         if (!shouldRedeploy) {
           consola.info(
-            `✓ Using existing LiFiDiamond at: ${existingDiamondAddress}`
+            ` Using existing LiFiDiamond at: ${existingDiamondAddress}`
           )
 
           // Get version for existing contract
@@ -338,10 +336,10 @@ async function deployCoreFacets() {
             existingDiamondAddress,
             facetsInfo
           )
-          consola.success('📄 Diamond deployment file updated')
+          consola.success('Diamond deployment file updated')
 
           // Skip to summary
-          consola.success('\n🎉 Deployment Complete!')
+          consola.success('\n Deployment Complete!')
           consola.info('========================\n')
           console.table(
             deploymentResults.map((r) => ({
@@ -360,13 +358,11 @@ async function deployCoreFacets() {
             (sum, r) => sum + r.cost,
             0
           )
-          consola.info(
-            `\n💰 Total deployment cost: ${totalCost.toFixed(4)} TRX`
-          )
+          consola.info(`\n Total deployment cost: ${totalCost.toFixed(4)} TRX`)
 
           if (dryRun)
             consola.info(
-              '\n🧪 This was a DRY RUN - no contracts were actually deployed'
+              '\n This was a DRY RUN - no contracts were actually deployed'
             )
 
           return
@@ -399,9 +395,9 @@ async function deployCoreFacets() {
 
       const constructorArgs = [ownerHex, diamondCutHex]
 
-      consola.info(`📝 Using owner: ${ownerAddress} (hex: ${ownerHex})`)
+      consola.info(`Using owner: ${ownerAddress} (hex: ${ownerHex})`)
       consola.info(
-        `📝 Using DiamondCutFacet: ${diamondCutFacetAddress} (hex: ${diamondCutHex})`
+        ` Using DiamondCutFacet: ${diamondCutFacetAddress} (hex: ${diamondCutHex})`
       )
 
       const diamondResult = await deployer.deployContract(
@@ -418,10 +414,10 @@ async function deployCoreFacets() {
       })
 
       consola.success(
-        `✅ LiFiDiamond deployed to: ${diamondResult.contractAddress}`
+        ` LiFiDiamond deployed to: ${diamondResult.contractAddress}`
       )
-      consola.info(`🔗 Transaction: ${diamondResult.transactionId}`)
-      consola.info(`💰 Cost: ${diamondResult.actualCost.trxCost} TRX`)
+      consola.info(`Transaction: ${diamondResult.transactionId}`)
+      consola.info(`Cost: ${diamondResult.actualCost.trxCost} TRX`)
 
       // Log deployment
       if (!dryRun) {
@@ -458,22 +454,22 @@ async function deployCoreFacets() {
           diamondResult.contractAddress,
           facetsInfo
         )
-        consola.success('📄 Diamond deployment file saved')
+        consola.success('Diamond deployment file saved')
       }
     } catch (error: any) {
-      consola.error('❌ Failed to deploy LiFiDiamond:', error.message)
+      consola.error('Failed to deploy LiFiDiamond:', error.message)
       if (!dryRun) process.exit(1)
     }
 
     // Print summary
-    consola.success('\n🎉 Deployment Complete!')
+    consola.success('\n Deployment Complete!')
     consola.info('========================\n')
     console.table(
       deploymentResults.map((r) => ({
         Contract: r.contract,
         Address:
           r.address === 'FAILED'
-            ? '❌ FAILED'
+            ? ' FAILED'
             : r.address.length > 20
             ? `${r.address.slice(0, 10)}...${r.address.slice(-8)}`
             : r.address,
@@ -488,14 +484,14 @@ async function deployCoreFacets() {
     )
 
     const totalCost = deploymentResults.reduce((sum, r) => sum + r.cost, 0)
-    consola.info(`\n💰 Total deployment cost: ${totalCost.toFixed(4)} TRX`)
+    consola.info(`\n Total deployment cost: ${totalCost.toFixed(4)} TRX`)
 
     // Check for failed deployments
     const failedDeployments = deploymentResults.filter(
       (r) => r.txId === 'FAILED'
     )
     if (failedDeployments.length > 0) {
-      consola.error(`\n❌ Failed deployments (${failedDeployments.length}):`)
+      consola.error(`\n Failed deployments (${failedDeployments.length}):`)
       failedDeployments.forEach((f) => {
         consola.error(`   - ${f.contract}`)
       })
@@ -506,10 +502,10 @@ async function deployCoreFacets() {
 
     if (dryRun)
       consola.info(
-        '\n🧪 This was a DRY RUN - no contracts were actually deployed'
+        '\n This was a DRY RUN - no contracts were actually deployed'
       )
   } catch (error: any) {
-    consola.error('💥 Deployment failed:', error.message)
+    consola.error('Deployment failed:', error.message)
     process.exit(1)
   }
 }
