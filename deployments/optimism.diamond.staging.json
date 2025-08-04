@@ -144,6 +144,22 @@
       "0xfEeCe7B3e68B9cBeADB60598973704a776ac3ca1": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
+      },
+      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x0f4D0D8890bAF9036D3895315559a6F0d573e2EC": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -153,11 +169,11 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
