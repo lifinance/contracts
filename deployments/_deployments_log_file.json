@@ -38662,7 +38662,7 @@
             "TIMESTAMP": "2025-08-01 16:39:21",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "12345678",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
