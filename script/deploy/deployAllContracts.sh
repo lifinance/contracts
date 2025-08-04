@@ -105,6 +105,8 @@ deployAllContracts() {
       echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
       bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
       bun fetch-rpcs
+      # reload .env file to have the new RPC URL available
+      source .env
     fi
 
     # get deployer wallet balance
@@ -119,13 +121,19 @@ deployAllContracts() {
     echo ""
     checkRequiredVariablesInDotEnv "$NETWORK"
 
+    echo "isZkEVM: $(isZkEvmNetwork "$NETWORK")"
+
     # deploy CREATE3Factory
-    if [[ -z "$CREATE3_ADDRESS" || "$CREATE3_ADDRESS" == "null" ]]; then
-      deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
-      checkFailure $? "deploy CREATE3Factory to network $NETWORK"
-      echo ""
+    if isZkEvmNetwork "$NETWORK"; then
+      echo "zkEVM network detected, skipping CREATE3Factory deployment"
     else
-      echo "CREATE3Factory already deployed for $NETWORK (address: $CREATE3_ADDRESS), skipping CREATE3Factory deployment."
+      if [[ -z "$CREATE3_ADDRESS" || "$CREATE3_ADDRESS" == "null" ]]; then
+        deployAndStoreCREATE3Factory "$NETWORK" "$ENVIRONMENT"
+        checkFailure $? "deploy CREATE3Factory to network $NETWORK"
+        echo ""
+      else
+        echo "CREATE3Factory already deployed for $NETWORK (address: $CREATE3_ADDRESS), skipping CREATE3Factory deployment."
+      fi
     fi
 
     # deploy SAFE

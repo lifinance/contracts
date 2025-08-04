@@ -961,12 +961,12 @@
     "explorerUrl": "https://sophscan.xyz",
     "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=50104",
     "multicallAddress": "0x5f4867441d2416cA88B1b3fd38f21811680CD2C8",
-    "safeAddress": "",
+    "safeAddress": "0xEd16F4d0802f95213afD558A8385D28a921c5c96",
     "gasZipChainId": 484,
     "isZkEVM": true,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": ""
+    "create3Factory": "n/a"
   },
   "superposition": {
     "name": "superposition",

@@ -135,8 +135,12 @@ deploySingleContract() {
   BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
 
   # get CREATE3_FACTORY_ADDRESS
-  CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
-  checkFailure $? "retrieve create3Factory address from networks.json"
+  if isZkEvmNetwork "$NETWORK"; then
+    CREATE3_FACTORY_ADDRESS="0x0000000000000000000000000000000000000000"
+  else
+    CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+    checkFailure $? "retrieve create3Factory address from networks.json"
+  fi
 
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
@@ -298,11 +302,11 @@ deploySingleContract() {
   # prepare information for logfile entry
   TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
   OPTIMIZER=$(getOptimizerRuns)
-  
+
   # Get compiler versions used for deployment
   SOLC_VERSION=$(getSolcVersion "$NETWORK")
   EVM_VERSION=$(getEvmVersion "$NETWORK")
-  
+
   # Get zk-solc version for zkEvm networks
   if isZkEvmNetwork "$NETWORK"; then
     ZK_SOLC_VERSION=$(getZkSolcVersion "$NETWORK")
