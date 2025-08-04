@@ -24,6 +24,9 @@ jobs:
   mutation-testing:
     name: Mutation Testing Quality Check
     runs-on: ubuntu-latest
+    outputs:
+      SHOULD_RUN: ${{ steps.create-batches.outputs.SHOULD_RUN }}
+      BATCHES_JSON: ${{ steps.create-batches.outputs.BATCHES_JSON }}
 
     steps:
       - name: Checkout Repository
@@ -53,33 +56,62 @@ jobs:
           files: |
             src/**/*.sol
 
-      - name: Convert Files to Args
-        id: format-args
+      - name: Create Batches
+        id: create-batches
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: process contracts in src/ (limited to 95 files to stay under 100 limit)
-            echo "Manual run - processing contracts in src/ (max 95 files)"
-            # Prioritize: Facets first, then main contracts, then helpers, skip interfaces
-            files=$(find src/Facets/ src/Periphery/ src/Helpers/ src/ -maxdepth 1 -name "*.sol" -type f 2>/dev/null | grep -v "/Interfaces/" | head -95)
-            echo "SHOULD_RUN=true" >> $GITHUB_ENV
+            # Manual run: process ALL contracts in src/
+            echo "Manual run - processing ALL contracts in src/"
+            files=$(find src/ -name "*.sol" -type f)
+            echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
           else
             # PR run: use changed files
             if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
               files="${{ steps.changed-files.outputs.all_changed_files }}"
-              echo "SHOULD_RUN=true" >> $GITHUB_ENV
+              echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
             else
-              echo "SHOULD_RUN=false" >> $GITHUB_ENV
+              echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
               exit 0
             fi
           fi
           
-          # Convert to -p arguments for batch processing
-          args=$(echo "$files" | xargs -n 1 printf -- "-p %s ")
-          echo "ARGS=$args" >> $GITHUB_ENV
-          echo "Selected files for mutation testing: $files"
+          # Split files into batches of 100
+          file_array=($files)
+          total_files=${#file_array[@]}
+          echo "Total files found: $total_files"
+          
+          batches="["
+          batch_size=100
+          for ((i=0; i<total_files; i+=batch_size)); do
+            batch_files=("${file_array[@]:i:batch_size}")
+            batch_args=$(printf -- "-p %s " "${batch_files[@]}")
+            
+            if [[ $i -gt 0 ]]; then
+              batches+=","
+            fi
+            batches+="{\"args\":\"generate-mutation-tests $batch_args\",\"batch_num\":$((i/batch_size + 1))}"
+          done
+          batches+="]"
+          
+          echo "BATCHES_JSON=$batches" >> $GITHUB_OUTPUT
+          echo "Created $((((total_files-1)/batch_size)+1)) batches"
 
-      - name: Run Olympix Mutation Testing (Batch)
-        if: env.SHOULD_RUN == 'true'
+  # Process each batch
+  mutation-testing-batches:
+    name: Mutation Testing Batch
+    runs-on: ubuntu-latest
+    needs: mutation-testing
+    if: needs.mutation-testing.outputs.SHOULD_RUN == 'true'
+    strategy:
+      matrix:
+        batch: ${{ fromJson(needs.mutation-testing.outputs.BATCHES_JSON) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Olympix Mutation Testing (Batch ${{ matrix.batch.batch_num }})
         uses: olympix/mutation-test-generator@main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
@@ -87,7 +119,7 @@ jobs:
           OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
           OPIX_DEBUG: true
         with:
-          args: generate-mutation-tests ${{ env.ARGS }}
+          args: ${{ matrix.batch.args }}
 
       - name: Summary
         run: |
