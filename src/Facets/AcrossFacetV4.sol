@@ -39,7 +39,7 @@ contract AcrossFacetV4 is
     /// @param receiverAddress The address that will receive the token on dst chain
     ///                        (our Receiver contract or the user-defined receiver address)
     /// @param refundAddress The address that will be used for potential bridge refunds
-    /// @param sendingAssetId The address of the token to be sent from source chain (as bytes32)
+    /// @param sendingAssetId The address of the token to be sent from source chain
     /// @param receivingAssetId The address of the token to be received at destination chain
     /// @param outputAmount The amount to be received at destination chain (after fees)
     /// @param outputAmountMultiplier In case of pre-bridge swaps we need to adjust the output amount
@@ -179,10 +179,7 @@ contract AcrossFacetV4 is
                 _acrossData.receiverAddress
             ) revert InvalidReceiver();
 
-            if (
-                _acrossData.receiverAddress !=
-                _convertAddressToBytes32(_bridgeData.receiver)
-            ) {
+            if (_acrossData.receiverAddress == bytes32(0)) {
                 revert InvalidReceiver();
             }
         }

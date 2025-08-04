@@ -192,7 +192,7 @@ To interact with this optimized facet, use requests directly returned by the LI.
 ## Deployment Requirements
 
 - **Across SpokePool V4**: The V4 SpokePool contract address for the current network
-- **Wrapped Native**: The wrapped native token address (as bytes32)
+- **Wrapped Native**: The wrapped native token address
 - **Owner**: The contract owner address for administrative functions
 
 ## Supported Networks

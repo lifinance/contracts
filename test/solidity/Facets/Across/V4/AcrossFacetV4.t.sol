@@ -522,6 +522,28 @@ contract AcrossFacetV4Test is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_WillFailIfEVMReceiverAddressIsZero() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
+
+        // Set up for EVM chain (not non-EVM)
+        bridgeData.receiver = USER_RECEIVER; // EVM address
+        validAcrossData.receivingAssetId = _convertAddressToBytes32(
+            ADDRESS_USDC_POL
+        );
+
+        // Set receiver address to zero (which should cause InvalidReceiver for EVM)
+        validAcrossData.receiverAddress = bytes32(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
 
