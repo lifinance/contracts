@@ -450,7 +450,7 @@
     "wrappedNativeAddress": "0x5555555555555555555555555555555555555555",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://hyperliquid-json-rpc.stakely.io",
+    "rpcUrl": "https://rpc.hypurrscan.io",
     "verificationType": "blockscout",
     "explorerUrl": "https://hyperevmscan.io",
     "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=999",
