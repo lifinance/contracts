@@ -53,9 +53,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x222b97E533220A47ad8700C396537D58e001808C": {
+      "0xAE5325C02b87ff1D3752a1d3100Ec82537605B72": {
         "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+        "Version": "2.1.0"
       },
       "0xD8066332e52A210f7E6BD8F8D4F2be4197BE290D": {
         "Name": "GenericSwapFacetV3",

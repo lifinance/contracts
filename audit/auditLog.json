@@ -335,6 +335,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
       "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
+    },
+    "audit20250730": {
+      "auditCompletedOn": "30.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.30_Patcher(v1.0.0).pdf",
+      "auditCommitHash": "1536e96068d5cb1672e48078d22da27c79f4c2ef"
     }
   },
   "auditedContracts": {
@@ -538,6 +545,9 @@
     },
     "OwnershipFacet": {
       "1.0.0": ["audit20250508"]
+    },
+    "Patcher": {
+      "1.0.0": ["audit20250730"]
     },
     "PeripheryRegistryFacet": {
       "1.0.0": ["audit20250508"]

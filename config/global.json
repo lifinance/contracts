@@ -51,6 +51,7 @@
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
+    "GasZipFacet",
     "GenericSwapFacet",
     "GenericSwapFacetV3",
     "OwnershipFacet",
