@@ -116,7 +116,7 @@ function diamondSyncSelectors {
         done
       fi
 
-      TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetFunctionWhitelistBySelectors(bytes4[],bool)" \
+      TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetFunctionWhitelistBySelector(bytes4[],bool)" \
         "[${PARAMS::${#PARAMS}-1}]" true \
         --rpc-url "$RPC_URL" \
         --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
