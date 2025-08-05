@@ -1733,7 +1733,8 @@
         "GasZipPeriphery": "1.0.1",
         "LiFiDEXAggregator": "1.11.0",
         "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.4"
+        "Permit2Proxy": "1.0.4",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
