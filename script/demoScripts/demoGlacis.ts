@@ -38,6 +38,9 @@ const AIRLIFT_ABI = airliftArtifact.abi as Narrow<typeof airliftArtifact.abi>
 
 // #endregion
 
+// SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
+// ARB.W > OPT.W: https://arbiscan.io/tx/0xb1a1aaf006c0d9fde5da4006dc3d8b86c795cba1eb0bc4757181869503698230
+
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
