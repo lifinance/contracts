@@ -2,6 +2,8 @@
 
 import { consola } from 'consola'
 
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig } from './types'
 import {
@@ -28,8 +30,20 @@ async function deployCoreFacets() {
   const environment = await getEnvironment()
 
   // Load environment variables
-  const dryRun = process.env.DRY_RUN === 'true'
-  const verbose = process.env.VERBOSE !== 'false' // Default to true for debugging
+  let dryRun = false
+  let verbose = true // Default to true for debugging
+
+  try {
+    dryRun = getEnvVar('DRY_RUN') === 'true'
+  } catch {
+    // Use default value
+  }
+
+  try {
+    verbose = getEnvVar('VERBOSE') !== 'false'
+  } catch {
+    // Use default value
+  }
 
   // Get network configuration from networks.json
   let tronConfig

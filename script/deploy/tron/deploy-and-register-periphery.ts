@@ -4,6 +4,8 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 // Import utilities from existing scripts
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig } from './types'
 import {
@@ -36,8 +38,20 @@ async function deployAndRegisterPeriphery() {
   const environment = await getEnvironment()
 
   // Load environment variables
-  const dryRun = process.env.DRY_RUN === 'true'
-  const verbose = process.env.VERBOSE !== 'false'
+  let dryRun = false
+  let verbose = true
+
+  try {
+    dryRun = getEnvVar('DRY_RUN') === 'true'
+  } catch {
+    // Use default value
+  }
+
+  try {
+    verbose = getEnvVar('VERBOSE') !== 'false'
+  } catch {
+    // Use default value
+  }
 
   // Get network configuration from networks.json
   let tronConfig

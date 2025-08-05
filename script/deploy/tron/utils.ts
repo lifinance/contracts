@@ -4,6 +4,7 @@ import { consola } from 'consola'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 
 import type { IForgeArtifact } from './types'
 
@@ -79,18 +80,11 @@ export async function getEnvironment(): Promise<string> {
 export async function getPrivateKey(): Promise<string> {
   const environment = await getEnvironment()
 
-  if (environment === 'production') {
-    const privateKey = process.env.PRIVATE_KEY_PRODUCTION
-    if (!privateKey)
-      throw new Error('PRIVATE_KEY_PRODUCTION not found in .env file')
-
-    return privateKey
-  } else {
-    const privateKey = process.env.PRIVATE_KEY
-    if (!privateKey) throw new Error('PRIVATE_KEY not found in .env file')
-
-    return privateKey
-  }
+  if (environment === 'production') 
+    return getEnvVar('PRIVATE_KEY_PRODUCTION')
+   else 
+    return getEnvVar('PRIVATE_KEY')
+  
 }
 
 /**
