@@ -46,7 +46,8 @@ deployAllContracts() {
       "6) Deploy periphery contracts" \
       "7) Add periphery to diamond and update dexs.json" \
       "8) Execute dexs/sigs scripts and update ERC20Proxy" \
-      "9) Run health check only"
+      "9) Run health check only" \
+      "10) Ownership transfer to timelock (production only)"
   )
 
   # Extract the stage number from the selection
@@ -68,6 +69,8 @@ deployAllContracts() {
     START_STAGE=8
   elif [[ "$START_FROM" == *"9)"* ]]; then
     START_STAGE=9
+  elif [[ "$START_FROM" == *"10)"* ]]; then
+    START_STAGE=10
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
@@ -299,32 +302,65 @@ deployAllContracts() {
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Run health check only"
     bun script/deploy/healthCheck.ts --network "$NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
+
+    # Pause and ask user if they want to continue with ownership transfer
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      echo ""
+      echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
+      echo "This should only be done if the health check shows only diamond ownership errors."
+      echo "Continue with stage 10 (ownership transfer)? (y/n)"
+      read -r response
+      if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo "Proceeding with stage 10..."
+      else
+        echo "Skipping stage 10 - ownership transfer cancelled by user"
+        echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
+        return
+      fi
+    fi
   fi
 
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    # ------------------------------------------------------------
-    # Prepare ownership transfer to Timelock
+  # Stage 10: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 10 ]]; then
+    if [[ "$ENVIRONMENT" == "production" ]]; then
     echo ""
-    echo "Preparing ownership transfer to Timelock"
-    TIMELOCK_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiTimelockController")
-    if [[ -z "$TIMELOCK_ADDRESS" ]]; then
-      echo "Timelock address not found. Cannot prepare ownership transfer to Timelock"
-      exit 1
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Ownership transfer to timelock (production only)"
+
+      # ------------------------------------------------------------
+      # Prepare ownership transfer to Timelock
+      echo ""
+      echo "Preparing ownership transfer to Timelock"
+      TIMELOCK_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiTimelockController")
+      if [[ -z "$TIMELOCK_ADDRESS" ]]; then
+        echo "Timelock address not found. Cannot prepare ownership transfer to Timelock"
+        exit 1
+      fi
+
+      # get diamond address
+      DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+      if [[ -z "$DIAMOND_ADDRESS" ]]; then
+        echo "Diamond address not found. Cannot prepare ownership transfer to Timelock"
+        exit 1
+      fi
+
+      # initiate ownership transfer
+      echo "Initiating ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
+      cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$(getRPCUrl "$NETWORK")"  --legacy
+      echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
+      echo ""
+
+      echo ""
+      echo "Proposing ownership transfer acceptance tx to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS) "
+      # propose tx with calldata 0x7200b829 = acceptOwnershipTransfer() to diamond (propose to multisig and wrap in timeloc calldata with --timelock flag)
+      bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata 0x7200b829 --network "$NETWORK" --rpcUrl "$(getRPCUrl "$NETWORK")" --privateKey "$PRIVATE_KEY_PRODUCTION" --timelock
+      echo "Ownership transfer acceptance proposed to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)"
+      echo ""
+      # ------------------------------------------------------------
+    else
+      echo "Stage 10 skipped - ownership transfer to timelock is only for production environment"
     fi
 
-    # initiate ownership transfer
-    echo "Initiating ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
-    cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$RPC_URL"  --legacy
-    echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
-    echo ""
-
-    echo ""
-    echo "Proposing ownership transfer acceptance tx to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS) "
-    # propose tx with calldata 0x7200b829 = acceptOwnershipTransfer() to diamond (propose to multisig and wrap in timeloc calldata with --timelock flag)
-    bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND" --calldata 0x7200b829 --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY_PRODUCTION" --timelock
-    echo "Ownership transfer acceptance proposed to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)"
-    echo ""
-    # ------------------------------------------------------------
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi
 
 

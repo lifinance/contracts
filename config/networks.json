@@ -966,7 +966,8 @@
     "isZkEVM": true,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "n/a"
+    "create3Factory": "n/a",
+    "devNotes": "Contract verification is not working. In contact with the team to find a resolution. "
   },
   "superposition": {
     "name": "superposition",

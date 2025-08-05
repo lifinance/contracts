@@ -131,59 +131,60 @@ deploySingleContract() {
   echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
   echo ""
 
-  # prepare bytecode
-  BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
+  # the following is only applicable for networks where we use CREATE3 (= non-zkEVM)
+  if ! isZkEvmNetwork "$NETWORK"; then
+    # prepare bytecode
+    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
 
-  # get CREATE3_FACTORY_ADDRESS
-  if isZkEvmNetwork "$NETWORK"; then
-    CREATE3_FACTORY_ADDRESS="0x0000000000000000000000000000000000000000"
-  else
-    CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
-    checkFailure $? "retrieve create3Factory address from networks.json"
-  fi
-
-  if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
-    # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
-    BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
-  fi
-
-  # check if .env file contains a value "SALT" and if this has correct number of digits (must be even)
-  if [[ ! -z "$SALT" ]]; then
-    if [ $((${#SALT} % 2)) != 0 ]; then
-      error "your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
-      exit 1
-    fi
-  fi
-
-  # add custom salt from .env file (allows to re-deploy contracts with same bytecode)
-  local SALT_INPUT="$BYTECODE""$SALT"
-
-  # create salt that is used to deploy contract
-  local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
-
-  # get predicted contract address based on salt (or special case for LiFiDiamond)
-  if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
-    CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
-  else
-    CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
-  fi
-
-  # check if address already contains code (=> are we deploying or re-running the script again?)
-  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
-
-  # check if all required data (e.g. config data / contract addresses) is available
-  checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-
-  # do not continue if data required for deployment is missing
-  if [ $? -ne 0 ]; then
-    if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
-      return 1
+    # get CREATE3_FACTORY_ADDRESS
+    if isZkEvmNetwork "$NETWORK"; then
+      CREATE3_FACTORY_ADDRESS="0x0000000000000000000000000000000000000000"
     else
-      exit 1
+      CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+      checkFailure $? "retrieve create3Factory address from networks.json"
     fi
-  fi
 
-  if isZkEvmNetwork "$NETWORK"; then
+    if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
+      # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
+      BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
+    fi
+
+    # check if .env file contains a value "SALT" and if this has correct number of digits (must be even)
+    if [[ ! -z "$SALT" ]]; then
+      if [ $((${#SALT} % 2)) != 0 ]; then
+        error "your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
+        exit 1
+      fi
+    fi
+
+    # add custom salt from .env file (allows to re-deploy contracts with same bytecode)
+    local SALT_INPUT="$BYTECODE""$SALT"
+
+    # create salt that is used to deploy contract
+    local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+
+    # get predicted contract address based on salt (or special case for LiFiDiamond)
+    if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
+      CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+    else
+      CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
+    fi
+
+    # check if address already contains code (=> are we deploying or re-running the script again?)
+    NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
+
+    # check if all required data (e.g. config data / contract addresses) is available
+    checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+
+    # do not continue if data required for deployment is missing
+    if [ $? -ne 0 ]; then
+      if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    fi
+  else
       # Check if a zksync contract has already been deployed for a specific
       # version otherwise it might fail since create2 will try to deploy to the
       # same address
@@ -199,7 +200,6 @@ deploySingleContract() {
       # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
-
   # execute script
   attempts=1
 

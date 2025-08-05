@@ -1886,7 +1886,8 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "LiFiTimelockController": "1.0.1"
       }
     }
   }

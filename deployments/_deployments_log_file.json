@@ -1012,6 +1012,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7A39222daDe19392ef6398aE978495c21959E72f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 20:25:26",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -2028,6 +2043,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd4011513A942BDfB2C3f24E7782beD9aBE7E573A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 20:29:10",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -3040,6 +3070,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbae8a7E3e66d3DF926C6784093d6dF7591fd71bc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 00:17:37",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -4360,6 +4405,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xE7e54B632c4E9d1A7702b7C3BF69ffAa86f89ED2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 19:18:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -5388,6 +5448,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC9c9f889d6e4dE0d848E5559dBDA2fa0F470C102",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 17:24:42",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -6387,6 +6462,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7579b8a09Bbb80838A6a9b97e536B6D98C1d7E17",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 00:24:46",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -7405,6 +7495,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x80c8E4787208b09557b17afc078F40643A77F269",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 00:21:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -8378,6 +8483,21 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000009640977264aec6d4e9af381f548eee11b9e27aae",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x81aFE8745038A0B63782186bcD1a4f27cB2Aef9d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 23:28:32",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000007a39222dade19392ef6398ae978495c21959e72f",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -10439,6 +10559,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd8d340C40a94fab30dE22b9C4a82b5E38E8c400a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 20:38:07",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -14204,6 +14339,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xEA6b5CDE78470740cdA435466EE38897225Bf7E8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:17:34",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -15404,6 +15554,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x5c79c4AA663fc2042499b94Cc40460c547f2eF50",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:21:08",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ea6b5cde78470740cda435466ee38897225bf7e800000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -16402,6 +16567,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xa1C8d86cEF721e9D16b8067E8525EEf2Bb5a17C5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:24:43",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -24589,6 +24769,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.3.1": [
+          {
+            "ADDRESS": "0x02151a6c90ee8914F2692bD15fAcE175A41560aB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 19:14:46",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -27348,6 +27543,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xbBdf9FfB0Fe437280b14176a7EFC70c93896d9dd",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:39:45",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b1a859de6a55c553520d7780bc5805712b128f9000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -28624,6 +28834,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x7a713e1Cd1B22f6572ba63F99ff9b5E3fa13F351",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 20:41:21",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -29224,6 +29449,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x74F353E96B906eC130645E40D7cF336BD935486c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:14:03",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000008d96695b834d2bac27bd9511c586e7c834548cec",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -29689,6 +29929,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000eb2fc1a397f14906b198f993c9d7ec5173ffccba000000000000000000000000808d7c71ad2ba3fa531b068a2417c63106bc0949000000000000000000000000cb566e3b6934fa77258d68ea18e931fa75e1aaaa00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x0E6a7ac318453c33f90cFcC75ee5D8593Cc6e2D7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:36:54",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000005c79c4aa663fc2042499b94cc40460c547f2ef500000000000000000000000008d96695b834d2bac27bd9511c586e7c834548cec0000000000000000000000005c6cff4b7c49805f8295ff73c204ac83f3bc4ae700000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -31076,6 +31331,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.11.0": [
+          {
+            "ADDRESS": "0xa1f3bCb776Aca31Ce6EE8684B2F3184304F0a2F7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:30:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -31921,6 +32191,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x021EAF5b5D368DcAb25426eF1F90F2295EE3f764",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 20:32:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -34535,6 +34820,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "1.0.4": [
+          {
+            "ADDRESS": "0xF2A4a6d34289Dd1eb7919E4354bB1a29720aa4FE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:34:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000081afe8745038a0b63782186bcd1a4f27cb2aef9d000000000000000000000000b8e9b994102309e820cf29ba0d98673c8995ebad000000000000000000000000ed16f4d0802f95213afd558a8385d28a921c5c96",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
@@ -35682,6 +35982,21 @@
           }
         ]
       }
+    },
+    "sophon": {
+      "production": {
+        "2.0.5": [
+          {
+            "ADDRESS": "0x59c404B9D10f6d4831F4eD5d0Aa1fa2f0e9E318f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-04 20:35:04",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006cbc57a6162839d782b2b4a1bd18554135e4fafa",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -36479,6 +36794,21 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc27620000000000000000000000008189afcc5b73dc90600fee92e5267aff1d192884000000000000000000000000a89a87986e8ee1ac8fdacc5ac91627010ec9f772",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xefC86E5D45A1Cca48C57d439159d60a0D78F5738",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:46:18",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006cbc57a6162839d782b2b4a1bd18554135e4fafa000000000000000000000000a1f3bcb776aca31ce6ee8684b2f3184304f0a2f7000000000000000000000000ed16f4d0802f95213afd558a8385d28a921c5c96",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -38605,6 +38935,21 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000002a3000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000db877c7834091bfdb25a62242a20bd6c70ae259a0000000000000000000000004f8c9056bb8a3616693a76922fa35d53c056e5b30000000000000000000000000000000000000000000000000000000000000001000000000000000000000000db877c7834091bfdb25a62242a20bd6c70ae259a00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x669a5E3a2fEdc695E33aFc9FC50A0621bAafe7a0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 18:58:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000002a3000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000ed16f4d0802f95213afd558a8385d28a921c5c9600000000000000000000000081afe8745038a0b63782186bcd1a4f27cb2aef9d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000ed16f4d0802f95213afd558a8385d28a921c5c9600000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
