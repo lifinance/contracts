@@ -7,14 +7,21 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IGlacisAirlift } from "../Interfaces/IGlacisAirlift.sol";
-import { InvalidConfig, InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidCallData, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title GlacisFacet
 /// @author LI.FI (https://li.fi/)
 /// @notice Integration of the Glacis airlift (wrapper for native token bridging standards)
 /// @custom:version 1.1.0
-contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract GlacisFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     /// @notice The contract address of the glacis airlift on the source chain.
@@ -105,10 +112,34 @@ contract GlacisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GlacisData calldata _glacisData
     ) internal {
-        if (
-            _glacisData.refundAddress == address(0) ||
-            _glacisData.receiverAddress == bytes32(0)
-        ) revert InvalidCallData();
+        // Validate receiver address based on destination chain type
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            // destination chain is non-EVM
+            // make sure it's non-zero (we cannot validate further)
+            if (_glacisData.receiverAddress == bytes32(0)) {
+                revert InvalidNonEVMReceiver();
+            }
+
+            // Emit event for non-EVM chains
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _glacisData.receiverAddress
+            );
+        } else {
+            // destination chain is EVM
+            // make sure that bridgeData and glacisData receiver addresses match
+            if (
+                _bridgeData.receiver !=
+                address(uint160(uint256(_glacisData.receiverAddress)))
+            ) {
+                revert InvalidReceiver();
+            }
+        }
+
+        if (_glacisData.refundAddress == address(0)) {
+            revert InvalidCallData();
+        }
 
         // Approve the Airlift contract to spend the required amount of tokens.
         // The `send` function assumes that the caller has already approved the token transfer,

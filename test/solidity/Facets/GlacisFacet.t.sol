@@ -7,7 +7,8 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
+import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig, InvalidCallData, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet {
@@ -22,7 +23,7 @@ contract TestGlacisFacet is GlacisFacet {
     }
 }
 
-abstract contract GlacisFacetTestBase is TestBaseFacet {
+abstract contract GlacisFacetTestBase is TestBaseFacet, LiFiData {
     GlacisFacet.GlacisData internal glacisData;
     IGlacisAirlift internal airliftContract;
     TestGlacisFacet internal glacisFacet;
@@ -433,7 +434,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function testRevert_InvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
 
-        // Set receiverAddress to bytes32(0) which should trigger the InvalidCallData revert
+        // Set receiverAddress to bytes32(0) which should trigger the InvalidReceiver revert
         glacisData = GlacisFacet.GlacisData({
             refundAddress: REFUND_WALLET,
             receiverAddress: bytes32(0),
@@ -445,7 +446,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             defaultSrcTokenAmount
         );
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
+        vm.expectRevert(InvalidReceiver.selector);
 
         initiateBridgeTxWithFacet(false);
 
@@ -455,7 +456,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     function testRevert_InvalidReceiverAddress_SwapAndBridge() public virtual {
         vm.startPrank(USER_SENDER);
 
-        // Set receiverAddress to bytes32(0) which should trigger the InvalidCallData revert
+        // Set receiverAddress to bytes32(0) which should trigger the InvalidReceiver revert
         glacisData = GlacisFacet.GlacisData({
             refundAddress: REFUND_WALLET,
             receiverAddress: bytes32(0),
@@ -471,7 +472,241 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // approval
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // Test for non-EVM receiver validation
+    function testRevert_InvalidNonEVMReceiver() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set receiver to NON_EVM_ADDRESS and receiverAddress to bytes32(0)
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(0),
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidNonEVMReceiver_SwapAndBridge() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set receiver to NON_EVM_ADDRESS and receiverAddress to bytes32(0)
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.hasSourceSwaps = true;
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(0),
+            nativeFee: addToMessageValue
+        });
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoSourceToken();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // Test for EVM receiver address mismatch
+    function testRevert_InvalidReceiver_Mismatch() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set different receiver addresses
+        address differentReceiver = address(
+            0x1234567890123456789012345678901234567890
+        );
+        bridgeData.receiver = differentReceiver;
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))), // Different from bridgeData.receiver
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidReceiver_Mismatch_SwapAndBridge()
+        public
+        virtual
+    {
+        vm.startPrank(USER_SENDER);
+
+        // Set different receiver addresses
+        address differentReceiver = address(
+            0x1234567890123456789012345678901234567890
+        );
+        bridgeData.receiver = differentReceiver;
+        bridgeData.hasSourceSwaps = true;
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))), // Different from bridgeData.receiver
+            nativeFee: addToMessageValue
+        });
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoSourceToken();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // Test successful non-EVM bridge
+    function test_CanBridgeToNonEVMChain() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set receiver to NON_EVM_ADDRESS and valid receiverAddress
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bytes32 nonEVMReceiver = bytes32(uint256(uint160(USER_RECEIVER)));
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: nonEVMReceiver,
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        // Expect the BridgeToNonEVMChainBytes32 event to be emitted
+        vm.expectEmit(true, true, true, true, address(glacisFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            nonEVMReceiver
+        );
+
+        // Expect the LiFiTransferStarted event to be emitted
+        vm.expectEmit(true, true, true, true, address(glacisFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToNonEVMChain_SwapAndBridge() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set receiver to NON_EVM_ADDRESS and valid receiverAddress
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.hasSourceSwaps = true;
+        bytes32 nonEVMReceiver = bytes32(uint256(uint160(USER_RECEIVER)));
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: nonEVMReceiver,
+            nativeFee: addToMessageValue
+        });
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoSourceToken();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // Expect the BridgeToNonEVMChainBytes32 event to be emitted
+        vm.expectEmit(true, true, true, true, address(glacisFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            nonEVMReceiver
+        );
+
+        // Expect the LiFiTransferStarted event to be emitted
+        vm.expectEmit(true, true, true, true, address(glacisFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // Test successful EVM bridge with matching addresses
+    function test_CanBridgeToEVMChain_WithMatchingAddresses() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // Set matching receiver addresses
+        bridgeData.receiver = USER_RECEIVER;
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
+            nativeFee: addToMessageValue
+        });
+
+        srcToken.approve(
+            address(_facetTestContractAddress),
+            defaultSrcTokenAmount
+        );
+
+        // Expect only the LiFiTransferStarted event to be emitted (no non-EVM event)
+        vm.expectEmit(true, true, true, true, address(glacisFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToEVMChain_WithMatchingAddresses_SwapAndBridge()
+        public
+        virtual
+    {
+        vm.startPrank(USER_SENDER);
+
+        // Set matching receiver addresses
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.hasSourceSwaps = true;
+        glacisData = GlacisFacet.GlacisData({
+            refundAddress: REFUND_WALLET,
+            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
+            nativeFee: addToMessageValue
+        });
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoSourceToken();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // Expect only the LiFiTransferStarted event to be emitted (no non-EVM event)
+        vm.expectEmit(true, true, true, true, address(glacisFacet));
+        emit LiFiTransferStarted(bridgeData);
 
         initiateSwapAndBridgeTxWithFacet(false);
 
