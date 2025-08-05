@@ -7,6 +7,7 @@ import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title Core Route Facet
 /// @author LI.FI (https://li.fi)
@@ -231,6 +232,12 @@ contract CoreRouteFacet is ReentrancyGuard {
         address facet = LibDiamondLoupe.facetAddress(selector);
         if (facet == address(0)) revert UnknownSelector();
 
+        console2.log("from");
+        console2.log(from);
+        console2.log("tokenIn");
+        console2.log(tokenIn);
+        console2.log("amountIn");
+        console2.log(amountIn);
         // Pass ALL remaining data to the facet
         (bool success, bytes memory returnData) = facet.delegatecall(
             abi.encodeWithSelector(

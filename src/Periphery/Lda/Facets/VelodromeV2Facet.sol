@@ -6,6 +6,7 @@ import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title VelodromeV2 Facet
 /// @author LI.FI (https://li.fi)
@@ -53,6 +54,12 @@ contract VelodromeV2Facet {
         // Handle input source and transfer
         _handleInputAndTransfer(from, tokenIn, amountIn, pool, direction);
 
+        console2.log("from");
+        console2.log(from);
+        console2.log("tokenIn");
+        console2.log(tokenIn);
+        console2.log("amountIn");
+        console2.log(amountIn);
         // Calculate and execute swap
         _executeSwap(pool, tokenIn, amountIn, to, direction, callback);
 
@@ -61,6 +68,10 @@ contract VelodromeV2Facet {
         assembly {
             finalPos := mload(stream)
         }
+        console2.log("finalPos");
+        console2.log(finalPos);
+        console2.log("initialPos");
+        console2.log(initialPos);
         return finalPos - initialPos;
     }
 
@@ -107,6 +118,9 @@ contract VelodromeV2Facet {
             amountIn,
             tokenIn
         );
+
+        console2.log("amountOut");
+        console2.log(amountOut);
 
         // set the appropriate output amount based on which token is being swapped
         // determine output amounts based on direction

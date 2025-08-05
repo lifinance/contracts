@@ -258,6 +258,8 @@ contract LiFiDexAggregatorVelodromeV2UpgradeTest is
     function setUp() public override {
         setupOptimism();
         super.setUp();
+
+        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
     }
 
     function _addDexFacet() internal override {
