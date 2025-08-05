@@ -1,8 +1,8 @@
 name: Olympix Mutation Testing
 
-# - runs the olympix mutation testing on newly added or modified solidity contracts inside the src/ folder in a pull request
+# - runs the olympix mutation testing on all solidity contracts inside the src/ folder
 # - evaluates test suite quality by introducing code mutations and checking if tests catch them
-# - only scans diff (added, renamed, modified) solidity files in src/ instead of the whole repository
+# - always scans all solidity files in src/ to maintain consistent GitHub Code Scanning state
 # - uploads mutation testing results to github code scanning for review and discussion within the PR
 
 on:
@@ -48,31 +48,24 @@ jobs:
           fi
           echo "ALL_SOL_FILES=$ALL_FILES" >> $GITHUB_ENV
 
-      - name: Get added, renamed, modified Solidity Files (PR only)
-        if: github.event_name != 'workflow_dispatch'
-        id: changed-files
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            src/**/*.sol
+      # Note: We always run on all files to maintain consistent Code Scanning state
+      # This prevents false "fixed" status when files aren't included in mutation testing
 
       - name: Create Batches
         id: create-batches
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: process ALL contracts in src/
-            echo "Manual run - processing ALL contracts in src/"
-            files=$(find src/ -name "*.sol" -type f)
+          # Always run on ALL contracts to maintain consistent Code Scanning state
+          # This prevents alerts from being marked as "fixed" when files aren't tested
+          echo "Processing ALL contracts in src/ to maintain consistent mutation testing state"
+          files=$(find src/ -name "*.sol" -type f)
+          
+          if [[ $(echo "$files" | wc -w) -gt 0 ]]; then
             echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
+            echo "Found $(echo "$files" | wc -w) Solidity files to analyze"
           else
-            # PR run: use changed files
-            if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
-              files="${{ steps.changed-files.outputs.all_changed_files }}"
-              echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
-            else
-              echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+            echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
+            echo "No Solidity files found in src/"
+            exit 0
           fi
           
           # Split files into batches of 100
