@@ -1,3 +1,8 @@
+import { randomBytes } from 'crypto'
+
+import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'
+import { consola } from 'consola'
+import { ethers } from 'ethers'
 import {
   parseAbi,
   encodeFunctionData,
@@ -7,10 +12,7 @@ import {
   pad,
   getAddress,
 } from 'viem'
-import { randomBytes } from 'crypto'
-import { ethers } from 'ethers'
-import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'
-import { consola } from 'consola'
+
 import {
   generateNeedle,
   findNeedleOffset,
@@ -83,7 +85,7 @@ export function encodeCowShedExecuteHooks(
   })
 }
 
-export interface CowShedPostHooksConfig {
+export interface ICowShedPostHooksConfig {
   chainId: number
   walletClient: any
   usdcAddress: string
@@ -97,7 +99,7 @@ export interface CowShedPostHooksConfig {
 /**
  * Setup CowShed post hooks for bridging USDC to BASE using Relay
  */
-export async function setupCowShedPostHooks(config: CowShedPostHooksConfig) {
+export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
   const {
     chainId,
     walletClient,
@@ -172,11 +174,10 @@ export async function setupCowShedPostHooks(config: CowShedPostHooksConfig) {
     body: JSON.stringify(quoteParams),
   })
 
-  if (!quoteResponse.ok) {
+  if (!quoteResponse.ok)
     throw new Error(
       `Failed to get quote from Relay API: ${quoteResponse.statusText}`
     )
-  }
 
   const quoteData = await quoteResponse.json()
   const relayRequestId = quoteData.steps[0].requestId
@@ -189,11 +190,10 @@ export async function setupCowShedPostHooks(config: CowShedPostHooksConfig) {
     { headers: { 'Content-Type': 'application/json' } }
   )
 
-  if (!signatureResponse.ok) {
+  if (!signatureResponse.ok)
     throw new Error(
       `Failed to get signature from Relay API: ${signatureResponse.statusText}`
     )
-  }
 
   const signatureData = await signatureResponse.json()
   const relaySignature = signatureData.signature as `0x${string}`
