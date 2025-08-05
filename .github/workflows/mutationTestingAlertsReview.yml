@@ -36,6 +36,55 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Wait for mutation-results check run to complete
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for mutation-results check run to complete..."
+          
+          # Get the commit SHA from the triggering workflow
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "Checking commit SHA: $COMMIT_SHA"
+          
+          # Wait up to 10 minutes for the mutation-results check run
+          MAX_WAIT=600  # 10 minutes
+          WAIT_TIME=0
+          CHECK_INTERVAL=30  # Check every 30 seconds
+          
+          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+            echo "Checking for mutation-results check run... (${WAIT_TIME}s elapsed)"
+            
+            # Get check runs for the commit
+            CHECK_RUNS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs")
+            
+            # Look for mutation-results check run
+            MUTATION_CHECK=$(echo "$CHECK_RUNS" | jq -r '.check_runs[] | select(.name == "mutation-results") | .status + ":" + .conclusion')
+            
+            if [[ "$MUTATION_CHECK" == "completed:success" ]]; then
+              echo "✅ mutation-results check run completed successfully!"
+              break
+            elif [[ "$MUTATION_CHECK" == "completed:failure" ]]; then
+              echo "❌ mutation-results check run failed"
+              exit 1
+            elif [[ "$MUTATION_CHECK" == *"completed"* ]]; then
+              echo "⚠️ mutation-results check run completed with status: $MUTATION_CHECK"
+              exit 1
+            elif [[ -n "$MUTATION_CHECK" ]]; then
+              echo "⏳ mutation-results check run is still running: $MUTATION_CHECK"
+            else
+              echo "🔍 mutation-results check run not found yet"
+            fi
+            
+            sleep $CHECK_INTERVAL
+            WAIT_TIME=$((WAIT_TIME + CHECK_INTERVAL))
+          done
+          
+          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+            echo "❌ Timeout waiting for mutation-results check run to complete"
+            exit 1
+          fi
+
       - name: Get PR Number
         id: get_pr
         env:
