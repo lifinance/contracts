@@ -900,3 +900,39 @@ export const getPrivateKeyForEnvironment = (
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }
+
+/**
+ * Creates a contract object with the expected interface for helper functions
+ */
+export const createContractObject = (
+  address: string,
+  abi: any,
+  publicClient: any,
+  walletClient: any
+) => ({
+  read: {
+    balanceOf: async (args: [string]) =>
+      publicClient.readContract({
+        address,
+        abi,
+        functionName: 'balanceOf',
+        args,
+      }),
+    allowance: async (args: [string, string]) =>
+      publicClient.readContract({
+        address,
+        abi,
+        functionName: 'allowance',
+        args,
+      }),
+  },
+  write: {
+    approve: async (args: [string, bigint]) =>
+      walletClient.writeContract({
+        address,
+        abi,
+        functionName: 'approve',
+        args,
+      }),
+  },
+})

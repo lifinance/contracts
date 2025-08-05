@@ -18,6 +18,7 @@ import type { GlacisFacet, ILiFi } from '../../typechain'
 import type { SupportedChain } from '../common/types'
 
 import {
+  createContractObject,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -86,33 +87,12 @@ async function main() {
   if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
 
   // Create contract objects that work with the existing helper functions
-  const srcTokenContract = {
-    read: {
-      balanceOf: async (args: [string]) =>
-        publicClient.readContract({
-          address: SRC_TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'balanceOf',
-          args,
-        }),
-      allowance: async (args: [string, string]) =>
-        publicClient.readContract({
-          address: SRC_TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'allowance',
-          args,
-        }),
-    },
-    write: {
-      approve: async (args: [string, bigint]) =>
-        walletClient.writeContract({
-          address: SRC_TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'approve',
-          args,
-        }),
-    },
-  }
+  const srcTokenContract = createContractObject(
+    SRC_TOKEN_ADDRESS,
+    ERC20_ABI,
+    publicClient,
+    walletClient
+  )
 
   await ensureBalance(srcTokenContract, signerAddress, amount, publicClient)
 
