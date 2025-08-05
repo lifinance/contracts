@@ -37262,6 +37262,19 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xB4735037e3a6C40a47061A111Fd4E912c9b8e106",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 20:52:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000023fa838682c115c2cfba96ef3791cb5bd931fc7",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "mainnet": {
