@@ -163,12 +163,23 @@ jobs:
           echo "DISMISSED_COUNT: $DISMISSED_COUNT"
           echo "TOTAL_MUTANTS: $TOTAL_MUTANTS"
 
-          # Save values in the environment
-          echo "SURVIVING_MUTANTS=$SURVIVING_MUTANTS" >> $GITHUB_ENV
-          echo "DISMISSED_MUTANTS=$DISMISSED_MUTANTS" >> $GITHUB_ENV
+          # Save values in the environment - limit data to prevent argument list too long
+          # Only save first 50 of each type to avoid shell limits
+          SURVIVING_MUTANTS_LIMITED=$(echo "$SURVIVING_MUTANTS" | jq -c '.[:50]')
+          DISMISSED_MUTANTS_LIMITED=$(echo "$DISMISSED_MUTANTS" | jq -c '.[:50]')
+          
+          echo "SURVIVING_MUTANTS=$SURVIVING_MUTANTS_LIMITED" >> $GITHUB_ENV
+          echo "DISMISSED_MUTANTS=$DISMISSED_MUTANTS_LIMITED" >> $GITHUB_ENV
           echo "SURVIVING_COUNT=$SURVIVING_COUNT" >> $GITHUB_ENV
           echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
           echo "TOTAL_MUTANTS=$TOTAL_MUTANTS" >> $GITHUB_ENV
+          
+          if [[ $SURVIVING_COUNT -gt 50 ]]; then
+            echo "Note: Limiting display to first 50 surviving mutants (total: $SURVIVING_COUNT)"
+          fi
+          if [[ $DISMISSED_COUNT -gt 50 ]]; then
+            echo "Note: Limiting display to first 50 dismissed mutants (total: $DISMISSED_COUNT)"
+          fi
 
       - name: Find Existing PR Comment
         id: find_comment
@@ -177,12 +188,11 @@ jobs:
         run: |
           echo "Searching for existing PR comment..."
 
-          # Get comments with error handling
+          # Get comments with error handling - limit to recent comments only
           COMMENTS_RESPONSE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments")
+            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=20&sort=updated&direction=desc")
           
-          echo "Comments API response:"
-          echo "$COMMENTS_RESPONSE" | head -20
+          echo "Recent comments count: $(echo "$COMMENTS_RESPONSE" | jq 'length // 0')"
           
           # Check if response is valid JSON array
           if echo "$COMMENTS_RESPONSE" | jq -e '. | type == "array"' > /dev/null 2>&1; then
@@ -226,6 +236,9 @@ jobs:
           # List surviving mutants
           if [[ "$SURVIVING_COUNT" -gt 0 ]]; then
             COMMENT_BODY+="### 🔴 Surviving Mutants (Test Coverage Gaps)\n\n"
+            if [[ "$SURVIVING_COUNT" -gt 50 ]]; then
+              COMMENT_BODY+="_Showing first 50 of $SURVIVING_COUNT total surviving mutants_\n\n"
+            fi
             while IFS= read -r row; do
               MUTANT_URL=$(echo "$row" | jq -r '.html_url')
               MUTANT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
@@ -240,6 +253,9 @@ jobs:
           # List dismissed mutants
           if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
             COMMENT_BODY+="### ✅ Dismissed Mutants\n\n"
+            if [[ "$DISMISSED_COUNT" -gt 50 ]]; then
+              COMMENT_BODY+="_Showing first 50 of $DISMISSED_COUNT total dismissed mutants_\n\n"
+            fi
             while IFS= read -r row; do
               MUTANT_URL=$(echo "$row" | jq -r '.html_url')
               MUTANT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
