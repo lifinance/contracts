@@ -46,8 +46,8 @@ jobs:
           COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
           echo "Checking commit SHA: $COMMIT_SHA"
           
-          # Wait up to 10 minutes for the mutation-results check run
-          MAX_WAIT=600  # 10 minutes
+          # Wait up to 5 minutes for the mutation-results check run
+          MAX_WAIT=300  # 5 minutes
           WAIT_TIME=0
           CHECK_INTERVAL=30  # Check every 30 seconds
           
@@ -60,6 +60,12 @@ jobs:
             
             # Look for mutation-results check run
             MUTATION_CHECK=$(echo "$CHECK_RUNS" | jq -r '.check_runs[] | select(.name == "mutation-results") | .status + ":" + .conclusion')
+            
+            # Debug: Show all check runs if we can't find mutation-results
+            if [[ -z "$MUTATION_CHECK" ]]; then
+              echo "Available check runs:"
+              echo "$CHECK_RUNS" | jq -r '.check_runs[] | .name + " (" + .status + ":" + (.conclusion // "null") + ")"'
+            fi
             
             if [[ "$MUTATION_CHECK" == "completed:success" ]]; then
               echo "✅ mutation-results check run completed successfully!"
@@ -81,8 +87,20 @@ jobs:
           done
           
           if [ $WAIT_TIME -ge $MAX_WAIT ]; then
-            echo "❌ Timeout waiting for mutation-results check run to complete"
-            exit 1
+            echo "⚠️ Timeout waiting for mutation-results check run to complete"
+            echo "Proceeding anyway to check for existing Code Scanning results..."
+            
+            # Check if we have any existing mutation testing results at all
+            EXISTING_ALERTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?tool=Olympix%20Mutation%20Testing&per_page=1")
+            
+                         if echo "$EXISTING_ALERTS" | jq -e '. | length > 0' > /dev/null 2>&1; then
+               echo "Found existing mutation testing results, continuing with PR summary..."
+               echo "SHOWING_EXISTING_RESULTS=true" >> $GITHUB_ENV
+             else
+               echo "No existing mutation testing results found, skipping PR summary"
+               exit 0
+             fi
           fi
 
       - name: Get PR Number
@@ -280,13 +298,25 @@ jobs:
             fi
             
             COMMENT_BODY=$(printf -- "### 🧪 Olympix Mutation Testing\n\n")
+            
+            # Add note if showing existing results due to timeout
+            if [[ "${SHOWING_EXISTING_RESULTS:-false}" == "true" ]]; then
+              COMMENT_BODY+=$(printf -- "⚠️ *Showing existing results - current run in progress*\n\n")
+            fi
+            
             COMMENT_BODY+=$(printf -- "%s **Score: %s%%** (%s/%s killed)\n\n" "$STATUS_EMOJI" "$MUTATION_SCORE" "$KILLED_COUNT" "$TOTAL_MUTANTS")
             if [[ $SURVIVING_COUNT -gt 0 ]]; then
               COMMENT_BODY+=$(printf -- "⚠️ **%s coverage gaps** need attention\n\n" "$SURVIVING_COUNT")
             fi
           else
             COMMENT_BODY=$(printf -- "### 🧪 Olympix Mutation Testing\n\n")
-            COMMENT_BODY+=$(printf -- "ℹ️ **No results found**\n\n")
+            
+            # Add note if showing existing results due to timeout  
+            if [[ "${SHOWING_EXISTING_RESULTS:-false}" == "true" ]]; then
+              COMMENT_BODY+=$(printf -- "⚠️ *Current run in progress - no previous results available*\n\n")
+            else
+              COMMENT_BODY+=$(printf -- "ℹ️ **No results found**\n\n")
+            fi
           fi
 
                     # Simple action items
