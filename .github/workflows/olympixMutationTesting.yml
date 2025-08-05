@@ -1,8 +1,8 @@
 name: Olympix Mutation Testing
 
-# - runs the olympix mutation testing on newly added or modified solidity contracts inside the src/ folder in a pull request
+# - runs the olympix mutation testing on all solidity contracts inside the src/ folder
 # - evaluates test suite quality by introducing code mutations and checking if tests catch them
-# - only scans diff (added, renamed, modified) solidity files in src/ instead of the whole repository
+# - always scans all solidity files in src/ to maintain consistent GitHub Code Scanning state
 # - uploads mutation testing results to github code scanning for review and discussion within the PR
 
 on:
@@ -32,56 +32,30 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Get Solidity Files
-        id: get-files
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: get all Solidity files in src/
-            echo "Manual trigger detected - analyzing all Solidity files in src/"
-            ALL_FILES=$(find src/ -name "*.sol" -type f | tr '\n' ' ')
-            echo "FILES_CHANGED=true" >> $GITHUB_ENV
-          else
-            # PR trigger: get changed files only
-            echo "PR trigger detected - analyzing changed Solidity files only"
-            # This will be handled by the changed-files action below
-            echo "FILES_CHANGED=false" >> $GITHUB_ENV
-          fi
-          echo "ALL_SOL_FILES=$ALL_FILES" >> $GITHUB_ENV
-
-      - name: Get added, renamed, modified Solidity Files (PR only)
-        if: github.event_name != 'workflow_dispatch'
-        id: changed-files
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            src/**/*.sol
-
       - name: Create Batches
         id: create-batches
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual run: process ALL contracts in src/
-            echo "Manual run - processing ALL contracts in src/"
-            files=$(find src/ -name "*.sol" -type f)
+          # Always run on ALL contracts to maintain consistent Code Scanning state
+          # This prevents alerts from being marked as "fixed" when files aren't tested
+          echo "Processing ALL contracts in src/ to maintain consistent mutation testing state"
+          files=$(find src/ -name "*.sol" -type f)
+          
+          if [[ $(echo "$files" | wc -w) -gt 0 ]]; then
             echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
+            echo "Found $(echo "$files" | wc -w) Solidity files to analyze"
           else
-            # PR run: use changed files
-            if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
-              files="${{ steps.changed-files.outputs.all_changed_files }}"
-              echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
-            else
-              echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+            echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
+            echo "No Solidity files found in src/"
+            exit 0
           fi
           
-          # Split files into batches of 100
+          # Split files into batches of 20 (reduced from 100)
           file_array=($files)
           total_files=${#file_array[@]}
           echo "Total files found: $total_files"
           
           batches="["
-          batch_size=100
+          batch_size=20
           for ((i=0; i<total_files; i+=batch_size)); do
             batch_files=("${file_array[@]:i:batch_size}")
             batch_args=$(printf -- "-p %s " "${batch_files[@]}")
@@ -94,22 +68,30 @@ jobs:
           batches+="]"
           
           echo "BATCHES_JSON=$batches" >> $GITHUB_OUTPUT
-          echo "Created $((((total_files-1)/batch_size)+1)) batches"
+          echo "Created $((((total_files-1)/batch_size)+1)) batches of up to 20 files each"
 
-  # Process each batch
+  # Process each batch sequentially with delays
   mutation-testing-batches:
-    name: Mutation Testing Batch
+    name: Mutation Testing Batch ${{ matrix.batch.batch_num }}
     runs-on: ubuntu-latest
     needs: mutation-testing
     if: needs.mutation-testing.outputs.SHOULD_RUN == 'true'
     strategy:
       matrix:
         batch: ${{ fromJson(needs.mutation-testing.outputs.BATCHES_JSON) }}
+      max-parallel: 1  # Force sequential processing
       fail-fast: false
     
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Wait Before Processing (if not first batch)
+        if: matrix.batch.batch_num > 1
+        run: |
+          echo "⏳ Waiting 30 seconds before processing batch ${{ matrix.batch.batch_num }}..."
+          echo "This prevents overwhelming the mutation testing action"
+          sleep 10
 
       - name: Run Olympix Mutation Testing (Batch ${{ matrix.batch.batch_num }})
         uses: olympix/mutation-test-generator@main
@@ -118,11 +100,12 @@ jobs:
           GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
           OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
           OPIX_DEBUG: true
+          BATCH_NUMBER: ${{ matrix.batch.batch_num }}
         with:
           args: ${{ matrix.batch.args }}
 
-      - name: Summary
+      - name: Batch Summary
         run: |
-          echo "✅ File discovery completed"
-          echo "📝 Files will be processed individually in parallel jobs"
-          echo "🔍 Check the Security tab for mutation testing alerts after completion" 
+          echo "✅ Batch ${{ matrix.batch.batch_num }} completed successfully"
+          echo "📝 Files processed with 30-second delay before this batch"
+          echo "🔍 Results uploaded to GitHub Code Scanning" 

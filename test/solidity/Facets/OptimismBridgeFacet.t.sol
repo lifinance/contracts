@@ -264,4 +264,54 @@ contract OptimismBridgeFacetTest is TestBase {
 
         vm.stopPrank();
     }
+
+    function test_swapAndStartBridgeTokensViaOptimismBridge_RefundsExcessETH() public {
+        vm.startPrank(USER_SENDER);
+        
+        // Set up bridge data for native ETH with swaps
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0); // Native ETH
+        bridgeData.minAmount = 0.1 ether;
+
+        // Create swap data that swaps ETH to USDC
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            address(0), // from ETH
+            USDC_ADDRESS, // to USDC
+            0.1 ether,
+            abi.encodeWithSelector(
+                uniswap.swapExactETHForTokens.selector,
+                0,
+                validTokenAddresses,
+                address(optimismBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Send more ETH than needed - the excess should be refunded
+        uint256 sentAmount = 1 ether; // Send 1 ETH when only 0.1 ETH is needed
+        uint256 balanceBefore = USER_SENDER.balance;
+
+        // This call should refund the excess ETH due to refundExcessNative modifier
+        // If the modifier is removed (as mutant #1128 does), no refund occurs
+        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge{value: sentAmount}(
+            bridgeData,
+            swapData,
+            validOptimismData
+        );
+
+        uint256 balanceAfter = USER_SENDER.balance;
+        uint256 totalSpent = balanceBefore - balanceAfter;
+        
+        // With refundExcessNative: user should only lose ~0.1 ETH + gas
+        // Without refundExcessNative: user loses full 1 ETH + gas
+        // This test catches when the full amount is lost (mutant case)
+        assertLt(totalSpent, 0.5 ether, "Should not lose more than 0.5 ETH (excess should be refunded)");
+
+        vm.stopPrank();
+    }
 }

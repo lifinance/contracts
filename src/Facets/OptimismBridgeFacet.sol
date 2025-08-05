@@ -150,6 +150,17 @@ contract OptimismBridgeFacet is
         _startBridge(_bridgeData, _optimismData);
     }
 
+    /// @notice Check if bridge is available for a specific token
+    /// @param tokenAddress The token address to check
+    /// @return isAvailable Whether the bridge supports this token
+    function isBridgeAvailable(address tokenAddress) external pure returns (bool isAvailable) {
+        // This function will create a mutant - the condition can be inverted
+        if (tokenAddress == address(0)) {
+            return false; // This line can be mutated to return true
+        }
+        return true;
+    }
+
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Optimism Bridge
