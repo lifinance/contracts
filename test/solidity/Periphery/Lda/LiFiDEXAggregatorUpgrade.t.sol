@@ -22,10 +22,7 @@ import { CoreRouteFacet } from "lifi/Periphery/Lda/Facets/CoreRouteFacet.sol";
 import { TestToken as ERC20 } from "../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../utils/MockTokenFeeOnTransfer.sol";
 import { LdaDiamondTest } from "./utils/LdaDiamondTest.sol";
-import { TestBase } from "../../utils/TestBase.sol";
-import { TestBaseRandomConstants } from "../../utils/TestBaseRandomConstants.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
-
 
 // Command codes for route processing
 enum CommandType {
@@ -261,6 +258,8 @@ contract LiFiDexAggregatorVelodromeV2UpgradeTest is
     function setUp() public override {
         setupOptimism();
         super.setUp();
+
+        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
     }
 
     function _addDexFacet() internal override {
@@ -366,8 +365,9 @@ contract LiFiDexAggregatorVelodromeV2UpgradeTest is
                 from: address(ldaDiamond),
                 to: address(USER_SENDER),
                 tokenIn: address(USDC_TOKEN),
-                amountIn: IERC20(address(USDC_TOKEN)).balanceOf(address(ldaDiamond)) -
-                    1, // adjust for slot undrain protection: subtract 1 token so that the
+                amountIn: IERC20(address(USDC_TOKEN)).balanceOf(
+                    address(ldaDiamond)
+                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the
                 // aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
@@ -1005,7 +1005,6 @@ contract LiFiDexAggregatorVelodromeV2UpgradeTest is
     }
 }
 
-
 contract AlgebraLiquidityAdderHelper {
     address public immutable TOKEN_0;
     address public immutable TOKEN_1;
@@ -1192,15 +1191,15 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
             })
         );
 
-            // 2. Build the final route with the command and length-prefixed swapData
-    bytes memory route = abi.encodePacked(
-        uint8(CommandType.ProcessUserERC20),
-        APE_ETH_TOKEN,
-        uint8(1), // number of pools/splits
-        FULL_SHARE, // 100% share
-        uint16(swapData.length), // <--- Add the length prefix
-        swapData
-    );
+        // 2. Build the final route with the command and length-prefixed swapData
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            APE_ETH_TOKEN,
+            uint8(1), // number of pools/splits
+            FULL_SHARE, // 100% share
+            uint16(swapData.length), // <--- Add the length prefix
+            swapData
+        );
 
         // Track initial balance
         uint256 beforeBalance = IERC20(WETH_TOKEN).balanceOf(
@@ -1485,52 +1484,52 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
 
     // Helper function to build the multi-hop route for test
     function _buildMultiHopRouteForTest(
-    MultiHopTestState memory state
-) private view returns (bytes memory) {
-    // 1. Get the specific data payload for each hop
-    bytes memory firstHopData = _buildAlgebraSwapData(
-        AlgebraRouteParams({
-            commandCode: CommandType.ProcessUserERC20,
-            tokenIn: address(state.tokenA),
-            recipient: address(ldaDiamond), // Hop 1 sends to the contract itself
-            pool: state.pool1,
-            supportsFeeOnTransfer: false
-        })
-    );
+        MultiHopTestState memory state
+    ) private view returns (bytes memory) {
+        // 1. Get the specific data payload for each hop
+        bytes memory firstHopData = _buildAlgebraSwapData(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessUserERC20,
+                tokenIn: address(state.tokenA),
+                recipient: address(ldaDiamond), // Hop 1 sends to the contract itself
+                pool: state.pool1,
+                supportsFeeOnTransfer: false
+            })
+        );
 
-    bytes memory secondHopData = _buildAlgebraSwapData(
-        AlgebraRouteParams({
-            commandCode: CommandType.ProcessMyERC20,
-            tokenIn: address(state.tokenB),
-            recipient: USER_SENDER, // Hop 2 sends to the final user
-            pool: state.pool2,
-            supportsFeeOnTransfer: state.isFeeOnTransfer
-        })
-    );
+        bytes memory secondHopData = _buildAlgebraSwapData(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessMyERC20,
+                tokenIn: address(state.tokenB),
+                recipient: USER_SENDER, // Hop 2 sends to the final user
+                pool: state.pool2,
+                supportsFeeOnTransfer: state.isFeeOnTransfer
+            })
+        );
 
-    // 2. Assemble the first full command with its length prefix
-    bytes memory firstCommand = abi.encodePacked(
-        uint8(CommandType.ProcessUserERC20),
-        state.tokenA,
-        uint8(1),
-        FULL_SHARE,
-        uint16(firstHopData.length),
-        firstHopData
-    );
+        // 2. Assemble the first full command with its length prefix
+        bytes memory firstCommand = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            state.tokenA,
+            uint8(1),
+            FULL_SHARE,
+            uint16(firstHopData.length),
+            firstHopData
+        );
 
-    // 3. Assemble the second full command with its length prefix
-    bytes memory secondCommand = abi.encodePacked(
-        uint8(CommandType.ProcessMyERC20),
-        state.tokenB,
-        uint8(1), // num splits for the second hop
-        FULL_SHARE, // full share for the second hop
-        uint16(secondHopData.length),
-        secondHopData
-    );
+        // 3. Assemble the second full command with its length prefix
+        bytes memory secondCommand = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            state.tokenB,
+            uint8(1), // num splits for the second hop
+            FULL_SHARE, // full share for the second hop
+            uint16(secondHopData.length),
+            secondHopData
+        );
 
-    // 4. Concatenate the commands to create the final route
-    return bytes.concat(firstCommand, secondCommand);
-}
+        // 4. Concatenate the commands to create the final route
+        return bytes.concat(firstCommand, secondCommand);
+    }
 
     // Helper function to verify multi-hop results
     function _verifyMultiHopResults(
@@ -1652,129 +1651,130 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
 
     // Helper function to build route for Apechain Algebra swap
     function _buildAlgebraSwapData(
-    AlgebraRouteParams memory params
-) private view returns (bytes memory) {
-    address token0 = IAlgebraPool(params.pool).token0();
-    bool zeroForOne = (params.tokenIn == token0);
-    SwapDirection direction = zeroForOne
-        ? SwapDirection.Token0ToToken1
-        : SwapDirection.Token1ToToken0;
+        AlgebraRouteParams memory params
+    ) private view returns (bytes memory) {
+        address token0 = IAlgebraPool(params.pool).token0();
+        bool zeroForOne = (params.tokenIn == token0);
+        SwapDirection direction = zeroForOne
+            ? SwapDirection.Token0ToToken1
+            : SwapDirection.Token1ToToken0;
 
-    // This data blob is what the AlgebraFacet will receive and parse
-    return abi.encodePacked(
-        AlgebraFacet.swapAlgebra.selector,
-        params.pool,
-        uint8(direction),
-        params.recipient,
-        params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
-    );
-}
-
-// Helper function to test an Algebra swap
-function _testAlgebraSwap(AlgebraSwapTestParams memory params) internal {
-    // Find or create a pool
-    address pool = _getPool(params.tokenIn, params.tokenOut);
-    vm.label(pool, "AlgebraPool");
-
-    // Get token0 from pool for labeling
-    address token0 = IAlgebraPool(pool).token0();
-    if (params.tokenIn == token0) {
-        vm.label(
-            params.tokenIn,
-            string.concat("token0 (", ERC20(params.tokenIn).symbol(), ")")
-        );
-        vm.label(
-            params.tokenOut,
-            string.concat("token1 (", ERC20(params.tokenOut).symbol(), ")")
-        );
-    } else {
-        vm.label(
-            params.tokenIn,
-            string.concat("token1 (", ERC20(params.tokenIn).symbol(), ")")
-        );
-        vm.label(
-            params.tokenOut,
-            string.concat("token0 (", ERC20(params.tokenOut).symbol(), ")")
-        );
+        // This data blob is what the AlgebraFacet will receive and parse
+        return
+            abi.encodePacked(
+                AlgebraFacet.swapAlgebra.selector,
+                params.pool,
+                uint8(direction),
+                params.recipient,
+                params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
+            );
     }
 
-    // Record initial balances
-    uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-    uint256 initialTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
+    // Helper function to test an Algebra swap
+    function _testAlgebraSwap(AlgebraSwapTestParams memory params) internal {
+        // Find or create a pool
+        address pool = _getPool(params.tokenIn, params.tokenOut);
+        vm.label(pool, "AlgebraPool");
 
-    // Get expected output from QuoterV2
-    uint256 expectedOutput = _getQuoteExactInput(
-        params.tokenIn,
-        params.tokenOut,
-        params.amountIn
-    );
+        // Get token0 from pool for labeling
+        address token0 = IAlgebraPool(pool).token0();
+        if (params.tokenIn == token0) {
+            vm.label(
+                params.tokenIn,
+                string.concat("token0 (", ERC20(params.tokenIn).symbol(), ")")
+            );
+            vm.label(
+                params.tokenOut,
+                string.concat("token1 (", ERC20(params.tokenOut).symbol(), ")")
+            );
+        } else {
+            vm.label(
+                params.tokenIn,
+                string.concat("token1 (", ERC20(params.tokenIn).symbol(), ")")
+            );
+            vm.label(
+                params.tokenOut,
+                string.concat("token0 (", ERC20(params.tokenOut).symbol(), ")")
+            );
+        }
 
-    // 1. Pack the specific data for this swap
-    bytes memory swapData = _buildAlgebraSwapData(
-        AlgebraRouteParams({
-            commandCode: CommandType.ProcessUserERC20, // Placeholder, not used in this helper
-            tokenIn: params.tokenIn,
-            recipient: params.to,
-            pool: pool,
-            supportsFeeOnTransfer: params.supportsFeeOnTransfer
-        })
-    );
+        // Record initial balances
+        uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
+        uint256 initialTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
 
-    // 2. Approve tokens
-    IERC20(params.tokenIn).approve(
-        address(coreRouteFacet),
-        params.amountIn
-    );
-
-    // 3. Set up event expectations
-    address fromAddress = params.from == address(coreRouteFacet)
-        ? USER_SENDER
-        : params.from;
-
-    vm.expectEmit(true, true, true, false);
-    emit Route(
-        fromAddress,
-        params.to,
-        params.tokenIn,
-        params.tokenOut,
-        params.amountIn,
-        expectedOutput,
-        expectedOutput
-    );
-
-    // 4. Build the route inline and execute the swap to save stack space
-    coreRouteFacet.processRoute(
-        params.tokenIn,
-        params.amountIn,
-        params.tokenOut,
-        (expectedOutput * 995) / 1000, // minOut calculated inline
-        params.to,
-        abi.encodePacked(
-            uint8(
-                params.from == address(coreRouteFacet)
-                    ? CommandType.ProcessMyERC20
-                    : CommandType.ProcessUserERC20
-            ),
+        // Get expected output from QuoterV2
+        uint256 expectedOutput = _getQuoteExactInput(
             params.tokenIn,
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapData.length),
-            swapData
-        )
-    );
+            params.tokenOut,
+            params.amountIn
+        );
 
-    // 5. Verify final balances
-    uint256 finalTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-    uint256 finalTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
+        // 1. Pack the specific data for this swap
+        bytes memory swapData = _buildAlgebraSwapData(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessUserERC20, // Placeholder, not used in this helper
+                tokenIn: params.tokenIn,
+                recipient: params.to,
+                pool: pool,
+                supportsFeeOnTransfer: params.supportsFeeOnTransfer
+            })
+        );
 
-    assertApproxEqAbs(
-        initialTokenIn - finalTokenIn,
-        params.amountIn,
-        1,
-        "TokenIn amount mismatch"
-    );
-    assertGt(finalTokenOut, initialTokenOut, "TokenOut not received");
-}
+        // 2. Approve tokens
+        IERC20(params.tokenIn).approve(
+            address(coreRouteFacet),
+            params.amountIn
+        );
+
+        // 3. Set up event expectations
+        address fromAddress = params.from == address(coreRouteFacet)
+            ? USER_SENDER
+            : params.from;
+
+        vm.expectEmit(true, true, true, false);
+        emit Route(
+            fromAddress,
+            params.to,
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn,
+            expectedOutput,
+            expectedOutput
+        );
+
+        // 4. Build the route inline and execute the swap to save stack space
+        coreRouteFacet.processRoute(
+            params.tokenIn,
+            params.amountIn,
+            params.tokenOut,
+            (expectedOutput * 995) / 1000, // minOut calculated inline
+            params.to,
+            abi.encodePacked(
+                uint8(
+                    params.from == address(coreRouteFacet)
+                        ? CommandType.ProcessMyERC20
+                        : CommandType.ProcessUserERC20
+                ),
+                params.tokenIn,
+                uint8(1),
+                FULL_SHARE,
+                uint16(swapData.length),
+                swapData
+            )
+        );
+
+        // 5. Verify final balances
+        uint256 finalTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
+        uint256 finalTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
+
+        assertApproxEqAbs(
+            initialTokenIn - finalTokenIn,
+            params.amountIn,
+            1,
+            "TokenIn amount mismatch"
+        );
+        assertGt(finalTokenOut, initialTokenOut, "TokenOut not received");
+    }
 
     function _getPool(
         address tokenA,
@@ -1884,7 +1884,7 @@ function _testAlgebraSwap(AlgebraSwapTestParams memory params) internal {
             uint16(swapData.length), // <--- Add the length prefix
             swapData
         );
-        
+
         // Approve tokens
         IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
 
