@@ -84,18 +84,49 @@ jobs:
           # Also fetch all recent alerts to compare
           echo "Fetching all recent alerts..."
           MUTATIONS_ALL=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-            "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?per_page=10")
+            "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?per_page=100&state=open")
           
           echo "All alerts API response:"
           echo "$MUTATIONS_ALL" | head -10
           
-          # Use PR-specific results if available, otherwise check all alerts
-          if echo "$MUTATIONS_PR" | jq -e '. | type == "array" and length > 0' > /dev/null 2>&1; then
+          # Also try fetching by commit SHA
+          echo "Fetching alerts for commit ${{ github.sha }}..."
+          MUTATIONS_COMMIT=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?ref=${{ github.sha }}&per_page=100")
+          
+          echo "Commit-specific API response:"
+          echo "$MUTATIONS_COMMIT" | head -10
+          
+          # Use the source with the most results
+          PR_COUNT=$(echo "$MUTATIONS_PR" | jq 'length // 0')
+          ALL_COUNT=$(echo "$MUTATIONS_ALL" | jq 'length // 0')
+          COMMIT_COUNT=$(echo "$MUTATIONS_COMMIT" | jq 'length // 0')
+          
+          echo "PR alerts: $PR_COUNT, All alerts: $ALL_COUNT, Commit alerts: $COMMIT_COUNT"
+          
+          # Show what's in each response for debugging
+          if [[ $PR_COUNT -gt 0 ]]; then
+            echo "PR response tools:"
+            echo "$MUTATIONS_PR" | jq -r '.[] | .tool.name' | head -5
+          fi
+          if [[ $ALL_COUNT -gt 0 ]]; then
+            echo "All alerts tools:"
+            echo "$MUTATIONS_ALL" | jq -r '.[] | .tool.name' | head -5
+          fi
+          if [[ $COMMIT_COUNT -gt 0 ]]; then
+            echo "Commit alerts tools:"
+            echo "$MUTATIONS_COMMIT" | jq -r '.[] | .tool.name' | head -5
+          fi
+          
+          if [[ $PR_COUNT -gt 0 ]]; then
             MUTATIONS="$MUTATIONS_PR"
-            echo "Using PR-specific alerts"
+            echo "Using PR-specific alerts ($PR_COUNT results)"
+          elif [[ $COMMIT_COUNT -gt 0 ]]; then
+            MUTATIONS="$MUTATIONS_COMMIT"
+            echo "Using commit-specific alerts ($COMMIT_COUNT results)"
           else
             MUTATIONS="$MUTATIONS_ALL"
-            echo "Using all alerts (PR filter returned no results)"
+            echo "Using all recent alerts ($ALL_COUNT results)"
           fi
 
           echo "Filtering to Olympix Mutation Testing results only"
@@ -104,7 +135,17 @@ jobs:
           echo "Available tools in alerts:"
           echo "$MUTATIONS" | jq -r '.[] | .tool.name' | sort | uniq -c || echo "No tools found"
           
+          # Filter specifically for "Olympix Mutation Testing"
+          echo "Filtering for tool name: 'Olympix Mutation Testing'"
+          
+          # Show first few alerts for debugging
+          echo "Sample alerts (first 3):"
+          echo "$MUTATIONS" | jq -c '.[:3] | .[] | {tool_name: .tool.name, rule_id: .rule.id, state: .state, file: .most_recent_instance.location.path}' || echo "No alerts to sample"
+          
           MUTATIONS=$(echo "$MUTATIONS" | jq -c '[ .[] | select(.tool.name == "Olympix Mutation Testing") ]' || echo "[]")
+          
+          MUTATION_COUNT=$(echo "$MUTATIONS" | jq 'length')
+          echo "Found $MUTATION_COUNT Olympix Mutation Testing alerts"
 
           # Extract surviving mutants (open - test coverage gaps)
           SURVIVING_MUTANTS=$(echo "$MUTATIONS" | jq -c '[.[] | select(.state == "open") ]' || echo "[]")
