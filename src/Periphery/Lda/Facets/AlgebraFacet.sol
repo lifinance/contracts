@@ -25,13 +25,29 @@ contract AlgebraFacet {
     /// Errors ///
     error AlgebraSwapUnexpected();
 
+    /// @notice Performs a swap through Algebra pools
+    /// @param swapData ALL remaining data from the route (starts with selector)
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    /// @return bytesRead Number of bytes consumed from swapData
     function swapAlgebra(
         bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
+        // Track bytes read
+        uint256 initialPos;
         uint256 stream = LibInputStream2.createStream(swapData);
+        assembly {
+            initialPos := mload(stream)
+        }
+
+        // Skip selector
+        stream.readBytes4();
+
+        // Read parameters
         address pool = stream.readAddress();
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
@@ -40,6 +56,7 @@ contract AlgebraFacet {
         if (pool == address(0) || recipient == address(0))
             revert InvalidCallData();
 
+        // Handle token transfer
         if (from == msg.sender) {
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
@@ -48,6 +65,7 @@ contract AlgebraFacet {
             );
         }
 
+        // Execute swap
         LibCallbackManager.arm(pool);
 
         if (supportsFeeOnTransfer) {
@@ -73,7 +91,12 @@ contract AlgebraFacet {
             revert AlgebraSwapUnexpected();
         }
 
-        return 0; // Actual output amount tracked via balance checks in CoreFacet
+        // Calculate bytes read
+        uint256 finalPos;
+        assembly {
+            finalPos := mload(stream)
+        }
+        return finalPos - initialPos;
     }
 
     function algebraSwapCallback(

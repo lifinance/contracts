@@ -6,7 +6,6 @@ import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title VelodromeV2 Facet
 /// @author LI.FI (https://li.fi)
@@ -42,61 +41,50 @@ contract VelodromeV2Facet {
             initialPos := mload(stream)
         }
 
-        // Read parameters (moved to top to reduce stack)
+        // Read parameters
         stream.readBytes4(); // Skip selector
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         bool callback = stream.readUint8() == CALLBACK_ENABLED;
-
+        
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
 
-        // Handle input source and transfer
-        _handleInputAndTransfer(from, tokenIn, amountIn, pool, direction);
+        // Handle input source and transfer - GET THE CORRECTED AMOUNT
+        uint256 actualAmountIn = _handleInputAndTransfer(from, tokenIn, amountIn, pool, direction);
 
-        console2.log("from");
-        console2.log(from);
-        console2.log("tokenIn");
-        console2.log(tokenIn);
-        console2.log("amountIn");
-        console2.log(amountIn);
-        // Calculate and execute swap
-        _executeSwap(pool, tokenIn, amountIn, to, direction, callback);
+
+        // Calculate and execute swap with corrected amount
+        _executeSwap(pool, tokenIn, actualAmountIn, to, direction, callback);
 
         // Return bytes read
         uint256 finalPos;
         assembly {
             finalPos := mload(stream)
         }
-        console2.log("finalPos");
-        console2.log(finalPos);
-        console2.log("initialPos");
-        console2.log(initialPos);
         return finalPos - initialPos;
     }
 
     /// @dev Handles input source validation and token transfer
+    /// @return actualAmountIn The actual amount to use for the swap
     function _handleInputAndTransfer(
         address from,
         address tokenIn,
         uint256 amountIn,
         address pool,
         uint8 direction
-    ) private {
+    ) private returns (uint256 actualAmountIn) {
         if (from == INTERNAL_INPUT_SOURCE) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
                 .getReserves();
             if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
-            // Modify amountIn based on reserves
-            amountIn =
-                IERC20(tokenIn).balanceOf(pool) -
-                (
-                    direction == DIRECTION_TOKEN0_TO_TOKEN1
-                        ? reserve0
-                        : reserve1
-                );
+            
+            // Calculate the actual amount based on pool balance vs reserves
+            actualAmountIn = IERC20(tokenIn).balanceOf(pool) - 
+                (direction == DIRECTION_TOKEN0_TO_TOKEN1 ? reserve0 : reserve1);
         } else {
-            // Handle token transfer
+            // Use the provided amount and handle transfer
+            actualAmountIn = amountIn;
             if (from == address(this)) {
                 IERC20(tokenIn).safeTransfer(pool, amountIn);
             } else if (from == msg.sender) {
@@ -118,9 +106,6 @@ contract VelodromeV2Facet {
             amountIn,
             tokenIn
         );
-
-        console2.log("amountOut");
-        console2.log(amountOut);
 
         // set the appropriate output amount based on which token is being swapped
         // determine output amounts based on direction

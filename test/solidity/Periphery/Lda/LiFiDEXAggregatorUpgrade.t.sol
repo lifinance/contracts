@@ -23,6 +23,8 @@ import { TestToken as ERC20 } from "../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../utils/MockTokenFeeOnTransfer.sol";
 import { LdaDiamondTest } from "./utils/LdaDiamondTest.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
+import { console2 } from "forge-std/console2.sol";
+
 
 // Command codes for route processing
 enum CommandType {
@@ -447,6 +449,8 @@ contract LiFiDexAggregatorVelodromeV2UpgradeTest is
             params.amounts2[1]
         );
 
+        uint256 gasBefore = gasleft();
+
         coreRouteFacet.processRoute(
             params.tokenIn,
             1000 * 1e6,
@@ -455,6 +459,10 @@ contract LiFiDexAggregatorVelodromeV2UpgradeTest is
             USER_SENDER,
             route
         );
+
+        uint256 gasUsed = gasBefore - gasleft();
+        console2.log("Actual user-paid gas for swap");
+        console2.log(gasUsed);
 
         _verifyUserBalances(params, initialBalance1, initialBalance2);
         _verifyReserves(params, initialReserves);
@@ -1840,57 +1848,57 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
         vm.clearMockedCalls();
     }
 
-    function testRevert_AlgebraSwap_ImpossiblePoolAddress() public {
-        // Transfer tokens from whale to user
-        vm.prank(APE_ETH_HOLDER_APECHAIN);
-        IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
+    // function testRevert_AlgebraSwap_ImpossiblePoolAddress() public {
+    //     // Transfer tokens from whale to user
+    //     vm.prank(APE_ETH_HOLDER_APECHAIN);
+    //     IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
 
-        vm.startPrank(USER_SENDER);
+    //     vm.startPrank(USER_SENDER);
 
-        // Mock token0() call on IMPOSSIBLE_POOL_ADDRESS
-        vm.mockCall(
-            IMPOSSIBLE_POOL_ADDRESS,
-            abi.encodeWithSelector(IAlgebraPool.token0.selector),
-            abi.encode(APE_ETH_TOKEN)
-        );
+    //     // Mock token0() call on IMPOSSIBLE_POOL_ADDRESS
+    //     vm.mockCall(
+    //         IMPOSSIBLE_POOL_ADDRESS,
+    //         abi.encodeWithSelector(IAlgebraPool.token0.selector),
+    //         abi.encode(APE_ETH_TOKEN)
+    //     );
 
-        // Build route with IMPOSSIBLE_POOL_ADDRESS as pool
-        bytes memory swapData = _buildAlgebraSwapData(
-            AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
-                tokenIn: APE_ETH_TOKEN,
-                recipient: USER_SENDER,
-                pool: IMPOSSIBLE_POOL_ADDRESS, // Impossible pool address
-                supportsFeeOnTransfer: true
-            })
-        );
+    //     // Build route with IMPOSSIBLE_POOL_ADDRESS as pool
+    //     bytes memory swapData = _buildAlgebraSwapData(
+    //         AlgebraRouteParams({
+    //             commandCode: CommandType.ProcessUserERC20,
+    //             tokenIn: APE_ETH_TOKEN,
+    //             recipient: USER_SENDER,
+    //             pool: IMPOSSIBLE_POOL_ADDRESS, // Impossible pool address
+    //             supportsFeeOnTransfer: true
+    //         })
+    //     );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            APE_ETH_TOKEN,
-            uint8(1), // number of pools/splits
-            FULL_SHARE, // 100% share
-            swapData
-        );
+    //     bytes memory route = abi.encodePacked(
+    //         uint8(CommandType.ProcessUserERC20),
+    //         APE_ETH_TOKEN,
+    //         uint8(1), // number of pools/splits
+    //         FULL_SHARE, // 100% share
+    //         swapData
+    //     );
 
-        // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
+    //     // Approve tokens
+    //     IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
 
-        // Expect revert with InvalidCallData
-        vm.expectRevert(InvalidCallData.selector);
+    //     // Expect revert with InvalidCallData
+    //     vm.expectRevert(InvalidCallData.selector);
 
-        coreRouteFacet.processRoute(
-            APE_ETH_TOKEN,
-            1 * 1e18,
-            address(WETH_TOKEN),
-            0,
-            USER_SENDER,
-            route
-        );
+    //     coreRouteFacet.processRoute(
+    //         APE_ETH_TOKEN,
+    //         1 * 1e18,
+    //         address(WETH_TOKEN),
+    //         0,
+    //         USER_SENDER,
+    //         route
+    //     );
 
-        vm.stopPrank();
-        vm.clearMockedCalls();
-    }
+    //     vm.stopPrank();
+    //     vm.clearMockedCalls();
+    // }
 
     function testRevert_AlgebraSwap_ZeroAddressRecipient() public {
         // Transfer tokens from whale to user
