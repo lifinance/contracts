@@ -219,18 +219,47 @@ jobs:
             KILLED_COUNT=$((TOTAL_MUTANTS - SURVIVING_COUNT))
             MUTATION_SCORE=$(( (KILLED_COUNT * 100) / TOTAL_MUTANTS ))
             
-            COMMENT_BODY=$(printf -- "## 🧪 Mutation Testing\n\n🎯 **Score:** %s%% (%s/%s killed)\n⚠️ **Coverage Gaps:** %s surviving\n\n" \
-              "$MUTATION_SCORE" "$KILLED_COUNT" "$TOTAL_MUTANTS" "$SURVIVING_COUNT")
+            # Determine status emoji and message based on score
+            if [[ $MUTATION_SCORE -ge 80 ]]; then
+              STATUS_EMOJI="✅"
+              STATUS_TEXT="Excellent"
+            elif [[ $MUTATION_SCORE -ge 60 ]]; then
+              STATUS_EMOJI="🟡"
+              STATUS_TEXT="Good"
+            elif [[ $MUTATION_SCORE -ge 40 ]]; then
+              STATUS_EMOJI="🟠"
+              STATUS_TEXT="Needs Improvement"
+            else
+              STATUS_EMOJI="🔴"
+              STATUS_TEXT="Critical"
+            fi
+            
+            COMMENT_BODY=$(printf -- "### 🧪 Olympix Mutation Testing Analysis\n\n")
+            COMMENT_BODY+=$(printf -- "| Metric | Value | Status |\n")
+            COMMENT_BODY+=$(printf -- "|--------|-------|--------|\n")
+            COMMENT_BODY+=$(printf -- "| **Mutation Score** | **%s%%** | %s %s |\n" "$MUTATION_SCORE" "$STATUS_EMOJI" "$STATUS_TEXT")
+            COMMENT_BODY+=$(printf -- "| **Mutants Killed** | %s/%s | 🎯 |\n" "$KILLED_COUNT" "$TOTAL_MUTANTS")
+            COMMENT_BODY+=$(printf -- "| **Coverage Gaps** | %s | ⚠️ |\n\n" "$SURVIVING_COUNT")
           else
-            COMMENT_BODY=$(printf -- "## 🧪 Mutation Testing\n\nℹ️ No results found\n\n")
+            COMMENT_BODY=$(printf -- "### 🧪 Olympix Mutation Testing Analysis\n\n")
+            COMMENT_BODY+=$(printf -- "ℹ️ **No mutation testing results found for this PR.**\n\n")
           fi
 
-                    # Simple status message
+                    # Professional footer with action items
           if [[ "$SURVIVING_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+=$(printf -- "View details in [Security > Code Scanning](../../security/code-scanning?tool=Olympix%%20Mutation%%20Testing)\n")
+            COMMENT_BODY+=$(printf -- "#### 🔍 **Action Required**\n")
+            COMMENT_BODY+=$(printf -- "Review and address surviving mutants to improve test coverage quality.\n\n")
+            COMMENT_BODY+=$(printf -- "**📋 Next Steps:**\n")
+            COMMENT_BODY+=$(printf -- "• View detailed findings in [Security > Code Scanning](../../security/code-scanning?tool=Olympix%%20Mutation%%20Testing)\n")
+            COMMENT_BODY+=$(printf -- "• Add test cases to kill surviving mutants\n")
+            COMMENT_BODY+=$(printf -- "• Dismiss mutants with proper justification if appropriate\n\n")
           else
-            COMMENT_BODY+=$(printf -- "✅ All mutants killed - excellent test coverage!\n")
+            COMMENT_BODY+=$(printf -- "#### ✅ **Test Coverage Excellence**\n")
+            COMMENT_BODY+=$(printf -- "All mutation tests passed! Your test suite effectively validates the code behavior.\n\n")
           fi
+          
+          COMMENT_BODY+=$(printf -- "---\n")
+          COMMENT_BODY+=$(printf -- "*🛡️ Powered by Olympix Security Platform*\n")
 
           # Properly escape JSON for API call
           COMMENT_JSON=$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')
