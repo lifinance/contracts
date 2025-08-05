@@ -38677,6 +38677,79 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:39:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:39:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:44:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:44:37",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:45:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     }
   }
