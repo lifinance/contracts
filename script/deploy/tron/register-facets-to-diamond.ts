@@ -3,6 +3,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
@@ -642,30 +643,53 @@ async function registerFacetsToDiamond(
 }
 
 // CLI handling
-if (import.meta.main) {
-  const args = process.argv.slice(2)
-  const options = {
-    dryRun: args.includes('--dry-run'),
-    splitMode: args.includes('--split'),
-  }
+const main = defineCommand({
+  meta: {
+    name: 'register-facets-to-diamond',
+    description: 'Register facets to the Tron Diamond contract',
+  },
+  args: {
+    dryRun: {
+      type: 'boolean',
+      description: 'Run in dry-run mode without sending transactions',
+      default: false,
+    },
+    split: {
+      type: 'boolean',
+      description: 'Use split mode to register facets in groups',
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const options = {
+      dryRun: args.dryRun,
+      splitMode: args.split,
+    }
 
-  if (options.dryRun)
-    consola.info(' Running in DRY RUN mode - no transactions will be sent')
+    if (args.dryRun)
+      consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
-  if (options.splitMode)
-    consola.info(' Using SPLIT mode - facets will be registered in groups')
+    if (args.split)
+      consola.info(' Using SPLIT mode - facets will be registered in groups')
 
-  consola.start('Starting facet registration...')
+    consola.start('Starting facet registration...')
 
-  registerFacetsToDiamond(options)
-    .then(() => {
+    try {
+      await registerFacetsToDiamond(options)
       consola.success('✨ Facet registration complete!')
       process.exit(0)
-    })
-    .catch((error) => {
-      consola.error(' Registration failed:', error.message || error)
+    } catch (error) {
+      consola.error(
+        ' Registration failed:',
+        error instanceof Error ? error.message : error
+      )
       process.exit(1)
-    })
-}
+    }
+  },
+})
+
+if (import.meta.main) 
+  runMain(main)
+
 
 export { registerFacetsToDiamond }
