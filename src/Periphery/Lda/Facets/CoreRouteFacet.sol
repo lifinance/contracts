@@ -211,7 +211,7 @@ contract CoreRouteFacet is ReentrancyGuard {
         }
     }
 
-    /// @notice Dispatches swap using selector-based approach
+    /// @notice Dispatches swap using selector-based approach with bytesRead return
     /// @dev This is the core of the selector-based dispatch system
     function _dispatchSwap(
         uint256 stream,
@@ -219,36 +219,38 @@ contract CoreRouteFacet is ReentrancyGuard {
         address tokenIn,
         uint256 amountIn
     ) private {
-        // Read the length-prefixed data blob for this specific swap step.
-        // This data blob contains the target function selector and its arguments.
-        bytes memory swapDataForCurrentHop = stream.readBytesWithLength();
+        // Get ALL remaining data from current stream position
+        bytes memory remainingData = stream.getRemainingBytes();
 
+        // Extract selector from first 4 bytes
         bytes4 selector;
-        // We need to slice the data to separate the selector from the rest of the payload
-        bytes memory payload;
-
         assembly {
-            // Read the selector from the first 4 bytes of the data
-            selector := mload(add(swapDataForCurrentHop, 32))
-
-            // Create a new memory slice for the payload that starts 4 bytes after the
-            // beginning of swapDataForCurrentHop's content.
-            // It points to the same underlying data, just with a different start and length.
-            payload := add(swapDataForCurrentHop, 4)
-            // Adjust the length of the new slice
-            mstore(payload, sub(mload(swapDataForCurrentHop), 4))
+            selector := mload(add(remainingData, 32))
         }
 
         address facet = LibDiamondLoupe.facetAddress(selector);
         if (facet == address(0)) revert UnknownSelector();
 
+        // Pass ALL remaining data to the facet
         (bool success, bytes memory returnData) = facet.delegatecall(
-            abi.encodeWithSelector(selector, payload, from, tokenIn, amountIn)
+            abi.encodeWithSelector(
+                selector,
+                remainingData,
+                from,
+                tokenIn,
+                amountIn
+            )
         );
 
         if (!success) {
             // If the call failed, revert with the EXACT error from the facet.
             LibUtil.revertWith(returnData);
         }
+
+        // Decode the bytesRead value returned by the facet
+        uint256 bytesRead = abi.decode(returnData, (uint256));
+
+        // Advance the stream by the amount the facet consumed
+        stream.advance(bytesRead);
     }
 }

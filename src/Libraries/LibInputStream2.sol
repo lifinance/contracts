@@ -149,4 +149,49 @@ library LibInputStream2 {
             }
         }
     }
+
+    /** @notice Manually advances the stream's read pointer by specified bytes
+     * @param stream stream
+     * @param bytesToAdvance number of bytes to advance
+     */
+    function advance(uint256 stream, uint256 bytesToAdvance) internal pure {
+        assembly {
+            let pos := mload(stream)
+            mstore(stream, add(pos, bytesToAdvance))
+        }
+    }
+
+    /** @notice Gets remaining bytes from current position to end of stream
+     * @param stream stream
+     * @return remainingData bytes from current position to end
+     */
+    function getRemainingBytes(
+        uint256 stream
+    ) internal view returns (bytes memory remainingData) {
+        uint256 pos;
+        uint256 finish;
+        assembly {
+            pos := mload(stream)
+            finish := mload(add(stream, 32))
+        }
+
+        uint256 remainingLength = finish - pos;
+        if (remainingLength > 0) {
+            assembly {
+                remainingData := mload(0x40)
+                mstore(0x40, add(remainingData, add(remainingLength, 32)))
+                mstore(remainingData, remainingLength)
+                pop(
+                    staticcall(
+                        gas(),
+                        4,
+                        pos,
+                        remainingLength,
+                        add(remainingData, 32),
+                        remainingLength
+                    )
+                )
+            }
+        }
+    }
 }

@@ -23,41 +23,86 @@ contract VelodromeV2Facet {
 
     /// @notice Performs a swap through VelodromeV2 pools
     /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
-    /// @param swapData [pool, direction, to, callback]
+    /// @param swapData ALL remaining data from the route (starts with selector)
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
+    /// @return bytesRead Number of bytes consumed from swapData
     function swapVelodromeV2(
         bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
+        // Track bytes read
+        uint256 initialPos;
         uint256 stream = LibInputStream2.createStream(swapData);
+        assembly {
+            initialPos := mload(stream)
+        }
+
+        // Read parameters (moved to top to reduce stack)
+        stream.readBytes4(); // Skip selector
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
-        if (pool == address(0) || to == address(0)) revert InvalidCallData();
-        // solhint-disable-next-line max-line-length
-        bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
+        bool callback = stream.readUint8() == CALLBACK_ENABLED;
 
+        if (pool == address(0) || to == address(0)) revert InvalidCallData();
+
+        // Handle input source and transfer
+        _handleInputAndTransfer(from, tokenIn, amountIn, pool, direction);
+
+        // Calculate and execute swap
+        _executeSwap(pool, tokenIn, amountIn, to, direction, callback);
+
+        // Return bytes read
+        uint256 finalPos;
+        assembly {
+            finalPos := mload(stream)
+        }
+        return finalPos - initialPos;
+    }
+
+    /// @dev Handles input source validation and token transfer
+    function _handleInputAndTransfer(
+        address from,
+        address tokenIn,
+        uint256 amountIn,
+        address pool,
+        uint8 direction
+    ) private {
         if (from == INTERNAL_INPUT_SOURCE) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
                 .getReserves();
             if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
-            uint256 reserveIn = direction == DIRECTION_TOKEN0_TO_TOKEN1
-                ? reserve0
-                : reserve1;
-
-            amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
+            // Modify amountIn based on reserves
+            amountIn =
+                IERC20(tokenIn).balanceOf(pool) -
+                (
+                    direction == DIRECTION_TOKEN0_TO_TOKEN1
+                        ? reserve0
+                        : reserve1
+                );
         } else {
-            if (from == address(this))
+            // Handle token transfer
+            if (from == address(this)) {
                 IERC20(tokenIn).safeTransfer(pool, amountIn);
-            else if (from == msg.sender)
+            } else if (from == msg.sender) {
                 IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+            }
         }
+    }
 
-        // calculate the expected output amount using the pool's getAmountOut function
+    /// @dev Executes the swap on Velodrome pool
+    function _executeSwap(
+        address pool,
+        address tokenIn,
+        uint256 amountIn,
+        address to,
+        uint8 direction,
+        bool callback
+    ) private {
         uint256 amountOut = IVelodromeV2Pool(pool).getAmountOut(
             amountIn,
             tokenIn
@@ -95,7 +140,5 @@ contract VelodromeV2Facet {
             to,
             callback ? abi.encode(tokenIn) : bytes("")
         );
-
-        return 0; // Return value not used in current implementation
     }
 }
