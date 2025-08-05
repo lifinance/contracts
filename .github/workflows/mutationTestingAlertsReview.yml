@@ -214,30 +214,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMENT_BODY="## 🧪 Mutation Testing Summary\n\n"
-
-          # Summary stats
+          # Create comment body with proper line breaks using printf
           if [[ "$TOTAL_MUTANTS" -gt 0 ]]; then
-            COMMENT_BODY+="📊 **Results Overview:**\n"
-            COMMENT_BODY+="- **Total Mutants:** $TOTAL_MUTANTS\n"
-            COMMENT_BODY+="- **Surviving Mutants:** $SURVIVING_COUNT (test coverage gaps)\n"
-            COMMENT_BODY+="- **Dismissed Mutants:** $DISMISSED_COUNT (acknowledged)\n\n"
-
-            # Calculate mutation score if we have data
-            if [[ "$TOTAL_MUTANTS" -gt 0 ]]; then
-              KILLED_COUNT=$((TOTAL_MUTANTS - SURVIVING_COUNT))
-              MUTATION_SCORE=$(( (KILLED_COUNT * 100) / TOTAL_MUTANTS ))
-              COMMENT_BODY+="🎯 **Mutation Score:** ${MUTATION_SCORE}% (${KILLED_COUNT}/${TOTAL_MUTANTS} mutants killed)\n\n"
-            fi
+            KILLED_COUNT=$((TOTAL_MUTANTS - SURVIVING_COUNT))
+            MUTATION_SCORE=$(( (KILLED_COUNT * 100) / TOTAL_MUTANTS ))
+            
+            COMMENT_BODY=$(printf "## 🧪 Mutation Testing Summary\n\n📊 **Results Overview:**\n- **Total Mutants:** %s\n- **Surviving Mutants:** %s (test coverage gaps)\n- **Dismissed Mutants:** %s (acknowledged)\n\n🎯 **Mutation Score:** %s%% (%s/%s mutants killed)\n\n" \
+              "$TOTAL_MUTANTS" "$SURVIVING_COUNT" "$DISMISSED_COUNT" "$MUTATION_SCORE" "$KILLED_COUNT" "$TOTAL_MUTANTS")
           else
-            COMMENT_BODY+="ℹ️ No mutation testing results found for this PR.\n\n"
+            COMMENT_BODY=$(printf "## 🧪 Mutation Testing Summary\n\nℹ️ No mutation testing results found for this PR.\n\n")
           fi
 
           # List surviving mutants
           if [[ "$SURVIVING_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="### 🔴 Surviving Mutants (Test Coverage Gaps)\n\n"
+            COMMENT_BODY+=$(printf "### 🔴 Surviving Mutants (Test Coverage Gaps)\n\n")
             if [[ "$SURVIVING_COUNT" -gt 50 ]]; then
-              COMMENT_BODY+="_Showing first 50 of $SURVIVING_COUNT total surviving mutants_\n\n"
+              COMMENT_BODY+=$(printf "_Showing first 50 of %s total surviving mutants_\n\n" "$SURVIVING_COUNT")
             fi
             while IFS= read -r row; do
               MUTANT_URL=$(echo "$row" | jq -r '.html_url')
@@ -245,16 +237,15 @@ jobs:
               MUTANT_LINE=$(echo "$row" | jq -r '.most_recent_instance.location.start_line')
               MUTANT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
 
-              COMMENT_BODY+="- [\`$MUTANT_FILE:$MUTANT_LINE\`]($MUTANT_URL)\n"
-              COMMENT_BODY+="  $MUTANT_DESCRIPTION\n\n"
+              COMMENT_BODY+=$(printf "- [\`%s:%s\`](%s)\n  %s\n\n" "$MUTANT_FILE" "$MUTANT_LINE" "$MUTANT_URL" "$MUTANT_DESCRIPTION")
             done < <(echo "$SURVIVING_MUTANTS" | jq -c '.[]')
           fi
 
           # List dismissed mutants
           if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="### ✅ Dismissed Mutants\n\n"
+            COMMENT_BODY+=$(printf "### ✅ Dismissed Mutants\n\n")
             if [[ "$DISMISSED_COUNT" -gt 50 ]]; then
-              COMMENT_BODY+="_Showing first 50 of $DISMISSED_COUNT total dismissed mutants_\n\n"
+              COMMENT_BODY+=$(printf "_Showing first 50 of %s total dismissed mutants_\n\n" "$DISMISSED_COUNT")
             fi
             while IFS= read -r row; do
               MUTANT_URL=$(echo "$row" | jq -r '.html_url')
@@ -263,26 +254,21 @@ jobs:
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason // "No reason"')
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment // "No comment"')
 
-              COMMENT_BODY+="- [\`$MUTANT_FILE:$MUTANT_LINE\`]($MUTANT_URL) - **$DISMISS_REASON**\n"
+              COMMENT_BODY+=$(printf "- [\`%s:%s\`](%s) - **%s**\n" "$MUTANT_FILE" "$MUTANT_LINE" "$MUTANT_URL" "$DISMISS_REASON")
               if [[ "$DISMISS_COMMENT" != "No comment" ]]; then
-                COMMENT_BODY+="  _${DISMISS_COMMENT}_\n\n"
+                COMMENT_BODY+=$(printf "  _%s_\n\n" "$DISMISS_COMMENT")
               else
-                COMMENT_BODY+="\n"
+                COMMENT_BODY+=$(printf "\n")
               fi
             done < <(echo "$DISMISSED_MUTANTS" | jq -c '.[]')
           fi
 
           # Net unresolved findings
-          COMMENT_BODY+="### 📋 Net Unresolved Findings\n\n"
+          COMMENT_BODY+=$(printf "### 📋 Net Unresolved Findings\n\n")
           if [[ "$SURVIVING_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="⚠️ **${SURVIVING_COUNT} test coverage gap(s)** need attention\n\n"
-            COMMENT_BODY+="**Next Steps:**\n"
-            COMMENT_BODY+="1. Review surviving mutants above\n"
-            COMMENT_BODY+="2. Add tests to kill these mutants or dismiss with justification\n"
-            COMMENT_BODY+="3. Aim for high mutation score to ensure robust test coverage\n"
+            COMMENT_BODY+=$(printf "⚠️ **%s test coverage gap(s)** need attention\n\n**Next Steps:**\n1. Review surviving mutants above\n2. Add tests to kill these mutants or dismiss with justification\n3. Aim for high mutation score to ensure robust test coverage\n" "$SURVIVING_COUNT")
           else
-            COMMENT_BODY+="🎉 **No unresolved test coverage gaps!**\n"
-            COMMENT_BODY+="All mutants were either killed by tests or properly dismissed.\n"
+            COMMENT_BODY+=$(printf "🎉 **No unresolved test coverage gaps!**\nAll mutants were either killed by tests or properly dismissed.\n")
           fi
 
           # Properly escape JSON for API call
@@ -291,14 +277,16 @@ jobs:
           # Update existing comment if found; otherwise, post a new one.
           if [[ -n "$EXISTING_COMMENT_ID" ]]; then
             echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
-            echo "$COMMENT_JSON" | curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+            RESPONSE=$(echo "$COMMENT_JSON" | curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
               -d @- \
-              "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
+              "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}")
+            echo "Update response: $RESPONSE"
           else
             echo "Posting new comment to PR..."
-            echo "$COMMENT_JSON" | curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+            RESPONSE=$(echo "$COMMENT_JSON" | curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
               -d @- \
-              "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+              "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments")
+            echo "Post response: $RESPONSE"
           fi
 
  
