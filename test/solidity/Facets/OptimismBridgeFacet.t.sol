@@ -309,8 +309,12 @@ contract OptimismBridgeFacetTest is TestBase {
         
         // With refundExcessNative: user should only lose ~0.1 ETH + gas
         // Without refundExcessNative: user loses full 1 ETH + gas
-        // This test catches when the full amount is lost (mutant case)
+        // This test specifically targets mutant #1128 where refundExcessNative is deleted
         assertLt(totalSpent, 0.5 ether, "Should not lose more than 0.5 ETH (excess should be refunded)");
+        
+        // More precise check: should lose approximately 0.1 ETH plus reasonable gas costs
+        assertGt(totalSpent, 0.05 ether, "Should spend at least 0.05 ETH for swap and gas");
+        assertLt(totalSpent, 0.2 ether, "Should not spend more than 0.2 ETH (0.1 + gas)");
 
         vm.stopPrank();
     }
