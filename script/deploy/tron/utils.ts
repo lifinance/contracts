@@ -80,11 +80,8 @@ export async function getEnvironment(): Promise<string> {
 export async function getPrivateKey(): Promise<string> {
   const environment = await getEnvironment()
 
-  if (environment === 'production') 
-    return getEnvVar('PRIVATE_KEY_PRODUCTION')
-   else 
-    return getEnvVar('PRIVATE_KEY')
-  
+  if (environment === 'production') return getEnvVar('PRIVATE_KEY_PRODUCTION')
+  else return getEnvVar('PRIVATE_KEY')
 }
 
 /**
@@ -247,4 +244,276 @@ export function calculateTransactionBandwidth(transaction: any): number {
     MAX_RESULT_SIZE_IN_TX +
     signatureCount * A_SIGNATURE
   )
+}
+
+/**
+ * Update tron.diamond.json with registered facet information
+ * @param facetAddress - The Tron address of the facet (base58 format)
+ * @param facetName - The name of the facet (e.g., 'SymbiosisFacet')
+ * @param version - The version of the facet (optional, will try to get from contract)
+ */
+export async function updateDiamondJson(
+  facetAddress: string,
+  facetName: string,
+  version?: string
+): Promise<void> {
+  try {
+    const diamondJsonPath = resolve(
+      process.cwd(),
+      'deployments',
+      'tron.diamond.json'
+    )
+
+    // Read existing file or create new structure
+    let diamondData: any
+    try {
+      const fileContent = await Bun.file(diamondJsonPath).text()
+      diamondData = JSON.parse(fileContent)
+    } catch {
+      // File doesn't exist or is invalid, create new structure
+      diamondData = {
+        LiFiDiamond: {
+          Facets: {},
+          Periphery: {},
+        },
+      }
+    }
+
+    // Ensure structure exists
+    if (!diamondData.LiFiDiamond) 
+      diamondData.LiFiDiamond = {
+        Facets: {},
+        Periphery: {},
+      }
+    
+    if (!diamondData.LiFiDiamond.Facets) 
+      diamondData.LiFiDiamond.Facets = {}
+    
+
+    // Check if facet already exists (by name to avoid duplicates)
+    const facets = diamondData.LiFiDiamond.Facets
+
+    for (const address in facets) 
+      if (facets[address].Name === facetName) 
+        if (address === facetAddress) {
+          consola.info(`ℹ️  ${facetName} already exists in tron.diamond.json`)
+          return
+        } else {
+          // Same facet name but different address - update it
+          consola.info(`ℹ️  Updating ${facetName} address in tron.diamond.json`)
+          delete facets[address]
+          break
+        }
+      
+    
+
+    // Get version if not provided
+    if (!version) 
+      try {
+        version = await getContractVersion(facetName)
+      } catch {
+        version = '1.0.0' // Default version if not found
+        consola.warn(
+          `⚠️  Could not determine version for ${facetName}, using default: ${version}`
+        )
+      }
+    
+
+    // Add facet entry
+    facets[facetAddress] = {
+      Name: facetName,
+      Version: version,
+    }
+
+    // Write updated file
+    await Bun.write(
+      diamondJsonPath,
+      JSON.stringify(diamondData, null, 2) + '\n'
+    )
+
+    consola.success(`✅ Updated tron.diamond.json with ${facetName}`)
+  } catch (error: any) {
+    consola.error('❌ Failed to update tron.diamond.json:', error.message)
+    // Don't throw - this is not critical for the deployment
+  }
+}
+
+/**
+ * Update tron.diamond.json with multiple facets at once
+ * @param facetEntries - Array of {address, name, version?} objects
+ */
+export async function updateDiamondJsonBatch(
+  facetEntries: Array<{
+    address: string
+    name: string
+    version?: string
+  }>
+): Promise<void> {
+  try {
+    const diamondJsonPath = resolve(
+      process.cwd(),
+      'deployments',
+      'tron.diamond.json'
+    )
+
+    // Read existing file or create new structure
+    let diamondData: any
+    try {
+      const fileContent = await Bun.file(diamondJsonPath).text()
+      diamondData = JSON.parse(fileContent)
+    } catch {
+      diamondData = {
+        LiFiDiamond: {
+          Facets: {},
+          Periphery: {},
+        },
+      }
+    }
+
+    // Ensure structure exists
+    if (!diamondData.LiFiDiamond) 
+      diamondData.LiFiDiamond = {
+        Facets: {},
+        Periphery: {},
+      }
+    
+    if (!diamondData.LiFiDiamond.Facets) 
+      diamondData.LiFiDiamond.Facets = {}
+    
+
+    const facets = diamondData.LiFiDiamond.Facets
+    let updatedCount = 0
+
+    // Process each facet entry
+    for (const entry of facetEntries) {
+      // Check if facet already exists by name
+      let existingAddress: string | null = null
+      for (const address in facets) 
+        if (facets[address].Name === entry.name) {
+          existingAddress = address
+          break
+        }
+      
+
+      if (existingAddress === entry.address) {
+        consola.info(`ℹ️  ${entry.name} already exists in tron.diamond.json`)
+        continue
+      }
+
+      if (existingAddress) {
+        // Remove old entry
+        delete facets[existingAddress]
+        consola.info(`ℹ️  Updating ${entry.name} address in tron.diamond.json`)
+      }
+
+      // Get version if not provided
+      let version = entry.version
+      if (!version) 
+        try {
+          version = await getContractVersion(entry.name)
+        } catch {
+          version = '1.0.0'
+          consola.warn(
+            `⚠️  Could not determine version for ${entry.name}, using default: ${version}`
+          )
+        }
+      
+
+      // Add facet entry
+      facets[entry.address] = {
+        Name: entry.name,
+        Version: version,
+      }
+      updatedCount++
+    }
+
+    if (updatedCount > 0) {
+      // Write updated file
+      await Bun.write(
+        diamondJsonPath,
+        JSON.stringify(diamondData, null, 2) + '\n'
+      )
+
+      consola.success(
+        `✅ Updated tron.diamond.json with ${updatedCount} facet(s)`
+      )
+    }
+  } catch (error: any) {
+    consola.error('❌ Failed to update tron.diamond.json:', error.message)
+    // Don't throw - this is not critical for the deployment
+  }
+}
+
+/**
+ * Update tron.diamond.json with periphery contract information
+ * @param contractAddress - The Tron address of the contract (base58 format)
+ * @param contractName - The name of the contract (e.g., 'ERC20Proxy')
+ */
+export async function updateDiamondJsonPeriphery(
+  contractAddress: string,
+  contractName: string
+): Promise<void> {
+  try {
+    const diamondJsonPath = resolve(
+      process.cwd(),
+      'deployments',
+      'tron.diamond.json'
+    )
+
+    // Read existing file or create new structure
+    let diamondData: any
+    try {
+      const fileContent = await Bun.file(diamondJsonPath).text()
+      diamondData = JSON.parse(fileContent)
+    } catch {
+      // File doesn't exist or is invalid, create new structure
+      diamondData = {
+        LiFiDiamond: {
+          Facets: {},
+          Periphery: {},
+        },
+      }
+    }
+
+    // Ensure structure exists
+    if (!diamondData.LiFiDiamond) 
+      diamondData.LiFiDiamond = {
+        Facets: {},
+        Periphery: {},
+      }
+    
+    if (!diamondData.LiFiDiamond.Periphery) 
+      diamondData.LiFiDiamond.Periphery = {}
+    
+
+    // Update or add periphery contract (simple key-value format)
+    const periphery = diamondData.LiFiDiamond.Periphery
+
+    if (periphery[contractName] === contractAddress) {
+      consola.info(
+        `ℹ️  ${contractName} already exists in tron.diamond.json with same address`
+      )
+      return
+    }
+
+    if (periphery[contractName]) 
+      consola.info(`ℹ️  Updating ${contractName} address in tron.diamond.json`)
+    
+
+    // Set the contract address (simple format: name -> address)
+    periphery[contractName] = contractAddress
+
+    // Write updated file
+    await Bun.write(
+      diamondJsonPath,
+      JSON.stringify(diamondData, null, 2) + '\n'
+    )
+
+    consola.success(
+      `✅ Updated tron.diamond.json with ${contractName} (Periphery)`
+    )
+  } catch (error: any) {
+    consola.error('❌ Failed to update tron.diamond.json:', error.message)
+    // Don't throw - this is not critical for the deployment
+  }
 }

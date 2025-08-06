@@ -26670,6 +26670,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-06 06:27:52",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000863786bbf4561f4a2a8be5a9ddf152afd8ae25c00000000000000000000000049e1816a2cf475515e7c80c9f0f0e16ae499198b",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {

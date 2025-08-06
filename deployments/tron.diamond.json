@@ -44,8 +44,17 @@
       "TZ35GFtD5rw1YGBbqaeWUW4dgPGpphUrAw": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
-    "Periphery": {}
+    "Periphery": {
+      "ERC20Proxy": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
+      "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
+      "FeeCollector": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
+      "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
+    }
   }
 }

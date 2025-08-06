@@ -7,7 +7,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
-import { getPrivateKey, ENERGY_PRICE } from './utils'
+import { getPrivateKey, ENERGY_PRICE, updateDiamondJsonBatch } from './utils'
 
 // Verified selectors (from contract-selectors.sh)
 const FACET_SELECTORS: Record<string, string[]> = {
@@ -335,6 +335,43 @@ async function registerFacetsBatch(
       })
 
     consola.success(` Transaction successful: ${tx}`)
+
+    // Update tron.diamond.json with successfully registered facets
+    if (!dryRun) {
+      // Verify which facets were actually registered by checking the diamond
+      const facetsResponse = await diamond.facets().call()
+      const registeredFacets = Array.isArray(facetsResponse[0])
+        ? facetsResponse[0]
+        : facetsResponse
+
+      const facetEntries = []
+      for (const facetName of facetNames) {
+        const facetAddress = deployments[facetName]
+        if (facetAddress && FACET_SELECTORS[facetName]) {
+          // Check if this facet is actually registered
+          let isRegistered = false
+          for (const facet of registeredFacets) {
+            const registeredAddress = tronWeb.address.fromHex(facet[0])
+            if (registeredAddress === facetAddress) {
+              isRegistered = true
+              break
+            }
+          }
+
+          if (isRegistered) 
+            facetEntries.push({
+              address: facetAddress,
+              name: facetName,
+            })
+          
+        }
+      }
+
+      if (facetEntries.length > 0) 
+        await updateDiamondJsonBatch(facetEntries)
+      
+    }
+
     return true
   } catch (error: any) {
     consola.error(' diamondCut failed:', error.message || error)
@@ -688,8 +725,6 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) 
-  runMain(main)
-
+if (import.meta.main) runMain(main)
 
 export { registerFacetsToDiamond }

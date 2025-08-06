@@ -14,5 +14,6 @@
   "ERC20Proxy": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
   "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
   "FeeCollector": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
-  "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
+  "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
+  "SymbiosisFacet": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f"
 }

@@ -118,5 +118,9 @@
   "zksync": {
     "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",
     "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1"
+  },
+  "tron": {
+    "metaRouter": "0x0863786bbf4561f4a2a8be5a9ddf152afd8ae25c",
+    "gateway": "0x49e1816a2cf475515e7c80c9f0f0e16ae499198b"
   }
 }

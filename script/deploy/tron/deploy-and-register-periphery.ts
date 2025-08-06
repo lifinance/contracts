@@ -17,6 +17,7 @@ import {
   getContractAddress,
   saveContractAddress,
   logDeployment,
+  updateDiamondJsonPeriphery,
 } from './utils.js'
 
 // Periphery contracts to deploy
@@ -857,6 +858,17 @@ async function deployAndRegisterPeriphery() {
           ) {
             const registeredBase58 = tronWeb.address.fromHex(registered)
             consola.success(`${name}: ${registeredBase58}`)
+
+            // Update tron.diamond.json with successfully registered periphery contract
+            const deployedAddress = deployedContracts[name]
+            if (deployedAddress && deployedAddress !== 'FAILED') {
+              // Convert to base58 if needed
+              const addressToSave = deployedAddress.startsWith('T')
+                ? deployedAddress
+                : tronWeb.address.fromHex(deployedAddress.replace('0x', '41'))
+
+              await updateDiamondJsonPeriphery(addressToSave, name)
+            }
           } else consola.warn(`  ${name}: Not registered`)
         } catch (error: any) {
           consola.error(` Failed to verify ${name}:`, error.message)
