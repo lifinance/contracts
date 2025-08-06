@@ -46,7 +46,7 @@ contract UniV3StyleFacet {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external returns (uint256 amountOut) {
+    ) external {
         uint256 stream = LibInputStream2.createStream(swapData);
         address pool = stream.readAddress();
         bool direction = stream.readUint8() > 0;
