@@ -21,6 +21,7 @@ import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { VelodromeV2Facet } from "lifi/Periphery/Lda/Facets/VelodromeV2Facet.sol";
 import { AlgebraFacet } from "lifi/Periphery/Lda/Facets/AlgebraFacet.sol";
 import { IzumiV3Facet } from "lifi/Periphery/Lda/Facets/IzumiV3Facet.sol";
+import { SyncSwapV2Facet } from "lifi/Periphery/Lda/Facets/SyncSwapV2Facet.sol";
 
 import { TestToken as ERC20 } from "../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../utils/MockTokenFeeOnTransfer.sol";
@@ -109,6 +110,26 @@ abstract contract LiFiDexAggregatorUpgradeTest is LdaDiamondTest, TestHelpers {
     function setupHyperEVM() internal {
         customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
         customBlockNumberForForking = 4433562;
+    }
+
+    function setupXDC() internal {
+        customRpcUrlForForking = "ETH_NODE_URI_XDC";
+        customBlockNumberForForking = 89279495;
+    }
+
+    function setupViction() internal {
+        customRpcUrlForForking = "ETH_NODE_URI_VICTION";
+        customBlockNumberForForking = 94490946;
+    }
+
+    function setupFlare() internal {
+        customRpcUrlForForking = "ETH_NODE_URI_FLARE";
+        customBlockNumberForForking = 42652369;
+    }
+
+    function setupLinea() internal {
+        customRpcUrlForForking = "ETH_NODE_URI_LINEA";
+        customBlockNumberForForking = 20077881;
     }
 
     function setUp() public virtual override {
@@ -1166,7 +1187,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
 
         vm.startPrank(APE_ETH_HOLDER_APECHAIN);
 
-        IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), amountIn);
+        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), amountIn);
 
         // Build route for algebra swap with command code 2 (user funds)
         bytes memory swapData = _buildAlgebraSwapData(
@@ -1320,7 +1341,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
         );
 
         // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
+        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
 
         // Mock the algebra pool to not reset lastCalledPool
         vm.mockCall(
@@ -1447,7 +1468,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
 
         // Approve spending
         IERC20(address(state.tokenA)).approve(
-            address(coreRouteFacet),
+            address(ldaDiamond),
             state.amountIn
         );
 
@@ -1709,10 +1730,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
         );
 
         // 2. Approve tokens
-        IERC20(params.tokenIn).approve(
-            address(coreRouteFacet),
-            params.amountIn
-        );
+        IERC20(params.tokenIn).approve(address(ldaDiamond), params.amountIn);
 
         // 3. Set up event expectations
         address fromAddress = params.from == address(coreRouteFacet)
@@ -1821,7 +1839,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
         );
 
         // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
+        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
 
         // Expect revert with InvalidCallData
         vm.expectRevert(InvalidCallData.selector);
@@ -1874,7 +1892,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
     //     );
 
     //     // Approve tokens
-    //     IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
+    //     IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
 
     //     // Expect revert with InvalidCallData
     //     vm.expectRevert(InvalidCallData.selector);
@@ -1927,7 +1945,7 @@ contract LiFiDexAggregatorAlgebraUpgradeTest is LiFiDexAggregatorUpgradeTest {
         );
 
         // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(coreRouteFacet), 1 * 1e18);
+        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
 
         // Expect revert with InvalidCallData
         vm.expectRevert(InvalidCallData.selector);
@@ -2062,7 +2080,7 @@ contract LiFiDexAggregatorIzumiV3UpgradeTest is LiFiDexAggregatorUpgradeTest {
         deal(address(USDC), USER_SENDER, AMOUNT_USDC);
 
         vm.startPrank(USER_SENDER);
-        IERC20(USDC).approve(address(coreRouteFacet), AMOUNT_USDC);
+        IERC20(USDC).approve(address(ldaDiamond), AMOUNT_USDC);
 
         bytes memory swapData = _buildIzumiV3SwapData(
             IzumiV3SwapParams({
@@ -2122,7 +2140,7 @@ contract LiFiDexAggregatorIzumiV3UpgradeTest is LiFiDexAggregatorUpgradeTest {
             swapData
         );
 
-        IERC20(USDC).approve(address(coreRouteFacet), AMOUNT_USDC);
+        IERC20(USDC).approve(address(ldaDiamond), AMOUNT_USDC);
 
         // mock the iZiSwap pool to return without updating lastCalledPool
         vm.mockCall(
@@ -2193,7 +2211,7 @@ contract LiFiDexAggregatorIzumiV3UpgradeTest is LiFiDexAggregatorUpgradeTest {
         deal(address(WETH), USER_SENDER, type(uint256).max);
 
         vm.startPrank(USER_SENDER);
-        IERC20(WETH).approve(address(coreRouteFacet), type(uint256).max);
+        IERC20(WETH).approve(address(ldaDiamond), type(uint256).max);
 
         bytes memory swapData = _buildIzumiV3SwapData(
             IzumiV3SwapParams({
@@ -2267,7 +2285,7 @@ contract LiFiDexAggregatorIzumiV3UpgradeTest is LiFiDexAggregatorUpgradeTest {
         if (params.from == USER_SENDER) {
             vm.startPrank(USER_SENDER);
             IERC20(params.tokenIn).approve(
-                address(coreRouteFacet),
+                address(ldaDiamond),
                 params.amountIn
             );
         }
@@ -2376,10 +2394,7 @@ contract LiFiDexAggregatorIzumiV3UpgradeTest is LiFiDexAggregatorUpgradeTest {
 
         // Approve tokens
         vm.startPrank(USER_SENDER);
-        IERC20(params.tokenIn).approve(
-            address(coreRouteFacet),
-            params.amountIn
-        );
+        IERC20(params.tokenIn).approve(address(ldaDiamond), params.amountIn);
 
         // Execute the swap
         uint256 amountOut = coreRouteFacet.processRoute(
@@ -2538,7 +2553,7 @@ contract LiFiDexAggregatorHyperswapV3UpgradeTest is
 
         // user approves
         vm.prank(USER_SENDER);
-        USDT0.approve(address(uniV3StyleFacet), amountIn);
+        USDT0.approve(address(ldaDiamond), amountIn);
 
         // fetch the real pool and quote
         address pool = HYPERSWAP_FACTORY.getPool(
@@ -2771,7 +2786,7 @@ contract LiFiDexAggregatorLaminarV3UpgradeTest is
         deal(address(WHYPE), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        WHYPE.approve(address(uniV3StyleFacet), amountIn);
+        WHYPE.approve(address(ldaDiamond), amountIn);
 
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
@@ -2880,6 +2895,1052 @@ contract LiFiDexAggregatorLaminarV3UpgradeTest is
                 params.pool,
                 uint8(params.direction),
                 params.recipient
+            );
+    }
+}
+
+contract LiFiDexAggregatorXSwapV3UpgradeTest is LiFiDexAggregatorUpgradeTest {
+    using SafeERC20 for IERC20;
+
+    UniV3StyleFacet internal uniV3StyleFacet;
+
+    address internal constant USDC_E_WXDC_POOL =
+        0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0;
+
+    /// @dev our two tokens: USDC.e and wrapped XDC
+    IERC20 internal constant USDC_E =
+        IERC20(0x2A8E898b6242355c290E1f4Fc966b8788729A4D4);
+    IERC20 internal constant WXDC =
+        IERC20(0x951857744785E80e2De051c32EE7b25f9c458C42);
+
+    function setUp() public override {
+        setupXDC();
+        super.setUp();
+    }
+
+    function _addDexFacet() internal override {
+        uniV3StyleFacet = new UniV3StyleFacet();
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = uniV3StyleFacet.swapUniV3.selector;
+        functionSelectors[1] = uniV3StyleFacet.xswapCallback.selector;
+        addFacet(
+            address(ldaDiamond),
+            address(uniV3StyleFacet),
+            functionSelectors
+        );
+
+        uniV3StyleFacet = UniV3StyleFacet(payable(address(ldaDiamond)));
+    }
+
+    function test_CanSwap() public override {
+        uint256 amountIn = 1_000 * 1e6;
+        deal(address(USDC_E), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        USDC_E.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: USDC_E_WXDC_POOL,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(USDC_E),
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Record balances before swap
+        uint256 inBefore = USDC_E.balanceOf(USER_SENDER);
+        uint256 outBefore = WXDC.balanceOf(USER_SENDER);
+
+        // Execute swap (minOut = 0 for test)
+        coreRouteFacet.processRoute(
+            address(USDC_E),
+            amountIn,
+            address(WXDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify balances after swap
+        uint256 inAfter = USDC_E.balanceOf(USER_SENDER);
+        uint256 outAfter = WXDC.balanceOf(USER_SENDER);
+        assertEq(inBefore - inAfter, amountIn, "USDC.e spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive WXDC");
+
+        vm.stopPrank();
+    }
+
+    /// @notice single-pool swap: aggregator contract sends USDC.e → user receives WXDC
+    function test_CanSwap_FromDexAggregator() public override {
+        uint256 amountIn = 5_000 * 1e6;
+
+        // fund the aggregator
+        deal(address(USDC_E), address(uniV3StyleFacet), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        // Account for slot-undrain protection
+        uint256 swapAmount = amountIn - 1;
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: USDC_E_WXDC_POOL,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            address(USDC_E),
+            uint8(1),
+            FULL_SHARE,
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Record balances before swap
+        uint256 outBefore = WXDC.balanceOf(USER_SENDER);
+
+        coreRouteFacet.processRoute(
+            address(USDC_E),
+            swapAmount,
+            address(WXDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify balances after swap
+        uint256 outAfter = WXDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive WXDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: XSwap V3 multi-hop unsupported due to AS requirement.
+        // XSwap V3 does not support a "one-pool" second hop today, because
+        // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. XSwap V3's swap() immediately reverts on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
+        // in a single processRoute invocation.
+    }
+
+    struct UniV3SwapParams {
+        address pool;
+        SwapDirection direction;
+        address recipient;
+    }
+
+    function _buildUniV3SwapData(
+        UniV3SwapParams memory params
+    ) internal returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uniV3StyleFacet.swapUniV3.selector,
+                params.pool,
+                uint8(params.direction),
+                params.recipient
+            );
+    }
+}
+
+// -----------------------------------------------------------------------------
+//  RabbitSwap on Viction
+// -----------------------------------------------------------------------------
+contract LiFiDexAggregatorRabbitSwapUpgradeTest is
+    LiFiDexAggregatorUpgradeTest
+{
+    using SafeERC20 for IERC20;
+
+    UniV3StyleFacet internal uniV3StyleFacet;
+
+    // Constants for RabbitSwap on Viction
+    IERC20 internal constant SOROS =
+        IERC20(0xB786D9c8120D311b948cF1e5Aa48D8fBacf477E2);
+    IERC20 internal constant C98 =
+        IERC20(0x0Fd0288AAAE91eaF935e2eC14b23486f86516c8C);
+    address internal constant SOROS_C98_POOL =
+        0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D;
+
+    function setUp() public override {
+        setupViction();
+        super.setUp();
+    }
+
+    function _addDexFacet() internal override {
+        uniV3StyleFacet = new UniV3StyleFacet();
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = uniV3StyleFacet.swapUniV3.selector;
+        functionSelectors[1] = uniV3StyleFacet
+            .rabbitSwapV3SwapCallback
+            .selector;
+        addFacet(
+            address(ldaDiamond),
+            address(uniV3StyleFacet),
+            functionSelectors
+        );
+
+        uniV3StyleFacet = UniV3StyleFacet(payable(address(ldaDiamond)));
+    }
+
+    function test_CanSwap() public override {
+        uint256 amountIn = 1_000 * 1e18;
+
+        // fund the user with SOROS
+        deal(address(SOROS), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        SOROS.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: SOROS_C98_POOL,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(SOROS),
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // record balances before swap
+        uint256 inBefore = SOROS.balanceOf(USER_SENDER);
+        uint256 outBefore = C98.balanceOf(USER_SENDER);
+
+        // execute swap (minOut = 0 for test)
+        coreRouteFacet.processRoute(
+            address(SOROS),
+            amountIn,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // verify balances after swap
+        uint256 inAfter = SOROS.balanceOf(USER_SENDER);
+        uint256 outAfter = C98.balanceOf(USER_SENDER);
+        assertEq(inBefore - inAfter, amountIn, "SOROS spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive C98");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        uint256 amountIn = 1_000 * 1e18;
+
+        // fund the aggregator directly
+        deal(address(SOROS), address(uniV3StyleFacet), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: SOROS_C98_POOL,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20),
+            address(SOROS),
+            uint8(1),
+            FULL_SHARE,
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        uint256 outBefore = C98.balanceOf(USER_SENDER);
+
+        // withdraw 1 wei less to avoid slot-undrain protection
+        coreRouteFacet.processRoute(
+            address(SOROS),
+            amountIn - 1,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 outAfter = C98.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive C98");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: RabbitSwap multi-hop unsupported due to AS requirement.
+        // RabbitSwap (being a UniV3 fork) does not support a "one-pool" second hop today,
+        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. UniV3-style pools immediately revert on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
+        // in a single processRoute invocation.
+    }
+
+    function testRevert_RabbitSwapInvalidPool() public {
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(SOROS), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        SOROS.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: address(0),
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(SOROS),
+            uint8(1),
+            FULL_SHARE,
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        coreRouteFacet.processRoute(
+            address(SOROS),
+            amountIn,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_RabbitSwapInvalidRecipient() public {
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(SOROS), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        SOROS.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: SOROS_C98_POOL,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: address(0)
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20),
+            address(SOROS),
+            uint8(1),
+            FULL_SHARE,
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        coreRouteFacet.processRoute(
+            address(SOROS),
+            amountIn,
+            address(C98),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    struct UniV3SwapParams {
+        address pool;
+        SwapDirection direction;
+        address recipient;
+    }
+
+    function _buildUniV3SwapData(
+        UniV3SwapParams memory params
+    ) internal returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uniV3StyleFacet.swapUniV3.selector,
+                params.pool,
+                uint8(params.direction),
+                params.recipient
+            );
+    }
+}
+
+// ----------------------------------------------
+// EnosysDexV3 on Flare
+// ----------------------------------------------
+contract LiFiDexAggregatorEnosysDexV3UpgradeTest is
+    LiFiDexAggregatorUpgradeTest
+{
+    using SafeERC20 for IERC20;
+
+    UniV3StyleFacet internal uniV3StyleFacet;
+
+    /// @dev HLN token on Flare
+    IERC20 internal constant HLN =
+        IERC20(0x140D8d3649Ec605CF69018C627fB44cCC76eC89f);
+
+    /// @dev USDT0 token on Flare
+    IERC20 internal constant USDT0 =
+        IERC20(0xe7cd86e13AC4309349F30B3435a9d337750fC82D);
+
+    /// @dev The single EnosysDexV3 pool for HLN–USDT0
+    address internal constant ENOSYS_V3_POOL =
+        0xA7C9E7343bD8f1eb7000F25dE5aeb52c6B78B1b7;
+
+    function setUp() public override {
+        setupFlare();
+        super.setUp();
+    }
+
+    function _addDexFacet() internal override {
+        uniV3StyleFacet = new UniV3StyleFacet();
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = uniV3StyleFacet.swapUniV3.selector;
+        functionSelectors[1] = uniV3StyleFacet
+            .enosysdexV3SwapCallback
+            .selector;
+        addFacet(
+            address(ldaDiamond),
+            address(uniV3StyleFacet),
+            functionSelectors
+        );
+
+        uniV3StyleFacet = UniV3StyleFacet(payable(address(ldaDiamond)));
+    }
+
+    /// @notice Single‐pool swap: USER sends HLN → receives USDT0
+    function test_CanSwap() public override {
+        // Mint 1 000 HLN to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(HLN), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        HLN.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: ENOSYS_V3_POOL,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(HLN), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Record balances before swap
+        uint256 inBefore = HLN.balanceOf(USER_SENDER);
+        uint256 outBefore = USDT0.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        coreRouteFacet.processRoute(
+            address(HLN),
+            amountIn,
+            address(USDT0),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that HLN was spent and some USDT0 was received
+        uint256 inAfter = HLN.balanceOf(USER_SENDER);
+        uint256 outAfter = USDT0.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "HLN spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDT0");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Single‐pool swap: aggregator holds HLN → user receives USDT0
+    function test_CanSwap_FromDexAggregator() public override {
+        // Fund the aggregator with 1 000 HLN
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(HLN), address(coreRouteFacet), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: ENOSYS_V3_POOL,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(HLN), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDT0.balanceOf(USER_SENDER);
+
+        coreRouteFacet.processRoute(
+            address(HLN),
+            swapAmount,
+            address(USDT0),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDT0 was received
+        uint256 outAfter = USDT0.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDT0");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        // SKIPPED: EnosysDexV3 multi-hop unsupported due to AS requirement.
+        // EnosysDexV3 (being a UniV3 fork) does not support a "one-pool" second hop today,
+        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. UniV3-style pools immediately revert on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
+        // in a single processRoute invocation.
+    }
+
+    struct UniV3SwapParams {
+        address pool;
+        SwapDirection direction;
+        address recipient;
+    }
+
+    function _buildUniV3SwapData(
+        UniV3SwapParams memory params
+    ) internal returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uniV3StyleFacet.swapUniV3.selector,
+                params.pool,
+                uint8(params.direction),
+                params.recipient
+            );
+    }
+}
+
+// ----------------------------------------------
+// SyncSwapV2 on Linea
+// ----------------------------------------------
+contract LiFiDexAggregatorSyncSwapV2UpgradeTest is
+    LiFiDexAggregatorUpgradeTest
+{
+    using SafeERC20 for IERC20;
+
+    SyncSwapV2Facet internal syncSwapV2Facet;
+
+    IERC20 internal constant USDC =
+        IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff);
+    IERC20 internal constant WETH =
+        IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f);
+    address internal constant USDC_WETH_POOL_V1 =
+        address(0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308);
+    address internal constant SYNC_SWAP_VAULT =
+        address(0x7160570BB153Edd0Ea1775EC2b2Ac9b65F1aB61B);
+
+    address internal constant USDC_WETH_POOL_V2 =
+        address(0xDDed227D71A096c6B5D87807C1B5C456771aAA94);
+
+    IERC20 internal constant USDT =
+        IERC20(0xA219439258ca9da29E9Cc4cE5596924745e12B93);
+    address internal constant USDC_USDT_POOL_V1 =
+        address(0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2);
+
+    function setUp() public override {
+        setupLinea();
+        super.setUp();
+    }
+
+    function _addDexFacet() internal override {
+        syncSwapV2Facet = new SyncSwapV2Facet();
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = syncSwapV2Facet.swapSyncSwapV2.selector;
+        addFacet(
+            address(ldaDiamond),
+            address(syncSwapV2Facet),
+            functionSelectors
+        );
+
+        syncSwapV2Facet = SyncSwapV2Facet(payable(address(ldaDiamond)));
+    }
+
+    /// @notice Single‐pool swap: USER sends WETH → receives USDC
+    function test_CanSwap() public override {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V1,
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Record balances before swap
+        uint256 inBefore = WETH.balanceOf(USER_SENDER);
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        coreRouteFacet.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that WETH was spent and some USDC_C was received
+        uint256 inAfter = WETH.balanceOf(USER_SENDER);
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_PoolV2() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V2,
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 0,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Record balances before swap
+        uint256 inBefore = WETH.balanceOf(USER_SENDER);
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        // Execute the swap (minOut = 0 for test)
+        coreRouteFacet.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that WETH was spent and some USDC_C was received
+        uint256 inAfter = WETH.balanceOf(USER_SENDER);
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+
+        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        // Fund the aggregator with 1 000 WETH
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), address(ldaDiamond), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V1,
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        coreRouteFacet.processRoute(
+            address(WETH),
+            swapAmount,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDC was received
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator_PoolV2() public {
+        // Fund the aggregator with 1 000 WETH
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), address(ldaDiamond), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V2,
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 0,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessMyERC20), // aggregator's funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Subtract 1 to protect against slot‐undrain
+        uint256 swapAmount = amountIn - 1;
+        uint256 outBefore = USDC.balanceOf(USER_SENDER);
+
+        coreRouteFacet.processRoute(
+            address(WETH),
+            swapAmount,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        // Verify that some USDC was received
+        uint256 outAfter = USDC.balanceOf(USER_SENDER);
+        assertGt(outAfter - outBefore, 0, "Should receive USDC");
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        uint256 amountIn = 1_000e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(ldaDiamond), amountIn);
+
+        uint256 initialBalanceIn = WETH.balanceOf(USER_SENDER);
+        uint256 initialBalanceOut = USDT.balanceOf(USER_SENDER);
+
+        //
+        // 1) PROCESS_USER_ERC20:  WETH → USDC   (SyncSwap V1 → withdrawMode=2 → vault that still holds USDC)
+        //
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V1,
+                to: SYNC_SWAP_VAULT,
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory routeHop1 = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        //
+        // 2) PROCESS_ONE_POOL: now swap that USDC → USDT via SyncSwap pool V1
+        //
+        bytes memory swapDataHop2 = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_USDT_POOL_V1,
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory routeHop2 = abi.encodePacked(
+            uint8(CommandType.ProcessOnePool),
+            address(USDC),
+            uint16(swapDataHop2.length), // length prefix
+            swapDataHop2
+        );
+
+        bytes memory route = bytes.concat(routeHop1, routeHop2);
+
+        uint256 amountOut = coreRouteFacet.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDT),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        uint256 afterBalanceIn = WETH.balanceOf(USER_SENDER);
+        uint256 afterBalanceOut = USDT.balanceOf(USER_SENDER);
+
+        assertEq(
+            initialBalanceIn - afterBalanceIn,
+            amountIn,
+            "WETH spent mismatch"
+        );
+        assertEq(
+            amountOut,
+            afterBalanceOut - initialBalanceOut,
+            "USDT amountOut mismatch"
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_V1PoolMissingVaultAddress() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V1,
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: address(0)
+            })
+        );
+
+        bytes memory route = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        coreRouteFacet.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidPoolOrRecipient() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        uint256 amountIn = 1_000 * 1e18;
+        deal(address(WETH), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+        WETH.approve(address(ldaDiamond), amountIn);
+
+        bytes memory swapData = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: address(0),
+                to: address(USER_SENDER),
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory routeWithInvalidPool = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapData.length), // length prefix
+            swapData
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        coreRouteFacet.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidPool
+        );
+
+        bytes memory swapDataWithInvalidRecipient = _buildSyncSwapV2SwapData(
+            SyncSwapV2SwapParams({
+                pool: USDC_WETH_POOL_V1,
+                to: address(0),
+                withdrawMode: 2,
+                isV1Pool: 1,
+                vault: SYNC_SWAP_VAULT
+            })
+        );
+
+        bytes memory routeWithInvalidRecipient = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapDataWithInvalidRecipient.length), // length prefix
+            swapDataWithInvalidRecipient
+        );
+
+        // Expect revert with InvalidCallData
+        vm.expectRevert(InvalidCallData.selector);
+        coreRouteFacet.processRoute(
+            address(WETH),
+            amountIn,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidRecipient
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidWithdrawMode() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes
+            memory swapDataWithInvalidWithdrawMode = _buildSyncSwapV2SwapData(
+                SyncSwapV2SwapParams({
+                    pool: USDC_WETH_POOL_V1,
+                    to: address(USER_SENDER),
+                    withdrawMode: 3,
+                    isV1Pool: 1,
+                    vault: SYNC_SWAP_VAULT
+                })
+            );
+
+        bytes memory routeWithInvalidWithdrawMode = abi.encodePacked(
+            uint8(CommandType.ProcessUserERC20), // user funds
+            address(WETH), // tokenIn
+            uint8(1), // one pool
+            FULL_SHARE, // 100%
+            uint16(swapDataWithInvalidWithdrawMode.length), // length prefix
+            swapDataWithInvalidWithdrawMode
+        );
+
+        // Expect revert with InvalidCallData because withdrawMode is invalid
+        vm.expectRevert(InvalidCallData.selector);
+        coreRouteFacet.processRoute(
+            address(WETH),
+            1,
+            address(USDC),
+            0,
+            USER_SENDER,
+            routeWithInvalidWithdrawMode
+        );
+
+        vm.stopPrank();
+    }
+
+    struct SyncSwapV2SwapParams {
+        address pool;
+        address to;
+        uint8 withdrawMode;
+        uint8 isV1Pool;
+        address vault;
+    }
+
+    function _buildSyncSwapV2SwapData(
+        SyncSwapV2SwapParams memory params
+    ) internal returns (bytes memory) {
+        return
+            abi.encodePacked(
+                syncSwapV2Facet.swapSyncSwapV2.selector,
+                params.pool,
+                params.to,
+                params.withdrawMode,
+                params.isV1Pool,
+                params.vault
             );
     }
 }

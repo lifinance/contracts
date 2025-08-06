@@ -2,32 +2,34 @@
 pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
+import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
 import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
 import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
-/// @title SyncSwap Facet
+/// @title SyncSwapV2Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles SyncSwap swaps with callback management
 /// @custom:version 1.0.0
-contract SyncSwapFacet {
-    using LibInputStream for uint256;
+contract SyncSwapV2Facet {
+    using LibInputStream2 for uint256;
     using SafeERC20 for IERC20;
 
-    /// @notice Performs a swap through SyncSwap pools
-    /// @dev This function handles both X to Y and Y to X swaps through SyncSwap pools.
-    ///      See [SyncSwap API documentation](https://docs.syncswap.xyz/api-documentation) for protocol details.
-    /// @param stream [pool, to, withdrawMode, isV1Pool, vault]
+    /// @notice Performs a swap through SyncSwapV2 pools
+    /// @dev This function handles both X to Y and Y to X swaps through SyncSwapV2 pools.
+    ///      See [SyncSwapV2 API documentation](https://docs.syncswap.xyz/api-documentation) for protocol details.
+    /// @param swapData [pool, to, withdrawMode, isV1Pool, vault]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
-    function swapSyncSwap(
-        uint256 stream,
+    function swapSyncSwapV2(
+        bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
+        uint256 stream = LibInputStream2.createStream(swapData);
+
         address pool = stream.readAddress();
         address to = stream.readAddress();
 
