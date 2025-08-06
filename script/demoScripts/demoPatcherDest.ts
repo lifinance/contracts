@@ -50,50 +50,13 @@ const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
 ])
 
-// Type definitions for LiFi route
-interface IRouteStep {
-  tool: string
-  type: string
-  action: {
-    fromToken?: { symbol: string }
-    toToken?: { symbol: string }
-    fromAmount?: string
-  }
-  estimate?: {
-    toAmount?: string
-    toAmountMin?: string
-  }
-  includedSteps?: Array<{
-    type: string
-    tool: string
-    action: {
-      fromToken: { symbol: string }
-      toToken: { symbol: string }
-      fromAmount: string
-    }
-    estimate: {
-      toAmount: string
-      toAmountMin: string
-    }
-  }>
-}
-
-interface ILiFiRoute {
-  id: string
-  fromAmount: string
-  toAmount: string
-  toAmountMin: string
-  gasCostUSD: string
-  steps: IRouteStep[]
-}
-
 /**
  * Fetch cross-chain route with destination swap using LiFi Advanced Routes API
  */
 async function fetchCrossChainRoute(
   fromAmount: string,
   fromAddress: string
-): Promise<ILiFiRoute> {
+): Promise<any> {
   const requestBody = {
     fromAddress,
     fromAmount,
@@ -148,15 +111,12 @@ async function fetchCrossChainRoute(
       }
     )
 
-    if (!response.ok) 
-      throw new Error(`HTTP error! status: ${response.status}`)
-    
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 
     const data = await response.json()
 
-    if (!data.routes || data.routes.length === 0) 
+    if (!data.routes || data.routes.length === 0)
       throw new Error('No routes found')
-    
 
     const route = data.routes[0] // Use the first (cheapest) route
     consola.success(
@@ -167,13 +127,12 @@ async function fetchCrossChainRoute(
     consola.info(`Steps: ${route.steps.length}`)
 
     // Log step details
-    route.steps.forEach((step: IRouteStep, index: number) => {
+    route.steps.forEach((step: any, index: number) => {
       consola.info(`Step ${index + 1}: ${step.tool} (${step.type})`)
-      if (step.action.fromToken && step.action.toToken) 
+      if (step.action.fromToken && step.action.toToken)
         consola.info(
           `  ${step.action.fromToken.symbol} → ${step.action.toToken.symbol}`
         )
-      
     })
 
     return route
@@ -186,27 +145,23 @@ async function fetchCrossChainRoute(
 /**
  * Extract bridge and swap details from LiFi route
  */
-function extractRouteDetails(route: ILiFiRoute) {
+function extractRouteDetails(route: any) {
   const bridgeStep = route.steps.find(
-    (step) =>
+    (step: any) =>
       step.type === 'lifi' &&
-      step.includedSteps?.some((s) => s.type === 'cross')
+      step.includedSteps?.some((s: any) => s.type === 'cross')
   )
 
-  if (!bridgeStep) 
-    throw new Error('No bridge step found in route')
-  
+  if (!bridgeStep) throw new Error('No bridge step found in route')
 
-  if (!bridgeStep.includedSteps) 
-    throw new Error('Bridge step has no included steps')
-  
+  const crossStep = bridgeStep.includedSteps.find(
+    (s: any) => s.type === 'cross'
+  )
+  const destSwapStep = bridgeStep.includedSteps.find(
+    (s: any) => s.type === 'swap'
+  )
 
-  const crossStep = bridgeStep.includedSteps.find((s) => s.type === 'cross')
-  const destSwapStep = bridgeStep.includedSteps.find((s) => s.type === 'swap')
-
-  if (!crossStep) 
-    throw new Error('No cross-chain step found')
-  
+  if (!crossStep) throw new Error('No cross-chain step found')
 
   consola.info('📊 Route Analysis:')
   consola.info(
@@ -275,7 +230,7 @@ function encodeDestinationCallMessage(
     functionName: 'processRoute',
     args: [
       BASE_WETH as `0x${string}`, // tokenIn - WETH on Base
-      BigInt(processRouteAmountNeedle), // amountIn - needle value (will be patched)
+      processRouteAmountNeedle as any, // amountIn - needle value (will be patched)
       BASE_USDC as `0x${string}`, // tokenOut - USDC on Base
       BigInt(swapToAmountMin), // amountOutMin - Minimum USDC out
       BASE_EXECUTOR as `0x${string}`, // to - Executor contract on Base
@@ -301,7 +256,7 @@ function encodeDestinationCallMessage(
     args: [
       BASE_WETH as `0x${string}`, // tokenAddress - WETH contract
       BASE_WETH as `0x${string}`, // valueSource - WETH contract
-      patcherBalanceValueGetter as `0x${string}`, // valueGetter - balanceOf(Patcher) call
+      patcherBalanceValueGetter, // valueGetter - balanceOf(Patcher) call
       BASE_LIFI_DEX_AGGREGATOR as `0x${string}`, // finalTarget - LiFiDEXAggregator
       0n, // value - no ETH being sent
       processRouteCallData as `0x${string}`, // data - processRoute call
@@ -359,20 +314,7 @@ function encodeDestinationCallMessage(
  * Construct AcrossV3 bridge transaction calldata using route details
  */
 function constructBridgeCallData(
-  routeDetails: {
-    fromAmount: string
-    toAmount: string
-    toAmountMin: string
-    hasDestinationSwap: boolean
-    swapFromAmount?: string
-    swapToAmount?: string
-    swapToAmountMin?: string
-    finalAmount: string
-    finalAmountMin: string
-    gasCostUSD: string
-    bridgeTool: string
-    swapTool?: string
-  },
+  routeDetails: any,
   destinationCallMessage: string,
   walletAddress: string
 ): string {
@@ -471,11 +413,10 @@ async function executeCrossChainBridgeWithSwap(options: {
   if (wethBalance < bridgeAmount && !options.dryRun) {
     consola.error(`Insufficient WETH balance. Need at least 0.001 WETH.`)
     process.exit(1)
-  } else if (options.dryRun && wethBalance < bridgeAmount) 
+  } else if (options.dryRun && wethBalance < bridgeAmount)
     consola.warn(
       `[DRY RUN] Insufficient WETH balance, but continuing for demo purposes`
     )
-  
 
   // Check allowance for LiFi Diamond
   const allowance = (await wethContract.read.allowance([
@@ -486,7 +427,7 @@ async function executeCrossChainBridgeWithSwap(options: {
 
   if (allowance < bridgeAmount) {
     consola.info('Approving WETH for LiFi Diamond...')
-    if (!options.dryRun) 
+    if (!options.dryRun)
       try {
         const approveTx = await wethContract.write.approve([
           LIFI_DIAMOND_ARBITRUM as `0x${string}`,
@@ -503,9 +444,9 @@ async function executeCrossChainBridgeWithSwap(options: {
           timeout: 60_000, // 60 seconds timeout
         })
 
-        if (approvalReceipt.status === 'success') 
+        if (approvalReceipt.status === 'success')
           consola.success(`✅ Approval confirmed!`)
-         else {
+        else {
           consola.error(`❌ Approval failed!`)
           process.exit(1)
         }
@@ -513,9 +454,7 @@ async function executeCrossChainBridgeWithSwap(options: {
         consola.error('Approval transaction failed:', error)
         process.exit(1)
       }
-     else 
-      consola.info(`[DRY RUN] Would approve WETH for LiFi Diamond`)
-    
+    else consola.info(`[DRY RUN] Would approve WETH for LiFi Diamond`)
   }
 
   // Fetch cross-chain route with destination swap
@@ -540,7 +479,7 @@ async function executeCrossChainBridgeWithSwap(options: {
   const destinationCallMessage = encodeDestinationCallMessage(
     transactionId,
     actualReceivedAmount.toString(), // Use actual received amount instead of original bridge amount
-    routeDetails.swapToAmountMin || '0',
+    routeDetails.swapToAmountMin,
     walletAddress
   )
 

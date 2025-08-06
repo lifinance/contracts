@@ -56,13 +56,7 @@ export function computeCowShedProxyAddress(
  * Encode the executeHooks call for the CowShed factory
  */
 export function encodeCowShedExecuteHooks(
-  calls: Array<{
-    target: string
-    value: bigint
-    callData: string
-    allowFailure: boolean
-    isDelegateCall: boolean
-  }>,
+  calls: any[],
   nonce: `0x${string}`,
   deadline: bigint,
   owner: `0x${string}`,
@@ -79,7 +73,7 @@ export function encodeCowShedExecuteHooks(
       calls.map((call) => ({
         target: getAddress(call.target),
         value: call.value,
-        callData: call.callData as `0x${string}`,
+        callData: call.callData,
         allowFailure: call.allowFailure,
         isDelegateCall: call.isDelegateCall,
       })),
@@ -93,23 +87,7 @@ export function encodeCowShedExecuteHooks(
 
 export interface ICowShedPostHooksConfig {
   chainId: number
-  walletClient: {
-    account: {
-      address: string
-    }
-    signMessage: (args: { message: string }) => Promise<`0x${string}`>
-    signTypedData: (args: {
-      domain: {
-        name: string
-        version: string
-        chainId: bigint
-        verifyingContract: `0x${string}`
-      }
-      types: Record<string, Array<{ name: string; type: string }>>
-      primaryType: string
-      message: Record<string, unknown>
-    }) => Promise<`0x${string}`>
-  }
+  walletClient: any
   usdcAddress: string
   receivedAmount: bigint
   lifiDiamondAddress: string
@@ -196,11 +174,10 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
     body: JSON.stringify(quoteParams),
   })
 
-  if (!quoteResponse.ok) 
+  if (!quoteResponse.ok)
     throw new Error(
       `Failed to get quote from Relay API: ${quoteResponse.statusText}`
     )
-  
 
   const quoteData = await quoteResponse.json()
   const relayRequestId = quoteData.steps[0].requestId
@@ -213,11 +190,10 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
     { headers: { 'Content-Type': 'application/json' } }
   )
 
-  if (!signatureResponse.ok) 
+  if (!signatureResponse.ok)
     throw new Error(
       `Failed to get signature from Relay API: ${signatureResponse.statusText}`
     )
-  
 
   const signatureData = await signatureResponse.json()
   const relaySignature = signatureData.signature as `0x${string}`
@@ -322,13 +298,13 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
   // Create calldata with the needle in place of minAmount (will be patched by Patcher)
   const bridgeDataWithNeedle = {
     ...typedBridgeData,
-    minAmount: BigInt(minAmountNeedle), // Convert needle to bigint
+    minAmount: minAmountNeedle, // Pass as hex string directly
   }
 
   const relayCalldata = encodeFunctionData({
     abi: relayFacetAbi,
     functionName: 'startBridgeTokensViaRelay',
-    args: [bridgeDataWithNeedle, typedRelayData],
+    args: [bridgeDataWithNeedle as any, typedRelayData],
   })
 
   // Find the needle position in the calldata

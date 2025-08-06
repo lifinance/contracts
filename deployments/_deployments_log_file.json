@@ -26685,6 +26685,21 @@
           }
         ]
       }
+    },
+    "katana": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8e25A04d1FcbFb9c2cf9f0c29a2DcD001623bC32",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-05 17:04:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {
@@ -38906,6 +38921,79 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:39:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:39:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:44:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:44:37",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-01 16:45:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
