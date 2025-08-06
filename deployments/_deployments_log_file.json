@@ -20095,6 +20095,21 @@
           }
         ]
       }
+    },
+    "tron": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "TQndJ9R38eoosx6kuG5nU3ecfdPhL7gY1C",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-06 07:21:16",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000a38028ed6146aa29c687c052b233131468b6635",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {

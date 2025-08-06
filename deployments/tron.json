@@ -15,5 +15,6 @@
   "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
   "FeeCollector": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
   "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
-  "SymbiosisFacet": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f"
+  "SymbiosisFacet": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f",
+  "AllBridgeFacet": "TQndJ9R38eoosx6kuG5nU3ecfdPhL7gY1C"
 }

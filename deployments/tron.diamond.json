@@ -48,6 +48,10 @@
       "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "TQndJ9R38eoosx6kuG5nU3ecfdPhL7gY1C": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.0"
       }
     },
     "Periphery": {
