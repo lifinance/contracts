@@ -878,32 +878,6 @@ async function deployAndRegisterPeriphery() {
     // Print summary
     consola.success('\n Deployment Complete!')
     consola.info('========================\n')
-    console.table(
-      deploymentResults.map((r) => ({
-        Contract: r.contract,
-        Address:
-          r.address === 'FAILED'
-            ? ' FAILED'
-            : r.address.length > 20
-            ? `${r.address.slice(0, 10)}...${r.address.slice(-8)}`
-            : r.address,
-        Version: r.version,
-        Cost:
-          r.txId === 'existing'
-            ? 'existing'
-            : r.txId === 'FAILED'
-            ? 'N/A'
-            : r.txId === 'SKIPPED'
-            ? 'skipped'
-            : `${(r.cost || 0).toFixed(4)} TRX`,
-      }))
-    )
-
-    const totalCost = deploymentResults.reduce(
-      (sum, r) => sum + (r.cost || 0),
-      0
-    )
-    consola.info(`\n Total deployment cost: ${totalCost.toFixed(4)} TRX`)
 
     // Check for failed deployments
     const failedDeployments = deploymentResults.filter(
