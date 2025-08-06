@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
-import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
+import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
@@ -12,7 +12,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @notice Handles IzumiV3 swaps with callback management
 /// @custom:version 1.0.0
 contract IzumiV3Facet {
-    using LibInputStream for uint256;
+    using LibInputStream2 for uint256;
     using LibCallbackManager for *;
     using SafeERC20 for IERC20;
 
@@ -27,16 +27,17 @@ contract IzumiV3Facet {
 
     /// @notice Performs a swap through iZiSwap V3 pools
     /// @dev This function handles both X to Y and Y to X swaps through iZiSwap V3 pools
-    /// @param stream [pool, direction, recipient]
+    /// @param swapData [pool, direction, recipient]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
     function swapIzumiV3(
-        uint256 stream,
+        bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
+        uint256 stream = LibInputStream2.createStream(swapData);
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8(); // 0 = Y2X, 1 = X2Y
         address recipient = stream.readAddress();
@@ -83,11 +84,19 @@ contract IzumiV3Facet {
         return 0; // Return value not used in current implementation
     }
 
-    function swapX2YCallback(uint256 amountX, bytes calldata data) external {
+    function swapX2YCallback(
+        uint256 amountX,
+        uint256,
+        bytes calldata data
+    ) external {
         _handleIzumiV3SwapCallback(amountX, data);
     }
 
-    function swapY2XCallback(uint256 amountY, bytes calldata data) external {
+    function swapY2XCallback(
+        uint256,
+        uint256 amountY,
+        bytes calldata data
+    ) external {
         _handleIzumiV3SwapCallback(amountY, data);
     }
 
