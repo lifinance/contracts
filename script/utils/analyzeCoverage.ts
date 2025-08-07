@@ -192,65 +192,65 @@ function printResults(
   excludedFolders: string[]
 ): void {
   // Add clear separation from coverage output
-  console.log('\n' + '='.repeat(80))
-  console.log(`CONTRACT COVERAGE ANALYSIS (Threshold: ${threshold}%)`)
-  console.log('='.repeat(80) + '\n')
+  consola.log('\n' + '='.repeat(80))
+  consola.log(`CONTRACT COVERAGE ANALYSIS (Threshold: ${threshold}%)`)
+  consola.log('='.repeat(80) + '\n')
 
   // Show excluded folders for transparency
   if (excludedFolders.length > 0) {
-    console.log(`Excluded folders: ${excludedFolders.join(', ')}`)
-    console.log('')
+    consola.log(`Excluded folders: ${excludedFolders.join(', ')}`)
+    consola.log('')
   }
 
   // Display contracts above threshold
-  console.log(
+  consola.log(
     `Contracts with ${threshold}%+ coverage (${result.aboveThreshold.length} contracts):`
   )
-  console.log('-'.repeat(80))
+  consola.log('-'.repeat(80))
 
   if (result.aboveThreshold.length > 0)
     for (const data of result.aboveThreshold)
-      console.log(
+      consola.log(
         `${data.contract.padEnd(50)} ${data.coveragePercentage
           .toFixed(1)
           .padStart(6)}% (${data.linesHit
           .toString()
           .padStart(3)}/${data.totalLines.toString().padStart(3)} lines)`
       )
-  else console.log('None')
+  else consola.log('None')
 
   // Display contracts below threshold
-  console.log(
+  consola.log(
     `\nContracts below ${threshold}% coverage (${result.belowThreshold.length} contracts):`
   )
-  console.log('-'.repeat(80))
+  consola.log('-'.repeat(80))
 
   if (result.belowThreshold.length > 0)
     for (const data of result.belowThreshold)
-      console.log(
+      consola.log(
         `${data.contract.padEnd(50)} ${data.coveragePercentage
           .toFixed(1)
           .padStart(6)}% (${data.linesHit
           .toString()
           .padStart(3)}/${data.totalLines.toString().padStart(3)} lines)`
       )
-  else console.log('None')
+  else consola.log('None')
 
   // Display summary statistics
-  console.log(`\nSummary:`)
-  console.log(`Total contracts analyzed: ${result.totalIncluded}`)
-  console.log(
+  consola.log(`\nSummary:`)
+  consola.log(`Total contracts analyzed: ${result.totalIncluded}`)
+  consola.log(
     `Contracts with ${threshold}%+ coverage: ${result.aboveThreshold.length}`
   )
-  console.log(
+  consola.log(
     `Contracts below ${threshold}% coverage: ${result.belowThreshold.length}`
   )
-  console.log(
+  consola.log(
     `Percentage of included contracts above ${threshold}%: ${result.percentageAbove.toFixed(
       1
     )}%`
   )
-  console.log('')
+  consola.log('')
 }
 
 /**
@@ -258,11 +258,11 @@ function printResults(
  */
 function runCoverageCommand(): void {
   try {
-    console.log('Running bun coverage to generate lcov.info file...')
+    consola.log('Running bun coverage to generate lcov.info file...')
     execSync('bun coverage', { stdio: 'inherit' })
-    console.log('Coverage generation completed successfully.')
+    consola.log('Coverage generation completed successfully.')
   } catch (error) {
-    console.error('Error running bun coverage:', error)
+    consola.error('Error running bun coverage:', error)
     process.exit(1)
   }
 }
