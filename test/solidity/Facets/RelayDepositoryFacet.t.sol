@@ -7,7 +7,6 @@ import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
 import { IRelayDepository } from "lifi/Interfaces/IRelayDepository.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
 
 // Mock depository contract for testing
 contract MockRelayDepository is IRelayDepository {
