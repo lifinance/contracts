@@ -3,126 +3,159 @@
   "--- alternative (API) ---": "https://api.relay.link/chains?includeChains=562da1f0-bffe-4208-a3d8-143c2fbdb380",
   "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
   "mainnet": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "abstract": {
-    "relayReceiver": "0x634e831ce6d460c2cd5067af98d6452eb280e374"
+    "relayReceiver": "0x634e831ce6d460c2cd5067af98d6452eb280e374",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "arbitrum": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
-  },
-  "arbitrumnova": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "avalanche": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "apechain": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "berachain": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "base": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "blast": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "boba": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "bob": {
-    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "bsc": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "celo": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "corn": {
-    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec"
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "cronos": {
-    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5",
+    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "gnosis": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "gravity": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "hyperevm": {
-    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec"
+    "relayReceiver": "0xd71e5c1d217d12855b37fe60299273aad91d6cec",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "ink": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "katana": {
-    "relayReceiver": "0x9ff28846cd0640ba4aac04d3ebbe651cac5fe609"
+    "relayReceiver": "0x9ff28846cd0640ba4aac04d3ebbe651cac5fe609",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "lisk": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "linea": {
-    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
+    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "mantle": {
-    "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e"
+    "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e",
+    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "metis": {
-    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5"
+    "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5",
+    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "mode": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "optimism": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "plume": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "polygon": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "polygonzkevm": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "ronin": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "scroll": {
-    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb"
+    "relayReceiver": "0x00000000aa467eba42a3d604b3d74d63b2b6c6cb",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "sei": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "soneium": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "sonic": {
-    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089"
+    "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "superposition": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "swellchain": {
-    "relayReceiver": "0xf042fcc6bd5cb48b2862d9f22d3de5b342e94f4c"
+    "relayReceiver": "0xf042fcc6bd5cb48b2862d9f22d3de5b342e94f4c",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "taiko": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "unichain": {
-    "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd"
+    "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "worldchain": {
-    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109"
+    "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "zksync": {
-    "relayReceiver": "0xebd1e414ebb98522cfd932104ba41fac10a4ef35"
-  },
-  "zora": {
-    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934"
+    "relayReceiver": "0xebd1e414ebb98522cfd932104ba41fac10a4ef35",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   }
 }
