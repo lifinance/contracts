@@ -25,8 +25,8 @@
  *   bun okr:contract-coverage-above-90
  *
  * Prerequisites:
- * - Run "forge coverage" first to generate lcov.info file
- * - Ensure lcov.info exists in the project root
+ * - The script will automatically run "bun coverage" to get the latest coverage data
+ * - Ensure you have the necessary dependencies installed for bun coverage
  *
  * Output:
  * - Lists contracts above/below threshold with coverage percentages
@@ -39,6 +39,7 @@
  * The default threshold of 90% aligns with typical coverage goals.
  */
 
+import { execSync } from 'child_process'
 import * as fs from 'fs'
 
 /**
@@ -278,6 +279,20 @@ function printResults(
 }
 
 /**
+ * Run coverage command to generate lcov.info file
+ */
+function runCoverageCommand(): void {
+  try {
+    console.log('Running bun coverage to generate lcov.info file...')
+    execSync('bun coverage', { stdio: 'inherit' })
+    console.log('Coverage generation completed successfully.\n')
+  } catch (error) {
+    console.error('Error running bun coverage:', error)
+    process.exit(1)
+  }
+}
+
+/**
  * Main function that orchestrates the coverage analysis process
  */
 async function main(): Promise<void> {
@@ -285,14 +300,8 @@ async function main(): Promise<void> {
   const { threshold, excludedFolders } = parseArguments()
   const lcovFile = 'lcov.info'
 
-  // Validate that lcov.info file exists
-  if (!fs.existsSync(lcovFile)) {
-    console.error(`Error: Could not find ${lcovFile}`)
-    console.error(
-      'Make sure you have run "forge coverage" first to generate the lcov.info file'
-    )
-    process.exit(1)
-  }
+  // Always run coverage command to get the latest status
+  runCoverageCommand()
 
   try {
     // Parse coverage data and generate analysis
