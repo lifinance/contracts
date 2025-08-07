@@ -101,7 +101,9 @@ interface IAcrossV4Limit {
 }
 
 /// DEFAULT VARIABLES
-const ACROSS_API_BASE_URL = 'https://across.to/api'
+// const ACROSS_API_BASE_URL = 'https://across.to/api'
+const ACROSS_API_BASE_URL =
+  'https://app-frontend-v3-git-epic-solana-v1-uma.vercel.app/api' // tmp API for testing
 const ACROSS_CHAIN_ID_SOL = 34268394551451 // Across Custom ID for Solana
 /// #################
 
