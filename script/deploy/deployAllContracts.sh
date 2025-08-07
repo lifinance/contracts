@@ -326,6 +326,11 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Ownership transfer to timelock (production only)"
 
+      # make sure SAFE_ADDRESS is available (if starting in stage 10 it's not available yet)
+      if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+        SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+      fi
+
       # ------------------------------------------------------------
       # Prepare ownership transfer to Timelock
       echo ""
