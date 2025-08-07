@@ -126,8 +126,13 @@ diamondUpdateFacet() {
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
 
-        CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
-        FACET_CUT=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns.cutData.value')
+        # Extract JSON starting with {"logs": from mixed output
+        # sometimes there are leading or trailing characters such as error messages, etc.
+        # we dont want/need those
+        JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+
+        # Extract cutData from the cleaned JSON output
+        FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
         echo "FACET_CUT: ($FACET_CUT)"
         echo ""
 
@@ -169,16 +174,12 @@ diamondUpdateFacet() {
     if [ "$RETURN_CODE" -eq 0 ]; then
       # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
       if [[ "$ENVIRONMENT" != "production" ]]; then
-        # extract the "logs" property and its contents from return data
-        CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
-        # echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
-
-        # extract the "returns" property and its contents from logs
-        RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
+        # extract the "returns" property directly from the JSON output
+        RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -r '.returns // empty' 2>/dev/null)
         # echoDebug "RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data
-        FACETS=$(echo "$RETURN_DATA" | jq -r '.facets.value')
+        FACETS=$(echo "$RETURN_DATA" | jq -r '.facets.value // "{}"')
         if [[ $FACETS != "{}" ]]; then
           break # exit the loop if the operation was successful
         fi
