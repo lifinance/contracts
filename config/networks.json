@@ -36,8 +36,7 @@
     "gasZipChainId": 110,
     "isZkEVM": true,
     "deployedWithEvmVersion": "shanghai",
-    "deployedWithSolcVersion": "0.8.26",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "deployedWithSolcVersion": "0.8.26"
   },
   "apechain": {
     "name": "apechain",
@@ -563,8 +562,7 @@
     "gasZipChainId": 442,
     "isZkEVM": true,
     "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.26",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "deployedWithSolcVersion": "0.8.26"
   },
   "linea": {
     "name": "linea",
@@ -966,7 +964,6 @@
     "isZkEVM": true,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "n/a",
     "devNotes": "Contract verification is not working. In contact with the team to find a resolution. "
   },
   "superposition": {
@@ -1167,8 +1164,7 @@
     "gasZipChainId": 51,
     "isZkEVM": true,
     "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "deployedWithSolcVersion": "0.8.17"
   },
   "localanvil": {
     "name": "localanvil",
