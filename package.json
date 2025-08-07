@@ -102,6 +102,7 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
+    "@cowprotocol/cow-sdk": "^5.10.3",
     "@ethersproject/abi": "^5.8.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@layerzerolabs/lz-v2-utilities": "^2.3.21",

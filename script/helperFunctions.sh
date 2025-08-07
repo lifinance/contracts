@@ -1968,7 +1968,6 @@ function verifyContract() {
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
       "$FULL_PATH"
-      "--skip-is-verified-check"
     )
   else
     VERIFY_CMD=(
@@ -1978,7 +1977,6 @@ function verifyContract() {
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
       "$FULL_PATH"
-      "--skip-is-verified-check"
     )
   fi
 
@@ -2022,6 +2020,13 @@ function verifyContract() {
     COMMAND_STATUS=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Check if contract is already verified
+    if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
+      COMMAND_STATUS=0
+      return 0
+    fi
 
     # Parse verification response
     local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
@@ -3044,7 +3049,7 @@ function getContractAddressFromSalt() {
   local ENVIRONMENT=$4
 
   # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC_URL=$(getRPCUrl "$NETWORK")
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -4262,8 +4267,8 @@ function updateDiamondLogForNetwork() {
     sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[$NETWORK] Failed to get facets"
+  if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION+1)) ]; then
+    warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
   fi
 
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
@@ -4276,9 +4281,9 @@ function updateDiamondLogForNetwork() {
 
   # check result
   if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to update diamond log"
+    error "[$NETWORK] failed to update diamond log"
   else
-    success "[$NETWORK] Updated diamond log"
+    success "[$NETWORK] updated diamond log"
   fi
 }
 
