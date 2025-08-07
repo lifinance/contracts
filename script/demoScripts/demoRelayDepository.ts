@@ -9,14 +9,15 @@ import {
   type RelayDepositoryFacet,
 } from '../../typechain'
 
-import {
-  ADDRESS_UNISWAP_ARB,
-  ADDRESS_USDC_ARB,
-  ADDRESS_WETH_ARB,
-  getUniswapSwapDataERC20ToETH,
-} from './utils/demoScriptHelpers'
+import { ADDRESS_USDC_ARB } from './utils/demoScriptHelpers'
 
 config()
+
+// SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
+// Deposit native on ARB: http://arbiscan.io/tx/0x326fd0b008578febee831c5e0508b13b6083e034e215389bb4885aff84fac0c2
+// Deposit USDC on ARB: https://arbiscan.io/tx/0x3abee45452f7df76f571101b9bf21a875f03e5c6d43ab36d8de6898bdd00de43
+// Swap USDC to native and deposit on ARB:
+// ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM
@@ -34,12 +35,11 @@ const main = async () => {
 
   let tx
 
-  // Example depository addresses - these would come from Relay API in production
-  const MOCK_DEPOSITORY_ETH = '0x4cd00e387622c35bddb9b4c962c136462338bc31' // Example Base depository
-  const MOCK_DEPOSITORY_USDC = '0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34' // Example Arbitrum depository
+  // Relay depository address for Arbitrum (from config/relay.json)
+  const RELAY_DEPOSITORY = '0x4cd00e387622c35bddb9b4c962c136462338bc31'
 
   console.info('=== RelayDepositoryFacet Demo ===')
-  console.info('Dev Wallet Address: ', address)
+  console.info('Sending from this wallet: ', address)
 
   // Demo 1: Deposit Native ETH to Relay Depository
   console.info('\n--- Demo 1: Deposit Native ETH ---')
@@ -51,15 +51,15 @@ const main = async () => {
     referrer: '0x0000000000000000000000000000000000000000',
     sendingAssetId: '0x0000000000000000000000000000000000000000', // Native ETH
     receiver: address,
-    minAmount: ethers.utils.parseEther('0.01'),
-    destinationChainId: 8453, // Base
+    minAmount: ethers.utils.parseEther('0.0001'),
+    destinationChainId: 0, // We are not bridging, just depositing, hence no destination chain id
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
   let relayDepositoryData: RelayDepositoryFacet.RelayDepositoryDataStruct = {
     orderId: utils.keccak256(utils.toUtf8Bytes('demo-order-eth-' + Date.now())),
-    depository: MOCK_DEPOSITORY_ETH,
+    depository: RELAY_DEPOSITORY,
   }
 
   console.info('Order ID:', relayDepositoryData.orderId)
@@ -91,7 +91,7 @@ const main = async () => {
   console.info('\n--- Demo 2: Deposit USDC ---')
 
   const token = ERC20__factory.connect(ADDRESS_USDC_ARB, provider)
-  const usdcAmount = '10000000' // 10 USDC
+  const usdcAmount = '1000000' // 1 USDC
 
   bridgeData = {
     transactionId: utils.randomBytes(32),
@@ -110,7 +110,7 @@ const main = async () => {
     orderId: utils.keccak256(
       utils.toUtf8Bytes('demo-order-usdc-' + Date.now())
     ),
-    depository: MOCK_DEPOSITORY_USDC,
+    depository: RELAY_DEPOSITORY,
   }
 
   console.info('Order ID:', relayDepositoryData.orderId)
@@ -140,80 +140,6 @@ const main = async () => {
       error instanceof Error ? error.message : String(error)
     )
   }
-
-  // Demo 3: Swap USDC to ETH and Deposit ETH
-  console.info('\n--- Demo 3: Swap USDC to ETH and Deposit ---')
-
-  const swapAmount = '5000000' // 5 USDC to swap
-
-  bridgeData = {
-    transactionId: utils.randomBytes(32),
-    bridge: 'RelayDepository',
-    integrator: 'ACME Devs',
-    referrer: '0x0000000000000000000000000000000000000000',
-    sendingAssetId: '0x0000000000000000000000000000000000000000', // Native ETH after swap
-    receiver: address,
-    minAmount: ethers.utils.parseEther('0.001'), // Minimum ETH expected from swap
-    destinationChainId: 137, // Polygon
-    hasSourceSwaps: true,
-    hasDestinationCall: false,
-  }
-
-  const swapData = []
-  swapData[0] = await getUniswapSwapDataERC20ToETH(
-    ADDRESS_UNISWAP_ARB,
-    42161,
-    ADDRESS_USDC_ARB,
-    ADDRESS_WETH_ARB,
-    ethers.utils.parseUnits('5', 6),
-    LIFI_ADDRESS,
-    true
-  )
-
-  relayDepositoryData = {
-    orderId: utils.keccak256(
-      utils.toUtf8Bytes('demo-order-swap-eth-' + Date.now())
-    ),
-    depository: MOCK_DEPOSITORY_ETH,
-  }
-
-  console.info('Order ID:', relayDepositoryData.orderId)
-  console.info('Depository:', relayDepositoryData.depository)
-  console.info('Swap Amount:', ethers.utils.formatUnits(swapAmount, 6), 'USDC')
-  console.info(
-    'Min ETH Expected:',
-    ethers.utils.formatEther(bridgeData.minAmount.toString())
-  )
-
-  try {
-    console.info('Approving USDC for swap...')
-    tx = await token.connect(signer).approve(LIFI_ADDRESS, swapAmount)
-    await tx.wait()
-    console.info('✅ USDC approved for swap')
-
-    console.info('Swapping USDC to ETH and depositing to Relay Depository...')
-    tx = await relayDepository
-      .connect(signer)
-      .swapAndStartBridgeTokensViaRelayDepository(
-        bridgeData,
-        swapData,
-        relayDepositoryData
-      )
-    await tx.wait()
-    console.info('✅ Swap and deposit completed successfully!')
-    console.info('Transaction hash:', tx.hash)
-  } catch (error) {
-    console.error(
-      '❌ Swap and deposit failed:',
-      error instanceof Error ? error.message : String(error)
-    )
-  }
-
-  console.info('\n=== Demo Completed ===')
-  console.info('Note: In production, depository addresses and order IDs')
-  console.info(
-    'would be obtained from the Relay API with protocolVersion: "v2"'
-  )
 }
 
 main()
