@@ -41,6 +41,9 @@
 
 import * as fs from 'fs'
 
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+
 /**
  * Coverage data for a single contract
  */
@@ -68,36 +71,6 @@ const DEFAULT_EXCLUDED_FOLDERS: string[] = [
   // Example: "Libraries/LibBytes",
   // Example: "Helpers/ExcessivelySafeCall",
 ]
-
-/**
- * Parse command line arguments for threshold and excluded folders
- * @returns Object containing threshold and excluded folders
- */
-function parseArguments(): {
-  threshold: number
-  excludedFolders: string[]
-} {
-  const args = process.argv.slice(2)
-  let threshold = DEFAULT_THRESHOLD
-  let excludedFolders = [...DEFAULT_EXCLUDED_FOLDERS]
-
-  for (let i = 0; i < args.length; i++)
-    if (args[i] === '--threshold' && i + 1 < args.length) {
-      const thresholdArg = args[i + 1]
-      if (thresholdArg) threshold = parseFloat(thresholdArg)
-      i++
-    } else if (args[i] === '--exclude' && i + 1 < args.length) {
-      const excludeArg = args[i + 1]
-      if (excludeArg)
-        excludedFolders = [
-          ...excludedFolders,
-          ...excludeArg.split(',').map((f) => f.trim()),
-        ]
-      i++
-    }
-
-  return { threshold, excludedFolders }
-}
 
 /**
  * Parse lcov.info file and extract coverage data for contracts
@@ -161,7 +134,7 @@ function parseLcovFile(
       }
     }
   } catch (error) {
-    console.error(
+    consola.error(
       'Error reading lcov file:',
       error instanceof Error ? error.message : String(error)
     )
@@ -217,60 +190,60 @@ function printResults(
   threshold: number,
   excludedFolders: string[]
 ): void {
-  console.log(
+  consola.log(
     `\n=== CONTRACT COVERAGE ANALYSIS (Threshold: ${threshold}%) ===\n`
   )
 
   // Show excluded folders for transparency
   if (excludedFolders.length > 0) {
-    console.log(`Excluded folders: ${excludedFolders.join(', ')}`)
-    console.log()
+    consola.log(`Excluded folders: ${excludedFolders.join(', ')}`)
+    consola.log('')
   }
 
   // Display contracts above threshold
-  console.log(
+  consola.log(
     `Contracts with ${threshold}%+ coverage (${result.aboveThreshold.length} contracts):`
   )
-  console.log('-'.repeat(80))
+  consola.log('-'.repeat(80))
 
   if (result.aboveThreshold.length > 0)
     for (const data of result.aboveThreshold)
-      console.log(
+      consola.log(
         `${data.contract.padEnd(50)} ${data.coveragePercentage
           .toFixed(1)
           .padStart(6)}% (${data.linesHit
           .toString()
           .padStart(3)}/${data.totalLines.toString().padStart(3)} lines)`
       )
-  else console.log('None')
+  else consola.log('None')
 
   // Display contracts below threshold
-  console.log(
+  consola.log(
     `\nContracts below ${threshold}% coverage (${result.belowThreshold.length} contracts):`
   )
-  console.log('-'.repeat(80))
+  consola.log('-'.repeat(80))
 
   if (result.belowThreshold.length > 0)
     for (const data of result.belowThreshold)
-      console.log(
+      consola.log(
         `${data.contract.padEnd(50)} ${data.coveragePercentage
           .toFixed(1)
           .padStart(6)}% (${data.linesHit
           .toString()
           .padStart(3)}/${data.totalLines.toString().padStart(3)} lines)`
       )
-  else console.log('None')
+  else consola.log('None')
 
   // Display summary statistics
-  console.log(`\nSummary:`)
-  console.log(`Total contracts analyzed: ${result.totalIncluded}`)
-  console.log(
+  consola.log(`\nSummary:`)
+  consola.log(`Total contracts analyzed: ${result.totalIncluded}`)
+  consola.log(
     `Contracts with ${threshold}%+ coverage: ${result.aboveThreshold.length}`
   )
-  console.log(
+  consola.log(
     `Contracts below ${threshold}% coverage: ${result.belowThreshold.length}`
   )
-  console.log(
+  consola.log(
     `Percentage of included contracts above ${threshold}%: ${result.percentageAbove.toFixed(
       1
     )}%`
@@ -278,17 +251,20 @@ function printResults(
 }
 
 /**
- * Main function that orchestrates the coverage analysis process
+ * Main coverage analysis function that orchestrates the entire process
+ * @param threshold Coverage threshold percentage
+ * @param excludedFolders List of folders to exclude from analysis
  */
-async function main(): Promise<void> {
-  // Parse command line arguments
-  const { threshold, excludedFolders } = parseArguments()
+async function analyzeContractCoverage(
+  threshold: number,
+  excludedFolders: string[]
+): Promise<void> {
   const lcovFile = 'lcov.info'
 
   // Validate that lcov.info file exists
   if (!fs.existsSync(lcovFile)) {
-    console.error(`Error: Could not find ${lcovFile}`)
-    console.error(
+    consola.error(`Error: Could not find ${lcovFile}`)
+    consola.error(
       'Make sure you have run "forge coverage" first to generate the lcov.info file'
     )
     process.exit(1)
@@ -300,7 +276,7 @@ async function main(): Promise<void> {
     const result = categorizeContracts(coverageData, threshold)
     printResults(result, threshold, excludedFolders)
   } catch (error) {
-    console.error(
+    consola.error(
       'Error analyzing coverage:',
       error instanceof Error ? error.message : String(error)
     )
@@ -308,11 +284,38 @@ async function main(): Promise<void> {
   }
 }
 
-// Execute the main function with proper error handling
-main().catch((error) => {
-  console.error(
-    'Script failed:',
-    error instanceof Error ? error.message : String(error)
-  )
-  process.exit(1)
+const command = defineCommand({
+  meta: {
+    name: 'Contract Coverage Analysis',
+    description:
+      'Analyzes test coverage from lcov.info file and categorizes contracts by coverage percentage',
+  },
+  args: {
+    threshold: {
+      type: 'string',
+      description: 'Coverage threshold percentage (default: 90)',
+      default: DEFAULT_THRESHOLD.toString(),
+    },
+    exclude: {
+      type: 'string',
+      description: 'Comma-separated list of folders to exclude from analysis',
+      default: '',
+    },
+  },
+
+  async run({ args }) {
+    const { threshold, exclude } = args
+    const thresholdValue = parseFloat(threshold as string)
+    const excludedFolders = [
+      ...DEFAULT_EXCLUDED_FOLDERS,
+      ...(exclude
+        ? (exclude as string).split(',').map((f: string) => f.trim())
+        : []),
+    ]
+
+    await analyzeContractCoverage(thresholdValue, excludedFolders)
+  },
 })
+
+// Execute the main function with proper error handling
+runMain(command)
