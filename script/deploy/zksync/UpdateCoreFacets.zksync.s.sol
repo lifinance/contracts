@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
@@ -33,6 +33,7 @@ contract DeployScript is UpdateScriptBase {
         bool loupeExists;
         try loupe.facetAddresses() returns (address[] memory) {
             // If call was successful, loupe exists on diamond already
+            emit log("Loupe exists on diamond already");
             loupeExists = true;
         } catch {
             // No need to do anything, just making sure that the flow continues in both cases with try/catch
@@ -40,6 +41,7 @@ contract DeployScript is UpdateScriptBase {
 
         // Handle DiamondLoupeFacet separately as it needs special treatment
         if (!loupeExists) {
+            emit log("Loupe does not exist on diamond yet");
             address diamondLoupeAddress = _getConfigContractAddress(
                 path,
                 ".DiamondLoupeFacet"
@@ -64,14 +66,23 @@ contract DeployScript is UpdateScriptBase {
         for (uint256 i = 0; i < coreFacets.length; i++) {
             string memory facetName = coreFacets[i];
 
-            // Skip DiamondLoupeFacet as it was already handled
+            // Skip DiamondCutFacet and DiamondLoupeFacet as it was already handled
             if (
                 keccak256(bytes(facetName)) ==
                 keccak256(bytes("DiamondLoupeFacet"))
             ) {
                 continue;
             }
+            // Skip DiamondLoupeFacet as it was already handled
+            if (
+                keccak256(bytes(facetName)) ==
+                keccak256(bytes("DiamondCutFacet"))
+            ) {
+                continue;
+            }
 
+            emit log("Now adding facet: ");
+            emit log(facetName);
             // Use _getConfigContractAddress which validates the contract exists
             address facetAddress = _getConfigContractAddress(
                 path,
@@ -79,11 +90,13 @@ contract DeployScript is UpdateScriptBase {
             );
             bytes4[] memory selectors = getSelectors(facetName, exclude);
 
-            if (loupeExists) {
-                buildDiamondCut(selectors, facetAddress);
-            } else {
-                buildInitialCut(selectors, facetAddress);
-            }
+            // at this point we know for sure that diamond loupe exists on diamond
+            buildDiamondCut(selectors, facetAddress);
+            // if (loupeExists) {
+            //     buildDiamondCut(selectors, facetAddress);
+            // } else {
+            //     buildInitialCut(selectors, facetAddress);
+            // }
         }
 
         // If noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
@@ -96,6 +109,9 @@ contract DeployScript is UpdateScriptBase {
                     ""
                 );
             }
+            emit log("=== DIAMOND CUT CALLDATA FOR MANUAL EXECUTION ===");
+            emit log_bytes(cutData);
+            emit log("=== END CALLDATA ===");
             return (facets, cutData);
         }
 
