@@ -3,16 +3,16 @@ import { randomBytes } from 'crypto'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  createWalletClient,
   createPublicClient,
-  http,
-  parseUnits,
-  getContract,
-  type Hex,
-  encodeFunctionData,
+  createWalletClient,
   encodeAbiParameters,
-  parseAbi,
+  encodeFunctionData,
   getAddress,
+  getContract,
+  http,
+  parseAbi,
+  parseUnits,
+  type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
@@ -22,9 +22,9 @@ import baseDeployments from '../../deployments/base.json'
 import baseStagingDeployments from '../../deployments/base.staging.json'
 
 import {
-  generateNeedle,
   findNeedleOffset,
   generateBalanceOfCalldata,
+  generateNeedle,
 } from './utils/patcherHelpers'
 
 /**
@@ -111,15 +111,12 @@ async function fetchCrossChainRoute(
       }
     )
 
-    if (!response.ok) 
-      throw new Error(`HTTP error! status: ${response.status}`)
-    
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 
     const data = await response.json()
 
-    if (!data.routes || data.routes.length === 0) 
+    if (!data.routes || data.routes.length === 0)
       throw new Error('No routes found')
-    
 
     const route = data.routes[0] // Use the first (cheapest) route
     consola.success(
@@ -132,11 +129,10 @@ async function fetchCrossChainRoute(
     // Log step details
     route.steps.forEach((step: any, index: number) => {
       consola.info(`Step ${index + 1}: ${step.tool} (${step.type})`)
-      if (step.action.fromToken && step.action.toToken) 
+      if (step.action.fromToken && step.action.toToken)
         consola.info(
           `  ${step.action.fromToken.symbol} → ${step.action.toToken.symbol}`
         )
-      
     })
 
     return route
@@ -156,9 +152,7 @@ function extractRouteDetails(route: any) {
       step.includedSteps?.some((s: any) => s.type === 'cross')
   )
 
-  if (!bridgeStep) 
-    throw new Error('No bridge step found in route')
-  
+  if (!bridgeStep) throw new Error('No bridge step found in route')
 
   const crossStep = bridgeStep.includedSteps.find(
     (s: any) => s.type === 'cross'
@@ -167,9 +161,7 @@ function extractRouteDetails(route: any) {
     (s: any) => s.type === 'swap'
   )
 
-  if (!crossStep) 
-    throw new Error('No cross-chain step found')
-  
+  if (!crossStep) throw new Error('No cross-chain step found')
 
   consola.info('📊 Route Analysis:')
   consola.info(
@@ -421,11 +413,10 @@ async function executeCrossChainBridgeWithSwap(options: {
   if (wethBalance < bridgeAmount && !options.dryRun) {
     consola.error(`Insufficient WETH balance. Need at least 0.001 WETH.`)
     process.exit(1)
-  } else if (options.dryRun && wethBalance < bridgeAmount) 
+  } else if (options.dryRun && wethBalance < bridgeAmount)
     consola.warn(
       `[DRY RUN] Insufficient WETH balance, but continuing for demo purposes`
     )
-  
 
   // Check allowance for LiFi Diamond
   const allowance = (await wethContract.read.allowance([
@@ -436,7 +427,7 @@ async function executeCrossChainBridgeWithSwap(options: {
 
   if (allowance < bridgeAmount) {
     consola.info('Approving WETH for LiFi Diamond...')
-    if (!options.dryRun) 
+    if (!options.dryRun)
       try {
         const approveTx = await wethContract.write.approve([
           LIFI_DIAMOND_ARBITRUM as `0x${string}`,
@@ -453,9 +444,9 @@ async function executeCrossChainBridgeWithSwap(options: {
           timeout: 60_000, // 60 seconds timeout
         })
 
-        if (approvalReceipt.status === 'success') 
+        if (approvalReceipt.status === 'success')
           consola.success(`✅ Approval confirmed!`)
-         else {
+        else {
           consola.error(`❌ Approval failed!`)
           process.exit(1)
         }
@@ -463,9 +454,7 @@ async function executeCrossChainBridgeWithSwap(options: {
         consola.error('Approval transaction failed:', error)
         process.exit(1)
       }
-     else 
-      consola.info(`[DRY RUN] Would approve WETH for LiFi Diamond`)
-    
+    else consola.info(`[DRY RUN] Would approve WETH for LiFi Diamond`)
   }
 
   // Fetch cross-chain route with destination swap

@@ -126,9 +126,13 @@ diamondUpdateFacet() {
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
 
+        # Extract JSON starting with {"logs": from mixed output
+        # sometimes there are leading or trailing characters such as error messages, etc.
+        # we dont want/need those
+        JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
 
-        # Extract cutData directly from the JSON output
-        FACET_CUT=$(echo "$RAW_RETURN_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
+        # Extract cutData from the cleaned JSON output
+        FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
         echo "FACET_CUT: ($FACET_CUT)"
         echo ""
 

@@ -85,7 +85,7 @@ export function encodeCowShedExecuteHooks(
   })
 }
 
-export interface ICowShedPostHooksConfiguration {
+export interface ICowShedPostHooksConfig {
   chainId: number
   walletClient: any
   usdcAddress: string
@@ -99,9 +99,7 @@ export interface ICowShedPostHooksConfiguration {
 /**
  * Setup CowShed post hooks for bridging USDC to BASE using Relay
  */
-export async function setupCowShedPostHooks(
-  config: ICowShedPostHooksConfiguration
-) {
+export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
   const {
     chainId,
     walletClient,
