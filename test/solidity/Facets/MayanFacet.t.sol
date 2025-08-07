@@ -54,8 +54,6 @@ contract MayanFacetTest is TestBaseFacet {
         0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
     address internal constant DEV_WALLET =
         0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
 
     bytes32 internal constant ACTUAL_SOL_ADDR =
         hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d"; // [pre-commit-checker: not a secret]

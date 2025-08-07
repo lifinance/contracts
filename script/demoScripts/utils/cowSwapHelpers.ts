@@ -4,20 +4,20 @@ import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'
 import { consola } from 'consola'
 import { ethers } from 'ethers'
 import {
-  parseAbi,
   encodeFunctionData,
-  recoverMessageAddress,
-  keccak256,
   encodePacked,
-  pad,
   getAddress,
+  keccak256,
+  pad,
+  parseAbi,
+  recoverMessageAddress,
 } from 'viem'
 
 import {
-  generateNeedle,
   findNeedleOffset,
-  generateExecuteWithDynamicPatchesCalldata,
   generateBalanceOfCalldata,
+  generateExecuteWithDynamicPatchesCalldata,
+  generateNeedle,
 } from './patcherHelpers'
 
 // EIP-1967 transparent proxy creation bytecode for CowShed user proxies
