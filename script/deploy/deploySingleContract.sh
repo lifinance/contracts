@@ -137,12 +137,8 @@ deploySingleContract() {
     BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
 
     # get CREATE3_FACTORY_ADDRESS
-    if isZkEvmNetwork "$NETWORK"; then
-      CREATE3_FACTORY_ADDRESS="0x0000000000000000000000000000000000000000"
-    else
-      CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
-      checkFailure $? "retrieve create3Factory address from networks.json"
-    fi
+    CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+    checkFailure $? "retrieve create3Factory address from networks.json"
 
     if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
       # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
