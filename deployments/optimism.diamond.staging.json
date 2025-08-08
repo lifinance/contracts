@@ -161,9 +161,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xBFc73FCC46da3b4383f4cd45c2BF8F56Ca325795": {
+      "0x59A1Bcaa32EdB1a233fEF945857529BBD6df247f": {
         "Name": "MayanFacet",
-        "Version": "1.2.1"
+        "Version": "1.2.2"
       }
     },
     "Periphery": {
