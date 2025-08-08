@@ -536,51 +536,6 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
         );
     }
 
-    function _buildIzumiV3Route(
-        CommandType commandCode,
-        address tokenIn,
-        uint8 direction,
-        address pool,
-        address recipient
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                uint8(commandCode),
-                tokenIn,
-                uint8(1), // number of pools (1)
-                FULL_SHARE, // 100% share
-                IzumiV3Facet.swapIzumiV3.selector,
-                pool,
-                uint8(direction),
-                recipient
-            );
-    }
-
-    function _buildIzumiV3MultiHopRoute(
-        MultiHopTestParams memory params
-    ) internal view returns (bytes memory) {
-        // First hop: USER_ERC20 -> LDA
-        bytes memory firstHop = _buildIzumiV3Route(
-            CommandType.ProcessUserERC20,
-            params.tokenIn,
-            uint8(params.direction1),
-            params.pool1,
-            address(coreRouteFacet)
-        );
-
-        // Second hop: MY_ERC20 (LDA) -> pool2
-        bytes memory secondHop = _buildIzumiV3Route(
-            CommandType.ProcessMyERC20,
-            params.tokenMid,
-            uint8(params.direction2),
-            params.pool2,
-            USER_SENDER // final recipient
-        );
-
-        // Combine the two hops
-        return bytes.concat(firstHop, secondHop);
-    }
-
     struct IzumiV3SwapParams {
         address pool;
         SwapDirection direction;
