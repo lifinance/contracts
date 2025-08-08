@@ -280,21 +280,19 @@ export async function updateDiamondJson(
     }
 
     // Ensure structure exists
-    if (!diamondData.LiFiDiamond) 
+    if (!diamondData.LiFiDiamond)
       diamondData.LiFiDiamond = {
         Facets: {},
         Periphery: {},
       }
-    
-    if (!diamondData.LiFiDiamond.Facets) 
-      diamondData.LiFiDiamond.Facets = {}
-    
+
+    if (!diamondData.LiFiDiamond.Facets) diamondData.LiFiDiamond.Facets = {}
 
     // Check if facet already exists (by name to avoid duplicates)
     const facets = diamondData.LiFiDiamond.Facets
 
-    for (const address in facets) 
-      if (facets[address].Name === facetName) 
+    for (const address in facets)
+      if (facets[address].Name === facetName)
         if (address === facetAddress) {
           consola.info(`ℹ️  ${facetName} already exists in tron.diamond.json`)
           return
@@ -304,11 +302,9 @@ export async function updateDiamondJson(
           delete facets[address]
           break
         }
-      
-    
 
     // Get version if not provided
-    if (!version) 
+    if (!version)
       try {
         version = await getContractVersion(facetName)
       } catch {
@@ -317,7 +313,6 @@ export async function updateDiamondJson(
           `⚠️  Could not determine version for ${facetName}, using default: ${version}`
         )
       }
-    
 
     // Add facet entry
     facets[facetAddress] = {
@@ -371,15 +366,13 @@ export async function updateDiamondJsonBatch(
     }
 
     // Ensure structure exists
-    if (!diamondData.LiFiDiamond) 
+    if (!diamondData.LiFiDiamond)
       diamondData.LiFiDiamond = {
         Facets: {},
         Periphery: {},
       }
-    
-    if (!diamondData.LiFiDiamond.Facets) 
-      diamondData.LiFiDiamond.Facets = {}
-    
+
+    if (!diamondData.LiFiDiamond.Facets) diamondData.LiFiDiamond.Facets = {}
 
     const facets = diamondData.LiFiDiamond.Facets
     let updatedCount = 0
@@ -388,12 +381,11 @@ export async function updateDiamondJsonBatch(
     for (const entry of facetEntries) {
       // Check if facet already exists by name
       let existingAddress: string | null = null
-      for (const address in facets) 
+      for (const address in facets)
         if (facets[address].Name === entry.name) {
           existingAddress = address
           break
         }
-      
 
       if (existingAddress === entry.address) {
         consola.info(`ℹ️  ${entry.name} already exists in tron.diamond.json`)
@@ -408,7 +400,7 @@ export async function updateDiamondJsonBatch(
 
       // Get version if not provided
       let version = entry.version
-      if (!version) 
+      if (!version)
         try {
           version = await getContractVersion(entry.name)
         } catch {
@@ -417,7 +409,6 @@ export async function updateDiamondJsonBatch(
             `⚠️  Could not determine version for ${entry.name}, using default: ${version}`
           )
         }
-      
 
       // Add facet entry
       facets[entry.address] = {
@@ -476,15 +467,14 @@ export async function updateDiamondJsonPeriphery(
     }
 
     // Ensure structure exists
-    if (!diamondData.LiFiDiamond) 
+    if (!diamondData.LiFiDiamond)
       diamondData.LiFiDiamond = {
         Facets: {},
         Periphery: {},
       }
-    
-    if (!diamondData.LiFiDiamond.Periphery) 
+
+    if (!diamondData.LiFiDiamond.Periphery)
       diamondData.LiFiDiamond.Periphery = {}
-    
 
     // Update or add periphery contract (simple key-value format)
     const periphery = diamondData.LiFiDiamond.Periphery
@@ -496,9 +486,8 @@ export async function updateDiamondJsonPeriphery(
       return
     }
 
-    if (periphery[contractName]) 
+    if (periphery[contractName])
       consola.info(`ℹ️  Updating ${contractName} address in tron.diamond.json`)
-    
 
     // Set the contract address (simple format: name -> address)
     periphery[contractName] = contractAddress
@@ -516,4 +505,64 @@ export async function updateDiamondJsonPeriphery(
     consola.error('❌ Failed to update tron.diamond.json:', error.message)
     // Don't throw - this is not critical for the deployment
   }
+}
+
+/**
+ * Extract function selectors from Forge artifact
+ * @param facetName - Name of the facet contract
+ * @param excludeSelectors - Array of selectors to exclude (optional, with or without 0x prefix)
+ * @returns Array of function selectors as hex strings with 0x prefix
+ */
+export async function getFacetSelectors(
+  facetName: string,
+  excludeSelectors: string[] = []
+): Promise<string[]> {
+  const artifactPath = resolve(
+    process.cwd(),
+    'out',
+    `${facetName}.sol`,
+    `${facetName}.json`
+  )
+
+  // Check if artifact exists
+  try {
+    const exists = await Bun.file(artifactPath).exists()
+    if (!exists) 
+      throw new Error(
+        `Build artifact not found for ${facetName}. Run 'forge build' first.`
+      )
+    
+  } catch (error) {
+    throw new Error(
+      `Build artifact not found for ${facetName}. Run 'forge build' first.`
+    )
+  }
+
+  // Read artifact file
+  const artifact = await Bun.file(artifactPath).json()
+
+  if (!artifact.methodIdentifiers) 
+    throw new Error(`No method identifiers found in ${facetName} artifact`)
+  
+
+  // Extract all selectors and add 0x prefix
+  let selectors = Object.values(
+    artifact.methodIdentifiers as Record<string, string>
+  ).map((selector) => '0x' + selector)
+
+  // Filter out excluded selectors if any
+  if (excludeSelectors.length > 0) {
+    // Normalize exclude list (ensure all have 0x prefix for comparison)
+    const excludeSet = new Set(
+      excludeSelectors.map((s) =>
+        s.startsWith('0x') ? s.toLowerCase() : '0x' + s.toLowerCase()
+      )
+    )
+    selectors = selectors.filter((s) => !excludeSet.has(s.toLowerCase()))
+  }
+
+  consola.info(`📋 Extracted ${selectors.length} selectors for ${facetName}:`)
+  selectors.forEach((s) => consola.info(`   ${s}`))
+
+  return selectors
 }

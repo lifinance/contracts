@@ -21,13 +21,8 @@ import {
   getNetworkConfig,
   getContractAddress,
   updateDiamondJson,
+  getFacetSelectors,
 } from './utils.js'
-
-// Preloaded function selectors for AllbridgeFacet
-const ALLBRIDGE_FACET_SELECTORS = [
-  '0x6a51e9a9', // startBridgeTokensViaAllBridge
-  '0x63267469', // swapAndStartBridgeTokensViaAllBridge
-]
 
 /**
  * Estimate energy for diamondCut transaction
@@ -77,13 +72,12 @@ async function estimateDiamondCutEnergy(
 
     const result = await response.json()
 
-    if (result.result?.result === false) 
+    if (result.result?.result === false)
       throw new Error(
         `Energy estimation failed: ${
           result.result?.message || JSON.stringify(result)
         }`
       )
-    
 
     if (result.energy_used) {
       const safetyMultiplier = 10
@@ -119,9 +113,7 @@ async function registerAllbridgeFacetToDiamond(
     const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
 
     const diamondAddress = deployments.LiFiDiamond
-    if (!diamondAddress) 
-      throw new Error('LiFiDiamond not found in deployments')
-    
+    if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
     consola.info(`🔷 LiFiDiamond: ${diamondAddress}`)
 
@@ -153,14 +145,12 @@ async function registerAllbridgeFacetToDiamond(
     const combinedABI = [...diamondCutABI, ...diamondLoupeABI]
     const diamond = tronWeb.contract(combinedABI, diamondAddress)
 
-    // Use preloaded function selectors
-    consola.info(
-      '\n📋 Using preloaded function selectors for AllbridgeFacet...'
-    )
-    const selectors = ALLBRIDGE_FACET_SELECTORS
+    // Get function selectors dynamically
+    consola.info('\n📋 Extracting function selectors for AllbridgeFacet...')
+    const selectors = await getFacetSelectors('AllBridgeFacet')
 
     consola.info(`📌 Found ${selectors.length} function selectors:`)
-    selectors.forEach((selector) => {
+    selectors.forEach((selector: string) => {
       consola.info(`   - ${selector}`)
     })
 
@@ -213,11 +203,10 @@ async function registerAllbridgeFacetToDiamond(
     // Check balance
     const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
     const balanceTRX = balance / 1000000
-    if (balanceTRX < 5) 
+    if (balanceTRX < 5)
       throw new Error(
         `Insufficient balance. Have: ${balanceTRX} TRX, Need: at least 5 TRX`
       )
-    
 
     // Execute diamondCut
     consola.info(`\n🚀 Executing diamondCut...`)
@@ -251,9 +240,7 @@ async function registerAllbridgeFacetToDiamond(
       }
     }
 
-    if (!found) 
-      throw new Error('AllbridgeFacet not found in registered facets')
-    
+    if (!found) throw new Error('AllbridgeFacet not found in registered facets')
   } catch (error) {
     consola.error(
       '❌ Registration failed:',
@@ -434,9 +421,8 @@ async function deployAndRegisterAllbridgeFacet(
       block: networkInfo.block,
     })
 
-    if (networkInfo.balance < 10) 
+    if (networkInfo.balance < 10)
       consola.warn('⚠️  Low balance detected. Deployment may fail.')
-    
 
     consola.info('\n📋 Deployment & Registration Plan:')
     consola.info('1. Deploy AllbridgeFacet with constructor arguments')
@@ -536,11 +522,10 @@ async function deployAndRegisterAllbridgeFacet(
     consola.info(`Environment: ${environment.toUpperCase()}`)
     consola.info('Status: Deployed and Registered to Diamond')
 
-    if (options.dryRun) 
+    if (options.dryRun)
       consola.info(
         '\n📌 This was a DRY RUN - no actual deployment or registration occurred'
       )
-    
   } catch (error) {
     consola.error(
       '❌ Deployment failed:',
@@ -569,9 +554,8 @@ const main = defineCommand({
       dryRun: args.dryRun,
     }
 
-    if (args.dryRun) 
+    if (args.dryRun)
       consola.info('🏃 Running in DRY RUN mode - no transactions will be sent')
-    
 
     try {
       await deployAndRegisterAllbridgeFacet(options)
@@ -586,8 +570,6 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) 
-  runMain(main)
-
+if (import.meta.main) runMain(main)
 
 export { deployAndRegisterAllbridgeFacet }

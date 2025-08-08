@@ -22,21 +22,8 @@ import {
   getContractAddress,
   ENERGY_PRICE,
   updateDiamondJson,
+  getFacetSelectors,
 } from './utils.js'
-
-/**
- * Get function selectors for SymbiosisFacet
- * Preloaded selectors to avoid dynamic calculation and ensure consistency
- * These selectors are for the two main functions that need to be registered:
- * - startBridgeTokensViaSymbiosis(LiFiData,SymbiosisData)
- * - swapAndStartBridgeTokensViaSymbiosis(LiFiData,SwapData[],SymbiosisData)
- */
-function getSymbiosisFacetSelectors(): string[] {
-  return [
-    '0xb70fb9a5', // startBridgeTokensViaSymbiosis
-    '0x6e067161', // swapAndStartBridgeTokensViaSymbiosis
-  ]
-}
 
 /**
  * Estimate energy for diamondCut transaction
@@ -86,13 +73,12 @@ async function estimateDiamondCutEnergy(
 
     const result = await response.json()
 
-    if (result.result?.result === false) 
+    if (result.result?.result === false)
       throw new Error(
         `Energy estimation failed: ${
           result.result?.message || JSON.stringify(result)
         }`
       )
-    
 
     if (result.energy_used) {
       const safetyMultiplier = 10
@@ -128,9 +114,7 @@ async function registerSymbiosisFacetToDiamond(
     const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
 
     const diamondAddress = deployments.LiFiDiamond
-    if (!diamondAddress) 
-      throw new Error('LiFiDiamond not found in deployments')
-    
+    if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
     consola.info(`🔷 LiFiDiamond: ${diamondAddress}`)
 
@@ -162,14 +146,14 @@ async function registerSymbiosisFacetToDiamond(
     const combinedABI = [...diamondCutABI, ...diamondLoupeABI]
     const diamond = tronWeb.contract(combinedABI, diamondAddress)
 
-    // Get function selectors
-    consola.info('\n📋 Getting function selectors for SymbiosisFacet...')
-    const selectors = getSymbiosisFacetSelectors()
+    // Get function selectors dynamically
+    consola.info('\n📋 Extracting function selectors for SymbiosisFacet...')
+    const selectors = await getFacetSelectors('SymbiosisFacet')
 
-    consola.info('📌 Using preloaded function selectors:')
-    consola.info('   - startBridgeTokensViaSymbiosis: 0xb70fb9a5')
-    consola.info('   - swapAndStartBridgeTokensViaSymbiosis: 0x6e067161')
-    consola.info(`📌 Total: ${selectors.length} function selectors`)
+    consola.info(`📌 Found ${selectors.length} function selectors:`)
+    selectors.forEach((selector: string) => {
+      consola.info(`   - ${selector}`)
+    })
 
     // Check if already registered
     let isRegistered = false
@@ -227,11 +211,10 @@ async function registerSymbiosisFacetToDiamond(
     // Check balance
     const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
     const balanceTRX = balance / 1000000
-    if (balanceTRX < 5) 
+    if (balanceTRX < 5)
       throw new Error(
         `Insufficient balance. Have: ${balanceTRX} TRX, Need: at least 5 TRX`
       )
-    
 
     // Execute diamondCut
     consola.info(`\n🚀 Executing diamondCut...`)
@@ -265,9 +248,7 @@ async function registerSymbiosisFacetToDiamond(
       }
     }
 
-    if (!found) 
-      throw new Error('SymbiosisFacet not found in registered facets')
-    
+    if (!found) throw new Error('SymbiosisFacet not found in registered facets')
   } catch (error) {
     consola.error(
       '❌ Registration failed:',
@@ -460,9 +441,8 @@ async function deployAndRegisterSymbiosisFacet(
       block: networkInfo.block,
     })
 
-    if (networkInfo.balance < 10) 
+    if (networkInfo.balance < 10)
       consola.warn('⚠️  Low balance detected. Deployment may fail.')
-    
 
     consola.info('\n📋 Deployment & Registration Plan:')
     consola.info('1. Deploy SymbiosisFacet with constructor arguments')
@@ -553,9 +533,8 @@ async function deployAndRegisterSymbiosisFacet(
     )
 
     // Update tron.diamond.json after successful registration
-    if (!options.dryRun) 
+    if (!options.dryRun)
       await updateDiamondJson(symbiosisFacetAddress, 'SymbiosisFacet')
-    
 
     // Print final summary
     consola.success('\n✨ Deployment & Registration Complete!')
@@ -563,16 +542,15 @@ async function deployAndRegisterSymbiosisFacet(
     consola.info('Contract: SymbiosisFacet')
     consola.info(`Address: ${symbiosisFacetAddress}`)
     consola.info(`Environment: ${environment.toUpperCase()}`)
-    if (deploymentCost > 0) 
+    if (deploymentCost > 0)
       consola.info(`Deployment Cost: ${deploymentCost.toFixed(4)} TRX`)
-    
+
     consola.info('Status: Deployed and Registered to Diamond')
 
-    if (options.dryRun) 
+    if (options.dryRun)
       consola.info(
         '\n📌 This was a DRY RUN - no actual deployment or registration occurred'
       )
-    
   } catch (error) {
     consola.error(
       '❌ Deployment failed:',
@@ -601,9 +579,8 @@ const main = defineCommand({
       dryRun: args.dryRun,
     }
 
-    if (args.dryRun) 
+    if (args.dryRun)
       consola.info('🏃 Running in DRY RUN mode - no transactions will be sent')
-    
 
     try {
       await deployAndRegisterSymbiosisFacet(options)
@@ -618,8 +595,6 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) 
-  runMain(main)
-
+if (import.meta.main) runMain(main)
 
 export { deployAndRegisterSymbiosisFacet }
