@@ -68,6 +68,10 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     error WrongPoolReserves();
     error PoolDoesNotExist();
 
+    // Add custom errors at the top of the contract
+    error ParamsDataLengthMismatch();
+    error NoHopsProvided();
+
     function _addDexFacet() internal virtual {
         (
             address facetAddress,
@@ -201,6 +205,25 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
                 uint16(swapData.length),
                 swapData
             );
+    }
+
+    // Helper for building multi-hop route
+    function _buildMultiHopRoute(
+        SwapTestParams[] memory hopParams,
+        bytes[] memory hopData
+    ) internal pure returns (bytes memory) {
+        if (hopParams.length != hopData.length)
+            revert ParamsDataLengthMismatch();
+        if (hopParams.length == 0) revert NoHopsProvided();
+
+        bytes memory route;
+        for (uint256 i = 0; i < hopParams.length; i++) {
+            route = bytes.concat(
+                route,
+                _buildBaseRoute(hopParams[i], hopData[i])
+            );
+        }
+        return route;
     }
 
     // Helper to handle common swap setup and verification

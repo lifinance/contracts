@@ -69,12 +69,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapData
         );
 
@@ -120,12 +123,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapData
         );
 
@@ -170,12 +176,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessMyERC20), // aggregator's funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn - 1, // Account for slot-undrain
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: true
+            }),
             swapData
         );
 
@@ -216,12 +225,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessMyERC20), // aggregator's funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn - 1, // Account for slot-undrain
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: true
+            }),
             swapData
         );
 
@@ -252,13 +264,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         vm.startPrank(USER_SENDER);
         WETH.approve(address(ldaDiamond), amountIn);
 
-        uint256 initialBalanceIn = WETH.balanceOf(USER_SENDER);
-        uint256 initialBalanceOut = USDT.balanceOf(USER_SENDER);
-
-        //
-        // 1) PROCESS_USER_ERC20:  WETH → USDC   (SyncSwap V1 → withdrawMode=2 → vault that still holds USDC)
-        //
-        bytes memory swapData = _buildSyncSwapV2SwapData(
+        // Build swap data for both hops
+        bytes memory firstSwapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
                 pool: USDC_WETH_POOL_V1,
                 to: SYNC_SWAP_VAULT,
@@ -268,19 +275,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory routeHop1 = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
-            swapData
-        );
-
-        //
-        // 2) PROCESS_ONE_POOL: now swap that USDC → USDT via SyncSwap pool V1
-        //
-        bytes memory swapDataHop2 = _buildSyncSwapV2SwapData(
+        bytes memory secondSwapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
                 pool: USDC_USDT_POOL_V1,
                 to: address(USER_SENDER),
@@ -290,37 +285,47 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory routeHop2 = abi.encodePacked(
-            uint8(CommandType.ProcessOnePool),
-            address(USDC),
-            uint16(swapDataHop2.length), // length prefix
-            swapDataHop2
-        );
+        // Prepare params for both hops
+        SwapTestParams[] memory params = new SwapTestParams[](2);
+        bytes[] memory swapData = new bytes[](2);
 
-        bytes memory route = bytes.concat(routeHop1, routeHop2);
+        // First hop: WETH -> USDC
+        params[0] = SwapTestParams({
+            tokenIn: address(WETH),
+            tokenOut: address(USDC),
+            amountIn: amountIn,
+            sender: USER_SENDER,
+            recipient: SYNC_SWAP_VAULT,
+            isAggregatorFunds: false // ProcessUserERC20
+        });
+        swapData[0] = firstSwapData;
 
-        uint256 amountOut = coreRouteFacet.processRoute(
-            address(WETH),
-            amountIn,
-            address(USDT),
-            0,
-            USER_SENDER,
+        // Second hop: USDC -> USDT
+        params[1] = SwapTestParams({
+            tokenIn: address(USDC),
+            tokenOut: address(USDT),
+            amountIn: 0, // Not used in ProcessOnePool
+            sender: USER_SENDER,
+            recipient: USER_SENDER,
+            isAggregatorFunds: true // ProcessOnePool
+        });
+        swapData[1] = secondSwapData;
+
+        bytes memory route = _buildMultiHopRoute(params, swapData);
+
+        // Use _executeAndVerifySwap with first and last token of the chain
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDT),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             route
         );
 
-        uint256 afterBalanceIn = WETH.balanceOf(USER_SENDER);
-        uint256 afterBalanceOut = USDT.balanceOf(USER_SENDER);
-
-        assertEq(
-            initialBalanceIn - afterBalanceIn,
-            amountIn,
-            "WETH spent mismatch"
-        );
-        assertEq(
-            amountOut,
-            afterBalanceOut - initialBalanceOut,
-            "USDT amountOut mismatch"
-        );
         vm.stopPrank();
     }
 
@@ -338,16 +343,19 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 to: address(USER_SENDER),
                 withdrawMode: 2,
                 isV1Pool: 1,
-                vault: address(0)
+                vault: address(0) // Invalid vault address
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapData
         );
 
@@ -383,12 +391,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory routeWithInvalidPool = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
+        bytes memory routeWithInvalidPool = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapData
         );
 
@@ -413,12 +424,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory routeWithInvalidRecipient = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapDataWithInvalidRecipient.length), // length prefix
+        bytes memory routeWithInvalidRecipient = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapDataWithInvalidRecipient
         );
 
@@ -450,12 +464,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 })
             );
 
-        bytes memory routeWithInvalidWithdrawMode = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20), // user funds
-            address(WETH), // tokenIn
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapDataWithInvalidWithdrawMode.length), // length prefix
+        bytes memory routeWithInvalidWithdrawMode = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: 1, // Arbitrary amount for this test
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapDataWithInvalidWithdrawMode
         );
 

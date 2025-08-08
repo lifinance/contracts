@@ -99,17 +99,89 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_MultiHop() public override {
-        _testMultiHopSwap(
-            MultiHopTestParams({
-                tokenIn: USDC,
-                tokenMid: WETH,
-                tokenOut: USDB_C,
-                pool1: IZUMI_WETH_USDC_POOL,
-                pool2: IZUMI_WETH_USDB_C_POOL,
-                amountIn: AMOUNT_USDC,
-                direction1: SwapDirection.Token1ToToken0,
-                direction2: SwapDirection.Token0ToToken1
+        // Fund the sender with tokens
+        uint256 amountIn = AMOUNT_USDC;
+        deal(USDC, USER_SENDER, amountIn);
+
+        // Capture initial token balances
+        uint256 initialBalanceIn = IERC20(USDC).balanceOf(USER_SENDER);
+        uint256 initialBalanceOut = IERC20(USDB_C).balanceOf(USER_SENDER);
+
+        // Build first swap data: USDC -> WETH
+        bytes memory firstSwapData = _buildIzumiV3SwapData(
+            IzumiV3SwapParams({
+                pool: IZUMI_WETH_USDC_POOL,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: address(coreRouteFacet)
             })
+        );
+
+        // Build second swap data: WETH -> USDB_C
+        bytes memory secondSwapData = _buildIzumiV3SwapData(
+            IzumiV3SwapParams({
+                pool: IZUMI_WETH_USDB_C_POOL,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER
+            })
+        );
+
+        // Prepare params for both hops
+        SwapTestParams[] memory params = new SwapTestParams[](2);
+        bytes[] memory swapData = new bytes[](2);
+
+        // First hop: USDC -> WETH
+        params[0] = SwapTestParams({
+            tokenIn: USDC,
+            tokenOut: WETH,
+            amountIn: amountIn,
+            sender: USER_SENDER,
+            recipient: address(coreRouteFacet),
+            isAggregatorFunds: false // ProcessUserERC20
+        });
+        swapData[0] = firstSwapData;
+
+        // Second hop: WETH -> USDB_C
+        params[1] = SwapTestParams({
+            tokenIn: WETH,
+            tokenOut: USDB_C,
+            amountIn: 0, // Will be determined by first swap
+            sender: USER_SENDER,
+            recipient: USER_SENDER,
+            isAggregatorFunds: true // ProcessMyERC20
+        });
+        swapData[1] = secondSwapData;
+
+        bytes memory route = _buildMultiHopRoute(params, swapData);
+
+        // Approve tokens
+        vm.startPrank(USER_SENDER);
+        IERC20(USDC).approve(address(ldaDiamond), amountIn);
+
+        // Execute the swap
+        uint256 amountOut = coreRouteFacet.processRoute(
+            USDC,
+            amountIn,
+            USDB_C,
+            0, // No minimum amount for testing
+            USER_SENDER,
+            route
+        );
+        vm.stopPrank();
+
+        // Verify balances
+        uint256 finalBalanceIn = IERC20(USDC).balanceOf(USER_SENDER);
+        uint256 finalBalanceOut = IERC20(USDB_C).balanceOf(USER_SENDER);
+
+        assertEq(
+            initialBalanceIn - finalBalanceIn,
+            amountIn,
+            "TokenIn amount mismatch"
+        );
+        assertGt(finalBalanceOut, initialBalanceOut, "TokenOut not received");
+        assertEq(
+            amountOut,
+            finalBalanceOut - initialBalanceOut,
+            "AmountOut mismatch"
         );
     }
 
