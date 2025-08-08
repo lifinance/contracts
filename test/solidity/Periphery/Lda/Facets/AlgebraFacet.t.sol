@@ -135,18 +135,22 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         });
     }
 
-    function _addDexFacet() internal override {
+    function _createFacetAndSelectors()
+        internal
+        override
+        returns (address, bytes4[] memory)
+    {
         algebraFacet = new AlgebraFacet();
         bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = algebraFacet.swapAlgebra.selector;
         functionSelectors[1] = algebraFacet.algebraSwapCallback.selector;
-        addFacet(
-            address(ldaDiamond),
-            address(algebraFacet),
-            functionSelectors
-        );
+        return (address(algebraFacet), functionSelectors);
+    }
 
-        algebraFacet = AlgebraFacet(payable(address(ldaDiamond)));
+    function _setFacetInstance(
+        address payable facetAddress
+    ) internal override {
+        algebraFacet = AlgebraFacet(facetAddress);
     }
 
     // Override the abstract test with Algebra implementation
@@ -175,8 +179,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_FeeOnTransferToken() public {
-        setupApechain();
-
         uint256 amountIn = 534451326669177;
         vm.prank(APE_ETH_HOLDER_APECHAIN);
         IERC20(APE_ETH_TOKEN).transfer(APE_ETH_HOLDER_APECHAIN, amountIn);

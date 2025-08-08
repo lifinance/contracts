@@ -22,106 +22,38 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         });
     }
 
-    function _addDexFacet() internal override {
-        uniV3Facet = new UniV3StyleFacet();
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = uniV3Facet.swapUniV3.selector;
-        functionSelectors[1] = uniV3Facet.rabbitSwapV3SwapCallback.selector;
-        addFacet(address(ldaDiamond), address(uniV3Facet), functionSelectors);
-
-        uniV3Facet = UniV3StyleFacet(payable(address(ldaDiamond)));
+    function _getCallbackSelector() internal pure override returns (bytes4) {
+        return UniV3StyleFacet.rabbitSwapV3SwapCallback.selector;
     }
 
     function test_CanSwap() public override {
-        uint256 amountIn = 1_000 * 1e18;
-
-        // fund the user with SOROS
-        deal(address(SOROS), USER_SENDER, amountIn);
-
-        vm.startPrank(USER_SENDER);
-        SOROS.approve(address(ldaDiamond), amountIn);
-
-        bytes memory swapData = _buildUniV3SwapData(
-            UniV3SwapParams({
-                pool: SOROS_C98_POOL,
-                direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER
-            })
+        _executeUniV3StyleSwap(
+            SwapTestParams({
+                tokenIn: address(SOROS),
+                tokenOut: address(C98),
+                amountIn: 1_000 * 1e18,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            SOROS_C98_POOL,
+            SwapDirection.Token1ToToken0
         );
-
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(SOROS),
-            uint8(1), // one pool
-            FULL_SHARE, // 100%
-            uint16(swapData.length), // length prefix
-            swapData
-        );
-
-        // record balances before swap
-        uint256 inBefore = SOROS.balanceOf(USER_SENDER);
-        uint256 outBefore = C98.balanceOf(USER_SENDER);
-
-        // execute swap (minOut = 0 for test)
-        coreRouteFacet.processRoute(
-            address(SOROS),
-            amountIn,
-            address(C98),
-            0,
-            USER_SENDER,
-            route
-        );
-
-        // verify balances after swap
-        uint256 inAfter = SOROS.balanceOf(USER_SENDER);
-        uint256 outAfter = C98.balanceOf(USER_SENDER);
-        assertEq(inBefore - inAfter, amountIn, "SOROS spent mismatch");
-        assertGt(outAfter - outBefore, 0, "Should receive C98");
-
-        vm.stopPrank();
     }
 
     function test_CanSwap_FromDexAggregator() public override {
-        uint256 amountIn = 1_000 * 1e18;
-
-        // fund the aggregator directly
-        deal(address(SOROS), address(ldaDiamond), amountIn);
-
-        vm.startPrank(USER_SENDER);
-
-        bytes memory swapData = _buildUniV3SwapData(
-            UniV3SwapParams({
-                pool: SOROS_C98_POOL,
-                direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER
-            })
+        _executeUniV3StyleSwap(
+            SwapTestParams({
+                tokenIn: address(SOROS),
+                tokenOut: address(C98),
+                amountIn: 1_000 * 1e18,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: true
+            }),
+            SOROS_C98_POOL,
+            SwapDirection.Token1ToToken0
         );
-
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessMyERC20),
-            address(SOROS),
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapData.length), // length prefix
-            swapData
-        );
-
-        uint256 outBefore = C98.balanceOf(USER_SENDER);
-
-        // withdraw 1 wei less to avoid slot-undrain protection
-        coreRouteFacet.processRoute(
-            address(SOROS),
-            amountIn - 1,
-            address(C98),
-            0,
-            USER_SENDER,
-            route
-        );
-
-        uint256 outAfter = C98.balanceOf(USER_SENDER);
-        assertGt(outAfter - outBefore, 0, "Should receive C98");
-
-        vm.stopPrank();
     }
 
     function testRevert_RabbitSwapInvalidPool() public {
@@ -131,20 +63,25 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         vm.startPrank(USER_SENDER);
         SOROS.approve(address(ldaDiamond), amountIn);
 
+        // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
-                pool: address(0),
+                pool: address(0), // Invalid pool address
                 direction: SwapDirection.Token1ToToken0,
                 recipient: USER_SENDER
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(SOROS),
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapData.length), // length prefix
+        // Use _buildBaseRoute from base class
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(SOROS),
+                tokenOut: address(C98),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapData
         );
 
@@ -168,20 +105,25 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         vm.startPrank(USER_SENDER);
         SOROS.approve(address(ldaDiamond), amountIn);
 
+        // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
                 pool: SOROS_C98_POOL,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: address(0)
+                recipient: address(0) // Invalid recipient address
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(SOROS),
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapData.length), // length prefix
+        // Use _buildBaseRoute from base class
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(SOROS),
+                tokenOut: address(C98),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             swapData
         );
 

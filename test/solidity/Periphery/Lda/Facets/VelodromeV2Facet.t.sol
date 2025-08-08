@@ -84,17 +84,21 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         });
     }
 
-    function _addDexFacet() internal override {
+    function _createFacetAndSelectors()
+        internal
+        override
+        returns (address, bytes4[] memory)
+    {
         velodromeV2Facet = new VelodromeV2Facet();
         bytes4[] memory functionSelectors = new bytes4[](1);
         functionSelectors[0] = velodromeV2Facet.swapVelodromeV2.selector;
-        addFacet(
-            address(ldaDiamond),
-            address(velodromeV2Facet),
-            functionSelectors
-        );
+        return (address(velodromeV2Facet), functionSelectors);
+    }
 
-        velodromeV2Facet = VelodromeV2Facet(payable(address(ldaDiamond)));
+    function _setFacetInstance(
+        address payable facetAddress
+    ) internal override {
+        velodromeV2Facet = VelodromeV2Facet(facetAddress);
     }
 
     // ============================ Velodrome V2 Tests ============================

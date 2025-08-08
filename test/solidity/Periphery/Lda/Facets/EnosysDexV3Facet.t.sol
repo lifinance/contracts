@@ -5,37 +5,41 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 
-contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
-    IERC20 internal constant WHYPE =
-        IERC20(0x5555555555555555555555555555555555555555);
-    IERC20 internal constant LHYPE =
-        IERC20(0x5748ae796AE46A4F1348a1693de4b50560485562);
+contract EnosysDexV3FacetTest is BaseUniV3StyleDexFacetTest {
+    /// @dev HLN token on Flare
+    IERC20 internal constant HLN =
+        IERC20(0x140D8d3649Ec605CF69018C627fB44cCC76eC89f);
 
-    address internal constant WHYPE_LHYPE_POOL =
-        0xdAA8a66380fb35b35CB7bc1dBC1925AbfdD0ae45;
+    /// @dev USDT0 token on Flare
+    IERC20 internal constant USDT0 =
+        IERC20(0xe7cd86e13AC4309349F30B3435a9d337750fC82D);
+
+    /// @dev The single EnosysDexV3 pool for HLN–USDT0
+    address internal constant ENOSYS_V3_POOL =
+        0xA7C9E7343bD8f1eb7000F25dE5aeb52c6B78B1b7;
 
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
-            rpcEnvName: "ETH_NODE_URI_HYPEREVM",
-            blockNumber: 4433562
+            rpcEnvName: "ETH_NODE_URI_FLARE",
+            blockNumber: 42652369
         });
     }
 
     function _getCallbackSelector() internal pure override returns (bytes4) {
-        return UniV3StyleFacet.laminarV3SwapCallback.selector;
+        return UniV3StyleFacet.enosysdexV3SwapCallback.selector;
     }
 
     function test_CanSwap() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(WHYPE),
-                tokenOut: address(LHYPE),
+                tokenIn: address(HLN),
+                tokenOut: address(USDT0),
                 amountIn: 1_000 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 isAggregatorFunds: false
             }),
-            WHYPE_LHYPE_POOL,
+            ENOSYS_V3_POOL,
             SwapDirection.Token0ToToken1
         );
     }
@@ -43,14 +47,14 @@ contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
     function test_CanSwap_FromDexAggregator() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(WHYPE),
-                tokenOut: address(LHYPE),
+                tokenIn: address(HLN),
+                tokenOut: address(USDT0),
                 amountIn: 1_000 * 1e18 - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 isAggregatorFunds: true
             }),
-            WHYPE_LHYPE_POOL,
+            ENOSYS_V3_POOL,
             SwapDirection.Token0ToToken1
         );
     }

@@ -68,38 +68,23 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     error WrongPoolReserves();
     error PoolDoesNotExist();
 
-    function _addDexFacet() internal virtual;
+    function _addDexFacet() internal virtual {
+        (
+            address facetAddress,
+            bytes4[] memory functionSelectors
+        ) = _createFacetAndSelectors();
 
-    // Setup function for Apechain tests
-    function setupApechain() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_APECHAIN";
-        customBlockNumberForForking = 12912470;
+        addFacet(address(ldaDiamond), facetAddress, functionSelectors);
+
+        _setFacetInstance(payable(address(ldaDiamond)));
     }
 
-    function setupHyperEVM() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
-        customBlockNumberForForking = 4433562;
-    }
-
-    function setupXDC() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_XDC";
-        customBlockNumberForForking = 89279495;
-    }
-
-    function setupViction() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_VICTION";
-        customBlockNumberForForking = 94490946;
-    }
-
-    function setupFlare() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_FLARE";
-        customBlockNumberForForking = 42652369;
-    }
-
-    function setupLinea() internal {
-        customRpcUrlForForking = "ETH_NODE_URI_LINEA";
-        customBlockNumberForForking = 20077881;
-    }
+    // Each facet test must implement these
+    function _createFacetAndSelectors()
+        internal
+        virtual
+        returns (address, bytes4[] memory);
+    function _setFacetInstance(address payable facetAddress) internal virtual;
 
     function setUp() public virtual override {
         // forkConfig should be set in the child contract via _setupForkConfig()
@@ -178,5 +163,81 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         // Each DEX implementation must override this
         // solhint-disable-next-line gas-custom-errors
         revert("test_CanSwap_MultiHop: Not implemented");
+    }
+
+    struct SwapTestParams {
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        address sender;
+        address recipient;
+        bool isAggregatorFunds; // true for ProcessMyERC20, false for ProcessUserERC20
+    }
+
+    // Add this struct for route building
+    struct RouteParams {
+        CommandType commandType;
+        address tokenIn;
+        uint8 numPools; // defaults to 1
+        uint16 share; // defaults to FULL_SHARE
+        bytes swapData;
+    }
+
+    // Helper to build common route parts
+    function _buildBaseRoute(
+        SwapTestParams memory params,
+        bytes memory swapData
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uint8(
+                    params.isAggregatorFunds
+                        ? CommandType.ProcessMyERC20
+                        : CommandType.ProcessUserERC20
+                ),
+                params.tokenIn,
+                uint8(1), // one pool
+                FULL_SHARE, // 100%
+                uint16(swapData.length),
+                swapData
+            );
+    }
+
+    // Helper to handle common swap setup and verification
+    function _executeAndVerifySwap(
+        SwapTestParams memory params,
+        bytes memory route
+    ) internal {
+        if (!params.isAggregatorFunds) {
+            IERC20(params.tokenIn).approve(
+                address(ldaDiamond),
+                params.amountIn
+            );
+        }
+
+        uint256 inBefore;
+        if (params.isAggregatorFunds) {
+            inBefore = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
+        } else {
+            inBefore = IERC20(params.tokenIn).balanceOf(params.sender);
+        }
+        uint256 outBefore = IERC20(params.tokenOut).balanceOf(
+            params.recipient
+        );
+
+        coreRouteFacet.processRoute(
+            params.tokenIn,
+            params.amountIn,
+            params.tokenOut,
+            0, // minOut = 0 for tests
+            params.recipient,
+            route
+        );
+
+        uint256 inAfter = IERC20(params.tokenIn).balanceOf(params.sender);
+        uint256 outAfter = IERC20(params.tokenOut).balanceOf(params.recipient);
+
+        assertEq(inBefore - inAfter, params.amountIn, "Token spent mismatch");
+        assertGt(outAfter - outBefore, 0, "Should receive tokens");
     }
 }

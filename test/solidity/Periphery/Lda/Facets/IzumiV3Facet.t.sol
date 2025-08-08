@@ -61,19 +61,23 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
         });
     }
 
-    function _addDexFacet() internal override {
+    function _createFacetAndSelectors()
+        internal
+        override
+        returns (address, bytes4[] memory)
+    {
         izumiV3Facet = new IzumiV3Facet();
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = izumiV3Facet.swapIzumiV3.selector;
         functionSelectors[1] = izumiV3Facet.swapX2YCallback.selector;
         functionSelectors[2] = izumiV3Facet.swapY2XCallback.selector;
-        addFacet(
-            address(ldaDiamond),
-            address(izumiV3Facet),
-            functionSelectors
-        );
+        return (address(izumiV3Facet), functionSelectors);
+    }
 
-        izumiV3Facet = IzumiV3Facet(payable(address(ldaDiamond)));
+    function _setFacetInstance(
+        address payable facetAddress
+    ) internal override {
+        izumiV3Facet = IzumiV3Facet(facetAddress);
     }
 
     function test_CanSwap_FromDexAggregator() public override {
