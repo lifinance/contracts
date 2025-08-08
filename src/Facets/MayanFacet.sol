@@ -272,7 +272,7 @@ contract MayanFacet is
             case 0x4d1ed73b {
                 // solhint-disable-next-line max-line-length
                 // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,address,uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
-                receiver := mload(add(protocolData, 0xe4))
+                receiver := mload(add(protocolData, 0x64))
             }
             default {
                 receiver := 0x0
