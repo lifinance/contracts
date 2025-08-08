@@ -33,7 +33,6 @@ const PERIPHERY_CONTRACTS = [
  */
 async function deployAndRegisterPeriphery() {
   consola.start('TRON Periphery Contracts Deployment & Registration')
-  consola.info('===================================================\n')
 
   // Get environment from config.sh
   const environment = await getEnvironment()
@@ -877,8 +876,6 @@ async function deployAndRegisterPeriphery() {
 
     // Print summary
     consola.success('\n Deployment Complete!')
-    consola.info('========================\n')
-
     // Check for failed deployments
     const failedDeployments = deploymentResults.filter(
       (r) => r.txId === 'FAILED'

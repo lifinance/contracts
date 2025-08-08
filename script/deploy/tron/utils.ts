@@ -6,12 +6,27 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 
-import type { IForgeArtifact } from './types'
+import {
+  DIAMOND_CUT_ENERGY_MULTIPLIER,
+  ZERO_ADDRESS,
+  MIN_BALANCE_REGISTRATION,
+  DEFAULT_FEE_LIMIT_TRX,
+  MIN_BALANCE_WARNING,
+  ENERGY_PRICE,
+} from './constants'
+import type {
+  IForgeArtifact,
+  IDeploymentResult,
+  INetworkInfo,
+  IDiamondRegistrationResult,
+} from './types'
 
-// Constants
-export const ENERGY_PRICE = 0.00021 // TRX per energy unit
-export const BANDWIDTH_PRICE = 0.001 // TRX per bandwidth point
-export const DEFAULT_SAFETY_MARGIN = 1.5 // 50% buffer
+// Re-export constants for backward compatibility
+export {
+  ENERGY_PRICE,
+  BANDWIDTH_PRICE,
+  DEFAULT_SAFETY_MARGIN,
+} from './constants'
 
 /**
  * Load compiled contract artifact from Forge output
@@ -294,11 +309,11 @@ export async function updateDiamondJson(
     for (const address in facets)
       if (facets[address].Name === facetName)
         if (address === facetAddress) {
-          consola.info(`ℹ️  ${facetName} already exists in tron.diamond.json`)
+          consola.info(`${facetName} already exists in tron.diamond.json`)
           return
         } else {
           // Same facet name but different address - update it
-          consola.info(`ℹ️  Updating ${facetName} address in tron.diamond.json`)
+          consola.info(`Updating ${facetName} address in tron.diamond.json`)
           delete facets[address]
           break
         }
@@ -310,7 +325,7 @@ export async function updateDiamondJson(
       } catch {
         version = '1.0.0' // Default version if not found
         consola.warn(
-          `⚠️  Could not determine version for ${facetName}, using default: ${version}`
+          `Could not determine version for ${facetName}, using default: ${version}`
         )
       }
 
@@ -326,9 +341,9 @@ export async function updateDiamondJson(
       JSON.stringify(diamondData, null, 2) + '\n'
     )
 
-    consola.success(`✅ Updated tron.diamond.json with ${facetName}`)
+    consola.success(`Updated tron.diamond.json with ${facetName}`)
   } catch (error: any) {
-    consola.error('❌ Failed to update tron.diamond.json:', error.message)
+    consola.error('Failed to update tron.diamond.json:', error.message)
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -388,14 +403,14 @@ export async function updateDiamondJsonBatch(
         }
 
       if (existingAddress === entry.address) {
-        consola.info(`ℹ️  ${entry.name} already exists in tron.diamond.json`)
+        consola.info(`${entry.name} already exists in tron.diamond.json`)
         continue
       }
 
       if (existingAddress) {
         // Remove old entry
         delete facets[existingAddress]
-        consola.info(`ℹ️  Updating ${entry.name} address in tron.diamond.json`)
+        consola.info(`Updating ${entry.name} address in tron.diamond.json`)
       }
 
       // Get version if not provided
@@ -406,7 +421,7 @@ export async function updateDiamondJsonBatch(
         } catch {
           version = '1.0.0'
           consola.warn(
-            `⚠️  Could not determine version for ${entry.name}, using default: ${version}`
+            `Could not determine version for ${entry.name}, using default: ${version}`
           )
         }
 
@@ -425,12 +440,10 @@ export async function updateDiamondJsonBatch(
         JSON.stringify(diamondData, null, 2) + '\n'
       )
 
-      consola.success(
-        `✅ Updated tron.diamond.json with ${updatedCount} facet(s)`
-      )
+      consola.success(`Updated tron.diamond.json with ${updatedCount} facet(s)`)
     }
   } catch (error: any) {
-    consola.error('❌ Failed to update tron.diamond.json:', error.message)
+    consola.error('Failed to update tron.diamond.json:', error.message)
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -481,13 +494,13 @@ export async function updateDiamondJsonPeriphery(
 
     if (periphery[contractName] === contractAddress) {
       consola.info(
-        `ℹ️  ${contractName} already exists in tron.diamond.json with same address`
+        `${contractName} already exists in tron.diamond.json with same address`
       )
       return
     }
 
     if (periphery[contractName])
-      consola.info(`ℹ️  Updating ${contractName} address in tron.diamond.json`)
+      consola.info(`Updating ${contractName} address in tron.diamond.json`)
 
     // Set the contract address (simple format: name -> address)
     periphery[contractName] = contractAddress
@@ -499,10 +512,10 @@ export async function updateDiamondJsonPeriphery(
     )
 
     consola.success(
-      `✅ Updated tron.diamond.json with ${contractName} (Periphery)`
+      `Updated tron.diamond.json with ${contractName} (Periphery)`
     )
   } catch (error: any) {
-    consola.error('❌ Failed to update tron.diamond.json:', error.message)
+    consola.error('Failed to update tron.diamond.json:', error.message)
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -527,11 +540,10 @@ export async function getFacetSelectors(
   // Check if artifact exists
   try {
     const exists = await Bun.file(artifactPath).exists()
-    if (!exists) 
+    if (!exists)
       throw new Error(
         `Build artifact not found for ${facetName}. Run 'forge build' first.`
       )
-    
   } catch (error) {
     throw new Error(
       `Build artifact not found for ${facetName}. Run 'forge build' first.`
@@ -541,9 +553,8 @@ export async function getFacetSelectors(
   // Read artifact file
   const artifact = await Bun.file(artifactPath).json()
 
-  if (!artifact.methodIdentifiers) 
+  if (!artifact.methodIdentifiers)
     throw new Error(`No method identifiers found in ${facetName} artifact`)
-  
 
   // Extract all selectors and add 0x prefix
   let selectors = Object.values(
@@ -561,8 +572,527 @@ export async function getFacetSelectors(
     selectors = selectors.filter((s) => !excludeSet.has(s.toLowerCase()))
   }
 
-  consola.info(`📋 Extracted ${selectors.length} selectors for ${facetName}:`)
+  consola.info(`Extracted ${selectors.length} selectors for ${facetName}:`)
   selectors.forEach((s) => consola.info(`   ${s}`))
 
   return selectors
+}
+
+/**
+ * Check if a contract is already deployed and prompt for redeploy
+ */
+export async function checkExistingDeployment(
+  network: string,
+  contractName: string,
+  dryRun = false
+): Promise<{
+  exists: boolean
+  address: string | null
+  shouldRedeploy: boolean
+}> {
+  const existingAddress = await getContractAddress(network, contractName)
+
+  if (existingAddress && !dryRun) {
+    consola.warn(`${contractName} is already deployed at: ${existingAddress}`)
+    const shouldRedeploy = await consola.prompt(`Redeploy ${contractName}?`, {
+      type: 'confirm',
+      initial: false,
+    })
+
+    return {
+      exists: true,
+      address: existingAddress,
+      shouldRedeploy,
+    }
+  }
+
+  return {
+    exists: false,
+    address: null,
+    shouldRedeploy: true,
+  }
+}
+
+/**
+ * Deploy a contract with standard error handling and logging
+ */
+export async function deployContractWithLogging(
+  deployer: any, // TronContractDeployer
+  contractName: string,
+  constructorArgs: any[] = [],
+  dryRun = false
+): Promise<IDeploymentResult> {
+  try {
+    const artifact = await loadForgeArtifact(contractName)
+    const version = await getContractVersion(contractName)
+
+    consola.info(`Deploying ${contractName} v${version}...`)
+
+    if (constructorArgs.length > 0)
+      consola.info(`Constructor arguments:`, constructorArgs)
+
+    const result = await deployer.deployContract(artifact, constructorArgs)
+
+    consola.success(`${contractName} deployed to: ${result.contractAddress}`)
+    consola.info(`Transaction: ${result.transactionId}`)
+    consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+    // Log deployment (skip in dry run)
+    if (!dryRun) {
+      // Encode constructor args
+      const constructorArgsHex =
+        constructorArgs.length > 0
+          ? encodeConstructorArgs(constructorArgs)
+          : '0x'
+
+      await logDeployment(
+        contractName,
+        'tron',
+        result.contractAddress,
+        version,
+        constructorArgsHex,
+        false
+      )
+
+      await saveContractAddress('tron', contractName, result.contractAddress)
+    }
+
+    return {
+      contract: contractName,
+      address: result.contractAddress,
+      txId: result.transactionId,
+      cost: result.actualCost.trxCost,
+      version,
+      status: 'success',
+    }
+  } catch (error: any) {
+    consola.error(`Failed to deploy ${contractName}:`, error.message)
+    throw error
+  }
+}
+
+/**
+ * Encode constructor arguments to hex
+ */
+export function encodeConstructorArgs(args: any[]): string {
+  // Simple hex encoding - you may need to enhance this based on actual types
+  if (args.length === 0) return '0x'
+
+  try {
+    // For now, just return a placeholder - implement proper ABI encoding
+    return (
+      '0x' +
+      args
+        .map((arg) => {
+          if (typeof arg === 'string' && arg.startsWith('0x'))
+            return arg.slice(2)
+
+          return Buffer.from(String(arg)).toString('hex')
+        })
+        .join('')
+    )
+  } catch {
+    return '0x'
+  }
+}
+
+/**
+ * Estimate energy for diamondCut transaction
+ */
+export async function estimateDiamondCutEnergy(
+  tronWeb: any,
+  diamondAddress: string,
+  facetCuts: any[],
+  fullHost: string
+): Promise<number> {
+  try {
+    consola.info('Estimating energy for diamondCut...')
+
+    const encodedParams = tronWeb.utils.abi.encodeParams(
+      ['(address,uint8,bytes4[])[]', 'address', 'bytes'],
+      [facetCuts, ZERO_ADDRESS, '0x']
+    )
+
+    const functionSelector =
+      'diamondCut((address,uint8,bytes4[])[],address,bytes)'
+    const apiUrl =
+      fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
+
+    const payload = {
+      owner_address: tronWeb.defaultAddress.base58,
+      contract_address: diamondAddress,
+      function_selector: functionSelector,
+      parameter: encodedParams.replace('0x', ''),
+      fee_limit: 1000000000,
+      call_value: 0,
+      visible: true,
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API call failed: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
+
+    if (result.result?.result === false)
+      throw new Error(
+        `Energy estimation failed: ${
+          result.result?.message || JSON.stringify(result)
+        }`
+      )
+
+    if (result.energy_used) {
+      const estimatedEnergy = Math.ceil(
+        result.energy_used * DIAMOND_CUT_ENERGY_MULTIPLIER
+      )
+      consola.info(
+        `Energy estimate: ${result.energy_used} (with ${DIAMOND_CUT_ENERGY_MULTIPLIER}x safety: ${estimatedEnergy})`
+      )
+      return estimatedEnergy
+    }
+
+    throw new Error('No energy estimation returned')
+  } catch (error: any) {
+    consola.error('Failed to estimate energy:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Register a facet to the diamond
+ */
+export async function registerFacetToDiamond(
+  facetName: string,
+  facetAddress: string,
+  tronWeb: any,
+  fullHost: string,
+  dryRun = false
+): Promise<IDiamondRegistrationResult> {
+  try {
+    // Load diamond address
+    const diamondAddress = await getContractAddress('tron', 'LiFiDiamond')
+    if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
+
+    consola.info(`Registering ${facetName} to LiFiDiamond: ${diamondAddress}`)
+
+    // Load ABIs
+    const diamondCutABI = await loadForgeArtifact('DiamondCutFacet')
+    const diamondLoupeABI = await loadForgeArtifact('DiamondLoupeFacet')
+    const combinedABI = [...diamondCutABI.abi, ...diamondLoupeABI.abi]
+    const diamond = tronWeb.contract(combinedABI, diamondAddress)
+
+    // Get function selectors
+    const selectors = await getFacetSelectors(facetName)
+    consola.info(`Found ${selectors.length} function selectors`)
+
+    // Check if already registered
+    const isRegistered = await checkFacetRegistration(
+      diamond,
+      facetAddress,
+      tronWeb
+    )
+    if (isRegistered) {
+      consola.success(`${facetName} is already registered!`)
+      return { success: true }
+    }
+
+    // Prepare facetCut
+    const facetAddressHex = tronWeb.address
+      .toHex(facetAddress)
+      .replace(/^41/, '0x')
+    const facetCuts = [[facetAddressHex, 0, selectors]]
+
+    // Estimate energy
+    const estimatedEnergy = await estimateDiamondCutEnergy(
+      tronWeb,
+      diamondAddress,
+      facetCuts,
+      fullHost
+    )
+    const estimatedCost = (estimatedEnergy * ENERGY_PRICE) / 1000000
+    consola.info(`Estimated registration cost: ${estimatedCost.toFixed(4)} TRX`)
+
+    if (dryRun) {
+      consola.info('Dry run mode - not executing registration')
+      return { success: true }
+    }
+
+    // Check balance
+    const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
+    const balanceTRX = balance / 1000000
+    if (balanceTRX < MIN_BALANCE_REGISTRATION)
+      throw new Error(
+        `Insufficient balance. Have: ${balanceTRX} TRX, Need: at least ${MIN_BALANCE_REGISTRATION} TRX`
+      )
+
+    // Execute diamondCut
+    consola.info(`Executing diamondCut...`)
+    const feeLimitInSun = DEFAULT_FEE_LIMIT_TRX * 1000000 // Convert to SUN
+
+    const tx = await diamond.diamondCut(facetCuts, ZERO_ADDRESS, '0x').send({
+      feeLimit: feeLimitInSun,
+      shouldPollResponse: true,
+    })
+
+    consola.success(`Registration transaction successful: ${tx}`)
+
+    // Verify registration
+    const verified = await verifyFacetRegistration(
+      diamond,
+      facetAddress,
+      facetName,
+      tronWeb
+    )
+    if (!verified)
+      throw new Error(
+        `${facetName} not found in registered facets after registration`
+      )
+
+    // Update diamond.json
+    await updateDiamondJson(facetAddress, facetName)
+
+    return { success: true, transactionId: tx }
+  } catch (error: any) {
+    consola.error(`Registration failed:`, error.message)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Check if a facet is already registered
+ */
+export async function checkFacetRegistration(
+  diamond: any,
+  facetAddress: string,
+  tronWeb: any
+): Promise<boolean> {
+  try {
+    const facetsResponse = await diamond.facets().call()
+    const currentFacets = Array.isArray(facetsResponse[0])
+      ? facetsResponse[0]
+      : facetsResponse
+
+    for (const facet of currentFacets) {
+      const registeredAddress = tronWeb.address.fromHex(facet[0])
+      if (registeredAddress === facetAddress) return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Verify facet registration after diamondCut
+ */
+export async function verifyFacetRegistration(
+  diamond: any,
+  facetAddress: string,
+  facetName: string,
+  tronWeb: any
+): Promise<boolean> {
+  consola.info('Verifying registration...')
+
+  const facetsResponse = await diamond.facets().call()
+  const facets = Array.isArray(facetsResponse[0])
+    ? facetsResponse[0]
+    : facetsResponse
+
+  for (const facet of facets) {
+    const facetBase58 = tronWeb.address.fromHex(facet[0])
+    if (facetBase58 === facetAddress) {
+      consola.success(
+        `${facetName} registered successfully with ${facet[1].length} functions`
+      )
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Convert hex address to Tron base58 format
+ */
+export function hexToTronAddress(hexAddress: string, tronWeb: any): string {
+  if (hexAddress === ZERO_ADDRESS)
+    return tronWeb.address.fromHex('410000000000000000000000000000000000000000')
+
+  return tronWeb.address.fromHex(hexAddress.replace('0x', '41'))
+}
+
+/**
+ * Convert Tron base58 address to hex format
+ */
+export function tronAddressToHex(tronAddress: string, tronWeb: any): string {
+  return '0x' + tronWeb.address.toHex(tronAddress).substring(2)
+}
+
+/**
+ * Validate network balance before deployment
+ */
+export async function validateBalance(
+  tronWeb: any,
+  requiredTrx: number,
+  operation = 'deployment'
+): Promise<void> {
+  const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
+  const balanceTrx = tronWeb.fromSun(balance)
+
+  if (balanceTrx < requiredTrx)
+    throw new Error(
+      `Insufficient balance for ${operation}: ${balanceTrx} TRX available, ${requiredTrx} TRX required`
+    )
+
+  if (balanceTrx < MIN_BALANCE_WARNING)
+    consola.warn(`Low balance detected: ${balanceTrx} TRX`)
+}
+
+/**
+ * Display deployment confirmation prompt
+ */
+export async function confirmDeployment(
+  environment: string,
+  network: string,
+  contracts: string[]
+): Promise<boolean> {
+  const isProduction = environment === 'production'
+  const networkName = network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet'
+
+  // Use consola.box for deployment plan
+  const planContent = contracts
+    .map((contract, index) => `${index + 1}. ${contract}`)
+    .join('\n')
+
+  consola.box({
+    title: 'Deployment Plan',
+    message: planContent,
+    style: {
+      borderColor: 'yellow',
+    },
+  })
+
+  if (isProduction)
+    consola.warn(
+      `WARNING: This will deploy to Tron ${networkName} in PRODUCTION!`
+    )
+  else consola.warn(`This will deploy to Tron ${networkName} in STAGING!`)
+
+  const shouldContinue = await consola.prompt('Do you want to continue?', {
+    type: 'confirm',
+    initial: !isProduction,
+  })
+
+  if (!shouldContinue) {
+    consola.info('Deployment cancelled')
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Print deployment summary
+ */
+export function printDeploymentSummary(
+  results: IDeploymentResult[],
+  dryRun = false
+): void {
+  // Group by status
+  const successful = results.filter((r) => r.status !== 'failed')
+  const failed = results.filter((r) => r.status === 'failed')
+
+  let summaryContent = ''
+
+  if (successful.length > 0) {
+    summaryContent += 'Successful deployments:\n'
+    successful.forEach((r) => {
+      summaryContent += `  ${r.contract}: ${r.address}\n`
+      if (r.cost > 0) summaryContent += `    Cost: ${r.cost.toFixed(4)} TRX\n`
+    })
+  }
+
+  if (failed.length > 0) {
+    summaryContent += `\nFailed deployments (${failed.length}):\n`
+    failed.forEach((r) => {
+      summaryContent += `  - ${r.contract}\n`
+    })
+    summaryContent +=
+      '\nPlease review the errors above and retry failed deployments.'
+  }
+
+  if (dryRun)
+    summaryContent +=
+      '\n\nThis was a DRY RUN - no contracts were actually deployed'
+
+  consola.box({
+    title: 'Deployment Summary',
+    message: summaryContent,
+    style: {
+      borderColor: failed.length > 0 ? 'red' : 'green',
+    },
+  })
+}
+
+/**
+ * Display network info in a formatted box
+ */
+export function displayNetworkInfo(
+  networkInfo: INetworkInfo,
+  environment: string,
+  rpcUrl: string
+): void {
+  const networkName = rpcUrl.includes('shasta') ? 'Shasta Testnet' : 'Mainnet'
+
+  const infoContent = `
+Network: ${networkName}
+RPC URL: ${rpcUrl}
+Environment: ${environment.toUpperCase()}
+Address: ${networkInfo.address}
+Balance: ${networkInfo.balance} TRX
+Block: ${networkInfo.block}
+`.trim()
+
+  consola.box({
+    title: 'Network Information',
+    message: infoContent,
+    style: {
+      borderColor: 'blue',
+    },
+  })
+}
+
+/**
+ * Display registration info in a formatted box
+ */
+export function displayRegistrationInfo(
+  facetName: string,
+  facetAddress: string,
+  diamondAddress: string,
+  selectors: string[]
+): void {
+  const infoContent = `
+Facet: ${facetName}
+Address: ${facetAddress}
+Diamond: ${diamondAddress}
+Selectors: ${selectors.length} functions
+`.trim()
+
+  consola.box({
+    title: 'Registration Information',
+    message: infoContent,
+    style: {
+      borderColor: 'cyan',
+    },
+  })
 }

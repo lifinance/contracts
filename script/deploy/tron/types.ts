@@ -62,3 +62,36 @@ export interface IForgeArtifact {
     version: number
   }
 }
+
+export interface IDeploymentResult {
+  contract: string
+  address: string
+  txId: string
+  cost: number
+  version: string
+  status?: 'success' | 'failed' | 'existing'
+}
+
+export interface IFacetCut {
+  facetAddress: string
+  action: number // 0 = Add, 1 = Replace, 2 = Remove
+  functionSelectors: string[]
+}
+
+export interface INetworkInfo {
+  network: string
+  block: number
+  address: string
+  balance: number
+}
+
+export interface IConstructorConfig {
+  facetName: string
+  args: any[]
+}
+
+export interface IDiamondRegistrationResult {
+  success: boolean
+  transactionId?: string
+  error?: string
+}
