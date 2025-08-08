@@ -264,6 +264,16 @@ contract MayanFacet is
                 // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0xe4))
             }
+            case 0xe27dce37 {
+                // solhint-disable-next-line max-line-length
+                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,address,uint64,uint256,uint256,(uint64, tuple))
+                receiver := mload(add(protocolData, 0xe4))
+            }
+            case 0x4d1ed73b {
+                // solhint-disable-next-line max-line-length
+                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,address,uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
+                receiver := mload(add(protocolData, 0xe4))
+            }
             default {
                 receiver := 0x0
             }
