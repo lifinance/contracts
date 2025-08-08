@@ -1,0 +1,142 @@
+# TronCast CLI Tool
+
+TronCast is a Cast-like CLI tool for interacting with Tron blockchain smart contracts. It provides a simple interface for reading contract data and sending transactions.
+
+## Installation
+
+The tool is already integrated into the project. No additional installation is required.
+
+## Usage
+
+### Basic Commands
+
+```bash
+# Show help
+bun run troncast --help
+
+# Show help for a specific command
+bun run troncast call --help
+bun run troncast send --help
+```
+
+### Call Command (Read-Only)
+
+Execute read-only contract calls without sending transactions.
+
+```bash
+# Basic call
+bun run troncast call <address> "<function_signature>" [params...] [options]
+
+# Examples
+bun run troncast call <TOKEN_ADDRESS> "name() returns (string)" --env mainnet
+bun run troncast call <TOKEN_ADDRESS> "symbol() returns (string)" --env mainnet
+bun run troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet
+bun run troncast call <TOKEN_ADDRESS> "balanceOf(address) returns (uint256)" <WALLET_ADDRESS> --env mainnet
+
+# With JSON output
+bun run troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet --json
+```
+
+### Send Command (Transactions)
+
+Send transactions to modify contract state.
+
+```bash
+# Basic send
+bun run troncast send <address> "<function_signature>" [params...] [options]
+
+# Examples
+# Transfer tokens (requires private key)
+bun run troncast send <TOKEN_ADDRESS> "transfer(address,uint256)" <RECEIVER_ADDRESS>,1000000 --private-key YOUR_KEY
+
+# Approve spending (dry run)
+bun run troncast send <TOKEN_ADDRESS> "approve(address,uint256)" <SPENDER_ADDRESS>,1000000 --dry-run
+
+# Send with TRX value
+bun run troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-key YOUR_KEY
+```
+
+### Options
+
+#### Call Command Options
+
+- `--env` - Environment: "mainnet" or "staging" (default: mainnet)
+- `--block` - Block number for historical queries
+- `--json` - Output result as JSON
+
+#### Send Command Options
+
+- `--env` - Environment: "mainnet" or "staging" (default: mainnet)
+- `--private-key` - Private key for signing (or from environment)
+- `--value` - TRX value to send (e.g., "0.1tron", "100000sun")
+- `--fee-limit` - Maximum fee in TRX (default: 1000)
+- `--energy-limit` - Energy limit
+- `--no-confirm` - Don't wait for confirmation
+- `--dry-run` - Simulate without sending
+- `--json` - Output result as JSON
+
+## Network Configuration
+
+The tool uses hardcoded RPC URLs:
+
+- **Mainnet**: https://api.trongrid.io
+- **Staging/Testnet**: https://api.shasta.trongrid.io
+
+## Function Signature Format
+
+Function signatures follow the Solidity/Foundry format:
+
+```
+functionName(param1Type,param2Type) returns (returnType)
+```
+
+Examples:
+
+- `balanceOf(address) returns (uint256)`
+- `transfer(address,uint256) returns (bool)`
+- `name() returns (string)`
+- `getReserves() returns (uint112,uint112,uint32)`
+
+## Value Formats
+
+TRX values can be specified in different formats:
+
+- `0.1tron` - 0.1 TRX (automatically converted to SUN)
+- `100000sun` - 100000 SUN
+- `100000` - Raw SUN value
+
+## Known Issues
+
+Due to a compatibility issue between TronWeb and Bun, you may occasionally see a "proto is not defined" error. Simply retry the command and it should work.
+
+## Examples
+
+### Check Token Information
+
+```bash
+# Get token info on mainnet
+bun run troncast call <TOKEN_ADDRESS> "name() returns (string)" --env mainnet
+bun run troncast call <TOKEN_ADDRESS> "symbol() returns (string)" --env mainnet
+bun run troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet
+```
+
+### Check Balance
+
+```bash
+bun run troncast call <TOKEN_ADDRESS> "balanceOf(address) returns (uint256)" <WALLET_ADDRESS> --env mainnet
+```
+
+### Dry Run Transaction
+
+```bash
+bun run troncast send <TOKEN_ADDRESS> "transfer(address,uint256)" <RECEIVER_ADDRESS>,1000000 --dry-run
+```
+
+## Private Key Management
+
+The private key can be provided in two ways:
+
+1. Via command line: `--private-key YOUR_KEY`
+2. Via environment variable (uses the existing `getPrivateKey()` function from the project)
+
+**Security Note**: Be careful when using private keys on the command line as they may be visible in shell history.
