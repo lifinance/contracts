@@ -144,6 +144,26 @@
       "0xfEeCe7B3e68B9cBeADB60598973704a776ac3ca1": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
+      },
+      "0x91559A75bd9045681265C77922b3cAeDB3D5120d": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x0f4D0D8890bAF9036D3895315559a6F0d573e2EC": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xBFc73FCC46da3b4383f4cd45c2BF8F56Ca325795": {
+        "Name": "MayanFacet",
+        "Version": "1.2.1"
       }
     },
     "Periphery": {
@@ -153,11 +173,11 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }

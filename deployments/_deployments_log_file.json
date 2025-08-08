@@ -27872,6 +27872,19 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.2.1": [
+          {
+            "ADDRESS": "0xBFc73FCC46da3b4383f4cd45c2BF8F56Ca325795",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-08 14:59:19",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "unichain": {
