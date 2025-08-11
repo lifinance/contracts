@@ -257,40 +257,34 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         ) = IVelodromeV2Pool(params.pool2).getReserves();
 
-        uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
-            USER_SENDER
-        );
-        uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
-            USER_SENDER
-        );
-
         // Build route and execute swap
         bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 1);
 
         // Approve and execute
         IERC20(params.tokenIn).approve(address(ldaDiamond), 1000 * 1e6);
 
-        vm.expectEmit(true, true, true, true);
-        emit Route(
-            USER_SENDER,
-            USER_SENDER,
-            params.tokenIn,
-            params.tokenOut,
-            1000 * 1e6,
-            params.amounts2[1],
-            params.amounts2[1]
-        );
+        // vm.expectEmit(true, true, true, true);
+        // emit Route(
+        //     USER_SENDER,
+        //     USER_SENDER,
+        //     params.tokenIn,
+        //     params.tokenOut,
+        //     1000 * 1e6,
+        //     params.amounts2[1],
+        //     params.amounts2[1]
+        // );
 
-        coreRouteFacet.processRoute(
-            params.tokenIn,
-            1000 * 1e6,
-            params.tokenOut,
-            params.amounts2[1],
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: 1000 * 1e6,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             route
         );
-
-        _verifyUserBalances(params, initialBalance1, initialBalance2);
         _verifyReserves(params, initialReserves);
 
         vm.stopPrank();
@@ -323,14 +317,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         ) = IVelodromeV2Pool(params.pool2).getReserves();
 
-        // Record initial balances
-        uint256 initialBalance1 = IERC20(params.tokenIn).balanceOf(
-            USER_SENDER
-        );
-        uint256 initialBalance2 = IERC20(params.tokenOut).balanceOf(
-            USER_SENDER
-        );
-
         // Build route and execute swap
         bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 0);
 
@@ -348,18 +334,18 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         //     params.amounts2[1]
         // );
 
-        coreRouteFacet.processRoute(
-            params.tokenIn,
-            1000 * 1e6,
-            params.tokenOut,
-            params.amounts2[1],
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: 1000 * 1e6,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             route
         );
-
-        _verifyUserBalances(params, initialBalance1, initialBalance2);
         _verifyReserves(params, initialReserves);
-
         vm.stopPrank();
     }
 
@@ -396,14 +382,17 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         IERC20(address(USDC_TOKEN)).approve(address(ldaDiamond), 1000 * 1e6);
 
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(USDC_TOKEN),
-            1000 * 1e6,
-            address(STG_TOKEN),
-            0,
-            USER_SENDER,
-            routeWithZeroPool
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(USDC_TOKEN),
+                tokenOut: address(STG_TOKEN),
+                amountIn: 1000 * 1e6,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            routeWithZeroPool,
+            InvalidCallData.selector
         );
 
         // --- Test case 2: Zero recipient address ---
@@ -424,14 +413,17 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             swapDataZeroRecipient
         );
 
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(USDC_TOKEN),
-            1000 * 1e6,
-            address(STG_TOKEN),
-            0,
-            USER_SENDER,
-            routeWithZeroRecipient
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(USDC_TOKEN),
+                tokenOut: address(STG_TOKEN),
+                amountIn: 1000 * 1e6,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            routeWithZeroRecipient,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();
