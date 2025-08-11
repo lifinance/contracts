@@ -21,6 +21,12 @@ export class TronContractDeployer {
   private config: ITronDeploymentConfig
 
   public constructor(config: ITronDeploymentConfig) {
+    // Validate Tron private key format (allow optional "0x" prefix)
+    const rawKey = config.privateKey?.replace(/^0x/i, '')
+    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey)) {
+      throw new Error('Invalid Tron private key format')
+    }
+
     this.config = {
       safetyMargin: DEFAULT_SAFETY_MARGIN,
       maxRetries: 3,
@@ -30,6 +36,7 @@ export class TronContractDeployer {
       userFeePercentage: 100,
       originEnergyLimit: 0,
       ...config,
+      privateKey: rawKey,
     }
 
     this.tronWeb = new TronWeb({
@@ -40,7 +47,11 @@ export class TronContractDeployer {
     if (this.config.verbose)
       consola.debug('TronWeb initialized:', {
         network: this.config.fullHost,
-        address: this.tronWeb.defaultAddress.base58,
+        address: [
+          this.tronWeb.defaultAddress.base58.slice(0, 6),
+          '…',
+          this.tronWeb.defaultAddress.base58.slice(-4),
+        ].join(''),
       })
   }
 
@@ -354,10 +365,15 @@ export class TronContractDeployer {
         deployTx.contract_address || broadcastResult.contract_address
       )
 
+      const transactionId =
+        broadcastResult.txid || broadcastResult.transaction?.txID
+      if (!transactionId) {
+        throw new Error('Transaction ID not found in broadcast result')
+      }
+
       return {
         contractAddress,
-        transactionId:
-          broadcastResult.txid || broadcastResult.transaction?.txID,
+        transactionId,
         deploymentTransaction: signedTx,
         costEstimate,
       }

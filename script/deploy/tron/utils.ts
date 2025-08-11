@@ -63,6 +63,8 @@ export function getCoreFacets(): string[] {
 
 /**
  * Execute shell command
+ * Note: This function is only used internally with trusted commands.
+ * All user input should be properly escaped before being passed to this function.
  */
 export async function executeShellCommand(command: string): Promise<string> {
   const proc = Bun.spawn(['bash', '-c', command], {
@@ -113,7 +115,25 @@ export async function logDeployment(
   const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19)
   const environment = await getEnvironment()
 
-  const logCommand = `source script/config.sh && source script/helperFunctions.sh && logContractDeploymentInfo "${contract}" "${network}" "${timestamp}" "${version}" "200" "${constructorArgs}" "${environment}" "${address}" "${verified}" "" "0.8.17" "london" ""`
+  // Escape shell arguments to prevent injection
+  const escapeShellArg = (arg: string) => `'${arg.replace(/'/g, "'\"'\"'")}'`
+
+  const logCommand = [
+    'source script/config.sh && source script/helperFunctions.sh && logContractDeploymentInfo',
+    escapeShellArg(contract),
+    escapeShellArg(network),
+    escapeShellArg(timestamp),
+    escapeShellArg(version),
+    '"200"',
+    escapeShellArg(constructorArgs),
+    escapeShellArg(environment),
+    escapeShellArg(address),
+    `"${verified}"`,
+    '""',
+    '"0.8.17"',
+    '"london"',
+    '""',
+  ].join(' ')
 
   await executeShellCommand(logCommand)
 }
@@ -675,11 +695,43 @@ export async function deployContractWithLogging(
  * Encode constructor arguments to hex
  */
 export function encodeConstructorArgs(args: any[]): string {
-  // Simple hex encoding - you may need to enhance this based on actual types
+  // Return empty hex for no arguments
   if (args.length === 0) return '0x'
 
   try {
-    // For now, just return a placeholder - implement proper ABI encoding
+    // Import TronWeb for ABI encoding
+    const { TronWeb } = require('tronweb')
+    const tronWeb = new TronWeb({
+      fullHost: 'https://api.trongrid.io',
+    })
+
+    // Determine types based on argument values
+    const types: string[] = args.map((arg) => {
+      if (typeof arg === 'string') {
+        // Check if it's an address (starts with T or 0x)
+        if (arg.startsWith('T') || arg.startsWith('0x')) {
+          return 'address'
+        }
+        return 'string'
+      } else if (typeof arg === 'number' || typeof arg === 'bigint') {
+        return 'uint256'
+      } else if (typeof arg === 'boolean') {
+        return 'bool'
+      } else if (Array.isArray(arg)) {
+        // For arrays, try to determine the element type
+        if (arg.length > 0 && typeof arg[0] === 'string') {
+          return 'string[]'
+        }
+        return 'uint256[]'
+      }
+      return 'bytes'
+    })
+
+    // Use TronWeb's ABI encoder
+    return tronWeb.utils.abi.encodeParams(types, args)
+  } catch (error) {
+    consola.warn('Failed to encode constructor args, using fallback:', error)
+    // Fallback to simple hex encoding
     return (
       '0x' +
       args
@@ -691,8 +743,6 @@ export function encodeConstructorArgs(args: any[]): string {
         })
         .join('')
     )
-  } catch {
-    return '0x'
   }
 }
 
