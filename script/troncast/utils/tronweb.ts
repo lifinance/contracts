@@ -1,7 +1,22 @@
+/* eslint-disable import/first */
+// Fix for TronWeb proto initialization issue
+// This must happen before importing TronWeb
+declare global {
+  // eslint-disable-next-line no-var
+  var proto: Record<string, unknown>
+}
+
+if (
+  typeof globalThis !== 'undefined' &&
+  typeof globalThis.proto === 'undefined'
+)
+  globalThis.proto = {}
+
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 import type { Environment } from '../types'
+/* eslint-enable import/first */
 
 // Hardcoded RPC URLs
 const RPC_URLS: Record<Environment, string> = {
@@ -41,7 +56,7 @@ export async function waitForConfirmation(
   tronWeb: TronWeb,
   txId: string,
   timeout = 60000
-): Promise<any> {
+): Promise<unknown> {
   const startTime = Date.now()
 
   while (Date.now() - startTime < timeout) {
