@@ -57,7 +57,6 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         deal(address(WETH), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        WETH.approve(address(ldaDiamond), amountIn);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
@@ -81,26 +80,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Record balances before swap
-        uint256 inBefore = WETH.balanceOf(USER_SENDER);
-        uint256 outBefore = USDC.balanceOf(USER_SENDER);
-
-        // Execute the swap (minOut = 0 for test)
-        coreRouteFacet.processRoute(
-            address(WETH),
-            amountIn,
-            address(USDC),
-            0,
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             route
         );
-
-        // Verify that WETH was spent and some USDC_C was received
-        uint256 inAfter = WETH.balanceOf(USER_SENDER);
-        uint256 outAfter = USDC.balanceOf(USER_SENDER);
-
-        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
-        assertGt(outAfter - outBefore, 0, "Should receive USDC");
 
         vm.stopPrank();
     }
@@ -111,7 +101,6 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         deal(address(WETH), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        WETH.approve(address(ldaDiamond), amountIn);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
@@ -135,26 +124,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Record balances before swap
-        uint256 inBefore = WETH.balanceOf(USER_SENDER);
-        uint256 outBefore = USDC.balanceOf(USER_SENDER);
-
-        // Execute the swap (minOut = 0 for test)
-        coreRouteFacet.processRoute(
-            address(WETH),
-            amountIn,
-            address(USDC),
-            0,
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
             route
         );
-
-        // Verify that WETH was spent and some USDC_C was received
-        uint256 inAfter = WETH.balanceOf(USER_SENDER);
-        uint256 outAfter = USDC.balanceOf(USER_SENDER);
-
-        assertEq(inBefore - inAfter, amountIn, "WETH spent mismatch");
-        assertGt(outAfter - outBefore, 0, "Should receive USDC");
 
         vm.stopPrank();
     }
@@ -188,22 +168,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Subtract 1 to protect against slot‐undrain
-        uint256 swapAmount = amountIn - 1;
-        uint256 outBefore = USDC.balanceOf(USER_SENDER);
-
-        coreRouteFacet.processRoute(
-            address(WETH),
-            swapAmount,
-            address(USDC),
-            0,
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn - 1, // Account for slot-undrain
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: true
+            }),
             route
         );
-
-        // Verify that some USDC was received
-        uint256 outAfter = USDC.balanceOf(USER_SENDER);
-        assertGt(outAfter - outBefore, 0, "Should receive USDC");
 
         vm.stopPrank();
     }
@@ -237,22 +212,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Subtract 1 to protect against slot‐undrain
-        uint256 swapAmount = amountIn - 1;
-        uint256 outBefore = USDC.balanceOf(USER_SENDER);
-
-        coreRouteFacet.processRoute(
-            address(WETH),
-            swapAmount,
-            address(USDC),
-            0,
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn - 1, // Account for slot-undrain
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: true
+            }),
             route
         );
-
-        // Verify that some USDC was received
-        uint256 outAfter = USDC.balanceOf(USER_SENDER);
-        assertGt(outAfter - outBefore, 0, "Should receive USDC");
 
         vm.stopPrank();
     }
@@ -335,7 +305,6 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         deal(address(WETH), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        WETH.approve(address(ldaDiamond), amountIn);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
@@ -359,15 +328,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Expect revert with InvalidCallData
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(WETH),
-            amountIn,
-            address(USDC),
-            0,
-            USER_SENDER,
-            route
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            route,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();
@@ -379,7 +350,6 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         deal(address(WETH), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        WETH.approve(address(ldaDiamond), amountIn);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
@@ -403,15 +373,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Expect revert with InvalidCallData
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(WETH),
-            amountIn,
-            address(USDC),
-            0,
-            USER_SENDER,
-            routeWithInvalidPool
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            routeWithInvalidPool,
+            InvalidCallData.selector
         );
 
         bytes memory swapDataWithInvalidRecipient = _buildSyncSwapV2SwapData(
@@ -436,15 +408,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapDataWithInvalidRecipient
         );
 
-        // Expect revert with InvalidCallData
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(WETH),
-            amountIn,
-            address(USDC),
-            0,
-            USER_SENDER,
-            routeWithInvalidRecipient
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            routeWithInvalidRecipient,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();
@@ -476,15 +450,17 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             swapDataWithInvalidWithdrawMode
         );
 
-        // Expect revert with InvalidCallData because withdrawMode is invalid
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(WETH),
-            1,
-            address(USDC),
-            0,
-            USER_SENDER,
-            routeWithInvalidWithdrawMode
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(WETH),
+                tokenOut: address(USDC),
+                amountIn: 1,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            routeWithInvalidWithdrawMode,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();

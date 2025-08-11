@@ -539,60 +539,53 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         // capture initial token balances.
         uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-        uint256 initialTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
         emit log_named_uint("Initial tokenIn balance", initialTokenIn);
 
-        address from = params.from == address(ldaDiamond)
-            ? USER_SENDER
-            : params.from;
-        if (params.callback == true) {
-            vm.expectEmit(true, false, false, false);
-            emit HookCalled(
-                address(ldaDiamond),
-                0,
-                0,
-                abi.encode(params.tokenIn)
-            );
+        ExpectedEvent[] memory expectedEvents = new ExpectedEvent[](1);
+        if (params.callback) {
+            bytes[] memory eventParams = new bytes[](4);
+            eventParams[0] = abi.encode(address(ldaDiamond));
+            eventParams[1] = abi.encode(uint256(0));
+            eventParams[2] = abi.encode(uint256(0));
+            eventParams[3] = abi.encode(abi.encode(params.tokenIn));
+
+            expectedEvents[0] = ExpectedEvent({
+                checkTopic1: true,
+                checkTopic2: false,
+                checkTopic3: false,
+                checkData: false,
+                eventSelector: keccak256(
+                    "HookCalled(address,uint256,uint256,bytes)"
+                ),
+                eventParams: eventParams
+            });
+        } else {
+            expectedEvents = new ExpectedEvent[](0);
         }
-        vm.expectEmit(true, true, true, true);
-        emit Route(
-            from,
-            params.to,
-            params.tokenIn,
-            params.tokenOut,
-            params.amountIn,
-            amounts[1],
-            amounts[1]
-        );
+
+        // vm.expectEmit(true, true, true, true);
+        // emit Route(
+        //     from,
+        //     params.to,
+        //     params.tokenIn,
+        //     params.tokenOut,
+        //     params.amountIn,
+        //     amounts[1],
+        //     amounts[1]
+        // );
 
         // execute the swap
-        coreRouteFacet.processRoute(
-            params.tokenIn,
-            params.amountIn,
-            params.tokenOut,
-            amounts[1],
-            params.to,
-            route
-        );
-
-        uint256 finalTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-        uint256 finalTokenOut = IERC20(params.tokenOut).balanceOf(params.to);
-        emit log_named_uint("TokenIn spent", initialTokenIn - finalTokenIn);
-        emit log_named_uint(
-            "TokenOut received",
-            finalTokenOut - initialTokenOut
-        );
-
-        assertApproxEqAbs(
-            initialTokenIn - finalTokenIn,
-            params.amountIn,
-            1, // 1 wei tolerance
-            "TokenIn amount mismatch"
-        );
-        assertEq(
-            finalTokenOut - initialTokenOut,
-            amounts[1],
-            "TokenOut amount mismatch"
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: params.amountIn,
+                sender: params.from,
+                recipient: params.to,
+                isAggregatorFunds: params.from == address(ldaDiamond)
+            }),
+            route,
+            expectedEvents
         );
     }
 

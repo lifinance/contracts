@@ -72,6 +72,16 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     error ParamsDataLengthMismatch();
     error NoHopsProvided();
 
+    // Add this struct to hold event expectations
+    struct ExpectedEvent {
+        bool checkTopic1;
+        bool checkTopic2;
+        bool checkTopic3;
+        bool checkData;
+        bytes32 eventSelector; // The event selector (keccak256 hash of the event signature)
+        bytes[] eventParams; // The event parameters, each encoded separately
+    }
+
     function _addDexFacet() internal virtual {
         (
             address facetAddress,
@@ -126,16 +136,6 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     //         true
     //     );
     //     assertEq(liFiDEXAggregator.owner(), USER_DIAMOND_OWNER);
-    // }
-
-    // function testRevert_FailsIfOwnerIsZeroAddress() public {
-    //     vm.expectRevert(InvalidConfig.selector);
-
-    //     liFiDEXAggregator = new LiFiDEXAggregator(
-    //         address(0xCAFE),
-    //         privileged,
-    //         address(0)
-    //     );
     // }
 
     // ============================ Abstract DEX Tests ============================
@@ -226,10 +226,11 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         return route;
     }
 
-    // Helper to handle common swap setup and verification
+    // Modified function with additional events parameter
     function _executeAndVerifySwap(
         SwapTestParams memory params,
-        bytes memory route
+        bytes memory route,
+        ExpectedEvent[] memory additionalEvents
     ) internal {
         if (!params.isAggregatorFunds) {
             IERC20(params.tokenIn).approve(
@@ -239,14 +240,49 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         }
 
         uint256 inBefore;
+        uint256 outBefore = IERC20(params.tokenOut).balanceOf(
+            params.recipient
+        );
+
+        // For aggregator funds, check the diamond's balance
         if (params.isAggregatorFunds) {
             inBefore = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
         } else {
             inBefore = IERC20(params.tokenIn).balanceOf(params.sender);
         }
-        uint256 outBefore = IERC20(params.tokenOut).balanceOf(
-            params.recipient
-        );
+
+        // Set up additional event expectations first
+        for (uint256 i = 0; i < additionalEvents.length; i++) {
+            vm.expectEmit(
+                additionalEvents[i].checkTopic1,
+                additionalEvents[i].checkTopic2,
+                additionalEvents[i].checkTopic3,
+                additionalEvents[i].checkData
+            );
+
+            // Encode event parameters
+            bytes memory encodedParams;
+            for (
+                uint256 j = 0;
+                j < additionalEvents[i].eventParams.length;
+                j++
+            ) {
+                encodedParams = bytes.concat(
+                    encodedParams,
+                    additionalEvents[i].eventParams[j]
+                );
+            }
+
+            // Emit the event with the correct selector and parameters
+            assembly {
+                let selector := mload(
+                    add(mload(add(additionalEvents, 0x20)), 0x80)
+                ) // access eventSelector
+                mstore(0x00, selector)
+                mstore(0x04, encodedParams)
+                log1(0x00, add(0x04, mload(encodedParams)), selector)
+            }
+        }
 
         coreRouteFacet.processRoute(
             params.tokenIn,
@@ -257,10 +293,58 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
             route
         );
 
-        uint256 inAfter = IERC20(params.tokenIn).balanceOf(params.sender);
+        uint256 inAfter;
         uint256 outAfter = IERC20(params.tokenOut).balanceOf(params.recipient);
 
-        assertEq(inBefore - inAfter, params.amountIn, "Token spent mismatch");
+        // Check balance change on the correct address
+        if (params.isAggregatorFunds) {
+            inAfter = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
+            assertEq(
+                inBefore - inAfter,
+                params.amountIn,
+                "Token spent mismatch"
+            );
+        } else {
+            inAfter = IERC20(params.tokenIn).balanceOf(params.sender);
+            assertEq(
+                inBefore - inAfter,
+                params.amountIn,
+                "Token spent mismatch"
+            );
+        }
+
         assertGt(outAfter - outBefore, 0, "Should receive tokens");
+    }
+
+    // Keep the original function for backward compatibility
+    function _executeAndVerifySwap(
+        SwapTestParams memory params,
+        bytes memory route
+    ) internal {
+        _executeAndVerifySwap(params, route, new ExpectedEvent[](0));
+    }
+
+    // Keep the revert case separate
+    function _executeAndVerifySwap(
+        SwapTestParams memory params,
+        bytes memory route,
+        bytes4 expectedRevert
+    ) internal {
+        if (!params.isAggregatorFunds) {
+            IERC20(params.tokenIn).approve(
+                address(ldaDiamond),
+                params.amountIn
+            );
+        }
+
+        vm.expectRevert(expectedRevert);
+        coreRouteFacet.processRoute(
+            params.tokenIn,
+            params.amountIn,
+            params.tokenOut,
+            0, // minOut = 0 for tests
+            params.recipient,
+            route
+        );
     }
 }

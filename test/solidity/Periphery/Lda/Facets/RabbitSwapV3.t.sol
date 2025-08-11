@@ -46,7 +46,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             SwapTestParams({
                 tokenIn: address(SOROS),
                 tokenOut: address(C98),
-                amountIn: 1_000 * 1e18,
+                amountIn: 1_000 * 1e18 - 1, // Subtract 1 for slot-undrain protection
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 isAggregatorFunds: true

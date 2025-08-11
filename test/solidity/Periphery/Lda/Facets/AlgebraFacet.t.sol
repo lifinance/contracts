@@ -338,9 +338,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
-
         // Mock the algebra pool to not reset lastCalledPool
         vm.mockCall(
             invalidPool,
@@ -350,16 +347,17 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             abi.encode(0, 0)
         );
 
-        // Expect the AlgebraSwapUnexpected error
-        vm.expectRevert(AlgebraSwapUnexpected.selector);
-
-        coreRouteFacet.processRoute(
-            APE_ETH_TOKEN,
-            1 * 1e18,
-            address(WETH_TOKEN),
-            0,
-            USER_SENDER,
-            invalidRoute
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: APE_ETH_TOKEN,
+                tokenOut: address(WETH_TOKEN),
+                amountIn: 1 * 1e18,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            invalidRoute,
+            AlgebraSwapUnexpected.selector
         );
 
         vm.stopPrank();
@@ -836,19 +834,17 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
-
-        // Expect revert with InvalidCallData
-        vm.expectRevert(InvalidCallData.selector);
-
-        coreRouteFacet.processRoute(
-            APE_ETH_TOKEN,
-            1 * 1e18,
-            address(WETH_TOKEN),
-            0,
-            USER_SENDER,
-            route
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: APE_ETH_TOKEN,
+                tokenOut: address(WETH_TOKEN),
+                amountIn: 1 * 1e18,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            route,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();
@@ -942,19 +938,17 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Approve tokens
-        IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
-
-        // Expect revert with InvalidCallData
-        vm.expectRevert(InvalidCallData.selector);
-
-        coreRouteFacet.processRoute(
-            APE_ETH_TOKEN,
-            1 * 1e18,
-            address(WETH_TOKEN),
-            0,
-            USER_SENDER,
-            route
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: APE_ETH_TOKEN,
+                tokenOut: address(WETH_TOKEN),
+                amountIn: 1 * 1e18,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            route,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();

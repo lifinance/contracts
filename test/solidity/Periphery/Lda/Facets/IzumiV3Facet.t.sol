@@ -249,8 +249,6 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        IERC20(USDC).approve(address(ldaDiamond), AMOUNT_USDC);
-
         // mock the iZiSwap pool to return without updating lastCalledPool
         vm.mockCall(
             invalidPool,
@@ -258,15 +256,17 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             abi.encode(0, 0) // return amountX and amountY without triggering callback or updating lastCalledPool
         );
 
-        vm.expectRevert(IzumiV3SwapUnexpected.selector);
-
-        coreRouteFacet.processRoute(
-            USDC,
-            AMOUNT_USDC,
-            WETH,
-            0,
-            USER_SENDER,
-            invalidRoute
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: USDC,
+                tokenOut: WETH,
+                amountIn: AMOUNT_USDC,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                isAggregatorFunds: false
+            }),
+            invalidRoute,
+            IzumiV3SwapUnexpected.selector
         );
 
         vm.stopPrank();
@@ -320,7 +320,6 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
         deal(address(WETH), USER_SENDER, type(uint256).max);
 
         vm.startPrank(USER_SENDER);
-        IERC20(WETH).approve(address(ldaDiamond), type(uint256).max);
 
         bytes memory swapData = _buildIzumiV3SwapData(
             IzumiV3SwapParams({
@@ -339,14 +338,17 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            WETH,
-            type(uint216).max,
-            USDC,
-            0,
-            USER_RECEIVER,
-            route
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: WETH,
+                tokenOut: USDC,
+                amountIn: type(uint216).max,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                isAggregatorFunds: false
+            }),
+            route,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();

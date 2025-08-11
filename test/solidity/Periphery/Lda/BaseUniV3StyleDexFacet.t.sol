@@ -62,7 +62,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     ) internal {
         // Fund the appropriate account
         if (params.isAggregatorFunds) {
-            deal(params.tokenIn, address(ldaDiamond), params.amountIn);
+            deal(params.tokenIn, address(ldaDiamond), params.amountIn + 1);
         } else {
             deal(params.tokenIn, params.sender, params.amountIn);
         }
