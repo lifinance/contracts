@@ -113,7 +113,7 @@ async function executeCowSwapDemo(options: {
   const cowSdk = new TradingSdk({
     chainId: SupportedChainId.ARBITRUM_ONE,
     signer: ethersSigner,
-    appCode: 'lifi-demo' as string, // Cast to string to satisfy the AppCode type
+    appCode: 'lifi-demo' as any, // Cast to any to satisfy the AppCode type
   })
 
   // Create the order parameters
