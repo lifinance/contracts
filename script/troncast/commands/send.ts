@@ -2,7 +2,7 @@ import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
 import { getPrivateKey } from '../../deploy/tron/utils'
-import type { Environment } from '../types'
+import type { Environment, ITransactionReceipt } from '../types'
 import { formatReceipt, formatGasUsage } from '../utils/formatter'
 import {
   parseFunctionSignature,
@@ -144,7 +144,7 @@ export const sendCommand = defineCommand({
         })
 
         consola.info('Estimated costs:')
-        console.log(gasUsage)
+        consola.log(gasUsage)
         return
       }
 
@@ -160,10 +160,13 @@ export const sendCommand = defineCommand({
 
       if (args.confirm) {
         consola.info('Waiting for confirmation...')
-        const receipt = await waitForConfirmation(tronWeb, txId)
+        const receipt = (await waitForConfirmation(
+          tronWeb,
+          txId
+        )) as ITransactionReceipt
 
-        if (args.json) console.log(JSON.stringify(receipt, null, 2))
-        else console.log(formatReceipt(receipt))
+        if (args.json) consola.log(JSON.stringify(receipt, null, 2))
+        else consola.log(formatReceipt(receipt))
 
         if (receipt.result === 'FAILED')
           throw new Error(

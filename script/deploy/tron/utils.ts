@@ -1,6 +1,7 @@
 import { resolve } from 'path'
 
 import { consola } from 'consola'
+import { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
@@ -55,16 +56,22 @@ export async function loadForgeArtifact(
 }
 
 /**
- * Get core facets list from config/global.json
+ * Get list of core facets from global config
  */
 export function getCoreFacets(): string[] {
-  return (globalConfig as any).coreFacets || []
+  const facets = (globalConfig as any).coreFacets || []
+  // Filter out GasZipFacet for TRON deployment
+  return facets.filter((facet: string) => facet !== 'GasZipFacet')
 }
 
 /**
  * Execute shell command
- * Note: This function is only used internally with trusted commands.
- * All user input should be properly escaped before being passed to this function.
+ * SECURITY WARNING: This function executes shell commands directly.
+ * - Only use with trusted, hardcoded commands
+ * - All dynamic input MUST be escaped using escapeShellArg() before concatenation
+ * - Never pass user input directly to this function
+ * @param command The shell command to execute
+ * @returns The command output
  */
 export async function executeShellCommand(command: string): Promise<string> {
   const proc = Bun.spawn(['bash', '-c', command], {
@@ -128,11 +135,11 @@ export async function logDeployment(
     escapeShellArg(constructorArgs),
     escapeShellArg(environment),
     escapeShellArg(address),
-    `"${verified}"`,
-    '""',
-    '"0.8.17"',
-    '"london"',
-    '""',
+    escapeShellArg(String(verified)),
+    escapeShellArg(''),
+    escapeShellArg('0.8.17'),
+    escapeShellArg('london'),
+    escapeShellArg(''),
   ].join(' ')
 
   await executeShellCommand(logCommand)
@@ -632,7 +639,6 @@ export async function checkExistingDeployment(
     shouldRedeploy: true,
   }
 }
-
 /**
  * Deploy a contract with standard error handling and logging
  */
@@ -699,8 +705,6 @@ export function encodeConstructorArgs(args: any[]): string {
   if (args.length === 0) return '0x'
 
   try {
-    // Import TronWeb for ABI encoding
-    const { TronWeb } = require('tronweb')
     const tronWeb = new TronWeb({
       fullHost: 'https://api.trongrid.io',
     })
@@ -709,19 +713,19 @@ export function encodeConstructorArgs(args: any[]): string {
     const types: string[] = args.map((arg) => {
       if (typeof arg === 'string') {
         // Check if it's an address (starts with T or 0x)
-        if (arg.startsWith('T') || arg.startsWith('0x')) {
+        if (arg.startsWith('T') || arg.startsWith('0x')) 
           return 'address'
-        }
+        
         return 'string'
-      } else if (typeof arg === 'number' || typeof arg === 'bigint') {
+      } else if (typeof arg === 'number' || typeof arg === 'bigint') 
         return 'uint256'
-      } else if (typeof arg === 'boolean') {
+       else if (typeof arg === 'boolean') 
         return 'bool'
-      } else if (Array.isArray(arg)) {
+       else if (Array.isArray(arg)) {
         // For arrays, try to determine the element type
-        if (arg.length > 0 && typeof arg[0] === 'string') {
+        if (arg.length > 0 && typeof arg[0] === 'string') 
           return 'string[]'
-        }
+        
         return 'uint256[]'
       }
       return 'bytes'

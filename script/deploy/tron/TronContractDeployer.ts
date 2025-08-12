@@ -23,9 +23,12 @@ export class TronContractDeployer {
   public constructor(config: ITronDeploymentConfig) {
     // Validate Tron private key format (allow optional "0x" prefix)
     const rawKey = config.privateKey?.replace(/^0x/i, '')
-    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey)) {
-      throw new Error('Invalid Tron private key format')
-    }
+    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey)) 
+      throw new Error(
+        'Invalid Tron private key format. Expected a 64-character hexadecimal string (with or without "0x" prefix). ' +
+          'Example: 0x1234...abcd or 1234...abcd'
+      )
+    
 
     this.config = {
       safetyMargin: DEFAULT_SAFETY_MARGIN,
@@ -367,9 +370,9 @@ export class TronContractDeployer {
 
       const transactionId =
         broadcastResult.txid || broadcastResult.transaction?.txID
-      if (!transactionId) {
+      if (!transactionId) 
         throw new Error('Transaction ID not found in broadcast result')
-      }
+      
 
       return {
         contractAddress,

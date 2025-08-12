@@ -199,14 +199,14 @@ export const callCommand = defineCommand({
             typeof value === 'bigint' ? value.toString() : value,
           2
         )
-        console.log(jsonResult)
+        consola.log(jsonResult)
       } else if (funcSig.outputs.length === 0)
         consola.success('Call executed successfully (no return value)')
       else if (funcSig.outputs.length === 1) {
         const firstOutput = funcSig.outputs[0]
         if (firstOutput) {
           const formatted = formatOutput(firstOutput.type, decodedResult)
-          console.log(formatted)
+          consola.log(formatted)
         }
       }
       // Multiple return values
@@ -226,7 +226,7 @@ export const callCommand = defineCommand({
 
           const formatted = formatOutput(output.type, value)
           const label = output.name || `output${i}`
-          console.log(`${label}: ${formatted}`)
+          consola.log(`${label}: ${formatted}`)
         })
     } catch (error) {
       const errorMessage =

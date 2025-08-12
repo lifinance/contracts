@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
@@ -31,27 +32,19 @@ const PERIPHERY_CONTRACTS = [
 /**
  * Deploy and register periphery contracts to Tron
  */
-async function deployAndRegisterPeriphery() {
+async function deployAndRegisterPeripheryImpl(options: {
+  dryRun: boolean
+  verbose: boolean
+  skipConfirmation: boolean
+}) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
 
   // Get environment from config.sh
   const environment = await getEnvironment()
 
   // Load environment variables
-  let dryRun = false
-  let verbose = true
-
-  try {
-    dryRun = getEnvVar('DRY_RUN') === 'true'
-  } catch {
-    // Use default value
-  }
-
-  try {
-    verbose = getEnvVar('VERBOSE') !== 'false'
-  } catch {
-    // Use default value
-  }
+  const dryRun = options.dryRun
+  const verbose = options.verbose
 
   // Get network configuration from networks.json
   let tronConfig
@@ -142,31 +135,39 @@ async function deployAndRegisterPeriphery() {
     consola.info('4. Deploy TokenWrapper')
     consola.info('5. Register all contracts with PeripheryRegistryFacet\n')
 
-    if (!dryRun && environment === 'production') {
-      consola.warn(
-        ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
-      )
-      const shouldContinue = await consola.prompt('Do you want to continue?', {
-        type: 'confirm',
-        initial: false,
-      })
+    if (!dryRun && !options.skipConfirmation) 
+      if (environment === 'production') {
+        consola.warn(
+          ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
+        )
+        const shouldContinue = await consola.prompt(
+          'Do you want to continue?',
+          {
+            type: 'confirm',
+            initial: false,
+          }
+        )
 
-      if (!shouldContinue) {
-        consola.info('Deployment cancelled')
-        process.exit(0)
-      }
-    } else if (!dryRun) {
-      consola.warn('This will deploy contracts to Tron mainnet in STAGING!')
-      const shouldContinue = await consola.prompt('Do you want to continue?', {
-        type: 'confirm',
-        initial: true,
-      })
+        if (!shouldContinue) {
+          consola.info('Deployment cancelled')
+          process.exit(0)
+        }
+      } else {
+        consola.warn('This will deploy contracts to Tron mainnet in STAGING!')
+        const shouldContinue = await consola.prompt(
+          'Do you want to continue?',
+          {
+            type: 'confirm',
+            initial: true,
+          }
+        )
 
-      if (!shouldContinue) {
-        consola.info('Deployment cancelled')
-        process.exit(0)
+        if (!shouldContinue) {
+          consola.info('Deployment cancelled')
+          process.exit(0)
+        }
       }
-    }
+    
 
     const deployedContracts: Record<string, string> = {}
     const deploymentResults = []
@@ -900,5 +901,67 @@ async function deployAndRegisterPeriphery() {
   }
 }
 
-// Run if called directly
-if (import.meta.main) deployAndRegisterPeriphery().catch(consola.error)
+const deployCommand = defineCommand({
+  meta: {
+    name: 'deploy-and-register-periphery',
+    description: 'Deploy and register periphery contracts to Tron',
+  },
+  args: {
+    dryRun: {
+      type: 'boolean',
+      description: 'Simulate deployment without executing',
+      default: false,
+    },
+    verbose: {
+      type: 'boolean',
+      description: 'Enable verbose logging',
+      default: true,
+    },
+    skipConfirmation: {
+      type: 'boolean',
+      description: 'Skip confirmation prompts',
+      default: false,
+    },
+  },
+  async run({ args }) {
+    try {
+      // Also check environment variables for backward compatibility
+      let dryRun = args.dryRun
+      let verbose = args.verbose
+
+      try {
+        const envDryRun = getEnvVar('DRY_RUN')
+        if (!dryRun && envDryRun === 'true') dryRun = true
+      } catch (error) {
+        // Use default value when environment variable is not set
+        consola.debug(
+          'DRY_RUN environment variable not set, using default value'
+        )
+      }
+
+      try {
+        const envVerbose = getEnvVar('VERBOSE')
+        if (envVerbose === 'false') verbose = false
+      } catch (error) {
+        // Use default value when environment variable is not set
+        consola.debug(
+          'VERBOSE environment variable not set, using default value'
+        )
+      }
+
+      await deployAndRegisterPeripheryImpl({
+        dryRun,
+        verbose,
+        skipConfirmation: args.skipConfirmation,
+      })
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      consola.error('Deployment failed:', errorMessage)
+      process.exit(1)
+    }
+  },
+})
+
+// Run the command
+runMain(deployCommand)

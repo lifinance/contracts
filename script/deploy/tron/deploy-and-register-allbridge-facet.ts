@@ -42,8 +42,9 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
 
   try {
     verbose = getEnvVar('VERBOSE') !== 'false'
-  } catch {
-    // Use default value
+  } catch (error) {
+    // Use default value when environment variable is not set
+    consola.debug('VERBOSE environment variable not set, using default value')
   }
 
   // Get network configuration from networks.json

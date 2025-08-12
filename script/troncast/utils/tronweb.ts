@@ -15,17 +15,44 @@ if (
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import { getNetworkConfig } from '../../deploy/tron/utils'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 
-// Hardcoded RPC URLs
-const RPC_URLS: Record<Environment, string> = {
-  mainnet: 'https://api.trongrid.io',
-  staging: 'https://api.shasta.trongrid.io',
-}
-
 export function initTronWeb(env: Environment, privateKey?: string): TronWeb {
-  const rpcUrl = RPC_URLS[env]
+  // Get RPC URL from config/networks.json
+  let rpcUrl: string
+
+  try {
+    if (env === 'mainnet') {
+      // For mainnet, use the production Tron network config
+      const tronConfig = getNetworkConfig('tron')
+      rpcUrl = tronConfig.rpcUrl
+    } else 
+      // For staging/testnet, try to get shasta config or fallback
+      try {
+        const shastaConfig = getNetworkConfig('tron-shasta')
+        rpcUrl = shastaConfig.rpcUrl
+      } catch {
+        // Fallback to hardcoded shasta URL if not in config
+        rpcUrl = 'https://api.shasta.trongrid.io'
+        consola.warn(
+          'tron-shasta not found in config/networks.json, using default Shasta URL'
+        )
+      }
+    
+  } catch (error) {
+    // Fallback to hardcoded URLs if config is not available
+    const fallbackUrls: Record<Environment, string> = {
+      mainnet: 'https://api.trongrid.io',
+      staging: 'https://api.shasta.trongrid.io',
+    }
+    rpcUrl = fallbackUrls[env]
+    consola.warn(
+      `Failed to load RPC URL from config, using fallback: ${rpcUrl}`
+    )
+  }
+
   consola.debug(`Initializing TronWeb with ${env} network: ${rpcUrl}`)
 
   const tronWeb = new TronWeb({

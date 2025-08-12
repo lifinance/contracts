@@ -1,29 +1,57 @@
 #!/usr/bin/env node
 
 import fs from 'fs'
-import { execSync } from 'child_process'
+import path from 'path'
+import { createRequire } from 'module'
 
-console.log('Applying TronWeb proto fix...')
+const require = createRequire(import.meta.url)
+const { consola } = require('consola')
+
+consola.log('Applying TronWeb proto fix...')
 
 // Find all affected files
 let files = []
 try {
-  const findCommand = `find node_modules/tronweb -name "*.cjs" -path "*/protocol/*" 2>/dev/null | xargs grep -l "goog.object.extend(proto" 2>/dev/null || true`
-  files = execSync(findCommand, { encoding: 'utf-8' })
-    .trim()
-    .split('\n')
-    .filter(Boolean)
+  // Use path.join to safely construct paths
+  const nodeModulesPath = path.join(process.cwd(), 'node_modules', 'tronweb')
+
+  // Check if tronweb exists first
+  if (!fs.existsSync(nodeModulesPath)) {
+    consola.log('TronWeb not installed, skipping patch')
+    process.exit(0)
+  }
+
+  // Use a safer approach to find files
+  const findFiles = (dir, pattern) => {
+    const results = []
+    const items = fs.readdirSync(dir, { withFileTypes: true })
+
+    for (const item of items) {
+      const fullPath = path.join(dir, item.name)
+      if (item.isDirectory() && item.name !== 'node_modules') {
+        results.push(...findFiles(fullPath, pattern))
+      } else if (item.isFile() && pattern.test(item.name)) {
+        const content = fs.readFileSync(fullPath, 'utf-8')
+        if (content.includes('goog.object.extend(proto')) {
+          results.push(fullPath)
+        }
+      }
+    }
+    return results
+  }
+
+  files = findFiles(nodeModulesPath, /\.cjs$/)
 } catch (e) {
-  console.log('TronWeb not installed, skipping patch')
+  consola.error('Error finding files:', e.message)
   process.exit(0)
 }
 
 if (files.length === 0) {
-  console.log('No files to patch')
+  consola.log('No files to patch')
   process.exit(0)
 }
 
-console.log(`Found ${files.length} files to patch`)
+consola.log(`Found ${files.length} files to patch`)
 
 let patchedCount = 0
 let alreadyPatchedCount = 0
@@ -66,10 +94,10 @@ files.forEach((file) => {
       patchedCount++
     }
   } catch (e) {
-    console.error(`Error processing ${file}:`, e.message)
+    consola.error(`Error processing ${file}:`, e.message)
   }
 })
 
-console.log(`✓ Patched ${patchedCount} files`)
-console.log(`✓ ${alreadyPatchedCount} files were already patched`)
-console.log('TronWeb proto fix applied successfully!')
+consola.log(`✓ Patched ${patchedCount} files`)
+consola.log(`✓ ${alreadyPatchedCount} files were already patched`)
+consola.log('TronWeb proto fix applied successfully!')

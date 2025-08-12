@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
@@ -8,7 +9,6 @@ import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
-  loadForgeArtifact,
   getCoreFacets,
   saveDiamondDeployment,
   getContractVersion,
@@ -22,6 +22,8 @@ import {
   validateBalance,
   displayNetworkInfo,
   updateDiamondJsonBatch,
+  saveContractAddress,
+  logDeployment,
 } from './utils.js'
 
 /**
@@ -88,48 +90,39 @@ async function getConstructorArgs(
 }
 
 /**
- * Deploy core facets to Tron
+ * Deploy core facets implementation
  */
-async function deployCoreFacets() {
+async function deployCoreFacetsImpl(options: {
+  dryRun: boolean
+  verbose: boolean
+}) {
   consola.start('TRON Core Facets Deployment')
 
   // Get environment from config.sh
   const environment = await getEnvironment()
 
-  // Load environment variables
-  let dryRun = false
-  let verbose = true // Default to true for debugging
-
-  try {
-    dryRun = getEnvVar('DRY_RUN') === 'true'
-  } catch {
-    // Use default value
-  }
-
-  try {
-    verbose = getEnvVar('VERBOSE') !== 'false'
-  } catch {
-    // Use default value
-  }
-
   // Get network configuration from networks.json
   let tronConfig
   try {
     tronConfig = getNetworkConfig('tron')
-  } catch (error: any) {
-    consola.error(error.message)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    consola.error(errorMessage)
     consola.error(
       'Please ensure "tron" network is configured in config/networks.json'
     )
     process.exit(1)
   }
 
-  const network = tronConfig.rpcUrl // Get the correct private key based on environment
+  const network = tronConfig.rpcUrl // Use RPC URL from networks.json
+
+  // Get the correct private key based on environment
   let privateKey: string
   try {
     privateKey = await getPrivateKey()
-  } catch (error: any) {
-    consola.error(error.message)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    consola.error(errorMessage)
     consola.error(
       `Please ensure ${
         environment === 'production' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
@@ -142,11 +135,8 @@ async function deployCoreFacets() {
   const config: ITronDeploymentConfig = {
     fullHost: network,
     privateKey,
-    verbose,
-    dryRun,
-    // Energy configuration:
-    // - feeLimit: Will be dynamically calculated per contract
-    // - originEnergyLimit: Will be dynamically calculated per contract
+    verbose: options.verbose,
+    dryRun: options.dryRun,
     safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
@@ -154,219 +144,310 @@ async function deployCoreFacets() {
 
   const deployer = new TronContractDeployer(config)
 
-  try {
-    // Get network info
-    const networkInfo = await deployer.getNetworkInfo()
+  // Get network info
+  const networkInfo = await deployer.getNetworkInfo()
+  displayNetworkInfo(networkInfo, network, environment)
 
-    // Use new utility for network info display
-    displayNetworkInfo(networkInfo, environment, network)
+  // Initialize TronWeb for balance validation
+  const { TronWeb } = await import('tronweb')
+  const tronWeb = new TronWeb({
+    fullHost: network,
+    privateKey,
+  })
 
-    // Use new utility for balance validation
-    const tronWeb = (await import('tronweb')).TronWeb
-    const tronWebInstance = new tronWeb({
-      fullHost: network,
-      privateKey,
-    })
-    await validateBalance(tronWebInstance, MIN_BALANCE_WARNING)
+  // Validate balance
+  await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    // Get core facets from config
-    // Filter out GasZipFacet as it's not needed for Tron deployment
-    const coreFacets = getCoreFacets().filter(
-      (facet) => facet !== 'GasZipFacet'
-    )
+  // Get core facets list
+  const coreFacets = getCoreFacets()
 
-    // Prepare deployment plan
-    const contracts = [...coreFacets, 'LiFiDiamond']
+  // Add LiFiDiamond to the contracts list for confirmation
+  const allContracts = [...coreFacets, 'LiFiDiamond']
 
-    // Use new utility for confirmation
-    if (!(await confirmDeployment(environment, network, contracts)))
-      process.exit(0)
+  // Confirm deployment FIRST
+  const shouldContinue = await confirmDeployment(
+    environment,
+    network,
+    allContracts
+  )
+  if (!shouldContinue) {
+    consola.info('Deployment cancelled')
+    process.exit(0)
+  }
 
-    const deploymentResults: IDeploymentResult[] = []
-    const deployedFacets: Record<string, string> = {}
+  // Now check for existing deployments (sequentially to avoid event listener warnings)
+  consola.info(`\nCore facets to deploy: ${coreFacets.length}`)
+  coreFacets.forEach((facet, i) => {
+    consola.info(`  ${i + 1}. ${facet}`)
+  })
 
-    // Deploy each core facet
-    for (const facetName of coreFacets) {
-      consola.info(`\nDeploying ${facetName}...`)
-
-      const { exists, address, shouldRedeploy } = await checkExistingDeployment(
-        'tron',
-        facetName,
-        dryRun
-      )
-
-      if (exists && !shouldRedeploy && address) {
-        deployedFacets[facetName] = address
-        deploymentResults.push({
-          contract: facetName,
-          address: address,
-          txId: 'existing',
-          cost: 0,
-          version: await getContractVersion(facetName),
-          status: 'existing',
-        })
-        continue
-      }
-
-      try {
-        // Get constructor arguments
-        const constructorArgs = await getConstructorArgs(
-          facetName,
-          network,
-          privateKey
-        )
-
-        // Deploy using new utility
-        const result = await deployContractWithLogging(
-          deployer,
-          facetName,
-          constructorArgs,
-          dryRun
-        )
-
-        deployedFacets[facetName] = result.address
-        deploymentResults.push(result)
-
-        // Wait between deployments
-        if (!dryRun) await Bun.sleep(3000)
-      } catch (error: any) {
-        consola.error(`Failed to deploy ${facetName}:`, error.message)
-        deploymentResults.push({
-          contract: facetName,
-          address: 'FAILED',
-          txId: 'FAILED',
-          cost: 0,
-          version: '0.0.0',
-          status: 'failed',
-        })
-        continue
-      }
-    }
-
-    // Deploy LiFiDiamond
-    consola.info('\nDeploying LiFiDiamond...')
-
-    const { exists, address, shouldRedeploy } = await checkExistingDeployment(
+  const existingDeployments = []
+  for (const facet of coreFacets) {
+    const deployment = await checkExistingDeployment(
       'tron',
-      'LiFiDiamond',
-      dryRun
+      facet,
+      options.dryRun
     )
+    existingDeployments.push(deployment)
+  }
 
-    if (!exists || shouldRedeploy)
-      try {
-        // Prepare facet cuts for diamond initialization
-        const tronWeb = (await import('tronweb')).TronWeb
-        const tronWebInstance = new tronWeb({
-          fullHost: network,
-          privateKey,
-        })
+  const hasExisting = existingDeployments.some((d) => d.exists)
+  if (hasExisting) {
+    consola.info('\nExisting deployments found:')
+    existingDeployments.forEach((d, index) => {
+      if (d.exists) 
+        consola.info(`  ✓ ${coreFacets[index]}: ${d.address}`)
+      
+    })
+  }
+  // Deploy facets
+  const deploymentResults: IDeploymentResult[] = []
+  const facetAddresses: Record<string, { address: string; version: string }> =
+    {}
 
-        const facetCuts = []
-        for (const [facetName, facetAddress] of Object.entries(
-          deployedFacets
-        )) {
-          if (facetAddress === 'FAILED') continue
+  for (let i = 0; i < coreFacets.length; i++) {
+    const facet = coreFacets[i]
+    if (!facet) continue
 
-          const artifact = await loadForgeArtifact(facetName)
-          const selectors = Object.values(
-            artifact.methodIdentifiers as Record<string, string>
-          ).map((selector) => '0x' + selector)
+    const existing = existingDeployments[i]
 
-          // Convert Tron address to hex format for constructor
-          const facetAddressHex = tronWebInstance.address
-            .toHex(facetAddress)
-            .replace(/^41/, '0x')
-
-          facetCuts.push([facetAddressHex, 0, selectors])
-        }
-
-        // Get owner address
-        const ownerAddress = tronWebInstance.defaultAddress.base58
-        if (!ownerAddress)
-          throw new Error('No default address found in TronWeb instance')
-
-        const ownerHex = tronWebInstance.address
-          .toHex(ownerAddress)
-          .replace(/^41/, '0x')
-
-        // Deploy diamond with facets
-        const diamondArgs = [ownerHex, facetCuts]
-
-        const result = await deployContractWithLogging(
-          deployer,
-          'LiFiDiamond',
-          diamondArgs,
-          dryRun
-        )
-
-        deploymentResults.push(result)
-
-        // Save diamond deployment info
-        if (!dryRun) {
-          const facetsWithVersions: Record<
-            string,
-            { address: string; version: string }
-          > = {}
-          for (const [facetName, facetAddress] of Object.entries(
-            deployedFacets
-          ))
-            if (facetAddress !== 'FAILED') {
-              const version = await getContractVersion(facetName)
-              facetsWithVersions[facetName] = {
-                address: facetAddress,
-                version,
-              }
-            }
-
-          await saveDiamondDeployment(
-            'tron',
-            result.address,
-            facetsWithVersions
-          )
-
-          // Update diamond.json with all facets
-          const facetEntries = Object.entries(deployedFacets)
-            .filter(([_, address]) => address !== 'FAILED')
-            .map(([name, address]) => ({ name, address }))
-
-          await updateDiamondJsonBatch(facetEntries)
-        }
-      } catch (error: any) {
-        consola.error('Failed to deploy LiFiDiamond:', error.message)
-        deploymentResults.push({
-          contract: 'LiFiDiamond',
-          address: 'FAILED',
-          txId: 'FAILED',
-          cost: 0,
-          version: '0.0.0',
-          status: 'failed',
-        })
-      }
-    else if (address)
+    // Check if already deployed and not requesting redeploy
+    if (existing?.exists && existing.address && !existing.shouldRedeploy) {
+      consola.info(`\n⏭️  Skipping ${facet} (already deployed)`)
+      const version = await getContractVersion(facet)
       deploymentResults.push({
-        contract: 'LiFiDiamond',
-        address: address,
-        txId: 'existing',
+        contract: facet,
+        address: existing.address,
+        version,
+        txId: '',
         cost: 0,
-        version: await getContractVersion('LiFiDiamond'),
         status: 'existing',
       })
+      facetAddresses[facet] = {
+        address: existing.address,
+        version,
+      }
+      continue
+    }
+    consola.info(`\n📦 Deploying ${facet}...`)
 
-    // Use new utility for summary
-    printDeploymentSummary(deploymentResults, dryRun)
+    try {
+      // Get constructor arguments
+      const constructorArgs = await getConstructorArgs(
+        facet,
+        network,
+        privateKey
+      )
 
-    // Exit with appropriate code
-    const hasFailures = deploymentResults.some((r) => r.status === 'failed')
-    process.exit(hasFailures ? 1 : 0)
-  } catch (error: any) {
-    consola.error('Deployment failed:', error.message)
-    if (error.stack) consola.error(error.stack)
-    process.exit(1)
+      // Deploy the facet
+      const result = await deployContractWithLogging(
+        deployer,
+        facet,
+        constructorArgs,
+        options.dryRun
+      )
+
+      deploymentResults.push(result)
+
+      if (result.status === 'success' && result.address) {
+        facetAddresses[facet] = {
+          address: result.address,
+          version: result.version,
+        }
+
+        // Save to deployment file
+        if (!options.dryRun) {
+          await saveContractAddress('tron', facet, result.address)
+
+          // Log deployment
+          const constructorArgsStr =
+            constructorArgs.length > 0 ? JSON.stringify(constructorArgs) : ''
+          await logDeployment(
+            facet,
+            'tron',
+            result.address,
+            result.version,
+            constructorArgsStr,
+            false
+          )
+        }
+      }
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      consola.error(`Failed to deploy ${facet}: ${errorMessage}`)
+      deploymentResults.push({
+        contract: facet,
+        address: '',
+        version: '',
+        txId: '',
+        cost: 0,
+        status: 'failed',
+      })
+    }
   }
+
+  // Deploy LiFiDiamond
+  const diamondName = 'LiFiDiamond'
+  consola.info(`\n💎 Deploying ${diamondName}...`)
+
+  const existingDiamond = await checkExistingDeployment(
+    'tron',
+    diamondName,
+    options.dryRun
+  )
+  if (
+    existingDiamond.exists &&
+    existingDiamond.address &&
+    !existingDiamond.shouldRedeploy
+  ) {
+    consola.info(`⏭️  Skipping ${diamondName} (already deployed)`)
+    const version = await getContractVersion(diamondName)
+    deploymentResults.push({
+      contract: diamondName,
+      address: existingDiamond.address,
+      version,
+      txId: '',
+      cost: 0,
+      status: 'existing',
+    })
+  } else 
+    try {
+      // Get owner address (deployer address)
+      const ownerAddress = networkInfo.address
+
+      // Convert to hex format for constructor
+      const { TronWeb } = await import('tronweb')
+      const tronWeb = new TronWeb({
+        fullHost: network,
+        privateKey,
+      })
+      const ownerHex = '0x' + tronWeb.address.toHex(ownerAddress).slice(2)
+
+      consola.info(`Using owner address: ${ownerAddress} (hex: ${ownerHex})`)
+
+      // Deploy the Diamond
+      const result = await deployContractWithLogging(
+        deployer,
+        diamondName,
+        [ownerHex], // Pass owner address as constructor argument
+        options.dryRun
+      )
+
+      deploymentResults.push(result)
+
+      if (result.status === 'success' && result.address) 
+        // Save to deployment file
+        if (!options.dryRun) {
+          await saveContractAddress('tron', diamondName, result.address)
+
+          // Save diamond deployment info
+          await saveDiamondDeployment('tron', result.address, facetAddresses)
+
+          // Update diamond JSON files
+          const facetEntries = Object.entries(facetAddresses).map(
+            ([name, data]) => ({
+              name,
+              address: data.address,
+              version: data.version,
+            })
+          )
+          await updateDiamondJsonBatch(facetEntries)
+
+          // Log deployment
+          await logDeployment(
+            diamondName,
+            'tron',
+            result.address,
+            result.version,
+            JSON.stringify([ownerHex]),
+            false
+          )
+        }
+      
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      consola.error(`Failed to deploy ${diamondName}: ${errorMessage}`)
+      deploymentResults.push({
+        contract: diamondName,
+        address: '',
+        version: '',
+        txId: '',
+        cost: 0,
+        status: 'failed',
+      })
+    }
+  
+
+  // If diamond already existed, still update the diamond JSON with facet addresses
+  if (existingDiamond.exists && existingDiamond.address && !options.dryRun) {
+    // Update diamond JSON files
+    const facetEntries = Object.entries(facetAddresses).map(([name, data]) => ({
+      name,
+      address: data.address,
+      version: data.version,
+    }))
+    await updateDiamondJsonBatch(facetEntries)
+  }
+
+  // Use new utility for summary
+  printDeploymentSummary(deploymentResults, options.dryRun)
+
+  // Exit with appropriate code
+  const hasFailures = deploymentResults.some((r) => r.status === 'failed')
+  process.exit(hasFailures ? 1 : 0)
 }
 
-// Run deployment
-deployCoreFacets().catch((error) => {
-  consola.error('Unexpected error:', error)
-  process.exit(1)
+const deployCommand = defineCommand({
+  meta: {
+    name: 'deploy-core-facets',
+    description: 'Deploy core facets to Tron network',
+  },
+  args: {
+    dryRun: {
+      type: 'boolean',
+      description: 'Simulate deployment without executing',
+      default: false,
+    },
+    verbose: {
+      type: 'boolean',
+      description: 'Enable verbose logging',
+      default: true,
+    },
+  },
+  async run({ args }) {
+    try {
+      // Also check environment variables for backward compatibility
+      let dryRun = args.dryRun
+      let verbose = args.verbose
+
+      try {
+        if (!dryRun) dryRun = getEnvVar('DRY_RUN') === 'true'
+      } catch {
+        // Use default value
+      }
+
+      try {
+        if (!verbose) verbose = getEnvVar('VERBOSE') !== 'false'
+      } catch {
+        // Use default value
+      }
+
+      await deployCoreFacetsImpl({
+        dryRun,
+        verbose,
+      })
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      consola.error('Deployment failed:', errorMessage)
+      if (errorStack) consola.error(errorStack)
+      process.exit(1)
+    }
+  },
 })
+
+// Run the command
+runMain(deployCommand)
