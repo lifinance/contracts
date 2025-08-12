@@ -7,14 +7,6 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 
 contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
-    // Constants for RabbitSwap on Viction
-    IERC20 internal constant SOROS =
-        IERC20(0xB786D9c8120D311b948cF1e5Aa48D8fBacf477E2);
-    IERC20 internal constant C98 =
-        IERC20(0x0Fd0288AAAE91eaF935e2eC14b23486f86516c8C);
-    address internal constant SOROS_C98_POOL =
-        0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D;
-
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             rpcEnvName: "ETH_NODE_URI_VICTION",
@@ -26,17 +18,24 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         return UniV3StyleFacet.rabbitSwapV3SwapCallback.selector;
     }
 
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0xB786D9c8120D311b948cF1e5Aa48D8fBacf477E2); // SOROS
+        tokenOut = IERC20(0x0Fd0288AAAE91eaF935e2eC14b23486f86516c8C); // C98
+        uniV3Pool = 0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D; // pool
+        aggregatorUndrainMinusOne = true;
+    }
+
     function test_CanSwap() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(SOROS),
-                tokenOut: address(C98),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1_000 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            SOROS_C98_POOL,
+            uniV3Pool,
             SwapDirection.Token1ToToken0
         );
     }
@@ -44,24 +43,24 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     function test_CanSwap_FromDexAggregator() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(SOROS),
-                tokenOut: address(C98),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1_000 * 1e18 - 1, // Subtract 1 for slot-undrain protection
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
             }),
-            SOROS_C98_POOL,
+            uniV3Pool,
             SwapDirection.Token1ToToken0
         );
     }
 
     function testRevert_RabbitSwapInvalidPool() public {
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(SOROS), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        SOROS.approve(address(ldaDiamond), amountIn);
+        tokenIn.approve(address(ldaDiamond), amountIn);
 
         // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
@@ -75,8 +74,8 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         // Use _buildBaseRoute from base class
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(SOROS),
-                tokenOut: address(C98),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -85,14 +84,17 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             swapData
         );
 
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(SOROS),
-            amountIn,
-            address(C98),
-            0,
-            USER_SENDER,
-            route
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            route,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();
@@ -100,15 +102,15 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
 
     function testRevert_RabbitSwapInvalidRecipient() public {
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(SOROS), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        SOROS.approve(address(ldaDiamond), amountIn);
+        tokenIn.approve(address(ldaDiamond), amountIn);
 
         // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
-                pool: SOROS_C98_POOL,
+                pool: uniV3Pool,
                 direction: SwapDirection.Token1ToToken0,
                 recipient: address(0) // Invalid recipient address
             })
@@ -117,8 +119,8 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         // Use _buildBaseRoute from base class
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(SOROS),
-                tokenOut: address(C98),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -127,14 +129,17 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             swapData
         );
 
-        vm.expectRevert(InvalidCallData.selector);
-        coreRouteFacet.processRoute(
-            address(SOROS),
-            amountIn,
-            address(C98),
-            0,
-            USER_SENDER,
-            route
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            route,
+            InvalidCallData.selector
         );
 
         vm.stopPrank();

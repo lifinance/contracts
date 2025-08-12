@@ -36,12 +36,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         IVelodromeV2Router(0xa062aE8A9c5e11aaA026fc2670B0D65cCc8B2858); // optimism router
     address internal constant VELODROME_V2_FACTORY_REGISTRY =
         0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a;
-    IERC20 internal constant USDC_TOKEN =
-        IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85);
-    IERC20 internal constant STG_TOKEN =
-        IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97);
-    IERC20 internal constant USDC_E_TOKEN =
-        IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607);
 
     MockVelodromeV2FlashLoanCallbackReceiver
         internal mockFlashloanCallbackReceiver;
@@ -108,11 +102,18 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         velodromeV2Facet = VelodromeV2Facet(facetAddress);
     }
 
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85); // USDC
+        tokenMid = IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97); // STG
+        tokenOut = IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607); // STG
+        // pools vary by test; set per-test as locals or use POOL_IN_OUT for the default path
+    }
+
     // ============================ Velodrome V2 Tests ============================
 
     // no stable swap
     function test_CanSwap() public override {
-        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
+        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
 
@@ -120,9 +121,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             VelodromeV2SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(USER_SENDER),
-                tokenIn: address(USDC_TOKEN),
+                tokenIn: address(tokenIn),
                 amountIn: 1_000 * 1e6,
-                tokenOut: address(STG_TOKEN),
+                tokenOut: address(tokenOut),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
                 callbackStatus: CallbackStatus.Disabled
@@ -141,9 +142,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
-                tokenIn: address(STG_TOKEN),
+                tokenIn: address(tokenMid),
                 amountIn: 500 * 1e18,
-                tokenOut: address(USDC_TOKEN),
+                tokenOut: address(tokenIn),
                 stable: false,
                 direction: SwapDirection.Token1ToToken0,
                 callbackStatus: CallbackStatus.Disabled
@@ -153,16 +154,16 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_Stable() public {
-        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
+        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
         _testSwap(
             VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
-                tokenIn: address(USDC_TOKEN),
+                tokenIn: address(tokenIn),
                 amountIn: 1_000 * 1e6,
-                tokenOut: address(USDC_E_TOKEN),
+                tokenOut: address(tokenOut),
                 stable: true,
                 direction: SwapDirection.Token0ToToken1,
                 callbackStatus: CallbackStatus.Disabled
@@ -181,9 +182,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
-                tokenIn: address(USDC_E_TOKEN),
+                tokenIn: address(tokenOut),
                 amountIn: 500 * 1e6,
-                tokenOut: address(USDC_TOKEN),
+                tokenOut: address(tokenIn),
                 stable: false,
                 direction: SwapDirection.Token1ToToken0,
                 callbackStatus: CallbackStatus.Disabled
@@ -194,19 +195,19 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_FromDexAggregator() public override {
         // // fund dex aggregator contract so that the contract holds USDC
-        deal(address(USDC_TOKEN), address(ldaDiamond), 100_000 * 1e6);
+        deal(address(tokenIn), address(ldaDiamond), 100_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
         _testSwap(
             VelodromeV2SwapTestParams({
                 from: address(ldaDiamond),
                 to: address(USER_SENDER),
-                tokenIn: address(USDC_TOKEN),
-                amountIn: IERC20(address(USDC_TOKEN)).balanceOf(
+                tokenIn: address(tokenIn),
+                amountIn: IERC20(address(tokenIn)).balanceOf(
                     address(ldaDiamond)
                 ) - 1, // adjust for slot undrain protection: subtract 1 token so that the
                 // aggregator's balance isn't completely drained, matching the contract's safeguard
-                tokenOut: address(USDC_E_TOKEN),
+                tokenOut: address(tokenOut),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
                 callbackStatus: CallbackStatus.Disabled
@@ -216,7 +217,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_FlashloanCallback() public {
-        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
+        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
 
         mockFlashloanCallbackReceiver = new MockVelodromeV2FlashLoanCallbackReceiver();
 
@@ -225,9 +226,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             VelodromeV2SwapTestParams({
                 from: address(USER_SENDER),
                 to: address(mockFlashloanCallbackReceiver),
-                tokenIn: address(USDC_TOKEN),
+                tokenIn: address(tokenIn),
                 amountIn: 1_000 * 1e6,
-                tokenOut: address(USDC_E_TOKEN),
+                tokenOut: address(tokenOut),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
                 callbackStatus: CallbackStatus.Enabled
@@ -238,15 +239,15 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
     // Override the abstract test with VelodromeV2 implementation
     function test_CanSwap_MultiHop() public override {
-        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
+        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
 
         // Setup routes and get amounts
         MultiHopTestParams memory params = _setupRoutes(
-            address(USDC_TOKEN),
-            address(STG_TOKEN),
-            address(USDC_E_TOKEN),
+            address(tokenIn),
+            address(tokenMid),
+            address(tokenOut),
             false,
             false
         );
@@ -342,15 +343,15 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_MultiHop_WithStable() public {
-        deal(address(USDC_TOKEN), address(USER_SENDER), 1_000 * 1e6);
+        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
 
         // Setup routes and get amounts for stable->volatile path
         MultiHopTestParams memory params = _setupRoutes(
-            address(USDC_TOKEN),
-            address(USDC_E_TOKEN),
-            address(STG_TOKEN),
+            address(tokenIn),
+            address(tokenOut),
+            address(tokenMid),
             true, // stable pool for first hop
             false // volatile pool for second hop
         );
@@ -428,8 +429,8 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: params.tokenIn,
-                tokenOut: params.tokenOut,
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1000 * 1e6,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -446,8 +447,8 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         // Get a valid pool address first for comparison
         address validPool = VELODROME_V2_ROUTER.poolFor(
-            address(USDC_TOKEN),
-            address(STG_TOKEN),
+            address(tokenIn),
+            address(tokenMid),
             false,
             VELODROME_V2_FACTORY_REGISTRY
         );
@@ -465,19 +466,19 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         // 2. Create the full route with the length-prefixed swap data
         bytes memory routeWithZeroPool = abi.encodePacked(
             uint8(CommandType.ProcessUserERC20),
-            address(USDC_TOKEN),
+            address(tokenIn),
             uint8(1),
             FULL_SHARE,
             uint16(swapDataZeroPool.length), // Length prefix
             swapDataZeroPool
         );
 
-        IERC20(address(USDC_TOKEN)).approve(address(ldaDiamond), 1000 * 1e6);
+        IERC20(address(tokenIn)).approve(address(ldaDiamond), 1000 * 1e6);
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(USDC_TOKEN),
-                tokenOut: address(STG_TOKEN),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: 1000 * 1e6,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -498,7 +499,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         bytes memory routeWithZeroRecipient = abi.encodePacked(
             uint8(CommandType.ProcessUserERC20),
-            address(USDC_TOKEN),
+            address(tokenIn),
             uint8(1),
             FULL_SHARE,
             uint16(swapDataZeroRecipient.length), // Length prefix
@@ -507,8 +508,8 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(USDC_TOKEN),
-                tokenOut: address(STG_TOKEN),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: 1000 * 1e6,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -526,9 +527,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         // Setup multi-hop route: USDC -> STG -> USDC.e
         MultiHopTestParams memory params = _setupRoutes(
-            address(USDC_TOKEN),
-            address(STG_TOKEN),
-            address(USDC_E_TOKEN),
+            address(tokenIn),
+            address(tokenMid),
+            address(tokenOut),
             false,
             false
         );
@@ -577,9 +578,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildMultiHopRoute(hopParams, hopData);
 
-        deal(address(USDC_TOKEN), USER_SENDER, 1000 * 1e6);
+        deal(address(tokenIn), USER_SENDER, 1000 * 1e6);
 
-        IERC20(address(USDC_TOKEN)).approve(address(ldaDiamond), 1000 * 1e6);
+        IERC20(address(tokenIn)).approve(address(ldaDiamond), 1000 * 1e6);
 
         // Mock getReserves for the second pool (which uses processOnePool) to return zero reserves
         vm.mockCall(
@@ -591,9 +592,9 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         vm.expectRevert(WrongPoolReserves.selector);
 
         coreRouteFacet.processRoute(
-            address(USDC_TOKEN),
+            address(tokenIn),
             1000 * 1e6,
-            address(USDC_E_TOKEN),
+            address(tokenOut),
             0,
             USER_SENDER,
             route

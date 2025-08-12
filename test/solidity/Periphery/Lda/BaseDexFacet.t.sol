@@ -81,6 +81,18 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         bytes[] eventParams; // The event parameters, each encoded separately
     }
 
+    // At top-level state
+    IERC20 internal tokenIn;
+    IERC20 internal tokenMid; // optional for multi-hop
+    IERC20 internal tokenOut;
+
+    address internal poolInOut; // for single hop or UniV2-style
+    address internal poolInMid; // for hop 1
+    address internal poolMidOut; // for hop 2
+
+    // Optional flag/hook for aggregator slot-undrain behavior
+    bool internal aggregatorUndrainMinusOne;
+
     function _addDexFacet() internal virtual {
         (
             address facetAddress,
@@ -99,6 +111,8 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         returns (address, bytes4[] memory);
     function _setFacetInstance(address payable facetAddress) internal virtual;
 
+    function _setupDexEnv() internal virtual;
+
     function setUp() public virtual override {
         // forkConfig should be set in the child contract via _setupForkConfig()
         _setupForkConfig();
@@ -110,6 +124,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         fork();
         LdaDiamondTest.setUp();
         _addCoreRouteFacet();
+        _setupDexEnv(); // NEW: populate tokens/pools
         _addDexFacet();
     }
 
@@ -351,5 +366,20 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
             params.recipient,
             route
         );
+    }
+
+    // Optional helper
+    function _adjustAmountFor(
+        CommandType cmd,
+        uint256 amount
+    ) internal view returns (uint256) {
+        if (
+            cmd == CommandType.ProcessMyERC20 &&
+            aggregatorUndrainMinusOne &&
+            amount > 0
+        ) {
+            return amount - 1;
+        }
+        return amount;
     }
 }

@@ -15,13 +15,6 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
     IHyperswapV3QuoterV2 internal constant HYPERSWAP_QUOTER =
         IHyperswapV3QuoterV2(0x03A918028f22D9E1473B7959C927AD7425A45C7C);
 
-    /// @dev a liquid USDT on HyperEVM
-    IERC20 internal constant USDT0 =
-        IERC20(0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb);
-    /// @dev WHYPE on HyperEVM
-    IERC20 internal constant WHYPE =
-        IERC20(0x5555555555555555555555555555555555555555);
-
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             rpcEnvName: "ETH_NODE_URI_HYPEREVM",
@@ -33,19 +26,27 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
         return UniV3StyleFacet.hyperswapV3SwapCallback.selector;
     }
 
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb); // USDT0
+        tokenOut = IERC20(0x5555555555555555555555555555555555555555); // WHYPE
+        uniV3Pool = IHyperswapV3Factory(
+            0xB1c0fa0B789320044A6F623cFe5eBda9562602E3
+        ).getPool(address(tokenIn), address(tokenOut), 3000);
+    }
+
     function test_CanSwap() public override {
         // Get pool and quote
         address pool = HYPERSWAP_FACTORY.getPool(
-            address(USDT0),
-            address(WHYPE),
+            address(tokenIn),
+            address(tokenOut),
             3000
         );
 
         uint256 amountIn = 1_000 * 1e6;
         // (uint256 quoted, , , ) = HYPERSWAP_QUOTER.quoteExactInputSingle(
         //     IHyperswapV3QuoterV2.QuoteExactInputSingleParams({
-        //         tokenIn: address(USDT0),
-        //         tokenOut: address(WHYPE),
+        //         tokenIn: address(TOKEN_IN),
+        //         tokenOut: address(TOKEN_OUT),
         //         amountIn: amountIn,
         //         fee: 3000,
         //         sqrtPriceLimitX96: 0
@@ -57,8 +58,8 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
         // emit Route(
         //     USER_SENDER,
         //     USER_SENDER,
-        //     address(USDT0),
-        //     address(WHYPE),
+        //     address(TOKEN_IN),
+        //     address(TOKEN_OUT),
         //     amountIn,
         //     quoted,
         //     quoted
@@ -66,8 +67,8 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
 
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(USDT0),
-                tokenOut: address(WHYPE),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -81,8 +82,8 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
     function test_CanSwap_FromDexAggregator() public override {
         // Get pool and quote
         address pool = HYPERSWAP_FACTORY.getPool(
-            address(USDT0),
-            address(WHYPE),
+            address(tokenIn),
+            address(tokenOut),
             3000
         );
 
@@ -104,8 +105,8 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
         // emit Route(
         //     USER_SENDER,
         //     USER_SENDER,
-        //     address(USDT0),
-        //     address(WHYPE),
+        //     address(TOKEN_IN),
+        //     address(TOKEN_OUT),
         //     amountIn - 1, // Account for slot undrain protection
         //     quoted,
         //     quoted
@@ -113,8 +114,8 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
 
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(USDT0),
-                tokenOut: address(WHYPE),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: swapAmount,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,

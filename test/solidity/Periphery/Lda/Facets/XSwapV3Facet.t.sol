@@ -6,15 +6,6 @@ import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 
 contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
-    address internal constant USDC_E_WXDC_POOL =
-        0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0;
-
-    /// @dev our two tokens: USDC.e and wrapped XDC
-    IERC20 internal constant USDC_E =
-        IERC20(0x2A8E898b6242355c290E1f4Fc966b8788729A4D4);
-    IERC20 internal constant WXDC =
-        IERC20(0x951857744785E80e2De051c32EE7b25f9c458C42);
-
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             rpcEnvName: "ETH_NODE_URI_XDC",
@@ -26,17 +17,24 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         return UniV3StyleFacet.xswapCallback.selector;
     }
 
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0x2A8E898b6242355c290E1f4Fc966b8788729A4D4); // USDC.e
+        tokenOut = IERC20(0x951857744785E80e2De051c32EE7b25f9c458C42); // WXDC
+        uniV3Pool = 0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0; // pool
+        aggregatorUndrainMinusOne = true;
+    }
+
     function test_CanSwap() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(USDC_E),
-                tokenOut: address(WXDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1_000 * 1e6,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            USDC_E_WXDC_POOL,
+            uniV3Pool,
             SwapDirection.Token0ToToken1
         );
     }
@@ -44,14 +42,14 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     function test_CanSwap_FromDexAggregator() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(USDC_E),
-                tokenOut: address(WXDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 5_000 * 1e6 - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
             }),
-            USDC_E_WXDC_POOL,
+            uniV3Pool,
             SwapDirection.Token0ToToken1
         );
     }

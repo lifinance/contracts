@@ -6,14 +6,6 @@ import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 
 contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
-    IERC20 internal constant WHYPE =
-        IERC20(0x5555555555555555555555555555555555555555);
-    IERC20 internal constant LHYPE =
-        IERC20(0x5748ae796AE46A4F1348a1693de4b50560485562);
-
-    address internal constant WHYPE_LHYPE_POOL =
-        0xdAA8a66380fb35b35CB7bc1dBC1925AbfdD0ae45;
-
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             rpcEnvName: "ETH_NODE_URI_HYPEREVM",
@@ -25,17 +17,24 @@ contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
         return UniV3StyleFacet.laminarV3SwapCallback.selector;
     }
 
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0x5555555555555555555555555555555555555555); // WHYPE
+        tokenOut = IERC20(0x5748ae796AE46A4F1348a1693de4b50560485562); // LHYPE
+        uniV3Pool = 0xdAA8a66380fb35b35CB7bc1dBC1925AbfdD0ae45; // WHYPE_LHYPE_POOL
+        aggregatorUndrainMinusOne = true; // if needed
+    }
+
     function test_CanSwap() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(WHYPE),
-                tokenOut: address(LHYPE),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1_000 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            WHYPE_LHYPE_POOL,
+            uniV3Pool,
             SwapDirection.Token0ToToken1
         );
     }
@@ -43,14 +42,14 @@ contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
     function test_CanSwap_FromDexAggregator() public override {
         _executeUniV3StyleSwap(
             SwapTestParams({
-                tokenIn: address(WHYPE),
-                tokenOut: address(LHYPE),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1_000 * 1e18 - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
             }),
-            WHYPE_LHYPE_POOL,
+            uniV3Pool,
             SwapDirection.Token0ToToken1
         );
     }

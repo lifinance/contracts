@@ -153,6 +153,14 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         algebraFacet = AlgebraFacet(facetAddress);
     }
 
+    // NEW: slot wiring for primary pair
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(APE_ETH_TOKEN);
+        tokenOut = IERC20(WETH_TOKEN);
+        poolInOut = ALGEBRA_POOL_APECHAIN;
+        aggregatorUndrainMinusOne = true;
+    }
+
     // Override the abstract test with Algebra implementation
     function test_CanSwap_FromDexAggregator() public override {
         // Fund LDA from whale address

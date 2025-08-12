@@ -4,14 +4,26 @@ pragma solidity ^0.8.17;
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
 
+// Minimal UniV3-like pool interface for direction detection
+interface IUniV3LikePool {
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+}
+
 abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     UniV3StyleFacet internal uniV3Facet;
+
+    // Single-pool slot for UniV3-style tests
+    address internal uniV3Pool;
 
     struct UniV3SwapParams {
         address pool;
         SwapDirection direction;
         address recipient;
     }
+
+    // Add the custom error
+    error TokenNotInPool(address token, address pool);
 
     function _createFacetAndSelectors()
         internal
@@ -80,6 +92,73 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildBaseRoute(params, swapData);
         _executeAndVerifySwap(params, route);
+
+        vm.stopPrank();
+    }
+
+    // === Additions below ===
+
+    // Infer swap direction from pool’s token0/token1 and TOKEN_IN
+    function _getDirection(
+        address pool,
+        address tokenIn
+    ) internal view returns (SwapDirection) {
+        address t0 = IUniV3LikePool(pool).token0();
+        address t1 = IUniV3LikePool(pool).token1();
+        if (tokenIn == t0) return SwapDirection.Token0ToToken1;
+        if (tokenIn == t1) return SwapDirection.Token1ToToken0;
+        revert TokenNotInPool(tokenIn, pool);
+    }
+
+    // Auto-wired UniV3-style swap using base token/pool slots
+    function _executeUniV3StyleSwapAuto(
+        CommandType cmd,
+        uint256 rawAmountIn
+    ) internal {
+        uint256 amountIn = _adjustAmountFor(cmd, rawAmountIn);
+
+        // Fund the appropriate account
+        if (cmd == CommandType.ProcessMyERC20) {
+            deal(address(tokenIn), address(ldaDiamond), amountIn + 1);
+        } else {
+            deal(address(tokenIn), USER_SENDER, amountIn);
+        }
+
+        vm.startPrank(USER_SENDER);
+
+        SwapDirection direction = _getDirection(uniV3Pool, address(tokenIn));
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: uniV3Pool,
+                direction: direction,
+                recipient: USER_SENDER
+            })
+        );
+
+        // Build route and execute
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: cmd
+            }),
+            swapData
+        );
+
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: cmd
+            }),
+            route
+        );
 
         vm.stopPrank();
     }

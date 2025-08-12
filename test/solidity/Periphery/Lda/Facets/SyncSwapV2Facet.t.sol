@@ -9,12 +9,6 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 contract SyncSwapV2FacetTest is BaseDexFacetTest {
     SyncSwapV2Facet internal syncSwapV2Facet;
 
-    IERC20 internal constant USDC =
-        IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff);
-    IERC20 internal constant WETH =
-        IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f);
-    address internal constant USDC_WETH_POOL_V1 =
-        address(0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308);
     address internal constant SYNC_SWAP_VAULT =
         address(0x7160570BB153Edd0Ea1775EC2b2Ac9b65F1aB61B);
 
@@ -50,17 +44,26 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         syncSwapV2Facet = SyncSwapV2Facet(facetAddress);
     }
 
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f); // WETH
+        tokenMid = IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff); // USDC
+        tokenOut = IERC20(0xA219439258ca9da29E9Cc4cE5596924745e12B93); // USDT
+        poolInMid = 0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308; // WETH-USDC V1
+        poolMidOut = 0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2; // USDC-USDT V1
+        aggregatorUndrainMinusOne = true;
+    }
+
     /// @notice Single‐pool swap: USER sends WETH → receives USDC
     function test_CanSwap() public override {
         // Transfer 1 000 WETH from whale to USER_SENDER
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(WETH), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
-                pool: USDC_WETH_POOL_V1,
+                pool: poolInMid,
                 to: address(USER_SENDER),
                 withdrawMode: 2,
                 isV1Pool: 1,
@@ -70,8 +73,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -82,8 +85,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -98,7 +101,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     function test_CanSwap_PoolV2() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(WETH), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
 
@@ -114,8 +117,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -126,8 +129,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -142,13 +145,13 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     function test_CanSwap_FromDexAggregator() public override {
         // Fund the aggregator with 1 000 WETH
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(WETH), address(ldaDiamond), amountIn);
+        deal(address(tokenIn), address(ldaDiamond), amountIn);
 
         vm.startPrank(USER_SENDER);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
-                pool: USDC_WETH_POOL_V1,
+                pool: poolInMid,
                 to: address(USER_SENDER),
                 withdrawMode: 2,
                 isV1Pool: 1,
@@ -158,8 +161,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -170,8 +173,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -186,7 +189,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     function test_CanSwap_FromDexAggregator_PoolV2() public {
         // Fund the aggregator with 1 000 WETH
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(WETH), address(ldaDiamond), amountIn);
+        deal(address(tokenIn), address(ldaDiamond), amountIn);
 
         vm.startPrank(USER_SENDER);
 
@@ -202,8 +205,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -214,8 +217,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -229,15 +232,15 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_MultiHop() public override {
         uint256 amountIn = 1_000e18;
-        deal(address(WETH), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
-        WETH.approve(address(ldaDiamond), amountIn);
+        tokenIn.approve(address(ldaDiamond), amountIn);
 
         // Build swap data for both hops
         bytes memory firstSwapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
-                pool: USDC_WETH_POOL_V1,
+                pool: poolInMid,
                 to: SYNC_SWAP_VAULT,
                 withdrawMode: 2,
                 isV1Pool: 1,
@@ -247,7 +250,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory secondSwapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
-                pool: USDC_USDT_POOL_V1,
+                pool: poolMidOut,
                 to: address(USER_SENDER),
                 withdrawMode: 2,
                 isV1Pool: 1,
@@ -261,8 +264,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         // First hop: WETH -> USDC
         params[0] = SwapTestParams({
-            tokenIn: address(WETH),
-            tokenOut: address(USDC),
+            tokenIn: address(tokenIn),
+            tokenOut: address(tokenMid),
             amountIn: amountIn,
             sender: USER_SENDER,
             recipient: SYNC_SWAP_VAULT,
@@ -272,8 +275,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         // Second hop: USDC -> USDT
         params[1] = SwapTestParams({
-            tokenIn: address(USDC),
-            tokenOut: address(USDT),
+            tokenIn: address(tokenMid),
+            tokenOut: address(tokenOut),
             amountIn: 0, // Not used in ProcessOnePool
             sender: USER_SENDER,
             recipient: USER_SENDER,
@@ -286,8 +289,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         // Use _executeAndVerifySwap with first and last token of the chain
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDT),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -302,13 +305,13 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     function testRevert_V1PoolMissingVaultAddress() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(WETH), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
 
         bytes memory swapData = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
-                pool: USDC_WETH_POOL_V1,
+                pool: poolInOut,
                 to: address(USER_SENDER),
                 withdrawMode: 2,
                 isV1Pool: 1,
@@ -318,8 +321,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -330,8 +333,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -347,7 +350,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     function testRevert_InvalidPoolOrRecipient() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         uint256 amountIn = 1_000 * 1e18;
-        deal(address(WETH), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
 
@@ -363,8 +366,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory routeWithInvalidPool = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -375,8 +378,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -388,7 +391,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory swapDataWithInvalidRecipient = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
-                pool: USDC_WETH_POOL_V1,
+                pool: poolInOut,
                 to: address(0),
                 withdrawMode: 2,
                 isV1Pool: 1,
@@ -398,8 +401,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory routeWithInvalidRecipient = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -410,8 +413,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -430,7 +433,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         bytes
             memory swapDataWithInvalidWithdrawMode = _buildSyncSwapV2SwapData(
                 SyncSwapV2SwapParams({
-                    pool: USDC_WETH_POOL_V1,
+                    pool: poolInOut,
                     to: address(USER_SENDER),
                     withdrawMode: 3,
                     isV1Pool: 1,
@@ -440,8 +443,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         bytes memory routeWithInvalidWithdrawMode = _buildBaseRoute(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1, // Arbitrary amount for this test
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -452,8 +455,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(WETH),
-                tokenOut: address(USDC),
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
                 amountIn: 1,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -476,7 +479,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function _buildSyncSwapV2SwapData(
         SyncSwapV2SwapParams memory params
-    ) internal returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return
             abi.encodePacked(
                 syncSwapV2Facet.swapSyncSwapV2.selector,
