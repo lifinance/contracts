@@ -8592,19 +8592,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:27:42",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.0.0": [
@@ -8616,7 +8603,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:27:42",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -10682,19 +10683,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:22:32",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.0.0": [
@@ -10706,7 +10694,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:22:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -14473,19 +14475,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.1.0": [
-          {
-            "ADDRESS": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:32:02",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.1.0": [
@@ -14497,7 +14486,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:32:02",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -15702,19 +15705,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "2.1.0": [
-          {
-            "ADDRESS": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:33:04",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "2.1.0": [
@@ -15726,7 +15716,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:33:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -16732,19 +16736,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.0.1": [
-          {
-            "ADDRESS": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:34:05",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.0.1": [
@@ -16756,7 +16747,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:34:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -24960,19 +24965,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.3.1": [
-          {
-            "ADDRESS": "TFJLkNo9rHYTkp6w5G5ETnTBzzybRTqwQf",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:17:21",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.3.1": [
@@ -24984,7 +24976,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.3.1": [
+          {
+            "ADDRESS": "TFJLkNo9rHYTkp6w5G5ETnTBzzybRTqwQf",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:17:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -27778,19 +27784,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.1.0": [
-          {
-            "ADDRESS": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:35:06",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.1.0": [
@@ -27802,7 +27795,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:35:06",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -29083,19 +29090,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.0.2": [
-          {
-            "ADDRESS": "TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:23:35",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.0.2": [
@@ -29107,7 +29101,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:23:35",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -32457,19 +32465,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "tron": {
-      "production": {
-        "1.0.1": [
-          {
-            "ADDRESS": "TGyX2ysGYjKG8PLWiW7exXv3gesV8DJEA4",
-            "OPTIMIZER_RUNS": "200",
-            "TIMESTAMP": "2025-08-04 11:21:31",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
-=======
     "sophon": {
       "production": {
         "1.0.1": [
@@ -32481,7 +32476,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
->>>>>>> 697eb59f8dc751d85328db6c37dd3055488dd2b5
+          }
+        ]
+      }
+    },
+    "tron": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "TGyX2ysGYjKG8PLWiW7exXv3gesV8DJEA4",
+            "OPTIMIZER_RUNS": "200",
+            "TIMESTAMP": "2025-08-04 11:21:31",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
