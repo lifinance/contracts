@@ -61,7 +61,8 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         SwapDirection direction
     ) internal {
         // Fund the appropriate account
-        if (params.isAggregatorFunds) {
+        if (params.commandType == CommandType.ProcessMyERC20) {
+            // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
             deal(params.tokenIn, address(ldaDiamond), params.amountIn + 1);
         } else {
             deal(params.tokenIn, params.sender, params.amountIn);

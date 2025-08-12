@@ -136,7 +136,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             amountIn: amountIn,
             sender: USER_SENDER,
             recipient: address(coreRouteFacet),
-            isAggregatorFunds: false // ProcessUserERC20
+            commandType: CommandType.ProcessUserERC20
         });
         swapData[0] = firstSwapData;
 
@@ -147,7 +147,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             amountIn: 0, // Will be determined by first swap
             sender: USER_SENDER,
             recipient: USER_SENDER,
-            isAggregatorFunds: true // ProcessMyERC20
+            commandType: CommandType.ProcessMyERC20
         });
         swapData[1] = secondSwapData;
 
@@ -263,7 +263,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 amountIn: AMOUNT_USDC,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             invalidRoute,
             IzumiV3SwapUnexpected.selector
@@ -345,7 +345,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 amountIn: type(uint216).max,
                 sender: USER_SENDER,
                 recipient: USER_RECEIVER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route,
             InvalidCallData.selector

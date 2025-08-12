@@ -34,7 +34,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: 1_000 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             SOROS_C98_POOL,
             SwapDirection.Token1ToToken0
@@ -49,7 +49,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: 1_000 * 1e18 - 1, // Subtract 1 for slot-undrain protection
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             SOROS_C98_POOL,
             SwapDirection.Token1ToToken0
@@ -80,7 +80,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapData
         );
@@ -122,7 +122,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapData
         );

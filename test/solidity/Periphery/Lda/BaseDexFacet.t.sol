@@ -22,11 +22,10 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     // Command codes for route processing
     enum CommandType {
         None, // 0 - not used
-        ProcessMyERC20, // 1 - processMyERC20
-        ProcessUserERC20, // 2 - processUserERC20
+        ProcessMyERC20, // 1 - processMyERC20 (Aggregator's funds)
+        ProcessUserERC20, // 2 - processUserERC20 (User's funds)
         ProcessNative, // 3 - processNative
-        ProcessOnePool, // 4 - processOnePool
-        ProcessInsideBento, // 5 - processInsideBento
+        ProcessOnePool, // 4 - processOnePool (Pool's funds)
         ApplyPermit // 6 - applyPermit
     }
 
@@ -175,7 +174,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         uint256 amountIn;
         address sender;
         address recipient;
-        bool isAggregatorFunds; // true for ProcessMyERC20, false for ProcessUserERC20
+        CommandType commandType;
     }
 
     // Add this struct for route building
@@ -192,19 +191,25 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         SwapTestParams memory params,
         bytes memory swapData
     ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                uint8(
-                    params.isAggregatorFunds
-                        ? CommandType.ProcessMyERC20
-                        : CommandType.ProcessUserERC20
-                ),
-                params.tokenIn,
-                uint8(1), // one pool
-                FULL_SHARE, // 100%
-                uint16(swapData.length),
-                swapData
-            );
+        if (params.commandType == CommandType.ProcessOnePool) {
+            return
+                abi.encodePacked(
+                    uint8(params.commandType),
+                    params.tokenIn,
+                    uint16(swapData.length),
+                    swapData
+                );
+        } else {
+            return
+                abi.encodePacked(
+                    uint8(params.commandType),
+                    params.tokenIn,
+                    uint8(1), // one pool
+                    FULL_SHARE, // 100%
+                    uint16(swapData.length),
+                    swapData
+                );
+        }
     }
 
     // Helper for building multi-hop route
@@ -232,7 +237,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         bytes memory route,
         ExpectedEvent[] memory additionalEvents
     ) internal {
-        if (!params.isAggregatorFunds) {
+        if (params.commandType != CommandType.ProcessMyERC20) {
             IERC20(params.tokenIn).approve(
                 address(ldaDiamond),
                 params.amountIn
@@ -245,7 +250,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         );
 
         // For aggregator funds, check the diamond's balance
-        if (params.isAggregatorFunds) {
+        if (params.commandType == CommandType.ProcessMyERC20) {
             inBefore = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
         } else {
             inBefore = IERC20(params.tokenIn).balanceOf(params.sender);
@@ -297,7 +302,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         uint256 outAfter = IERC20(params.tokenOut).balanceOf(params.recipient);
 
         // Check balance change on the correct address
-        if (params.isAggregatorFunds) {
+        if (params.commandType == CommandType.ProcessMyERC20) {
             inAfter = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
             assertEq(
                 inBefore - inAfter,
@@ -330,7 +335,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         bytes memory route,
         bytes4 expectedRevert
     ) internal {
-        if (!params.isAggregatorFunds) {
+        if (params.commandType != CommandType.ProcessMyERC20) {
             IERC20(params.tokenIn).approve(
                 address(ldaDiamond),
                 params.amountIn

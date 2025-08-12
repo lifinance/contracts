@@ -71,7 +71,7 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             pool,
             SwapDirection.Token1ToToken0
@@ -118,7 +118,7 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: swapAmount,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             pool,
             SwapDirection.Token1ToToken0

@@ -75,7 +75,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapData
         );
@@ -87,7 +87,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route
         );
@@ -119,7 +119,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapData
         );
@@ -131,7 +131,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route
         );
@@ -163,7 +163,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             swapData
         );
@@ -175,7 +175,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             route
         );
@@ -207,7 +207,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             swapData
         );
@@ -219,7 +219,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             route
         );
@@ -266,7 +266,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             amountIn: amountIn,
             sender: USER_SENDER,
             recipient: SYNC_SWAP_VAULT,
-            isAggregatorFunds: false // ProcessUserERC20
+            commandType: CommandType.ProcessUserERC20
         });
         swapData[0] = firstSwapData;
 
@@ -277,7 +277,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             amountIn: 0, // Not used in ProcessOnePool
             sender: USER_SENDER,
             recipient: USER_SENDER,
-            isAggregatorFunds: true // ProcessOnePool
+            commandType: CommandType.ProcessOnePool
         });
         swapData[1] = secondSwapData;
 
@@ -291,7 +291,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route
         );
@@ -323,7 +323,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapData
         );
@@ -335,7 +335,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route,
             InvalidCallData.selector
@@ -368,7 +368,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapData
         );
@@ -380,7 +380,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             routeWithInvalidPool,
             InvalidCallData.selector
@@ -403,7 +403,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapDataWithInvalidRecipient
         );
@@ -415,7 +415,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             routeWithInvalidRecipient,
             InvalidCallData.selector
@@ -445,7 +445,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: 1, // Arbitrary amount for this test
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             swapDataWithInvalidWithdrawMode
         );
@@ -457,7 +457,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 amountIn: 1,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             routeWithInvalidWithdrawMode,
             InvalidCallData.selector

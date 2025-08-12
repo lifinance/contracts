@@ -33,7 +33,7 @@ contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: 1_000 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             WHYPE_LHYPE_POOL,
             SwapDirection.Token0ToToken1
@@ -48,7 +48,7 @@ contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: 1_000 * 1e18 - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             WHYPE_LHYPE_POOL,
             SwapDirection.Token0ToToken1

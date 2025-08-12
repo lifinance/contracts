@@ -34,7 +34,7 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: 1_000 * 1e6,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             USDC_E_WXDC_POOL,
             SwapDirection.Token0ToToken1
@@ -49,7 +49,7 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 amountIn: 5_000 * 1e6 - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: true
+                commandType: CommandType.ProcessMyERC20
             }),
             USDC_E_WXDC_POOL,
             SwapDirection.Token0ToToken1

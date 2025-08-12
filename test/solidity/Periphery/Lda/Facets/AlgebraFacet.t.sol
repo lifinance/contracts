@@ -354,7 +354,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 amountIn: 1 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             invalidRoute,
             AlgebraSwapUnexpected.selector
@@ -841,7 +841,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 amountIn: 1 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route,
             InvalidCallData.selector
@@ -945,7 +945,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 amountIn: 1 * 1e18,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                isAggregatorFunds: false
+                commandType: CommandType.ProcessUserERC20
             }),
             route,
             InvalidCallData.selector
