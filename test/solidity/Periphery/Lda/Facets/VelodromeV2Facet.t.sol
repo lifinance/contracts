@@ -55,7 +55,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         address tokenOut;
         bool stable;
         SwapDirection direction;
-        bool callback;
+        CallbackStatus callbackStatus;
     }
 
     struct MultiHopTestParams {
@@ -75,6 +75,13 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         uint256 reserve1Pool1;
         uint256 reserve0Pool2;
         uint256 reserve1Pool2;
+    }
+
+    struct VelodromeV2SwapData {
+        address pool;
+        SwapDirection direction;
+        address recipient;
+        CallbackStatus callbackStatus;
     }
 
     function _setupForkConfig() internal override {
@@ -118,7 +125,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenOut: address(STG_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
-                callback: false
+                callbackStatus: CallbackStatus.Disabled
             })
         );
 
@@ -139,7 +146,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenOut: address(USDC_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token1ToToken0,
-                callback: false
+                callbackStatus: CallbackStatus.Disabled
             })
         );
         vm.stopPrank();
@@ -158,7 +165,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenOut: address(USDC_E_TOKEN),
                 stable: true,
                 direction: SwapDirection.Token0ToToken1,
-                callback: false
+                callbackStatus: CallbackStatus.Disabled
             })
         );
         vm.stopPrank();
@@ -179,14 +186,14 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenOut: address(USDC_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token1ToToken0,
-                callback: false
+                callbackStatus: CallbackStatus.Disabled
             })
         );
         vm.stopPrank();
     }
 
     function test_CanSwap_FromDexAggregator() public override {
-        // fund dex aggregator contract so that the contract holds USDC
+        // // fund dex aggregator contract so that the contract holds USDC
         deal(address(USDC_TOKEN), address(ldaDiamond), 100_000 * 1e6);
 
         vm.startPrank(USER_SENDER);
@@ -202,7 +209,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
-                callback: false
+                callbackStatus: CallbackStatus.Disabled
             })
         );
         vm.stopPrank();
@@ -223,7 +230,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenOut: address(USDC_E_TOKEN),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
-                callback: true
+                callbackStatus: CallbackStatus.Enabled
             })
         );
         vm.stopPrank();
@@ -258,7 +265,51 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         ) = IVelodromeV2Pool(params.pool2).getReserves();
 
         // Build route and execute swap
-        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 1);
+        SwapTestParams[] memory swapParams = new SwapTestParams[](2);
+        bytes[] memory swapData = new bytes[](2);
+
+        // First hop: USDC -> USDC.e (stable)
+        swapParams[0] = SwapTestParams({
+            tokenIn: params.tokenIn,
+            tokenOut: params.tokenMid,
+            amountIn: 1000 * 1e6,
+            sender: USER_SENDER,
+            recipient: params.pool2, // Send to next pool
+            commandType: CommandType.ProcessUserERC20
+        });
+
+        // Build first hop swap data
+        swapData[0] = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: params.pool1,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: params.pool2,
+                callbackStatus: CallbackStatus.Disabled
+            })
+        );
+
+        // Second hop: USDC.e -> STG (volatile)
+        swapParams[1] = SwapTestParams({
+            tokenIn: params.tokenMid,
+            tokenOut: params.tokenOut,
+            amountIn: params.amounts1[1], // Use output from first hop
+            sender: params.pool2,
+            recipient: USER_SENDER,
+            commandType: CommandType.ProcessOnePool
+        });
+
+        // Build second hop swap data
+        swapData[1] = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: params.pool2,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER,
+                callbackStatus: CallbackStatus.Disabled
+            })
+        );
+
+        // Use the base _buildMultiHopRoute
+        bytes memory route = _buildMultiHopRoute(swapParams, swapData);
 
         // Approve and execute
         IERC20(params.tokenIn).approve(address(ldaDiamond), 1000 * 1e6);
@@ -318,7 +369,48 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         ) = IVelodromeV2Pool(params.pool2).getReserves();
 
         // Build route and execute swap
-        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 0);
+        SwapTestParams[] memory hopParams = new SwapTestParams[](2);
+        bytes[] memory hopData = new bytes[](2);
+
+        // First hop: USDC -> USDC.e (stable)
+        hopParams[0] = SwapTestParams({
+            tokenIn: params.tokenIn,
+            tokenOut: params.tokenMid,
+            amountIn: 1000 * 1e6,
+            sender: USER_SENDER,
+            recipient: params.pool2, // Send to next pool
+            commandType: CommandType.ProcessUserERC20
+        });
+
+        hopData[0] = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: params.pool1,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: params.pool2,
+                callbackStatus: CallbackStatus.Disabled
+            })
+        );
+
+        // Second hop: USDC.e -> STG (volatile)
+        hopParams[1] = SwapTestParams({
+            tokenIn: params.tokenMid,
+            tokenOut: params.tokenOut,
+            amountIn: params.amounts1[1], // Use output from first hop
+            sender: params.pool2,
+            recipient: USER_SENDER,
+            commandType: CommandType.ProcessOnePool
+        });
+
+        hopData[1] = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: params.pool2,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER,
+                callbackStatus: CallbackStatus.Disabled
+            })
+        );
+
+        bytes memory route = _buildMultiHopRoute(hopParams, hopData);
 
         // Approve and execute
         IERC20(params.tokenIn).approve(address(ldaDiamond), 1000 * 1e6);
@@ -442,7 +534,48 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         );
 
         // Build multi-hop route
-        bytes memory route = _buildMultiHopRoute(params, USER_SENDER, 1, 0);
+        SwapTestParams[] memory hopParams = new SwapTestParams[](2);
+        bytes[] memory hopData = new bytes[](2);
+
+        // First hop: USDC -> USDC.e (stable)
+        hopParams[0] = SwapTestParams({
+            tokenIn: params.tokenIn,
+            tokenOut: params.tokenMid,
+            amountIn: 1000 * 1e6,
+            sender: USER_SENDER,
+            recipient: params.pool2, // Send to next pool
+            commandType: CommandType.ProcessUserERC20
+        });
+
+        hopData[0] = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: params.pool1,
+                direction: SwapDirection.Token0ToToken1,
+                recipient: params.pool2,
+                callbackStatus: CallbackStatus.Disabled
+            })
+        );
+
+        // Second hop: USDC.e -> STG (volatile)
+        hopParams[1] = SwapTestParams({
+            tokenIn: params.tokenMid,
+            tokenOut: params.tokenOut,
+            amountIn: 0, // Not used in ProcessOnePool
+            sender: params.pool2,
+            recipient: USER_SENDER,
+            commandType: CommandType.ProcessOnePool
+        });
+
+        hopData[1] = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: params.pool2,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER,
+                callbackStatus: CallbackStatus.Disabled
+            })
+        );
+
+        bytes memory route = _buildMultiHopRoute(hopParams, hopData);
 
         deal(address(USDC_TOKEN), USER_SENDER, 1000 * 1e6);
 
@@ -507,14 +640,13 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             : CommandType.ProcessUserERC20;
 
         // 1. Pack the data for the specific swap FIRST
-        bytes memory swapData = abi.encodePacked(
-            VelodromeV2Facet.swapVelodromeV2.selector,
-            pool,
-            params.direction,
-            params.to,
-            params.callback
-                ? uint8(CallbackStatus.Enabled)
-                : uint8(CallbackStatus.Disabled)
+        bytes memory swapData = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: pool,
+                direction: params.direction,
+                recipient: params.to,
+                callbackStatus: params.callbackStatus
+            })
         );
         // build the route.
         bytes memory route = abi.encodePacked(
@@ -534,7 +666,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         emit log_named_uint("Initial tokenIn balance", initialTokenIn);
 
         ExpectedEvent[] memory expectedEvents = new ExpectedEvent[](1);
-        if (params.callback) {
+        if (params.callbackStatus == CallbackStatus.Enabled) {
             bytes[] memory eventParams = new bytes[](4);
             eventParams[0] = abi.encode(address(ldaDiamond));
             eventParams[1] = abi.encode(uint256(0));
@@ -649,101 +781,17 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         return params;
     }
 
-    // function to build first hop of the route
-    function _buildFirstHop(
-        address pool1,
-        address pool2, // The recipient of the first hop is the next pool
-        uint8 direction
+    function _buildVelodromeV2SwapData(
+        VelodromeV2SwapData memory params
     ) private pure returns (bytes memory) {
         return
             abi.encodePacked(
                 VelodromeV2Facet.swapVelodromeV2.selector,
-                pool1,
-                direction,
-                pool2, // Send intermediate tokens to the next pool for the second hop
-                uint8(CallbackStatus.Disabled)
+                params.pool,
+                uint8(params.direction),
+                params.recipient,
+                params.callbackStatus
             );
-    }
-
-    // function to build second hop of the route
-    function _buildSecondHop(
-        address pool2,
-        address recipient,
-        uint8 direction
-    ) private pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                VelodromeV2Facet.swapVelodromeV2.selector,
-                pool2,
-                direction,
-                recipient, // Final recipient
-                uint8(CallbackStatus.Disabled)
-            );
-    }
-
-    // route building function
-    function _buildMultiHopRoute(
-        MultiHopTestParams memory params,
-        address recipient,
-        uint8 firstHopDirection,
-        uint8 secondHopDirection
-    ) private pure returns (bytes memory) {
-        // 1. Get the specific data for each hop
-        bytes memory firstHopData = _buildFirstHop(
-            params.pool1,
-            params.pool2,
-            firstHopDirection
-        );
-
-        bytes memory secondHopData = _buildSecondHop(
-            params.pool2,
-            recipient,
-            secondHopDirection
-        );
-
-        // 2. Assemble the first command
-        bytes memory firstCommand = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            params.tokenIn,
-            uint8(1), // num splits
-            FULL_SHARE,
-            uint16(firstHopData.length), // <--- Add length prefix
-            firstHopData
-        );
-
-        // 3. Assemble the second command
-        // The second hop takes tokens already held by the diamond, so we use ProcessOnePool
-        bytes memory secondCommand = abi.encodePacked(
-            uint8(CommandType.ProcessOnePool),
-            params.tokenMid,
-            uint16(secondHopData.length), // <--- Add length prefix
-            secondHopData
-        );
-
-        // 4. Concatenate the commands to create the final route
-        return bytes.concat(firstCommand, secondCommand);
-    }
-
-    function _verifyUserBalances(
-        MultiHopTestParams memory params,
-        uint256 initialBalance1,
-        uint256 initialBalance2
-    ) private {
-        // Verify token balances
-        uint256 finalBalance1 = IERC20(params.tokenIn).balanceOf(USER_SENDER);
-        uint256 finalBalance2 = IERC20(params.tokenOut).balanceOf(USER_SENDER);
-
-        assertApproxEqAbs(
-            initialBalance1 - finalBalance1,
-            1000 * 1e6,
-            1, // 1 wei tolerance
-            "Token1 spent amount mismatch"
-        );
-        assertEq(
-            finalBalance2 - initialBalance2,
-            params.amounts2[1],
-            "Token2 received amount mismatch"
-        );
     }
 
     function _verifyReserves(
