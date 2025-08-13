@@ -27960,12 +27960,12 @@
       "staging": {
         "1.2.2": [
           {
-            "ADDRESS": "0x59A1Bcaa32EdB1a233fEF945857529BBD6df247f",
+            "ADDRESS": "0x97D67F0131E5D7E4f1215384E595a27eDf051e51",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-08-08 19:23:45",
+            "TIMESTAMP": "2025-08-13 13:12:27",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
             "SALT": "",
-            "VERIFIED": "true",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
