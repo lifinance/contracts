@@ -16,7 +16,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     using SafeERC20 for IERC20;
 
     struct ForkConfig {
-        string networkName;   // e.g. "taiko" (not "ETH_NODE_URI_TAIKO")
+        string networkName; // e.g. "taiko" (not "ETH_NODE_URI_TAIKO")
         uint256 blockNumber;
     }
 
@@ -117,7 +117,9 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     function _setupDexEnv() internal virtual;
 
     // helper to uppercase ASCII
-    function _toUpper(string memory s) internal virtual override pure returns (string memory) {
+    function _convertToUpperCase(
+        string memory s
+    ) internal pure returns (string memory) {
         bytes memory b = bytes(s);
         for (uint256 i; i < b.length; i++) {
             uint8 c = uint8(b[i]);
@@ -129,7 +131,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     }
 
     // optional: ensure key exists in config/networks.json
-    function _ensureNetworkExists(string memory name) internal view {
+    function _ensureNetworkExists(string memory name) internal {
         // will revert if the key path is missing
         string memory json = vm.readFile("config/networks.json");
         // read the ".<networkName>.name" path to confirm key presence
@@ -143,18 +145,34 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     function setUp() public virtual override {
         _setupForkConfig();
 
+        // Validate network name
         if (bytes(forkConfig.networkName).length == 0) {
             revert InvalidForkConfig("networkName not set");
         }
+
+        // Validate block number
+        if (forkConfig.blockNumber == 0) {
+            revert InvalidForkConfig("blockNumber not set");
+        }
+
+        // Compute RPC URL and validate it exists
+        string memory rpc = string.concat(
+            "ETH_NODE_URI_",
+            _convertToUpperCase(forkConfig.networkName)
+        );
+
+        try vm.envString(rpc) returns (string memory rpcUrl) {
+            if (bytes(rpcUrl).length == 0) {
+                revert InvalidForkConfig("RPC URL is empty");
+            }
+            customRpcUrlForForking = rpc;
+        } catch {
+            revert InvalidForkConfig("RPC URL not found");
+        }
+
         // optional validation against networks.json
         _ensureNetworkExists(forkConfig.networkName);
 
-        // compute env var name and assign for fork()
-        string memory rpc = string.concat(
-            "ETH_NODE_URI_",
-            _toUpper(forkConfig.networkName)
-        );
-        customRpcUrlForForking = rpc;
         customBlockNumberForForking = forkConfig.blockNumber;
 
         fork();

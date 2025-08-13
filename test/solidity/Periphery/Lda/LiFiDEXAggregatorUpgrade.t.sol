@@ -3443,7 +3443,7 @@ contract LiFiDexAggregatorEnosysDexV3UpgradeTest is
 
     function _buildUniV3SwapData(
         UniV3SwapParams memory params
-    ) internal returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return
             abi.encodePacked(
                 uniV3StyleFacet.swapUniV3.selector,
@@ -3932,7 +3932,7 @@ contract LiFiDexAggregatorSyncSwapV2UpgradeTest is
 
     function _buildSyncSwapV2SwapData(
         SyncSwapV2SwapParams memory params
-    ) internal returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return
             abi.encodePacked(
                 syncSwapV2Facet.swapSyncSwapV2.selector,
