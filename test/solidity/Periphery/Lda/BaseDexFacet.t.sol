@@ -6,6 +6,7 @@ import { TestHelpers } from "../../utils/TestHelpers.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { CoreRouteFacet } from "lifi/Periphery/Lda/Facets/CoreRouteFacet.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 
 /**
  * @title BaseDexFacetTest
@@ -15,7 +16,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     using SafeERC20 for IERC20;
 
     struct ForkConfig {
-        string rpcEnvName;
+        string networkName;   // e.g. "taiko" (not "ETH_NODE_URI_TAIKO")
         uint256 blockNumber;
     }
 
@@ -70,6 +71,8 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     // Add custom errors at the top of the contract
     error ParamsDataLengthMismatch();
     error NoHopsProvided();
+    error InvalidForkConfig(string reason);
+    error UnknownNetwork(string name);
 
     // Add this struct to hold event expectations
     struct ExpectedEvent {
@@ -113,18 +116,51 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
 
     function _setupDexEnv() internal virtual;
 
+    // helper to uppercase ASCII
+    function _toUpper(string memory s) internal virtual override pure returns (string memory) {
+        bytes memory b = bytes(s);
+        for (uint256 i; i < b.length; i++) {
+            uint8 c = uint8(b[i]);
+            if (c >= 97 && c <= 122) {
+                b[i] = bytes1(c - 32);
+            }
+        }
+        return string(b);
+    }
+
+    // optional: ensure key exists in config/networks.json
+    function _ensureNetworkExists(string memory name) internal view {
+        // will revert if the key path is missing
+        string memory json = vm.readFile("config/networks.json");
+        // read the ".<networkName>.name" path to confirm key presence
+        string memory path = string.concat(".", name, ".name");
+        string memory value = stdJson.readString(json, path);
+        if (bytes(value).length == 0) {
+            revert UnknownNetwork(name);
+        }
+    }
+
     function setUp() public virtual override {
-        // forkConfig should be set in the child contract via _setupForkConfig()
         _setupForkConfig();
-        // TODO if rpcEnvName is not set, revert
-        // TODO if blockNumber is not set, revert
-        customRpcUrlForForking = forkConfig.rpcEnvName;
+
+        if (bytes(forkConfig.networkName).length == 0) {
+            revert InvalidForkConfig("networkName not set");
+        }
+        // optional validation against networks.json
+        _ensureNetworkExists(forkConfig.networkName);
+
+        // compute env var name and assign for fork()
+        string memory rpc = string.concat(
+            "ETH_NODE_URI_",
+            _toUpper(forkConfig.networkName)
+        );
+        customRpcUrlForForking = rpc;
         customBlockNumberForForking = forkConfig.blockNumber;
 
         fork();
         LdaDiamondTest.setUp();
         _addCoreRouteFacet();
-        _setupDexEnv(); // NEW: populate tokens/pools
+        _setupDexEnv(); // populate tokens/pools
         _addDexFacet();
     }
 

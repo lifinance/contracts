@@ -22,7 +22,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
-            rpcEnvName: "ETH_NODE_URI_LINEA",
+            networkName: "linea",
             blockNumber: 20077881
         });
     }

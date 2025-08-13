@@ -80,7 +80,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
-            rpcEnvName: "ETH_NODE_URI_OPTIMISM",
+            networkName: "optimism",
             blockNumber: 133999121
         });
     }

@@ -27,7 +27,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
 
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
-            rpcEnvName: "ETH_NODE_URI_BASE",
+            networkName: "base",
             blockNumber: 29831758
         });
     }

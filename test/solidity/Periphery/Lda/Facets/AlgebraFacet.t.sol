@@ -130,7 +130,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
 
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
-            rpcEnvName: "ETH_NODE_URI_APECHAIN",
+            networkName: "apechain",
             blockNumber: 12912470
         });
     }

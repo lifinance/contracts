@@ -8,7 +8,7 @@ import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
-            rpcEnvName: "ETH_NODE_URI_HYPEREVM",
+            networkName: "hyperevm",
             blockNumber: 4433562
         });
     }
