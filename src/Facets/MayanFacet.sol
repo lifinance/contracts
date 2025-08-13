@@ -266,12 +266,12 @@ contract MayanFacet is
             }
             case 0xe27dce37 {
                 // solhint-disable-next-line max-line-length
-                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,address,uint64,uint256,uint256,(uint64, tuple))
-                receiver := mload(add(protocolData, 0xe4))
+                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,[*address*],uint64,uint256,uint256,(uint64, tuple))
+                receiver := mload(add(protocolData, 0x64))
             }
             case 0x4d1ed73b {
                 // solhint-disable-next-line max-line-length
-                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,address,uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
+                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,[*address*],uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
                 receiver := mload(add(protocolData, 0x64))
             }
             default {
