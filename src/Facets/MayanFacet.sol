@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.1
+/// @custom:version 1.2.2
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -263,6 +263,16 @@ contract MayanFacet is
                 // solhint-disable-next-line max-line-length
                 // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0xe4))
+            }
+            case 0xe27dce37 {
+                // solhint-disable-next-line max-line-length
+                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,[*address*],uint64,uint256,uint256,(uint64, tuple))
+                receiver := mload(add(protocolData, 0x64))
+            }
+            case 0x4d1ed73b {
+                // solhint-disable-next-line max-line-length
+                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,[*address*],uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
+                receiver := mload(add(protocolData, 0x64))
             }
             default {
                 receiver := 0x0
