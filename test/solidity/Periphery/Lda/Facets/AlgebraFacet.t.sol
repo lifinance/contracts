@@ -269,6 +269,8 @@ contract AlgebraFacetTest is BaseDexFacetTest {
     function test_CanSwap_Reverse() public {
         test_CanSwap();
 
+        uint256 amountIn = IERC20(address(WETH_TOKEN)).balanceOf(USER_SENDER);
+
         vm.startPrank(USER_SENDER);
 
         _testAlgebraSwap(
@@ -276,7 +278,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 from: USER_SENDER,
                 to: USER_SENDER,
                 tokenIn: address(WETH_TOKEN),
-                amountIn: 5 * 1e18,
+                amountIn: amountIn,
                 tokenOut: APE_ETH_TOKEN,
                 direction: SwapDirection.Token1ToToken0,
                 supportsFeeOnTransfer: false

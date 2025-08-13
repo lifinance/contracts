@@ -137,14 +137,16 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         // first perform the forward swap.
         test_CanSwap();
 
+        uint256 amountIn = IERC20(address(tokenOut)).balanceOf(USER_SENDER);
         vm.startPrank(USER_SENDER);
+
         _testSwap(
             VelodromeV2SwapTestParams({
                 from: USER_SENDER,
                 to: USER_SENDER,
-                tokenIn: address(tokenMid),
-                amountIn: 500 * 1e18,
-                tokenOut: address(tokenIn),
+                tokenIn: address(tokenOut), // USDC.e from first swap
+                amountIn: amountIn,
+                tokenOut: address(tokenIn), // USDC
                 stable: false,
                 direction: SwapDirection.Token1ToToken0,
                 callbackStatus: CallbackStatus.Disabled
@@ -429,8 +431,8 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         _executeAndVerifySwap(
             SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
                 amountIn: 1000 * 1e6,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
