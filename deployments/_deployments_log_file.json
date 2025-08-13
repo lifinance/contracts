@@ -4932,6 +4932,15 @@
       "staging": {
         "1.0.0": [
           {
+            "ADDRESS": "0xc7576334Fb5184B398fCC5ce0f5d237d9bb8BB22",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-06-03 14:54:59",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          },
+          {
             "ADDRESS": "0x87158BfcC84E661ddb09b461d2F83e1313d7e3F9",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-08-08 19:15:18",
