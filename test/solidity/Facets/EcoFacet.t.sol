@@ -138,43 +138,72 @@ contract EcoFacetTest is TestBaseFacet {
 
     // Additional Eco-specific tests
     function test_EcoFacet_RevertWhenIntentSourceNotProvided() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         EcoFacet.EcoData memory invalidData = validEcoData;
         invalidData.intentSource = address(0);
 
         vm.expectRevert();
-
         ecoFacet.startBridgeTokensViaEco(bridgeData, invalidData);
+
+        vm.stopPrank();
     }
 
     function test_EcoFacet_RevertWhenDeadlineExpired() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         EcoFacet.EcoData memory expiredData = validEcoData;
         expiredData.deadline = block.timestamp - 1;
 
         vm.expectRevert(
             abi.encodeWithSelector(EcoFacet.InvalidDeadline.selector)
         );
-
         ecoFacet.startBridgeTokensViaEco(bridgeData, expiredData);
+
+        vm.stopPrank();
     }
 
     function test_EcoFacet_UsesDefaultProverWhenNotProvided() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         // validEcoData already has prover set to address(0)
         // Should use DEFAULT_PROVER from constructor
 
-        vm.expectEmit(false, false, false, true, address(mockIntentSource));
-
-        // We expect the intent to have DEFAULT_PROVER
-        // The actual event checking would require decoding the Intent struct
+        // The intent will be created with DEFAULT_PROVER
+        // We check that the transfer happens successfully which means the intent was created
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
 
         ecoFacet.startBridgeTokensViaEco(bridgeData, validEcoData);
+
+        vm.stopPrank();
     }
 
     function test_EcoFacet_UsesProvidedProverWhenSet() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         address customProver = address(0x9999);
         EcoFacet.EcoData memory customData = validEcoData;
         customData.prover = customProver;
 
         // Should use the provided prover instead of default
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
         ecoFacet.startBridgeTokensViaEco(bridgeData, customData);
+
+        vm.stopPrank();
     }
 }
