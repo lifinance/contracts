@@ -75,13 +75,49 @@ contract DeployScript is UpdateScriptBase {
             selectorsToAdd[i] = bytes4(vm.parseBytes(rawSelectorsToAdd[i]));
         }
 
+        // Merge .functionSelectorsToRemove with new whitelisted selectors and deduplicate
+        bytes4[] memory mergedSelectorsToRemove = _mergeUnique(
+            selectorsToRemove,
+            selectorsToAdd
+        );
+
         bytes memory callData = abi.encodeWithSelector(
             WhitelistManagerFacet.migrate.selector,
-            selectorsToRemove,
+            mergedSelectorsToRemove,
             contractsToAdd,
             selectorsToAdd
         );
 
         return callData;
+    }
+
+    function _mergeUnique(
+        bytes4[] memory a,
+        bytes4[] memory b
+    ) internal pure returns (bytes4[] memory out) {
+        // upper-bound tmp, then compact
+        bytes4[] memory tmp = new bytes4[](a.length + b.length);
+        uint256 n;
+
+        // add unique from a
+        for (uint256 i; i < a.length; ++i) {
+            if (!_contains(tmp, n, a[i])) tmp[n++] = a[i];
+        }
+        // add unique from b
+        for (uint256 j; j < b.length; ++j) {
+            if (!_contains(tmp, n, b[j])) tmp[n++] = b[j];
+        }
+
+        out = new bytes4[](n);
+        for (uint256 k; k < n; ++k) out[k] = tmp[k];
+    }
+
+    function _contains(
+        bytes4[] memory arr,
+        uint256 len,
+        bytes4 v
+    ) internal pure returns (bool) {
+        for (uint256 i; i < len; ++i) if (arr[i] == v) return true;
+        return false;
     }
 }
