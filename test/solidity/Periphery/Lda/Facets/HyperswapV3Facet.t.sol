@@ -35,94 +35,34 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
     }
 
     function test_CanSwap() public override {
-        // Get pool and quote
-        address pool = HYPERSWAP_FACTORY.getPool(
+        // Get pool first since it's dynamically calculated
+        uniV3Pool = HYPERSWAP_FACTORY.getPool(
             address(tokenIn),
             address(tokenOut),
             3000
         );
 
-        uint256 amountIn = 1_000 * 1e6;
-        // (uint256 quoted, , , ) = HYPERSWAP_QUOTER.quoteExactInputSingle(
-        //     IHyperswapV3QuoterV2.QuoteExactInputSingleParams({
-        //         tokenIn: address(TOKEN_IN),
-        //         tokenOut: address(TOKEN_OUT),
-        //         amountIn: amountIn,
-        //         fee: 3000,
-        //         sqrtPriceLimitX96: 0
-        //     })
-        // );
-
-        // expect the Route event
-        // vm.expectEmit(true, true, true, true);
-        // emit Route(
-        //     USER_SENDER,
-        //     USER_SENDER,
-        //     address(TOKEN_IN),
-        //     address(TOKEN_OUT),
-        //     amountIn,
-        //     quoted,
-        //     quoted
-        // );
-
-        _executeUniV3StyleSwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: amountIn,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            pool,
-            SwapDirection.Token1ToToken0
+        _executeUniV3StyleSwapAuto(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessUserERC20,
+                amountIn: 1_000 * 1e6
+            })
         );
     }
 
     function test_CanSwap_FromDexAggregator() public override {
-        // Get pool and quote
-        address pool = HYPERSWAP_FACTORY.getPool(
+        // Get pool first since it's dynamically calculated
+        uniV3Pool = HYPERSWAP_FACTORY.getPool(
             address(tokenIn),
             address(tokenOut),
             3000
         );
 
-        uint256 amountIn = 1_000 * 1e6;
-        uint256 swapAmount = amountIn - 1; // Account for slot-undrain
-
-        // (uint256 quoted, , , ) = HYPERSWAP_QUOTER.quoteExactInputSingle(
-        //     IHyperswapV3QuoterV2.QuoteExactInputSingleParams({
-        //         tokenIn: address(USDT0),
-        //         tokenOut: address(WHYPE),
-        //         amountIn: swapAmount,
-        //         fee: 3000,
-        //         sqrtPriceLimitX96: 0
-        //     })
-        // );
-
-        // expect the Route event
-        // vm.expectEmit(true, true, true, true);
-        // emit Route(
-        //     USER_SENDER,
-        //     USER_SENDER,
-        //     address(TOKEN_IN),
-        //     address(TOKEN_OUT),
-        //     amountIn - 1, // Account for slot undrain protection
-        //     quoted,
-        //     quoted
-        // );
-
-        _executeUniV3StyleSwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: swapAmount,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
-            }),
-            pool,
-            SwapDirection.Token1ToToken0
+        _executeUniV3StyleSwapAuto(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessMyERC20,
+                amountIn: 1_000 * 1e6 - 1 // Account for slot-undrain
+            })
         );
     }
 }

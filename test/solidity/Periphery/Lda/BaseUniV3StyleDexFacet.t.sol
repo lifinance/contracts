@@ -110,15 +110,21 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         revert TokenNotInPool(tokenIn, pool);
     }
 
-    // Auto-wired UniV3-style swap using base token/pool slots
+    struct UniV3AutoSwapParams {
+        CommandType commandType;
+        uint256 amountIn;
+    }
+
     function _executeUniV3StyleSwapAuto(
-        CommandType cmd,
-        uint256 rawAmountIn
+        UniV3AutoSwapParams memory params
     ) internal {
-        uint256 amountIn = _adjustAmountFor(cmd, rawAmountIn);
+        uint256 amountIn = _adjustAmountFor(
+            params.commandType,
+            params.amountIn
+        );
 
         // Fund the appropriate account
-        if (cmd == CommandType.ProcessMyERC20) {
+        if (params.commandType == CommandType.ProcessMyERC20) {
             deal(address(tokenIn), address(ldaDiamond), amountIn + 1);
         } else {
             deal(address(tokenIn), USER_SENDER, amountIn);
@@ -143,7 +149,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                commandType: cmd
+                commandType: params.commandType
             }),
             swapData
         );
@@ -155,7 +161,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
                 amountIn: amountIn,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
-                commandType: cmd
+                commandType: params.commandType
             }),
             route
         );

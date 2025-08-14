@@ -7,10 +7,7 @@ import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 
 contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     function _setupForkConfig() internal override {
-        forkConfig = ForkConfig({
-            networkName: "xdc",
-            blockNumber: 89279495
-        });
+        forkConfig = ForkConfig({ networkName: "xdc", blockNumber: 89279495 });
     }
 
     function _getCallbackSelector() internal pure override returns (bytes4) {
@@ -25,32 +22,20 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     }
 
     function test_CanSwap() public override {
-        _executeUniV3StyleSwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: 1_000 * 1e6,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            uniV3Pool,
-            SwapDirection.Token0ToToken1
+        _executeUniV3StyleSwapAuto(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessUserERC20,
+                amountIn: 1_000 * 1e6
+            })
         );
     }
 
     function test_CanSwap_FromDexAggregator() public override {
-        _executeUniV3StyleSwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: 5_000 * 1e6 - 1, // Account for slot-undrain
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
-            }),
-            uniV3Pool,
-            SwapDirection.Token0ToToken1
+        _executeUniV3StyleSwapAuto(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessMyERC20,
+                amountIn: 5_000 * 1e6 - 1 // Account for slot-undrain
+            })
         );
     }
 

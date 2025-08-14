@@ -25,10 +25,20 @@ contract EnosysDexV3FacetTest is BaseUniV3StyleDexFacetTest {
     }
 
     function test_CanSwap() public override {
-        _executeUniV3StyleSwapAuto(CommandType.ProcessUserERC20, 1_000 * 1e18);
+        _executeUniV3StyleSwapAuto(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessUserERC20,
+                amountIn: 1_000 * 1e18
+            })
+        );
     }
 
     function test_CanSwap_FromDexAggregator() public override {
-        _executeUniV3StyleSwapAuto(CommandType.ProcessMyERC20, 1_000 * 1e18);
+        _executeUniV3StyleSwapAuto(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessMyERC20,
+                amountIn: 1_000 * 1e18
+            })
+        );
     }
 }
