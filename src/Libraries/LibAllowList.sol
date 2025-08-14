@@ -28,7 +28,7 @@ library LibAllowList {
     function addAllowedContract(address _contract) internal {
         // validate contract address is not zero address
         if (_contract == address(0)) revert InvalidCallData();
-        // ensure address is actually a contract (including EIP-7702 AA wallets)
+        // ensure address is actually a contract (does NOT include EIP-7702 AA wallets)
         if (!LibAsset.isContract(_contract)) revert InvalidContract();
 
         AllowListStorage storage als = _getStorage();
