@@ -49,30 +49,247 @@ const main = defineCommand({
     if (network.toLowerCase() === 'tron') {
       consola.info('Running Tron network health check using troncast...')
 
-      // Use troncast utilities for Tron-specific operations
+      const { default: deployedContracts } = await import(
+        `../../deployments/${network.toLowerCase()}.json`
+      )
+      const targetStateJson = await import(
+        `../../script/deploy/_targetState.json`
+      )
+      const nonCoreFacets = Object.keys(
+        targetStateJson[network.toLowerCase()].production.LiFiDiamond
+      ).filter((k) => {
+        return (
+          !coreFacets.includes(k) &&
+          !corePeriphery.includes(k) &&
+          k !== 'LiFiDiamond' &&
+          k.includes('Facet')
+        )
+      })
 
+      consola.info('Running post deployment checks for Tron...\n')
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check Diamond Contract                   │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking diamond Contract...')
+
+      // Check if LiFiDiamond is deployed
+      if (!deployedContracts['LiFiDiamond']) {
+        logError(`LiFiDiamond not deployed`)
+        finish()
+      }
+
+      const diamondAddress = deployedContracts['LiFiDiamond']
+
+      // Use troncast to check if contract exists
       try {
-        // Use troncast to check Tron deployment
-        const tronCheckCmd = `bunx tsx script/troncast/index.ts call --help`
-        execSync(tronCheckCmd, { stdio: 'inherit' })
+        const codeCheckCmd = `bunx tsx script/troncast/index.ts call "${diamondAddress}" "owner()" --network tron`
+        execSync(codeCheckCmd, { encoding: 'utf8' })
+        consola.success('LiFiDiamond deployed')
+      } catch (error) {
+        logError(`LiFiDiamond not accessible at ${diamondAddress}`)
+      }
 
-        consola.success('Troncast is available for Tron network operations')
-        consola.warn(
-          'Full Tron health check implementation pending - use troncast CLI for now'
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                    Check core facets                    │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking Core Facets...')
+      for (const facet of coreFacets) {
+        if (!deployedContracts[facet]) {
+          logError(`Facet ${facet} not deployed`)
+          continue
+        }
+        consola.success(`Facet ${facet} deployed`)
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │         Check that non core facets are deployed         │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking Non-Core facets...')
+      for (const facet of nonCoreFacets) {
+        if (!deployedContracts[facet]) {
+          logError(`Facet ${facet} not deployed`)
+          continue
+        }
+        consola.success(`Facet ${facet} deployed`)
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │          Check that all facets are registered           │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking facets registered in diamond...')
+
+      let registeredFacets: string[] = []
+      try {
+        // Use troncast instead of cast for Tron network
+        const rawString = execSync(
+          `bunx tsx script/troncast/index.ts call "${diamondAddress}" "facets()" --network tron`,
+          { encoding: 'utf8' }
         )
 
-        // TODO: Implement full Tron health check using troncast
-        // This would involve using troncast commands to verify:
-        // - Diamond deployment
-        // - Facet registration
-        // - Contract ownership
-        // - etc.
+        // Parse the troncast output (similar to cast output parsing)
+        const jsonCompatibleString = rawString
+          .replace(/\(/g, '[')
+          .replace(/\)/g, ']')
+          .replace(/T[A-Za-z0-9]+/g, '"$&"') // Tron addresses start with T
+          .replace(/0x[0-9a-fA-F]+/g, '"$&"')
 
-        return
+        const onChainFacets = JSON.parse(jsonCompatibleString)
+
+        if (Array.isArray(onChainFacets)) {
+          // mapping on-chain facet addresses to names in config
+          const configFacetsByAddress = Object.fromEntries(
+            Object.entries(deployedContracts).map(([name, address]) => {
+              return [(address as string).toLowerCase(), name]
+            })
+          )
+
+          registeredFacets = onChainFacets.map(([address]) => {
+            return configFacetsByAddress[address.toLowerCase()]
+          })
+        }
       } catch (error) {
-        consola.error('Failed to run Tron health check:', error)
-        return
+        consola.warn(
+          'Unable to parse output - skipping facet registration check'
+        )
+        consola.warn('Error:', error)
       }
+
+      for (const facet of [...coreFacets, ...nonCoreFacets])
+        if (!registeredFacets.includes(facet))
+          logError(
+            `Facet ${facet} not registered in Diamond or possibly unverified`
+          )
+        else consola.success(`Facet ${facet} registered in Diamond`)
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │      Check that core periphery contracts are deployed   │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking deploy status of periphery contracts...')
+      for (const contract of corePeriphery) {
+        if (!deployedContracts[contract]) {
+          logError(`Periphery contract ${contract} not deployed`)
+          continue
+        }
+        consola.success(`Periphery contract ${contract} deployed`)
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │          Check registered periphery contracts           │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box(
+        'Checking periphery registration in diamond (PeripheryRegistry)...'
+      )
+
+      for (const periphery of corePeriphery) {
+        const peripheryAddress = deployedContracts[periphery]
+        if (!peripheryAddress) {
+          logError(`Periphery contract ${periphery} not deployed`)
+          continue
+        }
+
+        // Skip LiFiTimelockController as it doesn't need registration
+        if (periphery === 'LiFiTimelockController') continue
+
+        try {
+          // Use troncast to check periphery registration
+          const registeredAddress = execSync(
+            `bunx tsx script/troncast/index.ts call "${diamondAddress}" "getPeripheryContract(string)" "${periphery}" --network tron`,
+            { encoding: 'utf8' }
+          ).trim()
+
+          if (
+            registeredAddress &&
+            registeredAddress !== '0x0000000000000000000000000000000000000000'
+          ) 
+            consola.success(
+              `Periphery contract ${periphery} registered in Diamond`
+            )
+           else 
+            logError(
+              `Periphery contract ${periphery} not registered in Diamond`
+            )
+          
+        } catch (error) {
+          logError(`Failed to check registration for ${periphery}`)
+        }
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check contract ownership                 │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking ownership...')
+
+      // Check Diamond ownership
+      try {
+        const diamondOwner = execSync(
+          `bunx tsx script/troncast/index.ts call "${diamondAddress}" "owner()" --network tron`,
+          { encoding: 'utf8' }
+        ).trim()
+
+        consola.info(`Diamond owner: ${diamondOwner}`)
+
+        // Check if Timelock is deployed and owns the diamond
+        if (deployedContracts.LiFiTimelockController) {
+          const timelockAddress = deployedContracts.LiFiTimelockController
+          if (diamondOwner.toLowerCase() !== timelockAddress.toLowerCase()) 
+            logError(
+              `Diamond is not owned by Timelock. Owner: ${diamondOwner}, Expected: ${timelockAddress}`
+            )
+           else 
+            consola.success('Diamond is owned by Timelock')
+          
+        } else 
+          consola.warn(
+            'LiFiTimelockController not deployed, diamond ownership cannot be fully verified'
+          )
+        
+      } catch (error) {
+        logError('Failed to check Diamond ownership')
+      }
+
+      // Check ERC20Proxy ownership
+      if (deployedContracts['ERC20Proxy']) 
+        try {
+          const erc20ProxyOwner = execSync(
+            `bunx tsx script/troncast/index.ts call "${deployedContracts['ERC20Proxy']}" "owner()" --network tron`,
+            { encoding: 'utf8' }
+          ).trim()
+
+          consola.info(`ERC20Proxy owner: ${erc20ProxyOwner}`)
+        } catch (error) {
+          logError('Failed to check ERC20Proxy ownership')
+        }
+      
+
+      // Check Executor authorization in ERC20Proxy
+      if (deployedContracts['Executor'] && deployedContracts['ERC20Proxy']) 
+        try {
+          const isAuthorized = execSync(
+            `bunx tsx script/troncast/index.ts call "${deployedContracts['ERC20Proxy']}" "authorizedCallers(address)" "${deployedContracts['Executor']}" --network tron`,
+            { encoding: 'utf8' }
+          ).trim()
+
+          if (isAuthorized === 'true') 
+            consola.success('Executor is authorized in ERC20Proxy')
+           else 
+            logError('Executor is not authorized in ERC20Proxy')
+          
+        } catch (error) {
+          consola.warn('Could not verify Executor authorization')
+        }
+      
+
+      consola.info('\nTron network health check completed.')
+      consola.info(
+        'Note: Some checks may be limited due to Tron network differences.'
+      )
+      consola.info(
+        'For full verification, use troncast CLI directly for specific queries.'
+      )
+
+      finish()
+      return
     }
 
     const { default: deployedContracts } = await import(
