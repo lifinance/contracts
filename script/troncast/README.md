@@ -12,11 +12,11 @@ The tool is already integrated into the project. No additional installation is r
 
 ```bash
 # Show help
-bun run troncast --help
+bun troncast --help
 
 # Show help for a specific command
-bun run troncast call --help
-bun run troncast send --help
+bun troncast call --help
+bun troncast send --help
 ```
 
 ### Call Command (Read-Only)
@@ -25,16 +25,16 @@ Execute read-only contract calls without sending transactions.
 
 ```bash
 # Basic call
-bun run troncast call <address> "<function_signature>" [params...] [options]
+bun troncast call <address> "<function_signature>" [params...] [options]
 
 # Examples
-bun run troncast call <TOKEN_ADDRESS> "name() returns (string)" --env mainnet
-bun run troncast call <TOKEN_ADDRESS> "symbol() returns (string)" --env mainnet
-bun run troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet
-bun run troncast call <TOKEN_ADDRESS> "balanceOf(address) returns (uint256)" <WALLET_ADDRESS> --env mainnet
+bun troncast call <TOKEN_ADDRESS> "name() returns (string)" --env mainnet
+bun troncast call <TOKEN_ADDRESS> "symbol() returns (string)" --env mainnet
+bun troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet
+bun troncast call <TOKEN_ADDRESS> "balanceOf(address) returns (uint256)" <WALLET_ADDRESS> --env mainnet
 
 # With JSON output
-bun run troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet --json
+bun troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet --json
 ```
 
 ### Send Command (Transactions)
@@ -43,17 +43,17 @@ Send transactions to modify contract state.
 
 ```bash
 # Basic send
-bun run troncast send <address> "<function_signature>" [params...] [options]
+bun troncast send <address> "<function_signature>" [params...] [options]
 
 # Examples
 # Transfer tokens (requires private key)
-bun run troncast send <TOKEN_ADDRESS> "transfer(address,uint256)" <RECEIVER_ADDRESS>,1000000 --private-key YOUR_KEY
+bun troncast send <TOKEN_ADDRESS> "transfer(address,uint256)" <RECEIVER_ADDRESS>,1000000 --private-key YOUR_KEY
 
 # Approve spending (dry run)
-bun run troncast send <TOKEN_ADDRESS> "approve(address,uint256)" <SPENDER_ADDRESS>,1000000 --dry-run
+bun troncast send <TOKEN_ADDRESS> "approve(address,uint256)" <SPENDER_ADDRESS>,1000000 --dry-run
 
 # Send with TRX value
-bun run troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-key YOUR_KEY
+bun troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-key YOUR_KEY
 ```
 
 ### Options
@@ -132,21 +132,21 @@ These limitations are due to fundamental differences between Tron and Ethereum e
 
 ```bash
 # Get token info on mainnet
-bun run troncast call <TOKEN_ADDRESS> "name() returns (string)" --env mainnet
-bun run troncast call <TOKEN_ADDRESS> "symbol() returns (string)" --env mainnet
-bun run troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet
+bun troncast call <TOKEN_ADDRESS> "name() returns (string)" --env mainnet
+bun troncast call <TOKEN_ADDRESS> "symbol() returns (string)" --env mainnet
+bun troncast call <TOKEN_ADDRESS> "decimals() returns (uint8)" --env mainnet
 ```
 
 ### Check Balance
 
 ```bash
-bun run troncast call <TOKEN_ADDRESS> "balanceOf(address) returns (uint256)" <WALLET_ADDRESS> --env mainnet
+bun troncast call <TOKEN_ADDRESS> "balanceOf(address) returns (uint256)" <WALLET_ADDRESS> --env mainnet
 ```
 
 ### Dry Run Transaction
 
 ```bash
-bun run troncast send <TOKEN_ADDRESS> "transfer(address,uint256)" <RECEIVER_ADDRESS>,1000000 --dry-run
+bun troncast send <TOKEN_ADDRESS> "transfer(address,uint256)" <RECEIVER_ADDRESS>,1000000 --dry-run
 ```
 
 ## Private Key Management
