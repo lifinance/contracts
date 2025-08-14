@@ -105,9 +105,26 @@ TRX values can be specified in different formats:
 - `100000sun` - 100000 SUN
 - `100000` - Raw SUN value
 
-## Known Issues
+## Known Limitations
+
+### Compatibility Issues
 
 Due to a compatibility issue between TronWeb and Bun, you may occasionally see a "proto is not defined" error. Simply retry the command and it should work.
+
+### Feature Limitations
+
+The following Cast features are not yet supported in TronCast:
+
+- **ABI fetching**: Cannot automatically fetch contract ABIs from block explorers
+- **Contract verification**: No support for verifying contracts on TronScan
+- **Wallet management**: No built-in wallet creation/management features
+- **Advanced gas estimation**: Limited gas estimation compared to Cast
+- **Chain forking**: No support for forking Tron networks for testing
+- **Scripting**: No support for complex scripting like Cast scripts
+- **ENS/TNS resolution**: No name service resolution support
+- **Event filtering**: Limited event log querying capabilities
+
+These limitations are due to fundamental differences between Tron and Ethereum ecosystems, as well as the current scope of the tool being focused on basic contract interaction needs.
 
 ## Examples
 
