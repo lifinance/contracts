@@ -4,7 +4,11 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { EnvironmentEnum } from '../../common/types'
+import {
+  getEnvVar,
+  getPrivateKeyForEnvironment,
+} from '../../demoScripts/utils/demoScriptHelpers'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
@@ -12,7 +16,6 @@ import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
   getEnvironment,
-  getPrivateKey,
   getNetworkConfig,
   getContractAddress,
   checkExistingDeployment,
@@ -64,12 +67,14 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   // Get the correct private key based on environment
   let privateKey: string
   try {
-    privateKey = await getPrivateKey()
+    privateKey = getPrivateKeyForEnvironment(environment)
   } catch (error: any) {
     consola.error(error.message)
     consola.error(
       `Please ensure ${
-        environment === 'production' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
+        environment === EnvironmentEnum.production
+          ? 'PRIVATE_KEY_PRODUCTION'
+          : 'PRIVATE_KEY'
       } is set in your .env file`
     )
     process.exit(1)

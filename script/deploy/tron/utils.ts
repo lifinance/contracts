@@ -5,7 +5,8 @@ import { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { EnvironmentEnum } from '../../common/types'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
 import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
@@ -91,11 +92,13 @@ export async function executeShellCommand(command: string): Promise<string> {
 /**
  * Get deployment environment from config.sh
  */
-export async function getEnvironment(): Promise<string> {
+export async function getEnvironment(): Promise<EnvironmentEnum> {
   const productionValue = await executeShellCommand(
     'source script/config.sh && echo $PRODUCTION'
   )
-  return productionValue === 'true' ? 'production' : 'staging'
+  return productionValue === 'true'
+    ? EnvironmentEnum.production
+    : EnvironmentEnum.staging
 }
 
 /**
@@ -103,9 +106,7 @@ export async function getEnvironment(): Promise<string> {
  */
 export async function getPrivateKey(): Promise<string> {
   const environment = await getEnvironment()
-
-  if (environment === 'production') return getEnvVar('PRIVATE_KEY_PRODUCTION')
-  else return getEnvVar('PRIVATE_KEY')
+  return getPrivateKeyForEnvironment(environment)
 }
 
 /**
@@ -125,15 +126,18 @@ export async function logDeployment(
   // Escape shell arguments to prevent injection
   const escapeShellArg = (arg: string) => `'${arg.replace(/'/g, "'\"'\"'")}'`
 
+  const environmentString =
+    environment === EnvironmentEnum.production ? 'production' : 'staging'
   const logCommand = [
-    'source script/config.sh && source script/helperFunctions.sh && logContractDeploymentInfo',
+    'script/helperFunctions.sh',
+    'logDeployment',
     escapeShellArg(contract),
     escapeShellArg(network),
     escapeShellArg(timestamp),
     escapeShellArg(version),
     '"200"',
     escapeShellArg(constructorArgs),
-    escapeShellArg(environment),
+    escapeShellArg(environmentString),
     escapeShellArg(address),
     escapeShellArg(String(verified)),
     escapeShellArg(''),
@@ -154,7 +158,8 @@ export async function saveContractAddress(
   address: string
 ): Promise<void> {
   const environment = await getEnvironment()
-  const fileSuffix = environment === 'production' ? '' : 'staging.'
+  const fileSuffix =
+    environment === EnvironmentEnum.production ? '' : 'staging.'
   const deploymentFile = resolve(
     process.cwd(),
     `deployments/${network}.${fileSuffix}json`
@@ -182,7 +187,8 @@ export async function getContractAddress(
   contract: string
 ): Promise<string | null> {
   const environment = await getEnvironment()
-  const fileSuffix = environment === 'production' ? '' : 'staging.'
+  const fileSuffix =
+    environment === EnvironmentEnum.production ? '' : 'staging.'
   const deploymentFile = resolve(
     process.cwd(),
     `deployments/${network}.${fileSuffix}json`
@@ -206,7 +212,8 @@ export async function saveDiamondDeployment(
   facets: Record<string, { address: string; version: string }>
 ): Promise<void> {
   const environment = await getEnvironment()
-  const fileSuffix = environment === 'production' ? '' : 'staging.'
+  const fileSuffix =
+    environment === EnvironmentEnum.production ? '' : 'staging.'
   const diamondFile = resolve(
     process.cwd(),
     `deployments/${network}.diamond.${fileSuffix}json`
@@ -713,19 +720,16 @@ export function encodeConstructorArgs(args: any[]): string {
     const types: string[] = args.map((arg) => {
       if (typeof arg === 'string') {
         // Check if it's an address (starts with T or 0x)
-        if (arg.startsWith('T') || arg.startsWith('0x')) 
-          return 'address'
-        
+        if (arg.startsWith('T') || arg.startsWith('0x')) return 'address'
+
         return 'string'
-      } else if (typeof arg === 'number' || typeof arg === 'bigint') 
+      } else if (typeof arg === 'number' || typeof arg === 'bigint')
         return 'uint256'
-       else if (typeof arg === 'boolean') 
-        return 'bool'
-       else if (Array.isArray(arg)) {
+      else if (typeof arg === 'boolean') return 'bool'
+      else if (Array.isArray(arg)) {
         // For arrays, try to determine the element type
-        if (arg.length > 0 && typeof arg[0] === 'string') 
-          return 'string[]'
-        
+        if (arg.length > 0 && typeof arg[0] === 'string') return 'string[]'
+
         return 'uint256[]'
       }
       return 'bytes'
@@ -1016,11 +1020,11 @@ export async function validateBalance(
  * Display deployment confirmation prompt
  */
 export async function confirmDeployment(
-  environment: string,
+  environment: EnvironmentEnum,
   network: string,
   contracts: string[]
 ): Promise<boolean> {
-  const isProduction = environment === 'production'
+  const isProduction = environment === EnvironmentEnum.production
   const networkName = network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet'
 
   // Use consola.box for deployment plan
@@ -1103,15 +1107,17 @@ export function printDeploymentSummary(
  */
 export function displayNetworkInfo(
   networkInfo: INetworkInfo,
-  environment: string,
+  environment: EnvironmentEnum,
   rpcUrl: string
 ): void {
   const networkName = rpcUrl.includes('shasta') ? 'Shasta Testnet' : 'Mainnet'
+  const environmentString =
+    environment === EnvironmentEnum.production ? 'PRODUCTION' : 'STAGING'
 
   const infoContent = `
 Network: ${networkName}
 RPC URL: ${rpcUrl}
-Environment: ${environment.toUpperCase()}
+Environment: ${environmentString}
 Address: ${networkInfo.address}
 Balance: ${networkInfo.balance} TRX
 Block: ${networkInfo.block}

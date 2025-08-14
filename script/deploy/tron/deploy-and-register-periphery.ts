@@ -5,7 +5,11 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 // Import utilities from existing scripts
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { EnvironmentEnum } from '../../common/types'
+import {
+  getEnvVar,
+  getPrivateKeyForEnvironment,
+} from '../../demoScripts/utils/demoScriptHelpers'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig } from './types'
@@ -13,7 +17,6 @@ import {
   loadForgeArtifact,
   getContractVersion,
   getEnvironment,
-  getPrivateKey,
   getNetworkConfig,
   getContractAddress,
   saveContractAddress,
@@ -63,12 +66,14 @@ async function deployAndRegisterPeripheryImpl(options: {
   // Get the correct private key based on environment
   let privateKey: string
   try {
-    privateKey = await getPrivateKey()
+    privateKey = getPrivateKeyForEnvironment(environment)
   } catch (error: any) {
     consola.error(error.message)
     consola.error(
       `Please ensure ${
-        environment === 'production' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
+        environment === EnvironmentEnum.production
+          ? 'PRIVATE_KEY_PRODUCTION'
+          : 'PRIVATE_KEY'
       } is set in your .env file`
     )
     process.exit(1)
@@ -99,7 +104,8 @@ async function deployAndRegisterPeripheryImpl(options: {
     consola.info('Network Info:', {
       network: network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet',
       rpcUrl: network,
-      environment: environment.toUpperCase(),
+      environment:
+        environment === EnvironmentEnum.production ? 'PRODUCTION' : 'STAGING',
       address: networkInfo.address,
       balance: `${networkInfo.balance} TRX`,
       block: networkInfo.block,
@@ -135,8 +141,8 @@ async function deployAndRegisterPeripheryImpl(options: {
     consola.info('4. Deploy TokenWrapper')
     consola.info('5. Register all contracts with PeripheryRegistryFacet\n')
 
-    if (!dryRun && !options.skipConfirmation) 
-      if (environment === 'production') {
+    if (!dryRun && !options.skipConfirmation)
+      if (environment === EnvironmentEnum.production) {
         consola.warn(
           ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
         )
@@ -167,7 +173,6 @@ async function deployAndRegisterPeripheryImpl(options: {
           process.exit(0)
         }
       }
-    
 
     const deployedContracts: Record<string, string> = {}
     const deploymentResults = []

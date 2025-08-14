@@ -44,6 +44,37 @@ const main = defineCommand({
   },
   async run({ args }) {
     const { network } = args
+
+    // Handle Tron network separately using troncast
+    if (network.toLowerCase() === 'tron') {
+      consola.info('Running Tron network health check using troncast...')
+
+      // Use troncast utilities for Tron-specific operations
+
+      try {
+        // Use troncast to check Tron deployment
+        const tronCheckCmd = `bunx tsx script/troncast/index.ts call --help`
+        execSync(tronCheckCmd, { stdio: 'inherit' })
+
+        consola.success('Troncast is available for Tron network operations')
+        consola.warn(
+          'Full Tron health check implementation pending - use troncast CLI for now'
+        )
+
+        // TODO: Implement full Tron health check using troncast
+        // This would involve using troncast commands to verify:
+        // - Diamond deployment
+        // - Facet registration
+        // - Contract ownership
+        // - etc.
+
+        return
+      } catch (error) {
+        consola.error('Failed to run Tron health check:', error)
+        return
+      }
+    }
+
     const { default: deployedContracts } = await import(
       `../../deployments/${network.toLowerCase()}.json`
     )

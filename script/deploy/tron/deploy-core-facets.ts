@@ -3,7 +3,11 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { EnvironmentEnum } from '../../common/types'
+import {
+  getEnvVar,
+  getPrivateKeyForEnvironment,
+} from '../../demoScripts/utils/demoScriptHelpers'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
@@ -13,7 +17,6 @@ import {
   saveDiamondDeployment,
   getContractVersion,
   getEnvironment,
-  getPrivateKey,
   getNetworkConfig,
   checkExistingDeployment,
   deployContractWithLogging,
@@ -119,13 +122,15 @@ async function deployCoreFacetsImpl(options: {
   // Get the correct private key based on environment
   let privateKey: string
   try {
-    privateKey = await getPrivateKey()
+    privateKey = getPrivateKeyForEnvironment(environment)
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     consola.error(errorMessage)
     consola.error(
       `Please ensure ${
-        environment === 'production' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
+        environment === EnvironmentEnum.production
+          ? 'PRIVATE_KEY_PRODUCTION'
+          : 'PRIVATE_KEY'
       } is set in your .env file`
     )
     process.exit(1)
@@ -146,7 +151,7 @@ async function deployCoreFacetsImpl(options: {
 
   // Get network info
   const networkInfo = await deployer.getNetworkInfo()
-  displayNetworkInfo(networkInfo, network, environment)
+  displayNetworkInfo(networkInfo, environment, network)
 
   // Initialize TronWeb for balance validation
   const { TronWeb } = await import('tronweb')
@@ -195,9 +200,7 @@ async function deployCoreFacetsImpl(options: {
   if (hasExisting) {
     consola.info('\nExisting deployments found:')
     existingDeployments.forEach((d, index) => {
-      if (d.exists) 
-        consola.info(`  ✓ ${coreFacets[index]}: ${d.address}`)
-      
+      if (d.exists) consola.info(`  ✓ ${coreFacets[index]}: ${d.address}`)
     })
   }
   // Deploy facets
@@ -311,7 +314,7 @@ async function deployCoreFacetsImpl(options: {
       cost: 0,
       status: 'existing',
     })
-  } else 
+  } else
     try {
       // Get owner address (deployer address)
       const ownerAddress = networkInfo.address
@@ -336,9 +339,9 @@ async function deployCoreFacetsImpl(options: {
 
       deploymentResults.push(result)
 
-      if (result.status === 'success' && result.address) 
-        // Save to deployment file
+      if (result.status === 'success' && result.address)
         if (!options.dryRun) {
+          // Save to deployment file
           await saveContractAddress('tron', diamondName, result.address)
 
           // Save diamond deployment info
@@ -364,7 +367,6 @@ async function deployCoreFacetsImpl(options: {
             false
           )
         }
-      
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -378,7 +380,6 @@ async function deployCoreFacetsImpl(options: {
         status: 'failed',
       })
     }
-  
 
   // If diamond already existed, still update the diamond JSON with facet addresses
   if (existingDiamond.exists && existingDiamond.address && !options.dryRun) {

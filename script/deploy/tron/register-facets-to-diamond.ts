@@ -7,7 +7,13 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
-import { getPrivateKey, ENERGY_PRICE, updateDiamondJsonBatch } from './utils'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+
+import {
+  getEnvironment,
+  ENERGY_PRICE,
+  updateDiamondJsonBatch,
+} from './utils.js'
 
 // Verified selectors (from contract-selectors.sh)
 const FACET_SELECTORS: Record<string, string[]> = {
@@ -358,18 +364,15 @@ async function registerFacetsBatch(
             }
           }
 
-          if (isRegistered) 
+          if (isRegistered)
             facetEntries.push({
               address: facetAddress,
               name: facetName,
             })
-          
         }
       }
 
-      if (facetEntries.length > 0) 
-        await updateDiamondJsonBatch(facetEntries)
-      
+      if (facetEntries.length > 0) await updateDiamondJsonBatch(facetEntries)
     }
 
     return true
@@ -417,7 +420,8 @@ async function registerFacetsToDiamond(
     const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
 
     // 2. Setup TronWeb
-    const privateKey = await getPrivateKey()
+    const environment = await getEnvironment()
+    const privateKey = getPrivateKeyForEnvironment(environment)
     const networkConfig = JSON.parse(
       fs.readFileSync(
         path.join(process.cwd(), 'config', 'networks.json'),
