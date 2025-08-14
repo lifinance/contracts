@@ -57,7 +57,11 @@ library LibAllowList {
 
         // get the 1-based index, return if not found
         uint256 oneBasedIndex = als.contractToIndex[_contract];
-        if (oneBasedIndex == 0) return;
+        if (oneBasedIndex == 0) {
+            // legacy cleanup: clear stale boolean if present
+            als.contractAllowList[_contract] = false;
+            return;
+        }
 
         // convert to 0-based index for array operations
         uint256 index = oneBasedIndex - 1;
@@ -101,7 +105,11 @@ library LibAllowList {
 
         // get the 1-based index, return if not found
         uint256 oneBasedIndex = als.selectorToIndex[_selector];
-        if (oneBasedIndex == 0) return;
+        if (oneBasedIndex == 0) {
+            // legacy cleanup: clear stale boolean if present
+            als.selectorAllowList[_selector] = false;
+            return;
+        }
 
         // convert to 0-based index for array operations
         uint256 index = oneBasedIndex - 1;
