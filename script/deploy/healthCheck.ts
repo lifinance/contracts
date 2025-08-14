@@ -383,7 +383,10 @@ const main = defineCommand({
           deployedContracts,
           publicClient
         )
-      }
+      } else
+        consola.error(
+          'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
+        )
 
       // FeeCollector
       await checkOwnership(
