@@ -77,10 +77,10 @@ bun troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-key Y
 
 ## Network Configuration
 
-The tool uses hardcoded RPC URLs:
+The tool retrieves RPC URLs from `config/networks.json`. If not found there, it falls back to hardcoded defaults:
 
-- **Mainnet**: https://api.trongrid.io
-- **Staging/Testnet**: https://api.shasta.trongrid.io
+- **Mainnet**: https://api.trongrid.io (from networks.json or default)
+- **Testnet**: https://api.shasta.trongrid.io (from networks.json or default)
 
 ## Function Signature Format
 
