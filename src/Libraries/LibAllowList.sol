@@ -33,11 +33,10 @@ library LibAllowList {
 
         AllowListStorage storage als = _getStorage();
 
-        // skip if contract is already in allow list
-        if (als.contractAllowList[_contract]) return;
+        // skip if contract is already in allow list (1-based index)
+        if (als.contractToIndex[_contract] > 0) return;
 
-        // add contract to allow list mapping and array
-        als.contractAllowList[_contract] = true;
+        // add contract to allow list array
         als.contracts.push(_contract);
         // store 1-based index for efficient removal later
         als.contractToIndex[_contract] = als.contracts.length;
@@ -48,18 +47,13 @@ library LibAllowList {
     function contractIsAllowed(
         address _contract
     ) internal view returns (bool) {
-        return _getStorage().contractAllowList[_contract];
+        return _getStorage().contractToIndex[_contract] > 0;
     }
 
     /// @dev Remove a contract address from the allow list
     /// @param _contract the contract address to remove
     function removeAllowedContract(address _contract) internal {
         AllowListStorage storage als = _getStorage();
-
-        // skip if contract is not in allow list
-        if (!als.contractAllowList[_contract]) {
-            return;
-        }
 
         // get the 1-based index, return if not found
         uint256 oneBasedIndex = als.contractToIndex[_contract];
@@ -80,7 +74,6 @@ library LibAllowList {
         // remove the last element and clean up mappings
         als.contracts.pop();
         delete als.contractToIndex[_contract];
-        als.contractAllowList[_contract] = false;
     }
 
     /// @dev Fetch contract addresses from the allow list
@@ -92,11 +85,10 @@ library LibAllowList {
     /// @param _selector the selector to add
     function addAllowedSelector(bytes4 _selector) internal {
         AllowListStorage storage als = _getStorage();
-        // skip if selector is already in allow list
-        if (als.selectorAllowList[_selector]) return;
+        // skip if selector is already in allow list (1-based index)
+        if (als.selectorToIndex[_selector] > 0) return;
 
-        // add selector to allow list mapping and array
-        als.selectorAllowList[_selector] = true;
+        // add selector to allow list array
         als.selectors.push(_selector);
         // store 1-based index for efficient removal later
         als.selectorToIndex[_selector] = als.selectors.length;
@@ -106,11 +98,6 @@ library LibAllowList {
     /// @param _selector the selector to remove
     function removeAllowedSelector(bytes4 _selector) internal {
         AllowListStorage storage als = _getStorage();
-
-        // skip if selector is not in allow list
-        if (!als.selectorAllowList[_selector]) {
-            return;
-        }
 
         // get the 1-based index, return if not found
         uint256 oneBasedIndex = als.selectorToIndex[_selector];
@@ -131,13 +118,12 @@ library LibAllowList {
         // remove the last element and clean up mappings
         als.selectors.pop();
         delete als.selectorToIndex[_selector];
-        als.selectorAllowList[_selector] = false;
     }
 
     /// @dev Returns if selector has been added to the allow list
     /// @param _selector the selector to check
     function selectorIsAllowed(bytes4 _selector) internal view returns (bool) {
-        return _getStorage().selectorAllowList[_selector];
+        return _getStorage().selectorToIndex[_selector] > 0;
     }
 
     /// @dev Fetch all allowed selectors

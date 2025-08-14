@@ -19,18 +19,39 @@ contract Foo {}
 /// @title Mock Swapper Facet
 /// @notice Mock facet that simulates SwapperV2 allow list logic for testing
 contract MockSwapperFacet {
-    /// @notice Simple function to test if a contract is allowed
-    /// @param _contract The contract address to check
     function isContractAllowed(
         address _contract
     ) external view returns (bool) {
         return LibAllowList.contractIsAllowed(_contract);
     }
 
-    /// @notice Simple function to test if a selector is allowed
-    /// @param _selector The selector to check
     function isSelectorAllowed(bytes4 _selector) external view returns (bool) {
         return LibAllowList.selectorIsAllowed(_selector);
+    }
+
+    function isContractAllowedLegacy(
+        address _contract
+    ) external view returns (bool) {
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+        return als.contractAllowList[_contract];
+    }
+
+    function isSelectorAllowedLegacy(
+        bytes4 _selector
+    ) external view returns (bool) {
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+        return als.selectorAllowList[_selector];
+    }
+
+    function _getAllowListStorage()
+        internal
+        pure
+        returns (LibAllowList.AllowListStorage storage als)
+    {
+        bytes32 position = LibAllowList.NAMESPACE;
+        assembly {
+            als.slot := position
+        }
     }
 }
 
@@ -876,9 +897,15 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Set up mock swapper to verify existing integrations
         mockSwapperFacet = new MockSwapperFacet();
-        bytes4[] memory mockSwapperSelectors = new bytes4[](2);
+        bytes4[] memory mockSwapperSelectors = new bytes4[](4);
         mockSwapperSelectors[0] = MockSwapperFacet.isContractAllowed.selector;
         mockSwapperSelectors[1] = MockSwapperFacet.isSelectorAllowed.selector;
+        mockSwapperSelectors[2] = MockSwapperFacet
+            .isContractAllowedLegacy
+            .selector;
+        mockSwapperSelectors[3] = MockSwapperFacet
+            .isSelectorAllowedLegacy
+            .selector;
         addFacet(
             LiFiDiamond(payable(DIAMOND)),
             address(mockSwapperFacet),
@@ -898,14 +925,14 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         address currentlyApprovedDex = currentWhitelistedAddresses[0]; // Use first whitelisted DEX
         bytes4 approvedSelector = 0x38ed1739; // One of the whitelisted selectors
 
-        // Verify pre-migration state with mock swapper
+        // Verify pre-migration state with mock swapper (legacy reads)
         MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
         assertTrue(
-            mockSwapper.isContractAllowed(currentlyApprovedDex),
+            mockSwapper.isContractAllowedLegacy(currentlyApprovedDex),
             "Contract should be allowed before migration"
         );
         assertTrue(
-            mockSwapper.isSelectorAllowed(approvedSelector),
+            mockSwapper.isSelectorAllowedLegacy(approvedSelector),
             "Selector should be allowed before migration"
         );
 
