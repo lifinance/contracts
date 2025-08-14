@@ -28,8 +28,9 @@ export function initTronWeb(env: Environment, privateKey?: string): TronWeb {
       // For mainnet, use the production Tron network config
       const tronConfig = getNetworkConfig('tron')
       rpcUrl = tronConfig.rpcUrl
-    } else 
-      // For staging/testnet, try to get shasta config or fallback
+    }
+    // For testnet, try to get shasta config or fallback
+    else
       try {
         const shastaConfig = getNetworkConfig('tron-shasta')
         rpcUrl = shastaConfig.rpcUrl
@@ -40,12 +41,11 @@ export function initTronWeb(env: Environment, privateKey?: string): TronWeb {
           'tron-shasta not found in config/networks.json, using default Shasta URL'
         )
       }
-    
   } catch (error) {
     // Fallback to hardcoded URLs if config is not available
     const fallbackUrls: Record<Environment, string> = {
       mainnet: 'https://api.trongrid.io',
-      staging: 'https://api.shasta.trongrid.io',
+      testnet: 'https://api.shasta.trongrid.io',
     }
     rpcUrl = fallbackUrls[env]
     consola.warn(

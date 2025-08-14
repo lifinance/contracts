@@ -33,7 +33,7 @@ export const callCommand = defineCommand({
     },
     env: {
       type: 'string',
-      description: 'Environment (mainnet or staging)',
+      description: 'Environment (mainnet or testnet)',
       default: 'mainnet',
     },
     block: {
@@ -53,8 +53,8 @@ export const callCommand = defineCommand({
         throw new Error(`Invalid contract address: ${args.address}`)
 
       const env = args.env as Environment
-      if (env !== 'mainnet' && env !== 'staging')
-        throw new Error('Environment must be "mainnet" or "staging"')
+      if (env !== 'mainnet' && env !== 'testnet')
+        throw new Error('Environment must be "mainnet" or "testnet"')
 
       // Initialize TronWeb
       const tronWeb = initTronWeb(env)

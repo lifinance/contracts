@@ -33,4 +33,4 @@ export interface ITransactionReceipt {
   resMessage?: string
 }
 
-export type Environment = 'mainnet' | 'staging'
+export type Environment = 'mainnet' | 'testnet'

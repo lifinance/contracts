@@ -34,7 +34,7 @@ export const sendCommand = defineCommand({
     },
     env: {
       type: 'string',
-      description: 'Environment (mainnet or staging)',
+      description: 'Environment (mainnet or testnet)',
       default: 'mainnet',
     },
     privateKey: {
@@ -77,8 +77,8 @@ export const sendCommand = defineCommand({
         throw new Error(`Invalid contract address: ${args.address}`)
 
       const env = args.env as Environment
-      if (env !== 'mainnet' && env !== 'staging')
-        throw new Error('Environment must be "mainnet" or "staging"')
+      if (env !== 'mainnet' && env !== 'testnet')
+        throw new Error('Environment must be "mainnet" or "testnet"')
 
       // Get private key
       const privateKey = args.privateKey || (await getPrivateKey())

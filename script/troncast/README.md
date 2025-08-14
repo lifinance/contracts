@@ -60,13 +60,13 @@ bun run troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-k
 
 #### Call Command Options
 
-- `--env` - Environment: "mainnet" or "staging" (default: mainnet)
+- `--env` - Environment: "mainnet" or "testnet" (default: mainnet)
 - `--block` - Block number for historical queries
 - `--json` - Output result as JSON
 
 #### Send Command Options
 
-- `--env` - Environment: "mainnet" or "staging" (default: mainnet)
+- `--env` - Environment: "mainnet" or "testnet" (default: mainnet)
 - `--private-key` - Private key for signing (or from environment)
 - `--value` - TRX value to send (e.g., "0.1tron", "100000sun")
 - `--fee-limit` - Maximum fee in TRX (default: 1000)
