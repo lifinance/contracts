@@ -28,8 +28,7 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  hexToTronAddress,
-} from './utils.js'
+} from './utils'
 
 /**
  * Deploy and register AllBridgeFacet to Tron
@@ -123,11 +122,8 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
         'AllBridge address not found for tron in config/allbridge.json'
       )
 
-    // Convert address to Tron format for display
-    const allBridgeTron = hexToTronAddress(allBridgeAddress, tronWeb)
-
     consola.info('\nAllBridge Configuration:')
-    consola.info(`AllBridge: ${allBridgeTron} (hex: ${allBridgeAddress})`)
+    consola.info(`AllBridge: ${allBridgeAddress}`)
 
     // Prepare deployment plan
     const contracts = ['AllBridgeFacet']
