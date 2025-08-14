@@ -53,9 +53,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
     }
 
-    /// @notice Adds or removes a specific function selector to/from the whitelist.
-    /// @param _selector The function selector to whitelist or unwhitelist.
-    /// @param _whitelisted Whether the function selector should be whitelisted.
+    /// @inheritdoc IWhitelistManagerFacet
     function setFunctionWhitelistBySelector(
         bytes4 _selector,
         bool _whitelisted
@@ -172,9 +170,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         uint256 length = als.contracts.length;
         for (; i < length; ) {
             als.contractAllowList[als.contracts[i]] = false;
-            unchecked {
-                ++i;
-            }
+            ++i;
         }
 
         // reset selectorAllowList with external selectors array because new selectors array does not exist yet
@@ -182,9 +178,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         length = _selectorsToRemove.length;
         for (; i < length; ) {
             als.selectorAllowList[_selectorsToRemove[i]] = false;
-            unchecked {
-                ++i;
-            }
+            ++i;
         }
 
         // reset contract array
@@ -207,9 +201,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
             LibAllowList.addAllowedContract(_contractsToAdd[i]);
             emit AddressWhitelisted(_contractsToAdd[i]);
-            unchecked {
-                ++i;
-            }
+            ++i;
         }
 
         // whitelist selectors
@@ -224,9 +216,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
             LibAllowList.addAllowedSelector(_selectorsToAdd[i]);
             emit FunctionSelectorWhitelistChanged(_selectorsToAdd[i], true);
-            unchecked {
-                ++i;
-            }
+            ++i;
         }
 
         // Mark as migrated
