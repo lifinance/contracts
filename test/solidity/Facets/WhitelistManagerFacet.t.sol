@@ -942,6 +942,20 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             bytes4[] memory selectorsToAdd
         ) = _loadAndVerifyConfigData();
 
+        // Mock EXTCODESIZE for addresses from whitelistedAddresses.json
+        // Context: When we fork at block 33206380, some contracts from our current whitelist
+        // didn't exist yet on the network. However, we still want to test the full migration
+        // with all current production addresses. To do this, we mock the EXTCODESIZE opcode
+        // to return a value >23 bytes for these future contracts, simulating their existence
+        // at our fork block.
+        for (uint256 i = 0; i < contractsToAdd.length; i++) {
+            // Mock EXTCODESIZE to return >23 bytes (minimum required by LibAsset.isContract)
+            vm.etch(
+                contractsToAdd[i],
+                hex"600180808080800180808080800180808080800180808080801b"
+            ); // 32-byte dummy code
+        }
+
         // Prepare and execute diamond cut
         LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
         bytes memory initCallData = deployScript.exposed_getCallData();
