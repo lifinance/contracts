@@ -5,6 +5,7 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 // Import utilities from existing scripts
+import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
@@ -50,18 +51,22 @@ async function deployAndRegisterPeripheryImpl(options: {
   const verbose = options.verbose
 
   // Get network configuration from networks.json
+  // Use tron-shasta for staging/testnet, tron for production
+  const networkName =
+    environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
   let tronConfig
   try {
-    tronConfig = getNetworkConfig('tron')
+    tronConfig = getNetworkConfig(networkName as SupportedChain)
   } catch (error: any) {
     consola.error(error.message)
     consola.error(
-      'Please ensure "tron" network is configured in config/networks.json'
+      `Please ensure "${networkName}" network is configured in config/networks.json`
     )
     process.exit(1)
   }
 
-  const network = tronConfig.rpcUrl // Use RPC URL from networks.json
+  const network = networkName as SupportedChain
+  const rpcUrl = tronConfig.rpcUrl // Use RPC URL from networks.json
 
   // Get the correct private key based on environment
   let privateKey: string
@@ -81,13 +86,13 @@ async function deployAndRegisterPeripheryImpl(options: {
 
   // Initialize TronWeb with RPC from networks.json
   const tronWeb = new TronWeb({
-    fullHost: network,
+    fullHost: rpcUrl,
     privateKey,
   })
 
   // Initialize deployer
   const config: ITronDeploymentConfig = {
-    fullHost: network,
+    fullHost: rpcUrl,
     privateKey,
     verbose,
     dryRun,

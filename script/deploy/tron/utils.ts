@@ -5,6 +5,7 @@ import { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
+import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
@@ -114,7 +115,7 @@ export async function getPrivateKey(): Promise<string> {
  */
 export async function logDeployment(
   contract: string,
-  network: string,
+  network: SupportedChain,
   address: string,
   version: string,
   constructorArgs: string,
@@ -153,7 +154,7 @@ export async function logDeployment(
  * Save contract address to deployments file
  */
 export async function saveContractAddress(
-  network: string,
+  network: SupportedChain,
   contract: string,
   address: string
 ): Promise<void> {
@@ -183,7 +184,7 @@ export async function saveContractAddress(
  * Get contract address from deployments file
  */
 export async function getContractAddress(
-  network: string,
+  network: SupportedChain,
   contract: string
 ): Promise<string | null> {
   const environment = await getEnvironment()
@@ -207,7 +208,7 @@ export async function getContractAddress(
  * Save diamond deployment information
  */
 export async function saveDiamondDeployment(
-  network: string,
+  network: SupportedChain,
   _diamondAddress: string,
   facets: Record<string, { address: string; version: string }>
 ): Promise<void> {
@@ -616,7 +617,7 @@ export async function getFacetSelectors(
  * Check if a contract is already deployed and prompt for redeploy
  */
 export async function checkExistingDeployment(
-  network: string,
+  network: SupportedChain,
   contractName: string,
   dryRun = false
 ): Promise<{
@@ -1021,7 +1022,7 @@ export async function validateBalance(
  */
 export async function confirmDeployment(
   environment: EnvironmentEnum,
-  network: string,
+  network: SupportedChain,
   contracts: string[]
 ): Promise<boolean> {
   const isProduction = environment === EnvironmentEnum.production

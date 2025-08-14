@@ -4,6 +4,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
@@ -50,18 +51,22 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
   }
 
   // Get network configuration from networks.json
+  // Use tron-shasta for staging/testnet, tron for production
+  const networkName =
+    environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
   let tronConfig
   try {
-    tronConfig = getNetworkConfig('tron')
+    tronConfig = getNetworkConfig(networkName as SupportedChain)
   } catch (error: any) {
     consola.error(error.message)
     consola.error(
-      'Please ensure "tron" network is configured in config/networks.json'
+      `Please ensure "${networkName}" network is configured in config/networks.json`
     )
     process.exit(1)
   }
 
-  const network = tronConfig.rpcUrl
+  const network = networkName as SupportedChain
+  const rpcUrl = tronConfig.rpcUrl
 
   // Get the correct private key based on environment
   let privateKey: string
@@ -81,7 +86,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
 
   // Initialize deployer
   const config: ITronDeploymentConfig = {
-    fullHost: network,
+    fullHost: rpcUrl,
     privateKey,
     verbose,
     dryRun,
@@ -101,7 +106,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
 
     // Initialize TronWeb
     const tronWeb = new TronWeb({
-      fullHost: network,
+      fullHost: rpcUrl,
       privateKey,
     })
 

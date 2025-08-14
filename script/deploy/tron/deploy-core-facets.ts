@@ -3,6 +3,7 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
@@ -105,19 +106,23 @@ async function deployCoreFacetsImpl(options: {
   const environment = await getEnvironment()
 
   // Get network configuration from networks.json
+  // Use tron-shasta for staging/testnet, tron for production
+  const networkName =
+    environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
   let tronConfig
   try {
-    tronConfig = getNetworkConfig('tron')
+    tronConfig = getNetworkConfig(networkName as SupportedChain)
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     consola.error(errorMessage)
     consola.error(
-      'Please ensure "tron" network is configured in config/networks.json'
+      `Please ensure "${networkName}" network is configured in config/networks.json`
     )
     process.exit(1)
   }
 
-  const network = tronConfig.rpcUrl // Use RPC URL from networks.json
+  const network = networkName as SupportedChain // Use network name, not RPC URL
+  const rpcUrl = tronConfig.rpcUrl // Keep RPC URL for TronWeb initialization
 
   // Get the correct private key based on environment
   let privateKey: string
@@ -138,7 +143,7 @@ async function deployCoreFacetsImpl(options: {
 
   // Initialize deployer
   const config: ITronDeploymentConfig = {
-    fullHost: network,
+    fullHost: rpcUrl,
     privateKey,
     verbose: options.verbose,
     dryRun: options.dryRun,
@@ -151,12 +156,12 @@ async function deployCoreFacetsImpl(options: {
 
   // Get network info
   const networkInfo = await deployer.getNetworkInfo()
-  displayNetworkInfo(networkInfo, environment, network)
+  displayNetworkInfo(networkInfo, environment, rpcUrl)
 
   // Initialize TronWeb for balance validation
   const { TronWeb } = await import('tronweb')
   const tronWeb = new TronWeb({
-    fullHost: network,
+    fullHost: rpcUrl,
     privateKey,
   })
 

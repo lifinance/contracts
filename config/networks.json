@@ -1167,6 +1167,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs"
   },
+  "tron-shasta": {
+    "name": "tron-shasta",
+    "chainId": 2494104990,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "TRX",
+    "wrappedNativeAddress": "TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a",
+    "status": "active",
+    "type": "testnet",
+    "rpcUrl": "https://api.shasta.trongrid.io",
+    "verificationType": "tronscan",
+    "explorerUrl": "https://shasta.tronscan.org",
+    "explorerApiUrl": "https://api.shasta.tronscan.org/api",
+    "multicallAddress": "",
+    "safeAddress": "",
+    "gasZipChainId": 0,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17",
+    "create3Factory": ""
+  },
   "zksync": {
     "name": "zksync",
     "chainId": 324,
