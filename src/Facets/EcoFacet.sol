@@ -13,8 +13,8 @@ import { InvalidContract } from "../Errors/GenericErrors.sol";
 
 /// @title Eco Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Bridges assets via Eco Protocol's intent system
-/// @custom:version 1.0.0
+/// @notice Bridges assets via Eco Protocol's Routes cross-chain intent system
+/// @custom:version 2.0.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Immutable Storage ///
 
@@ -24,20 +24,22 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @notice Bridge-specific data for Eco Protocol
-    /// @param intentSource Address of the Intent Source contract on current chain
-    /// @param receiver Receiver address on destination chain
+    /// @param portal Address of the Portal contract on current chain
+    /// @param destinationPortal Address of the Portal contract on destination chain
     /// @param prover Prover address for intent verification (optional, uses default if zero)
-    /// @param deadline Intent deadline timestamp
-    /// @param nonce Unique nonce for the intent
-    /// @param routeData Additional route data for destination execution
+    /// @param routeDeadline Deadline for route execution on destination chain
+    /// @param rewardDeadline Deadline for reward claims
+    /// @param salt Unique salt for the route to prevent duplicates
+    /// @param calls Array of calls to execute on destination chain
     /// @param allowPartial Whether to allow partial fulfillment
     struct EcoData {
-        address intentSource;
-        address receiver;
+        address portal;
+        address destinationPortal;
         address prover;
-        uint256 deadline;
-        uint256 nonce;
-        bytes routeData;
+        uint64 routeDeadline;
+        uint64 rewardDeadline;
+        bytes32 salt;
+        IEco.Call[] calls;
         bool allowPartial;
     }
 
@@ -45,6 +47,19 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     error InvalidProver();
     error InvalidDeadline();
+
+    /// Modifiers ///
+
+    modifier validateEcoData(EcoData calldata _ecoData) {
+        if (_ecoData.portal == address(0)) revert InvalidContract();
+        if (
+            _ecoData.routeDeadline <= block.timestamp ||
+            _ecoData.rewardDeadline <= block.timestamp
+        ) {
+            revert InvalidDeadline();
+        }
+        _;
+    }
 
     /// Constructor ///
 
@@ -59,7 +74,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Eco Protocol
     /// @param _bridgeData Core bridge data
-    /// @param _ecoData Eco-specific parameters including Intent Source address
+    /// @param _ecoData Eco-specific parameters including Portal address
     function startBridgeTokensViaEco(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
@@ -69,6 +84,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
+        validateEcoData(_ecoData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
@@ -82,7 +98,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Performs swaps before bridging via Eco Protocol
     /// @param _bridgeData Core bridge data
     /// @param _swapData Array of swap operations
-    /// @param _ecoData Eco-specific parameters including Intent Source address
+    /// @param _ecoData Eco-specific parameters including Portal address
     function swapAndStartBridgeTokensViaEco(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -95,6 +111,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
+        validateEcoData(_ecoData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -114,52 +131,47 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
-        // Validate Intent Source address
-        if (_ecoData.intentSource == address(0)) {
-            revert InvalidContract();
-        }
-
-        // Validate deadline
-        if (_ecoData.deadline <= block.timestamp) {
-            revert InvalidDeadline();
-        }
-
-        // Prepare intent components
-        IEco.Route memory route = IEco.Route({
-            source: address(this),
-            destination: _bridgeData.destinationChainId,
-            data: _ecoData.routeData
+        // Prepare token arrays for the route
+        IEco.TokenAmount[] memory routeTokens = new IEco.TokenAmount[](1);
+        routeTokens[0] = IEco.TokenAmount({
+            token: _bridgeData.sendingAssetId,
+            amount: _bridgeData.minAmount
         });
 
-        // Prepare reward arrays
-        address[] memory tokens = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        tokens[0] = _bridgeData.sendingAssetId;
-        amounts[0] = _bridgeData.minAmount;
+        // Create the route
+        IEco.Route memory route = IEco.Route({
+            salt: _ecoData.salt,
+            deadline: _ecoData.routeDeadline,
+            portal: _ecoData.destinationPortal,
+            tokens: routeTokens,
+            calls: _ecoData.calls
+        });
+
+        // Compute route hash
+        bytes32 routeHash = keccak256(abi.encode(route));
 
         // Use provided prover or fall back to default
         address prover = _ecoData.prover != address(0)
             ? _ecoData.prover
             : DEFAULT_PROVER;
 
-        IEco.Reward memory reward = IEco.Reward({
-            prover: prover,
-            tokens: tokens,
-            amounts: amounts,
-            deadline: _ecoData.deadline,
-            nonce: _ecoData.nonce
-        });
+        // Prepare reward structure
+        // Note: For bridging, we're not adding extra rewards beyond the bridged tokens
+        IEco.TokenAmount[] memory rewardTokens = new IEco.TokenAmount[](0);
 
-        IEco.Intent memory intent = IEco.Intent({
-            route: route,
-            reward: reward
+        IEco.Reward memory reward = IEco.Reward({
+            deadline: _ecoData.rewardDeadline,
+            creator: msg.sender,
+            prover: prover,
+            nativeAmount: 0,
+            tokens: rewardTokens
         });
 
         // Approve tokens if needed (not native asset)
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                _ecoData.intentSource,
+                _ecoData.portal,
                 _bridgeData.minAmount
             );
         }
@@ -174,9 +186,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Emit event before external call
         emit LiFiTransferStarted(_bridgeData);
 
-        // Create and fund intent
-        IEco(_ecoData.intentSource).publishAndFund{ value: nativeValue }(
-            intent,
+        // Fund the intent (publish is optional for solver discovery)
+        IEco(_ecoData.portal).fund{ value: nativeValue }(
+            uint64(_bridgeData.destinationChainId),
+            routeHash,
+            reward,
             _ecoData.allowPartial
         );
     }
