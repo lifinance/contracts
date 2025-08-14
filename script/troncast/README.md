@@ -2,6 +2,14 @@
 
 TronCast is a Cast-like CLI tool for interacting with Tron blockchain smart contracts. It provides a simple interface for reading contract data and sending transactions.
 
+## Why TronCast?
+
+This tool was created because Foundry's Forge and Cast don't natively support the Tron network. While Cast is an excellent tool for Ethereum and EVM-compatible chains, Tron's unique architecture and address format require specialized tooling. TronCast bridges this gap by providing familiar Cast-like commands specifically designed for Tron development, allowing developers to:
+
+- Interact with Tron smart contracts using familiar command-line patterns
+- Read contract state and send transactions without writing custom scripts
+- Maintain consistency with existing Foundry-based workflows while working on Tron
+
 ## Installation
 
 The tool is already integrated into the project. No additional installation is required.
