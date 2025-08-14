@@ -29,7 +29,7 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
   hexToTronAddress,
-} from './utils.js'
+} from './utils'
 
 /**
  * Deploy and register SymbiosisFacet to Tron
