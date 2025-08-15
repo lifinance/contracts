@@ -44,6 +44,18 @@ const main = defineCommand({
   },
   async run({ args }) {
     const { network } = args
+
+    // TODO: Need to finalize how to handle healthchecks in Tron
+    // Skipping all tests for Tron network until implementation is complete
+    if (
+      network.toLowerCase() === 'tron' ||
+      network.toLowerCase() === 'tron-shasta'
+    ) {
+      consola.info('Health checks are not yet implemented for Tron networks.')
+      consola.info('Skipping all tests.')
+      process.exit(0)
+    }
+
     const { default: deployedContracts } = await import(
       `../../deployments/${network.toLowerCase()}.json`
     )

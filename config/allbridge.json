@@ -26,5 +26,8 @@
   },
   "sonic": {
     "allBridge": "0x801217549AB4b0860Bb506B1cbfF90f42819a116"
+  },
+  "tron": {
+    "allBridge": "TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2"
   }
 }
