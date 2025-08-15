@@ -73,6 +73,9 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     error NoHopsProvided();
     error InvalidForkConfig(string reason);
     error UnknownNetwork(string name);
+    error InvalidTopicLength();
+    error TooManyIndexedParams();
+    error DynamicParamsNotSupported();
 
     // Add this struct to hold event expectations
     struct ExpectedEvent {
@@ -82,6 +85,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         bool checkData;
         bytes32 eventSelector; // The event selector (keccak256 hash of the event signature)
         bytes[] eventParams; // The event parameters, each encoded separately
+        uint8[] indexedParamIndices; // indices of params that are indexed (→ topics 1..3)
     }
 
     // At top-level state
@@ -235,6 +239,10 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         address sender;
         address recipient;
         CommandType commandType;
+        // // New optional fields for expected output verification
+        // uint256 expectedMinOut;      // Optional: if non-zero, used as minOut in Route event
+        // uint256 expectedExactOut;    // Optional: if non-zero, used as amountOut in Route event
+        // bool checkRouteData;         // Optional: whether to check Route event data (defaults to false)
     }
 
     // Add this struct for route building
@@ -316,39 +324,22 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
             inBefore = IERC20(params.tokenIn).balanceOf(params.sender);
         }
 
-        // Set up additional event expectations first
-        for (uint256 i = 0; i < additionalEvents.length; i++) {
-            vm.expectEmit(
-                additionalEvents[i].checkTopic1,
-                additionalEvents[i].checkTopic2,
-                additionalEvents[i].checkTopic3,
-                additionalEvents[i].checkData
-            );
+        address fromAddress = params.sender == address(ldaDiamond)
+            ? USER_SENDER
+            : params.sender;
 
-            // Encode event parameters
-            bytes memory encodedParams;
-            for (
-                uint256 j = 0;
-                j < additionalEvents[i].eventParams.length;
-                j++
-            ) {
-                encodedParams = bytes.concat(
-                    encodedParams,
-                    additionalEvents[i].eventParams[j]
-                );
-            }
+        _expectEvents(additionalEvents);
 
-            // Emit the event with the correct selector and parameters
-            assembly {
-                let selector := mload(
-                    add(mload(add(additionalEvents, 0x20)), 0x80)
-                ) // access eventSelector
-                mstore(0x00, selector)
-                mstore(0x04, encodedParams)
-                log1(0x00, add(0x04, mload(encodedParams)), selector)
-            }
-        }
-
+        vm.expectEmit(true, true, true, false);
+        emit Route(
+            fromAddress,
+            params.recipient,
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn,
+            0,
+            0
+        );
         coreRouteFacet.processRoute(
             params.tokenIn,
             params.amountIn,
@@ -430,5 +421,101 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
             params.recipient,
             route
         );
+    }
+
+    // helper: load a 32-byte topic from a 32-byte abi.encode(param)
+    function _asTopic(bytes memory enc) internal pure returns (bytes32 topic) {
+        if (enc.length != 32) revert InvalidTopicLength();
+        assembly {
+            topic := mload(add(enc, 32))
+        }
+    }
+
+    /**
+     * @notice Sets up event expectations for a list of events
+     * @param events Array of events to expect
+     */
+    function _expectEvents(ExpectedEvent[] memory events) internal {
+        for (uint256 i = 0; i < events.length; i++) {
+            _expectEvent(events[i]);
+        }
+    }
+
+    /**
+     * @notice Sets up expectation for a single event
+     * @param evt The event to expect with its check parameters and data
+     */
+    function _expectEvent(ExpectedEvent memory evt) internal {
+        vm.expectEmit(
+            evt.checkTopic1,
+            evt.checkTopic2,
+            evt.checkTopic3,
+            evt.checkData
+        );
+
+        // Build topics (topic0 = selector; topics1..3 from indexedParamIndices)
+        bytes32 topic0 = evt.eventSelector;
+        uint8[] memory idx = evt.indexedParamIndices;
+
+        bytes32 t1;
+        bytes32 t2;
+        bytes32 t3;
+
+        uint256 topicsCount = idx.length;
+        if (topicsCount > 3) {
+            revert TooManyIndexedParams();
+        }
+        if (topicsCount >= 1) {
+            t1 = _asTopic(evt.eventParams[idx[0]]);
+        }
+        if (topicsCount >= 2) {
+            t2 = _asTopic(evt.eventParams[idx[1]]);
+        }
+        if (topicsCount == 3) {
+            t3 = _asTopic(evt.eventParams[idx[2]]);
+        }
+
+        // Build data (non-indexed params in event order)
+        bytes memory data;
+        if (evt.checkData) {
+            // Only support static params for now (each abi.encode(param) must be 32 bytes)
+            uint256 total = evt.eventParams.length;
+            bool[8] memory isIndexed; // up to 8 params; expand if needed
+            for (uint256 k = 0; k < topicsCount; k++) {
+                uint8 pos = idx[k];
+                if (pos < isIndexed.length) isIndexed[pos] = true;
+            }
+
+            for (uint256 p = 0; p < total; p++) {
+                if (!isIndexed[p]) {
+                    bytes memory enc = evt.eventParams[p];
+                    if (enc.length != 32) {
+                        revert DynamicParamsNotSupported();
+                    }
+                    data = bytes.concat(data, enc);
+                }
+            }
+        } else {
+            data = "";
+        }
+
+        // Emit raw log with correct number of topics
+        assembly {
+            let ptr := add(data, 0x20)
+            let len := mload(data)
+            switch topicsCount
+            case 0 {
+                log1(ptr, len, topic0)
+            }
+            case 1 {
+                log2(ptr, len, topic0, t1)
+            }
+            case 2 {
+                log3(ptr, len, topic0, t1, t2)
+            }
+            case 3 {
+                log4(ptr, len, topic0, t1, t2, t3)
+            }
+        }
     }
 }

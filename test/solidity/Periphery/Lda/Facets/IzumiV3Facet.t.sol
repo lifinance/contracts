@@ -208,26 +208,6 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Create expected event
-        ExpectedEvent[] memory expectedEvents = new ExpectedEvent[](0);
-        // bytes[] memory eventParams = new bytes[](7);
-        // eventParams[0] = abi.encode(USER_SENDER);
-        // eventParams[1] = abi.encode(USER_RECEIVER);
-        // eventParams[2] = abi.encode(address(tokenIn));
-        // eventParams[3] = abi.encode(address(tokenMid));
-        // eventParams[4] = abi.encode(AMOUNT_USDC);
-        // eventParams[5] = abi.encode(uint256(0));  // minOut
-        // eventParams[6] = abi.encode(uint256(0));  // amountOut
-
-        // expectedEvents[0] = ExpectedEvent({
-        //     checkTopic1: true,
-        //     checkTopic2: true,
-        //     checkTopic3: true,
-        //     checkData: false,
-        //     eventSelector: keccak256("Route(address,address,address,address,uint256,uint256,uint256)"),
-        //     eventParams: eventParams
-        // });
-
         _executeAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
@@ -237,8 +217,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 recipient: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            route,
-            expectedEvents
+            route
         );
 
         vm.stopPrank();

@@ -680,29 +680,19 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             eventParams[3] = abi.encode(abi.encode(params.tokenIn));
 
             expectedEvents[0] = ExpectedEvent({
-                checkTopic1: true,
+                checkTopic1: false,
                 checkTopic2: false,
                 checkTopic3: false,
                 checkData: false,
                 eventSelector: keccak256(
                     "HookCalled(address,uint256,uint256,bytes)"
                 ),
-                eventParams: eventParams
+                eventParams: eventParams,
+                indexedParamIndices: new uint8[](0)
             });
         } else {
             expectedEvents = new ExpectedEvent[](0);
         }
-
-        // vm.expectEmit(true, true, true, true);
-        // emit Route(
-        //     from,
-        //     params.to,
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     params.amountIn,
-        //     amounts[1],
-        //     amounts[1]
-        // );
 
         // execute the swap
         _executeAndVerifySwap(
