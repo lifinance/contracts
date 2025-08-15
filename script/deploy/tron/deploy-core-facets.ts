@@ -26,8 +26,6 @@ import {
   validateBalance,
   displayNetworkInfo,
   updateDiamondJsonBatch,
-  saveContractAddress,
-  logDeployment,
 } from './utils.js'
 
 /**
@@ -270,29 +268,13 @@ async function deployCoreFacetsImpl(options: {
 
       deploymentResults.push(result)
 
-      if (result.status === 'success' && result.address) {
+      if (result.status === 'success' && result.address) 
         facetAddresses[facet] = {
           address: result.address,
           version: result.version,
         }
-
-        // Save to deployment file
-        if (!options.dryRun) {
-          await saveContractAddress('tron', facet, result.address)
-
-          // Log deployment
-          const constructorArgsStr =
-            constructorArgs.length > 0 ? JSON.stringify(constructorArgs) : ''
-          await logDeployment(
-            facet,
-            'tron',
-            result.address,
-            result.version,
-            constructorArgsStr,
-            false
-          )
-        }
-      }
+        // Note: deployContractWithLogging already handles saving addresses and logging
+      
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -360,10 +342,8 @@ async function deployCoreFacetsImpl(options: {
 
       if (result.status === 'success' && result.address)
         if (!options.dryRun) {
-          // Save to deployment file
-          await saveContractAddress('tron', diamondName, result.address)
-
-          // Save diamond deployment info
+          // Note: deployContractWithLogging already handles saving addresses and logging
+          // Save diamond-specific deployment info
           await saveDiamondDeployment(network, result.address, facetAddresses)
 
           // Update diamond JSON files
@@ -375,16 +355,6 @@ async function deployCoreFacetsImpl(options: {
             })
           )
           await updateDiamondJsonBatch(facetEntries, network)
-
-          // Log deployment
-          await logDeployment(
-            diamondName,
-            'tron',
-            result.address,
-            result.version,
-            JSON.stringify([ownerHex]),
-            false
-          )
         }
     } catch (error: unknown) {
       const errorMessage =
