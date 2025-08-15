@@ -291,11 +291,11 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         return route;
     }
 
-    // Modified function with additional events parameter
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
-        ExpectedEvent[] memory additionalEvents
+        ExpectedEvent[] memory additionalEvents,
+        bool isFeeOnTransferToken
     ) internal {
         if (params.commandType != CommandType.ProcessMyERC20) {
             IERC20(params.tokenIn).approve(
@@ -364,13 +364,19 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         // Check balance change on the correct address
         if (params.commandType == CommandType.ProcessMyERC20) {
             inAfter = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
-            assertEq(
+        } else {
+            inAfter = IERC20(params.tokenIn).balanceOf(params.sender);
+        }
+
+        // Use assertEq or assertApproxEqAbs based on isFeeOnTransferToken
+        if (isFeeOnTransferToken) {
+            assertApproxEqAbs(
                 inBefore - inAfter,
                 params.amountIn,
+                1, // Allow 1 wei difference for fee-on-transfer tokens
                 "Token spent mismatch"
             );
         } else {
-            inAfter = IERC20(params.tokenIn).balanceOf(params.sender);
             assertEq(
                 inBefore - inAfter,
                 params.amountIn,
@@ -381,16 +387,23 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         assertGt(outAfter - outBefore, 0, "Should receive tokens");
     }
 
-    function _getDefaultAmount() internal virtual returns (uint256) {
+    function _getDefaultAmountForTokenIn() internal virtual returns (uint256) {
         return 1_000 * 1e18; // Default, can be overridden
     }
 
-    // Keep the original function for backward compatibility
+    function _executeAndVerifySwap(
+        SwapTestParams memory params,
+        bytes memory route,
+        ExpectedEvent[] memory additionalEvents
+    ) internal {
+        _executeAndVerifySwap(params, route, additionalEvents, false);
+    }
+
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route
     ) internal {
-        _executeAndVerifySwap(params, route, new ExpectedEvent[](0));
+        _executeAndVerifySwap(params, route, new ExpectedEvent[](0), false);
     }
 
     // Keep the revert case separate

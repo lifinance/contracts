@@ -25,10 +25,10 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     }
 
     function testRevert_RabbitSwapInvalidPool() public {
-        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         vm.startPrank(USER_SENDER);
-        tokenIn.approve(address(ldaDiamond), _getDefaultAmount());
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
         // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
@@ -44,7 +44,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmount(),
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -56,7 +56,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmount(),
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -69,10 +69,10 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     }
 
     function testRevert_RabbitSwapInvalidRecipient() public {
-        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         vm.startPrank(USER_SENDER);
-        tokenIn.approve(address(ldaDiamond), _getDefaultAmount());
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
         // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
@@ -88,7 +88,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmount(),
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -100,7 +100,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmount(),
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20

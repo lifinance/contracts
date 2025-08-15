@@ -10,8 +10,6 @@ import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 contract IzumiV3FacetTest is BaseDexFacetTest {
     IzumiV3Facet internal izumiV3Facet;
 
-    uint256 internal constant AMOUNT_USDC = 100 * 1e6; // 100 USDC with 6 decimals
-
     // structs
     struct IzumiV3SwapTestParams {
         address from;
@@ -51,6 +49,14 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
         izumiV3Facet = IzumiV3Facet(facetAddress);
     }
 
+    function _getDefaultAmountForTokenIn()
+        internal
+        override
+        returns (uint256)
+    {
+        return 100 * 1e6; // 100 USDC with 6 decimals
+    }
+
     // NEW
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913); // USDC
@@ -62,30 +68,53 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_FromDexAggregator() public override {
         // Test USDC -> WETH
-        deal(address(tokenIn), address(coreRouteFacet), AMOUNT_USDC);
+        deal(
+            address(tokenIn),
+            address(coreRouteFacet),
+            _getDefaultAmountForTokenIn()
+        );
 
         vm.startPrank(USER_SENDER);
-        _testSwap(
-            IzumiV3SwapTestParams({
-                from: address(coreRouteFacet),
-                to: USER_SENDER,
-                tokenIn: address(tokenIn),
-                amountIn: AMOUNT_USDC,
-                tokenOut: address(tokenMid),
-                direction: SwapDirection.Token1ToToken0
+
+        bytes memory swapData = _buildIzumiV3SwapData(
+            IzumiV3SwapParams({
+                pool: poolInMid,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER
             })
         );
+
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
+                sender: address(coreRouteFacet),
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessMyERC20
+            }),
+            swapData
+        );
+
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
+                sender: address(coreRouteFacet),
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessMyERC20
+            }),
+            route
+        );
+
         vm.stopPrank();
     }
 
     function test_CanSwap_MultiHop() public override {
         // Fund the sender with tokens
-        uint256 amountIn = AMOUNT_USDC;
+        uint256 amountIn = _getDefaultAmountForTokenIn();
         deal(address(tokenIn), USER_SENDER, amountIn);
-
-        // Capture initial token balances
-        uint256 initialBalanceIn = IERC20(tokenIn).balanceOf(USER_SENDER);
-        uint256 initialBalanceOut = IERC20(tokenOut).balanceOf(USER_SENDER);
 
         // Build first swap data: USDC -> WETH
         bytes memory firstSwapData = _buildIzumiV3SwapData(
@@ -133,47 +162,31 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildMultiHopRoute(params, swapData);
 
-        // Approve tokens
         vm.startPrank(USER_SENDER);
-        IERC20(tokenIn).approve(address(ldaDiamond), amountIn);
 
-        // Execute the swap
-        uint256 amountOut = coreRouteFacet.processRoute(
-            address(tokenIn),
-            amountIn,
-            address(tokenOut),
-            0, // No minimum amount for testing
-            USER_SENDER,
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
             route
         );
+
         vm.stopPrank();
-
-        // Verify balances
-        uint256 finalBalanceIn = IERC20(address(tokenIn)).balanceOf(
-            USER_SENDER
-        );
-        uint256 finalBalanceOut = IERC20(address(tokenOut)).balanceOf(
-            USER_SENDER
-        );
-
-        assertEq(
-            initialBalanceIn - finalBalanceIn,
-            amountIn,
-            "TokenIn amount mismatch"
-        );
-        assertGt(finalBalanceOut, initialBalanceOut, "TokenOut not received");
-        assertEq(
-            amountOut,
-            finalBalanceOut - initialBalanceOut,
-            "AmountOut mismatch"
-        );
     }
 
     function test_CanSwap() public override {
-        deal(address(tokenIn), USER_SENDER, AMOUNT_USDC);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         vm.startPrank(USER_SENDER);
-        IERC20(tokenIn).approve(address(ldaDiamond), AMOUNT_USDC);
+        IERC20(tokenIn).approve(
+            address(ldaDiamond),
+            _getDefaultAmountForTokenIn()
+        );
 
         bytes memory swapData = _buildIzumiV3SwapData(
             IzumiV3SwapParams({
@@ -183,40 +196,56 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(tokenIn),
-            uint8(1), // number of pools/splits
-            FULL_SHARE, // 100% share
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(),
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
             swapData
         );
 
-        vm.expectEmit(true, true, true, false);
-        emit Route(
-            USER_SENDER,
-            USER_RECEIVER,
-            address(tokenIn),
-            address(tokenMid),
-            AMOUNT_USDC,
-            0,
-            0
-        );
+        // Create expected event
+        ExpectedEvent[] memory expectedEvents = new ExpectedEvent[](0);
+        // bytes[] memory eventParams = new bytes[](7);
+        // eventParams[0] = abi.encode(USER_SENDER);
+        // eventParams[1] = abi.encode(USER_RECEIVER);
+        // eventParams[2] = abi.encode(address(tokenIn));
+        // eventParams[3] = abi.encode(address(tokenMid));
+        // eventParams[4] = abi.encode(AMOUNT_USDC);
+        // eventParams[5] = abi.encode(uint256(0));  // minOut
+        // eventParams[6] = abi.encode(uint256(0));  // amountOut
 
-        coreRouteFacet.processRoute(
-            address(tokenIn),
-            AMOUNT_USDC,
-            address(tokenMid),
-            0,
-            USER_RECEIVER,
-            route
+        // expectedEvents[0] = ExpectedEvent({
+        //     checkTopic1: true,
+        //     checkTopic2: true,
+        //     checkTopic3: true,
+        //     checkData: false,
+        //     eventSelector: keccak256("Route(address,address,address,address,uint256,uint256,uint256)"),
+        //     eventParams: eventParams
+        // });
+
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(),
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            route,
+            expectedEvents
         );
 
         vm.stopPrank();
     }
 
     function testRevert_IzumiV3SwapUnexpected() public {
-        deal(address(tokenIn), USER_SENDER, AMOUNT_USDC);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         vm.startPrank(USER_SENDER);
 
@@ -232,12 +261,15 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
         );
 
         // create a route with an invalid pool
-        bytes memory invalidRoute = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(tokenIn),
-            uint8(1), // number of pools (1)
-            FULL_SHARE, // 100% share
-            uint16(swapData.length), // length prefix
+        bytes memory invalidRoute = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(),
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
             swapData
         );
 
@@ -252,7 +284,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: AMOUNT_USDC,
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -266,7 +298,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
     }
 
     function testRevert_UnexpectedCallbackSender() public {
-        deal(address(tokenIn), USER_SENDER, AMOUNT_USDC);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         // Set up the expected callback sender through the diamond
         vm.store(
@@ -289,7 +321,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
     }
 
     function testRevert_IzumiV3SwapCallbackNotPositiveAmount() public {
-        deal(address(tokenIn), USER_SENDER, AMOUNT_USDC);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         // Set the expected callback sender through the diamond storage
         vm.store(
@@ -321,12 +353,15 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             })
         );
 
-        bytes memory route = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(tokenMid),
-            uint8(1), // number of pools (1)
-            FULL_SHARE, // 100% share
-            uint16(swapData.length), // length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenMid),
+                tokenOut: address(tokenIn),
+                amountIn: type(uint216).max,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
             swapData
         );
 
@@ -344,108 +379,6 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
         );
 
         vm.stopPrank();
-    }
-
-    function _testSwap(IzumiV3SwapTestParams memory params) internal {
-        // Fund the sender with tokens if not the contract itself
-        if (params.from != address(coreRouteFacet)) {
-            deal(address(params.tokenIn), params.from, params.amountIn);
-        }
-
-        // Capture initial token balances
-        uint256 initialBalanceIn = IERC20(params.tokenIn).balanceOf(
-            params.from
-        );
-        uint256 initialBalanceOut = IERC20(params.tokenOut).balanceOf(
-            params.to
-        );
-
-        // Build the route based on the command type
-        CommandType commandCode = params.from == address(coreRouteFacet)
-            ? CommandType.ProcessMyERC20
-            : CommandType.ProcessUserERC20;
-
-        bytes memory swapData = _buildIzumiV3SwapData(
-            IzumiV3SwapParams({
-                pool: poolInMid,
-                direction: params.direction == SwapDirection.Token0ToToken1
-                    ? SwapDirection.Token0ToToken1
-                    : SwapDirection.Token1ToToken0,
-                recipient: params.to
-            })
-        );
-
-        bytes memory route = abi.encodePacked(
-            uint8(commandCode),
-            params.tokenIn,
-            uint8(1), // number of pools (1)
-            FULL_SHARE, // 100% share
-            uint16(swapData.length), // length prefix
-            swapData
-        );
-
-        // Approve tokens if necessary
-        if (params.from == USER_SENDER) {
-            vm.startPrank(USER_SENDER);
-            IERC20(address(params.tokenIn)).approve(
-                address(ldaDiamond),
-                params.amountIn
-            );
-        }
-
-        // Expect the Route event emission
-        address from = params.from == address(coreRouteFacet)
-            ? USER_SENDER
-            : params.from;
-
-        vm.expectEmit(true, true, true, false);
-        emit Route(
-            from,
-            params.to,
-            params.tokenIn,
-            params.tokenOut,
-            params.amountIn,
-            0, // No minimum amount enforced in test
-            0 // Actual amount will be checked after the swap
-        );
-
-        // Execute the swap
-        uint256 amountOut = coreRouteFacet.processRoute(
-            address(params.tokenIn),
-            params.amountIn,
-            address(params.tokenOut),
-            0, // No minimum amount for testing
-            params.to,
-            route
-        );
-
-        if (params.from == USER_SENDER) {
-            vm.stopPrank();
-        }
-
-        // Verify balances have changed correctly
-        uint256 finalBalanceIn = IERC20(address(params.tokenIn)).balanceOf(
-            params.from
-        );
-        uint256 finalBalanceOut = IERC20(address(params.tokenOut)).balanceOf(
-            params.to
-        );
-
-        assertApproxEqAbs(
-            initialBalanceIn - finalBalanceIn,
-            params.amountIn,
-            1, // 1 wei tolerance because of undrain protection for dex aggregator
-            "TokenIn amount mismatch"
-        );
-        assertGt(finalBalanceOut, initialBalanceOut, "TokenOut not received");
-        assertEq(
-            amountOut,
-            finalBalanceOut - initialBalanceOut,
-            "AmountOut mismatch"
-        );
-
-        emit log_named_uint("Amount In", params.amountIn);
-        emit log_named_uint("Amount Out", amountOut);
     }
 
     struct IzumiV3SwapParams {

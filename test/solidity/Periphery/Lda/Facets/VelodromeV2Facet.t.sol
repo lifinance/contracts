@@ -652,12 +652,15 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             })
         );
         // build the route.
-        bytes memory route = abi.encodePacked(
-            uint8(commandCode),
-            params.tokenIn,
-            uint8(1), // num splits
-            FULL_SHARE,
-            uint16(swapData.length), // <--- Add length prefix
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: params.amountIn,
+                sender: params.from,
+                recipient: params.to,
+                commandType: commandCode
+            }),
             swapData
         );
 

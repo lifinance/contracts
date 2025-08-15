@@ -20,7 +20,11 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         uniV3Pool = 0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0; // pool
     }
 
-    function _getDefaultAmount() internal override returns (uint256) {
+    function _getDefaultAmountForTokenIn()
+        internal
+        override
+        returns (uint256)
+    {
         return 1_000 * 1e6;
     }
 }

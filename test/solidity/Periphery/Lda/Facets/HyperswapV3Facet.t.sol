@@ -26,7 +26,11 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
         ).getPool(address(tokenIn), address(tokenOut), 3000);
     }
 
-    function _getDefaultAmount() internal override returns (uint256) {
+    function _getDefaultAmountForTokenIn()
+        internal
+        override
+        returns (uint256)
+    {
         return 1_000 * 1e6;
     }
 }

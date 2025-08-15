@@ -168,24 +168,20 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
-    function _runStandardSwapTest(UniV3AutoSwapParams memory params) internal {
-        _executeUniV3StyleSwapAuto(params);
-    }
-
     function test_CanSwap() public virtual override {
-        _runStandardSwapTest(
+        _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
                 commandType: CommandType.ProcessUserERC20,
-                amountIn: _getDefaultAmount()
+                amountIn: _getDefaultAmountForTokenIn()
             })
         );
     }
 
     function test_CanSwap_FromDexAggregator() public virtual override {
-        _runStandardSwapTest(
+        _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
                 commandType: CommandType.ProcessMyERC20,
-                amountIn: _getDefaultAmount() - 1
+                amountIn: _getDefaultAmountForTokenIn() - 1
             })
         );
     }
