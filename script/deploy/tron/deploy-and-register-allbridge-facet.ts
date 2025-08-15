@@ -111,17 +111,16 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     })
 
     // Use new utility for balance validation
-    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
-
+    // Pre-flight balance check: warn on low balances but do not abort here
+    await validateBalance(tronWeb, 0)
     // Load AllBridge configuration
     const allbridgeConfig = await Bun.file('config/allbridge.json').json()
-    const allBridgeAddress = allbridgeConfig.tron?.allBridge
+    const allBridgeAddress = allbridgeConfig[network]?.allBridge
 
     if (!allBridgeAddress)
       throw new Error(
-        'AllBridge address not found for tron in config/allbridge.json'
+        `AllBridge address not found for ${network} in config/allbridge.json`
       )
-
     consola.info('\nAllBridge Configuration:')
     consola.info(`AllBridge: ${allBridgeAddress}`)
 

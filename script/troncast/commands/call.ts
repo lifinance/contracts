@@ -131,7 +131,7 @@ export const callCommand = defineCommand({
       }
 
       // Check if call was successful
-      if (!result || !result.result) {
+      if (!result?.result?.result) {
         const errorMsg = result?.constant_result?.[0]
           ? tronWeb.toUtf8(result.constant_result[0])
           : 'Unknown error'
