@@ -388,7 +388,7 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     }
 
     function _getDefaultAmountForTokenIn() internal virtual returns (uint256) {
-        return 1_000 * 1e18; // Default, can be overridden
+        return 1_000 * 1e18;
     }
 
     function _executeAndVerifySwap(

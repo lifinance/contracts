@@ -773,7 +773,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: 1 * 1e18,
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -785,7 +785,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: 1 * 1e18,
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -880,7 +880,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: 1 * 1e18,
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -892,7 +892,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: 1 * 1e18,
+                amountIn: _getDefaultAmountForTokenIn(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
