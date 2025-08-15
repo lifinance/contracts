@@ -18,33 +18,9 @@ contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         tokenIn = IERC20(0x2A8E898b6242355c290E1f4Fc966b8788729A4D4); // USDC.e
         tokenOut = IERC20(0x951857744785E80e2De051c32EE7b25f9c458C42); // WXDC
         uniV3Pool = 0x81B4afF811E94fb084A0d3B3ca456D09AeC14EB0; // pool
-        aggregatorUndrainMinusOne = true;
     }
 
-    function test_CanSwap() public override {
-        _executeUniV3StyleSwapAuto(
-            UniV3AutoSwapParams({
-                commandType: CommandType.ProcessUserERC20,
-                amountIn: 1_000 * 1e6
-            })
-        );
-    }
-
-    function test_CanSwap_FromDexAggregator() public override {
-        _executeUniV3StyleSwapAuto(
-            UniV3AutoSwapParams({
-                commandType: CommandType.ProcessMyERC20,
-                amountIn: 5_000 * 1e6 - 1 // Account for slot-undrain
-            })
-        );
-    }
-
-    function test_CanSwap_MultiHop() public override {
-        // SKIPPED: XSwap V3 multi-hop unsupported due to AS requirement.
-        // XSwap V3 does not support a "one-pool" second hop today, because
-        // the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
-        // the pool.swap call. XSwap V3's swap() immediately reverts on
-        // require(amountSpecified != 0, 'AS'), so you can't chain two V3 pools
-        // in a single processRoute invocation.
+    function _getDefaultAmount() internal override returns (uint256) {
+        return 1_000 * 1e6;
     }
 }

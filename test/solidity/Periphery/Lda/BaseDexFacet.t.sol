@@ -197,15 +197,6 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
 
     function _setupForkConfig() internal virtual;
 
-    // function test_ContractIsSetUpCorrectly() public {
-    //     assertEq(address(liFiDEXAggregator.BENTO_BOX()), address(0xCAFE));
-    //     assertEq(
-    //         liFiDEXAggregator.priviledgedUsers(address(USER_DIAMOND_OWNER)),
-    //         true
-    //     );
-    //     assertEq(liFiDEXAggregator.owner(), USER_DIAMOND_OWNER);
-    // }
-
     // ============================ Abstract DEX Tests ============================
     /**
      * @notice Abstract test for basic token swapping functionality
@@ -390,6 +381,10 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         assertGt(outAfter - outBefore, 0, "Should receive tokens");
     }
 
+    function _getDefaultAmount() internal virtual returns (uint256) {
+        return 1_000 * 1e18; // Default, can be overridden
+    }
+
     // Keep the original function for backward compatibility
     function _executeAndVerifySwap(
         SwapTestParams memory params,
@@ -414,26 +409,13 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         vm.expectRevert(expectedRevert);
         coreRouteFacet.processRoute(
             params.tokenIn,
-            params.amountIn,
+            params.commandType == CommandType.ProcessMyERC20
+                ? params.amountIn
+                : params.amountIn - 1,
             params.tokenOut,
             0, // minOut = 0 for tests
             params.recipient,
             route
         );
-    }
-
-    // Optional helper
-    function _adjustAmountFor(
-        CommandType cmd,
-        uint256 amount
-    ) internal view returns (uint256) {
-        if (
-            cmd == CommandType.ProcessMyERC20 &&
-            aggregatorUndrainMinusOne &&
-            amount > 0
-        ) {
-            return amount - 1;
-        }
-        return amount;
     }
 }

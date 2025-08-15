@@ -3,18 +3,10 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
-import { IHyperswapV3QuoterV2 } from "lifi/Interfaces/IHyperswapV3QuoterV2.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
 
 contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
-    /// @dev HyperswapV3 router on HyperEVM chain
-    IHyperswapV3Factory internal constant HYPERSWAP_FACTORY =
-        IHyperswapV3Factory(0xB1c0fa0B789320044A6F623cFe5eBda9562602E3);
-    /// @dev HyperswapV3 quoter on HyperEVM chain
-    IHyperswapV3QuoterV2 internal constant HYPERSWAP_QUOTER =
-        IHyperswapV3QuoterV2(0x03A918028f22D9E1473B7959C927AD7425A45C7C);
-
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "hyperevm",
@@ -34,35 +26,7 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
         ).getPool(address(tokenIn), address(tokenOut), 3000);
     }
 
-    function test_CanSwap() public override {
-        // Get pool first since it's dynamically calculated
-        uniV3Pool = HYPERSWAP_FACTORY.getPool(
-            address(tokenIn),
-            address(tokenOut),
-            3000
-        );
-
-        _executeUniV3StyleSwapAuto(
-            UniV3AutoSwapParams({
-                commandType: CommandType.ProcessUserERC20,
-                amountIn: 1_000 * 1e6
-            })
-        );
-    }
-
-    function test_CanSwap_FromDexAggregator() public override {
-        // Get pool first since it's dynamically calculated
-        uniV3Pool = HYPERSWAP_FACTORY.getPool(
-            address(tokenIn),
-            address(tokenOut),
-            3000
-        );
-
-        _executeUniV3StyleSwapAuto(
-            UniV3AutoSwapParams({
-                commandType: CommandType.ProcessMyERC20,
-                amountIn: 1_000 * 1e6 - 1 // Account for slot-undrain
-            })
-        );
+    function _getDefaultAmount() internal override returns (uint256) {
+        return 1_000 * 1e6;
     }
 }

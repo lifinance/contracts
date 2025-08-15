@@ -15,11 +15,6 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     address internal constant USDC_WETH_POOL_V2 =
         address(0xDDed227D71A096c6B5D87807C1B5C456771aAA94);
 
-    IERC20 internal constant USDT =
-        IERC20(0xA219439258ca9da29E9Cc4cE5596924745e12B93);
-    address internal constant USDC_USDT_POOL_V1 =
-        address(0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2);
-
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "linea",
@@ -50,14 +45,12 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         tokenOut = IERC20(0xA219439258ca9da29E9Cc4cE5596924745e12B93); // USDT
         poolInMid = 0x5Ec5b1E9b1Bd5198343ABB6E55Fb695d2F7Bb308; // WETH-USDC V1
         poolMidOut = 0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2; // USDC-USDT V1
-        aggregatorUndrainMinusOne = true;
     }
 
     /// @notice Single‐pool swap: USER sends WETH → receives USDC
     function test_CanSwap() public override {
         // Transfer 1 000 WETH from whale to USER_SENDER
-        uint256 amountIn = 1_000 * 1e18;
-        deal(address(tokenIn), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
 
@@ -75,7 +68,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -87,7 +80,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -100,8 +93,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_PoolV2() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
-        uint256 amountIn = 1_000 * 1e18;
-        deal(address(tokenIn), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
 
@@ -119,7 +111,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -131,7 +123,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -144,8 +136,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_FromDexAggregator() public override {
         // Fund the aggregator with 1 000 WETH
-        uint256 amountIn = 1_000 * 1e18;
-        deal(address(tokenIn), address(ldaDiamond), amountIn);
+        deal(address(tokenIn), address(ldaDiamond), _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
 
@@ -163,7 +154,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn - 1, // Account for slot-undrain
+                amountIn: _getDefaultAmount() - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -175,7 +166,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn - 1, // Account for slot-undrain
+                amountIn: _getDefaultAmount() - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -188,8 +179,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_FromDexAggregator_PoolV2() public {
         // Fund the aggregator with 1 000 WETH
-        uint256 amountIn = 1_000 * 1e18;
-        deal(address(tokenIn), address(ldaDiamond), amountIn);
+        deal(address(tokenIn), address(ldaDiamond), _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
 
@@ -207,7 +197,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn - 1, // Account for slot-undrain
+                amountIn: _getDefaultAmount() - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -219,7 +209,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: amountIn - 1, // Account for slot-undrain
+                amountIn: _getDefaultAmount() - 1, // Account for slot-undrain
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -231,11 +221,10 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_MultiHop() public override {
-        uint256 amountIn = 1_000e18;
-        deal(address(tokenIn), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
-        tokenIn.approve(address(ldaDiamond), amountIn);
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmount());
 
         // Build swap data for both hops
         bytes memory firstSwapData = _buildSyncSwapV2SwapData(
@@ -266,7 +255,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         params[0] = SwapTestParams({
             tokenIn: address(tokenIn),
             tokenOut: address(tokenMid),
-            amountIn: amountIn,
+            amountIn: _getDefaultAmount(),
             sender: USER_SENDER,
             recipient: SYNC_SWAP_VAULT,
             commandType: CommandType.ProcessUserERC20
@@ -291,7 +280,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -304,8 +293,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function testRevert_V1PoolMissingVaultAddress() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
-        uint256 amountIn = 1_000 * 1e18;
-        deal(address(tokenIn), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
 
@@ -323,7 +311,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -335,7 +323,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -349,8 +337,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
 
     function testRevert_InvalidPoolOrRecipient() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
-        uint256 amountIn = 1_000 * 1e18;
-        deal(address(tokenIn), USER_SENDER, amountIn);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmount());
 
         vm.startPrank(USER_SENDER);
 
@@ -368,7 +355,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -380,7 +367,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -403,7 +390,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -415,7 +402,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                amountIn: amountIn,
+                amountIn: _getDefaultAmount(),
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20

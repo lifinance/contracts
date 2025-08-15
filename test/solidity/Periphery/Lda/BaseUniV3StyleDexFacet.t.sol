@@ -118,10 +118,9 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     function _executeUniV3StyleSwapAuto(
         UniV3AutoSwapParams memory params
     ) internal {
-        uint256 amountIn = _adjustAmountFor(
-            params.commandType,
-            params.amountIn
-        );
+        uint256 amountIn = params.commandType == CommandType.ProcessMyERC20
+            ? params.amountIn + 1
+            : params.amountIn;
 
         // Fund the appropriate account
         if (params.commandType == CommandType.ProcessMyERC20) {
@@ -167,5 +166,27 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         );
 
         vm.stopPrank();
+    }
+
+    function _runStandardSwapTest(UniV3AutoSwapParams memory params) internal {
+        _executeUniV3StyleSwapAuto(params);
+    }
+
+    function test_CanSwap() public virtual override {
+        _runStandardSwapTest(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessUserERC20,
+                amountIn: _getDefaultAmount()
+            })
+        );
+    }
+
+    function test_CanSwap_FromDexAggregator() public virtual override {
+        _runStandardSwapTest(
+            UniV3AutoSwapParams({
+                commandType: CommandType.ProcessMyERC20,
+                amountIn: _getDefaultAmount() - 1
+            })
+        );
     }
 }

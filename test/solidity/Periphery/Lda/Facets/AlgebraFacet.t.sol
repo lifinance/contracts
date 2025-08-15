@@ -158,7 +158,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         tokenIn = IERC20(APE_ETH_TOKEN);
         tokenOut = IERC20(WETH_TOKEN);
         poolInOut = ALGEBRA_POOL_APECHAIN;
-        aggregatorUndrainMinusOne = true;
     }
 
     // Override the abstract test with Algebra implementation
