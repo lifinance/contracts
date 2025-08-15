@@ -408,7 +408,7 @@ async function deployCoreFacetsImpl(options: {
       address: data.address,
       version: data.version,
     }))
-    await updateDiamondJsonBatch(facetEntries)
+    await updateDiamondJsonBatch(facetEntries, 'tron')
   }
 
   // Use new utility for summary
