@@ -49,8 +49,14 @@ async function getConstructorArgs(
     // TronWeb expects the base58 address format for constructor parameters
     // It will handle the conversion internally
     const tronWeb = (await import('tronweb')).TronWeb
+    const networksConfig = await Bun.file('config/networks.json').json()
+    const networkRpcUrl = networksConfig[network]?.rpcUrl
+    if (!networkRpcUrl)
+      throw new Error(
+        `RPC URL not found for ${network} in config/networks.json`
+      )
     const tronWebInstance = new tronWeb({
-      fullHost: network,
+      fullHost: networkRpcUrl,
       privateKey,
     })
     const tronHexAddress = pauserWallet.replace('0x', '41')
@@ -72,8 +78,14 @@ async function getConstructorArgs(
 
     // For display purposes
     const tronWeb = (await import('tronweb')).TronWeb
+    const networksConfig2 = await Bun.file('config/networks.json').json()
+    const networkRpcUrl2 = networksConfig2[network]?.rpcUrl
+    if (!networkRpcUrl2)
+      throw new Error(
+        `RPC URL not found for ${network} in config/networks.json`
+      )
     const tronWebInstance = new tronWeb({
-      fullHost: network,
+      fullHost: networkRpcUrl2,
       privateKey,
     })
     const tronNativeAddress =
@@ -194,7 +206,7 @@ async function deployCoreFacetsImpl(options: {
   const existingDeployments = []
   for (const facet of coreFacets) {
     const deployment = await checkExistingDeployment(
-      'tron',
+      network,
       facet,
       options.dryRun
     )
@@ -252,7 +264,8 @@ async function deployCoreFacetsImpl(options: {
         deployer,
         facet,
         constructorArgs,
-        options.dryRun
+        options.dryRun,
+        network
       )
 
       deploymentResults.push(result)
@@ -300,7 +313,7 @@ async function deployCoreFacetsImpl(options: {
   consola.info(`\n💎 Deploying ${diamondName}...`)
 
   const existingDiamond = await checkExistingDeployment(
-    'tron',
+    network,
     diamondName,
     options.dryRun
   )
@@ -327,7 +340,7 @@ async function deployCoreFacetsImpl(options: {
       // Convert to hex format for constructor
       const { TronWeb } = await import('tronweb')
       const tronWeb = new TronWeb({
-        fullHost: network,
+        fullHost: rpcUrl,
         privateKey,
       })
       const ownerHex = '0x' + tronWeb.address.toHex(ownerAddress).slice(2)
@@ -339,7 +352,8 @@ async function deployCoreFacetsImpl(options: {
         deployer,
         diamondName,
         [ownerHex], // Pass owner address as constructor argument
-        options.dryRun
+        options.dryRun,
+        network
       )
 
       deploymentResults.push(result)
@@ -350,7 +364,7 @@ async function deployCoreFacetsImpl(options: {
           await saveContractAddress('tron', diamondName, result.address)
 
           // Save diamond deployment info
-          await saveDiamondDeployment('tron', result.address, facetAddresses)
+          await saveDiamondDeployment(network, result.address, facetAddresses)
 
           // Update diamond JSON files
           const facetEntries = Object.entries(facetAddresses).map(
@@ -360,7 +374,7 @@ async function deployCoreFacetsImpl(options: {
               version: data.version,
             })
           )
-          await updateDiamondJsonBatch(facetEntries)
+          await updateDiamondJsonBatch(facetEntries, network)
 
           // Log deployment
           await logDeployment(

@@ -138,7 +138,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     consola.info('\nDeploying AllBridgeFacet...')
 
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
-      'tron',
+      network,
       'AllBridgeFacet',
       dryRun
     )
@@ -164,7 +164,8 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
           deployer,
           'AllBridgeFacet',
           constructorArgs,
-          dryRun
+          dryRun,
+          network
         )
 
         facetAddress = result.address
@@ -206,8 +207,9 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       'AllBridgeFacet',
       facetAddress,
       tronWeb,
-      network,
-      dryRun
+      rpcUrl,
+      dryRun,
+      network
     )
 
     if (registrationResult.success) {

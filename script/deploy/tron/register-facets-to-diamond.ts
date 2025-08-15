@@ -7,6 +7,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
 import {
@@ -201,7 +202,8 @@ async function registerFacetsBatch(
   facetNames: string[],
   deployments: Record<string, string>,
   fullHost: string,
-  dryRun = false
+  dryRun = false,
+  network: SupportedChain = 'tron'
 ): Promise<boolean> {
   const facetCuts = []
 
@@ -372,7 +374,8 @@ async function registerFacetsBatch(
         }
       }
 
-      if (facetEntries.length > 0) await updateDiamondJsonBatch(facetEntries)
+      if (facetEntries.length > 0)
+        await updateDiamondJsonBatch(facetEntries, network)
     }
 
     return true
@@ -409,18 +412,28 @@ async function registerFacetsToDiamond(
   } = {}
 ) {
   try {
-    // 1. Load deployment addresses from tron.json
-    const deploymentPath = path.join(process.cwd(), 'deployments', 'tron.json')
+    // Get environment and determine network
+    const environment = await getEnvironment()
+    const networkName =
+      environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
+
+    // 1. Load deployment addresses from network-specific file
+    const fileSuffix =
+      environment === EnvironmentEnum.production ? '' : 'staging.'
+    const deploymentPath = path.join(
+      process.cwd(),
+      'deployments',
+      `${networkName}.${fileSuffix}json`
+    )
 
     if (!fs.existsSync(deploymentPath))
       throw new Error(
-        'deployments/tron.json not found. Please deploy contracts first.'
+        `deployments/${networkName}.${fileSuffix}json not found. Please deploy contracts first.`
       )
 
     const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
 
     // 2. Setup TronWeb
-    const environment = await getEnvironment()
     const privateKey = getPrivateKeyForEnvironment(environment)
     const networkConfig = JSON.parse(
       fs.readFileSync(
@@ -428,7 +441,8 @@ async function registerFacetsToDiamond(
         'utf8'
       )
     )
-    const fullHost = networkConfig.tron?.rpcUrl || networkConfig.tron?.rpc
+    const fullHost =
+      networkConfig[networkName]?.rpcUrl || networkConfig[networkName]?.rpc
 
     if (!fullHost) throw new Error('Tron RPC URL not found in networks.json')
 
@@ -556,7 +570,8 @@ async function registerFacetsToDiamond(
           group,
           deployments,
           fullHost,
-          options.dryRun
+          options.dryRun,
+          networkName as SupportedChain
         )
 
         if (!success && !options.dryRun)
@@ -597,7 +612,8 @@ async function registerFacetsToDiamond(
         facetsToRegister,
         deployments,
         fullHost,
-        options.dryRun
+        options.dryRun,
+        networkName as SupportedChain
       )
 
       if (!success && !options.dryRun) {

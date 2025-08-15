@@ -305,13 +305,14 @@ export function calculateTransactionBandwidth(transaction: any): number {
 export async function updateDiamondJson(
   facetAddress: string,
   facetName: string,
-  version?: string
+  version?: string,
+  network: SupportedChain = 'tron'
 ): Promise<void> {
   try {
     const diamondJsonPath = resolve(
       process.cwd(),
       'deployments',
-      'tron.diamond.json'
+      `${network}.diamond.json`
     )
 
     // Read existing file or create new structure
@@ -344,11 +345,13 @@ export async function updateDiamondJson(
     for (const address in facets)
       if (facets[address].Name === facetName)
         if (address === facetAddress) {
-          consola.info(`${facetName} already exists in tron.diamond.json`)
+          consola.info(`${facetName} already exists in ${network}.diamond.json`)
           return
         } else {
           // Same facet name but different address - update it
-          consola.info(`Updating ${facetName} address in tron.diamond.json`)
+          consola.info(
+            `Updating ${facetName} address in ${network}.diamond.json`
+          )
           delete facets[address]
           break
         }
@@ -376,9 +379,9 @@ export async function updateDiamondJson(
       JSON.stringify(diamondData, null, 2) + '\n'
     )
 
-    consola.success(`Updated tron.diamond.json with ${facetName}`)
+    consola.success(`Updated ${network}.diamond.json with ${facetName}`)
   } catch (error: any) {
-    consola.error('Failed to update tron.diamond.json:', error.message)
+    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -392,13 +395,14 @@ export async function updateDiamondJsonBatch(
     address: string
     name: string
     version?: string
-  }>
+  }>,
+  network: SupportedChain = 'tron'
 ): Promise<void> {
   try {
     const diamondJsonPath = resolve(
       process.cwd(),
       'deployments',
-      'tron.diamond.json'
+      `${network}.diamond.json`
     )
 
     // Read existing file or create new structure
@@ -445,7 +449,9 @@ export async function updateDiamondJsonBatch(
       if (existingAddress) {
         // Remove old entry
         delete facets[existingAddress]
-        consola.info(`Updating ${entry.name} address in tron.diamond.json`)
+        consola.info(
+          `Updating ${entry.name} address in ${network}.diamond.json`
+        )
       }
 
       // Get version if not provided
@@ -475,10 +481,12 @@ export async function updateDiamondJsonBatch(
         JSON.stringify(diamondData, null, 2) + '\n'
       )
 
-      consola.success(`Updated tron.diamond.json with ${updatedCount} facet(s)`)
+      consola.success(
+        `Updated ${network}.diamond.json with ${updatedCount} facet(s)`
+      )
     }
   } catch (error: any) {
-    consola.error('Failed to update tron.diamond.json:', error.message)
+    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -490,13 +498,14 @@ export async function updateDiamondJsonBatch(
  */
 export async function updateDiamondJsonPeriphery(
   contractAddress: string,
-  contractName: string
+  contractName: string,
+  network: SupportedChain = 'tron'
 ): Promise<void> {
   try {
     const diamondJsonPath = resolve(
       process.cwd(),
       'deployments',
-      'tron.diamond.json'
+      `${network}.diamond.json`
     )
 
     // Read existing file or create new structure
@@ -529,13 +538,15 @@ export async function updateDiamondJsonPeriphery(
 
     if (periphery[contractName] === contractAddress) {
       consola.info(
-        `${contractName} already exists in tron.diamond.json with same address`
+        `${contractName} already exists in ${network}.diamond.json with same address`
       )
       return
     }
 
     if (periphery[contractName])
-      consola.info(`Updating ${contractName} address in tron.diamond.json`)
+      consola.info(
+        `Updating ${contractName} address in ${network}.diamond.json`
+      )
 
     // Set the contract address (simple format: name -> address)
     periphery[contractName] = contractAddress
@@ -547,10 +558,10 @@ export async function updateDiamondJsonPeriphery(
     )
 
     consola.success(
-      `Updated tron.diamond.json with ${contractName} (Periphery)`
+      `Updated ${network}.diamond.json with ${contractName} (Periphery)`
     )
   } catch (error: any) {
-    consola.error('Failed to update tron.diamond.json:', error.message)
+    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -654,7 +665,8 @@ export async function deployContractWithLogging(
   deployer: any, // TronContractDeployer
   contractName: string,
   constructorArgs: any[] = [],
-  dryRun = false
+  dryRun = false,
+  network: SupportedChain = 'tron'
 ): Promise<IDeploymentResult> {
   try {
     const artifact = await loadForgeArtifact(contractName)
@@ -681,14 +693,14 @@ export async function deployContractWithLogging(
 
       await logDeployment(
         contractName,
-        'tron',
+        network,
         result.contractAddress,
         version,
         constructorArgsHex,
         false
       )
 
-      await saveContractAddress('tron', contractName, result.contractAddress)
+      await saveContractAddress(network, contractName, result.contractAddress)
     }
 
     return {
@@ -835,12 +847,30 @@ export async function registerFacetToDiamond(
   facetAddress: string,
   tronWeb: any,
   fullHost: string,
-  dryRun = false
+  dryRun = false,
+  networkOrDiamondAddress: SupportedChain | string = 'tron'
 ): Promise<IDiamondRegistrationResult> {
   try {
-    // Load diamond address
-    const diamondAddress = await getContractAddress('tron', 'LiFiDiamond')
-    if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
+    // Determine if we received a network name or a diamond address
+    let diamondAddress: string
+    let network: SupportedChain
+
+    // Check if it's a Tron address (starts with T) or hex address
+    if (
+      networkOrDiamondAddress.startsWith('T') ||
+      networkOrDiamondAddress.startsWith('0x')
+    ) {
+      diamondAddress = networkOrDiamondAddress
+      // Default to 'tron' for network when diamond address is provided directly
+      network = 'tron'
+    } else {
+      // It's a network name
+      network = networkOrDiamondAddress as SupportedChain
+      const loadedAddress = await getContractAddress(network, 'LiFiDiamond')
+      if (!loadedAddress)
+        throw new Error(`LiFiDiamond not found in deployments for ${network}`)
+      diamondAddress = loadedAddress
+    }
 
     consola.info(`Registering ${facetName} to LiFiDiamond: ${diamondAddress}`)
 
@@ -918,7 +948,7 @@ export async function registerFacetToDiamond(
       )
 
     // Update diamond.json
-    await updateDiamondJson(facetAddress, facetName)
+    await updateDiamondJson(facetAddress, facetName, undefined, network)
 
     return { success: true, transactionId: tx }
   } catch (error: any) {

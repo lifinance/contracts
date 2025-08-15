@@ -149,7 +149,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     consola.info('\nDeploying SymbiosisFacet...')
 
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
-      'tron',
+      network,
       'SymbiosisFacet',
       dryRun
     )
@@ -175,7 +175,8 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
           deployer,
           'SymbiosisFacet',
           constructorArgs,
-          dryRun
+          dryRun,
+          network
         )
 
         facetAddress = result.address
@@ -217,8 +218,9 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       'SymbiosisFacet',
       facetAddress,
       tronWeb,
-      network,
-      dryRun
+      rpcUrl,
+      dryRun,
+      network
     )
 
     if (registrationResult.success) {
