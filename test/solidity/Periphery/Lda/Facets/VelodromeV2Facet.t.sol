@@ -276,6 +276,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             tokenIn: params.tokenIn,
             tokenOut: params.tokenMid,
             amountIn: 1000 * 1e6,
+            minOut: 0,
             sender: USER_SENDER,
             recipient: params.pool2, // Send to next pool
             commandType: CommandType.ProcessUserERC20
@@ -297,7 +298,8 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             tokenOut: params.tokenOut,
             amountIn: params.amounts1[1], // Use output from first hop
             sender: params.pool2,
-            recipient: USER_SENDER,
+            minOut: 0,
+            recipient: USER_SENDER, // Send to next pool
             commandType: CommandType.ProcessOnePool
         });
 
@@ -333,6 +335,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: 1000 * 1e6,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -380,6 +383,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             tokenIn: params.tokenIn,
             tokenOut: params.tokenMid,
             amountIn: 1000 * 1e6,
+            minOut: 0,
             sender: USER_SENDER,
             recipient: params.pool2, // Send to next pool
             commandType: CommandType.ProcessUserERC20
@@ -400,6 +404,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             tokenOut: params.tokenOut,
             amountIn: params.amounts1[1], // Use output from first hop
             sender: params.pool2,
+            minOut: 0,
             recipient: USER_SENDER,
             commandType: CommandType.ProcessOnePool
         });
@@ -434,6 +439,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: 1000 * 1e6,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -482,6 +488,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: 1000 * 1e6,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -513,6 +520,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: 1000 * 1e6,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -545,6 +553,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             tokenIn: params.tokenIn,
             tokenOut: params.tokenMid,
             amountIn: 1000 * 1e6,
+            minOut: 0,
             sender: USER_SENDER,
             recipient: params.pool2, // Send to next pool
             commandType: CommandType.ProcessUserERC20
@@ -564,6 +573,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             tokenIn: params.tokenMid,
             tokenOut: params.tokenOut,
             amountIn: 0, // Not used in ProcessOnePool
+            minOut: 0,
             sender: params.pool2,
             recipient: USER_SENDER,
             commandType: CommandType.ProcessOnePool
@@ -657,6 +667,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
+                minOut: 0,
                 sender: params.from,
                 recipient: params.to,
                 commandType: commandCode
@@ -700,6 +711,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
+                minOut: amounts[1],
                 sender: params.from,
                 recipient: params.to,
                 commandType: params.from == address(ldaDiamond)
@@ -707,7 +719,12 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                     : CommandType.ProcessUserERC20
             }),
             route,
-            expectedEvents
+            expectedEvents,
+            false,
+            RouteEventVerification({
+                expectedExactOut: amounts[1],
+                checkData: true
+            })
         );
     }
 

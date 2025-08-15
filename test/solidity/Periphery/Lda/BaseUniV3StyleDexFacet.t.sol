@@ -146,6 +146,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: amountIn,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: params.commandType
@@ -158,6 +159,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: amountIn,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: params.commandType

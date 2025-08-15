@@ -69,6 +69,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -81,6 +82,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -112,6 +114,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -124,6 +127,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -159,6 +163,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -171,6 +176,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -206,6 +212,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -218,6 +225,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -264,6 +272,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             tokenIn: address(tokenIn),
             tokenOut: address(tokenMid),
             amountIn: _getDefaultAmountForTokenIn(),
+            minOut: 0,
             sender: USER_SENDER,
             recipient: SYNC_SWAP_VAULT,
             commandType: CommandType.ProcessUserERC20
@@ -275,6 +284,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
             tokenIn: address(tokenMid),
             tokenOut: address(tokenOut),
             amountIn: 0, // Not used in ProcessOnePool
+            minOut: 0,
             sender: USER_SENDER,
             recipient: USER_SENDER,
             commandType: CommandType.ProcessOnePool
@@ -289,6 +299,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -320,6 +331,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -332,6 +344,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -364,6 +377,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -376,7 +390,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
-                sender: USER_SENDER,
+                minOut: 0,
+                sender: USER_SENDER, // Send to next pool
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
@@ -399,7 +414,8 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
-                sender: USER_SENDER,
+                minOut: 0,
+                sender: USER_SENDER, // Send to next pool
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
@@ -411,6 +427,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -441,6 +458,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: 1, // Arbitrary amount for this test
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -453,6 +471,7 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: 1,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20

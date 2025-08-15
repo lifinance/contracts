@@ -212,6 +212,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 recipient: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 commandType: CommandType.ProcessUserERC20
@@ -224,6 +225,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 recipient: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 commandType: CommandType.ProcessUserERC20
@@ -340,6 +342,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -361,6 +364,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -479,6 +483,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             tokenIn: address(state.tokenA),
             tokenOut: address(state.tokenB),
             amountIn: state.amountIn,
+            minOut: 0,
             sender: USER_SENDER,
             recipient: address(ldaDiamond), // Send to aggregator for next hop
             commandType: CommandType.ProcessUserERC20
@@ -500,6 +505,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             tokenIn: address(state.tokenB),
             tokenOut: address(state.tokenC),
             amountIn: 0, // Not used for ProcessMyERC20
+            minOut: 0,
             sender: address(ldaDiamond),
             recipient: USER_SENDER,
             commandType: CommandType.ProcessMyERC20
@@ -523,6 +529,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(state.tokenA),
                 tokenOut: address(state.tokenC),
                 amountIn: state.amountIn,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -696,6 +703,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
+                minOut: 0,
                 sender: params.from,
                 recipient: params.to,
                 commandType: params.from == address(coreRouteFacet)
@@ -710,6 +718,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
+                minOut: 0,
                 sender: params.from,
                 recipient: params.to,
                 commandType: params.from == address(ldaDiamond)
@@ -774,6 +783,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -786,6 +796,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -881,6 +892,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -893,6 +905,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20

@@ -89,6 +89,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
+                minOut: 0,
                 sender: address(coreRouteFacet),
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -101,6 +102,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
+                minOut: 0,
                 sender: address(coreRouteFacet),
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
@@ -143,6 +145,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             tokenIn: address(tokenIn),
             tokenOut: address(tokenMid),
             amountIn: amountIn,
+            minOut: 0,
             sender: USER_SENDER,
             recipient: address(coreRouteFacet),
             commandType: CommandType.ProcessUserERC20
@@ -154,6 +157,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
             tokenIn: address(tokenMid),
             tokenOut: address(tokenOut),
             amountIn: 0, // Will be determined by first swap
+            minOut: 0,
             sender: USER_SENDER,
             recipient: USER_SENDER,
             commandType: CommandType.ProcessMyERC20
@@ -169,6 +173,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: amountIn,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -201,6 +206,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
@@ -213,6 +219,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
@@ -245,6 +252,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -264,6 +272,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -337,6 +346,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenMid),
                 tokenOut: address(tokenIn),
                 amountIn: type(uint216).max,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
@@ -349,6 +359,7 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenMid),
                 tokenOut: address(tokenIn),
                 amountIn: type(uint216).max,
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20

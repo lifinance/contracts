@@ -236,13 +236,10 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
+        uint256 minOut; // Added here - it's a swap parameter
         address sender;
         address recipient;
         CommandType commandType;
-        // // New optional fields for expected output verification
-        // uint256 expectedMinOut;      // Optional: if non-zero, used as minOut in Route event
-        // uint256 expectedExactOut;    // Optional: if non-zero, used as amountOut in Route event
-        // bool checkRouteData;         // Optional: whether to check Route event data (defaults to false)
     }
 
     // Add this struct for route building
@@ -299,11 +296,17 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         return route;
     }
 
+    struct RouteEventVerification {
+        uint256 expectedExactOut; // Only for event verification
+        bool checkData;
+    }
+
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
         ExpectedEvent[] memory additionalEvents,
-        bool isFeeOnTransferToken
+        bool isFeeOnTransferToken,
+        RouteEventVerification memory routeEventVerification
     ) internal {
         if (params.commandType != CommandType.ProcessMyERC20) {
             IERC20(params.tokenIn).approve(
@@ -330,21 +333,22 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
 
         _expectEvents(additionalEvents);
 
-        vm.expectEmit(true, true, true, false);
+        vm.expectEmit(true, true, true, routeEventVerification.checkData);
         emit Route(
             fromAddress,
             params.recipient,
             params.tokenIn,
             params.tokenOut,
             params.amountIn,
-            0,
-            0
+            params.minOut, // Use minOut from SwapTestParams
+            routeEventVerification.expectedExactOut
         );
+
         coreRouteFacet.processRoute(
             params.tokenIn,
             params.amountIn,
             params.tokenOut,
-            0, // minOut = 0 for tests
+            params.minOut, // Use minOut from SwapTestParams
             params.recipient,
             route
         );
@@ -385,16 +389,29 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
-        ExpectedEvent[] memory additionalEvents
+        ExpectedEvent[] memory additionalEvents,
+        bool isFeeOnTransferToken
     ) internal {
-        _executeAndVerifySwap(params, route, additionalEvents, false);
+        _executeAndVerifySwap(
+            params,
+            route,
+            additionalEvents,
+            isFeeOnTransferToken,
+            RouteEventVerification({ expectedExactOut: 0, checkData: false })
+        );
     }
 
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route
     ) internal {
-        _executeAndVerifySwap(params, route, new ExpectedEvent[](0), false);
+        _executeAndVerifySwap(
+            params,
+            route,
+            new ExpectedEvent[](0),
+            false,
+            RouteEventVerification({ expectedExactOut: 0, checkData: false })
+        );
     }
 
     // Keep the revert case separate

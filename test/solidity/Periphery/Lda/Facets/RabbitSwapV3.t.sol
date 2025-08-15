@@ -45,6 +45,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -57,6 +58,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -89,6 +91,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
@@ -101,6 +104,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
