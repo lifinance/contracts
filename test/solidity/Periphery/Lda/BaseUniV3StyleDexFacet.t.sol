@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { IUniV3LikePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
+import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 
 abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     UniV3StyleFacet internal uniV3Facet;
@@ -178,5 +179,22 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
                 amountIn: _getDefaultAmountForTokenIn() - 1
             })
         );
+    }
+
+    function testRevert_CallbackFromUnexpectedSender() public {
+        // No swap has armed the guard; expected == address(0)
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(LibCallbackManager.UnexpectedCallbackSender.selector);
+        // Call the facet’s callback directly on the diamond
+        (bool ok, ) = address(ldaDiamond).call(
+            abi.encodeWithSelector(
+                _getCallbackSelector(),
+                int256(1),
+                int256(1),
+                bytes("")
+            )
+        );
+        ok;
+        vm.stopPrank();
     }
 }
