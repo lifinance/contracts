@@ -10,6 +10,12 @@ interface IRpcEndpoint {
   priority: number
 }
 
+// Helper function to get RPC environment variable name from network name
+// This must match the logic in helperFunctions.sh getRPCEnvVarName function
+function getRPCEnvVarName(networkName: string): string {
+  return `ETH_NODE_URI_${networkName.toUpperCase().replace(/-/g, '_')}`
+}
+
 async function fetchRpcEndpoints(): Promise<{
   [network: string]: IRpcEndpoint[]
 }> {
@@ -35,7 +41,7 @@ async function fetchRpcEndpoints(): Promise<{
         // Sort endpoints in descending order so that the endpoint with the highest priority comes first
         validEndpoints.sort((a, b) => b.priority - a.priority)
         if (validEndpoints.length > 0) {
-          const envVar = `ETH_NODE_URI_${doc.chainName.toUpperCase()}`
+          const envVar = getRPCEnvVarName(doc.chainName)
           endpoints[envVar] = validEndpoints
         }
       }
@@ -65,7 +71,7 @@ async function mergeEndpointsIntoEnv() {
       const networks = (await import('../../config/networks.json')).default
       newEndpoints = Object.entries(networks).reduce(
         (acc, [networkName, config]) => {
-          const envVar = `ETH_NODE_URI_${networkName.toUpperCase()}`
+          const envVar = getRPCEnvVarName(networkName)
           acc[envVar] = [
             {
               url: config.rpcUrl,
