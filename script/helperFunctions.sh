@@ -3049,7 +3049,7 @@ function getContractAddressFromSalt() {
   local ENVIRONMENT=$4
 
   # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC_URL=$(getRPCUrl "$NETWORK")
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
