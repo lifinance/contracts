@@ -20,6 +20,6 @@ contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x5555555555555555555555555555555555555555); // WHYPE
         tokenOut = IERC20(0x5748ae796AE46A4F1348a1693de4b50560485562); // LHYPE
-        uniV3Pool = 0xdAA8a66380fb35b35CB7bc1dBC1925AbfdD0ae45; // WHYPE_LHYPE_POOL
+        poolInOut = 0xdAA8a66380fb35b35CB7bc1dBC1925AbfdD0ae45; // WHYPE_LHYPE_POOL
     }
 }

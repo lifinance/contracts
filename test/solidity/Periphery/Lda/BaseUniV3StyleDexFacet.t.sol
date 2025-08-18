@@ -2,19 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
+import { IUniV3LikePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
-
-// Minimal UniV3-like pool interface for direction detection
-interface IUniV3LikePool {
-    function token0() external view returns (address);
-    function token1() external view returns (address);
-}
 
 abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     UniV3StyleFacet internal uniV3Facet;
-
-    // Single-pool slot for UniV3-style tests
-    address internal uniV3Pool;
 
     struct UniV3SwapParams {
         address pool;
@@ -131,10 +123,10 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
 
         vm.startPrank(USER_SENDER);
 
-        SwapDirection direction = _getDirection(uniV3Pool, address(tokenIn));
+        SwapDirection direction = _getDirection(poolInOut, address(tokenIn));
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
-                pool: uniV3Pool,
+                pool: poolInOut,
                 direction: direction,
                 recipient: USER_SENDER
             })

@@ -20,6 +20,6 @@ contract EnosysDexV3FacetTest is BaseUniV3StyleDexFacetTest {
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x140D8d3649Ec605CF69018C627fB44cCC76eC89f); // HLN
         tokenOut = IERC20(0xe7cd86e13AC4309349F30B3435a9d337750fC82D); // USDT0
-        uniV3Pool = 0xA7C9E7343bD8f1eb7000F25dE5aeb52c6B78B1b7; // ENOSYS_V3_POOL
+        poolInOut = 0xA7C9E7343bD8f1eb7000F25dE5aeb52c6B78B1b7; // ENOSYS_V3_POOL
     }
 }

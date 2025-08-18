@@ -21,7 +21,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0xB786D9c8120D311b948cF1e5Aa48D8fBacf477E2); // SOROS
         tokenOut = IERC20(0x0Fd0288AAAE91eaF935e2eC14b23486f86516c8C); // C98
-        uniV3Pool = 0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D; // pool
+        poolInOut = 0xF10eFaE2DdAC396c4ef3c52009dB429A120d0C0D; // pool
     }
 
     function testRevert_RabbitSwapInvalidPool() public {
@@ -79,7 +79,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
-                pool: uniV3Pool,
+                pool: poolInOut,
                 direction: SwapDirection.Token1ToToken0,
                 recipient: address(0) // Invalid recipient address
             })

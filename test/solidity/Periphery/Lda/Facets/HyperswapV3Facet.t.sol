@@ -21,7 +21,7 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb); // USDT0
         tokenOut = IERC20(0x5555555555555555555555555555555555555555); // WHYPE
-        uniV3Pool = IHyperswapV3Factory(
+        poolInOut = IHyperswapV3Factory(
             0xB1c0fa0B789320044A6F623cFe5eBda9562602E3
         ).getPool(address(tokenIn), address(tokenOut), 3000);
     }
