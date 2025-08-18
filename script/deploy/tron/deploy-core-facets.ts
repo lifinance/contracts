@@ -324,7 +324,10 @@ async function deployCoreFacetsImpl(options: {
         fullHost: rpcUrl,
         privateKey,
       })
-      const ownerHex = '0x' + tronWeb.address.toHex(ownerAddress).slice(2)
+      const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
+      const ownerHex = ownerHexRaw.startsWith('0x')
+        ? ownerHexRaw
+        : `0x${ownerHexRaw}`
 
       consola.info(`Using owner address: ${ownerAddress} (hex: ${ownerHex})`)
 
