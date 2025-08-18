@@ -14,7 +14,6 @@ import {
   parseAbi,
   zeroAddress,
   type Abi,
-  type Narrow,
   type PublicClient,
   type WalletClient,
 } from 'viem'
@@ -636,7 +635,7 @@ export const getDeployments = async (
  */
 export const setupEnvironment = async (
   chain: SupportedChain,
-  facetAbi: Narrow<readonly any[]> | null,
+  facetAbi: Abi | readonly unknown[] | null,
   environment: EnvironmentEnum = EnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {

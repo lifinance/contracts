@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 
+import { consola } from 'consola'
 import { config as dotenvConfig } from 'dotenv'
 import {
   encodeFunctionData,
@@ -7,7 +8,7 @@ import {
   parseEther,
   parseUnits,
   zeroAddress,
-  type Narrow,
+  type Abi,
 } from 'viem'
 
 import glacisConfig from '../../config/glacis.json'
@@ -31,11 +32,9 @@ dotenvConfig()
 
 // #region ABIs
 
-const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
-const GLACIS_FACET_ABI = glacisFacetArtifact.abi as Narrow<
-  typeof glacisFacetArtifact.abi
->
-const AIRLIFT_ABI = airliftArtifact.abi as Narrow<typeof airliftArtifact.abi>
+const ERC20_ABI = erc20Artifact.abi as Abi
+const GLACIS_FACET_ABI = glacisFacetArtifact.abi as Abi
+const AIRLIFT_ABI = airliftArtifact.abi as Abi
 
 // #endregion
 
@@ -78,10 +77,10 @@ async function main() {
 
   const amount = parseUnits('1', Number(srcTokenDecimals))
 
-  console.info(
+  consola.info(
     `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> Optimism`
   )
-  console.info(`Connected wallet address: ${signerAddress}`)
+  consola.info(`Connected wallet address: ${signerAddress}`)
 
   if (!signerAddress) throw new Error('Signer address is required')
   if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
@@ -104,45 +103,59 @@ async function main() {
     publicClient
   )
 
-  let estimatedFees
+  // Define the expected fee structure interface
+  interface IEstimatedFeesResponse {
+    gmpFee: {
+      nativeFee: bigint
+      tokenFee: bigint
+    }
+    airliftFeeInfo: {
+      airliftFee: {
+        nativeFee: bigint
+        tokenFee: bigint
+      }
+    }
+  }
+
+  let estimatedFees: IEstimatedFeesResponse
   try {
-    estimatedFees = (
-      await publicClient.simulateContract({
-        address: AIRLIFT_ADDRESS,
-        abi: AIRLIFT_ABI,
-        functionName: 'quoteSend',
-        args: [
-          SRC_TOKEN_ADDRESS,
-          amount,
-          zeroPadAddressToBytes32(signerAddress),
-          BigInt(destinationChainId),
-          signerAddress,
-          parseEther('1'),
-        ],
-      })
-    ).result as any
+    const simulationResult = await publicClient.simulateContract({
+      address: AIRLIFT_ADDRESS,
+      abi: AIRLIFT_ABI,
+      functionName: 'quoteSend',
+      args: [
+        SRC_TOKEN_ADDRESS,
+        amount,
+        zeroPadAddressToBytes32(signerAddress),
+        BigInt(destinationChainId),
+        signerAddress,
+        parseEther('1'),
+      ],
+    })
+
+    estimatedFees = simulationResult.result as IEstimatedFeesResponse
 
     if (!estimatedFees)
       throw new Error('Invalid fee estimation from quoteSend.')
   } catch (error) {
-    console.error('Fee estimation failed:', error)
+    consola.error('Fee estimation failed:', error)
     process.exit(1)
   }
 
   const structuredFees = {
     gmpFee: {
-      nativeFee: estimatedFees.gmpFee.nativeFee as bigint,
-      tokenFee: estimatedFees.gmpFee.tokenFee as bigint,
+      nativeFee: estimatedFees.gmpFee.nativeFee,
+      tokenFee: estimatedFees.gmpFee.tokenFee,
     },
     airliftFee: {
-      nativeFee: estimatedFees.airliftFeeInfo.airliftFee.nativeFee as bigint,
-      tokenFee: estimatedFees.airliftFeeInfo.airliftFee.tokenFee as bigint,
+      nativeFee: estimatedFees.airliftFeeInfo.airliftFee.nativeFee,
+      tokenFee: estimatedFees.airliftFeeInfo.airliftFee.tokenFee,
     },
   }
   const nativeFee =
     structuredFees.gmpFee.nativeFee + structuredFees.airliftFee.nativeFee
 
-  console.info(`Estimated native fee: ${nativeFee}`)
+  consola.info(`Estimated native fee: ${nativeFee}`)
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
@@ -165,52 +178,52 @@ async function main() {
   }
 
   // === Debug: Print all parameters ===
-  console.info('\n=== DEBUG: All Parameters ===')
-  console.info('LiFi Diamond Address:', lifiDiamondAddress)
-  console.info('Airlift Address:', AIRLIFT_ADDRESS)
-  console.info('Source Token Address:', SRC_TOKEN_ADDRESS)
-  console.info('Source Token Name:', srcTokenName)
-  console.info('Source Token Symbol:', srcTokenSymbol)
-  console.info('Source Token Decimals:', srcTokenDecimals)
-  console.info('Amount:', amount.toString())
-  console.info(
+  consola.info('\n=== DEBUG: All Parameters ===')
+  consola.info('LiFi Diamond Address:', lifiDiamondAddress)
+  consola.info('Airlift Address:', AIRLIFT_ADDRESS)
+  consola.info('Source Token Address:', SRC_TOKEN_ADDRESS)
+  consola.info('Source Token Name:', srcTokenName)
+  consola.info('Source Token Symbol:', srcTokenSymbol)
+  consola.info('Source Token Decimals:', srcTokenDecimals)
+  consola.info('Amount:', amount.toString())
+  consola.info(
     'Amount (formatted):',
     `${amount / BigInt(10 ** Number(srcTokenDecimals))} ${srcTokenSymbol}`
   )
-  console.info('Destination Chain ID:', destinationChainId)
-  console.info('Signer Address:', signerAddress)
-  console.info('Native Fee:', nativeFee.toString())
-  console.info('Native Fee (ETH):', `${Number(nativeFee) / 1e18} ETH`)
+  consola.info('Destination Chain ID:', destinationChainId)
+  consola.info('Signer Address:', signerAddress)
+  consola.info('Native Fee:', nativeFee.toString())
+  consola.info('Native Fee (ETH):', `${Number(nativeFee) / 1e18} ETH`)
 
-  console.info('\n=== Bridge Data ===')
-  console.info('Transaction ID:', bridgeData.transactionId)
-  console.info('Bridge:', bridgeData.bridge)
-  console.info('Integrator:', bridgeData.integrator)
-  console.info('Referrer:', bridgeData.referrer)
-  console.info('Sending Asset ID:', bridgeData.sendingAssetId)
-  console.info('Receiver:', bridgeData.receiver)
-  console.info('Destination Chain ID:', bridgeData.destinationChainId)
-  console.info('Min Amount:', bridgeData.minAmount.toString())
-  console.info('Has Source Swaps:', bridgeData.hasSourceSwaps)
-  console.info('Has Destination Call:', bridgeData.hasDestinationCall)
+  consola.info('\n=== Bridge Data ===')
+  consola.info('Transaction ID:', bridgeData.transactionId)
+  consola.info('Bridge:', bridgeData.bridge)
+  consola.info('Integrator:', bridgeData.integrator)
+  consola.info('Referrer:', bridgeData.referrer)
+  consola.info('Sending Asset ID:', bridgeData.sendingAssetId)
+  consola.info('Receiver:', bridgeData.receiver)
+  consola.info('Destination Chain ID:', bridgeData.destinationChainId)
+  consola.info('Min Amount:', bridgeData.minAmount.toString())
+  consola.info('Has Source Swaps:', bridgeData.hasSourceSwaps)
+  consola.info('Has Destination Call:', bridgeData.hasDestinationCall)
 
-  console.info('\n=== Glacis Data ===')
-  console.info('Receiver Address:', glacisData.receiverAddress)
-  console.info('Refund Address:', glacisData.refundAddress)
-  console.info('Native Fee:', glacisData.nativeFee.toString())
+  consola.info('\n=== Glacis Data ===')
+  consola.info('Receiver Address:', glacisData.receiverAddress)
+  consola.info('Refund Address:', glacisData.refundAddress)
+  consola.info('Native Fee:', glacisData.nativeFee.toString())
 
-  console.info('\n=== Fee Breakdown ===')
-  console.info('GMP Fee (native):', structuredFees.gmpFee.nativeFee.toString())
-  console.info(
+  consola.info('\n=== Fee Breakdown ===')
+  consola.info('GMP Fee (native):', structuredFees.gmpFee.nativeFee.toString())
+  consola.info(
     'Airlift Fee (native):',
     structuredFees.airliftFee.nativeFee.toString()
   )
-  console.info('Total Native Fee:', nativeFee.toString())
+  consola.info('Total Native Fee:', nativeFee.toString())
 
-  console.info('\n=== Contract Call Parameters ===')
-  console.info('Function: startBridgeTokensViaGlacis')
-  console.info('Contract Address:', lifiDiamondAddress)
-  console.info('Value (ETH):', `${Number(nativeFee) / 1e18} ETH`)
+  consola.info('\n=== Contract Call Parameters ===')
+  consola.info('Function: startBridgeTokensViaGlacis')
+  consola.info('Contract Address:', lifiDiamondAddress)
+  consola.info('Value (ETH):', `${Number(nativeFee) / 1e18} ETH`)
 
   // === Generate and print calldata ===
   const calldata = encodeFunctionData({
@@ -219,14 +232,14 @@ async function main() {
     args: [bridgeData, glacisData],
   })
 
-  console.info('\n=== Calldata ===')
-  console.info(
+  consola.info('\n=== Calldata ===')
+  consola.info(
     'Function Signature: startBridgeTokensViaGlacis((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,address,uint256))'
   )
-  console.info('Calldata:', calldata)
-  console.info('Calldata Length:', calldata.length, 'characters')
+  consola.info('Calldata:', calldata)
+  consola.info('Calldata Length:', calldata.length, 'characters')
 
-  console.info('\n=== Executing Transaction ===')
+  consola.info('\n=== Executing Transaction ===')
 
   // === Start bridging ===
   if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
@@ -248,6 +261,6 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error(error)
+    consola.error(error)
     process.exit(1)
   })
