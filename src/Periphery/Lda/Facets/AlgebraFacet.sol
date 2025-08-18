@@ -9,7 +9,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { InvalidCallData } from "../../../Errors/GenericErrors.sol";
 
-/// @title Algebra Facet
+/// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Algebra swaps with callback management
 /// @custom:version 1.0.0
@@ -73,7 +73,7 @@ contract AlgebraFacet {
             revert AlgebraSwapUnexpected();
         }
 
-        return 0; // Actual output amount tracked via balance checks in CoreFacet
+        return 0;
     }
 
     function algebraSwapCallback(

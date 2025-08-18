@@ -7,7 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
-/// @title VelodromeV2 Facet
+/// @title VelodromeV2Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles VelodromeV2 swaps with callback management
 /// @custom:version 1.0.0

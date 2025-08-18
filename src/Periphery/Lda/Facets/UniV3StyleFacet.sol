@@ -27,14 +27,19 @@ contract UniV3StyleFacet {
     using LibInputStream2 for uint256;
 
     /// Constants ///
-    address internal constant IMPOSSIBLE_POOL_ADDRESS =
-        0x0000000000000000000000000000000000000001;
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
     uint160 internal constant MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970342;
 
     /// Errors ///
     error UniV3SwapUnexpected();
+
+    /// Modifiers ///
+    modifier onlyExpectedPool() {
+        LibCallbackManager.verifyCallbackSender();
+        _;
+        LibCallbackManager.clear();
+    }
 
     /// @notice Executes a UniswapV3 swap
     /// @param swapData The input stream containing swap parameters
@@ -52,11 +57,7 @@ contract UniV3StyleFacet {
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();
 
-        if (
-            pool == address(0) ||
-            pool == IMPOSSIBLE_POOL_ADDRESS ||
-            recipient == address(0)
-        ) {
+        if (pool == address(0) || recipient == address(0)) {
             revert InvalidCallData();
         }
 
@@ -94,149 +95,119 @@ contract UniV3StyleFacet {
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function pancakeV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function ramsesV2SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function xeiV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function dragonswapV2SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function agniSwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function fusionXV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function vvsV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function supV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function zebraV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function hyperswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function laminarV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function xswapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function rabbitSwapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 
     function enosysdexV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
     }
 }

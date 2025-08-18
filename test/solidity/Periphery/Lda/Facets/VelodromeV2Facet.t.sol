@@ -106,7 +106,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         tokenIn = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85); // USDC
         tokenMid = IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97); // STG
         tokenOut = IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607); // STG
-        // pools vary by test; set per-test as locals or use POOL_IN_OUT for the default path
+        // pools vary by test; and they are fetched inside tests
     }
 
     function _getDefaultAmountForTokenIn()
