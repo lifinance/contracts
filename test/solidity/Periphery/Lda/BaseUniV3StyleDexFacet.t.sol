@@ -2,9 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
-import { IUniV3LikePool } from "lifi/Interfaces/IUniV3StylePool.sol";
-import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
+import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
+import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
+import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
 
 abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     UniV3StyleFacet internal uniV3Facet;
@@ -96,8 +97,8 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         address pool,
         address tokenIn
     ) internal view returns (SwapDirection) {
-        address t0 = IUniV3LikePool(pool).token0();
-        address t1 = IUniV3LikePool(pool).token1();
+        address t0 = IUniV3StylePool(pool).token0();
+        address t1 = IUniV3StylePool(pool).token1();
         if (tokenIn == t0) return SwapDirection.Token0ToToken1;
         if (tokenIn == t1) return SwapDirection.Token1ToToken0;
         revert TokenNotInPool(tokenIn, pool);
@@ -195,6 +196,55 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
             )
         );
         ok;
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapWithoutCallback() public {
+        // Deploy mock pool that doesn't call back
+        MockNoCallbackPool mockPool = new MockNoCallbackPool();
+
+        // Setup test params
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
+        vm.startPrank(USER_SENDER);
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
+
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: address(mockPool),
+                direction: SwapDirection.Token0ToToken1,
+                recipient: USER_SENDER
+            })
+        );
+
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
+        );
+
+        // Should revert because pool doesn't call back, leaving armed state
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            route,
+            UniV3StyleFacet.UniV3SwapUnexpected.selector
+        );
+
         vm.stopPrank();
     }
 }
