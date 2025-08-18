@@ -677,26 +677,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             })
         );
 
-        // 2. Approve tokens
-        IERC20(params.tokenIn).approve(address(ldaDiamond), params.amountIn);
-
-        // 3. Set up event expectations
-        // address fromAddress = params.from == address(coreRouteFacet)
-        //     ? USER_SENDER
-        //     : params.from;
-
-        ExpectedEvent[] memory expectedEvents = new ExpectedEvent[](0);
-        // vm.expectEmit(true, true, true, false);
-        // emit Route(
-        //     fromAddress,
-        //     params.to,
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     params.amountIn,
-        //     expectedOutput,
-        //     expectedOutput
-        // );
-
         // 4. Build the route inline and execute the swap to save stack space
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
@@ -726,7 +706,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                     : CommandType.ProcessUserERC20
             }),
             route,
-            expectedEvents,
             true // This is a fee-on-transfer token
         );
     }

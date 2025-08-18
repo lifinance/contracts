@@ -109,11 +109,24 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         // pools vary by test; set per-test as locals or use POOL_IN_OUT for the default path
     }
 
+    function _getDefaultAmountForTokenIn()
+        internal
+        pure
+        override
+        returns (uint256)
+    {
+        return 1_000 * 1e6;
+    }
+
     // ============================ Velodrome V2 Tests ============================
 
     // no stable swap
     function test_CanSwap() public override {
-        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
+        deal(
+            address(tokenIn),
+            address(USER_SENDER),
+            _getDefaultAmountForTokenIn()
+        );
 
         vm.startPrank(USER_SENDER);
 
@@ -122,7 +135,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 from: address(USER_SENDER),
                 to: address(USER_SENDER),
                 tokenIn: address(tokenIn),
-                amountIn: 1_000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 tokenOut: address(tokenOut),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
@@ -156,7 +169,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_Stable() public {
-        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
+        deal(
+            address(tokenIn),
+            address(USER_SENDER),
+            _getDefaultAmountForTokenIn()
+        );
 
         vm.startPrank(USER_SENDER);
         _testSwap(
@@ -164,7 +181,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 from: USER_SENDER,
                 to: USER_SENDER,
                 tokenIn: address(tokenIn),
-                amountIn: 1_000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 tokenOut: address(tokenOut),
                 stable: true,
                 direction: SwapDirection.Token0ToToken1,
@@ -185,7 +202,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 from: USER_SENDER,
                 to: USER_SENDER,
                 tokenIn: address(tokenOut),
-                amountIn: 500 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn() / 2,
                 tokenOut: address(tokenIn),
                 stable: false,
                 direction: SwapDirection.Token1ToToken0,
@@ -197,7 +214,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
     function test_CanSwap_FromDexAggregator() public override {
         // // fund dex aggregator contract so that the contract holds USDC
-        deal(address(tokenIn), address(ldaDiamond), 100_000 * 1e6);
+        deal(
+            address(tokenIn),
+            address(ldaDiamond),
+            _getDefaultAmountForTokenIn()
+        );
 
         vm.startPrank(USER_SENDER);
         _testSwap(
@@ -219,7 +240,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_FlashloanCallback() public {
-        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
+        deal(
+            address(tokenIn),
+            address(USER_SENDER),
+            _getDefaultAmountForTokenIn()
+        );
 
         mockFlashloanCallbackReceiver = new MockVelodromeV2FlashLoanCallbackReceiver();
 
@@ -229,7 +254,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 from: address(USER_SENDER),
                 to: address(mockFlashloanCallbackReceiver),
                 tokenIn: address(tokenIn),
-                amountIn: 1_000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 tokenOut: address(tokenOut),
                 stable: false,
                 direction: SwapDirection.Token0ToToken1,
@@ -241,7 +266,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
     // Override the abstract test with VelodromeV2 implementation
     function test_CanSwap_MultiHop() public override {
-        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
+        deal(
+            address(tokenIn),
+            address(USER_SENDER),
+            _getDefaultAmountForTokenIn()
+        );
 
         vm.startPrank(USER_SENDER);
 
@@ -275,7 +304,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         swapParams[0] = SwapTestParams({
             tokenIn: params.tokenIn,
             tokenOut: params.tokenMid,
-            amountIn: 1000 * 1e6,
+            amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
             recipient: params.pool2, // Send to next pool
@@ -316,25 +345,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         // Use the base _buildMultiHopRoute
         bytes memory route = _buildMultiHopRoute(swapParams, swapData);
 
-        // Approve and execute
-        IERC20(params.tokenIn).approve(address(ldaDiamond), 1000 * 1e6);
-
-        // vm.expectEmit(true, true, true, true);
-        // emit Route(
-        //     USER_SENDER,
-        //     USER_SENDER,
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     1000 * 1e6,
-        //     params.amounts2[1],
-        //     params.amounts2[1]
-        // );
-
         _executeAndVerifySwap(
             SwapTestParams({
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
-                amountIn: 1000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -348,7 +363,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_MultiHop_WithStable() public {
-        deal(address(tokenIn), address(USER_SENDER), 1_000 * 1e6);
+        deal(
+            address(tokenIn),
+            address(USER_SENDER),
+            _getDefaultAmountForTokenIn()
+        );
 
         vm.startPrank(USER_SENDER);
 
@@ -382,7 +401,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         hopParams[0] = SwapTestParams({
             tokenIn: params.tokenIn,
             tokenOut: params.tokenMid,
-            amountIn: 1000 * 1e6,
+            amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
             recipient: params.pool2, // Send to next pool
@@ -420,25 +439,11 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildMultiHopRoute(hopParams, hopData);
 
-        // Approve and execute
-        IERC20(params.tokenIn).approve(address(ldaDiamond), 1000 * 1e6);
-
-        // vm.expectEmit(true, true, true, true);
-        // emit Route(
-        //     USER_SENDER,
-        //     USER_SENDER,
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     1000 * 1e6,
-        //     params.amounts2[1],
-        //     params.amounts2[1]
-        // );
-
         _executeAndVerifySwap(
             SwapTestParams({
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
-                amountIn: 1000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -481,13 +486,16 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             swapDataZeroPool
         );
 
-        IERC20(address(tokenIn)).approve(address(ldaDiamond), 1000 * 1e6);
+        IERC20(address(tokenIn)).approve(
+            address(ldaDiamond),
+            _getDefaultAmountForTokenIn()
+        );
 
         _executeAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: 1000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -519,7 +527,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
-                amountIn: 1000 * 1e6,
+                amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
                 recipient: USER_SENDER,
@@ -552,7 +560,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         hopParams[0] = SwapTestParams({
             tokenIn: params.tokenIn,
             tokenOut: params.tokenMid,
-            amountIn: 1000 * 1e6,
+            amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
             recipient: params.pool2, // Send to next pool
@@ -590,9 +598,12 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         bytes memory route = _buildMultiHopRoute(hopParams, hopData);
 
-        deal(address(tokenIn), USER_SENDER, 1000 * 1e6);
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
-        IERC20(address(tokenIn)).approve(address(ldaDiamond), 1000 * 1e6);
+        IERC20(address(tokenIn)).approve(
+            address(ldaDiamond),
+            _getDefaultAmountForTokenIn()
+        );
 
         // Mock getReserves for the second pool (which uses processOnePool) to return zero reserves
         vm.mockCall(
@@ -605,7 +616,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
         coreRouteFacet.processRoute(
             address(tokenIn),
-            1000 * 1e6,
+            _getDefaultAmountForTokenIn(),
             address(tokenOut),
             0,
             USER_SENDER,
@@ -750,7 +761,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             factory: address(VELODROME_V2_FACTORY_REGISTRY)
         });
         params.amounts1 = VELODROME_V2_ROUTER.getAmountsOut(
-            1000 * 1e6,
+            _getDefaultAmountForTokenIn(),
             routes1
         );
 
@@ -827,9 +838,8 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         address token0Pool2 = IVelodromeV2Pool(params.pool2).token0();
 
         // Calculate exact expected changes
-        uint256 amountInAfterFees = 1000 *
-            1e6 -
-            ((1000 * 1e6 * params.pool1Fee) / 10000);
+        uint256 amountInAfterFees = _getDefaultAmountForTokenIn() -
+            ((_getDefaultAmountForTokenIn() * params.pool1Fee) / 10000);
 
         // Assert exact reserve changes for Pool1
         if (token0Pool1 == params.tokenIn) {

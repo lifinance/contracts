@@ -414,6 +414,20 @@ abstract contract BaseDexFacetTest is LdaDiamondTest, TestHelpers {
         );
     }
 
+    function _executeAndVerifySwap(
+        SwapTestParams memory params,
+        bytes memory route,
+        bool isFeeOnTransferToken
+    ) internal {
+        _executeAndVerifySwap(
+            params,
+            route,
+            new ExpectedEvent[](0),
+            isFeeOnTransferToken,
+            RouteEventVerification({ expectedExactOut: 0, checkData: false })
+        );
+    }
+
     // Keep the revert case separate
     function _executeAndVerifySwap(
         SwapTestParams memory params,
