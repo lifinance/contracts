@@ -7,8 +7,9 @@ import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
-/// @title Core Route Facet
+/// @title CoreRouteFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles route processing and selector-based swap dispatching for LDA 2.0
 /// @custom:version 1.0.0
@@ -18,8 +19,6 @@ contract CoreRouteFacet is ReentrancyGuard {
     using LibInputStream2 for uint256;
 
     /// Constants ///
-    address internal constant NATIVE_ADDRESS =
-        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
     /// Events ///
@@ -79,10 +78,10 @@ contract CoreRouteFacet is ReentrancyGuard {
         address to,
         bytes calldata route
     ) private returns (uint256 amountOut) {
-        uint256 balanceInInitial = tokenIn == NATIVE_ADDRESS
+        uint256 balanceInInitial = LibAsset.isNativeAsset(tokenIn)
             ? 0
             : IERC20(tokenIn).balanceOf(msg.sender);
-        uint256 balanceOutInitial = tokenOut == NATIVE_ADDRESS
+        uint256 balanceOutInitial = LibAsset.isNativeAsset(tokenOut)
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
 
@@ -102,7 +101,7 @@ contract CoreRouteFacet is ReentrancyGuard {
                     if (step == 0) realAmountIn = usedAmount;
                 } else if (commandCode == 4) {
                     _processOnePool(stream);
-                } else if (commandCode == 6) {
+                } else if (commandCode == 5) {
                     _applyPermit(tokenIn, stream);
                 } else {
                     revert UnknownCommandCode();
@@ -111,7 +110,7 @@ contract CoreRouteFacet is ReentrancyGuard {
             }
         }
 
-        uint256 balanceInFinal = tokenIn == NATIVE_ADDRESS
+        uint256 balanceInFinal = LibAsset.isNativeAsset(tokenIn)
             ? 0
             : IERC20(tokenIn).balanceOf(msg.sender);
         if (balanceInFinal + amountIn < balanceInInitial) {
@@ -121,7 +120,7 @@ contract CoreRouteFacet is ReentrancyGuard {
             );
         }
 
-        uint256 balanceOutFinal = tokenOut == NATIVE_ADDRESS
+        uint256 balanceOutFinal = LibAsset.isNativeAsset(tokenOut)
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
         if (balanceOutFinal < balanceOutInitial + amountOutMin) {
@@ -166,7 +165,12 @@ contract CoreRouteFacet is ReentrancyGuard {
         uint256 stream
     ) private returns (uint256 amountTotal) {
         amountTotal = address(this).balance;
-        _distributeAndSwap(stream, address(this), NATIVE_ADDRESS, amountTotal);
+        _distributeAndSwap(
+            stream,
+            address(this),
+            INTERNAL_INPUT_SOURCE,
+            amountTotal
+        );
     }
 
     /// @notice Processes ERC20 token from this contract balance
