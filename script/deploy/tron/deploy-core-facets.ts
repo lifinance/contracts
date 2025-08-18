@@ -67,13 +67,12 @@ async function getConstructorArgs(
   } else if (facetName === 'GenericSwapFacetV3') {
     // GenericSwapFacetV3 requires native token address
     const networksConfig = await Bun.file('config/networks.json').json()
-    const nativeAddress = networksConfig.tron?.nativeAddress
+    const nativeAddress = networksConfig[network]?.nativeAddress
 
     if (!nativeAddress)
       throw new Error(
         'nativeAddress not found for tron in config/networks.json'
       )
-
     // For display purposes
     const tronWeb = (await import('tronweb')).TronWeb
     const networksConfig2 = await Bun.file('config/networks.json').json()
