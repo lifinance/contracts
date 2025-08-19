@@ -1,14 +1,17 @@
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
-import { calculateEstimatedCost } from './price-utils'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
   ITronDeploymentResult,
   IForgeArtifact,
 } from './types'
-import { DEFAULT_SAFETY_MARGIN, calculateTransactionBandwidth } from './utils'
+import {
+  DEFAULT_SAFETY_MARGIN,
+  calculateTransactionBandwidth,
+  calculateEstimatedCost,
+} from './utils'
 
 // Import TronWeb - the simple approach that was working
 

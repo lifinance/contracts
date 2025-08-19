@@ -10,8 +10,11 @@ import { TronWeb } from 'tronweb'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
-import { getCurrentPrices } from './price-utils.js'
-import { getEnvironment, updateDiamondJsonBatch } from './utils.js'
+import {
+  getEnvironment,
+  updateDiamondJsonBatch,
+  getCurrentPrices,
+} from './utils.js'
 
 // Verified selectors (from contract-selectors.sh)
 const FACET_SELECTORS: Record<string, string[]> = {
