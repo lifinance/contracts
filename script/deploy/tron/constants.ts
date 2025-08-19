@@ -22,15 +22,19 @@ export const CONFIRMATION_TIMEOUT = 120000 // 2 minutes
 export const MAX_RETRIES = 3
 export const POLL_INTERVAL = 3000 // 3 seconds
 
-// Transaction constants
+// Bandwidth calculation constants
+// Used to calculate transaction bandwidth consumption on Tron
+// Formula: rawDataLength + DATA_HEX_PROTOBUF_EXTRA + MAX_RESULT_SIZE_IN_TX + (signatures * A_SIGNATURE)
+// Bandwidth is consumed for every transaction (1 bandwidth point = 1 byte of transaction size)
+
 // Extra bytes added when encoding transaction data from hex to protobuf format
 // Tron uses protobuf for transaction serialization, requiring additional overhead
 export const DATA_HEX_PROTOBUF_EXTRA = 3
 
-// Maximum size in bytes for return data from contract calls
+// Maximum size in bytes reserved for return data from contract calls
 export const MAX_RESULT_SIZE_IN_TX = 64
 
-// Size of a single signature in bytes (Tron uses ECDSA signatures)
+// Size of a single ECDSA signature in bytes on Tron
 export const A_SIGNATURE = 67
 
 // File paths
