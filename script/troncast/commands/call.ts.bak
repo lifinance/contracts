@@ -1,6 +1,5 @@
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
-import { decodeFunctionResult, parseAbi } from 'viem'
 
 import type { Environment } from '../types'
 import {
@@ -9,6 +8,7 @@ import {
   isValidAddress,
 } from '../utils/parser'
 import { initTronWeb } from '../utils/tronweb'
+import { decodeFunctionResult, parseAbi } from 'viem'
 
 export const callCommand = defineCommand({
   meta: {
@@ -54,12 +54,10 @@ export const callCommand = defineCommand({
       // Initialize TronWeb
       const tronWeb = initTronWeb(env)
 
+      const abi = parseAbi([`function ${args.signature}` as string])
+
       // Parse function signature
       const funcSig = parseFunctionSignature(args.signature)
-
-      // Use parseAbi with typecast
-      const abi = parseAbi([`function ${args.signature}`] as readonly string[])
-
       consola.debug(`Calling ${funcSig.name} on ${args.address}`)
 
       // Parse parameters
@@ -139,38 +137,10 @@ export const callCommand = defineCommand({
 
       const decodedResult = decodeFunctionResult({
         abi,
-        functionName: funcSig.name,
         data: `0x${result.constant_result[0]}`,
       })
 
-      // Helper function to convert addresses in the result
-      const convertAddressesToTron = (value: any): any => {
-        if (typeof value === 'string') {
-          // Check if it's a hex address (0x followed by 40 hex chars)
-          if (/^0x[a-fA-F0-9]{40}$/i.test(value)) 
-            return tronWeb.address.fromHex(value)
-          
-          return value
-        } else if (Array.isArray(value)) 
-          return value.map(convertAddressesToTron)
-         else if (typeof value === 'object' && value !== null) {
-          const converted: any = {}
-          for (const key in value) 
-            converted[key] = convertAddressesToTron(value[key])
-          
-          return converted
-        }
-        return value
-      }
-
-      const convertedResult = convertAddressesToTron(decodedResult)
-
-      // Simply stringify with spaces instead of commas, keeping brackets
-      const output = JSON.stringify(convertedResult, null, 0)
-        .replace(/,/g, ' ') // Replace commas with spaces
-        .replace(/"/g, '') // Remove quotes
-
-      console.log(output)
+      console.log(JSON.stringify(decodedResult))
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
