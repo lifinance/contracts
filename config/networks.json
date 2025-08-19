@@ -1159,7 +1159,7 @@
     "verificationType": "tronscan",
     "explorerUrl": "https://tronscan.org",
     "explorerApiUrl": "https://apilist.tronscan.org/api",
-    "multicallAddress": "",
+    "multicallAddress": "TEazPvZwDjDtFeJupyo7QunvnrnUjPH8ED",
     "safeAddress": "",
     "gasZipChainId": 75,
     "isZkEVM": false,
