@@ -251,16 +251,58 @@ contract CoreRouteFacet is ReentrancyGuard {
         bytes memory data = cur.readBytesWithLength();
 
         bytes4 selector = _readSelector(data);
-        bytes memory payload = _payloadFrom(data);
+        // in-place payload alias (no copy)
+        bytes memory payload;
+        assembly {
+            payload := add(data, 4)
+            mstore(payload, sub(mload(data), 4))
+        }
 
         address facet = LibDiamondLoupe.facetAddress(selector);
         if (facet == address(0)) revert UnknownSelector();
 
-        (bool ok, bytes memory ret) = facet.delegatecall(
-            abi.encodeWithSelector(selector, payload, from, tokenIn, amountIn)
-        );
-        if (!ok) {
-            LibUtil.revertWith(ret);
+        bool success;
+        bytes memory returnData;
+        assembly {
+            let free := mload(0x40)
+            // selector
+            mstore(free, selector)
+            let args := add(free, 4)
+
+            // head (4 args): [offset_to_payload, from, tokenIn, amountIn]
+            mstore(args, 0x80) // offset to payload data (after 4 static slots)
+            mstore(add(args, 0x20), from)
+            mstore(add(args, 0x40), tokenIn)
+            mstore(add(args, 0x60), amountIn)
+
+            // payload area
+            let d := add(args, 0x80)
+            let len := mload(payload)
+            mstore(d, len)
+            // copy payload bytes
+            // identity precompile is cheapest for arbitrary-length copy
+            pop(
+                staticcall(gas(), 0x04, add(payload, 32), len, add(d, 32), len)
+            )
+
+            let padded := and(add(len, 31), not(31))
+            let total := add(4, add(0x80, add(0x20, padded)))
+            success := delegatecall(gas(), facet, free, total, 0, 0)
+
+            // update free memory pointer
+            mstore(0x40, add(free, total))
+
+            // capture return data
+            let rsize := returndatasize()
+            returnData := mload(0x40)
+            mstore(returnData, rsize)
+            let rptr := add(returnData, 32)
+            returndatacopy(rptr, 0, rsize)
+            mstore(0x40, add(rptr, and(add(rsize, 31), not(31))))
+        }
+
+        if (!success) {
+            LibUtil.revertWith(returnData);
         }
     }
 
@@ -278,17 +320,10 @@ contract CoreRouteFacet is ReentrancyGuard {
     /// @dev Returns a fresh bytes containing the original blob without the first 4 bytes.
     function _payloadFrom(
         bytes memory blob
-    ) private view returns (bytes memory out) {
-        uint256 len = blob.length;
-        if (len <= 4) return new bytes(0);
-
-        uint256 newLen = len - 4;
+    ) private pure returns (bytes memory payload) {
         assembly {
-            out := mload(0x40)
-            mstore(0x40, add(out, add(newLen, 32)))
-            mstore(out, newLen)
-            let src := add(blob, 36) // skip length(32) + 4
-            pop(staticcall(gas(), 4, src, newLen, add(out, 32), newLen))
+            payload := add(blob, 4)
+            mstore(payload, sub(mload(blob), 4))
         }
     }
 }
