@@ -1,18 +1,14 @@
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import { calculateEstimatedCost } from './price-utils'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
   ITronDeploymentResult,
   IForgeArtifact,
 } from './types'
-import {
-  ENERGY_PRICE,
-  BANDWIDTH_PRICE,
-  DEFAULT_SAFETY_MARGIN,
-  calculateTransactionBandwidth,
-} from './utils'
+import { DEFAULT_SAFETY_MARGIN, calculateTransactionBandwidth } from './utils'
 
 // Import TronWeb - the simple approach that was working
 
@@ -23,12 +19,11 @@ export class TronContractDeployer {
   public constructor(config: ITronDeploymentConfig) {
     // Validate Tron private key format (allow optional "0x" prefix)
     const rawKey = config.privateKey?.replace(/^0x/i, '')
-    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey)) 
+    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey))
       throw new Error(
         'Invalid Tron private key format. Expected a 64-character hexadecimal string (with or without "0x" prefix). ' +
           'Example: 0x1234...abcd or 1234...abcd'
       )
-    
 
     this.config = {
       safetyMargin: DEFAULT_SAFETY_MARGIN,
@@ -127,9 +122,13 @@ export class TronContractDeployer {
         constructorParams
       )
 
-      const energyCost = estimatedEnergy * ENERGY_PRICE
-      const bandwidthCost = estimatedBandwidth * BANDWIDTH_PRICE
-      const totalCost = energyCost + bandwidthCost
+      // Get current prices from the network
+      const { energyCost, bandwidthCost, totalCost } =
+        await calculateEstimatedCost(
+          this.tronWeb,
+          estimatedEnergy,
+          estimatedBandwidth
+        )
 
       // Ensure fee limit is an integer (Tron requires integer SUN values)
       // Use Math.ceil to round up to avoid underestimating
@@ -155,8 +154,8 @@ export class TronContractDeployer {
         breakdown: {
           energyCost,
           bandwidthCost,
-          energyFactor: 0, // Not used with dynamic estimation
-          safetyMargin: this.config.safetyMargin ?? DEFAULT_SAFETY_MARGIN,
+          energyFactor: 1, // We're using actual estimates, not factored
+          safetyMargin: this.config.safetyMargin || DEFAULT_SAFETY_MARGIN,
         },
       }
     } catch (error: any) {
@@ -370,9 +369,8 @@ export class TronContractDeployer {
 
       const transactionId =
         broadcastResult.txid || broadcastResult.transaction?.txID
-      if (!transactionId) 
+      if (!transactionId)
         throw new Error('Transaction ID not found in broadcast result')
-      
 
       return {
         contractAddress,

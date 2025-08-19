@@ -1,13 +1,7 @@
-// Energy and cost constants
-// Note: Energy price on Tron can fluctuate based on network conditions
-// Current value is based on average network pricing as of deployment
-// Similar to Ethereum's gas price, but Tron uses a two-resource model:
-// - Energy: Used for smart contract execution (similar to gas)
-// - Bandwidth: Used for transaction size (unique to Tron)
-export const ENERGY_PRICE = 0.00021 // TRX per energy unit - may need updates based on network conditions
-
-// Bandwidth is consumed based on transaction size, unlike Ethereum which only uses gas
-export const BANDWIDTH_PRICE = 0.001 // TRX per bandwidth point
+// Cost calculation constants
+// Note: Energy and bandwidth prices are now fetched dynamically from the network
+// using TronWeb's getEnergyPrices() and getBandwidthPrices() methods.
+// This ensures accurate fee calculations based on current network conditions.
 
 // Safety margin for energy estimation to prevent transaction failures
 export const DEFAULT_SAFETY_MARGIN = 1.5 // 50% buffer for standard operations

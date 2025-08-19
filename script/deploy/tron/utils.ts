@@ -15,8 +15,8 @@ import {
   MIN_BALANCE_REGISTRATION,
   DEFAULT_FEE_LIMIT_TRX,
   MIN_BALANCE_WARNING,
-  ENERGY_PRICE,
 } from './constants'
+import { getCurrentPrices } from './price-utils'
 import type {
   IForgeArtifact,
   IDeploymentResult,
@@ -25,11 +25,7 @@ import type {
 } from './types'
 
 // Re-export constants for backward compatibility
-export {
-  ENERGY_PRICE,
-  BANDWIDTH_PRICE,
-  DEFAULT_SAFETY_MARGIN,
-} from './constants'
+export { DEFAULT_SAFETY_MARGIN } from './constants'
 
 /**
  * Load compiled contract artifact from Forge output
@@ -908,7 +904,9 @@ export async function registerFacetToDiamond(
       facetCuts,
       fullHost
     )
-    const estimatedCost = (estimatedEnergy * ENERGY_PRICE) / 1000000
+    // Get current energy price from the network
+    const { energyPrice } = await getCurrentPrices(tronWeb)
+    const estimatedCost = estimatedEnergy * energyPrice
     consola.info(`Estimated registration cost: ${estimatedCost.toFixed(4)} TRX`)
 
     if (dryRun) {

@@ -10,11 +10,8 @@ import { TronWeb } from 'tronweb'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
-import {
-  getEnvironment,
-  ENERGY_PRICE,
-  updateDiamondJsonBatch,
-} from './utils.js'
+import { getCurrentPrices } from './price-utils.js'
+import { getEnvironment, updateDiamondJsonBatch } from './utils.js'
 
 // Verified selectors (from contract-selectors.sh)
 const FACET_SELECTORS: Record<string, string[]> = {
@@ -277,7 +274,9 @@ async function registerFacetsBatch(
       fullHost
     )
 
-    estimatedCost = (estimatedEnergy * ENERGY_PRICE) / 1000000
+    // Get current energy price from the network
+    const { energyPrice } = await getCurrentPrices(tronWeb)
+    estimatedCost = estimatedEnergy * energyPrice
     consola.info(` Estimated cost: ${estimatedCost.toFixed(4)} TRX`)
   } catch (error: any) {
     consola.error(
