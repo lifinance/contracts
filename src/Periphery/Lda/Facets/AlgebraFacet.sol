@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibPackedStream } from "../../../Libraries/LibPackedStream.sol";
-import { LibCallbackManager } from "../../../Libraries/LibCallbackManager.sol";
-import { LibUniV3Logic } from "../../../Libraries/LibUniV3Logic.sol";
-import { IAlgebraPool } from "../../../Interfaces/IAlgebraPool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { InvalidCallData } from "../../../Errors/GenericErrors.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
+import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
+import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
+import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
@@ -17,14 +17,15 @@ contract AlgebraFacet {
     using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
-    /// Constants ///
+    // ==== Constants ====
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
     uint160 internal constant MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970342;
 
-    /// Errors ///
+    // ==== Errors ====
     error AlgebraSwapUnexpected();
 
+    // ==== External Functions ====
     function swapAlgebra(
         bytes memory swapData,
         address from,

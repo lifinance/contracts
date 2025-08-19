@@ -46,10 +46,10 @@ contract MockPullERC20Facet {
     }
 }
 
-abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
+abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     using SafeERC20 for IERC20;
 
-    // Command codes for route processing
+    // ==== Types ====
     enum CommandType {
         None, // 0 - not used
         ProcessMyERC20, // 1 - processMyERC20 (Aggregator's funds)
@@ -58,20 +58,6 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
         ProcessOnePool, // 4 - processOnePool (Pool's funds)
         ApplyPermit // 6 - applyPermit
     }
-
-    uint16 internal constant FULL_SHARE = 65535;
-
-    CoreRouteFacet internal coreRouteFacet;
-
-    event Route(
-        address indexed from,
-        address to,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256 amountOut
-    );
 
     struct ExpectedEvent {
         bool checkTopic1;
@@ -98,10 +84,29 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
         CommandType commandType;
     }
 
+    // ==== Constants ====
+    uint16 internal constant FULL_SHARE = 65535;
+
+    // ==== Storage Variables ====
+    CoreRouteFacet internal coreRouteFacet;
+
+    // ==== Events ====
+    event Route(
+        address indexed from,
+        address to,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 amountOut
+    );
+
+    // ==== Errors ====
     error InvalidTopicLength();
     error TooManyIndexedParams();
     error DynamicParamsNotSupported();
 
+    // ==== Setup Functions ====
     function setUp() public virtual override {
         LdaDiamondTest.setUp();
         _addCoreRouteFacet();
@@ -115,6 +120,7 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
         coreRouteFacet = CoreRouteFacet(payable(address(ldaDiamond)));
     }
 
+    // ==== Helper Functions ====
     function _buildBaseRoute(
         SwapTestParams memory params,
         bytes memory swapData
@@ -420,14 +426,16 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
     }
 }
 
-contract CoreRouteFacetTest is CoreRouteTestBase {
+// ==== Main Test Contract ====
+contract CoreRouteFacetTest is BaseCoreRouteTest {
     using SafeTransferLib for address;
 
+    // ==== Storage Variables ====
     bytes4 internal pullSel;
 
+    // ==== Setup Functions ====
     function setUp() public override {
-        CoreRouteTestBase.setUp();
-
+        BaseCoreRouteTest.setUp();
         // Register mock pull facet once and store selector
         MockPullERC20Facet mockPull = new MockPullERC20Facet();
         bytes4[] memory sel = new bytes4[](1);
@@ -436,8 +444,7 @@ contract CoreRouteFacetTest is CoreRouteTestBase {
         pullSel = sel[0];
     }
 
-    // --- Helpers ---
-
+    // ==== Helper Functions ====
     function _addMockNativeFacet() internal {
         MockNativeFacet mock = new MockNativeFacet();
         bytes4[] memory selectors = new bytes4[](1);
@@ -480,8 +487,7 @@ contract CoreRouteFacetTest is CoreRouteTestBase {
         (v, r, s) = vm.sign(ownerPk, digest);
     }
 
-    // --- Tests ---
-
+    // ==== Test Cases ====
     function test_ProcessNativeCommandSendsEthToRecipient() public {
         _addMockNativeFacet();
 
@@ -573,7 +579,6 @@ contract CoreRouteFacetTest is CoreRouteTestBase {
         );
     }
 
-    // Revert tests - use testRevert_ prefix
     function testRevert_WhenCommandCodeIsUnknown() public {
         bytes memory route = abi.encodePacked(uint8(9));
 

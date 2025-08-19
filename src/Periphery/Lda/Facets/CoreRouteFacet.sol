@@ -3,11 +3,12 @@ pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
-import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 
 /// @title CoreRouteFacet
 /// @author LI.FI (https://li.fi)
@@ -19,10 +20,11 @@ contract CoreRouteFacet is ReentrancyGuard {
     using SafeERC20 for IERC20Permit;
     using LibPackedStream for uint256;
 
+    // ==== Constants ====
     /// @dev sentinel used to indicate that the input is already at the destination pool
     address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
-    /// Events ///
+    // ==== Events ====
     event Route(
         address indexed from,
         address to,
@@ -33,13 +35,14 @@ contract CoreRouteFacet is ReentrancyGuard {
         uint256 amountOut
     );
 
-    /// Errors ///
+    // ==== Errors ====
     error MinimalOutputBalanceViolation(uint256 amountOut);
     error MinimalInputBalanceViolation(uint256 available, uint256 required);
     error UnknownCommandCode();
     error SwapFailed();
     error UnknownSelector();
 
+    // ==== External Functions ====
     function processRoute(
         address tokenIn,
         uint256 amountIn,
@@ -59,6 +62,7 @@ contract CoreRouteFacet is ReentrancyGuard {
             );
     }
 
+    // ==== Private Functions - Core Logic ====
     function _executeRoute(
         address tokenIn,
         uint256 amountIn,
@@ -175,7 +179,7 @@ contract CoreRouteFacet is ReentrancyGuard {
         amountOut = balOutFinal - balOutStart;
     }
 
-    /// ===== Command handlers (renamed/reorganized) =====
+    // ==== Private Functions - Command Handlers ====
 
     /// @notice ERC-2612 permit application for `tokenIn`.
     function _applyPermit(address tokenIn, uint256 cur) private {
@@ -306,7 +310,7 @@ contract CoreRouteFacet is ReentrancyGuard {
         }
     }
 
-    /// ===== Helpers =====
+    // ==== Private Functions - Helpers ====
 
     /// @dev Extracts the first 4 bytes as a selector.
     function _readSelector(

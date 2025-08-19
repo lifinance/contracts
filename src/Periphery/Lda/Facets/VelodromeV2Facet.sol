@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
-import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title VelodromeV2Facet
@@ -13,14 +13,16 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @custom:version 1.0.0
 contract VelodromeV2Facet {
     using LibPackedStream for uint256;
-    using SafeERC20 for IERC20;
 
+    // ==== Constants ====
     uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
     uint8 internal constant CALLBACK_ENABLED = 1;
     address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
+    // ==== Errors ====
     error WrongPoolReserves();
 
+    // ==== External Functions ====
     /// @notice Performs a swap through VelodromeV2 pools
     /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
     /// @param swapData [pool, direction, to, callback]
@@ -51,10 +53,16 @@ contract VelodromeV2Facet {
 
             amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
         } else {
-            if (from == address(this))
-                IERC20(tokenIn).safeTransfer(pool, amountIn);
-            else if (from == msg.sender)
-                IERC20(tokenIn).safeTransferFrom(msg.sender, pool, amountIn);
+            if (from == address(this)) {
+                LibAsset.transferERC20(tokenIn, pool, amountIn);
+            } else if (from == msg.sender) {
+                LibAsset.transferFromERC20(
+                    tokenIn,
+                    msg.sender,
+                    pool,
+                    amountIn
+                );
+            }
         }
 
         // calculate the expected output amount using the pool's getAmountOut function

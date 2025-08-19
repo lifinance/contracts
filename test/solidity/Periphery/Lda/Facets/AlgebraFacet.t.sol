@@ -12,7 +12,9 @@ import { TestToken as ERC20 } from "../../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../../utils/MockTokenFeeOnTransfer.sol";
 import { BaseDexFacetTest } from "../BaseDexFacet.t.sol";
 
+// ==== Helper Contracts ====
 contract AlgebraLiquidityAdderHelper {
+    // ==== Storage Variables ====
     address public immutable TOKEN_0;
     address public immutable TOKEN_1;
 
@@ -21,6 +23,7 @@ contract AlgebraLiquidityAdderHelper {
         TOKEN_1 = _token1;
     }
 
+    // ==== External Functions ====
     function addLiquidity(
         address pool,
         int24 bottomTick,
@@ -97,19 +100,22 @@ contract AlgebraLiquidityAdderHelper {
     }
 }
 
+// ==== Main Test Contract ====
 contract AlgebraFacetTest is BaseDexFacetTest {
+    // ==== Storage Variables ====
     AlgebraFacet internal algebraFacet;
 
+    // ==== Constants ====
     address private constant ALGEBRA_FACTORY_APECHAIN =
         0x10aA510d94E094Bd643677bd2964c3EE085Daffc;
     address private constant ALGEBRA_QUOTER_V2_APECHAIN =
         0x60A186019F81bFD04aFc16c9C01804a04E79e68B;
     address private constant RANDOM_APE_ETH_HOLDER_APECHAIN =
         address(0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b);
-
     address private constant IMPOSSIBLE_POOL_ADDRESS =
         0x0000000000000000000000000000000000000001;
 
+    // ==== Types ====
     struct AlgebraSwapTestParams {
         address from;
         address to;
@@ -120,8 +126,29 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         bool supportsFeeOnTransfer;
     }
 
+    struct MultiHopTestState {
+        IERC20 tokenA;
+        IERC20 tokenB; // Can be either regular ERC20 or MockFeeOnTransferToken
+        IERC20 tokenC;
+        address pool1;
+        address pool2;
+        uint256 amountIn;
+        uint256 amountToTransfer;
+        bool isFeeOnTransfer;
+    }
+
+    struct AlgebraRouteParams {
+        CommandType commandCode; // 1 for contract funds, 2 for user funds
+        address tokenIn; // Input token address
+        address recipient; // Address receiving the output tokens
+        address pool; // Algebra pool address
+        bool supportsFeeOnTransfer; // Whether to support fee-on-transfer tokens
+    }
+
+    // ==== Errors ====
     error AlgebraSwapUnexpected();
 
+    // ==== Setup Functions ====
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "apechain",
@@ -162,7 +189,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         return 1_000 * 1e6;
     }
 
-    // Override the abstract test with Algebra implementation
+    // ==== Test Cases ====
     function test_CanSwap_FromDexAggregator() public override {
         // Fund LDA from whale address
         vm.prank(RANDOM_APE_ETH_HOLDER_APECHAIN);
@@ -308,7 +335,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         _executeAndVerifyMultiHopSwap(state);
     }
 
-    // Test that the proper error is thrown when algebra swap fails
     function testRevert_SwapUnexpected() public {
         // Transfer tokens from whale to user
         vm.prank(RANDOM_APE_ETH_HOLDER_APECHAIN);
@@ -375,361 +401,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
 
         vm.stopPrank();
         vm.clearMockedCalls();
-    }
-
-    // Helper function to setup tokens and pools
-    function _setupTokensAndPools(
-        MultiHopTestState memory state
-    ) private returns (MultiHopTestState memory) {
-        // Create tokens
-        ERC20 tokenA = new ERC20(
-            "Token A",
-            state.isFeeOnTransfer ? "FTA" : "TA",
-            18
-        );
-        IERC20 tokenB;
-        ERC20 tokenC = new ERC20(
-            "Token C",
-            state.isFeeOnTransfer ? "FTC" : "TC",
-            18
-        );
-
-        if (state.isFeeOnTransfer) {
-            tokenB = IERC20(
-                address(
-                    new MockFeeOnTransferToken("Fee Token B", "FTB", 18, 300)
-                )
-            );
-        } else {
-            tokenB = IERC20(address(new ERC20("Token B", "TB", 18)));
-        }
-
-        state.tokenA = IERC20(address(tokenA));
-        state.tokenB = tokenB;
-        state.tokenC = IERC20(address(tokenC));
-
-        // Label addresses
-        vm.label(address(state.tokenA), "Token A");
-        vm.label(address(state.tokenB), "Token B");
-        vm.label(address(state.tokenC), "Token C");
-
-        // Mint initial token supplies
-        tokenA.mint(address(this), 1_000_000 * 1e18);
-        if (!state.isFeeOnTransfer) {
-            ERC20(address(tokenB)).mint(address(this), 1_000_000 * 1e18);
-        } else {
-            MockFeeOnTransferToken(address(tokenB)).mint(
-                address(this),
-                1_000_000 * 1e18
-            );
-        }
-        tokenC.mint(address(this), 1_000_000 * 1e18);
-
-        // Create pools
-        state.pool1 = _createAlgebraPool(
-            address(state.tokenA),
-            address(state.tokenB)
-        );
-        state.pool2 = _createAlgebraPool(
-            address(state.tokenB),
-            address(state.tokenC)
-        );
-
-        vm.label(state.pool1, "Pool 1");
-        vm.label(state.pool2, "Pool 2");
-
-        // Add liquidity
-        _addLiquidityToPool(
-            state.pool1,
-            address(state.tokenA),
-            address(state.tokenB)
-        );
-        _addLiquidityToPool(
-            state.pool2,
-            address(state.tokenB),
-            address(state.tokenC)
-        );
-
-        state.amountToTransfer = 100 * 1e18;
-        state.amountIn = 50 * 1e18;
-
-        // Transfer tokens to USER_SENDER
-        IERC20(address(state.tokenA)).transfer(
-            USER_SENDER,
-            state.amountToTransfer
-        );
-
-        return state;
-    }
-
-    // Helper function to execute and verify the swap
-    function _executeAndVerifyMultiHopSwap(
-        MultiHopTestState memory state
-    ) private {
-        vm.startPrank(USER_SENDER);
-
-        // Approve spending
-        IERC20(address(state.tokenA)).approve(
-            address(ldaDiamond),
-            state.amountIn
-        );
-
-        // Build route and execute swap
-        SwapTestParams[] memory swapParams = new SwapTestParams[](2);
-        bytes[] memory swapData = new bytes[](2);
-
-        // First hop: TokenA -> TokenB
-        swapParams[0] = SwapTestParams({
-            tokenIn: address(state.tokenA),
-            tokenOut: address(state.tokenB),
-            amountIn: state.amountIn,
-            minOut: 0,
-            sender: USER_SENDER,
-            recipient: address(ldaDiamond), // Send to aggregator for next hop
-            commandType: CommandType.ProcessUserERC20
-        });
-
-        // Build first hop swap data
-        swapData[0] = _buildAlgebraSwapData(
-            AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
-                tokenIn: address(state.tokenA),
-                recipient: address(ldaDiamond),
-                pool: state.pool1,
-                supportsFeeOnTransfer: false
-            })
-        );
-
-        // Second hop: TokenB -> TokenC
-        swapParams[1] = SwapTestParams({
-            tokenIn: address(state.tokenB),
-            tokenOut: address(state.tokenC),
-            amountIn: 0, // Not used for ProcessMyERC20
-            minOut: 0,
-            sender: address(ldaDiamond),
-            recipient: USER_SENDER,
-            commandType: CommandType.ProcessMyERC20
-        });
-
-        // Build second hop swap data
-        swapData[1] = _buildAlgebraSwapData(
-            AlgebraRouteParams({
-                commandCode: CommandType.ProcessMyERC20,
-                tokenIn: address(state.tokenB),
-                recipient: USER_SENDER,
-                pool: state.pool2,
-                supportsFeeOnTransfer: state.isFeeOnTransfer
-            })
-        );
-
-        bytes memory route = _buildMultiHopRoute(swapParams, swapData);
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(state.tokenA),
-                tokenOut: address(state.tokenC),
-                amountIn: state.amountIn,
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route
-        );
-
-        vm.stopPrank();
-    }
-
-    // Helper function to create an Algebra pool
-    function _createAlgebraPool(
-        address tokenA,
-        address tokenB
-    ) internal returns (address pool) {
-        // Call the actual Algebra factory to create a pool
-        pool = IAlgebraFactory(ALGEBRA_FACTORY_APECHAIN).createPool(
-            tokenA,
-            tokenB
-        );
-        return pool;
-    }
-
-    // Helper function to add liquidity to a pool
-    function _addLiquidityToPool(
-        address pool,
-        address token0,
-        address token1
-    ) internal {
-        // For fee-on-transfer tokens, we need to send more  to account for the fee
-        // We'll use a small amount and send extra to cover fees
-        uint256 initialAmount0 = 1e17; // 0.1 token
-        uint256 initialAmount1 = 1e17; // 0.1 token
-
-        // Send extra for fee-on-transfer tokens (10% extra should be enough for our test tokens with 5% fee)
-        uint256 transferAmount0 = (initialAmount0 * 110) / 100;
-        uint256 transferAmount1 = (initialAmount1 * 110) / 100;
-
-        // Initialize with 1:1 price ratio (Q64.96 format)
-        uint160 initialPrice = uint160(1 << 96);
-        IAlgebraPool(pool).initialize(initialPrice);
-
-        // Create AlgebraLiquidityAdderHelper with safe transfer logic
-        AlgebraLiquidityAdderHelper algebraLiquidityAdderHelper = new AlgebraLiquidityAdderHelper(
-                token0,
-                token1
-            );
-
-        // Transfer tokens with extra amounts to account for fees
-        IERC20(token0).transfer(
-            address(algebraLiquidityAdderHelper),
-            transferAmount0
-        );
-        IERC20(token1).transfer(
-            address(algebraLiquidityAdderHelper),
-            transferAmount1
-        );
-
-        // Get actual balances to use for liquidity, accounting for any fees
-        uint256 actualBalance0 = IERC20(token0).balanceOf(
-            address(algebraLiquidityAdderHelper)
-        );
-        uint256 actualBalance1 = IERC20(token1).balanceOf(
-            address(algebraLiquidityAdderHelper)
-        );
-
-        // Use the smaller of the two balances for liquidity amount
-        uint128 liquidityAmount = uint128(
-            actualBalance0 < actualBalance1 ? actualBalance0 : actualBalance1
-        );
-
-        // Add liquidity using the actual token amounts we have
-        algebraLiquidityAdderHelper.addLiquidity(
-            pool,
-            -887220,
-            887220,
-            liquidityAmount / 2 // Use half of available liquidity to ensure success
-        );
-    }
-
-    struct MultiHopTestState {
-        IERC20 tokenA;
-        IERC20 tokenB; // Can be either regular ERC20 or MockFeeOnTransferToken
-        IERC20 tokenC;
-        address pool1;
-        address pool2;
-        uint256 amountIn;
-        uint256 amountToTransfer;
-        bool isFeeOnTransfer;
-    }
-
-    struct AlgebraRouteParams {
-        CommandType commandCode; // 1 for contract funds, 2 for user funds
-        address tokenIn; // Input token address
-        address recipient; // Address receiving the output tokens
-        address pool; // Algebra pool address
-        bool supportsFeeOnTransfer; // Whether to support fee-on-transfer tokens
-    }
-
-    // Helper function to build route for Apechain Algebra swap
-    function _buildAlgebraSwapData(
-        AlgebraRouteParams memory params
-    ) private view returns (bytes memory) {
-        address token0 = IAlgebraPool(params.pool).token0();
-        bool zeroForOne = (params.tokenIn == token0);
-        SwapDirection direction = zeroForOne
-            ? SwapDirection.Token0ToToken1
-            : SwapDirection.Token1ToToken0;
-
-        // This data blob is what the AlgebraFacet will receive and parse
-        return
-            abi.encodePacked(
-                AlgebraFacet.swapAlgebra.selector,
-                params.pool,
-                uint8(direction),
-                params.recipient,
-                params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
-            );
-    }
-
-    // Helper function to test an Algebra swap
-    function _testSwap(AlgebraSwapTestParams memory params) internal {
-        // Find or create a pool
-        address pool = _getPool(params.tokenIn, params.tokenOut);
-
-        // Get expected output from QuoterV2
-        // uint256 expectedOutput = _getQuoteExactInput(
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     params.amountIn
-        // );
-
-        // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
-        CommandType commandCode = params.from == address(ldaDiamond)
-            ? CommandType.ProcessMyERC20
-            : CommandType.ProcessUserERC20;
-        // 1. Pack the specific data for this swap
-        bytes memory swapData = _buildAlgebraSwapData(
-            AlgebraRouteParams({
-                commandCode: commandCode, // Placeholder, not used in this helper
-                tokenIn: params.tokenIn,
-                recipient: params.to,
-                pool: pool,
-                supportsFeeOnTransfer: params.supportsFeeOnTransfer
-            })
-        );
-
-        // 4. Build the route inline and execute the swap to save stack space
-        bytes memory route = _buildBaseRoute(
-            SwapTestParams({
-                tokenIn: params.tokenIn,
-                tokenOut: params.tokenOut,
-                amountIn: params.amountIn,
-                minOut: 0,
-                sender: params.from,
-                recipient: params.to,
-                commandType: params.from == address(coreRouteFacet)
-                    ? CommandType.ProcessMyERC20
-                    : CommandType.ProcessUserERC20
-            }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: params.tokenIn,
-                tokenOut: params.tokenOut,
-                amountIn: params.amountIn,
-                minOut: 0,
-                sender: params.from,
-                recipient: params.to,
-                commandType: params.from == address(ldaDiamond)
-                    ? CommandType.ProcessMyERC20
-                    : CommandType.ProcessUserERC20
-            }),
-            route,
-            true // This is a fee-on-transfer token
-        );
-    }
-
-    function _getPool(
-        address tokenA,
-        address tokenB
-    ) private view returns (address pool) {
-        pool = IAlgebraRouter(ALGEBRA_FACTORY_APECHAIN).poolByPair(
-            tokenA,
-            tokenB
-        );
-        if (pool == address(0)) revert PoolDoesNotExist();
-        return pool;
-    }
-
-    function _getQuoteExactInput(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
-    ) private returns (uint256 amountOut) {
-        (amountOut, ) = IAlgebraQuoter(ALGEBRA_QUOTER_V2_APECHAIN)
-            .quoteExactInputSingle(tokenIn, tokenOut, amountIn, 0);
-        return amountOut;
     }
 
     function testRevert_AlgebraSwap_ZeroAddressPool() public {
@@ -895,5 +566,336 @@ contract AlgebraFacetTest is BaseDexFacetTest {
 
         vm.stopPrank();
         vm.clearMockedCalls();
+    }
+
+    // ==== Helper Functions ====
+    function _setupTokensAndPools(
+        MultiHopTestState memory state
+    ) private returns (MultiHopTestState memory) {
+        // Create tokens
+        ERC20 tokenA = new ERC20(
+            "Token A",
+            state.isFeeOnTransfer ? "FTA" : "TA",
+            18
+        );
+        IERC20 tokenB;
+        ERC20 tokenC = new ERC20(
+            "Token C",
+            state.isFeeOnTransfer ? "FTC" : "TC",
+            18
+        );
+
+        if (state.isFeeOnTransfer) {
+            tokenB = IERC20(
+                address(
+                    new MockFeeOnTransferToken("Fee Token B", "FTB", 18, 300)
+                )
+            );
+        } else {
+            tokenB = IERC20(address(new ERC20("Token B", "TB", 18)));
+        }
+
+        state.tokenA = IERC20(address(tokenA));
+        state.tokenB = tokenB;
+        state.tokenC = IERC20(address(tokenC));
+
+        // Label addresses
+        vm.label(address(state.tokenA), "Token A");
+        vm.label(address(state.tokenB), "Token B");
+        vm.label(address(state.tokenC), "Token C");
+
+        // Mint initial token supplies
+        tokenA.mint(address(this), 1_000_000 * 1e18);
+        if (!state.isFeeOnTransfer) {
+            ERC20(address(tokenB)).mint(address(this), 1_000_000 * 1e18);
+        } else {
+            MockFeeOnTransferToken(address(tokenB)).mint(
+                address(this),
+                1_000_000 * 1e18
+            );
+        }
+        tokenC.mint(address(this), 1_000_000 * 1e18);
+
+        // Create pools
+        state.pool1 = _createAlgebraPool(
+            address(state.tokenA),
+            address(state.tokenB)
+        );
+        state.pool2 = _createAlgebraPool(
+            address(state.tokenB),
+            address(state.tokenC)
+        );
+
+        vm.label(state.pool1, "Pool 1");
+        vm.label(state.pool2, "Pool 2");
+
+        // Add liquidity
+        _addLiquidityToPool(
+            state.pool1,
+            address(state.tokenA),
+            address(state.tokenB)
+        );
+        _addLiquidityToPool(
+            state.pool2,
+            address(state.tokenB),
+            address(state.tokenC)
+        );
+
+        state.amountToTransfer = 100 * 1e18;
+        state.amountIn = 50 * 1e18;
+
+        // Transfer tokens to USER_SENDER
+        IERC20(address(state.tokenA)).transfer(
+            USER_SENDER,
+            state.amountToTransfer
+        );
+
+        return state;
+    }
+
+    function _executeAndVerifyMultiHopSwap(
+        MultiHopTestState memory state
+    ) private {
+        vm.startPrank(USER_SENDER);
+
+        // Approve spending
+        IERC20(address(state.tokenA)).approve(
+            address(ldaDiamond),
+            state.amountIn
+        );
+
+        // Build route and execute swap
+        SwapTestParams[] memory swapParams = new SwapTestParams[](2);
+        bytes[] memory swapData = new bytes[](2);
+
+        // First hop: TokenA -> TokenB
+        swapParams[0] = SwapTestParams({
+            tokenIn: address(state.tokenA),
+            tokenOut: address(state.tokenB),
+            amountIn: state.amountIn,
+            minOut: 0,
+            sender: USER_SENDER,
+            recipient: address(ldaDiamond), // Send to aggregator for next hop
+            commandType: CommandType.ProcessUserERC20
+        });
+
+        // Build first hop swap data
+        swapData[0] = _buildAlgebraSwapData(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessUserERC20,
+                tokenIn: address(state.tokenA),
+                recipient: address(ldaDiamond),
+                pool: state.pool1,
+                supportsFeeOnTransfer: false
+            })
+        );
+
+        // Second hop: TokenB -> TokenC
+        swapParams[1] = SwapTestParams({
+            tokenIn: address(state.tokenB),
+            tokenOut: address(state.tokenC),
+            amountIn: 0, // Not used for ProcessMyERC20
+            minOut: 0,
+            sender: address(ldaDiamond),
+            recipient: USER_SENDER,
+            commandType: CommandType.ProcessMyERC20
+        });
+
+        // Build second hop swap data
+        swapData[1] = _buildAlgebraSwapData(
+            AlgebraRouteParams({
+                commandCode: CommandType.ProcessMyERC20,
+                tokenIn: address(state.tokenB),
+                recipient: USER_SENDER,
+                pool: state.pool2,
+                supportsFeeOnTransfer: state.isFeeOnTransfer
+            })
+        );
+
+        bytes memory route = _buildMultiHopRoute(swapParams, swapData);
+
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(state.tokenA),
+                tokenOut: address(state.tokenC),
+                amountIn: state.amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                recipient: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    function _createAlgebraPool(
+        address tokenA,
+        address tokenB
+    ) internal returns (address pool) {
+        // Call the actual Algebra factory to create a pool
+        pool = IAlgebraFactory(ALGEBRA_FACTORY_APECHAIN).createPool(
+            tokenA,
+            tokenB
+        );
+        return pool;
+    }
+
+    function _addLiquidityToPool(
+        address pool,
+        address token0,
+        address token1
+    ) internal {
+        // For fee-on-transfer tokens, we need to send more  to account for the fee
+        // We'll use a small amount and send extra to cover fees
+        uint256 initialAmount0 = 1e17; // 0.1 token
+        uint256 initialAmount1 = 1e17; // 0.1 token
+
+        // Send extra for fee-on-transfer tokens (10% extra should be enough for our test tokens with 5% fee)
+        uint256 transferAmount0 = (initialAmount0 * 110) / 100;
+        uint256 transferAmount1 = (initialAmount1 * 110) / 100;
+
+        // Initialize with 1:1 price ratio (Q64.96 format)
+        uint160 initialPrice = uint160(1 << 96);
+        IAlgebraPool(pool).initialize(initialPrice);
+
+        // Create AlgebraLiquidityAdderHelper with safe transfer logic
+        AlgebraLiquidityAdderHelper algebraLiquidityAdderHelper = new AlgebraLiquidityAdderHelper(
+                token0,
+                token1
+            );
+
+        // Transfer tokens with extra amounts to account for fees
+        IERC20(token0).transfer(
+            address(algebraLiquidityAdderHelper),
+            transferAmount0
+        );
+        IERC20(token1).transfer(
+            address(algebraLiquidityAdderHelper),
+            transferAmount1
+        );
+
+        // Get actual balances to use for liquidity, accounting for any fees
+        uint256 actualBalance0 = IERC20(token0).balanceOf(
+            address(algebraLiquidityAdderHelper)
+        );
+        uint256 actualBalance1 = IERC20(token1).balanceOf(
+            address(algebraLiquidityAdderHelper)
+        );
+
+        // Use the smaller of the two balances for liquidity amount
+        uint128 liquidityAmount = uint128(
+            actualBalance0 < actualBalance1 ? actualBalance0 : actualBalance1
+        );
+
+        // Add liquidity using the actual token amounts we have
+        algebraLiquidityAdderHelper.addLiquidity(
+            pool,
+            -887220,
+            887220,
+            liquidityAmount / 2 // Use half of available liquidity to ensure success
+        );
+    }
+
+    function _buildAlgebraSwapData(
+        AlgebraRouteParams memory params
+    ) private view returns (bytes memory) {
+        address token0 = IAlgebraPool(params.pool).token0();
+        bool zeroForOne = (params.tokenIn == token0);
+        SwapDirection direction = zeroForOne
+            ? SwapDirection.Token0ToToken1
+            : SwapDirection.Token1ToToken0;
+
+        // This data blob is what the AlgebraFacet will receive and parse
+        return
+            abi.encodePacked(
+                AlgebraFacet.swapAlgebra.selector,
+                params.pool,
+                uint8(direction),
+                params.recipient,
+                params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
+            );
+    }
+
+    function _testSwap(AlgebraSwapTestParams memory params) internal {
+        // Find or create a pool
+        address pool = _getPool(params.tokenIn, params.tokenOut);
+
+        // Get expected output from QuoterV2
+        // uint256 expectedOutput = _getQuoteExactInput(
+        //     params.tokenIn,
+        //     params.tokenOut,
+        //     params.amountIn
+        // );
+
+        // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
+        CommandType commandCode = params.from == address(ldaDiamond)
+            ? CommandType.ProcessMyERC20
+            : CommandType.ProcessUserERC20;
+        // 1. Pack the specific data for this swap
+        bytes memory swapData = _buildAlgebraSwapData(
+            AlgebraRouteParams({
+                commandCode: commandCode, // Placeholder, not used in this helper
+                tokenIn: params.tokenIn,
+                recipient: params.to,
+                pool: pool,
+                supportsFeeOnTransfer: params.supportsFeeOnTransfer
+            })
+        );
+
+        // 4. Build the route inline and execute the swap to save stack space
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: params.amountIn,
+                minOut: 0,
+                sender: params.from,
+                recipient: params.to,
+                commandType: params.from == address(coreRouteFacet)
+                    ? CommandType.ProcessMyERC20
+                    : CommandType.ProcessUserERC20
+            }),
+            swapData
+        );
+
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: params.amountIn,
+                minOut: 0,
+                sender: params.from,
+                recipient: params.to,
+                commandType: params.from == address(ldaDiamond)
+                    ? CommandType.ProcessMyERC20
+                    : CommandType.ProcessUserERC20
+            }),
+            route,
+            true // This is a fee-on-transfer token
+        );
+    }
+
+    function _getPool(
+        address tokenA,
+        address tokenB
+    ) private view returns (address pool) {
+        pool = IAlgebraRouter(ALGEBRA_FACTORY_APECHAIN).poolByPair(
+            tokenA,
+            tokenB
+        );
+        if (pool == address(0)) revert PoolDoesNotExist();
+        return pool;
+    }
+
+    function _getQuoteExactInput(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) private returns (uint256 amountOut) {
+        (amountOut, ) = IAlgebraQuoter(ALGEBRA_QUOTER_V2_APECHAIN)
+            .quoteExactInputSingle(tokenIn, tokenOut, amountIn, 0);
+        return amountOut;
     }
 }

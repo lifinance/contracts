@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
@@ -14,23 +14,19 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 contract IzumiV3Facet {
     using LibPackedStream for uint256;
     using LibCallbackManager for *;
-    using SafeERC20 for IERC20;
 
+    // ==== Constants ====
     /// @dev iZiSwap pool price points boundaries
     int24 internal constant IZUMI_LEFT_MOST_PT = -800000;
     int24 internal constant IZUMI_RIGHT_MOST_PT = 800000;
     uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
 
+    // ==== Errors ====
     error IzumiV3SwapUnexpected();
     error IzumiV3SwapCallbackUnknownSource();
     error IzumiV3SwapCallbackNotPositiveAmount();
 
-    /// @notice Performs a swap through iZiSwap V3 pools
-    /// @dev This function handles both X to Y and Y to X swaps through iZiSwap V3 pools
-    /// @param swapData [pool, direction, recipient]
-    /// @param from Where to take liquidity for swap
-    /// @param tokenIn Input token
-    /// @param amountIn Amount of tokenIn to take for swap
+    // ==== External Functions ====
     function swapIzumiV3(
         bytes memory swapData,
         address from,
@@ -49,7 +45,8 @@ contract IzumiV3Facet {
         ) revert InvalidCallData();
 
         if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(
+            LibAsset.transferFromERC20(
+                tokenIn,
                 msg.sender,
                 address(this),
                 amountIn
@@ -84,6 +81,7 @@ contract IzumiV3Facet {
         return 0; // Return value not used in current implementation
     }
 
+    // ==== Callback Functions ====
     function swapX2YCallback(
         uint256 amountX,
         uint256,
@@ -100,6 +98,7 @@ contract IzumiV3Facet {
         _handleIzumiV3SwapCallback(amountY, data);
     }
 
+    // ==== Private Functions ====
     /// @dev Common logic for iZiSwap callbacks
     /// @param amountToPay The amount of tokens to be sent to the pool
     /// @param data The data passed through by the caller
@@ -114,7 +113,7 @@ contract IzumiV3Facet {
         }
 
         address tokenIn = abi.decode(data, (address));
-        IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
+        LibAsset.transferERC20(tokenIn, msg.sender, amountToPay);
 
         LibCallbackManager.clear();
     }

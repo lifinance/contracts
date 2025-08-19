@@ -7,18 +7,27 @@ import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
 import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
 
+// ==== Base Contract ====
 abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
+    // ==== Storage Variables ====
     UniV3StyleFacet internal uniV3Facet;
 
+    // ==== Types ====
     struct UniV3SwapParams {
         address pool;
         SwapDirection direction;
         address recipient;
     }
 
-    // Add the custom error
+    struct UniV3AutoSwapParams {
+        CommandType commandType;
+        uint256 amountIn;
+    }
+
+    // ==== Errors ====
     error TokenNotInPool(address token, address pool);
 
+    // ==== Setup Functions ====
     function _createFacetAndSelectors()
         internal
         override
@@ -40,15 +49,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     // Each UniV3-style DEX must implement this to provide its specific callback selector
     function _getCallbackSelector() internal virtual returns (bytes4);
 
-    function test_CanSwap_MultiHop() public virtual override {
-        // SKIPPED: UniV3 forke dex multi-hop unsupported due to AS (amount specified) requirement.
-        // UniV3 forke dex does not support a "one-pool" second hop today,
-        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
-        // the pool.swap call. UniV3-style pools immediately revert on
-        // require(amountSpecified != 0, 'AS'), so you can't chain two uniV3 pools
-        // in a single processRoute invocation.
-    }
-
+    // ==== Helper Functions ====
     function _buildUniV3SwapData(
         UniV3SwapParams memory params
     ) internal view returns (bytes memory) {
@@ -90,9 +91,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
-    // === Additions below ===
-
-    // Infer swap direction from pool’s token0/token1 and TOKEN_IN
+    // Infer swap direction from pool's token0/token1 and TOKEN_IN
     function _getDirection(
         address pool,
         address tokenIn
@@ -102,11 +101,6 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         if (tokenIn == t0) return SwapDirection.Token0ToToken1;
         if (tokenIn == t1) return SwapDirection.Token1ToToken0;
         revert TokenNotInPool(tokenIn, pool);
-    }
-
-    struct UniV3AutoSwapParams {
-        CommandType commandType;
-        uint256 amountIn;
     }
 
     function _executeUniV3StyleSwapAuto(
@@ -164,6 +158,16 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
+    // ==== Test Cases ====
+    function test_CanSwap_MultiHop() public virtual override {
+        // SKIPPED: UniV3 forke dex multi-hop unsupported due to AS (amount specified) requirement.
+        // UniV3 forke dex does not support a "one-pool" second hop today,
+        // because the aggregator (ProcessOnePool) always passes amountSpecified = 0 into
+        // the pool.swap call. UniV3-style pools immediately revert on
+        // require(amountSpecified != 0, 'AS'), so you can't chain two uniV3 pools
+        // in a single processRoute invocation.
+    }
+
     function test_CanSwap() public virtual override {
         _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
@@ -186,7 +190,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         // No swap has armed the guard; expected == address(0)
         vm.startPrank(USER_SENDER);
         vm.expectRevert(LibCallbackManager.UnexpectedCallbackSender.selector);
-        // Call the facet’s callback directly on the diamond
+        // Call the facet's callback directly on the diamond
         (bool ok, ) = address(ldaDiamond).call(
             abi.encodeWithSelector(
                 _getCallbackSelector(),

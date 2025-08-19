@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
 import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
@@ -13,7 +13,6 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @custom:version 1.0.0
 contract SyncSwapV2Facet {
     using LibPackedStream for uint256;
-    using SafeERC20 for IERC20;
 
     /// @notice Performs a swap through SyncSwapV2 pools
     /// @dev This function handles both X to Y and Y to X swaps through SyncSwapV2 pools.
@@ -51,9 +50,9 @@ contract SyncSwapV2Facet {
         if (isV1Pool && target == address(0)) revert InvalidCallData();
 
         if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(msg.sender, target, amountIn);
+            LibAsset.transferFromERC20(tokenIn, msg.sender, target, amountIn);
         } else if (from == address(this)) {
-            IERC20(tokenIn).safeTransfer(target, amountIn);
+            LibAsset.transferERC20(tokenIn, target, amountIn);
         }
         // if from is not msg.sender or address(this), it must be INTERNAL_INPUT_SOURCE
         // which means tokens are already in the vault/pool, no transfer needed

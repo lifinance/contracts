@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
+// ==== Imports ====
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
@@ -11,6 +12,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDexFacetTest } from "../BaseDexFacet.t.sol";
 
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
+    // ==== Events ====
     event HookCalled(
         address sender,
         uint256 amount0,
@@ -28,10 +30,12 @@ contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
     }
 }
 
+// ==== Main Test Contract ====
 contract VelodromeV2FacetTest is BaseDexFacetTest {
+    // ==== Storage Variables ====
     VelodromeV2Facet internal velodromeV2Facet;
 
-    // ==================== Velodrome V2 specific variables ====================
+    // ==== Constants ====
     IVelodromeV2Router internal constant VELODROME_V2_ROUTER =
         IVelodromeV2Router(0xa062aE8A9c5e11aaA026fc2670B0D65cCc8B2858); // optimism router
     address internal constant VELODROME_V2_FACTORY_REGISTRY =
@@ -40,13 +44,12 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     MockVelodromeV2FlashLoanCallbackReceiver
         internal mockFlashloanCallbackReceiver;
 
-    // Callback constants
+    // ==== Types ====
     enum CallbackStatus {
         Disabled, // 0
         Enabled // 1
     }
 
-    // Velodrome V2 structs
     struct VelodromeV2SwapTestParams {
         address from;
         address to;
@@ -84,6 +87,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         CallbackStatus callbackStatus;
     }
 
+    // ==== Setup Functions ====
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "optimism",
@@ -124,7 +128,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         return 1_000 * 1e6;
     }
 
-    // ============================ Velodrome V2 Tests ============================
+    // ==== Test Cases ====
 
     // no stable swap
     function test_CanSwap() public override {
@@ -633,7 +637,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         vm.clearMockedCalls();
     }
 
-    // ============================ Velodrome V2 Helper Functions ============================
+    // ==== Helper Functions ====
 
     /**
      * @dev Helper function to test a VelodromeV2 swap.

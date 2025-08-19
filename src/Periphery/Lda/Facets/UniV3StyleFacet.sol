@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
@@ -22,25 +22,25 @@ interface IUniV3StylePool {
 /// @notice Handles Uniswap V3 swaps with callback management
 /// @custom:version 1.0.0
 contract UniV3StyleFacet {
-    using SafeERC20 for IERC20;
     using LibCallbackManager for *;
     using LibPackedStream for uint256;
 
-    /// Constants ///
+    // ==== Constants ====
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
     uint160 internal constant MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970342;
 
-    /// Errors ///
+    // ==== Errors ====
     error UniV3SwapUnexpected();
 
-    /// Modifiers ///
+    // ==== Modifiers ====
     modifier onlyExpectedPool() {
         LibCallbackManager.verifyCallbackSender();
         _;
         LibCallbackManager.clear();
     }
 
+    // ==== External Functions ====
     /// @notice Executes a UniswapV3 swap
     /// @param swapData The input stream containing swap parameters
     /// @param from Where to take liquidity for swap
@@ -63,7 +63,8 @@ contract UniV3StyleFacet {
 
         // Transfer tokens if needed
         if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(
+            LibAsset.transferFromERC20(
+                tokenIn,
                 msg.sender,
                 address(this),
                 amountIn
@@ -83,14 +84,12 @@ contract UniV3StyleFacet {
         );
 
         // Verify callback was called (arm should be cleared by callback)
-        LibCallbackManager.CallbackStorage storage cbStor = LibCallbackManager
-            .callbackStorage();
-        if (cbStor.expected != address(0)) {
+        if (LibCallbackManager.callbackStorage().expected != address(0)) {
             revert UniV3SwapUnexpected();
         }
     }
 
-    /// @notice Callback for UniswapV3 swaps
+    // ==== Callback Functions ====
     function uniswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,

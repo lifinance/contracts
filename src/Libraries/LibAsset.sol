@@ -77,7 +77,7 @@ library LibAsset {
         address assetId,
         address recipient,
         uint256 amount
-    ) private {
+    ) internal {
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) {
             revert InvalidReceiver();
