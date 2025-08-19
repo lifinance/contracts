@@ -16,71 +16,74 @@ import {
   getCurrentPrices,
 } from './utils.js'
 
-// Verified selectors (from contract-selectors.sh)
-const FACET_SELECTORS: Record<string, string[]> = {
-  DiamondLoupeFacet: [
-    '0xcdffacc6', // facetAddress(bytes4)
-    '0x52ef6b2c', // facetAddresses()
-    '0xadfca15e', // facetFunctionSelectors(address)
-    '0x7a0ed627', // facets()
-    '0x01ffc9a7', // supportsInterface(bytes4)
-  ],
-  OwnershipFacet: [
-    '0x23452b9c', // cancelOwnershipTransfer()
-    '0x7200b829', // confirmOwnershipTransfer()
-    '0x8da5cb5b', // owner()
-    '0xf2fde38b', // transferOwnership(address)
-  ],
-  WithdrawFacet: [
-    '0x1458d7ad', // executeCallAndWithdraw()
-    '0xd9caed12', // withdraw()
-  ],
-  DexManagerFacet: [
-    '0x536db266', // addDex(address)
-    '0xfbb2d381', // approvedDexs()
-    '0xfcd8e49e', // batchAddDex(address[])
-    '0x9afc19c7', // batchRemoveDex(address[])
-    '0x44e2b18c', // batchSetFunctionApprovalBySignature(bytes4[],bool)
-    '0x2d2506a9', // isFunctionApproved(bytes4)
-    '0x124f1ead', // removeDex(address)
-    '0xc3a6a96b', // setFunctionApprovalBySignature(bytes4,bool)
-  ],
-  AccessManagerFacet: [
-    '0x612ad9cb', // addressCanExecuteMethod(bytes4,address)
-    '0xa4c3366e', // setCanExecute(bytes4,address,bool)
-  ],
-  PeripheryRegistryFacet: [
-    '0xa516f0f3', // getPeripheryContract(string)
-    '0x5c2ed36a', // registerPeripheryContract(string,address)
-  ],
-  GenericSwapFacet: [
-    '0x4630a0d8', // swapTokensGeneric()
-  ],
-  GenericSwapFacetV3: [
-    '0xd5bcb610', // NATIVE_ADDRESS()
-    '0x5fd9ae2e', // swapTokensMultipleV3ERC20ToERC20()
-    '0x2c57e884', // swapTokensMultipleV3ERC20ToNative()
-    '0x736eac0b', // swapTokensMultipleV3NativeToERC20()
-    '0x4666fc80', // swapTokensSingleV3ERC20ToERC20()
-    '0x733214a3', // swapTokensSingleV3ERC20ToNative()
-    '0xaf7060fd', // swapTokensSingleV3NativeToERC20()
-  ],
-  CalldataVerificationFacet: [
-    '0x7f99d7af', // extractBridgeData(bytes)
-    '0x103c5200', // extractData(bytes)
-    '0xc318eeda', // extractGenericSwapParameters(bytes)
-    '0xee0aa320', // extractMainParameters(bytes)
-    '0xdf1c3a5b', // extractNonEVMAddress(bytes)
-    '0x070e81f1', // extractSwapData(bytes)
-    '0xd53482cf', // validateCalldata()
-    '0xf58ae2ce', // validateDestinationCalldata()
-  ],
-  EmergencyPauseFacet: [
-    '0xf86368ae', // pauseDiamond()
-    '0x5ad317a4', // pauserWallet()
-    '0x0340e905', // removeFacet(address)
-    '0x2fc487ae', // unpauseDiamond(address[])
-  ],
+/**
+ * Extract function selectors from compiled artifact
+ * @param facetName The name of the facet
+ * @returns Array of function selectors with 0x prefix
+ */
+function getFacetSelectors(facetName: string): string[] {
+  try {
+    const artifactPath = path.join(
+      process.cwd(),
+      'out',
+      `${facetName}.sol`,
+      `${facetName}.json`
+    )
+
+    if (!fs.existsSync(artifactPath)) 
+      throw new Error(`Artifact not found: ${artifactPath}`)
+    
+
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
+    const methodIdentifiers = artifact.methodIdentifiers
+
+    if (!methodIdentifiers) 
+      throw new Error(`No methodIdentifiers found in artifact for ${facetName}`)
+    
+
+    // Convert to array of selectors with 0x prefix
+    const selectors = Object.values(methodIdentifiers).map(
+      (selector) => `0x${selector}`
+    )
+
+    consola.debug(`Extracted ${selectors.length} selectors for ${facetName}`)
+    return selectors as string[]
+  } catch (error) {
+    consola.error(`Failed to extract selectors for ${facetName}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Get all facet selectors by extracting from artifacts
+ * Falls back to empty array if extraction fails for a specific facet
+ */
+function getAllFacetSelectors(): Record<string, string[]> {
+  const facets = [
+    'DiamondLoupeFacet',
+    'OwnershipFacet',
+    'WithdrawFacet',
+    'DexManagerFacet',
+    'AccessManagerFacet',
+    'PeripheryRegistryFacet',
+    'GenericSwapFacet',
+    'GenericSwapFacetV3',
+    'CalldataVerificationFacet',
+    'EmergencyPauseFacet',
+  ]
+
+  const facetSelectors: Record<string, string[]> = {}
+
+  for (const facet of facets) 
+    try {
+      facetSelectors[facet] = getFacetSelectors(facet)
+    } catch (error) {
+      consola.warn(`Could not extract selectors for ${facet}, skipping...`)
+      facetSelectors[facet] = []
+    }
+  
+
+  return facetSelectors
 }
 
 // Facet groups for split registration if needed
@@ -206,6 +209,9 @@ async function registerFacetsBatch(
   network: SupportedChain = 'tron'
 ): Promise<boolean> {
   const facetCuts = []
+
+  // Get all facet selectors from artifacts
+  const FACET_SELECTORS = getAllFacetSelectors()
 
   for (const facetName of facetNames) {
     const facetAddress = deployments[facetName]
@@ -668,9 +674,10 @@ async function registerFacetsToDiamond(
 
         // Check if all expected facets are registered
         // Include DiamondCutFacet which is registered during diamond deployment
+        const facetsToCheck = getAllFacetSelectors()
         const expectedFacets = [
           'DiamondCutFacet',
-          ...Object.keys(FACET_SELECTORS),
+          ...Object.keys(facetsToCheck),
         ]
         const missingFacets = expectedFacets.filter(
           (f) => !facetList.includes(f)
