@@ -40,6 +40,12 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     MockVelodromeV2FlashLoanCallbackReceiver
         internal mockFlashloanCallbackReceiver;
 
+    // Callback constants
+    enum CallbackStatus {
+        Disabled, // 0
+        Enabled // 1
+    }
+
     // Velodrome V2 structs
     struct VelodromeV2SwapTestParams {
         address from;

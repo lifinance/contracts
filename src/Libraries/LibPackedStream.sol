@@ -1,25 +1,33 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.2
 pragma solidity ^0.8.17;
 
-/// @title InputStream Library (Corrected)
-/// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for reading data from packed byte streams.
-library LibInputStream2 {
+/// @title LibPackedStream
+/// @author LI.FI
+/// @notice Minimal byte-stream reader for compact calldata formats used by LDA v2.
+/// @dev Public API is intentionally identical to the previous stream library.
+library LibPackedStream {
+    /// @dev Returns the start and finish pointers for a bytes array.
+    function _bounds(
+        bytes memory data
+    ) private pure returns (uint256 start, uint256 finish) {
+        assembly {
+            start := add(data, 32)
+            finish := add(start, mload(data))
+        }
+    }
+
     /** @notice Creates stream from data
      * @param data data
      */
     function createStream(
         bytes memory data
     ) internal pure returns (uint256 stream) {
+        (uint256 start, uint256 finish) = _bounds(data);
         assembly {
             stream := mload(0x40)
+            mstore(stream, start)
+            mstore(add(stream, 32), finish)
             mstore(0x40, add(stream, 64))
-            let dataContentPtr := add(data, 32)
-            mstore(stream, dataContentPtr)
-            let length := mload(data)
-            let endPtr := add(dataContentPtr, length)
-            mstore(add(stream, 32), endPtr)
         }
     }
 
@@ -58,32 +66,10 @@ library LibInputStream2 {
         }
     }
 
-    /** @notice Reads uint32 from the stream
-     * @param stream stream
-     */
-    function readUint32(uint256 stream) internal pure returns (uint32 res) {
-        assembly {
-            let pos := mload(stream)
-            res := shr(224, mload(pos))
-            mstore(stream, add(pos, 4))
-        }
-    }
-
-    /** @notice Reads bytes4 from the stream (for function selectors)
-     * @param stream stream
-     */
-    function readBytes4(uint256 stream) internal pure returns (bytes4 res) {
-        assembly {
-            let pos := mload(stream)
-            res := mload(pos)
-            mstore(stream, add(pos, 4))
-        }
-    }
-
     /** @notice Reads uint256 from the stream
      * @param stream stream
      */
-    function readUint(uint256 stream) internal pure returns (uint256 res) {
+    function readUint256(uint256 stream) internal pure returns (uint256 res) {
         assembly {
             let pos := mload(stream)
             res := mload(pos)
@@ -108,10 +94,7 @@ library LibInputStream2 {
     function readAddress(uint256 stream) internal pure returns (address res) {
         assembly {
             let pos := mload(stream)
-            // CORRECT: Load a 32-byte word. The address is the first 20 bytes.
-            // To get it, we must shift the word right by (32-20)*8 = 96 bits.
             res := shr(96, mload(pos))
-            // Then, advance the pointer by the size of an address
             mstore(stream, add(pos, 20))
         }
     }
@@ -132,7 +115,7 @@ library LibInputStream2 {
         uint256 stream
     ) internal view returns (bytes memory res) {
         // Read the 2-byte length prefix to know how many bytes to read next.
-        uint16 len = LibInputStream2.readUint16(stream);
+        uint16 len = LibPackedStream.readUint16(stream);
 
         if (len > 0) {
             uint256 pos;

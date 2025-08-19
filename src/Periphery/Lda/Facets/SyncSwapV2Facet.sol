@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
 import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
@@ -12,7 +12,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @notice Handles SyncSwap swaps with callback management
 /// @custom:version 1.0.0
 contract SyncSwapV2Facet {
-    using LibInputStream2 for uint256;
+    using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
     /// @notice Performs a swap through SyncSwapV2 pools
@@ -28,7 +28,7 @@ contract SyncSwapV2Facet {
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
-        uint256 stream = LibInputStream2.createStream(swapData);
+        uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();
         address to = stream.readAddress();

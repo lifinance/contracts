@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,7 +12,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @notice Handles VelodromeV2 swaps with callback management
 /// @custom:version 1.0.0
 contract VelodromeV2Facet {
-    using LibInputStream2 for uint256;
+    using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
     uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
@@ -33,7 +33,7 @@ contract VelodromeV2Facet {
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
-        uint256 stream = LibInputStream2.createStream(swapData);
+        uint256 stream = LibPackedStream.createStream(swapData);
         address pool = stream.readAddress();
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();

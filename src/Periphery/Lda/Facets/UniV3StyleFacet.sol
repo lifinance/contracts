@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
-import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 interface IUniV3StylePool {
@@ -24,7 +24,7 @@ interface IUniV3StylePool {
 contract UniV3StyleFacet {
     using SafeERC20 for IERC20;
     using LibCallbackManager for *;
-    using LibInputStream2 for uint256;
+    using LibPackedStream for uint256;
 
     /// Constants ///
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
@@ -52,7 +52,7 @@ contract UniV3StyleFacet {
         address tokenIn,
         uint256 amountIn
     ) external {
-        uint256 stream = LibInputStream2.createStream(swapData);
+        uint256 stream = LibPackedStream.createStream(swapData);
         address pool = stream.readAddress();
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();

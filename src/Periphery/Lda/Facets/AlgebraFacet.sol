@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { LibInputStream2 } from "../../../Libraries/LibInputStream2.sol";
+import { LibPackedStream } from "../../../Libraries/LibPackedStream.sol";
 import { LibCallbackManager } from "../../../Libraries/LibCallbackManager.sol";
 import { LibUniV3Logic } from "../../../Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "../../../Interfaces/IAlgebraPool.sol";
@@ -14,7 +14,7 @@ import { InvalidCallData } from "../../../Errors/GenericErrors.sol";
 /// @notice Handles Algebra swaps with callback management
 /// @custom:version 1.0.0
 contract AlgebraFacet {
-    using LibInputStream2 for uint256;
+    using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
     /// Constants ///
@@ -31,7 +31,7 @@ contract AlgebraFacet {
         address tokenIn,
         uint256 amountIn
     ) external returns (uint256) {
-        uint256 stream = LibInputStream2.createStream(swapData);
+        uint256 stream = LibPackedStream.createStream(swapData);
         address pool = stream.readAddress();
         bool direction = stream.readUint8() > 0;
         address recipient = stream.readAddress();

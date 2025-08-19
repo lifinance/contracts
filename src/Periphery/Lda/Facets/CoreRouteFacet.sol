@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import { LibInputStream2 } from "lifi/Libraries/LibInputStream2.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
@@ -11,14 +11,15 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 /// @title CoreRouteFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Handles route processing and selector-based swap dispatching for LDA 2.0
+/// @notice Orchestrates LDA route execution by interpreting a compact byte stream.
+/// @dev Public surface (ABI) is preserved; internals are reorganized for clarity.
 /// @custom:version 1.0.0
 contract CoreRouteFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
-    using LibInputStream2 for uint256;
+    using LibPackedStream for uint256;
 
-    /// Constants ///
+    /// @dev sentinel used to indicate that the input is already at the destination pool
     address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
     /// Events ///
@@ -39,15 +40,6 @@ contract CoreRouteFacet is ReentrancyGuard {
     error SwapFailed();
     error UnknownSelector();
 
-    /// External Methods ///
-
-    /// @notice Processes a route for swapping tokens using selector-based dispatch
-    /// @param tokenIn Token to swap from
-    /// @param amountIn Amount of tokenIn to swap
-    /// @param tokenOut Token to swap to
-    /// @param amountOutMin Minimum amount of tokenOut expected
-    /// @param to Recipient of the final tokens
-    /// @param route Encoded route data containing swap instructions
     function processRoute(
         address tokenIn,
         uint256 amountIn,
@@ -57,7 +49,7 @@ contract CoreRouteFacet is ReentrancyGuard {
         bytes calldata route
     ) external payable nonReentrant returns (uint256 amountOut) {
         return
-            _processRouteInternal(
+            _executeRoute(
                 tokenIn,
                 amountIn,
                 tokenOut,
@@ -67,10 +59,7 @@ contract CoreRouteFacet is ReentrancyGuard {
             );
     }
 
-    /// Internal Methods ///
-
-    /// @notice Internal route processing logic
-    function _processRouteInternal(
+    function _executeRoute(
         address tokenIn,
         uint256 amountIn,
         address tokenOut,
@@ -78,58 +67,23 @@ contract CoreRouteFacet is ReentrancyGuard {
         address to,
         bytes calldata route
     ) private returns (uint256 amountOut) {
-        uint256 balanceInInitial = LibAsset.isNativeAsset(tokenIn)
-            ? 0
-            : IERC20(tokenIn).balanceOf(msg.sender);
-        uint256 balanceOutInitial = LibAsset.isNativeAsset(tokenOut)
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
+        (uint256 balInStart, uint256 balOutStart) = _precheck(
+            tokenIn,
+            tokenOut,
+            to
+        );
 
-        uint256 realAmountIn = amountIn;
-        {
-            uint256 step = 0;
-            uint256 stream = LibInputStream2.createStream(route);
-            while (stream.isNotEmpty()) {
-                uint8 commandCode = stream.readUint8();
-                if (commandCode == 1) {
-                    uint256 usedAmount = _processMyERC20(stream);
-                    if (step == 0) realAmountIn = usedAmount;
-                } else if (commandCode == 2) {
-                    _processUserERC20(stream, amountIn);
-                } else if (commandCode == 3) {
-                    uint256 usedAmount = _processNative(stream);
-                    if (step == 0) realAmountIn = usedAmount;
-                } else if (commandCode == 4) {
-                    _processOnePool(stream);
-                } else if (commandCode == 5) {
-                    _applyPermit(tokenIn, stream);
-                } else {
-                    revert UnknownCommandCode();
-                }
-                ++step;
-            }
-        }
+        uint256 realAmountIn = _runRoute(tokenIn, amountIn, route);
 
-        uint256 balanceInFinal = LibAsset.isNativeAsset(tokenIn)
-            ? 0
-            : IERC20(tokenIn).balanceOf(msg.sender);
-        if (balanceInFinal + amountIn < balanceInInitial) {
-            revert MinimalInputBalanceViolation(
-                balanceInFinal + amountIn,
-                balanceInInitial
-            );
-        }
-
-        uint256 balanceOutFinal = LibAsset.isNativeAsset(tokenOut)
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
-        if (balanceOutFinal < balanceOutInitial + amountOutMin) {
-            revert MinimalOutputBalanceViolation(
-                balanceOutFinal - balanceOutInitial
-            );
-        }
-
-        amountOut = balanceOutFinal - balanceOutInitial;
+        amountOut = _postcheck(
+            tokenIn,
+            tokenOut,
+            to,
+            amountIn,
+            amountOutMin,
+            balInStart,
+            balOutStart
+        );
 
         emit Route(
             msg.sender,
@@ -142,13 +96,94 @@ contract CoreRouteFacet is ReentrancyGuard {
         );
     }
 
-    /// @notice Applies ERC-2612 permit
-    function _applyPermit(address tokenIn, uint256 stream) private {
-        uint256 value = stream.readUint();
-        uint256 deadline = stream.readUint();
-        uint8 v = stream.readUint8();
-        bytes32 r = stream.readBytes32();
-        bytes32 s = stream.readBytes32();
+    /// @notice Capture initial balances for input/output accounting.
+    function _precheck(
+        address tokenIn,
+        address tokenOut,
+        address to
+    ) private view returns (uint256 balInStart, uint256 balOutStart) {
+        balInStart = LibAsset.isNativeAsset(tokenIn)
+            ? 0
+            : IERC20(tokenIn).balanceOf(msg.sender);
+
+        balOutStart = LibAsset.isNativeAsset(tokenOut)
+            ? address(to).balance
+            : IERC20(tokenOut).balanceOf(to);
+    }
+
+    /// @notice Interpret the `route` byte stream and perform all commanded actions.
+    /// @return realAmountIn The actual first-hop amount determined by the route.
+    function _runRoute(
+        address tokenIn,
+        uint256 declaredAmountIn,
+        bytes calldata route
+    ) private returns (uint256 realAmountIn) {
+        realAmountIn = declaredAmountIn;
+        uint256 step = 0;
+
+        uint256 cur = LibPackedStream.createStream(route);
+        while (cur.isNotEmpty()) {
+            uint8 opcode = cur.readUint8();
+            if (opcode == 1) {
+                uint256 used = _handleSelfERC20(cur);
+                if (step == 0) realAmountIn = used;
+            } else if (opcode == 2) {
+                _handleUserERC20(cur, declaredAmountIn);
+            } else if (opcode == 3) {
+                uint256 usedNative = _handleNative(cur);
+                if (step == 0) realAmountIn = usedNative;
+            } else if (opcode == 4) {
+                _handleSinglePool(cur);
+            } else if (opcode == 5) {
+                _applyPermit(tokenIn, cur);
+            } else {
+                revert UnknownCommandCode();
+            }
+            unchecked {
+                ++step;
+            }
+        }
+    }
+
+    /// @notice Validate post-conditions and determine `amountOut`.
+    function _postcheck(
+        address tokenIn,
+        address tokenOut,
+        address to,
+        uint256 declaredAmountIn,
+        uint256 minAmountOut,
+        uint256 balInStart,
+        uint256 balOutStart
+    ) private view returns (uint256 amountOut) {
+        uint256 balInFinal = LibAsset.isNativeAsset(tokenIn)
+            ? 0
+            : IERC20(tokenIn).balanceOf(msg.sender);
+        if (balInFinal + declaredAmountIn < balInStart) {
+            revert MinimalInputBalanceViolation(
+                balInFinal + declaredAmountIn,
+                balInStart
+            );
+        }
+
+        uint256 balOutFinal = LibAsset.isNativeAsset(tokenOut)
+            ? address(to).balance
+            : IERC20(tokenOut).balanceOf(to);
+        if (balOutFinal < balOutStart + minAmountOut) {
+            revert MinimalOutputBalanceViolation(balOutFinal - balOutStart);
+        }
+
+        amountOut = balOutFinal - balOutStart;
+    }
+
+    /// ===== Command handlers (renamed/reorganized) =====
+
+    /// @notice ERC-2612 permit application for `tokenIn`.
+    function _applyPermit(address tokenIn, uint256 cur) private {
+        uint256 value = cur.readUint256();
+        uint256 deadline = cur.readUint256();
+        uint8 v = cur.readUint8();
+        bytes32 r = cur.readBytes32();
+        bytes32 s = cur.readBytes32();
         IERC20Permit(tokenIn).safePermit(
             msg.sender,
             address(this),
@@ -160,99 +195,100 @@ contract CoreRouteFacet is ReentrancyGuard {
         );
     }
 
-    /// @notice Processes native coin
-    function _processNative(
-        uint256 stream
-    ) private returns (uint256 amountTotal) {
-        amountTotal = address(this).balance;
-        _distributeAndSwap(
-            stream,
-            address(this),
-            INTERNAL_INPUT_SOURCE,
-            amountTotal
-        );
+    /// @notice Handle native coin inputs (assumes value already present on this contract).
+    function _handleNative(uint256 cur) private returns (uint256 total) {
+        total = address(this).balance;
+        _distributeAndSwap(cur, address(this), INTERNAL_INPUT_SOURCE, total);
     }
 
-    /// @notice Processes ERC20 token from this contract balance
-    function _processMyERC20(
-        uint256 stream
-    ) private returns (uint256 amountTotal) {
-        address token = stream.readAddress();
-        amountTotal = IERC20(token).balanceOf(address(this));
+    /// @notice Pull ERC20 from this contract’s balance and process it.
+    function _handleSelfERC20(uint256 cur) private returns (uint256 total) {
+        address token = cur.readAddress();
+        total = IERC20(token).balanceOf(address(this));
         unchecked {
-            if (amountTotal > 0) amountTotal -= 1; // slot undrain protection
+            if (total > 0) total -= 1; // slot undrain protection
         }
-        _distributeAndSwap(stream, address(this), token, amountTotal);
+        _distributeAndSwap(cur, address(this), token, total);
     }
 
-    /// @notice Processes ERC20 token from msg.sender balance
-    function _processUserERC20(uint256 stream, uint256 amountTotal) private {
-        address token = stream.readAddress();
-        _distributeAndSwap(stream, msg.sender, token, amountTotal);
+    /// @notice Pull ERC20 from the caller and process it.
+    function _handleUserERC20(uint256 cur, uint256 total) private {
+        address token = cur.readAddress();
+        _distributeAndSwap(cur, msg.sender, token, total);
     }
 
-    /// @notice Processes single pool (tokens already at pool)
-    function _processOnePool(uint256 stream) private {
-        address token = stream.readAddress();
-        _dispatchSwap(stream, INTERNAL_INPUT_SOURCE, token, 0);
+    /// @notice Process a “single pool” hop where inputs are already resident in the pool.
+    function _handleSinglePool(uint256 cur) private {
+        address token = cur.readAddress();
+        _dispatchSwap(cur, INTERNAL_INPUT_SOURCE, token, 0);
     }
 
-    /// @notice Distributes amount to pools and calls swap for each
+    /// @notice Split an amount across N pools and trigger swaps.
     function _distributeAndSwap(
-        uint256 stream,
+        uint256 cur,
         address from,
         address tokenIn,
-        uint256 amountTotal
+        uint256 total
     ) private {
-        uint8 num = stream.readUint8();
+        uint8 n = cur.readUint8();
         unchecked {
-            for (uint256 i = 0; i < num; ++i) {
-                uint16 share = stream.readUint16();
-                uint256 amount = (amountTotal * share) / type(uint16).max;
-                amountTotal -= amount;
-                _dispatchSwap(stream, from, tokenIn, amount);
+            for (uint256 i = 0; i < n; ++i) {
+                uint16 share = cur.readUint16();
+                uint256 amt = (total * share) / type(uint16).max;
+                total -= amt;
+                _dispatchSwap(cur, from, tokenIn, amt);
             }
         }
     }
 
-    /// @notice Dispatches swap using selector-based approach
-    /// @dev This is the core of the selector-based dispatch system
+    /// @notice Extract selector and payload and delegate the call to the facet that implements it.
     function _dispatchSwap(
-        uint256 stream,
+        uint256 cur,
         address from,
         address tokenIn,
         uint256 amountIn
     ) private {
-        // Read the length-prefixed data blob for this specific swap step.
-        // This data blob contains the target function selector and its arguments.
-        bytes memory swapDataForCurrentHop = stream.readBytesWithLength();
+        bytes memory data = cur.readBytesWithLength();
 
-        bytes4 selector;
-        // We need to slice the data to separate the selector from the rest of the payload
-        bytes memory payload;
-
-        assembly {
-            // Read the selector from the first 4 bytes of the data
-            selector := mload(add(swapDataForCurrentHop, 32))
-
-            // Create a new memory slice for the payload that starts 4 bytes after the
-            // beginning of swapDataForCurrentHop's content.
-            // It points to the same underlying data, just with a different start and length.
-            payload := add(swapDataForCurrentHop, 4)
-            // Adjust the length of the new slice
-            mstore(payload, sub(mload(swapDataForCurrentHop), 4))
-        }
+        bytes4 selector = _readSelector(data);
+        bytes memory payload = _payloadFrom(data);
 
         address facet = LibDiamondLoupe.facetAddress(selector);
         if (facet == address(0)) revert UnknownSelector();
 
-        (bool success, bytes memory returnData) = facet.delegatecall(
+        (bool ok, bytes memory ret) = facet.delegatecall(
             abi.encodeWithSelector(selector, payload, from, tokenIn, amountIn)
         );
+        if (!ok) {
+            LibUtil.revertWith(ret);
+        }
+    }
 
-        if (!success) {
-            // If the call failed, revert with the EXACT error from the facet.
-            LibUtil.revertWith(returnData);
+    /// ===== Helpers =====
+
+    /// @dev Extracts the first 4 bytes as a selector.
+    function _readSelector(
+        bytes memory blob
+    ) private pure returns (bytes4 sel) {
+        assembly {
+            sel := mload(add(blob, 32))
+        }
+    }
+
+    /// @dev Returns a fresh bytes containing the original blob without the first 4 bytes.
+    function _payloadFrom(
+        bytes memory blob
+    ) private view returns (bytes memory out) {
+        uint256 len = blob.length;
+        if (len <= 4) return new bytes(0);
+
+        uint256 newLen = len - 4;
+        assembly {
+            out := mload(0x40)
+            mstore(0x40, add(out, add(newLen, 32)))
+            mstore(out, newLen)
+            let src := add(blob, 36) // skip length(32) + 4
+            pop(staticcall(gas(), 4, src, newLen, add(out, 32), newLen))
         }
     }
 }
