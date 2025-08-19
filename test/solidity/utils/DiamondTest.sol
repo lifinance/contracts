@@ -5,7 +5,7 @@ import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Security/EmergencyPauseFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { BaseDiamondTest } from "./BaseDiamondTest.sol";
@@ -36,8 +36,12 @@ contract DiamondTest is BaseDiamondTest {
 
         // Add PeripheryRegistry
         bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = PeripheryRegistryFacet.registerPeripheryContract.selector;
-        functionSelectors[1] = PeripheryRegistryFacet.getPeripheryContract.selector;
+        functionSelectors[0] = PeripheryRegistryFacet
+            .registerPeripheryContract
+            .selector;
+        functionSelectors[1] = PeripheryRegistryFacet
+            .getPeripheryContract
+            .selector;
         cut.push(
             LibDiamond.FacetCut({
                 facetAddress: address(periphery),

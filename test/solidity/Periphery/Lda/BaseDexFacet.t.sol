@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { BaseCoreRouteTest } from "./CoreRouteFacet.t.sol";
+import { BaseCoreRouteTest } from "./BaseCoreRouteTest.t.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 /**

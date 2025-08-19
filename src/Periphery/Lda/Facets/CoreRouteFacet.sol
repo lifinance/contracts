@@ -3,19 +3,20 @@ pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
+import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title CoreRouteFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Orchestrates LDA route execution by interpreting a compact byte stream.
-/// @dev Public surface (ABI) is preserved; internals are reorganized for clarity.
+/// @notice Orchestrates LDA route execution using direct function selector dispatch
+/// @dev Implements selector-based routing where each DEX facet's swap function is called directly via its selector
 /// @custom:version 1.0.0
-contract CoreRouteFacet is ReentrancyGuard {
+contract CoreRouteFacet is ReentrancyGuard, WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
     using LibPackedStream for uint256;
@@ -42,7 +43,19 @@ contract CoreRouteFacet is ReentrancyGuard {
     error SwapFailed();
     error UnknownSelector();
 
+    constructor(address _owner) WithdrawablePeriphery(_owner) {
+        if (_owner == address(0)) revert InvalidConfig();
+    }
+
     // ==== External Functions ====
+    /// @notice Process a route encoded with function selectors for direct DEX facet dispatch
+    /// @param tokenIn The input token address (address(0) for native)
+    /// @param amountIn The amount of input tokens
+    /// @param tokenOut The expected output token address (address(0) for native)
+    /// @param amountOutMin The minimum acceptable output amount
+    /// @param to The recipient address for the output tokens
+    /// @param route The encoded route data containing function selectors and parameters
+    /// @return amountOut The actual amount of output tokens received
     function processRoute(
         address tokenIn,
         uint256 amountIn,
@@ -63,6 +76,15 @@ contract CoreRouteFacet is ReentrancyGuard {
     }
 
     // ==== Private Functions - Core Logic ====
+    /// @notice Executes a route with balance checks and event emission
+    /// @dev Handles both native and ERC20 tokens with pre/post balance validation
+    /// @param tokenIn The input token address (address(0) for native)
+    /// @param amountIn The amount of input tokens
+    /// @param tokenOut The expected output token address (address(0) for native)
+    /// @param amountOutMin The minimum acceptable output amount
+    /// @param to The recipient address for the output tokens
+    /// @param route The encoded route data containing function selectors and parameters
+    /// @return amountOut The actual amount of output tokens received
     function _executeRoute(
         address tokenIn,
         uint256 amountIn,
@@ -71,23 +93,34 @@ contract CoreRouteFacet is ReentrancyGuard {
         address to,
         bytes calldata route
     ) private returns (uint256 amountOut) {
-        (uint256 balInStart, uint256 balOutStart) = _precheck(
-            tokenIn,
-            tokenOut,
-            to
-        );
+        uint256 balInInitial = LibAsset.isNativeAsset(tokenIn)
+            ? 0
+            : IERC20(tokenIn).balanceOf(msg.sender);
+
+        uint256 balOutInitial = LibAsset.isNativeAsset(tokenOut)
+            ? address(to).balance
+            : IERC20(tokenOut).balanceOf(to);
 
         uint256 realAmountIn = _runRoute(tokenIn, amountIn, route);
 
-        amountOut = _postcheck(
-            tokenIn,
-            tokenOut,
-            to,
-            amountIn,
-            amountOutMin,
-            balInStart,
-            balOutStart
-        );
+        uint256 balInFinal = LibAsset.isNativeAsset(tokenIn)
+            ? 0
+            : IERC20(tokenIn).balanceOf(msg.sender);
+        if (balInFinal + amountIn < balInInitial) {
+            revert MinimalInputBalanceViolation(
+                balInFinal + amountIn,
+                balInInitial
+            );
+        }
+
+        uint256 balOutFinal = LibAsset.isNativeAsset(tokenOut)
+            ? address(to).balance
+            : IERC20(tokenOut).balanceOf(to);
+        if (balOutFinal < balOutInitial + amountOutMin) {
+            revert MinimalOutputBalanceViolation(balOutFinal - balOutInitial);
+        }
+
+        amountOut = balOutFinal - balOutInitial;
 
         emit Route(
             msg.sender,
@@ -100,23 +133,12 @@ contract CoreRouteFacet is ReentrancyGuard {
         );
     }
 
-    /// @notice Capture initial balances for input/output accounting.
-    function _precheck(
-        address tokenIn,
-        address tokenOut,
-        address to
-    ) private view returns (uint256 balInStart, uint256 balOutStart) {
-        balInStart = LibAsset.isNativeAsset(tokenIn)
-            ? 0
-            : IERC20(tokenIn).balanceOf(msg.sender);
-
-        balOutStart = LibAsset.isNativeAsset(tokenOut)
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
-    }
-
-    /// @notice Interpret the `route` byte stream and perform all commanded actions.
-    /// @return realAmountIn The actual first-hop amount determined by the route.
+    /// @notice Interprets and executes commands from the route byte stream
+    /// @dev Processes commands in sequence: ERC20, native, permits, and pool interactions
+    /// @param tokenIn The input token address
+    /// @param declaredAmountIn The declared input amount
+    /// @param route The encoded route data
+    /// @return realAmountIn The actual amount used in the first hop
     function _runRoute(
         address tokenIn,
         uint256 declaredAmountIn,
@@ -149,39 +171,12 @@ contract CoreRouteFacet is ReentrancyGuard {
         }
     }
 
-    /// @notice Validate post-conditions and determine `amountOut`.
-    function _postcheck(
-        address tokenIn,
-        address tokenOut,
-        address to,
-        uint256 declaredAmountIn,
-        uint256 minAmountOut,
-        uint256 balInStart,
-        uint256 balOutStart
-    ) private view returns (uint256 amountOut) {
-        uint256 balInFinal = LibAsset.isNativeAsset(tokenIn)
-            ? 0
-            : IERC20(tokenIn).balanceOf(msg.sender);
-        if (balInFinal + declaredAmountIn < balInStart) {
-            revert MinimalInputBalanceViolation(
-                balInFinal + declaredAmountIn,
-                balInStart
-            );
-        }
-
-        uint256 balOutFinal = LibAsset.isNativeAsset(tokenOut)
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
-        if (balOutFinal < balOutStart + minAmountOut) {
-            revert MinimalOutputBalanceViolation(balOutFinal - balOutStart);
-        }
-
-        amountOut = balOutFinal - balOutStart;
-    }
-
     // ==== Private Functions - Command Handlers ====
 
-    /// @notice ERC-2612 permit application for `tokenIn`.
+    /// @notice Applies ERC20 permit for token approval
+    /// @dev Reads permit parameters from the stream and calls permit on the token
+    /// @param tokenIn The token to approve
+    /// @param cur The current position in the byte stream
     function _applyPermit(address tokenIn, uint256 cur) private {
         uint256 value = cur.readUint256();
         uint256 deadline = cur.readUint256();
@@ -199,13 +194,19 @@ contract CoreRouteFacet is ReentrancyGuard {
         );
     }
 
-    /// @notice Handle native coin inputs (assumes value already present on this contract).
+    /// @notice Handles native token (ETH) inputs
+    /// @dev Assumes ETH is already present on the contract
+    /// @param cur The current position in the byte stream
+    /// @return total The total amount of ETH to process
     function _handleNative(uint256 cur) private returns (uint256 total) {
         total = address(this).balance;
         _distributeAndSwap(cur, address(this), INTERNAL_INPUT_SOURCE, total);
     }
 
-    /// @notice Pull ERC20 from this contract’s balance and process it.
+    /// @notice Processes ERC20 tokens already on this contract
+    /// @dev Includes protection against full balance draining
+    /// @param cur The current position in the byte stream
+    /// @return total The total amount of tokens to process
     function _handleSelfERC20(uint256 cur) private returns (uint256 total) {
         address token = cur.readAddress();
         total = IERC20(token).balanceOf(address(this));
@@ -215,19 +216,26 @@ contract CoreRouteFacet is ReentrancyGuard {
         _distributeAndSwap(cur, address(this), token, total);
     }
 
-    /// @notice Pull ERC20 from the caller and process it.
+    /// @notice Processes ERC20 tokens from the caller
+    /// @param cur The current position in the byte stream
+    /// @param total The total amount to process
     function _handleUserERC20(uint256 cur, uint256 total) private {
         address token = cur.readAddress();
         _distributeAndSwap(cur, msg.sender, token, total);
     }
 
-    /// @notice Process a “single pool” hop where inputs are already resident in the pool.
+    /// @notice Processes a pool interaction where tokens are already in the pool
+    /// @param cur The current position in the byte stream
     function _handleSinglePool(uint256 cur) private {
         address token = cur.readAddress();
         _dispatchSwap(cur, INTERNAL_INPUT_SOURCE, token, 0);
     }
 
-    /// @notice Split an amount across N pools and trigger swaps.
+    /// @notice Distributes tokens across multiple pools based on share ratios
+    /// @param cur The current position in the byte stream
+    /// @param from The source address for tokens
+    /// @param tokenIn The token being distributed
+    /// @param total The total amount to distribute
     function _distributeAndSwap(
         uint256 cur,
         address from,
@@ -245,7 +253,12 @@ contract CoreRouteFacet is ReentrancyGuard {
         }
     }
 
-    /// @notice Extract selector and payload and delegate the call to the facet that implements it.
+    /// @notice Dispatches a swap call to the appropriate DEX facet
+    /// @dev Uses direct selector dispatch with optimized calldata construction
+    /// @param cur The current position in the byte stream
+    /// @param from The source address for tokens
+    /// @param tokenIn The input token address
+    /// @param amountIn The amount of tokens to swap
     function _dispatchSwap(
         uint256 cur,
         address from,
@@ -312,7 +325,9 @@ contract CoreRouteFacet is ReentrancyGuard {
 
     // ==== Private Functions - Helpers ====
 
-    /// @dev Extracts the first 4 bytes as a selector.
+    /// @notice Extracts function selector from calldata
+    /// @param blob The calldata bytes
+    /// @return sel The extracted selector
     function _readSelector(
         bytes memory blob
     ) private pure returns (bytes4 sel) {
@@ -321,7 +336,9 @@ contract CoreRouteFacet is ReentrancyGuard {
         }
     }
 
-    /// @dev Returns a fresh bytes containing the original blob without the first 4 bytes.
+    /// @notice Creates a new bytes array without the selector
+    /// @param blob The original calldata bytes
+    /// @return payload The calldata without selector
     function _payloadFrom(
         bytes memory blob
     ) private pure returns (bytes memory payload) {
