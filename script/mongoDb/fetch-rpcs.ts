@@ -3,17 +3,16 @@ import fs from 'fs'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient } from 'mongodb'
+
+import { getRPCEnvVarName } from '../utils/network'
+
 config()
 
 interface IRpcEndpoint {
   url: string
   priority: number
-}
-
-// Helper function to get RPC environment variable name from network name
-// This must match the logic in helperFunctions.sh getRPCEnvVarName function
-function getRPCEnvVarName(networkName: string): string {
-  return `ETH_NODE_URI_${networkName.toUpperCase().replace(/-/g, '_')}`
+  isActive: boolean
+  network: string
 }
 
 async function fetchRpcEndpoints(): Promise<{
@@ -76,6 +75,8 @@ async function mergeEndpointsIntoEnv() {
             {
               url: config.rpcUrl,
               priority: 1,
+              isActive: true,
+              network: networkName,
             },
           ]
           return acc

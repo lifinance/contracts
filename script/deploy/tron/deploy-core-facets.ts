@@ -18,7 +18,6 @@ import {
   saveDiamondDeployment,
   getContractVersion,
   getEnvironment,
-  getNetworkConfig,
   checkExistingDeployment,
   deployContractWithLogging,
   confirmDeployment,
@@ -34,7 +33,8 @@ import {
 async function getConstructorArgs(
   facetName: string,
   network: string,
-  privateKey: string
+  privateKey: string,
+  networksConfig: any
 ): Promise<any[]> {
   if (facetName === 'EmergencyPauseFacet') {
     // EmergencyPauseFacet requires pauserWallet address
@@ -46,8 +46,8 @@ async function getConstructorArgs(
 
     // TronWeb expects the base58 address format for constructor parameters
     // It will handle the conversion internally
+    // Dynamic import is used to avoid loading TronWeb when not needed (conditional loading)
     const tronWeb = (await import('tronweb')).TronWeb
-    const networksConfig = await Bun.file('config/networks.json').json()
     const networkRpcUrl = networksConfig[network]?.rpcUrl
     if (!networkRpcUrl)
       throw new Error(
@@ -66,7 +66,6 @@ async function getConstructorArgs(
     return [pauserWallet]
   } else if (facetName === 'GenericSwapFacetV3') {
     // GenericSwapFacetV3 requires native token address
-    const networksConfig = await Bun.file('config/networks.json').json()
     const nativeAddress = networksConfig[network]?.nativeAddress
 
     if (!nativeAddress)
@@ -74,27 +73,22 @@ async function getConstructorArgs(
         'nativeAddress not found for tron in config/networks.json'
       )
     // For display purposes
+    // Dynamic import used for conditional loading - only when this facet is deployed
     const tronWeb = (await import('tronweb')).TronWeb
-    const networksConfig2 = await Bun.file('config/networks.json').json()
-    const networkRpcUrl2 = networksConfig2[network]?.rpcUrl
-    if (!networkRpcUrl2)
+    const networkRpcUrl = networksConfig[network]?.rpcUrl
+    if (!networkRpcUrl)
       throw new Error(
         `RPC URL not found for ${network} in config/networks.json`
       )
     const tronWebInstance = new tronWeb({
-      fullHost: networkRpcUrl2,
+      fullHost: networkRpcUrl,
       privateKey,
     })
-    const tronNativeAddress =
-      nativeAddress === '0x0000000000000000000000000000000000000000'
-        ? tronWebInstance.address.fromHex(
-            '410000000000000000000000000000000000000000'
-          )
-        : tronWebInstance.address.fromHex(nativeAddress.replace('0x', '41'))
+    const tronHexAddress = nativeAddress.replace('0x', '41')
+    const tronBase58 = tronWebInstance.address.fromHex(tronHexAddress)
 
-    // Use original hex format (0x...) for constructor args
     consola.info(
-      `Using nativeAddress: ${tronNativeAddress} (hex: ${nativeAddress})`
+      `Using native token address: ${tronBase58} (hex: ${nativeAddress})`
     )
     return [nativeAddress]
   }
@@ -114,16 +108,17 @@ async function deployCoreFacetsImpl(options: {
   // Get environment from config.sh
   const environment = await getEnvironment()
 
+  // Load networks configuration once
+  const networksConfig = await Bun.file('config/networks.json').json()
+
   // Get network configuration from networks.json
   // Use tron-shasta for staging/testnet, tron for production
   const networkName =
     environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
-  let tronConfig
-  try {
-    tronConfig = getNetworkConfig(networkName as SupportedChain)
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    consola.error(errorMessage)
+
+  const tronConfig = networksConfig[networkName]
+  if (!tronConfig) {
+    consola.error(`Network configuration not found for: ${networkName}`)
     consola.error(
       `Please ensure "${networkName}" network is configured in config/networks.json`
     )
@@ -253,7 +248,8 @@ async function deployCoreFacetsImpl(options: {
       const constructorArgs = await getConstructorArgs(
         facet,
         network,
-        privateKey
+        privateKey,
+        networksConfig
       )
 
       // Deploy the facet
@@ -267,13 +263,12 @@ async function deployCoreFacetsImpl(options: {
 
       deploymentResults.push(result)
 
-      if (result.status === 'success' && result.address) 
+      if (result.status === 'success' && result.address)
         facetAddresses[facet] = {
           address: result.address,
           version: result.version,
         }
-        // Note: deployContractWithLogging already handles saving addresses and logging
-      
+      // Note: deployContractWithLogging already handles saving addresses and logging
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)

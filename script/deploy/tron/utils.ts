@@ -143,7 +143,7 @@ export async function logDeployment(
     escapeShellArg(String(verified)),
     escapeShellArg(''),
     escapeShellArg('0.8.17'),
-    escapeShellArg('london'),
+    escapeShellArg('cancun'), // Using EVM version from foundry.toml, though Tron actually uses TVM
     escapeShellArg(''),
   ].join(' ')
 
@@ -726,7 +726,7 @@ export function encodeConstructorArgs(args: any[]): string {
 
   try {
     const tronWeb = new TronWeb({
-      fullHost: 'https://api.trongrid.io',
+      fullHost: 'https://api.trongrid.io', // [pre-commit-checker: not a secret]
     })
 
     // Determine types based on argument values

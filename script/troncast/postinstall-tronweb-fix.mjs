@@ -1,5 +1,22 @@
 #!/usr/bin/env node
 
+/**
+ * Postinstall script to fix TronWeb protobuf compatibility issues
+ *
+ * Purpose: This script patches TronWeb's compiled JavaScript files to resolve
+ * conflicts between the 'proto' variable used by TronWeb and global proto
+ * definitions that may exist in the execution environment.
+ *
+ * The issue: TronWeb's bundled code uses a variable named 'proto' which can
+ * conflict with other libraries or global variables of the same name, causing
+ * runtime errors.
+ *
+ * Solution: This script renames all instances of the 'proto' variable in
+ * TronWeb's compiled files to 'tronProto' to avoid naming conflicts.
+ *
+ * When it runs: Automatically executed after npm/yarn install via postinstall hook
+ */
+
 import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'

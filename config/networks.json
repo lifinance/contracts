@@ -1161,7 +1161,7 @@
     "explorerApiUrl": "https://apilist.tronscan.org/api",
     "multicallAddress": "",
     "safeAddress": "",
-    "gasZipChainId": 0,
+    "gasZipChainId": 75,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
