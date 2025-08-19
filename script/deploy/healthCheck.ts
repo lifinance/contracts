@@ -3,6 +3,7 @@ import { execSync } from 'child_process'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import type { TronWeb } from 'tronweb'
 import {
   createPublicClient,
   formatEther,
@@ -21,11 +22,14 @@ import {
   corePeriphery,
   pauserWallet,
 } from '../../config/global.json'
+import { initTronWeb } from '../troncast/utils/tronweb'
 import {
   getViemChainForNetworkName,
   networks,
   type Network,
 } from '../utils/viemScriptHelpers'
+
+import { getCoreFacets as getTronCoreFacets } from './tron/utils'
 
 const SAFE_THRESHOLD = 3
 
@@ -45,16 +49,15 @@ const main = defineCommand({
   async run({ args }) {
     const { network } = args
 
-    // TODO: Need to finalize how to handle healthchecks in Tron
-    // Skipping all tests for Tron network until implementation is complete
-    if (
-      network.toLowerCase() === 'tron' ||
-      network.toLowerCase() === 'tron-shasta'
-    ) {
-      consola.info('Health checks are not yet implemented for Tron networks.')
+    // Skip tron-shasta testnet but allow tron mainnet
+    if (network.toLowerCase() === 'tron-shasta') {
+      consola.info('Health checks are not implemented for Tron Shasta testnet.')
       consola.info('Skipping all tests.')
       process.exit(0)
     }
+
+    // Determine if we're working with Tron mainnet
+    const isTron = network.toLowerCase() === 'tron'
 
     const { default: deployedContracts } = await import(
       `../../deployments/${network.toLowerCase()}.json`
@@ -62,11 +65,19 @@ const main = defineCommand({
     const targetStateJson = await import(
       `../../script/deploy/_targetState.json`
     )
+
+    // Get core facets - use Tron-specific filtering if needed
+    let coreFacetsToCheck: string[]
+    if (isTron)
+      // Use the Tron-specific utility that filters out GasZipFacet
+      coreFacetsToCheck = getTronCoreFacets()
+    else coreFacetsToCheck = coreFacets
+
     const nonCoreFacets = Object.keys(
       targetStateJson[network.toLowerCase()].production.LiFiDiamond
     ).filter((k) => {
       return (
-        !coreFacets.includes(k) &&
+        !coreFacetsToCheck.includes(k) &&
         !corePeriphery.includes(k) &&
         k !== 'LiFiDiamond' &&
         k.includes('Facet')
@@ -79,13 +90,18 @@ const main = defineCommand({
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
 
-    const chain = getViemChainForNetworkName(network.toLowerCase())
+    let publicClient: PublicClient | undefined
+    let tronWeb: TronWeb | undefined
 
-    const publicClient = createPublicClient({
-      batch: { multicall: true },
-      chain,
-      transport: http(),
-    })
+    if (isTron) tronWeb = getTronWebClient()
+    else {
+      const chain = getViemChainForNetworkName(network.toLowerCase())
+      publicClient = createPublicClient({
+        batch: { multicall: true },
+        chain,
+        transport: http(),
+      })
+    }
 
     consola.info('Running post deployment checks...\n')
 
@@ -93,11 +109,21 @@ const main = defineCommand({
     //          │                Check Diamond Contract                   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking diamond Contract...')
-    const diamondDeployed = await checkIsDeployed(
-      'LiFiDiamond',
-      deployedContracts,
-      publicClient
-    )
+    let diamondDeployed: boolean
+    if (isTron && tronWeb)
+      diamondDeployed = await checkIsDeployedTron(
+        'LiFiDiamond',
+        deployedContracts,
+        tronWeb
+      )
+    else if (publicClient)
+      diamondDeployed = await checkIsDeployed(
+        'LiFiDiamond',
+        deployedContracts,
+        publicClient
+      )
+    else diamondDeployed = false
+
     if (!diamondDeployed) {
       logError(`LiFiDiamond not deployed`)
       finish()
@@ -109,30 +135,49 @@ const main = defineCommand({
     //          │                    Check core facets                    │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking Core Facets...')
-    for (const facet of coreFacets) {
-      const isDeployed = await checkIsDeployed(
-        facet,
-        deployedContracts,
-        publicClient
-      )
+    for (const facet of coreFacetsToCheck) {
+      let isDeployed: boolean
+      if (isTron && tronWeb)
+        isDeployed = await checkIsDeployedTron(
+          facet,
+          deployedContracts,
+          tronWeb
+        )
+      else if (publicClient)
+        isDeployed = await checkIsDeployed(
+          facet,
+          deployedContracts,
+          publicClient
+        )
+      else isDeployed = false
+
       if (!isDeployed) {
         logError(`Facet ${facet} not deployed`)
         continue
       }
-
       consola.success(`Facet ${facet} deployed`)
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │         Check that non core facets are deployed         │
-    //          ╰─────────────────────────────────────────────────────────╯
+    //          ╰─────────────────────────────────────────────────────────────╯
     consola.box('Checking Non-Core facets...')
     for (const facet of nonCoreFacets) {
-      const isDeployed = await checkIsDeployed(
-        facet,
-        deployedContracts,
-        publicClient
-      )
+      let isDeployed: boolean
+      if (isTron && tronWeb)
+        isDeployed = await checkIsDeployedTron(
+          facet,
+          deployedContracts,
+          tronWeb
+        )
+      else if (publicClient)
+        isDeployed = await checkIsDeployed(
+          facet,
+          deployedContracts,
+          publicClient
+        )
+      else isDeployed = false
+
       if (!isDeployed) {
         logError(`Facet ${facet} not deployed`)
         continue
@@ -147,8 +192,35 @@ const main = defineCommand({
 
     let registeredFacets: string[] = []
     try {
-      if (networksConfig[network.toLowerCase()].rpcUrl) {
-        const rpcUrl: string = chain.rpcUrls.default.http
+      if (isTron) {
+        // Use troncast for Tron
+        // Diamond address in deployments is already in Tron format
+        const rawString = execSync(
+          `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])"`,
+          { encoding: 'utf8' }
+        )
+
+        // Parse Tron output format
+        const onChainFacets = parseTroncastFacetsOutput(rawString)
+
+        if (Array.isArray(onChainFacets)) {
+          // Map Tron addresses directly (deployments already use Tron format)
+          const configFacetsByAddress = Object.fromEntries(
+            Object.entries(deployedContracts).map(([name, address]) => {
+              // Address is already in Tron format for Tron deployments
+              return [address.toLowerCase(), name]
+            })
+          )
+
+          registeredFacets = onChainFacets
+            .map(([tronAddress]) => {
+              return configFacetsByAddress[tronAddress.toLowerCase()]
+            })
+            .filter(Boolean)
+        }
+      } else if (networksConfig[network.toLowerCase()].rpcUrl && publicClient) {
+        // Existing EVM logic
+        const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0]
         const rawString = execSync(
           `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
           { encoding: 'utf8' }
@@ -162,7 +234,6 @@ const main = defineCommand({
         const onChainFacets = JSON.parse(jsonCompatibleString)
 
         if (Array.isArray(onChainFacets)) {
-          // mapping on-chain facet addresses to names in config
           const configFacetsByAddress = Object.fromEntries(
             Object.entries(deployedContracts).map(([name, address]) => {
               return [address.toLowerCase(), name]
@@ -173,13 +244,13 @@ const main = defineCommand({
             return configFacetsByAddress[address.toLowerCase()]
           })
         }
-      } else throw new Error('Failed to get rpc from network config file')
+      }
     } catch (error) {
       consola.warn('Unable to parse output - skipping facet registration check')
       consola.warn('Error:', error)
     }
 
-    for (const facet of [...coreFacets, ...nonCoreFacets])
+    for (const facet of [...coreFacetsToCheck, ...nonCoreFacets])
       if (!registeredFacets.includes(facet))
         logError(
           `Facet ${facet} not registered in Diamond or possibly unverified`
@@ -190,17 +261,48 @@ const main = defineCommand({
     //          │      Check that core periphery contracts are deployed   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking deploy status of periphery contracts...')
-    for (const contract of corePeriphery) {
-      const isDeployed = await checkIsDeployed(
-        contract,
-        deployedContracts,
-        publicClient
-      )
+
+    // Filter periphery contracts for Tron if needed
+    const peripheryToCheck = isTron
+      ? corePeriphery.filter(
+          (c) =>
+            c !== 'LiFiTimelockController' && // Tron doesn't use Timelock yet
+            c !== 'GasZipPeriphery' && // Not deployed on Tron
+            c !== 'LiFiDEXAggregator' && // Not deployed on Tron
+            c !== 'Permit2Proxy' // Not deployed on Tron
+        )
+      : corePeriphery
+
+    for (const contract of peripheryToCheck) {
+      let isDeployed: boolean
+      if (isTron && tronWeb)
+        isDeployed = await checkIsDeployedTron(
+          contract,
+          deployedContracts,
+          tronWeb
+        )
+      else if (publicClient)
+        isDeployed = await checkIsDeployed(
+          contract,
+          deployedContracts,
+          publicClient
+        )
+      else isDeployed = false
+
       if (!isDeployed) {
         logError(`Periphery contract ${contract} not deployed`)
         continue
       }
       consola.success(`Periphery contract ${contract} deployed`)
+    }
+
+    // Skip remaining checks for Tron as they require specific implementations
+    if (isTron) {
+      consola.info(
+        '\nNote: Advanced checks (DEXs, permissions, SAFE) are not yet implemented for Tron'
+      )
+      finish()
+      return
     }
 
     const deployerWallet = getAddress(globalConfig.deployerWallet)
@@ -533,6 +635,59 @@ const main = defineCommand({
     }
   },
 })
+
+/**
+ * Initialize TronWeb client for read-only operations
+ */
+const getTronWebClient = (): TronWeb => {
+  // Reuse existing initTronWeb utility, no private key needed for read-only
+  return initTronWeb('mainnet')
+}
+
+/**
+ * Parse troncast facets output
+ * Format: [[TAddr1 [0xsel1 0xsel2]] [TAddr2 [0xsel3]]]
+ */
+const parseTroncastFacetsOutput = (
+  output: string
+): Array<[string, string[]]> => {
+  // Remove outer brackets and clean up the string
+  const cleaned = output.trim().slice(1, -1)
+
+  // Regular expression to match [address [selectors]]
+  const facetRegex = /\[([T][A-Za-z0-9]{33})\s+\[((?:0x[a-fA-F0-9]+\s*)*)\]\]/g
+  const facets: Array<[string, string[]]> = []
+
+  let match
+  while ((match = facetRegex.exec(cleaned)) !== null) {
+    const address = match[1]
+    const selectorsStr = match[2].trim()
+    const selectors = selectorsStr ? selectorsStr.split(/\s+/) : []
+    facets.push([address, selectors])
+  }
+
+  return facets
+}
+
+/**
+ * Check if contract is deployed on Tron
+ */
+const checkIsDeployedTron = async (
+  contract: string,
+  deployedContracts: Record<string, Address>,
+  tronWeb: TronWeb
+): Promise<boolean> => {
+  if (!deployedContracts[contract]) return false
+
+  try {
+    // For Tron, addresses in deployments are already in Tron format
+    const tronAddress = deployedContracts[contract]
+    const contractInfo = await tronWeb.trx.getContract(tronAddress)
+    return contractInfo && contractInfo.contract_address
+  } catch {
+    return false
+  }
+}
 
 const logError = (msg: string) => {
   consola.error(msg)
