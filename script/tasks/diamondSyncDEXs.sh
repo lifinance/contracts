@@ -10,10 +10,15 @@ function diamondSyncDEXs {
   # Load configuration & helper functions
   source script/helperFunctions.sh
 
+  # Configuration flag - set to true to allow token contracts in DEX lists
+  ALLOW_TOKEN_CONTRACTS=${ALLOW_TOKEN_CONTRACTS:-false}
+
   # Read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="${2:-production}"  # Default to production if not specified
   local DIAMOND_CONTRACT_NAME="$3"
+
+
 
   # Temp file to track failed logs
   FAILED_LOG_FILE=$(mktemp)
@@ -21,8 +26,7 @@ function diamondSyncDEXs {
   # Temp file to track token contract warnings
   TOKEN_WARNING_FILE=$(mktemp)
 
-  # Flag to track if user has already been prompted
-  USER_PROMPTED=false
+
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
@@ -163,13 +167,21 @@ function diamondSyncDEXs {
       TOKEN_CONTRACTS=($(detectTokenContracts "$RPC_URL" "${NEW_DEXS[@]}"))
 
       if [[ ${#TOKEN_CONTRACTS[@]} -gt 0 ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Token contracts detected in new addresses - aborting DEX sync"
-        printf '\033[0;31m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
-        {
-          echo "[$NETWORK] Error: Token contracts detected in new addresses"
-          echo "[$NETWORK] Token addresses: ${TOKEN_CONTRACTS[*]}"
-        } >> "$FAILED_LOG_FILE"
-        return
+        if [[ "$ALLOW_TOKEN_CONTRACTS" == "true" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Token contracts detected but proceeding (ALLOW_TOKEN_CONTRACTS=true)"
+          printf '\033[0;33m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
+        else
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Token contracts detected in new addresses - aborting DEX sync"
+          printf '\033[0;31m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
+          echo ""
+          printf '\033[0;33m%s\033[0m\n' "💡 To bypass this check, set ALLOW_TOKEN_CONTRACTS=true and run again:"
+          echo ""
+          {
+            echo "[$NETWORK] Error: Token contracts detected in new addresses"
+            echo "[$NETWORK] Token addresses: ${TOKEN_CONTRACTS[*]}"
+          } >> "$FAILED_LOG_FILE"
+          return
+        fi
       fi
     fi
 
@@ -180,8 +192,8 @@ function diamondSyncDEXs {
 
       local ATTEMPTS=1
       while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
-
+        # cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
+        echo "THIS IS WHERE I WOULD SEND THE TRANSACTION"
         sleep 5
 
         # Verify updated DEX list
@@ -240,7 +252,7 @@ function diamondSyncDEXs {
 
   wait
 
-    # Summary of failures
+      # Summary of failures
   if [ -s "$FAILED_LOG_FILE" ]; then
     echo ""
     printf '\033[0;31m%s\033[0m\n' "Summary of failures:"
@@ -249,6 +261,8 @@ function diamondSyncDEXs {
     awk '/^\[.*\] Error: /' "$FAILED_LOG_FILE" | sort | uniq -c | while read -r count line; do
       printf '\033[0;31m%s\033[0m\n' "❌ $line (${count} network(s))"
     done
+
+
 
     # Store failure status before cleanup
     HAS_FAILURES=true
