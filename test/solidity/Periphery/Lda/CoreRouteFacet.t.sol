@@ -6,6 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20PermitMock } from "lib/Permit2/lib/openzeppelin-contracts/contracts/mocks/ERC20PermitMock.sol";
 import { CoreRouteFacet } from "lifi/Periphery/Lda/Facets/CoreRouteFacet.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
 import { LdaDiamondTest } from "./utils/LdaDiamondTest.sol";
 
@@ -155,7 +156,10 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
         bool isFeeOnTransferToken,
         RouteEventVerification memory routeEventVerification
     ) internal {
-        if (params.commandType != CommandType.ProcessMyERC20) {
+        if (
+            params.commandType != CommandType.ProcessMyERC20 &&
+            !LibAsset.isNativeAsset(params.tokenIn)
+        ) {
             IERC20(params.tokenIn).approve(
                 address(ldaDiamond),
                 params.amountIn
@@ -163,15 +167,19 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
         }
 
         uint256 inBefore;
-        uint256 outBefore = IERC20(params.tokenOut).balanceOf(
-            params.recipient
-        );
+        uint256 outBefore = LibAsset.isNativeAsset(params.tokenOut)
+            ? params.recipient.balance
+            : IERC20(params.tokenOut).balanceOf(params.recipient);
 
         // For aggregator funds, check the diamond's balance
         if (params.commandType == CommandType.ProcessMyERC20) {
-            inBefore = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
+            inBefore = LibAsset.isNativeAsset(params.tokenIn)
+                ? address(ldaDiamond).balance
+                : IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
         } else {
-            inBefore = IERC20(params.tokenIn).balanceOf(params.sender);
+            inBefore = LibAsset.isNativeAsset(params.tokenIn)
+                ? params.sender.balance
+                : IERC20(params.tokenIn).balanceOf(params.sender);
         }
 
         address fromAddress = params.sender == address(ldaDiamond)
@@ -187,27 +195,45 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
             params.tokenIn,
             params.tokenOut,
             params.amountIn,
-            params.minOut, // Use minOut from SwapTestParams
+            params.minOut,
             routeEventVerification.expectedExactOut
         );
 
-        coreRouteFacet.processRoute(
-            params.tokenIn,
-            params.amountIn,
-            params.tokenOut,
-            params.minOut, // Use minOut from SwapTestParams
-            params.recipient,
-            route
-        );
+        // For native token, send value with the call
+        if (LibAsset.isNativeAsset(params.tokenIn)) {
+            coreRouteFacet.processRoute{ value: params.amountIn }(
+                params.tokenIn,
+                params.amountIn,
+                params.tokenOut,
+                params.minOut,
+                params.recipient,
+                route
+            );
+        } else {
+            coreRouteFacet.processRoute(
+                params.tokenIn,
+                params.amountIn,
+                params.tokenOut,
+                params.minOut,
+                params.recipient,
+                route
+            );
+        }
 
         uint256 inAfter;
-        uint256 outAfter = IERC20(params.tokenOut).balanceOf(params.recipient);
+        uint256 outAfter = LibAsset.isNativeAsset(params.tokenOut)
+            ? params.recipient.balance
+            : IERC20(params.tokenOut).balanceOf(params.recipient);
 
         // Check balance change on the correct address
         if (params.commandType == CommandType.ProcessMyERC20) {
-            inAfter = IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
+            inAfter = LibAsset.isNativeAsset(params.tokenIn)
+                ? address(ldaDiamond).balance
+                : IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
         } else {
-            inAfter = IERC20(params.tokenIn).balanceOf(params.sender);
+            inAfter = LibAsset.isNativeAsset(params.tokenIn)
+                ? params.sender.balance
+                : IERC20(params.tokenIn).balanceOf(params.sender);
         }
 
         // Use assertEq or assertApproxEqAbs based on isFeeOnTransferToken
@@ -477,29 +503,23 @@ contract CoreRouteFacetTest is CoreRouteTestBase {
             tokenOut: address(0),
             amountIn: amount,
             minOut: 0,
-            sender: USER_SENDER,
+            sender: USER_SENDER, // Use USER_SENDER directly
             recipient: recipient,
-            commandType: CommandType.ProcessNative // This maps to value 3
+            commandType: CommandType.ProcessNative
         });
 
         bytes memory route = _buildBaseRoute(params, swapData);
 
-        uint256 beforeBal = recipient.balance;
-
-        vm.prank(USER_SENDER);
-        coreRouteFacet.processRoute{ value: amount }(
-            address(0), // tokenIn: native
-            0,
-            address(0), // tokenOut: native
-            0,
-            recipient,
-            route
-        );
-
-        assertEq(
-            recipient.balance - beforeBal,
-            amount,
-            "recipient should receive full amount"
+        vm.prank(USER_SENDER); // Set msg.sender to USER_SENDER
+        _executeAndVerifySwap(
+            params,
+            route,
+            new ExpectedEvent[](0),
+            false,
+            RouteEventVerification({
+                expectedExactOut: amount,
+                checkData: true
+            })
         );
     }
 
