@@ -1,5 +1,6 @@
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
+import type { AbiFunction} from 'viem';
 import { decodeFunctionResult, parseAbi } from 'viem'
 
 import type { Environment } from '../types'
@@ -137,6 +138,13 @@ export const callCommand = defineCommand({
         throw new Error(`Call failed: ${errorMsg}`)
       }
 
+      if (!(abi[0] as AbiFunction)?.outputs.length) {
+        if (result.constant_result.length) 
+          console.log(`0x${result.constant_result[0]}`)
+        
+        return
+      }
+
       const decodedResult = decodeFunctionResult({
         abi,
         functionName: funcSig.name,
@@ -147,17 +155,17 @@ export const callCommand = defineCommand({
       const convertAddressesToTron = (value: any): any => {
         if (typeof value === 'string') {
           // Check if it's a hex address (0x followed by 40 hex chars)
-          if (/^0x[a-fA-F0-9]{40}$/i.test(value)) 
+          if (/^0x[a-fA-F0-9]{40}$/i.test(value))
             return tronWeb.address.fromHex(value)
-          
+
           return value
-        } else if (Array.isArray(value)) 
+        } else if (Array.isArray(value))
           return value.map(convertAddressesToTron)
-         else if (typeof value === 'object' && value !== null) {
+        else if (typeof value === 'object' && value !== null) {
           const converted: any = {}
-          for (const key in value) 
+          for (const key in value)
             converted[key] = convertAddressesToTron(value[key])
-          
+
           return converted
         }
         return value
