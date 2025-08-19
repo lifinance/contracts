@@ -28,12 +28,28 @@ import {
 } from './utils.js'
 
 /**
+ * Convert hex address to Tron base58 format for display purposes
+ * This is a utility function that doesn't require a private key
+ */
+async function hexToTronBase58(hexAddress: string): Promise<string> {
+  // Dynamic import used for conditional loading - only when needed
+  const { TronWeb } = await import('tronweb')
+  // Create a minimal TronWeb instance just for address conversion
+  // No private key needed for address format conversion
+  const tronWeb = new TronWeb({
+    fullHost: 'https://api.trongrid.io', // [pre-commit-checker: not a secret]
+  })
+  const tronHexAddress = hexAddress.replace('0x', '41')
+  return tronWeb.address.fromHex(tronHexAddress)
+}
+
+/**
  * Get constructor arguments for a facet
+ * This function prepares constructor arguments without requiring a private key
  */
 async function getConstructorArgs(
   facetName: string,
   network: string,
-  privateKey: string,
   networksConfig: any
 ): Promise<any[]> {
   if (facetName === 'EmergencyPauseFacet') {
@@ -44,21 +60,8 @@ async function getConstructorArgs(
     if (!pauserWallet)
       throw new Error('pauserWallet not found in config/global.json')
 
-    // TronWeb expects the base58 address format for constructor parameters
-    // It will handle the conversion internally
-    // Dynamic import is used to avoid loading TronWeb when not needed (conditional loading)
-    const tronWeb = (await import('tronweb')).TronWeb
-    const networkRpcUrl = networksConfig[network]?.rpcUrl
-    if (!networkRpcUrl)
-      throw new Error(
-        `RPC URL not found for ${network} in config/networks.json`
-      )
-    const tronWebInstance = new tronWeb({
-      fullHost: networkRpcUrl,
-      privateKey,
-    })
-    const tronHexAddress = pauserWallet.replace('0x', '41')
-    const tronBase58 = tronWebInstance.address.fromHex(tronHexAddress)
+    // Convert to base58 for display purposes only
+    const tronBase58 = await hexToTronBase58(pauserWallet)
 
     // Use original hex format (0x...) for constructor args
     // The ABI encoder needs this format for proper encoding
@@ -72,20 +75,9 @@ async function getConstructorArgs(
       throw new Error(
         'nativeAddress not found for tron in config/networks.json'
       )
-    // For display purposes
-    // Dynamic import used for conditional loading - only when this facet is deployed
-    const tronWeb = (await import('tronweb')).TronWeb
-    const networkRpcUrl = networksConfig[network]?.rpcUrl
-    if (!networkRpcUrl)
-      throw new Error(
-        `RPC URL not found for ${network} in config/networks.json`
-      )
-    const tronWebInstance = new tronWeb({
-      fullHost: networkRpcUrl,
-      privateKey,
-    })
-    const tronHexAddress = nativeAddress.replace('0x', '41')
-    const tronBase58 = tronWebInstance.address.fromHex(tronHexAddress)
+
+    // Convert to base58 for display purposes only
+    const tronBase58 = await hexToTronBase58(nativeAddress)
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`
@@ -248,7 +240,6 @@ async function deployCoreFacetsImpl(options: {
       const constructorArgs = await getConstructorArgs(
         facet,
         network,
-        privateKey,
         networksConfig
       )
 
