@@ -1,8 +1,3 @@
-// Cost calculation constants
-// Note: Energy and bandwidth prices are now fetched dynamically from the network
-// using TronWeb's getEnergyPrices() and getBandwidthPrices() methods.
-// This ensures accurate fee calculations based on current network conditions.
-
 // Safety margin for energy estimation to prevent transaction failures
 export const DEFAULT_SAFETY_MARGIN = 1.5 // 50% buffer for standard operations
 
