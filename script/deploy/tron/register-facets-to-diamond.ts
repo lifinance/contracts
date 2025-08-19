@@ -173,7 +173,7 @@ async function estimateDiamondCutEnergy(
     if (result.energy_used) {
       consola.info(` Raw energy estimate: ${result.energy_used}`)
       // The actual transaction uses much more energy than the estimate
-      // Multiply by 10x for safety (actual usage was ~16x the estimate)
+      // Multiply by 10x for safety
       const safetyMultiplier = 10
       const estimatedEnergy = Math.ceil(result.energy_used * safetyMultiplier)
       consola.info(
