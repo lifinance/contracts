@@ -201,7 +201,12 @@ abstract contract BaseDexFacetTest is CoreRouteTestBase {
         return route;
     }
 
-    function _getDefaultAmountForTokenIn() internal virtual returns (uint256) {
+    function _getDefaultAmountForTokenIn()
+        internal
+        pure
+        virtual
+        returns (uint256)
+    {
         return 1_000 * 1e18;
     }
 }

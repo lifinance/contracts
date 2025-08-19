@@ -147,7 +147,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         algebraFacet = AlgebraFacet(facetAddress);
     }
 
-    // NEW: slot wiring for primary pair
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0xcF800F4948D16F23333508191B1B1591daF70438); // APE_ETH_TOKEN
         tokenOut = IERC20(0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949); // WETH_TOKEN
@@ -156,6 +155,7 @@ contract AlgebraFacetTest is BaseDexFacetTest {
 
     function _getDefaultAmountForTokenIn()
         internal
+        pure
         override
         returns (uint256)
     {

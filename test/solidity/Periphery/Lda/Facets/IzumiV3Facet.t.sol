@@ -51,13 +51,13 @@ contract IzumiV3FacetTest is BaseDexFacetTest {
 
     function _getDefaultAmountForTokenIn()
         internal
+        pure
         override
         returns (uint256)
     {
         return 100 * 1e6; // 100 USDC with 6 decimals
     }
 
-    // NEW
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913); // USDC
         tokenMid = IERC20(0x4200000000000000000000000000000000000006); // WETH

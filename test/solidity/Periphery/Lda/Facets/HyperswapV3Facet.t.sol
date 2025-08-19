@@ -28,6 +28,7 @@ contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
 
     function _getDefaultAmountForTokenIn()
         internal
+        pure
         override
         returns (uint256)
     {

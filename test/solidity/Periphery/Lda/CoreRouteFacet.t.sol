@@ -118,7 +118,16 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
         SwapTestParams memory params,
         bytes memory swapData
     ) internal pure returns (bytes memory) {
-        if (params.commandType == CommandType.ProcessOnePool) {
+        if (params.commandType == CommandType.ProcessNative) {
+            return
+                abi.encodePacked(
+                    uint8(params.commandType),
+                    uint8(1),
+                    FULL_SHARE,
+                    uint16(swapData.length),
+                    swapData
+                );
+        } else if (params.commandType == CommandType.ProcessOnePool) {
             return
                 abi.encodePacked(
                     uint8(params.commandType),
@@ -385,23 +394,13 @@ abstract contract CoreRouteTestBase is LdaDiamondTest, TestHelpers {
     }
 }
 
-contract CoreRouteFacetTest is LdaDiamondTest {
+contract CoreRouteFacetTest is CoreRouteTestBase {
     using SafeTransferLib for address;
 
-    CoreRouteFacet internal coreRouteFacet;
-
-    uint16 internal constant FULL_SHARE = 65535;
     bytes4 internal pullSel;
 
     function setUp() public override {
-        LdaDiamondTest.setUp();
-
-        // CoreRouteFacet
-        coreRouteFacet = new CoreRouteFacet();
-        bytes4[] memory selectors = new bytes4[](1);
-        selectors[0] = CoreRouteFacet.processRoute.selector;
-        addFacet(address(ldaDiamond), address(coreRouteFacet), selectors);
-        coreRouteFacet = CoreRouteFacet(payable(address(ldaDiamond)));
+        CoreRouteTestBase.setUp();
 
         // Register mock pull facet once and store selector
         MockPullERC20Facet mockPull = new MockPullERC20Facet();
@@ -473,13 +472,17 @@ contract CoreRouteFacetTest is LdaDiamondTest {
         );
 
         // route: [3][num=1][share=FULL_SHARE][len][swapData]
-        bytes memory route = abi.encodePacked(
-            uint8(3),
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapData.length),
-            swapData
-        );
+        SwapTestParams memory params = SwapTestParams({
+            tokenIn: address(0),
+            tokenOut: address(0),
+            amountIn: amount,
+            minOut: 0,
+            sender: USER_SENDER,
+            recipient: recipient,
+            commandType: CommandType.ProcessNative // This maps to value 3
+        });
+
+        bytes memory route = _buildBaseRoute(params, swapData);
 
         uint256 beforeBal = recipient.balance;
 
@@ -574,14 +577,20 @@ contract CoreRouteFacetTest is LdaDiamondTest {
             1e18
         );
 
+        bytes memory swapData = abi.encodePacked(bytes4(0xdeadbeef));
+
         // ProcessUserERC20: [2][tokenIn][num=1][share=FULL_SHARE][len=4][selector=0xdeadbeef]
-        bytes memory route = abi.encodePacked(
-            uint8(2),
-            address(token),
-            uint8(1),
-            FULL_SHARE,
-            uint16(4),
-            bytes4(0xdeadbeef)
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(token),
+                tokenOut: address(token),
+                amountIn: 0,
+                minOut: 0,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
         );
 
         vm.prank(USER_SENDER);
@@ -610,20 +619,24 @@ contract CoreRouteFacetTest is LdaDiamondTest {
         vm.startPrank(USER_SENDER);
         IERC20(address(token)).approve(address(ldaDiamond), type(uint256).max);
 
+        bytes memory swapData = abi.encodePacked(pullSel);
+
         // Build one step: [2][tokenIn][num=1][share=FULL_SHARE][len=4][sel]
-        bytes memory step = abi.encodePacked(
-            uint8(2),
-            address(token),
-            uint8(1),
-            FULL_SHARE,
-            uint16(4),
-            pullSel
+        bytes memory step = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(token),
+                tokenOut: address(0),
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
         );
 
-        // Route with two identical steps → actual deduction = 2 * amountIn, but amountIn param = amountIn
         bytes memory route = bytes.concat(step, step);
 
-        // Expect MinimalInputBalanceViolation
         vm.expectRevert(
             abi.encodeWithSelector(
                 CoreRouteFacet.MinimalInputBalanceViolation.selector,
@@ -663,14 +676,21 @@ contract CoreRouteFacetTest is LdaDiamondTest {
         vm.startPrank(USER_SENDER);
         IERC20(address(token)).approve(address(ldaDiamond), type(uint256).max);
 
-        bytes memory step = abi.encodePacked(
-            uint8(2),
-            address(token),
-            uint8(1),
-            FULL_SHARE,
-            uint16(4),
-            pullSel
+        bytes memory swapData = abi.encodePacked(pullSel);
+
+        bytes memory step = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(token),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
         );
+
         bytes memory route = bytes.concat(step, step);
 
         vm.expectRevert(
@@ -709,19 +729,22 @@ contract CoreRouteFacetTest is LdaDiamondTest {
             0
         ); // recipient starts at 0
 
+        bytes memory swapData = abi.encodePacked(sel);
+
         // Build one ProcessUserERC20 step: [2][tokenIn][num=1][share=FULL_SHARE][len=4][sel]
-        bytes memory step = abi.encodePacked(
-            uint8(2),
-            address(tokenIn),
-            uint8(1),
-            FULL_SHARE,
-            uint16(4),
-            sel
-        );
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                minOut: 1,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
+        ); // single step; no tokenOut will be sent to recipient
 
-        bytes memory route = step; // single step; no tokenOut will be sent to recipient
-
-        // Approve and call
         vm.startPrank(USER_SENDER);
         IERC20(address(tokenIn)).approve(address(ldaDiamond), amountIn);
 
@@ -756,19 +779,21 @@ contract CoreRouteFacetTest is LdaDiamondTest {
             amountIn
         );
 
-        // Build one ProcessUserERC20 step: [2][tokenIn][num=1][share=FULL_SHARE][len=4][sel]
-        bytes memory step = abi.encodePacked(
-            uint8(2),
-            address(tokenIn),
-            uint8(1),
-            FULL_SHARE,
-            uint16(4),
-            sel
+        bytes memory swapData = abi.encodePacked(sel);
+
+        bytes memory route = _buildBaseRoute(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(0),
+                amountIn: amountIn,
+                minOut: 1,
+                sender: USER_SENDER,
+                recipient: USER_RECEIVER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
         );
 
-        bytes memory route = step; // no native will be sent to recipient
-
-        // Approve and call
         vm.startPrank(USER_SENDER);
         IERC20(address(tokenIn)).approve(address(ldaDiamond), amountIn);
 
