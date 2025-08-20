@@ -579,7 +579,7 @@
     "configData": {
       "_owner": {
         "configFileName": "global.json",
-        "keyInConfigFile": ".owner",
+        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }

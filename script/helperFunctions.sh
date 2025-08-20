@@ -3047,9 +3047,7 @@ function getContractAddressFromSalt() {
   local NETWORK=$2
   local CONTRACT_NAME=$3
   local ENVIRONMENT=$4
-
-  # get RPC URL
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local CREATE3_FACTORY_ADDRESS=$5
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -3058,12 +3056,12 @@ function getContractAddressFromSalt() {
   ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
-  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
+  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "$(getRPCUrl "$NETWORK")")
 
   # return address
   echo "$RESULT"
-
 }
+
 function getDeployerAddress() {
   # read function arguments into variables
   local NETWORK=$1
@@ -3296,13 +3294,18 @@ function doesAddressContainBytecode() {
   CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
 
   # get CONTRACT code from ADDRESS using
-  contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
+  if ! contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL" 2>&1); then
+    echo "false"
+    return 1
+  fi
 
-  # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
+  # return false if ADDRESS does not contain CONTRACT code, otherwise true
   if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
     echo "false"
+    return 1
   else
     echo "true"
+    return 0
   fi
 }
 function getFacetAddressFromDiamond() {
@@ -3616,6 +3619,54 @@ function convertToBcInt() {
   echo "$1" | tr -d '\n' | bc
 }
 
+# function extractDeployedAddressFromRawReturnData() {
+#   local RAW_DATA="$1"
+#   local NETWORK="$2"
+#   local ADDRESS=""
+#   local CLEAN_DATA=""
+
+#   # Attempt to isolate the JSON blob that starts with {"logs":
+#   CLEAN_DATA=$(echo "$RAW_DATA" | grep -o '{\"logs\":.*')
+
+#   # Try extracting from `.returns.deployed.value`
+#   ADDRESS=$(echo "$CLEAN_DATA" | jq -r '.returns.deployed.value // empty' 2>/dev/null)
+
+#   # Fallback: try to extract from Etherscan "contract_address"
+#   if [[ -z "$ADDRESS" ]]; then
+#     ADDRESS=$(echo "$RAW_DATA" | grep -oE '"contract_address"\s*:\s*"0x[a-fA-F0-9]{40}"' | head -n1 | grep -oE '0x[a-fA-F0-9]{40}')
+#   fi
+
+#   # Last resort: use first 0x-prefixed address in blob
+#   if [[ -z "$ADDRESS" ]]; then
+#     ADDRESS=$(echo "$RAW_DATA" | grep -oE '0x[a-fA-F0-9]{40}' | head -n1)
+#   fi
+
+#   # Validate the format of the extracted address
+#   if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+#     # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
+#     local COUNT=0
+#     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
+#       # check if address contains and bytecode and leave the loop if bytecode is found
+#       if [[ "$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")" == "true" ]]; then
+#         break
+#       fi
+#       echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
+#       sleep 10
+#       COUNT=$((COUNT + 10))
+#     done
+
+#     if [ $COUNT -ge "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
+#       echo "❌ Extracted address does not contain bytecode" >&2
+#       return 1
+#     fi
+
+#     echo "$ADDRESS"
+#     return 0
+#   else
+#     echo "❌ Failed to find any deployed-to address in raw return data" >&2
+#     return 1
+#   fi
+# }
 function extractDeployedAddressFromRawReturnData() {
   local RAW_DATA="$1"
   local NETWORK="$2"
@@ -3640,7 +3691,7 @@ function extractDeployedAddressFromRawReturnData() {
 
   # Validate the format of the extracted address
   if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
-    # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
+        # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
     local COUNT=0
     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
       # check if address contains and bytecode and leave the loop if bytecode is found

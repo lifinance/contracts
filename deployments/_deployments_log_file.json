@@ -39088,5 +39088,37 @@
         ]
       }
     }
+  },
+  "OutputValidator": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd54C00CA32eC8Db51B7dBbC73124De83096C850A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-20 15:59:24",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd54C00CA32eC8Db51B7dBbC73124De83096C850A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-20 16:25:58",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }
