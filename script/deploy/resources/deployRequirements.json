@@ -575,6 +575,15 @@
       }
     }
   },
+  "OutputValidator": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".owner",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ChainflipFacet": {
     "configData": {
       "_chainflipVault": {
