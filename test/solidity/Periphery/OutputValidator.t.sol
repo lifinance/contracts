@@ -213,7 +213,7 @@ contract OutputValidatorTest is TestBase {
         );
     }
 
-    function test_validateOutputNativeLessThanExpected() public {
+    function testRevert_validateOutputNativeLessThanExpected() public {
         // Arrange - test case where actual amount is less than expected (should revert)
         uint256 expectedAmount = 10 ether;
         uint256 actualAmount = 5 ether; // Less than expected
