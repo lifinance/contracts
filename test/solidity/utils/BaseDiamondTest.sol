@@ -5,6 +5,7 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { Test } from "forge-std/Test.sol";
 
 abstract contract BaseDiamondTest is Test {
@@ -13,7 +14,9 @@ abstract contract BaseDiamondTest is Test {
     // Common function to add Diamond Loupe selectors
     function _addDiamondLoupeSelectors(address _diamondLoupe) internal {
         bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = DiamondLoupeFacet.facetFunctionSelectors.selector;
+        functionSelectors[0] = DiamondLoupeFacet
+            .facetFunctionSelectors
+            .selector;
         functionSelectors[1] = DiamondLoupeFacet.facets.selector;
         functionSelectors[2] = DiamondLoupeFacet.facetAddress.selector;
         functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
@@ -33,7 +36,9 @@ abstract contract BaseDiamondTest is Test {
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
         functionSelectors[1] = OwnershipFacet.cancelOwnershipTransfer.selector;
-        functionSelectors[2] = OwnershipFacet.confirmOwnershipTransfer.selector;
+        functionSelectors[2] = OwnershipFacet
+            .confirmOwnershipTransfer
+            .selector;
         functionSelectors[3] = OwnershipFacet.owner.selector;
 
         cut.push(
@@ -46,7 +51,7 @@ abstract contract BaseDiamondTest is Test {
     }
 
     function addFacet(
-        address _diamond,
+        LiFiDiamond _diamond,
         address _facet,
         bytes4[] memory _selectors
     ) public virtual {
@@ -54,7 +59,7 @@ abstract contract BaseDiamondTest is Test {
     }
 
     function addFacet(
-        address _diamond,
+        LiFiDiamond _diamond,
         address _facet,
         bytes4[] memory _selectors,
         address _init,
@@ -64,13 +69,13 @@ abstract contract BaseDiamondTest is Test {
     }
 
     function _addFacet(
-        address _diamond,
+        LiFiDiamond _diamond,
         address _facet,
         bytes4[] memory _selectors,
         address _init,
         bytes memory _initCallData
     ) internal virtual {
-        vm.startPrank(OwnershipFacet(_diamond).owner());
+        vm.startPrank(OwnershipFacet(address(_diamond)).owner());
         cut.push(
             LibDiamond.FacetCut({
                 facetAddress: _facet,
@@ -79,7 +84,11 @@ abstract contract BaseDiamondTest is Test {
             })
         );
 
-        DiamondCutFacet(_diamond).diamondCut(cut, _init, _initCallData);
+        DiamondCutFacet(address(_diamond)).diamondCut(
+            cut,
+            _init,
+            _initCallData
+        );
 
         delete cut;
         vm.stopPrank();

@@ -62,7 +62,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
         functionSelectors[6] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
-        addFacet(address(diamond), address(deBridgeDlnFacet), functionSelectors);
+        addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
         deBridgeDlnFacet.addDex(ADDRESS_UNISWAP);
         deBridgeDlnFacet.setFunctionApprovalBySignature(

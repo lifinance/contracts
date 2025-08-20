@@ -53,7 +53,7 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(polygonBridgeFacet), functionSelectors);
+        addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 

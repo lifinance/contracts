@@ -22,7 +22,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         MockPullERC20Facet mockPull = new MockPullERC20Facet();
         bytes4[] memory sel = new bytes4[](1);
         sel[0] = MockPullERC20Facet.pull.selector;
-        addFacet(address(ldaDiamond), address(mockPull), sel);
+        addFacet(ldaDiamond, address(mockPull), sel);
         pullSel = sel[0];
     }
 
@@ -31,14 +31,14 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         MockNativeFacet mock = new MockNativeFacet();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = MockNativeFacet.handleNative.selector;
-        addFacet(address(ldaDiamond), address(mock), selectors);
+        addFacet(ldaDiamond, address(mock), selectors);
     }
 
     function _addMockPullFacet() internal returns (bytes4 sel) {
         MockPullERC20Facet mock = new MockPullERC20Facet();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = MockPullERC20Facet.pull.selector;
-        addFacet(address(ldaDiamond), address(mock), selectors);
+        addFacet(ldaDiamond, address(mock), selectors);
         return selectors[0];
     }
 

@@ -45,7 +45,7 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address({{camelCase name}}Facet), functionSelectors);
+        addFacet(diamond, address({{camelCase name}}Facet), functionSelectors);
         {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
         {{camelCase name}}Facet.addDex(ADDRESS_UNISWAP);
         {{camelCase name}}Facet.setFunctionApprovalBySignature(

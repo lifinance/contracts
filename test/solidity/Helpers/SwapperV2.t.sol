@@ -51,7 +51,7 @@ contract SwapperV2Test is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(swapper), functionSelectors);
+        addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addDex(address(amm));

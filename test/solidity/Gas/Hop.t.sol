@@ -25,7 +25,7 @@ contract HopGasTest is TestBase {
         functionSelectors[0] = hopFacet.initHop.selector;
         functionSelectors[1] = hopFacet.startBridgeTokensViaHop.selector;
 
-        addFacet(address(diamond), address(hopFacet), functionSelectors);
+        addFacet(diamond, address(hopFacet), functionSelectors);
         hopFacet = HopFacet(address(diamond));
 
         HopFacet.Config[] memory config = new HopFacet.Config[](1);

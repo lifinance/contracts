@@ -62,7 +62,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(gnosisBridgeFacet), functionSelectors);
+        addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 

@@ -49,7 +49,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
             .selector;
         functionSelectors[7] = DexManagerFacet.isFunctionApproved.selector;
 
-        addFacet(address(diamond), address(dexMgr), functionSelectors);
+        addFacet(diamond, address(dexMgr), functionSelectors);
 
         // add AccessManagerFacet to be able to whitelist addresses for execution of protected functions
         accessMgr = new AccessManagerFacet();
@@ -57,7 +57,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         functionSelectors = new bytes4[](2);
         functionSelectors[0] = accessMgr.setCanExecute.selector;
         functionSelectors[1] = accessMgr.addressCanExecuteMethod.selector;
-        addFacet(address(diamond), address(accessMgr), functionSelectors);
+        addFacet(diamond, address(accessMgr), functionSelectors);
 
         accessMgr = AccessManagerFacet(address(diamond));
         dexMgr = DexManagerFacet(address(diamond));

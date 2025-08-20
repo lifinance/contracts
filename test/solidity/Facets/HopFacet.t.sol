@@ -54,7 +54,7 @@ contract HopFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(hopFacet), functionSelectors);
+        addFacet(diamond, address(hopFacet), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
@@ -247,7 +247,7 @@ contract HopFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(hopFacet2), functionSelectors);
+        addFacet(diamond, address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
@@ -282,7 +282,7 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
 
-        addFacet(address(diamond), address(hopFacet2), functionSelectors);
+        addFacet(diamond, address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](1);
         configs[0] = HopFacet.Config(addressUSDCPolygon, ammWrapperPolygon);

@@ -57,7 +57,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(arbitrumBridgeFacet), functionSelectors);
+        addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 

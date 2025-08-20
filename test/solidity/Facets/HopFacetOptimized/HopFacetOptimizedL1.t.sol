@@ -56,7 +56,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(hopFacet), functionSelectors);
+        addFacet(diamond, address(hopFacet), functionSelectors);
 
         hopFacet = TestHopFacet(address(diamond));
 

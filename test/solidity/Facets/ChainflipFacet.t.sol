@@ -59,7 +59,7 @@ contract ChainflipFacetTest is TestBaseFacet, LiFiData {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(chainflipFacet), functionSelectors);
+        addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
         chainflipFacet.addDex(ADDRESS_UNISWAP);
         chainflipFacet.setFunctionApprovalBySignature(

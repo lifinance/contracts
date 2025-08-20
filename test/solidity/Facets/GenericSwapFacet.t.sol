@@ -40,7 +40,7 @@ contract GenericSwapFacetTest is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(genericSwapFacet), functionSelectors);
+        addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacet.addDex(address(uniswap));

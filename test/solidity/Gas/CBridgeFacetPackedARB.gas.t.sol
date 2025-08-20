@@ -57,7 +57,7 @@ contract CBridgeGasARBTest is TestBase {
             .encode_startBridgeTokensViaCBridgeERC20Packed
             .selector;
 
-        addFacet(address(diamond), address(cBridgeFacetPacked), functionSelectors);
+        addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare parameters

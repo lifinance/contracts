@@ -78,7 +78,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         coreRouteFacet = new CoreRouteFacet(USER_DIAMOND_OWNER);
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = CoreRouteFacet.processRoute.selector;
-        addFacet(address(ldaDiamond), address(coreRouteFacet), selectors);
+        addFacet(ldaDiamond, address(coreRouteFacet), selectors);
         coreRouteFacet = CoreRouteFacet(payable(address(ldaDiamond)));
     }
 

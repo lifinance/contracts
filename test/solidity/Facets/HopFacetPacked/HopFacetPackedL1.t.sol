@@ -113,7 +113,7 @@ contract HopFacetPackedL1Test is TestBase {
             .encode_startBridgeTokensViaHopL1ERC20Packed
             .selector;
 
-        addFacet(address(diamond), address(hopFacetPacked), functionSelectors);
+        addFacet(diamond, address(hopFacetPacked), functionSelectors);
         hopFacetPacked = HopFacetPacked(address(diamond));
 
         /// Approval
@@ -131,7 +131,7 @@ contract HopFacetPackedL1Test is TestBase {
             .setApprovalForBridges
             .selector;
         addFacet(
-            address(diamond),
+            diamond,
             address(hopFacetOptimized),
             functionSelectorsApproval
         );

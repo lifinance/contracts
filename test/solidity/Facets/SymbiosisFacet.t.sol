@@ -49,7 +49,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(symbiosisFacet), functionSelectors);
+        addFacet(diamond, address(symbiosisFacet), functionSelectors);
 
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
 

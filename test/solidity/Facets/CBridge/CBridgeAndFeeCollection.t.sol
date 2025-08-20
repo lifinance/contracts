@@ -43,7 +43,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
-        addFacet(address(diamond), address(cBridge), functionSelectors);
+        addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));

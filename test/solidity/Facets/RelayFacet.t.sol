@@ -68,7 +68,7 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
 
-        addFacet(address(diamond), address(relayFacet), functionSelectors);
+        addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
         relayFacet.addDex(ADDRESS_UNISWAP);
         relayFacet.setFunctionApprovalBySignature(

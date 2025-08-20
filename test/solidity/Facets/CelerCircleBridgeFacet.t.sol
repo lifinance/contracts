@@ -54,7 +54,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(celerCircleBridgeFacet), functionSelectors);
+        addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 

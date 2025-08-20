@@ -43,7 +43,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(thorSwapFacet), functionSelectors);
+        addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
         thorSwapFacet.addDex(ADDRESS_UNISWAP);

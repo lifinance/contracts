@@ -53,7 +53,7 @@ contract OmniBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(address(diamond), address(omniBridgeFacet), functionSelectors);
+        addFacet(diamond, address(omniBridgeFacet), functionSelectors);
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
