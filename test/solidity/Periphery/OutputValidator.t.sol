@@ -11,7 +11,7 @@ import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ETHTransferFailed, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { ETHTransferFailed, TransferFromFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { stdError } from "forge-std/StdError.sol";
 
 // Stub CBridgeFacet Contract
@@ -731,6 +731,12 @@ contract OutputValidatorTest is TestBase {
             expectedAmount,
             validationWallet
         );
+    }
+
+    function testRevert_constructorWithNullOwner() public {
+        // Act & Assert - should revert when trying to deploy with null owner
+        vm.expectRevert(InvalidCallData.selector);
+        new OutputValidator(address(0));
     }
 
     // Needed to receive native tokens in tests

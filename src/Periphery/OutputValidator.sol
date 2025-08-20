@@ -5,6 +5,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title OutputValidator
 /// @author LI.FI (https://li.fi)
@@ -14,7 +15,10 @@ contract OutputValidator is TransferrableOwnership {
     using SafeTransferLib for address;
 
     /// Constructor ///
-    constructor(address _owner) TransferrableOwnership(_owner) {}
+    /// @param _owner The address of the contract owner
+    constructor(address _owner) TransferrableOwnership(_owner) {
+        if (_owner == address(0)) revert InvalidCallData();
+    }
 
     /// External Methods ///
 
