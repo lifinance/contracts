@@ -5,6 +5,7 @@ pragma solidity ^0.8.17;
 /// @author LI.FI (https://li.fi)
 /// @notice Base contract providing common constants for DEX facets
 /// @dev Abstract contract with shared constants to avoid duplication across facets
+/// @custom:version 1.0.0
 abstract contract BaseRouteConstants {
     /// @dev Constant indicating swap direction from token0 to token1
     uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;

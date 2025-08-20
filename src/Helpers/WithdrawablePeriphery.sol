@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "./TransferrableOwnership.sol";
@@ -7,6 +6,10 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ExternalCallFailed } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+/// @title WithdrawablePeriphery
+/// @author LI.FI (https://li.fi)
+/// @notice Abstract contract to provide a withdraw function for tokens
+/// @custom:version 1.0.0
 abstract contract WithdrawablePeriphery is TransferrableOwnership {
     using SafeTransferLib for address;
 

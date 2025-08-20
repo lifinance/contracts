@@ -8,27 +8,6 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
 import { LdaDiamondTest } from "./utils/LdaDiamondTest.sol";
 
-contract MockPullERC20Facet {
-    using SafeERC20 for IERC20;
-
-    // Pulls `amountIn` from msg.sender if `from == msg.sender`
-    function pull(
-        bytes memory /*payload*/,
-        address from,
-        address tokenIn,
-        uint256 amountIn
-    ) external returns (uint256) {
-        if (from == msg.sender) {
-            IERC20(tokenIn).safeTransferFrom(
-                msg.sender,
-                address(this),
-                amountIn
-            );
-        }
-        return amountIn;
-    }
-}
-
 abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     using SafeERC20 for IERC20;
 
@@ -70,7 +49,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     // ==== Constants ====
     uint16 internal constant FULL_SHARE = 65535;
 
-    // ==== Storage Variables ====
+    // ==== Variables ====
     CoreRouteFacet internal coreRouteFacet;
 
     // ==== Events ====

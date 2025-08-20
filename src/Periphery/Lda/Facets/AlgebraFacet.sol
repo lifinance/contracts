@@ -14,7 +14,6 @@ import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 /// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Algebra swaps with callback management
-/// @dev Implements direct selector-callable swap function for Algebra pools
 /// @custom:version 1.0.0
 contract AlgebraFacet is BaseRouteConstants {
     using LibPackedStream for uint256;
@@ -42,6 +41,7 @@ contract AlgebraFacet is BaseRouteConstants {
         uint256 amountIn
     ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
+
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
         address recipient = stream.readAddress();

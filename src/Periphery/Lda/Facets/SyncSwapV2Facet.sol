@@ -31,9 +31,10 @@ contract SyncSwapV2Facet {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();
-        address to = stream.readAddress();
+        address recipient = stream.readAddress();
 
-        if (pool == address(0) || to == address(0)) revert InvalidCallData();
+        if (pool == address(0) || recipient == address(0))
+            revert InvalidCallData();
 
         // withdrawMode meaning for SyncSwap via vault:
         //   1: Withdraw raw ETH (native)
@@ -62,7 +63,7 @@ contract SyncSwapV2Facet {
             ISyncSwapVault(target).deposit(tokenIn, pool);
         }
 
-        bytes memory data = abi.encode(tokenIn, to, withdrawMode);
+        bytes memory data = abi.encode(tokenIn, recipient, withdrawMode);
 
         ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
     }

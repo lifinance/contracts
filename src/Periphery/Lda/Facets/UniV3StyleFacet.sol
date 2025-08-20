@@ -50,6 +50,7 @@ contract UniV3StyleFacet is BaseRouteConstants {
         uint256 amountIn
     ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
+
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
         address recipient = stream.readAddress();

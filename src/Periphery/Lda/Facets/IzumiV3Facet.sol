@@ -41,6 +41,7 @@ contract IzumiV3Facet is BaseRouteConstants {
         uint256 amountIn
     ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
+
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // 0 = Y2X, 1 = X2Y
         address recipient = stream.readAddress();

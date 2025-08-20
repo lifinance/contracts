@@ -172,7 +172,7 @@ contract CoreRouteFacet is
         }
     }
 
-    // ==== Private Functions - Command Handlers ====
+    // ==== Private Functions ====
 
     /// @notice Applies ERC20 permit for token approval
     /// @dev Reads permit parameters from the stream and calls permit on the token

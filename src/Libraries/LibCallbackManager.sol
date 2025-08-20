@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 /// @title Callback Manager Library
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing callback validation in diamond-safe storage
+/// @custom:version 1.0.0
 library LibCallbackManager {
     /// Types ///
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.lda.callbackmanager");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.lda.callbackmanager");
 
     /// Storage ///
     struct CallbackStorage {
@@ -47,12 +48,5 @@ library LibCallbackManager {
         if (msg.sender != expected) {
             revert UnexpectedCallbackSender(msg.sender, expected);
         }
-    }
-
-    /// @dev Modifier wrapper for callback verification and cleanup
-    modifier onlyExpectedCallback() {
-        verifyCallbackSender();
-        _;
-        clear();
     }
 }

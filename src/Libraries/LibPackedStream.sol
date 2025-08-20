@@ -2,9 +2,9 @@
 pragma solidity ^0.8.17;
 
 /// @title LibPackedStream
-/// @author LI.FI
-/// @notice Minimal byte-stream reader for compact calldata formats used by LDA v2.
-/// @dev Public API is intentionally identical to the previous stream library.
+/// @author LI.FI (https://li.fi)
+/// @notice Minimal byte-stream reader for compact calldata formats
+/// @custom:version 1.0.0
 library LibPackedStream {
     /// @dev Returns the start and finish pointers for a bytes array.
     function _bounds(

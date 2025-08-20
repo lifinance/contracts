@@ -38,13 +38,17 @@ contract VelodromeV2Facet is BaseRouteConstants {
         uint256 amountIn
     ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
+
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
         address recipient = stream.readAddress();
+
         if (pool == address(0) || recipient == address(0))
             revert InvalidCallData();
+
         // solhint-disable-next-line max-line-length
-        bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
+        bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data.
+        // Will revert if contract (recipient) does not implement IVelodromeV2PoolCallee.
 
         if (from == INTERNAL_INPUT_SOURCE) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)

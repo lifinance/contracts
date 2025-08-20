@@ -5,6 +5,8 @@ import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Security/EmergencyPauseFacet.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
 import { TestBaseRandomConstants } from "../../../utils/TestBaseRandomConstants.sol";
 
@@ -12,16 +14,20 @@ contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
     LiFiDiamond internal ldaDiamond;
 
     function setUp() public virtual {
-        ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER);
+        ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
     }
 
     function createLdaDiamond(
-        address _diamondOwner
+        address _diamondOwner,
+        address _pauserWallet
     ) internal returns (LiFiDiamond) {
         vm.startPrank(_diamondOwner);
         DiamondCutFacet diamondCut = new DiamondCutFacet();
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
         OwnershipFacet ownership = new OwnershipFacet();
+        EmergencyPauseFacet emergencyPause = new EmergencyPauseFacet(
+            _pauserWallet
+        );
         LiFiDiamond diamond = new LiFiDiamond(
             _diamondOwner,
             address(diamondCut)
@@ -32,6 +38,21 @@ contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
 
         // Add Ownership
         _addOwnershipSelectors(address(ownership));
+
+        // Add PeripheryRegistry TODO?!?!?
+
+        // Add EmergencyPause
+        bytes4[] memory functionSelectors = new bytes4[](3);
+        functionSelectors[0] = emergencyPause.removeFacet.selector;
+        functionSelectors[1] = emergencyPause.pauseDiamond.selector;
+        functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
+        cut.push(
+            LibDiamond.FacetCut({
+                facetAddress: address(emergencyPause),
+                action: LibDiamond.FacetCutAction.Add,
+                functionSelectors: functionSelectors
+            })
+        );
 
         DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
         delete cut;

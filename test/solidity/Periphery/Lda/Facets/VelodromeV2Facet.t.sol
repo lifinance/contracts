@@ -93,7 +93,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85); // USDC
         tokenMid = IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97); // STG
-        tokenOut = IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607); // STG
+        tokenOut = IERC20(0x7F5c764cBc14f9669B88837ca1490cCa17c31607); // USDC.e
         // pools vary by test; and they are fetched inside tests
     }
 
@@ -191,7 +191,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: address(tokenOut),
                 amountIn: _getDefaultAmountForTokenIn() / 2,
                 tokenOut: address(tokenIn),
-                stable: false,
+                stable: true,
                 direction: SwapDirection.Token1ToToken0,
                 callbackStatus: CallbackStatus.Disabled
             })

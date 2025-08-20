@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 /// @title Reentrancy Guard
 /// @author LI.FI (https://li.fi)
 /// @notice Abstract contract to provide protection against reentrancy
+/// @custom:version 1.0.0
 abstract contract ReentrancyGuard {
     /// Storage ///
 
