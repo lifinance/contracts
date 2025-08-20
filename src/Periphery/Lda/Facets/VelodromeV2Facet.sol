@@ -6,40 +6,43 @@ import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "./BaseRouteConstants.sol";
 
 /// @title VelodromeV2Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Handles VelodromeV2 swaps with callback management
+/// @notice Handles Velodrome V2 pool swaps
 /// @custom:version 1.0.0
-contract VelodromeV2Facet {
+contract VelodromeV2Facet is BaseRouteConstants {
     using LibPackedStream for uint256;
 
     // ==== Constants ====
-    uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+    /// @dev Flag to enable post-swap callback with flashloan data
     uint8 internal constant CALLBACK_ENABLED = 1;
-    address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
     // ==== Errors ====
+    /// @dev Thrown when pool reserves are zero, indicating an invalid pool state
     error WrongPoolReserves();
 
     // ==== External Functions ====
     /// @notice Performs a swap through VelodromeV2 pools
-    /// @dev This function does not handle native token swaps directly, so processNative command cannot be used
-    /// @param swapData [pool, direction, to, callback]
-    /// @param from Where to take liquidity for swap
-    /// @param tokenIn Input token
-    /// @param amountIn Amount of tokenIn to take for swap
+    /// @dev Handles token transfers and optional callbacks, with comprehensive safety checks
+    /// @param swapData Encoded swap parameters [pool, direction, recipient, callback]
+    /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
+    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
+    /// @param tokenIn Input token address
+    /// @param amountIn Amount of input tokens
     function swapVelodromeV2(
         bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external returns (uint256) {
+    ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
         address pool = stream.readAddress();
-        uint8 direction = stream.readUint8();
-        address to = stream.readAddress();
-        if (pool == address(0) || to == address(0)) revert InvalidCallData();
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
+        address recipient = stream.readAddress();
+        if (pool == address(0) || recipient == address(0))
+            revert InvalidCallData();
         // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
@@ -47,9 +50,7 @@ contract VelodromeV2Facet {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
                 .getReserves();
             if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
-            uint256 reserveIn = direction == DIRECTION_TOKEN0_TO_TOKEN1
-                ? reserve0
-                : reserve1;
+            uint256 reserveIn = direction ? reserve0 : reserve1;
 
             amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
         } else {
@@ -73,12 +74,8 @@ contract VelodromeV2Facet {
 
         // set the appropriate output amount based on which token is being swapped
         // determine output amounts based on direction
-        uint256 amount0Out = direction == DIRECTION_TOKEN0_TO_TOKEN1
-            ? 0
-            : amountOut;
-        uint256 amount1Out = direction == DIRECTION_TOKEN0_TO_TOKEN1
-            ? amountOut
-            : 0;
+        uint256 amount0Out = direction ? 0 : amountOut;
+        uint256 amount1Out = direction ? amountOut : 0;
 
         // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
         // Safety Checks Covered:
@@ -100,10 +97,8 @@ contract VelodromeV2Facet {
         IVelodromeV2Pool(pool).swap(
             amount0Out,
             amount1Out,
-            to,
+            recipient,
             callback ? abi.encode(tokenIn) : bytes("")
         );
-
-        return 0; // Return value not used in current implementation
     }
 }

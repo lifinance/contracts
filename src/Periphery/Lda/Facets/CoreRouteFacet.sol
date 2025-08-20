@@ -10,20 +10,21 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "./BaseRouteConstants.sol";
 
 /// @title CoreRouteFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Orchestrates LDA route execution using direct function selector dispatch
 /// @dev Implements selector-based routing where each DEX facet's swap function is called directly via its selector
 /// @custom:version 1.0.0
-contract CoreRouteFacet is ReentrancyGuard, WithdrawablePeriphery {
+contract CoreRouteFacet is
+    BaseRouteConstants,
+    ReentrancyGuard,
+    WithdrawablePeriphery
+{
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
     using LibPackedStream for uint256;
-
-    // ==== Constants ====
-    /// @dev sentinel used to indicate that the input is already at the destination pool
-    address internal constant INTERNAL_INPUT_SOURCE = address(0);
 
     // ==== Events ====
     event Route(

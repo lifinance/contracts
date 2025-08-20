@@ -3,8 +3,9 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "./BaseRouteConstants.sol";
 
 interface IUniswapV2Pair {
     function getReserves()
@@ -23,38 +24,39 @@ interface IUniswapV2Pair {
     ) external;
 }
 
-/// @title UniV2Style Facet
+/// @title UniV2StyleFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles UniswapV2-style swaps (UniV2, SushiSwap, PancakeV2, etc.)
-/// @custom:version 2.0.0
-contract UniV2StyleFacet {
-    using LibInputStream for uint256;
-
-    // ==== Constants ====
-    address internal constant INTERNAL_INPUT_SOURCE = address(0);
-    uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+/// @custom:version 1.0.0
+contract UniV2StyleFacet is BaseRouteConstants {
+    using LibPackedStream for uint256;
 
     // ==== Errors ====
+    /// @dev Thrown when pool reserves are zero, indicating an invalid pool state
     error WrongPoolReserves();
 
     // ==== External Functions ====
     /// @notice Executes a UniswapV2-style swap
-    /// @param stream The input stream containing swap parameters
-    /// @param from Where to take liquidity for swap
+    /// @dev Handles token transfers and calculates output amounts based on pool reserves
+    /// @param swapData Encoded swap parameters [pool, direction, recipient, fee]
+    /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
+    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
     /// @param tokenIn Input token address
     /// @param amountIn Amount of input tokens
     function swapUniV2(
-        uint256 stream,
+        bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external returns (uint256 amountOut) {
+    ) external {
+        uint256 stream = LibPackedStream.createStream(swapData);
+
         address pool = stream.readAddress();
-        uint8 direction = stream.readUint8();
-        address to = stream.readAddress();
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
+        address recipient = stream.readAddress();
         uint24 fee = stream.readUint24(); // pool fee in 1/1_000_000
 
-        if (pool == address(0) || to == address(0)) {
+        if (pool == address(0) || recipient == address(0)) {
             revert InvalidCallData();
         }
 
@@ -69,8 +71,7 @@ contract UniV2StyleFacet {
         (uint256 r0, uint256 r1, ) = IUniswapV2Pair(pool).getReserves();
         if (r0 == 0 || r1 == 0) revert WrongPoolReserves();
 
-        (uint256 reserveIn, uint256 reserveOut) = direction ==
-            DIRECTION_TOKEN0_TO_TOKEN1
+        (uint256 reserveIn, uint256 reserveOut) = direction
             ? (r0, r1)
             : (r1, r0);
 
@@ -78,15 +79,18 @@ contract UniV2StyleFacet {
         amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
 
         uint256 amountInWithFee = amountIn * (1_000_000 - fee);
-        amountOut =
-            (amountInWithFee * reserveOut) /
+        uint256 amountOut = (amountInWithFee * reserveOut) /
             (reserveIn * 1_000_000 + amountInWithFee);
 
-        (uint256 amount0Out, uint256 amount1Out) = direction ==
-            DIRECTION_TOKEN0_TO_TOKEN1
+        (uint256 amount0Out, uint256 amount1Out) = direction
             ? (uint256(0), amountOut)
             : (amountOut, uint256(0));
 
-        IUniswapV2Pair(pool).swap(amount0Out, amount1Out, to, new bytes(0));
+        IUniswapV2Pair(pool).swap(
+            amount0Out,
+            amount1Out,
+            recipient,
+            new bytes(0)
+        );
     }
 }

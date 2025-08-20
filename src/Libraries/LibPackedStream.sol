@@ -66,6 +66,18 @@ library LibPackedStream {
         }
     }
 
+    /** @notice Reads uint24 from the stream
+     * @param stream stream
+     */
+    function readUint24(uint256 stream) internal pure returns (uint24 res) {
+        assembly {
+            let pos := mload(stream)
+            pos := add(pos, 3)
+            res := mload(pos)
+            mstore(stream, pos)
+        }
+    }
+
     /** @notice Reads uint256 from the stream
      * @param stream stream
      */

@@ -9,24 +9,25 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title SyncSwapV2Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Handles SyncSwap swaps with callback management
+/// @notice Handles SyncSwap V2 pool swaps with vault integration
+/// @dev Implements direct selector-callable swap function for both V1 and V2 SyncSwap pools
 /// @custom:version 1.0.0
 contract SyncSwapV2Facet {
     using LibPackedStream for uint256;
 
-    /// @notice Performs a swap through SyncSwapV2 pools
-    /// @dev This function handles both X to Y and Y to X swaps through SyncSwapV2 pools.
-    ///      See [SyncSwapV2 API documentation](https://docs.syncswap.xyz/api-documentation) for protocol details.
-    /// @param swapData [pool, to, withdrawMode, isV1Pool, vault]
-    /// @param from Where to take liquidity for swap
-    /// @param tokenIn Input token
-    /// @param amountIn Amount of tokenIn to take for swap
+    /// @notice Executes a swap through a SyncSwap V2 pool
+    /// @dev Handles both V1 (vault-based) and V2 (direct) pool swaps
+    /// @param swapData Encoded swap parameters [pool, recipient, withdrawMode, isV1Pool, vault]
+    /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
+    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
+    /// @param tokenIn Input token address
+    /// @param amountIn Amount of input tokens
     function swapSyncSwapV2(
         bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external returns (uint256) {
+    ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();
@@ -64,7 +65,5 @@ contract SyncSwapV2Facet {
         bytes memory data = abi.encode(tokenIn, to, withdrawMode);
 
         ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
-
-        return 0; // Return value not used in current implementation
     }
 }

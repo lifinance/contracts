@@ -186,7 +186,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         );
     }
 
-    function testRevert_CallbackFromUnexpectedSender() public {
+    function testRevert_CallbackFromUnexpectedSender() public override {
         // No swap has armed the guard; expected == address(0)
         vm.startPrank(USER_SENDER);
         vm.expectRevert(LibCallbackManager.UnexpectedCallbackSender.selector);
@@ -203,7 +203,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
-    function testRevert_SwapWithoutCallback() public {
+    function testRevert_SwapWithoutCallback() public override {
         // Deploy mock pool that doesn't call back
         MockNoCallbackPool mockPool = new MockNoCallbackPool();
 

@@ -8,13 +8,14 @@ import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "./BaseRouteConstants.sol";
 
 /// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Algebra swaps with callback management
 /// @dev Implements direct selector-callable swap function for Algebra pools
 /// @custom:version 1.0.0
-contract AlgebraFacet {
+contract AlgebraFacet is BaseRouteConstants {
     using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
@@ -45,7 +46,7 @@ contract AlgebraFacet {
     ) external {
         uint256 stream = LibPackedStream.createStream(swapData);
         address pool = stream.readAddress();
-        bool direction = stream.readUint8() > 0;
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
         address recipient = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0;
 

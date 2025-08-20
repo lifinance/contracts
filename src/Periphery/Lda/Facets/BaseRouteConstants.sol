@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
+
+/// @title BaseRouteConstants
+/// @author LI.FI (https://li.fi)
+/// @notice Base contract providing common constants for DEX facets
+/// @dev Abstract contract with shared constants to avoid duplication across facets
+abstract contract BaseRouteConstants {
+    /// @dev Constant indicating swap direction from token0 to token1
+    uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+    /// @dev Used to indicate tokens are already in the pool/contract
+    address internal constant INTERNAL_INPUT_SOURCE = address(0);
+}

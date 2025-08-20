@@ -210,4 +210,28 @@ abstract contract BaseDexFacetTest is BaseCoreRouteTest {
         // solhint-disable-next-line gas-custom-errors
         revert("test_CanSwap_MultiHop: Not implemented");
     }
+
+    /**
+     * @notice Abstract test for verifying callback protection against unauthorized calls
+     * @dev DEX implementations with callbacks must override this
+     *      DEXs without callbacks should leave this empty
+     */
+    function testRevert_CallbackFromUnexpectedSender() public virtual {
+        // Each DEX implementation with callbacks must override this
+        // DEXs without callbacks should leave this empty
+        // solhint-disable-next-line gas-custom-errors
+        revert("testRevert_CallbackFromUnexpectedSender: Not implemented");
+    }
+
+    /**
+     * @notice Abstract test for verifying swaps fail if callback is not executed
+     * @dev DEX implementations with callbacks must override this
+     *      DEXs without callbacks should leave this empty
+     */
+    function testRevert_SwapWithoutCallback() public virtual {
+        // Each DEX implementation with callbacks must override this
+        // DEXs without callbacks should leave this empty
+        // solhint-disable-next-line gas-custom-errors
+        revert("testRevert_SwapWithoutCallback: Not implemented");
+    }
 }

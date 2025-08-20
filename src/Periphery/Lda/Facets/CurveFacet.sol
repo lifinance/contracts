@@ -2,39 +2,46 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { LibInputStream } from "lifi/Libraries/LibInputStream.sol";
+import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ICurve } from "lifi/Interfaces/ICurve.sol";
 import { ICurveLegacy } from "lifi/Interfaces/ICurveLegacy.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
-/// @title Curve Facet
+/// @title CurveFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Handles Curve swaps with callback management
+/// @notice Handles Curve pool swaps for both legacy and modern pools
+/// @dev Implements direct selector-callable swap function for Curve pools with balance tracking for legacy pools
 /// @custom:version 1.0.0
 contract CurveFacet {
-    using LibInputStream for uint256;
+    using LibPackedStream for uint256;
     using LibAsset for IERC20;
 
     // ==== External Functions ====
-    /// @notice Curve pool swap. Legacy pools that don't return amountOut and have native coins are not supported
-    /// @param stream [pool, poolType, fromIndex, toIndex, recipient, output token]
-    /// @param from Where to take liquidity for swap
-    /// @param tokenIn Input token
-    /// @param amountIn Amount of tokenIn to take for swap
+    /// @notice Executes a swap through a Curve pool
+    /// @dev Handles both modern pools that return amounts and legacy pools that require balance tracking
+    /// @param swapData Encoded swap parameters [pool, poolType, fromIndex, toIndex, recipient, tokenOut]
+    /// @param from Token source address - if equals msg.sender, tokens will be pulled from the caller;
+    ///        otherwise assumes tokens are already at this contract
+    /// @param tokenIn Input token address
+    /// @param amountIn Amount of input tokens
     function swapCurve(
-        uint256 stream,
+        bytes memory swapData,
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external returns (uint256) {
+    ) external {
+        uint256 stream = LibPackedStream.createStream(swapData);
+
         address pool = stream.readAddress();
         uint8 poolType = stream.readUint8();
         int128 fromIndex = int8(stream.readUint8());
         int128 toIndex = int8(stream.readUint8());
-        address to = stream.readAddress();
+        address recipient = stream.readAddress();
         address tokenOut = stream.readAddress();
 
-        // TODO arm callback protection
+        if (pool == address(0) || recipient == address(0))
+            revert InvalidCallData();
 
         uint256 amountOut;
         if (LibAsset.isNativeAsset(tokenIn)) {
@@ -73,10 +80,8 @@ contract CurveFacet {
             }
         }
 
-        if (to != address(this)) {
-            LibAsset.transferAsset(tokenOut, payable(to), amountOut);
+        if (recipient != address(this)) {
+            LibAsset.transferAsset(tokenOut, payable(recipient), amountOut);
         }
-
-        return amountOut;
     }
 }
