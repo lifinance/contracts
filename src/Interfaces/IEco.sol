@@ -46,6 +46,7 @@ interface IEco {
     }
 
     /// @notice Creates an intent without funding (optional, for solver discovery)
+    /// @notice Creates an intent without funding (optional, for solver discovery)
     /// @param destination Target chain ID
     /// @param route Execution instructions for destination chain
     /// @param reward Incentive structure for solvers

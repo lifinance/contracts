@@ -156,14 +156,20 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             : DEFAULT_PROVER;
 
         // Prepare reward structure
-        // Note: For bridging, we're not adding extra rewards beyond the bridged tokens
+        // For native token bridging, we need to specify the native amount in the reward
+        uint256 rewardNativeAmount = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        )
+            ? _bridgeData.minAmount
+            : 0;
+
         IEco.TokenAmount[] memory rewardTokens = new IEco.TokenAmount[](0);
 
         IEco.Reward memory reward = IEco.Reward({
             deadline: _ecoData.rewardDeadline,
             creator: msg.sender,
             prover: prover,
-            nativeAmount: 0,
+            nativeAmount: rewardNativeAmount,
             tokens: rewardTokens
         });
 
