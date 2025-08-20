@@ -7,7 +7,11 @@ import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
 import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
 import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEco } from "../../../src/Interfaces/IEco.sol";
-import { InvalidContract, InvalidProver, InvalidDeadline } from "../../../src/Errors/GenericErrors.sol";
+import { InvalidContract } from "../../../src/Errors/GenericErrors.sol";
+
+// Errors from EcoFacet
+error InvalidProver();
+error InvalidDeadline();
 
 // Test contract wrapper
 contract TestEcoFacet is EcoFacet {
