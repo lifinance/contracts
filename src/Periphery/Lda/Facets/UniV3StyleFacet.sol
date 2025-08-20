@@ -5,8 +5,8 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
-import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseRouteConstants } from "./BaseRouteConstants.sol";
+import { InvalidCallData, SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 interface IUniV3StylePool {
     function swap(
@@ -91,7 +91,7 @@ contract UniV3StyleFacet is BaseRouteConstants {
 
         // Verify callback was called (arm should be cleared by callback)
         if (LibCallbackManager.callbackStorage().expected != address(0)) {
-            revert UniV3SwapUnexpected();
+            revert SwapCallbackNotExecuted();
         }
     }
 

@@ -8,7 +8,8 @@ import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseRouteConstants } from "./BaseRouteConstants.sol";
+import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
@@ -25,10 +26,6 @@ contract AlgebraFacet is BaseRouteConstants {
     /// @dev Maximum sqrt price ratio for Algebra pool swaps
     uint160 internal constant MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970342;
-
-    // ==== Errors ====
-    /// @dev Thrown when callback verification fails or unexpected callback state
-    error AlgebraSwapUnexpected();
 
     // ==== External Functions ====
     /// @notice Executes a swap through an Algebra pool
@@ -83,7 +80,7 @@ contract AlgebraFacet is BaseRouteConstants {
         }
 
         if (LibCallbackManager.callbackStorage().expected != address(0)) {
-            revert AlgebraSwapUnexpected();
+            revert SwapCallbackNotExecuted();
         }
     }
 

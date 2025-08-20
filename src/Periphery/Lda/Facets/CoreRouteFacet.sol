@@ -10,7 +10,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-import { BaseRouteConstants } from "./BaseRouteConstants.sol";
+import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title CoreRouteFacet
 /// @author LI.FI (https://li.fi)

@@ -637,6 +637,20 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         vm.clearMockedCalls();
     }
 
+    /// @notice Empty test as VelodromeV2 does not use callbacks for regular swaps
+    /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
+    /// @dev Note: While VelodromeV2 has flashloan callbacks, they are separate from swap callbacks
+    function testRevert_CallbackFromUnexpectedSender() public override {
+        // VelodromeV2 does not use callbacks for swaps - test intentionally empty
+    }
+
+    /// @notice Empty test as VelodromeV2 does not use callbacks for regular swaps
+    /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
+    /// @dev Note: While VelodromeV2 has flashloan callbacks, they are separate from swap callbacks
+    function testRevert_SwapWithoutCallback() public override {
+        // VelodromeV2 does not use callbacks for swaps - test intentionally empty
+    }
+
     // ==== Helper Functions ====
 
     /**

@@ -40,3 +40,4 @@ error UnAuthorized();
 error UnsupportedChainId(uint256 chainId);
 error WithdrawFailed();
 error ZeroAmount();
+error SwapCallbackNotExecuted();

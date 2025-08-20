@@ -3,13 +3,9 @@ pragma solidity ^0.8.17;
 
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
-import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
-import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
-import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
+import { BaseDexFacetWithCallbackTest } from "./BaseDexFacetWithCallback.t.sol";
 
-// ==== Base Contract ====
-abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
-    // ==== Storage Variables ====
+abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetWithCallbackTest {
     UniV3StyleFacet internal uniV3Facet;
 
     // ==== Types ====
@@ -45,9 +41,6 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
     ) internal override {
         uniV3Facet = UniV3StyleFacet(facetAddress);
     }
-
-    // Each UniV3-style DEX must implement this to provide its specific callback selector
-    function _getCallbackSelector() internal virtual returns (bytes4);
 
     // ==== Helper Functions ====
     function _buildUniV3SwapData(
@@ -158,6 +151,21 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
+    // ==== Overrides ====
+    function _buildCallbackSwapData(
+        address pool,
+        address recipient
+    ) internal override returns (bytes memory) {
+        return
+            _buildUniV3SwapData(
+                UniV3SwapParams({
+                    pool: pool,
+                    direction: SwapDirection.Token0ToToken1,
+                    recipient: recipient
+                })
+            );
+    }
+
     // ==== Test Cases ====
     function test_CanSwap_MultiHop() public virtual override {
         // SKIPPED: UniV3 forke dex multi-hop unsupported due to AS (amount specified) requirement.
@@ -184,71 +192,5 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetTest {
                 amountIn: _getDefaultAmountForTokenIn() - 1
             })
         );
-    }
-
-    function testRevert_CallbackFromUnexpectedSender() public override {
-        // No swap has armed the guard; expected == address(0)
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(LibCallbackManager.UnexpectedCallbackSender.selector);
-        // Call the facet's callback directly on the diamond
-        (bool ok, ) = address(ldaDiamond).call(
-            abi.encodeWithSelector(
-                _getCallbackSelector(),
-                int256(1),
-                int256(1),
-                bytes("")
-            )
-        );
-        ok;
-        vm.stopPrank();
-    }
-
-    function testRevert_SwapWithoutCallback() public override {
-        // Deploy mock pool that doesn't call back
-        MockNoCallbackPool mockPool = new MockNoCallbackPool();
-
-        // Setup test params
-        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
-
-        vm.startPrank(USER_SENDER);
-        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
-
-        bytes memory swapData = _buildUniV3SwapData(
-            UniV3SwapParams({
-                pool: address(mockPool),
-                direction: SwapDirection.Token0ToToken1,
-                recipient: USER_SENDER
-            })
-        );
-
-        bytes memory route = _buildBaseRoute(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            swapData
-        );
-
-        // Should revert because pool doesn't call back, leaving armed state
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
-            UniV3StyleFacet.UniV3SwapUnexpected.selector
-        );
-
-        vm.stopPrank();
     }
 }

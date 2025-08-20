@@ -483,6 +483,18 @@ contract SyncSwapV2FacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Empty test as SyncSwapV2 does not use callbacks
+    /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
+    function testRevert_CallbackFromUnexpectedSender() public override {
+        // SyncSwapV2 does not use callbacks - test intentionally empty
+    }
+
+    /// @notice Empty test as SyncSwapV2 does not use callbacks
+    /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
+    function testRevert_SwapWithoutCallback() public override {
+        // SyncSwapV2 does not use callbacks - test intentionally empty
+    }
+
     struct SyncSwapV2SwapParams {
         address pool;
         address to;

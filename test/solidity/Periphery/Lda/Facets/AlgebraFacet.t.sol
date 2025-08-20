@@ -8,13 +8,12 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { AlgebraFacet } from "lifi/Periphery/Lda/Facets/AlgebraFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
 import { TestToken as ERC20 } from "../../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../../utils/MockTokenFeeOnTransfer.sol";
-import { BaseDexFacetTest } from "../BaseDexFacet.t.sol";
+import { BaseDexFacetWithCallbackTest } from "../BaseDexFacetWithCallback.t.sol";
 
-// ==== Helper Contracts ====
 contract AlgebraLiquidityAdderHelper {
-    // ==== Storage Variables ====
     address public immutable TOKEN_0;
     address public immutable TOKEN_1;
 
@@ -100,9 +99,7 @@ contract AlgebraLiquidityAdderHelper {
     }
 }
 
-// ==== Main Test Contract ====
-contract AlgebraFacetTest is BaseDexFacetTest {
-    // ==== Storage Variables ====
+contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
     AlgebraFacet internal algebraFacet;
 
     // ==== Constants ====
@@ -112,8 +109,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         0x60A186019F81bFD04aFc16c9C01804a04E79e68B;
     address private constant RANDOM_APE_ETH_HOLDER_APECHAIN =
         address(0x1EA5Df273F1b2e0b10554C8F6f7Cc7Ef34F6a51b);
-    address private constant IMPOSSIBLE_POOL_ADDRESS =
-        0x0000000000000000000000000000000000000001;
 
     // ==== Types ====
     struct AlgebraSwapTestParams {
@@ -144,9 +139,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         address pool; // Algebra pool address
         bool supportsFeeOnTransfer; // Whether to support fee-on-transfer tokens
     }
-
-    // ==== Errors ====
-    error AlgebraSwapUnexpected();
 
     // ==== Setup Functions ====
     function _setupForkConfig() internal override {
@@ -335,35 +327,24 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         _executeAndVerifyMultiHopSwap(state);
     }
 
-    function testRevert_SwapUnexpected() public {
-        // Transfer tokens from whale to user
+    function testRevert_SwapWithoutCallback() public override {
+        // Pool that does not call back for Algebra
+        address mockPool = _deployNoCallbackPool(); // your Algebra-specific or shared mock
+
+        // Fund user from whale instead of deal()
         vm.prank(RANDOM_APE_ETH_HOLDER_APECHAIN);
-        IERC20(tokenIn).transfer(USER_SENDER, _getDefaultAmountForTokenIn());
+        IERC20(address(tokenIn)).transfer(
+            USER_SENDER,
+            _getDefaultAmountForTokenIn()
+        );
 
+        // Approve and build route
         vm.startPrank(USER_SENDER);
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
-        // Create invalid pool address
-        address invalidPool = address(0x999);
+        bytes memory swapData = _buildCallbackSwapData(mockPool, USER_SENDER);
 
-        // Mock token0() call on invalid pool
-        vm.mockCall(
-            invalidPool,
-            abi.encodeWithSelector(IAlgebraPool.token0.selector),
-            abi.encode(tokenIn)
-        );
-
-        // Create a route with an invalid pool
-        bytes memory swapData = _buildAlgebraSwapData(
-            AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
-                tokenIn: address(tokenIn),
-                recipient: USER_SENDER,
-                pool: invalidPool,
-                supportsFeeOnTransfer: true
-            })
-        );
-
-        bytes memory invalidRoute = _buildBaseRoute(
+        bytes memory route = _buildBaseRoute(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -376,15 +357,6 @@ contract AlgebraFacetTest is BaseDexFacetTest {
             swapData
         );
 
-        // Mock the algebra pool to not reset lastCalledPool
-        vm.mockCall(
-            invalidPool,
-            abi.encodeWithSelector(
-                IAlgebraPool.swapSupportingFeeOnInputTokens.selector
-            ),
-            abi.encode(0, 0)
-        );
-
         _executeAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
@@ -395,12 +367,11 @@ contract AlgebraFacetTest is BaseDexFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            invalidRoute,
-            AlgebraSwapUnexpected.selector
+            route,
+            SwapCallbackNotExecuted.selector
         );
 
         vm.stopPrank();
-        vm.clearMockedCalls();
     }
 
     function testRevert_AlgebraSwap_ZeroAddressPool() public {
@@ -459,58 +430,26 @@ contract AlgebraFacetTest is BaseDexFacetTest {
         vm.clearMockedCalls();
     }
 
-    // function testRevert_AlgebraSwap_ImpossiblePoolAddress() public {
-    //     // Transfer tokens from whale to user
-    //     vm.prank(RANDOM_APE_ETH_HOLDER_APECHAIN);
-    //     IERC20(APE_ETH_TOKEN).transfer(USER_SENDER, 1 * 1e18);
+    // ==== Overrides ====
 
-    //     vm.startPrank(USER_SENDER);
+    function _getCallbackSelector() internal override returns (bytes4) {
+        return algebraFacet.algebraSwapCallback.selector;
+    }
 
-    //     // Mock token0() call on IMPOSSIBLE_POOL_ADDRESS
-    //     vm.mockCall(
-    //         IMPOSSIBLE_POOL_ADDRESS,
-    //         abi.encodeWithSelector(IAlgebraPool.token0.selector),
-    //         abi.encode(APE_ETH_TOKEN)
-    //     );
-
-    //     // Build route with IMPOSSIBLE_POOL_ADDRESS as pool
-    //     bytes memory swapData = _buildAlgebraSwapData(
-    //         AlgebraRouteParams({
-    //             commandCode: CommandType.ProcessUserERC20,
-    //             tokenIn: APE_ETH_TOKEN,
-    //             recipient: USER_SENDER,
-    //             pool: IMPOSSIBLE_POOL_ADDRESS, // Impossible pool address
-    //             supportsFeeOnTransfer: true
-    //         })
-    //     );
-
-    //     bytes memory route = abi.encodePacked(
-    //         uint8(CommandType.ProcessUserERC20),
-    //         APE_ETH_TOKEN,
-    //         uint8(1), // number of pools/splits
-    //         FULL_SHARE, // 100% share
-    //         uint16(swapData.length), // <--- Add the length prefix
-    //         swapData
-    //     );
-
-    //     // Approve tokens
-    //     IERC20(APE_ETH_TOKEN).approve(address(ldaDiamond), 1 * 1e18);
-
-    //     // Expect revert with InvalidCallData
-    //     vm.expectRevert(InvalidCallData.selector);
-
-    //     coreRouteFacet.processRoute(
-    //         APE_ETH_TOKEN,
-    //         1 * 1e18,
-    //         address(WETH_TOKEN),
-    //         0,
-    //         USER_SENDER,
-    //         route
-    //     );
-
-    //     vm.stopPrank();
-    //     vm.clearMockedCalls();
-    // }
+    // Hook: build Algebra swap data [pool, direction(uint8), recipient, supportsFeeOnTransfer(uint8)]
+    function _buildCallbackSwapData(
+        address pool,
+        address recipient
+    ) internal pure override returns (bytes memory) {
+        return
+            abi.encodePacked(
+                AlgebraFacet.swapAlgebra.selector,
+                pool,
+                uint8(1), // Token0->Token1; only the callback arming/clearing is under test
+                recipient,
+                uint8(0) // no fee-on-transfer
+            );
+    }
 
     function testRevert_AlgebraSwap_ZeroAddressRecipient() public {
         // Transfer tokens from whale to user

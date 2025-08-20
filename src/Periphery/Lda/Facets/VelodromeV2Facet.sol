@@ -6,7 +6,7 @@ import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseRouteConstants } from "./BaseRouteConstants.sol";
+import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title VelodromeV2Facet
 /// @author LI.FI (https://li.fi)

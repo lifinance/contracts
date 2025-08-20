@@ -6,7 +6,8 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseRouteConstants } from "./BaseRouteConstants.sol";
+import { BaseRouteConstants } from "../BaseRouteConstants.sol";
+import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
 
 /// @title IzumiV3Facet
 /// @author LI.FI (https://li.fi)
@@ -23,8 +24,6 @@ contract IzumiV3Facet is BaseRouteConstants {
     int24 internal constant IZUMI_RIGHT_MOST_PT = 800000;
 
     // ==== Errors ====
-    /// @dev Thrown when callback verification fails or unexpected callback state
-    error IzumiV3SwapUnexpected();
     /// @dev Thrown when callback amount to pay is zero
     error IzumiV3SwapCallbackNotPositiveAmount();
 
@@ -83,7 +82,7 @@ contract IzumiV3Facet is BaseRouteConstants {
         // If it hasn't, it means the callback either didn't happen, was incorrect, or the pool misbehaved
         // so we revert to protect against misuse or faulty integrations
         if (LibCallbackManager.callbackStorage().expected != address(0)) {
-            revert IzumiV3SwapUnexpected();
+            revert SwapCallbackNotExecuted();
         }
     }
 
