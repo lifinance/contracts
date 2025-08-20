@@ -62,6 +62,46 @@ export function getCoreFacets(): string[] {
 }
 
 /**
+ * Get list of core periphery contracts for Tron deployment
+ * Filters out contracts that are not deployed on Tron
+ */
+export function getTronCorePeriphery(): string[] {
+  const periphery = (globalConfig as any).corePeriphery || []
+  // Filter out contracts not deployed on Tron
+  return periphery.filter(
+    (contract: string) =>
+      contract !== 'LiFiTimelockController' && // Tron doesn't use Timelock yet
+      contract !== 'GasZipPeriphery' && // Not deployed on Tron
+      contract !== 'LiFiDEXAggregator' && // Not deployed on Tron
+      contract !== 'Permit2Proxy' // Not deployed on Tron
+  )
+}
+
+/**
+ * Check if a contract is deployed on Tron
+ * @param contract The contract name
+ * @param deployedContracts The deployed contracts record
+ * @param tronWeb The TronWeb instance
+ * @returns Promise<boolean> indicating if the contract is deployed
+ */
+export async function checkIsDeployedTron(
+  contract: string,
+  deployedContracts: Record<string, string>,
+  tronWeb: any
+): Promise<boolean> {
+  if (!deployedContracts[contract]) return false
+
+  try {
+    // For Tron, addresses in deployments are already in Tron format
+    const tronAddress = deployedContracts[contract]
+    const contractInfo = await tronWeb.trx.getContract(tronAddress)
+    return contractInfo && contractInfo.contract_address
+  } catch {
+    return false
+  }
+}
+
+/**
  * Execute shell command
  * SECURITY WARNING: This function executes shell commands directly.
  * - Only use with trusted, hardcoded commands

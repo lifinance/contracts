@@ -12,7 +12,6 @@ import {
 } from '../../demoScripts/utils/demoScriptHelpers'
 
 import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,

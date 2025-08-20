@@ -29,7 +29,11 @@ import {
   type Network,
 } from '../utils/viemScriptHelpers'
 
-import { getCoreFacets as getTronCoreFacets } from './tron/utils'
+import {
+  getCoreFacets as getTronCoreFacets,
+  getTronCorePeriphery,
+  checkIsDeployedTron,
+} from './tron/utils'
 
 const SAFE_THRESHOLD = 3
 
@@ -263,15 +267,7 @@ const main = defineCommand({
     consola.box('Checking deploy status of periphery contracts...')
 
     // Filter periphery contracts for Tron if needed
-    const peripheryToCheck = isTron
-      ? corePeriphery.filter(
-          (c) =>
-            c !== 'LiFiTimelockController' && // Tron doesn't use Timelock yet
-            c !== 'GasZipPeriphery' && // Not deployed on Tron
-            c !== 'LiFiDEXAggregator' && // Not deployed on Tron
-            c !== 'Permit2Proxy' // Not deployed on Tron
-        )
-      : corePeriphery
+    const peripheryToCheck = isTron ? getTronCorePeriphery() : corePeriphery
 
     for (const contract of peripheryToCheck) {
       let isDeployed: boolean
@@ -667,26 +663,6 @@ const parseTroncastFacetsOutput = (
   }
 
   return facets
-}
-
-/**
- * Check if contract is deployed on Tron
- */
-const checkIsDeployedTron = async (
-  contract: string,
-  deployedContracts: Record<string, Address>,
-  tronWeb: TronWeb
-): Promise<boolean> => {
-  if (!deployedContracts[contract]) return false
-
-  try {
-    // For Tron, addresses in deployments are already in Tron format
-    const tronAddress = deployedContracts[contract]
-    const contractInfo = await tronWeb.trx.getContract(tronAddress)
-    return contractInfo && contractInfo.contract_address
-  } catch {
-    return false
-  }
 }
 
 const logError = (msg: string) => {
