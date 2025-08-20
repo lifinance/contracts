@@ -3290,17 +3290,11 @@ function doesAddressContainBytecode() {
     return 1
   fi
 
-  # make sure address is in correct checksum format
-  CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
-
   # get CONTRACT code from ADDRESS using
-  if ! contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL" 2>&1); then
-    echo "false"
-    return 1
-  fi
+  CONTRACT_CODE=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
 
   # return false if ADDRESS does not contain CONTRACT code, otherwise true
-  if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
+  if [[ $? -ne 0 || "$CONTRACT_CODE" == "0x" || "$CONTRACT_CODE" == "" ]]; then
     echo "false"
     return 1
   else
