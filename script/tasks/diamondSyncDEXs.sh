@@ -55,6 +55,7 @@ function diamondSyncDEXs {
   fi
 
   # Function to check if an address is a token contract
+  # tries to call decimals() function and returns true if a number value is returned
   function isTokenContract {
     local ADDRESS=$1
     local RPC_URL=$2
