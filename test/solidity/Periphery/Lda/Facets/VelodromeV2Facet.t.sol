@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-// ==== Imports ====
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { IVelodromeV2PoolCallee } from "lifi/Interfaces/IVelodromeV2PoolCallee.sol";
@@ -11,28 +10,7 @@ import { VelodromeV2Facet } from "lifi/Periphery/Lda/Facets/VelodromeV2Facet.sol
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDexFacetTest } from "../BaseDexFacet.t.sol";
 
-contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
-    // ==== Events ====
-    event HookCalled(
-        address sender,
-        uint256 amount0,
-        uint256 amount1,
-        bytes data
-    );
-
-    function hook(
-        address sender,
-        uint256 amount0,
-        uint256 amount1,
-        bytes calldata data
-    ) external {
-        emit HookCalled(sender, amount0, amount1, data);
-    }
-}
-
-// ==== Main Test Contract ====
 contract VelodromeV2FacetTest is BaseDexFacetTest {
-    // ==== Storage Variables ====
     VelodromeV2Facet internal velodromeV2Facet;
 
     // ==== Constants ====
@@ -130,7 +108,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
 
     // ==== Test Cases ====
 
-    // no stable swap
     function test_CanSwap() public override {
         deal(
             address(tokenIn),
@@ -223,7 +200,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
     }
 
     function test_CanSwap_FromDexAggregator() public override {
-        // // fund dex aggregator contract so that the contract holds USDC
+        // fund dex aggregator contract so that the contract holds USDC
         deal(
             address(tokenIn),
             address(ldaDiamond),
@@ -236,9 +213,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 from: address(ldaDiamond),
                 to: address(USER_SENDER),
                 tokenIn: address(tokenIn),
-                amountIn: IERC20(address(tokenIn)).balanceOf(
-                    address(ldaDiamond)
-                ) - 1, // adjust for slot undrain protection: subtract 1 token so that the
+                amountIn: _getDefaultAmountForTokenIn() - 1, // adjust for slot undrain protection: subtract 1 token so that the
                 // aggregator's balance isn't completely drained, matching the contract's safeguard
                 tokenOut: address(tokenOut),
                 stable: false,
@@ -274,7 +249,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
         vm.stopPrank();
     }
 
-    // Override the abstract test with VelodromeV2 implementation
     function test_CanSwap_MultiHop() public override {
         deal(
             address(tokenIn),
@@ -496,11 +470,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             swapDataZeroPool
         );
 
-        IERC20(address(tokenIn)).approve(
-            address(ldaDiamond),
-            _getDefaultAmountForTokenIn()
-        );
-
         _executeAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
@@ -667,11 +636,10 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             stable: params.stable,
             factory: address(VELODROME_V2_FACTORY_REGISTRY)
         });
-        uint256[] memory amounts = VELODROME_V2_ROUTER.getAmountsOut(
+        uint256[] memory expectedOutput = VELODROME_V2_ROUTER.getAmountsOut(
             params.amountIn,
             routes
         );
-        emit log_named_uint("Expected amount out", amounts[1]);
 
         // Retrieve the pool address.
         address pool = VELODROME_V2_ROUTER.poolFor(
@@ -680,7 +648,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             params.stable,
             VELODROME_V2_FACTORY_REGISTRY
         );
-        emit log_named_uint("Pool address:", uint256(uint160(pool)));
 
         // if tokens come from the aggregator (address(liFiDEXAggregator)), use command code 1; otherwise, use 2.
         CommandType commandCode = params.from == address(ldaDiamond)
@@ -709,13 +676,6 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             }),
             swapData
         );
-
-        // approve the aggregator to spend tokenIn.
-        IERC20(params.tokenIn).approve(address(ldaDiamond), params.amountIn);
-
-        // capture initial token balances.
-        uint256 initialTokenIn = IERC20(params.tokenIn).balanceOf(params.from);
-        emit log_named_uint("Initial tokenIn balance", initialTokenIn);
 
         ExpectedEvent[] memory expectedEvents = new ExpectedEvent[](1);
         if (params.callbackStatus == CallbackStatus.Enabled) {
@@ -746,7 +706,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
-                minOut: amounts[1],
+                minOut: expectedOutput[1],
                 sender: params.from,
                 recipient: params.to,
                 commandType: params.from == address(ldaDiamond)
@@ -757,7 +717,7 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
             expectedEvents,
             false,
             RouteEventVerification({
-                expectedExactOut: amounts[1],
+                expectedExactOut: expectedOutput[1],
                 checkData: true
             })
         );
@@ -920,5 +880,24 @@ contract VelodromeV2FacetTest is BaseDexFacetTest {
                 "Pool2 reserve0 (tokenOut) change incorrect"
             );
         }
+    }
+}
+
+contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
+    // ==== Events ====
+    event HookCalled(
+        address sender,
+        uint256 amount0,
+        uint256 amount1,
+        bytes data
+    );
+
+    function hook(
+        address sender,
+        uint256 amount0,
+        uint256 amount1,
+        bytes calldata data
+    ) external {
+        emit HookCalled(sender, amount0, amount1, data);
     }
 }

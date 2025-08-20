@@ -13,92 +13,6 @@ import { TestToken as ERC20 } from "../../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../../utils/MockTokenFeeOnTransfer.sol";
 import { BaseDexFacetWithCallbackTest } from "../BaseDexFacetWithCallback.t.sol";
 
-contract AlgebraLiquidityAdderHelper {
-    address public immutable TOKEN_0;
-    address public immutable TOKEN_1;
-
-    constructor(address _token0, address _token1) {
-        TOKEN_0 = _token0;
-        TOKEN_1 = _token1;
-    }
-
-    // ==== External Functions ====
-    function addLiquidity(
-        address pool,
-        int24 bottomTick,
-        int24 topTick,
-        uint128 amount
-    )
-        external
-        returns (uint256 amount0, uint256 amount1, uint128 liquidityActual)
-    {
-        // Get balances before
-        uint256 balance0Before = IERC20(TOKEN_0).balanceOf(address(this));
-        uint256 balance1Before = IERC20(TOKEN_1).balanceOf(address(this));
-
-        // Call mint
-        (amount0, amount1, liquidityActual) = IAlgebraPool(pool).mint(
-            address(this),
-            address(this),
-            bottomTick,
-            topTick,
-            amount,
-            abi.encode(TOKEN_0, TOKEN_1)
-        );
-
-        // Get balances after to account for fees
-        uint256 balance0After = IERC20(TOKEN_0).balanceOf(address(this));
-        uint256 balance1After = IERC20(TOKEN_1).balanceOf(address(this));
-
-        // Calculate actual amounts transferred accounting for fees
-        amount0 = balance0Before - balance0After;
-        amount1 = balance1Before - balance1After;
-
-        return (amount0, amount1, liquidityActual);
-    }
-
-    function algebraMintCallback(
-        uint256 amount0Owed,
-        uint256 amount1Owed,
-        bytes calldata
-    ) external {
-        // Check token balances
-        uint256 balance0 = IERC20(TOKEN_0).balanceOf(address(this));
-        uint256 balance1 = IERC20(TOKEN_1).balanceOf(address(this));
-
-        // Transfer what we can, limited by actual balance
-        if (amount0Owed > 0) {
-            uint256 amount0ToSend = amount0Owed > balance0
-                ? balance0
-                : amount0Owed;
-            uint256 balance0Before = IERC20(TOKEN_0).balanceOf(
-                address(msg.sender)
-            );
-            IERC20(TOKEN_0).transfer(msg.sender, amount0ToSend);
-            uint256 balance0After = IERC20(TOKEN_0).balanceOf(
-                address(msg.sender)
-            );
-            // solhint-disable-next-line gas-custom-errors
-            require(balance0After > balance0Before, "Transfer failed");
-        }
-
-        if (amount1Owed > 0) {
-            uint256 amount1ToSend = amount1Owed > balance1
-                ? balance1
-                : amount1Owed;
-            uint256 balance1Before = IERC20(TOKEN_1).balanceOf(
-                address(msg.sender)
-            );
-            IERC20(TOKEN_1).transfer(msg.sender, amount1ToSend);
-            uint256 balance1After = IERC20(TOKEN_1).balanceOf(
-                address(msg.sender)
-            );
-            // solhint-disable-next-line gas-custom-errors
-            require(balance1After > balance1Before, "Transfer failed");
-        }
-    }
-}
-
 contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
     AlgebraFacet internal algebraFacet;
 
@@ -209,11 +123,6 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
 
     function test_CanSwap_FeeOnTransferToken() public {
         vm.startPrank(RANDOM_APE_ETH_HOLDER_APECHAIN);
-
-        IERC20(tokenIn).approve(
-            address(ldaDiamond),
-            _getDefaultAmountForTokenIn()
-        );
 
         // Build route for algebra swap with command code 2 (user funds)
         bytes memory swapData = _buildAlgebraSwapData(
@@ -338,9 +247,7 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
             _getDefaultAmountForTokenIn()
         );
 
-        // Approve and build route
         vm.startPrank(USER_SENDER);
-        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
         bytes memory swapData = _buildCallbackSwapData(mockPool, USER_SENDER);
 
@@ -432,7 +339,7 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
 
     // ==== Overrides ====
 
-    function _getCallbackSelector() internal override returns (bytes4) {
+    function _getCallbackSelector() internal view override returns (bytes4) {
         return algebraFacet.algebraSwapCallback.selector;
     }
 
@@ -597,12 +504,6 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
     ) private {
         vm.startPrank(USER_SENDER);
 
-        // Approve spending
-        IERC20(address(state.tokenA)).approve(
-            address(ldaDiamond),
-            state.amountIn
-        );
-
         // Build route and execute swap
         SwapTestParams[] memory swapParams = new SwapTestParams[](2);
         bytes[] memory swapData = new bytes[](2);
@@ -762,20 +663,24 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
         address pool = _getPool(params.tokenIn, params.tokenOut);
 
         // Get expected output from QuoterV2
-        // uint256 expectedOutput = _getQuoteExactInput(
-        //     params.tokenIn,
-        //     params.tokenOut,
-        //     params.amountIn
-        // );
+        uint256 expectedOutput = _getQuoteExactInput(
+            params.tokenIn,
+            params.tokenOut,
+            params.amountIn
+        );
+
+        // Add 1 wei slippage buffer
+        uint256 minOutput = expectedOutput - 1;
 
         // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
         CommandType commandCode = params.from == address(ldaDiamond)
             ? CommandType.ProcessMyERC20
             : CommandType.ProcessUserERC20;
-        // 1. Pack the specific data for this swap
+
+        // Pack the specific data for this swap
         bytes memory swapData = _buildAlgebraSwapData(
             AlgebraRouteParams({
-                commandCode: commandCode, // Placeholder, not used in this helper
+                commandCode: commandCode,
                 tokenIn: params.tokenIn,
                 recipient: params.to,
                 pool: pool,
@@ -783,18 +688,16 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
             })
         );
 
-        // 4. Build the route inline and execute the swap to save stack space
+        // Build route with minOutput that includes slippage buffer
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
-                minOut: 0,
+                minOut: minOutput,
                 sender: params.from,
                 recipient: params.to,
-                commandType: params.from == address(coreRouteFacet)
-                    ? CommandType.ProcessMyERC20
-                    : CommandType.ProcessUserERC20
+                commandType: commandCode
             }),
             swapData
         );
@@ -804,7 +707,7 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
-                minOut: 0,
+                minOut: minOutput,
                 sender: params.from,
                 recipient: params.to,
                 commandType: params.from == address(ldaDiamond)
@@ -812,7 +715,8 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
                     : CommandType.ProcessUserERC20
             }),
             route,
-            true // This is a fee-on-transfer token
+            new ExpectedEvent[](0),
+            params.supportsFeeOnTransfer
         );
     }
 
@@ -836,5 +740,91 @@ contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
         (amountOut, ) = IAlgebraQuoter(ALGEBRA_QUOTER_V2_APECHAIN)
             .quoteExactInputSingle(tokenIn, tokenOut, amountIn, 0);
         return amountOut;
+    }
+}
+
+contract AlgebraLiquidityAdderHelper {
+    address public immutable TOKEN_0;
+    address public immutable TOKEN_1;
+
+    constructor(address _token0, address _token1) {
+        TOKEN_0 = _token0;
+        TOKEN_1 = _token1;
+    }
+
+    // ==== External Functions ====
+    function addLiquidity(
+        address pool,
+        int24 bottomTick,
+        int24 topTick,
+        uint128 amount
+    )
+        external
+        returns (uint256 amount0, uint256 amount1, uint128 liquidityActual)
+    {
+        // Get balances before
+        uint256 balance0Before = IERC20(TOKEN_0).balanceOf(address(this));
+        uint256 balance1Before = IERC20(TOKEN_1).balanceOf(address(this));
+
+        // Call mint
+        (amount0, amount1, liquidityActual) = IAlgebraPool(pool).mint(
+            address(this),
+            address(this),
+            bottomTick,
+            topTick,
+            amount,
+            abi.encode(TOKEN_0, TOKEN_1)
+        );
+
+        // Get balances after to account for fees
+        uint256 balance0After = IERC20(TOKEN_0).balanceOf(address(this));
+        uint256 balance1After = IERC20(TOKEN_1).balanceOf(address(this));
+
+        // Calculate actual amounts transferred accounting for fees
+        amount0 = balance0Before - balance0After;
+        amount1 = balance1Before - balance1After;
+
+        return (amount0, amount1, liquidityActual);
+    }
+
+    function algebraMintCallback(
+        uint256 amount0Owed,
+        uint256 amount1Owed,
+        bytes calldata
+    ) external {
+        // Check token balances
+        uint256 balance0 = IERC20(TOKEN_0).balanceOf(address(this));
+        uint256 balance1 = IERC20(TOKEN_1).balanceOf(address(this));
+
+        // Transfer what we can, limited by actual balance
+        if (amount0Owed > 0) {
+            uint256 amount0ToSend = amount0Owed > balance0
+                ? balance0
+                : amount0Owed;
+            uint256 balance0Before = IERC20(TOKEN_0).balanceOf(
+                address(msg.sender)
+            );
+            IERC20(TOKEN_0).transfer(msg.sender, amount0ToSend);
+            uint256 balance0After = IERC20(TOKEN_0).balanceOf(
+                address(msg.sender)
+            );
+            // solhint-disable-next-line gas-custom-errors
+            require(balance0After > balance0Before, "Transfer failed");
+        }
+
+        if (amount1Owed > 0) {
+            uint256 amount1ToSend = amount1Owed > balance1
+                ? balance1
+                : amount1Owed;
+            uint256 balance1Before = IERC20(TOKEN_1).balanceOf(
+                address(msg.sender)
+            );
+            IERC20(TOKEN_1).transfer(msg.sender, amount1ToSend);
+            uint256 balance1After = IERC20(TOKEN_1).balanceOf(
+                address(msg.sender)
+            );
+            // solhint-disable-next-line gas-custom-errors
+            require(balance1After > balance1Before, "Transfer failed");
+        }
     }
 }

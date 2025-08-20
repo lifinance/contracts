@@ -155,7 +155,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetWithCallbackTest {
     function _buildCallbackSwapData(
         address pool,
         address recipient
-    ) internal override returns (bytes memory) {
+    ) internal view override returns (bytes memory) {
         return
             _buildUniV3SwapData(
                 UniV3SwapParams({

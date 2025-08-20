@@ -65,7 +65,7 @@ contract IzumiV3FacetTest is BaseDexFacetWithCallbackTest {
     }
 
     // ==== Callback Test Hooks ====
-    function _getCallbackSelector() internal override returns (bytes4) {
+    function _getCallbackSelector() internal view override returns (bytes4) {
         return izumiV3Facet.swapX2YCallback.selector;
     }
 
@@ -91,10 +91,6 @@ contract IzumiV3FacetTest is BaseDexFacetWithCallbackTest {
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         vm.startPrank(USER_SENDER);
-        IERC20(tokenIn).approve(
-            address(ldaDiamond),
-            _getDefaultAmountForTokenIn()
-        );
 
         bytes memory swapData = _buildIzumiV3SwapData(
             IzumiV3SwapParams({

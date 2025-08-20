@@ -4,25 +4,9 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
+import { IUniV2StylePool } from "lifi/Interfaces/IUniV2StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
-
-interface IUniswapV2Pair {
-    function getReserves()
-        external
-        view
-        returns (
-            uint112 reserve0,
-            uint112 reserve1,
-            uint32 blockTimestampLast
-        );
-    function swap(
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address to,
-        bytes calldata data
-    ) external;
-}
 
 /// @title UniV2StyleFacet
 /// @author LI.FI (https://li.fi)
@@ -68,7 +52,7 @@ contract UniV2StyleFacet is BaseRouteConstants {
         }
 
         // Get reserves and calculate output
-        (uint256 r0, uint256 r1, ) = IUniswapV2Pair(pool).getReserves();
+        (uint256 r0, uint256 r1, ) = IUniV2StylePool(pool).getReserves();
         if (r0 == 0 || r1 == 0) revert WrongPoolReserves();
 
         (uint256 reserveIn, uint256 reserveOut) = direction
@@ -86,7 +70,7 @@ contract UniV2StyleFacet is BaseRouteConstants {
             ? (uint256(0), amountOut)
             : (amountOut, uint256(0));
 
-        IUniswapV2Pair(pool).swap(
+        IUniV2StylePool(pool).swap(
             amount0Out,
             amount1Out,
             recipient,

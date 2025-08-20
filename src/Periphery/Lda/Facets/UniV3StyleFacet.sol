@@ -5,18 +5,9 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
+import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { InvalidCallData, SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
-
-interface IUniV3StylePool {
-    function swap(
-        address recipient,
-        bool zeroForOne,
-        int256 amountSpecified,
-        uint160 sqrtPriceLimitX96,
-        bytes calldata data
-    ) external returns (int256 amount0, int256 amount1);
-}
 
 /// @title UniV3StyleFacet
 /// @author LI.FI (https://li.fi)
