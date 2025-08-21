@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
-import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
 import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
 

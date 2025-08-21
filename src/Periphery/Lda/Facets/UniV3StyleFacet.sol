@@ -6,7 +6,8 @@ import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
-import { InvalidCallData, SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title UniV3StyleFacet

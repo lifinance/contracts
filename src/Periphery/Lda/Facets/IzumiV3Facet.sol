@@ -7,7 +7,7 @@ import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
-import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 
 /// @title IzumiV3Facet
 /// @author LI.FI (https://li.fi)

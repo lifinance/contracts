@@ -8,7 +8,7 @@ import { IAlgebraFactory } from "lifi/Interfaces/IAlgebraFactory.sol";
 import { IAlgebraQuoter } from "lifi/Interfaces/IAlgebraQuoter.sol";
 import { AlgebraFacet } from "lifi/Periphery/Lda/Facets/AlgebraFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { TestToken as ERC20 } from "../../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../../utils/MockTokenFeeOnTransfer.sol";
 import { BaseDexFacetWithCallbackTest } from "../BaseDexFacetWithCallback.t.sol";

@@ -8,7 +8,7 @@ import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Errors/GenericErrors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title AlgebraFacet
