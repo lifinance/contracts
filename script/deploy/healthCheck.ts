@@ -33,6 +33,7 @@ import {
   getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
   checkIsDeployedTron,
+  parseTroncastFacetsOutput,
 } from './tron/utils'
 
 const SAFE_THRESHOLD = 3
@@ -97,7 +98,7 @@ const main = defineCommand({
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
-    if (isTron) tronWeb = getTronWebClient()
+    if (isTron) tronWeb = initTronWeb('mainnet')
     else {
       const chain = getViemChainForNetworkName(network.toLowerCase())
       publicClient = createPublicClient({
@@ -631,39 +632,6 @@ const main = defineCommand({
     }
   },
 })
-
-/**
- * Initialize TronWeb client for read-only operations
- */
-const getTronWebClient = (): TronWeb => {
-  // Reuse existing initTronWeb utility, no private key needed for read-only
-  return initTronWeb('mainnet')
-}
-
-/**
- * Parse troncast facets output
- * Format: [[TAddr1 [0xsel1 0xsel2]] [TAddr2 [0xsel3]]]
- */
-const parseTroncastFacetsOutput = (
-  output: string
-): Array<[string, string[]]> => {
-  // Remove outer brackets and clean up the string
-  const cleaned = output.trim().slice(1, -1)
-
-  // Regular expression to match [address [selectors]]
-  const facetRegex = /\[([T][A-Za-z0-9]{33})\s+\[((?:0x[a-fA-F0-9]+\s*)*)\]\]/g
-  const facets: Array<[string, string[]]> = []
-
-  let match
-  while ((match = facetRegex.exec(cleaned)) !== null) {
-    const address = match[1]
-    const selectorsStr = match[2].trim()
-    const selectors = selectorsStr ? selectorsStr.split(/\s+/) : []
-    facets.push([address, selectors])
-  }
-
-  return facets
-}
 
 const logError = (msg: string) => {
   consola.error(msg)
