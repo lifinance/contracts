@@ -1,30 +1,57 @@
-# Eco Facet
+# EcoFacet
 
 ## How it works
 
-The Eco Facet works by ...
+The EcoFacet enables cross-chain bridging through the Eco protocol. It allows users to bridge tokens across chains with optional destination chain calls, supporting both immediate execution and deferred proving mechanisms.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->EcoFacet;
-    EcoFacet -- CALL --> C(Eco)
+    EcoFacet -- CALL --> C(Eco Portal)
 ```
 
 ## Public Methods
 
 - `function startBridgeTokensViaEco(BridgeData calldata _bridgeData, EcoData calldata _ecoData)`
-  - Simply bridges tokens using eco
-- `swapAndStartBridgeTokensViaEco(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, ecoData memory _ecoData)`
-  - Performs swap(s) before bridging tokens using eco
+  - Simply bridges tokens using Eco
+- `function swapAndStartBridgeTokensViaEco(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, EcoData calldata _ecoData)`
+  - Performs swap(s) before bridging tokens using Eco
 
-## eco Specific Parameters
+## Eco Specific Parameters
 
-The methods listed above take a variable labeled `_ecoData`. This data is specific to eco and is represented as the following struct type:
+The methods listed above take a variable labeled `_ecoData`. This data is specific to Eco and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct ecoData {
-  string example;
+/// @param portal The address of the portal contract on the source chain
+/// @param destinationPortal The address of the portal contract on the destination chain
+/// @param prover The address authorized to prove the route execution
+/// @param routeDeadline The deadline for route execution (timestamp)
+/// @param rewardDeadline The deadline for claiming rewards (timestamp)
+/// @param salt Unique identifier for the route
+/// @param calls Array of calls to be executed on the destination chain
+/// @param allowPartial Whether partial execution is allowed
+struct EcoData {
+  address portal;
+  address destinationPortal;
+  address prover;
+  uint64 routeDeadline;
+  uint64 rewardDeadline;
+  bytes32 salt;
+  IEco.Call[] calls;
+  bool allowPartial;
+}
+```
+
+The `IEco.Call` struct is defined as:
+
+```solidity
+/// @param target The contract address to call on destination chain
+/// @param data The calldata to send to the target contract
+/// @param value The amount of native token to send with the call
+struct Call {
+  address target;
+  bytes data;
+  uint256 value;
 }
 ```
 
