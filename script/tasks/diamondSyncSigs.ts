@@ -6,8 +6,8 @@ import {
   getContract,
   http,
   parseAbi,
-  type Hex,
   type Chain,
+  type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as chains from 'viem/chains'
@@ -82,6 +82,27 @@ const main = defineCommand({
 
     // Check if function signatures are approved
     const { sigs } = await import(`../../config/sigs.json`)
+
+    // Security check: Prevent whitelisting of dangerous function selectors
+    const DANGEROUS_SELECTORS = ['0x23b872dd'] // transferFrom
+    for (const sig of sigs) 
+      if (DANGEROUS_SELECTORS.includes(sig.toLowerCase())) {
+        consola.error(
+          `❌ ERROR: transferFrom function selector (0x23b872dd) detected in signatures!`
+        )
+        consola.error(
+          `   This function allows transferring tokens from any address with approval.`
+        )
+        consola.error(
+          `   Whitelisting this function is NOT ALLOWED for security reasons.`
+        )
+        consola.error(
+          `   Please remove this function selector from config/sigs.json before proceeding.`
+        )
+        process.exit(1)
+      }
+    
+
     const calls = sigs.map((sig: string) => {
       return {
         ...dexManagerReader,
