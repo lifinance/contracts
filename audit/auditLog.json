@@ -342,6 +342,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.07.30_Patcher(v1.0.0).pdf",
       "auditCommitHash": "1536e96068d5cb1672e48078d22da27c79f4c2ef"
+    },
+    "audit20250818": {
+      "auditCompletedOn": "18.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.18_WhitelistManagerFacet(v1.0.0).pdf",
+      "auditCommitHash": "5665c5f9b4e7e9419201801ae58f9dd1d05c5f8f"
     }
   },
   "auditedContracts": {
@@ -627,6 +634,9 @@
     },
     "Validatable": {
       "1.0.0": ["audit20250508"]
+    },
+    "WhitelistManagerFacet": {
+      "1.0.0": ["audit20250818"]
     },
     "WithdrawFacet": {
       "1.0.0": ["audit20250508"]
