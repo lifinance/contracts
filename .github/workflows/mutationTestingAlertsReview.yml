@@ -1,0 +1,429 @@
+name: Mutation Testing PR Summary
+
+# - generates a PR comment summary of mutation testing results from GitHub Code Scanning
+# - lists surviving mutants (test coverage gaps) found in the changed files
+# - shows how many mutants were dismissed with proper justification
+# - reports net unresolved findings that need attention
+# - provides a clear overview of test coverage quality for the PR
+# - leaves a summary comment starting with "## Mutation Testing Report"
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths:
+      - 'src/**/*.sol'
+  workflow_run:
+    workflows: ["Olympix Mutation Testing"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to generate summary for'
+        required: true
+        type: string
+      test_mode:
+        description: 'Test mode: use latest check run from list instead of PR commit'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to post, update PR comments & revert PR to draft
+  security-events: read # required to fetch code scanning alerts
+  issues: write # required to post comments via the GitHub Issues API (used for PR comments)
+
+jobs:
+  mutation-testing-summary:
+    runs-on: ubuntu-latest
+    # Only run if this is a pull request context or manual dispatch
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Get PR Number
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger - use provided PR number or current branch
+            if [[ -n "${{ github.event.inputs.pr_number }}" ]]; then
+              PR_NUMBER="${{ github.event.inputs.pr_number }}"
+              echo "Using manual PR number: $PR_NUMBER"
+            else
+              # Try to find PR for current branch
+              BRANCH_NAME="${{ github.ref_name }}"
+              echo "Looking for PR for branch: $BRANCH_NAME"
+              PR_RESPONSE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+                "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${BRANCH_NAME}&state=open")
+              
+              if echo "$PR_RESPONSE" | jq -e '. | type == "array" and length > 0' >/dev/null 2>&1; then
+                PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.[0].number')
+                echo "Found PR for branch: $PR_NUMBER"
+              else
+                echo "No open PR found for branch $BRANCH_NAME"
+                exit 0
+              fi
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.number }}"
+          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            # Get PR number from workflow_run context
+            PR_RESPONSE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/pulls")
+            
+            if echo "$PR_RESPONSE" | jq -e '. | type == "array" and length > 0' >/dev/null 2>&1; then
+              PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.[0].number')
+            else
+              echo "No PR found for commit ${{ github.event.workflow_run.head_sha }}"
+              exit 0
+            fi
+          else
+            echo "Unable to determine PR number"
+            exit 0
+          fi
+          
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "Using PR number: $PR_NUMBER"
+
+      - name: Extract Mutation Testing Data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Extracting mutation testing data..."
+          
+          # Initialize variables
+          TOTAL_MUTANTS=0
+          KILLED_COUNT=0
+          SURVIVING_COUNT=0
+          DISMISSED_COUNT=0
+          MUTATION_SCORE=0
+          DATA_SOURCE="none"
+          CHECK_RUN_ID=""
+          
+          # For pull request events, always use real mode and poll for completion
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "PULL REQUEST MODE: Waiting for mutation testing check run to complete..."
+            
+            # Get commit SHA for the PR
+            COMMIT_SHA="${{ github.sha }}"
+            echo "Monitoring commit: ${COMMIT_SHA:0:8}"
+            
+            # Poll for check run completion (25 minutes = 1500 seconds)
+            MAX_WAIT_TIME=1500
+            POLL_INTERVAL=60
+            ELAPSED_TIME=0
+            
+            while [[ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]]; do
+              echo "Checking for mutation-results check run... (${ELAPSED_TIME}s elapsed)"
+              
+              CHECK_RUNS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs")
+              CHECK_RUN_DATA=$(echo "$CHECK_RUNS" | jq -r '.check_runs[]? | select(.name == "mutation-results") | {id: .id, status: .status, conclusion: .conclusion}' | head -1)
+              
+              if [[ -n "$CHECK_RUN_DATA" && "$CHECK_RUN_DATA" != "null" ]]; then
+                CHECK_RUN_ID=$(echo "$CHECK_RUN_DATA" | jq -r '.id // ""')
+                CHECK_STATUS=$(echo "$CHECK_RUN_DATA" | jq -r '.status // ""')
+                CHECK_CONCLUSION=$(echo "$CHECK_RUN_DATA" | jq -r '.conclusion // ""')
+                
+                echo "Found check run ID: $CHECK_RUN_ID, status: $CHECK_STATUS, conclusion: $CHECK_CONCLUSION"
+                
+                if [[ "$CHECK_STATUS" == "completed" ]]; then
+                  echo "Check run completed successfully!"
+                  DATA_SOURCE="pr_commit"
+                  break
+                else
+                  echo "Check run still in progress (status: $CHECK_STATUS)..."
+                fi
+              else
+                echo "No mutation-results check run found yet..."
+              fi
+              
+              if [[ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]]; then
+                echo "Waiting ${POLL_INTERVAL} seconds before next check..."
+                sleep $POLL_INTERVAL
+                ELAPSED_TIME=$((ELAPSED_TIME + POLL_INTERVAL))
+              fi
+            done
+            
+            if [[ $ELAPSED_TIME -ge $MAX_WAIT_TIME ]]; then
+              echo "Timeout: No completed mutation testing check run found after 25 minutes"
+              echo "This may indicate the mutation testing workflow hasn't started or is taking longer than expected"
+            fi
+          else
+            # For other event types, use the existing logic
+            TEST_MODE="${{ github.event.inputs.test_mode || 'false' }}"
+            
+            if [[ "$TEST_MODE" == "true" ]]; then
+              echo "TEST MODE: Finding latest mutation-results check run..."
+              CHECK_RUNS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/${{ github.repository }}/check-runs?per_page=50" || echo '{"check_runs":[]}')
+              CHECK_RUN_ID=$(echo "$CHECK_RUNS" | jq -r '.check_runs[]? | select(.name == "mutation-results" and .status == "completed") | .id' | head -1)
+              
+              if [[ -z "$CHECK_RUN_ID" || "$CHECK_RUN_ID" == "null" ]]; then
+                echo "No recent check run found, using fallback ID"
+                CHECK_RUN_ID="47469978380"
+                DATA_SOURCE="test_mode_fallback"
+              else
+                echo "Found latest check run ID: $CHECK_RUN_ID"
+                DATA_SOURCE="test_mode_latest"
+              fi
+            else
+              echo "REAL MODE: Finding check run for commit..."
+              
+              # Get commit SHA
+              if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+                COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+              else
+                PR_DETAILS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}")
+                COMMIT_SHA=$(echo "$PR_DETAILS" | jq -r '.head.sha // ""')
+              fi
+              
+              if [[ -n "$COMMIT_SHA" ]]; then
+                echo "Looking for check run on commit: ${COMMIT_SHA:0:8}"
+                CHECK_RUNS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs")
+                CHECK_RUN_ID=$(echo "$CHECK_RUNS" | jq -r '.check_runs[]? | select(.name == "mutation-results") | .id' | head -1)
+                
+                if [[ -n "$CHECK_RUN_ID" && "$CHECK_RUN_ID" != "null" ]]; then
+                  echo "Found check run ID: $CHECK_RUN_ID"
+                  DATA_SOURCE="pr_commit"
+                else
+                  echo "No check run found for commit ${COMMIT_SHA:0:8}"
+                fi
+              else
+                echo "Could not determine commit SHA"
+              fi
+            fi
+          fi
+          
+          # Extract data from check run if found
+          if [[ -n "$CHECK_RUN_ID" && "$CHECK_RUN_ID" != "null" ]]; then
+            echo "Extracting data from check run $CHECK_RUN_ID..."
+            RAW_OUTPUT=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/check-runs/${CHECK_RUN_ID}" \
+              | jq -r '.output.text // ""')
+            
+            if [[ -n "$RAW_OUTPUT" && "$RAW_OUTPUT" != "null" ]]; then
+              # Extract values using grep/sed
+              TOTAL_MUTANTS=$(echo "$RAW_OUTPUT" | grep '"TotalMutationsCount"' | head -1 | sed 's/.*: \([0-9]*\).*/\1/' || echo "0")
+              KILLED_COUNT=$(echo "$RAW_OUTPUT" | grep '"KilledMutationsCount"' | head -1 | sed 's/.*: \([0-9]*\).*/\1/' || echo "0")
+              SURVIVING_COUNT=$(echo "$RAW_OUTPUT" | grep '"SurvivedMutationsCount"' | head -1 | sed 's/.*: \([0-9]*\).*/\1/' || echo "0")
+              MUTATION_SCORE=$(echo "$RAW_OUTPUT" | grep '"ScorePercentage"' | head -1 | sed 's/.*: \([0-9]*\).*/\1/' || echo "0")
+              
+              if [[ "$TOTAL_MUTANTS" =~ ^[0-9]+$ && "$TOTAL_MUTANTS" -gt 0 ]]; then
+                echo "Extracted: $TOTAL_MUTANTS total, $KILLED_COUNT killed, $SURVIVING_COUNT survived, $MUTATION_SCORE% score"
+                DATA_SOURCE="check_run"
+              else
+                echo "Invalid data extracted, falling back to code scanning"
+                TOTAL_MUTANTS=0
+                KILLED_COUNT=0
+                SURVIVING_COUNT=0
+                MUTATION_SCORE=0
+                DATA_SOURCE="none"
+              fi
+            else
+              echo "No output text in check run"
+              DATA_SOURCE="none"
+            fi
+          fi
+          
+          # Fallback to code scanning if no check run data
+          if [[ "$DATA_SOURCE" == "none" ]]; then
+            echo "Using code scanning alerts as fallback..."
+            
+            MUTATIONS_PR=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?pr=${PR_NUMBER}")
+            MUTATIONS_ALL=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${{ github.repository }}/code-scanning/alerts?per_page=100&state=open")
+            
+            PR_COUNT=$(echo "$MUTATIONS_PR" | jq 'length // 0')
+            ALL_COUNT=$(echo "$MUTATIONS_ALL" | jq 'length // 0')
+            
+            MUTATIONS=$(if [[ $PR_COUNT -gt 0 ]]; then echo "$MUTATIONS_PR"; else echo "$MUTATIONS_ALL"; fi)
+            MUTATIONS=$(echo "$MUTATIONS" | jq -c '[ .[] | select(.tool.name == "Olympix Mutation Testing") ]' || echo "[]")
+            
+            SURVIVING_COUNT=$(echo "$MUTATIONS" | jq -r '[.[] | select(.state == "open")] | length')
+            DISMISSED_COUNT=$(echo "$MUTATIONS" | jq -r '[.[] | select(.state == "dismissed")] | length')
+            TOTAL_MUTANTS=$((SURVIVING_COUNT + DISMISSED_COUNT))
+            KILLED_COUNT=0
+            MUTATION_SCORE=0
+            
+            if [[ "$TOTAL_MUTANTS" -gt 0 ]]; then
+              DATA_SOURCE="code_scanning"
+              echo "Found $TOTAL_MUTANTS mutants from code scanning ($SURVIVING_COUNT surviving, $DISMISSED_COUNT dismissed)"
+            else
+              echo "No mutation data found"
+            fi
+          fi
+          
+          # Save environment variables
+          echo "TOTAL_MUTANTS=$TOTAL_MUTANTS" >> $GITHUB_ENV
+          echo "KILLED_COUNT=$KILLED_COUNT" >> $GITHUB_ENV
+          echo "SURVIVING_COUNT=$SURVIVING_COUNT" >> $GITHUB_ENV
+          echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
+          echo "MUTATION_SCORE=$MUTATION_SCORE" >> $GITHUB_ENV
+          echo "DATA_SOURCE=$DATA_SOURCE" >> $GITHUB_ENV
+          echo "CHECK_RUN_ID=$CHECK_RUN_ID" >> $GITHUB_ENV
+          
+          echo "Extraction completed - Source: $DATA_SOURCE"
+
+      - name: Find Existing PR Comment
+        id: find_comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Searching for existing PR comment..."
+
+          # Get comments with better error handling
+          COMMENTS_RESPONSE=$(curl -s -w "%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=20&sort=updated&direction=desc")
+          
+          # Extract HTTP status code and response body
+          HTTP_CODE="${COMMENTS_RESPONSE: -3}"
+          COMMENTS_BODY="${COMMENTS_RESPONSE%???}"
+          
+          echo "API response code: $HTTP_CODE"
+          
+          if [[ "$HTTP_CODE" == "200" ]]; then
+            echo "Recent comments count: $(echo "$COMMENTS_BODY" | jq 'length // 0' 2>/dev/null || echo "0")"
+            
+            # Check if response is valid JSON array
+            if echo "$COMMENTS_BODY" | jq -e '. | type == "array"' >/dev/null 2>&1; then
+              # Look for comment starting with the correct header
+              COMMENT_ID=$(echo "$COMMENTS_BODY" | jq -r \
+                '.[] | select(.body | test("^## Mutation Testing Report")) | .id // empty' | head -1)
+            else
+              echo "Warning: Invalid JSON response from comments API"
+              echo "Response preview: ${COMMENTS_BODY:0:200}..."
+              COMMENT_ID=""
+            fi
+          else
+            echo "Error: API returned HTTP $HTTP_CODE"
+            echo "Response preview: ${COMMENTS_BODY:0:200}..."
+            COMMENT_ID=""
+          fi
+
+          if [[ -n "$COMMENT_ID" && "$COMMENT_ID" != "null" && "$COMMENT_ID" != "empty" ]]; then
+            echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> $GITHUB_ENV
+            echo "Found existing comment ID: $COMMENT_ID"
+          else
+            echo "No existing comment found"
+          fi
+
+      - name: Post or Update PR Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use extracted data or calculate from surviving/dismissed if needed
+          if [[ "$KILLED_COUNT" -eq 0 && "$TOTAL_MUTANTS" -gt 0 && "$DATA_SOURCE" == "code_scanning" ]]; then
+            # For code scanning source, we can't know killed count precisely
+            # Estimate: assume remaining mutants were killed
+            KILLED_COUNT=$((TOTAL_MUTANTS - SURVIVING_COUNT))
+          fi
+          
+          # Calculate mutation score if not already provided
+          if [[ "$MUTATION_SCORE" -eq 0 && "$TOTAL_MUTANTS" -gt 0 ]]; then
+            MUTATION_SCORE=$(( (KILLED_COUNT * 100) / TOTAL_MUTANTS ))
+          fi
+          
+          # Create professional comment
+          COMMENT_BODY="## Mutation Testing Report\n\n"
+          
+          # Add data source note
+          if [[ "$DATA_SOURCE" == "check_run" ]]; then
+            COMMENT_BODY+="**Note:** Generated from real check run data"
+            if [[ -n "$CHECK_RUN_ID" ]]; then
+              COMMENT_BODY+=" ([Check Run $CHECK_RUN_ID](https://github.com/${{ github.repository }}/runs/$CHECK_RUN_ID))"
+            fi
+            COMMENT_BODY+="\n\n"
+          elif [[ "$DATA_SOURCE" == "code_scanning" ]]; then
+            COMMENT_BODY+="**Note:** Generated from code scanning alerts (limited data available)\n\n"
+          elif [[ "$DATA_SOURCE" == "test_mode_latest" ]]; then
+            COMMENT_BODY+="**Note:** TEST MODE - Generated from latest check run data ([Check Run $CHECK_RUN_ID](https://github.com/${{ github.repository }}/runs/$CHECK_RUN_ID))\n\n"
+          elif [[ "$DATA_SOURCE" == "test_mode_fallback" ]]; then
+            COMMENT_BODY+="**Note:** TEST MODE - Generated from fallback check run data ([Check Run $CHECK_RUN_ID](https://github.com/${{ github.repository }}/runs/$CHECK_RUN_ID))\n\n"
+          else
+            COMMENT_BODY+="**Note:** No mutation testing data available\n\n"
+          fi
+          
+          # Core statistics table
+          COMMENT_BODY+="### Test Coverage Analysis\n\n"
+          COMMENT_BODY+="| Metric | Value |\n"
+          COMMENT_BODY+="|--------|-------|\n"
+          COMMENT_BODY+="| **Mutation Score** | ${MUTATION_SCORE}% |\n"
+          COMMENT_BODY+="| **Total Mutants** | ${TOTAL_MUTANTS} |\n"
+          COMMENT_BODY+="| **Killed Mutants** | ${KILLED_COUNT} |\n"
+          COMMENT_BODY+="| **Surviving Mutants** | ${SURVIVING_COUNT} |\n"
+          COMMENT_BODY+="| **Dismissed Findings** | ${DISMISSED_COUNT} |\n\n"
+          
+          # Assessment based on mutation score
+          if [[ $MUTATION_SCORE -ge 90 ]]; then
+            ASSESSMENT="Excellent"
+            RECOMMENDATION="Test coverage meets enterprise standards."
+          elif [[ $MUTATION_SCORE -ge 80 ]]; then
+            ASSESSMENT="Good" 
+            RECOMMENDATION="Test coverage is adequate with minor gaps identified."
+          elif [[ $MUTATION_SCORE -ge 70 ]]; then
+            ASSESSMENT="Moderate"
+            RECOMMENDATION="Test coverage requires improvement to meet quality standards."
+          elif [[ $MUTATION_SCORE -ge 50 ]]; then
+            ASSESSMENT="Poor"
+            RECOMMENDATION="Significant test coverage gaps detected. Review and enhancement required."
+          else
+            ASSESSMENT="Critical"
+            if [[ $TOTAL_MUTANTS -eq 0 ]]; then
+              RECOMMENDATION="Test coverage is insufficient. Immediate attention required."
+            else
+              RECOMMENDATION="Test coverage is insufficient, or mutation testing is not configured correctly."
+            fi
+          fi
+          
+          COMMENT_BODY+="### Quality Assessment\n\n"
+          COMMENT_BODY+="**Coverage Quality:** ${ASSESSMENT}\n\n"
+          COMMENT_BODY+="**Recommendation:** ${RECOMMENDATION}\n\n"
+          
+          # Action items
+          if [[ $SURVIVING_COUNT -gt 0 ]]; then
+            COMMENT_BODY+="### Required Actions\n\n"
+            COMMENT_BODY+="- Review ${SURVIVING_COUNT} surviving mutants in [Code Scanning](https://github.com/${{ github.repository }}/security/code-scanning?query=is%3Aopen+branch%3Amain+tool%3A%22Olympix+Mutation+Testing%22)\n"
+            COMMENT_BODY+="- Add test cases to eliminate coverage gaps\n"
+            COMMENT_BODY+="- Validate business logic assertions in existing tests\n\n"
+          else
+            if [[ $TOTAL_MUTANTS -gt 0 ]]; then
+              COMMENT_BODY+="### Status\n\n"
+              COMMENT_BODY+="All generated mutants have been successfully eliminated by the test suite.\n\n"
+            else
+              COMMENT_BODY+="### Status\n\n"
+              COMMENT_BODY+="No mutation testing analysis results are currently available for this branch.\n\n"
+              COMMENT_BODY+="**Diagnostic Information:**\n"
+              COMMENT_BODY+="- [View Latest Mutation Testing Workflow](https://github.com/${{ github.repository }}/actions/workflows/olympixMutationTesting.yml)\n"
+              COMMENT_BODY+="- [View Latest Check Runs](https://github.com/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha || github.sha }}/checks)\n"
+              COMMENT_BODY+="- Verify that mutation testing has completed successfully for this commit\n\n"
+            fi
+          fi
+          
+          # Technical details
+          COMMENT_BODY+="---\n"
+          COMMENT_BODY+="*Mutation testing evaluates test suite effectiveness by introducing controlled code modifications and verifying that existing tests detect these changes.*"
+
+          # Update existing comment if found; otherwise, post a new one
+          if [[ -n "${EXISTING_COMMENT_ID:-}" ]]; then
+            echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
+            curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
+          else
+            echo "Posting new comment to PR $PR_NUMBER..."
+            curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+          fi 
