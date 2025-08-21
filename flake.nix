@@ -23,6 +23,10 @@
             bun
             foundry
             stdenv.cc.cc.lib
+            jq
+            bc
+            gum
+            mongosh
           ];
 
           shellHook = ''
