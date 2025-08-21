@@ -27969,9 +27969,9 @@
       "staging": {
         "1.2.2": [
           {
-            "ADDRESS": "0x97D67F0131E5D7E4f1215384E595a27eDf051e51",
+            "ADDRESS": "0xA77abE6A3E0Fe927d503c68fCF9B26e11A8bB1A4",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-08-13 13:12:27",
+            "TIMESTAMP": "2025-08-21 13:09:03",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000337685fdab40d39bd02028545a4ffa7d287cc3e2",
             "SALT": "",
             "VERIFIED": "true",
