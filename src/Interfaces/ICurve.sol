@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 /// @title Interface for Curve
 /// @author LI.FI (https://li.fi)
+/// @notice Minimal Curve pool interface for exchange operations
 /// @custom:version 1.0.0
 interface ICurve {
     function exchange(

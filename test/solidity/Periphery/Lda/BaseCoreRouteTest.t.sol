@@ -18,7 +18,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         ProcessUserERC20, // 2 - processUserERC20 (User's funds)
         ProcessNative, // 3 - processNative
         ProcessOnePool, // 4 - processOnePool (Pool's funds)
-        ApplyPermit // 6 - applyPermit
+        ApplyPermit // 5 - applyPermit
     }
 
     struct ExpectedEvent {
