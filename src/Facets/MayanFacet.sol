@@ -217,32 +217,26 @@ contract MayanFacet is
                 receiver := mload(add(protocolData, 0xc4)) // MayanCircle::bridgeWithLockedFee()
             }
             case 0xafd9b706 {
-                // solhint-disable-next-line max-line-length
                 // 0xafd9b706 createOrder((address,uint256,uint64,[*bytes32*],uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
                 receiver := mload(add(protocolData, 0x84)) // MayanCircle::createOrder()
             }
             case 0x6111ad25 {
-                // solhint-disable-next-line max-line-length
                 // 0x6111ad25 swap((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes),address,uint256)
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::swap()
             }
             case 0x1eb1cff0 {
-                // solhint-disable-next-line max-line-length
                 // 0x1eb1cff0 wrapAndSwapETH((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes))
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::wrapAndSwapETH()
             }
             case 0xb866e173 {
-                // solhint-disable-next-line max-line-length
                 // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x104)) // MayanSwift::createOrderWithEth()
             }
             case 0x8e8d142b {
-                // solhint-disable-next-line max-line-length
                 // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
             }
             case 0x1c59b7fc {
-                // solhint-disable-next-line max-line-length
                 // 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))
                 receiver := mload(add(protocolData, 0x84))
             }
@@ -255,22 +249,18 @@ contract MayanFacet is
                 receiver := mload(add(protocolData, 0xa4))
             }
             case 0xf58b6de8 {
-                // solhint-disable-next-line max-line-length
                 // 0xf58b6de8 FastMCTP::bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
                 receiver := mload(add(protocolData, 0xc4))
             }
             case 0x2337e236 {
-                // solhint-disable-next-line max-line-length
                 // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0xe4))
             }
             case 0xe27dce37 {
-                // solhint-disable-next-line max-line-length
                 // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,[*address*],uint64,uint256,uint256,(uint64, tuple))
                 receiver := mload(add(protocolData, 0x64))
             }
             case 0x4d1ed73b {
-                // solhint-disable-next-line max-line-length
                 // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,[*address*],uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
                 receiver := mload(add(protocolData, 0x64))
             }
