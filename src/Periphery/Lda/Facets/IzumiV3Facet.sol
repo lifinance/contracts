@@ -129,6 +129,6 @@ contract IzumiV3Facet is BaseRouteConstants {
         address tokenIn = abi.decode(data, (address));
         LibAsset.transferERC20(tokenIn, msg.sender, amountToPay);
 
-        LibCallbackManager.clear();
+        LibCallbackManager.disarm();
     }
 }

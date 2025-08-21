@@ -34,7 +34,7 @@ contract UniV3StyleFacet is BaseRouteConstants {
     modifier onlyExpectedPool() {
         LibCallbackManager.verifyCallbackSender();
         _;
-        LibCallbackManager.clear();
+        LibCallbackManager.disarm();
     }
 
     // ==== External Functions ====

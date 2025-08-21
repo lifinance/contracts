@@ -37,8 +37,8 @@ library LibCallbackManager {
         callbackStorage().expected = expectedCallbackSender;
     }
 
-    /// @notice Clear the guard (called inside the callback)
-    function clear() internal {
+    /// @notice Disarm the guard (called inside the callback)
+    function disarm() internal {
         callbackStorage().expected = address(0);
     }
 

@@ -100,6 +100,6 @@ contract AlgebraFacet is BaseRouteConstants {
     ) external {
         LibCallbackManager.verifyCallbackSender();
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.clear();
+        LibCallbackManager.disarm();
     }
 }
