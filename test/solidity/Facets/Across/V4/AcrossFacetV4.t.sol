@@ -406,7 +406,8 @@ contract AcrossFacetV4Test is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
 
-        validAcrossData.quoteTimestamp = uint32(block.timestamp - 100 days);
+        // Keep quote fresh so we specifically test receiver mismatch.
+        validAcrossData.quoteTimestamp = uint32(block.timestamp);
 
         bridgeData.receiver = address(0x123); // does not match with USER_RECEIVER
 
