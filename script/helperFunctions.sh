@@ -2010,6 +2010,13 @@ function verifyContract() {
     fi
   fi
 
+  # Add verifier URL if available (for custom verifiers like oklink)
+  local VERIFIER_URL
+  VERIFIER_URL=$(getVerifierUrl "$NETWORK" 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
+    VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
+  fi
+
     echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
     # Attempt verification with retries (for cases where block explorer isn't synced)
@@ -2164,6 +2171,44 @@ function getEtherscanApiKeyName() {
   fi
 
   echo "$ENV_VAR"
+}
+
+function getVerifierUrl() {
+  local NETWORK="$1"
+
+  if [[ -z "$NETWORK" ]]; then
+    echo "Usage: getVerifierUrl <network>" >&2
+    return 1
+  fi
+
+  if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
+    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    return 1
+  fi
+
+  # Extract the line with the verifier URL for the given network
+  local URL_LINE
+  URL_LINE=$(awk -v net="$NETWORK" '
+    $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
+    in_etherscan && /^\[/ { in_etherscan=0 }
+    in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
+  ' "$FOUNDRY_TOML_FILE_PATH")
+
+  if [[ -z "$URL_LINE" ]]; then
+    echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
+    return 1
+  fi
+
+  # extract the verifier URL
+  local VERIFIER_URL
+  VERIFIER_URL=$(echo "$URL_LINE" | sed -n 's/.*url *= *"\([^"]*\)".*/\1/p')
+
+  if [[ -z "$VERIFIER_URL" ]]; then
+    echo "Error: Could not extract verifier URL from line: $URL_LINE" >&2
+    return 1
+  fi
+
+  echo "$VERIFIER_URL"
 }
 
 function verifyAllUnverifiedContractsInLogFile() {
