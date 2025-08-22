@@ -52,7 +52,7 @@ const main = async () => {
     sendingAssetId: '0x0000000000000000000000000000000000000000', // Native ETH
     receiver: address,
     minAmount: ethers.utils.parseEther('0.0001'),
-    destinationChainId: 42161, // We are just depositing, hence no destination chain id (using the same chain id as the source chain)
+    destinationChainId: 0, // We are not bridging, just depositing, hence no destination chain id
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
