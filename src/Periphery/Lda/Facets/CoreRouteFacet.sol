@@ -186,41 +186,40 @@ contract CoreRouteFacet is
         uint256 balOutFinal = isNativeOut
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
-        if (balOutFinal < balOutInitial + amountOutMin) {
-            revert SwapTokenOutAmountTooLow(balOutFinal - balOutInitial);
-        }
-
         amountOut = balOutFinal - balOutInitial;
+        if (amountOut < amountOutMin) {
+            revert SwapTokenOutAmountTooLow(amountOut);
+        }
     }
 
     /// @notice Interprets and executes commands from the route byte stream
-    /// @dev A route is a packed byte stream of sequential commands. Each command begins with a 1-byte opcode:
-    /// - 1 = HandleSelfERC20 (tokens already on this contract)
-    /// - 2 = HandleUserERC20 (tokens from user)
-    /// - 3 = HandleNative (ETH held by this contract)
-    /// - 4 = HandleSinglePool (tokens already in pool)
+    /// @dev A route is a packed byte stream of sequential commands. Each command begins with a 1-byte route command:
+    /// - 1 = DistributeSelfERC20 (distributes and swaps tokens already on this contract)
+    /// - 2 = DistributeUserERC20 (distributes and swaps tokens from user)
+    /// - 3 = DistributeNative (distributes and swaps ETH held by this contract)
+    /// - 4 = DispatchSinglePoolSwap (dispatches swap using tokens already in pool)
     /// - 5 = ApplyPermit (EIP-2612 permit for tokenIn on behalf of msg.sender)
     ///
-    /// Stream formats per opcode:
-    /// 1. HandleSelfERC20:
+    /// Stream formats per route command:
+    /// 1. DistributeSelfERC20:
     ///    [1][token: address][n: uint8] then n legs, each:
     ///      [share: uint16][len: uint16][data: bytes]
-    ///    total = IERC20(token).balanceOf(address(this)) minus 1 wei (undrain protection)
+    ///    total = IERC20(token).balanceOf(address(this)) minus 1 wei (prevents tiny swaps)
     ///    from = address(this), tokenIn = token
     ///
-    /// 2. HandleUserERC20:
+    /// 2. DistributeUserERC20:
     ///    [2][token: address][n: uint8] then n legs, each:
     ///      [share: uint16][len: uint16][data: bytes]
     ///    total = declaredAmountIn
     ///    from = msg.sender, tokenIn = token
     ///
-    /// 3. HandleNative:
+    /// 3. DistributeNative:
     ///    [3][n: uint8] then n legs, each:
     ///      [share: uint16][len: uint16][data: bytes]
     ///    total = address(this).balance (includes msg.value and any residual ETH)
     ///    from = address(this), tokenIn = INTERNAL_INPUT_SOURCE
     ///
-    /// 4. HandleSinglePool:
+    /// 4. DispatchSinglePoolSwap:
     ///    [4][token: address][len: uint16][data: bytes]
     ///    amountIn = 0 (pool sources tokens internally), from = INTERNAL_INPUT_SOURCE
     ///
@@ -254,10 +253,10 @@ contract CoreRouteFacet is
     ///
     /// // Full route: [2][tokenA][2 legs][60% leg1][40% leg2] then [4][tokenB][leg3]
     /// route = abi.encodePacked(
-    ///     uint8(2), tokenA, uint8(2),
+    ///     uint8(2), tokenA, uint8(2),                          // DistributeUserERC20 with 2 legs
     ///     uint16(39321), uint16(leg1.length), leg1,   // ~60% of amountIn
     ///     uint16(26214), uint16(leg2.length), leg2,   // ~40% of amountIn
-    ///     uint8(4), tokenB,
+    ///     uint8(4), tokenB,                                    // DispatchSinglePoolSwap
     ///     uint16(leg3.length), leg3
     /// );
     /// ```
@@ -275,19 +274,22 @@ contract CoreRouteFacet is
         uint256 step = 0;
 
         uint256 cur = LibPackedStream.createStream(route);
+        // Iterate until the packed route stream is fully consumed.
+        // `isNotEmpty()` returns true while there are unread bytes left in the stream.
         while (cur.isNotEmpty()) {
-            uint8 opcode = cur.readUint8();
-            if (opcode == 1) {
-                uint256 used = _handleSelfERC20(cur);
+            // Read the next command byte that specifies how to handle tokens in this step
+            uint8 routeCommand = cur.readUint8();
+            if (routeCommand == 1) {
+                uint256 used = _distributeSelfERC20(cur);
                 if (step == 0) realAmountIn = used;
-            } else if (opcode == 2) {
-                _handleUserERC20(cur, declaredAmountIn);
-            } else if (opcode == 3) {
-                uint256 usedNative = _handleNative(cur);
+            } else if (routeCommand == 2) {
+                _distributeUserERC20(cur, declaredAmountIn);
+            } else if (routeCommand == 3) {
+                uint256 usedNative = _distributeNative(cur);
                 if (step == 0) realAmountIn = usedNative;
-            } else if (opcode == 4) {
-                _handleSinglePool(cur);
-            } else if (opcode == 5) {
+            } else if (routeCommand == 4) {
+                _dispatchSinglePoolSwap(cur);
+            } else if (routeCommand == 5) {
                 _applyPermit(tokenIn, cur);
             } else {
                 revert UnknownCommandCode();
@@ -321,39 +323,47 @@ contract CoreRouteFacet is
         );
     }
 
-    /// @notice Handles native token (ETH) inputs
+    /// @notice Distributes native ETH held by this contract across legs and dispatches swaps
     /// @dev Assumes ETH is already present on the contract
     /// @param cur The current position in the byte stream
     /// @return total The total amount of ETH to process
-    function _handleNative(uint256 cur) private returns (uint256 total) {
+    function _distributeNative(uint256 cur) private returns (uint256 total) {
         total = address(this).balance;
         _distributeAndSwap(cur, address(this), INTERNAL_INPUT_SOURCE, total);
     }
 
-    /// @notice Processes ERC20 tokens already on this contract
+    /// @notice Distributes ERC20 tokens already on this contract
     /// @dev Includes protection against full balance draining
     /// @param cur The current position in the byte stream
     /// @return total The total amount of tokens to process
-    function _handleSelfERC20(uint256 cur) private returns (uint256 total) {
+    function _distributeSelfERC20(
+        uint256 cur
+    ) private returns (uint256 total) {
         address token = cur.readAddress();
         total = IERC20(token).balanceOf(address(this));
         unchecked {
-            if (total > 0) total -= 1; // slot undrain protection
+            // Prevent swaps with uselessly small amounts (like 1 wei) that could:
+            // 1. Cause the entire transaction to fail (most DEXs reject such tiny trades)
+            // 2. Waste gas even if they succeeded
+            // By subtracting 1 from any positive balance, we ensure:
+            // - A balance of 1 becomes a swap amount of 0 (effectively skipping the swap)
+            // - Larger balances are barely affected
+            if (total > 0) total -= 1;
         }
         _distributeAndSwap(cur, address(this), token, total);
     }
 
-    /// @notice Processes ERC20 tokens from the caller
+    /// @notice Distributes ERC20 tokens from the caller
     /// @param cur The current position in the byte stream
-    /// @param total The total amount to process
-    function _handleUserERC20(uint256 cur, uint256 total) private {
+    /// @param total The declared total to distribute from msg.sender
+    function _distributeUserERC20(uint256 cur, uint256 total) private {
         address token = cur.readAddress();
         _distributeAndSwap(cur, msg.sender, token, total);
     }
 
-    /// @notice Processes a pool interaction where tokens are already in the pool
+    /// @notice Dispatches a single swap using tokens already in the pool
     /// @param cur The current position in the byte stream
-    function _handleSinglePool(uint256 cur) private {
+    function _dispatchSinglePoolSwap(uint256 cur) private {
         address token = cur.readAddress();
         _dispatchSwap(cur, INTERNAL_INPUT_SOURCE, token, 0);
     }
