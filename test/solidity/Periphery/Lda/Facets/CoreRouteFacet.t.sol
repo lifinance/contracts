@@ -226,7 +226,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
-    // MinimalInputBalanceViolation: trigger by charging the user twice via two ProcessUserERC20 steps.
+    // TokenInSpendingExceeded: trigger by charging the user twice via two ProcessUserERC20 steps.
     function testRevert_WhenInputBalanceIsInsufficientForTwoSteps() public {
         // Prepare token and approvals
         uint256 amountIn = 1e18;
@@ -260,7 +260,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.MinimalInputBalanceViolation.selector,
+                CoreRouteFacet.TokenInSpendingExceeded.selector,
                 amountIn, // available = final(0) + amountIn
                 2 * amountIn // required = initial (we minted 2*amountIn)
             )
@@ -316,7 +316,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.MinimalInputBalanceViolation.selector,
+                CoreRouteFacet.TokenInSpendingExceeded.selector,
                 amountIn, // available = final(0) + amountIn
                 2 * amountIn // required = initial (we minted 2*amountIn)
             )
@@ -372,7 +372,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         // Expect MinimalOutputBalanceViolation with deltaOut = 0
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.MinimalOutputBalanceViolation.selector,
+                CoreRouteFacet.TokenOutAmountTooLow.selector,
                 uint256(0)
             )
         );
@@ -421,7 +421,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         // Expect MinimalOutputBalanceViolation with deltaOut = 0 (no ETH sent)
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.MinimalOutputBalanceViolation.selector,
+                CoreRouteFacet.TokenOutAmountTooLow.selector,
                 uint256(0)
             )
         );
