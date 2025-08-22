@@ -260,7 +260,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.TokenInSpendingExceeded.selector,
+                CoreRouteFacet.SwapTokenInSpendingExceeded.selector,
                 amountIn, // available = final(0) + amountIn
                 2 * amountIn // required = initial (we minted 2*amountIn)
             )
@@ -316,7 +316,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.TokenInSpendingExceeded.selector,
+                CoreRouteFacet.SwapTokenInSpendingExceeded.selector,
                 amountIn, // available = final(0) + amountIn
                 2 * amountIn // required = initial (we minted 2*amountIn)
             )
@@ -372,7 +372,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         // Expect MinimalOutputBalanceViolation with deltaOut = 0
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.TokenOutAmountTooLow.selector,
+                CoreRouteFacet.SwapTokenOutAmountTooLow.selector,
                 uint256(0)
             )
         );
@@ -421,7 +421,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         // Expect MinimalOutputBalanceViolation with deltaOut = 0 (no ETH sent)
         vm.expectRevert(
             abi.encodeWithSelector(
-                CoreRouteFacet.TokenOutAmountTooLow.selector,
+                CoreRouteFacet.SwapTokenOutAmountTooLow.selector,
                 uint256(0)
             )
         );

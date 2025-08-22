@@ -38,8 +38,11 @@ contract CoreRouteFacet is
     );
 
     // ==== Errors ====
-    error TokenInSpendingExceeded(uint256 actualSpent, uint256 expectedSpent);
-    error TokenOutAmountTooLow(uint256 actualOutput);
+    error SwapTokenInSpendingExceeded(
+        uint256 actualSpent,
+        uint256 expectedSpent
+    );
+    error SwapTokenOutAmountTooLow(uint256 actualOutput);
     error UnknownCommandCode();
     error SwapFailed();
     error UnknownSelector();
@@ -174,7 +177,7 @@ contract CoreRouteFacet is
             ? 0
             : IERC20(tokenIn).balanceOf(msg.sender);
         if (balInFinal + amountIn < balInInitial) {
-            revert TokenInSpendingExceeded(
+            revert SwapTokenInSpendingExceeded(
                 balInFinal + amountIn,
                 balInInitial
             );
@@ -184,7 +187,7 @@ contract CoreRouteFacet is
             ? address(to).balance
             : IERC20(tokenOut).balanceOf(to);
         if (balOutFinal < balOutInitial + amountOutMin) {
-            revert TokenOutAmountTooLow(balOutFinal - balOutInitial);
+            revert SwapTokenOutAmountTooLow(balOutFinal - balOutInitial);
         }
 
         amountOut = balOutFinal - balOutInitial;
