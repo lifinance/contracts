@@ -16,9 +16,14 @@ The facet is configured with a specific Relay Depository address during deployme
 ```solidity
 struct RelayDepositoryData {
   bytes32 orderId; // Unique identifier for this deposit order
-  address depository; // Must match the configured depository address
+  address depositorAddress; // The address that will be recorded as the depositor in the Relay Depository
 }
 ```
+
+The `depositorAddress` parameter allows you to specify which address should be recorded as the depositor in the Relay Depository. This is useful for:
+
+- **Proxy contracts**: When a proxy contract calls this facet on behalf of users
+- **Integration flexibility**: Allowing the caller to control who appears as the depositor
 
 ## Supported Chains
 
@@ -58,14 +63,13 @@ The RelayDepositoryFacet reads its configuration from `config/relay.json` alongs
 
 ## Events
 
-The facet emits two events:
+The facet emits one event:
 
-1. `RelayDepositoryDeposit(bytes32 indexed orderId, address indexed depository)` - Emitted when a deposit is made
-2. `LiFiTransferStarted(BridgeData bridgeData)` - Standard LI.FI transfer event
+1. `LiFiTransferStarted(BridgeData bridgeData)` - Standard LI.FI transfer event
 
 ## Security Features
 
-- **Address Validation**: The provided depository address must match the immutable address set during deployment
+- **Immutable Depository Address**: The depository address is set during deployment and cannot be changed
 - **Reentrancy Protection**: All external methods are protected against reentrancy attacks
 - **Zero Address Checks**: Constructor validates that the depository address is not zero
 - **Native Token Handling**: Properly handles native token deposits with value validation
@@ -76,10 +80,30 @@ To use this facet effectively:
 
 1. Query the Relay API for available depositories on your target chain
 2. Generate a unique `orderId` for the deposit (ensure uniqueness in your application logic)
-3. Construct the `RelayDepositoryData` with the orderId and configured depository address
-4. Call the appropriate facet method based on whether swapping is needed
+3. Determine the `depositorAddress` that should be recorded in the Relay Depository
+4. Construct the `RelayDepositoryData` with the orderId and depositorAddress
+5. Call the appropriate facet method based on whether swapping is needed
 
 **Note**: This implementation is based on the documented Relay Protocol V2 Depository interface. Deposit ID uniqueness should be managed by the integrating application.
+
+## Caller vs Depositor
+
+It's important to understand the distinction between:
+
+- **Caller**: The address that calls the facet functions (msg.sender)
+- **Depositor**: The address that will be recorded in the Relay Depository (depositorAddress)
+
+The caller is responsible for:
+
+- Providing the assets to be deposited
+- Paying for gas fees
+- Approving token transfers (for ERC20 deposits)
+
+The depositor address is what gets recorded in the Relay Depository and will be used for:
+
+- Withdrawal operations
+- Balance tracking
+- Event emissions
 
 ## Example Usage
 
@@ -100,8 +124,14 @@ const bridgeData = {
 
 const relayDepositoryData = {
   orderId: '0x...',
-  depository: '0x...', // Must match the configured address
+  depositorAddress: '0x...', // The address that will be recorded as the depositor in the Relay Depository
 }
+
+// For proxy contracts, you might use:
+// depositorAddress: userAddress // The actual user's address
+//
+// For batch operations, you might use:
+// depositorAddress: batchOperatorAddress // The batch operator's address
 
 await relayDepositoryFacet.startBridgeTokensViaRelayDepository(
   bridgeData,

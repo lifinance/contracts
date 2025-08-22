@@ -31,18 +31,11 @@ contract RelayDepositoryFacet is
 
     /// @dev Relay Depository specific parameters
     /// @param orderId Unique identifier for this deposit order
-    /// @param depository The address of the Relay Depository contract (must match immutable)
+    /// @param depositorAddress The address that will be recorded as the depositor in the Relay Depository
     struct RelayDepositoryData {
         bytes32 orderId;
-        address depository;
+        address depositorAddress;
     }
-
-    /// Events ///
-
-    event RelayDepositoryDeposit(
-        bytes32 indexed orderId,
-        address indexed depository
-    );
 
     /// Constructor ///
 
@@ -58,7 +51,7 @@ contract RelayDepositoryFacet is
 
     /// @notice Deposits native tokens into Relay Depository
     /// @param _bridgeData The core information needed for bridging
-    /// @param _relayDepositoryData Data specific to Relay Depository
+    /// @param _relayDepositoryData Data specific to Relay Depository including orderId and depositorAddress
     function startBridgeTokensViaRelayDepository(
         ILiFi.BridgeData calldata _bridgeData,
         RelayDepositoryData calldata _relayDepositoryData
@@ -113,36 +106,30 @@ contract RelayDepositoryFacet is
         ILiFi.BridgeData memory _bridgeData,
         RelayDepositoryData calldata _relayDepositoryData
     ) internal {
-        // Validate that the provided depository matches our immutable address
-        if (_relayDepositoryData.depository != RELAY_DEPOSITORY) {
-            revert InvalidCallData();
-        }
-
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token deposit
-            IRelayDepository(_relayDepositoryData.depository).depositNative{
+            IRelayDepository(RELAY_DEPOSITORY).depositNative{
                 value: _bridgeData.minAmount
-            }(msg.sender, _relayDepositoryData.orderId);
+            }(
+                _relayDepositoryData.depositorAddress,
+                _relayDepositoryData.orderId
+            );
         } else {
             // ERC20 token deposit
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                _relayDepositoryData.depository,
+                RELAY_DEPOSITORY,
                 _bridgeData.minAmount
             );
 
-            IRelayDepository(_relayDepositoryData.depository).depositErc20(
-                msg.sender,
+            IRelayDepository(RELAY_DEPOSITORY).depositErc20(
+                _relayDepositoryData.depositorAddress,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 _relayDepositoryData.orderId
             );
         }
 
-        emit RelayDepositoryDeposit(
-            _relayDepositoryData.orderId,
-            _relayDepositoryData.depository
-        );
         emit LiFiTransferStarted(_bridgeData);
     }
 }

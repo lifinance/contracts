@@ -177,7 +177,8 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
 
         // Setup valid depository data
         validDepositoryData = RelayDepositoryFacet.RelayDepositoryData({
-            orderId: bytes32("test-order-id")
+            orderId: bytes32("test-order-id"),
+            depositorAddress: USER_SENDER
         });
     }
 

@@ -59,11 +59,11 @@ const main = async () => {
 
   let relayDepositoryData: RelayDepositoryFacet.RelayDepositoryDataStruct = {
     orderId: utils.keccak256(utils.toUtf8Bytes('demo-order-eth-' + Date.now())),
-    depository: RELAY_DEPOSITORY,
+    depositorAddress: address,
   }
 
   console.info('Order ID:', relayDepositoryData.orderId)
-  console.info('Depository:', relayDepositoryData.depository)
+  console.info('Depository:', RELAY_DEPOSITORY)
   console.info(
     'Amount:',
     ethers.utils.formatEther(bridgeData.minAmount.toString()),
@@ -110,11 +110,11 @@ const main = async () => {
     orderId: utils.keccak256(
       utils.toUtf8Bytes('demo-order-usdc-' + Date.now())
     ),
-    depository: RELAY_DEPOSITORY,
+    depositorAddress: address,
   }
 
   console.info('Order ID:', relayDepositoryData.orderId)
-  console.info('Depository:', relayDepositoryData.depository)
+  console.info('Depository:', RELAY_DEPOSITORY)
   console.info(
     'Amount:',
     ethers.utils.formatUnits(bridgeData.minAmount.toString(), 6),
