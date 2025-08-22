@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { LibAsset } from "./LibAsset.sol";
 
 /// @title UniV3 Logic Library
 /// @author LI.FI (https://li.fi)
@@ -25,6 +26,6 @@ library LibUniV3Logic {
         }
 
         address tokenIn = abi.decode(data, (address));
-        IERC20(tokenIn).safeTransfer(msg.sender, uint256(amount));
+        LibAsset.transferERC20(tokenIn, msg.sender, uint256(amount));
     }
 }
