@@ -5,10 +5,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20PermitMock } from "lib/Permit2/lib/openzeppelin-contracts/contracts/mocks/ERC20PermitMock.sol";
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
-import { MockPullERC20Facet } from "../../../utils/MockPullERC20Facet.sol";
-import { MockNativeFacet } from "../../../utils/MockNativeFacet.sol";
-import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
 
 contract CoreRouteFacetTest is BaseCoreRouteTest {
     using SafeTransferLib for address;
@@ -435,5 +434,39 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             route
         );
         vm.stopPrank();
+    }
+}
+
+/// @dev Mock facet implementing LDA's standard interface for testing ERC20 token pulls
+contract MockPullERC20Facet {
+    function pull(
+        bytes memory /*payload*/,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) external returns (uint256) {
+        if (from == msg.sender) {
+            LibAsset.transferFromERC20(
+                tokenIn,
+                msg.sender,
+                address(this),
+                amountIn
+            );
+        }
+        return amountIn;
+    }
+}
+
+/// @dev Mock facet implementing LDA's standard interface for testing native token handling
+contract MockNativeFacet {
+    function handleNative(
+        bytes memory payload,
+        address /*from*/,
+        address /*tokenIn*/,
+        uint256 amountIn
+    ) external payable returns (uint256) {
+        address recipient = abi.decode(payload, (address));
+        LibAsset.transferAsset(address(0), payable(recipient), amountIn);
+        return amountIn;
     }
 }

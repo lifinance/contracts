@@ -46,7 +46,6 @@ contract VelodromeV2Facet is BaseRouteConstants {
         if (pool == address(0) || recipient == address(0))
             revert InvalidCallData();
 
-        // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data.
         // Will revert if contract (recipient) does not implement IVelodromeV2PoolCallee.
 

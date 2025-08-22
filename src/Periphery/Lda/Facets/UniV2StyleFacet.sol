@@ -15,6 +15,10 @@ import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 contract UniV2StyleFacet is BaseRouteConstants {
     using LibPackedStream for uint256;
 
+    // ==== Constants ====
+    /// @dev Fee denominator for UniV2-style pools (100% = 1_000_000)
+    uint256 private constant FEE_DENOMINATOR = 1_000_000;
+
     // ==== Errors ====
     /// @dev Thrown when pool reserves are zero, indicating an invalid pool state
     error WrongPoolReserves();
@@ -62,9 +66,9 @@ contract UniV2StyleFacet is BaseRouteConstants {
         // Calculate actual input amount from pool balance
         amountIn = IERC20(tokenIn).balanceOf(pool) - reserveIn;
 
-        uint256 amountInWithFee = amountIn * (1_000_000 - fee);
+        uint256 amountInWithFee = amountIn * (FEE_DENOMINATOR - fee);
         uint256 amountOut = (amountInWithFee * reserveOut) /
-            (reserveIn * 1_000_000 + amountInWithFee);
+            (reserveIn * FEE_DENOMINATOR + amountInWithFee);
 
         (uint256 amount0Out, uint256 amount1Out) = direction
             ? (uint256(0), amountOut)
