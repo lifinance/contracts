@@ -5,10 +5,10 @@ pragma solidity ^0.8.17;
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing callback validation in diamond-safe storage
 /// @custom:version 1.0.0
-library LibCallbackManager {
+library LibCallbackAuthenticator {
     /// Types ///
     bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.lda.callbackmanager");
+        keccak256("com.lifi.lda.callbackauthenticator");
 
     /// Storage ///
     struct CallbackStorage {

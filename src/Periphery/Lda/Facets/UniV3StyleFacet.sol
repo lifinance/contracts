@@ -3,19 +3,20 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
-import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
+import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
+import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title UniV3StyleFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Uniswap V3 style swaps with callback verification
 /// @custom:version 1.0.0
-contract UniV3StyleFacet is BaseRouteConstants {
-    using LibCallbackManager for *;
+contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticated {
+    using LibCallbackAuthenticator for *;
     using LibPackedStream for uint256;
 
     // ==== Constants ====
@@ -24,18 +25,6 @@ contract UniV3StyleFacet is BaseRouteConstants {
     /// @dev Maximum sqrt price ratio for UniV3 pool swaps
     uint160 internal constant MAX_SQRT_RATIO =
         1461446703485210103287273052203988822378723970342;
-
-    // ==== Errors ====
-    /// @dev Thrown when callback verification fails or unexpected callback state
-    error UniV3SwapUnexpected();
-
-    // ==== Modifiers ====
-    /// @dev Ensures callback is from expected pool and cleans up after callback
-    modifier onlyExpectedPool() {
-        LibCallbackManager.verifyCallbackSender();
-        _;
-        LibCallbackManager.disarm();
-    }
 
     // ==== External Functions ====
     /// @notice Executes a swap through a UniV3-style pool
@@ -71,7 +60,7 @@ contract UniV3StyleFacet is BaseRouteConstants {
         }
 
         // Arm callback protection
-        LibCallbackManager.arm(pool);
+        LibCallbackAuthenticator.arm(pool);
 
         // Execute swap
         IUniV3StylePool(pool).swap(
@@ -83,7 +72,9 @@ contract UniV3StyleFacet is BaseRouteConstants {
         );
 
         // Verify callback was called (arm should be cleared by callback)
-        if (LibCallbackManager.callbackStorage().expected != address(0)) {
+        if (
+            LibCallbackAuthenticator.callbackStorage().expected != address(0)
+        ) {
             revert SwapCallbackNotExecuted();
         }
     }

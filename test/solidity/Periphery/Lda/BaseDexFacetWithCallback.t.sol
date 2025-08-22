@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
+import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
 import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
 import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
 
@@ -25,7 +25,9 @@ abstract contract BaseDexFacetWithCallbackTest is BaseDexFacetTest {
     {
         // No swap has armed the guard; expected == address(0)
         vm.startPrank(USER_SENDER);
-        vm.expectRevert(LibCallbackManager.UnexpectedCallbackSender.selector);
+        vm.expectRevert(
+            LibCallbackAuthenticator.UnexpectedCallbackSender.selector
+        );
         (bool ok, ) = address(ldaDiamond).call(
             abi.encodeWithSelector(
                 _getCallbackSelector(),

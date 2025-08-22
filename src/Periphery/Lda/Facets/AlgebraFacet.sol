@@ -4,18 +4,19 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
-import { LibCallbackManager } from "lifi/Libraries/LibCallbackManager.sol";
+import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
+import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Algebra swaps with callback management
 /// @custom:version 1.0.0
-contract AlgebraFacet is BaseRouteConstants {
+contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
     using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
@@ -58,7 +59,7 @@ contract AlgebraFacet is BaseRouteConstants {
             );
         }
 
-        LibCallbackManager.arm(pool);
+        LibCallbackAuthenticator.arm(pool);
 
         if (supportsFeeOnTransfer) {
             IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
@@ -79,14 +80,16 @@ contract AlgebraFacet is BaseRouteConstants {
             );
         }
 
-        if (LibCallbackManager.callbackStorage().expected != address(0)) {
+        if (
+            LibCallbackAuthenticator.callbackStorage().expected != address(0)
+        ) {
             revert SwapCallbackNotExecuted();
         }
     }
 
     /// @notice Called by Algebra pool after executing a swap via IAlgebraPool#swap
     /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// The caller of this method must be verified to be an AlgebraPool using LibCallbackManager.
+    /// The caller of this method must be verified to be an AlgebraPool using LibCallbackAuthenticator.
     /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
     /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
     /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
@@ -97,9 +100,7 @@ contract AlgebraFacet is BaseRouteConstants {
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
-    ) external {
-        LibCallbackManager.verifyCallbackSender();
+    ) external onlyExpectedPool {
         LibUniV3Logic.handleCallback(amount0Delta, amount1Delta, data);
-        LibCallbackManager.disarm();
     }
 }

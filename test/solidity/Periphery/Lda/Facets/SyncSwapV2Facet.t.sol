@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { BaseDexFacetTest } from "../BaseDexFacet.t.sol";
-import { SyncSwapV2Facet } from "lifi/Periphery/Lda/Facets/SyncSwapV2Facet.sol";
+import { SyncSwapV2Facet } from "lifi/Periphery/LDA/Facets/SyncSwapV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 contract SyncSwapV2FacetTest is BaseDexFacetTest {
