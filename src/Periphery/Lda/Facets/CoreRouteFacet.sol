@@ -96,37 +96,33 @@ contract CoreRouteFacet is
         address to,
         bytes calldata route
     ) private returns (uint256 amountOut) {
-        // For native assets (ETH), we skip balance tracking since:
-        // 1. ETH balance checks would be misleading due to gas costs, so calling address(to).balance at the end of the route is not reliable
-        // 2. Native asset handling is done via _handleNative which consumes all ETH on the contract
-        uint256 balInInitial = LibAsset.isNativeAsset(tokenIn)
-            ? 0
-            : IERC20(tokenIn).balanceOf(msg.sender);
+        bool isNativeIn = LibAsset.isNativeAsset(tokenIn);
+        bool isNativeOut = LibAsset.isNativeAsset(tokenOut);
 
-        uint256 balOutInitial = LibAsset.isNativeAsset(tokenOut)
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
+        // Get initial token balances, with special handling for native assets
+        (uint256 balInInitial, uint256 balOutInitial) = _getInitialBalances(
+            tokenIn,
+            tokenOut,
+            to,
+            isNativeIn,
+            isNativeOut
+        );
 
+        // Execute the route and get actual input amount used (may differ from amountIn for some opcodes)
         uint256 realAmountIn = _runRoute(tokenIn, amountIn, route);
 
-        uint256 balInFinal = LibAsset.isNativeAsset(tokenIn)
-            ? 0
-            : IERC20(tokenIn).balanceOf(msg.sender);
-        if (balInFinal + amountIn < balInInitial) {
-            revert MinimalInputBalanceViolation(
-                balInFinal + amountIn,
-                balInInitial
-            );
-        }
-
-        uint256 balOutFinal = LibAsset.isNativeAsset(tokenOut)
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
-        if (balOutFinal < balOutInitial + amountOutMin) {
-            revert MinimalOutputBalanceViolation(balOutFinal - balOutInitial);
-        }
-
-        amountOut = balOutFinal - balOutInitial;
+        // Verify balances after route execution and calculate output amount
+        amountOut = _getFinalBalancesAndCheck(
+            tokenIn,
+            amountIn,
+            balInInitial,
+            tokenOut,
+            amountOutMin,
+            balOutInitial,
+            to,
+            isNativeIn,
+            isNativeOut
+        );
 
         emit Route(
             msg.sender,
@@ -137,6 +133,61 @@ contract CoreRouteFacet is
             amountOutMin,
             amountOut
         );
+    }
+
+    /// @notice Gets initial balances for both input and output tokens before route execution
+    /// @dev For native input assets (ETH), we return 0 since:
+    ///      1. ETH balance checks would be misleading due to gas costs
+    ///      2. Native asset handling is done via _handleNative which consumes all ETH on the contract
+    /// @param tokenIn The input token address
+    /// @param tokenOut The output token address
+    /// @param to The recipient address for output tokens
+    /// @param isNativeIn Whether input token is native ETH
+    /// @param isNativeOut Whether output token is native ETH
+    /// @return balInInitial Initial balance of input token
+    /// @return balOutInitial Initial balance of output token
+    function _getInitialBalances(
+        address tokenIn,
+        address tokenOut,
+        address to,
+        bool isNativeIn,
+        bool isNativeOut
+    ) private view returns (uint256 balInInitial, uint256 balOutInitial) {
+        balInInitial = isNativeIn ? 0 : IERC20(tokenIn).balanceOf(msg.sender);
+        balOutInitial = isNativeOut
+            ? address(to).balance
+            : IERC20(tokenOut).balanceOf(to);
+    }
+
+    function _getFinalBalancesAndCheck(
+        address tokenIn,
+        uint256 amountIn,
+        uint256 balInInitial,
+        address tokenOut,
+        uint256 amountOutMin,
+        uint256 balOutInitial,
+        address to,
+        bool isNativeIn,
+        bool isNativeOut
+    ) private view returns (uint256 amountOut) {
+        uint256 balInFinal = isNativeIn
+            ? 0
+            : IERC20(tokenIn).balanceOf(msg.sender);
+        if (balInFinal + amountIn < balInInitial) {
+            revert MinimalInputBalanceViolation(
+                balInFinal + amountIn,
+                balInInitial
+            );
+        }
+
+        uint256 balOutFinal = isNativeOut
+            ? address(to).balance
+            : IERC20(tokenOut).balanceOf(to);
+        if (balOutFinal < balOutInitial + amountOutMin) {
+            revert MinimalOutputBalanceViolation(balOutFinal - balOutInitial);
+        }
+
+        amountOut = balOutFinal - balOutInitial;
     }
 
     /// @notice Interprets and executes commands from the route byte stream
@@ -179,7 +230,7 @@ contract CoreRouteFacet is
     /// The selector determines the DEX facet function to call. The router delegatecalls the facet with:
     /// (bytes swapData, address from, address tokenIn, uint256 amountIn)
     /// where swapData is the payload from the route, containing DEX-specific data:
-    /// - Example for UniV3-style: abi.encode(pool, direction, recipient)
+    /// - Example for UniV3-style: abi.encode(pool, direction, recipient) // for Uniswap V3, PancakeV3, etc.
     /// - Each DEX facet defines its own payload format based on what its pools need
     ///
     /// Example multihop route (two legs on user ERC20, then single-pool hop):
