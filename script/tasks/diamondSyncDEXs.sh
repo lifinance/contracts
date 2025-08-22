@@ -23,9 +23,6 @@ function diamondSyncDEXs {
   # Temp file to track failed logs
   FAILED_LOG_FILE=$(mktemp)
 
-  # Temp file to track token contract warnings
-  TOKEN_WARNING_FILE=$(mktemp)
-
 
 
   # if no NETWORK was passed to this function, ask user to select it
@@ -271,7 +268,7 @@ function diamondSyncDEXs {
   fi
 
   # Cleanup temp files
-  rm -f "$FAILED_LOG_FILE" "$TOKEN_WARNING_FILE"
+  rm -f "$FAILED_LOG_FILE"
 
   if [[ "$HAS_FAILURES" == "true" ]]; then
     echo ""
