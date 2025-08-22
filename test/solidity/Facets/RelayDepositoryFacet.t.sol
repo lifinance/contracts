@@ -110,6 +110,7 @@ contract TestRelayDepositoryFacet is RelayDepositoryFacet {
     constructor(
         address _relayDepository
     ) RelayDepositoryFacet(_relayDepository) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -176,8 +177,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
 
         // Setup valid depository data
         validDepositoryData = RelayDepositoryFacet.RelayDepositoryData({
-            orderId: bytes32("test-order-id"),
-            depository: address(mockDepository)
+            orderId: bytes32("test-order-id")
         });
     }
 
@@ -213,6 +213,13 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
     // Test successful deployment
     function test_CanDeployFacet() public {
         new RelayDepositoryFacet(address(mockDepository));
+    }
+
+    // Test revert when constructed with zero address
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidCallData.selector);
+
+        new RelayDepositoryFacet(address(0));
     }
 
     // Test ERC20 deposit
@@ -387,21 +394,6 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
             usdc.balanceOf(USER_SENDER),
             initialUsdcBalance - swapData[0].fromAmount
         );
-        vm.stopPrank();
-    }
-
-    // Test revert when depository address doesn't match configured address
-    function testRevert_WhenDepositoryAddressIsZero() public {
-        validDepositoryData.depository = address(0);
-
-        vm.startPrank(USER_SENDER);
-
-        // Approval
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
-        initiateBridgeTxWithFacet(false);
-
         vm.stopPrank();
     }
 
