@@ -1,3 +1,4 @@
+// solhint-disable max-line-length
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
@@ -6,7 +7,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { NotInitialized, OnlyContractOwner } from "src/Errors/GenericErrors.sol";
+import { NotInitialized, OnlyContractOwner, InvalidConfig } from "src/Errors/GenericErrors.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
@@ -38,11 +39,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     event DeBridgeInitialized(DeBridgeDlnFacet.ChainIdConfig[] chainIdConfigs);
     event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
     event DlnOrderCreated(bytes32 indexed orderId);
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes receiver
-    );
 
     bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
@@ -82,7 +78,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // Initialize
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/dln.json"
+            "/config/debridgedln.json"
         );
         string memory json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");
@@ -142,6 +138,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         }
     }
 
+    function testRevert_WhenConstructedWithZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new DeBridgeDlnFacet(IDlnSource(address(0)));
+    }
+
     function test_Initialize() public {
         vm.store(
             address(deBridgeDlnFacet),
@@ -154,7 +156,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // Initialize
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/dln.json"
+            "/config/debridgedln.json"
         );
         string memory json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");

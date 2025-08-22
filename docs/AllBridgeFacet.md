@@ -39,17 +39,15 @@ This data is specific to allBridgefacet and is represented as the following stru
 
 ```solidity
 /// @notice The struct for the AllBridge data.
-/// @param fees The amount of token to pay the messenger and the bridge.
 /// @param recipient The address of the token receiver after bridging.
-/// @param destinationChainId The destination chain id.
+/// @param fees The amount of token to pay the messenger and the bridge.
 /// @param receiveToken The token to receive on the destination chain.
 /// @param nonce A random nonce to associate with the tx.
 /// @param messenger The messenger protocol enum.
 /// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not.
 struct AllBridgeData {
-  uint256 fees;
   bytes32 recipient;
-  uint256 destinationChainId;
+  uint256 fees;
   bytes32 receiveToken;
   uint256 nonce;
   MessengerProtocol messenger;

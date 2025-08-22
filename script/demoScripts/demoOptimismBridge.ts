@@ -1,8 +1,9 @@
-import { providers, Wallet, utils, constants, Contract } from 'ethers'
-import { OptimismBridgeFacet__factory, ERC20__factory } from '../typechain'
-import { node_url } from '../utils/network'
-import config from '../config/optimism'
 import chalk from 'chalk'
+import { providers, Wallet, utils, constants, Contract } from 'ethers'
+
+import config from '../../config/optimism.json'
+import { OptimismBridgeFacet__factory, ERC20__factory } from '../../typechain'
+import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))
@@ -84,7 +85,7 @@ async function main() {
       receiver: walletAddress,
       bridge: CONFIG.bridges[l1Token] || CONFIG.bridges.standardBridge,
       l2Gas: L2_GAS,
-      isSynthetix: l1Token == CONFIG.snxToken,
+      isSynthetix: l1Token === CONFIG.snxToken,
     }
 
     // Approve ERC20 for swapping -- USDC -> DAI

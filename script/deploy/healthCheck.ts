@@ -1,31 +1,31 @@
 // @ts-nocheck
-import { consola } from 'consola'
-import { $ } from 'zx'
+import { execSync } from 'child_process'
+
 import { defineCommand, runMain } from 'citty'
-import * as path from 'path'
-import * as fs from 'fs'
+import { consola } from 'consola'
 import {
-  Address,
-  Hex,
-  PublicClient,
   createPublicClient,
-  getAddress,
   formatEther,
+  getAddress,
   getContract,
   http,
   parseAbi,
+  type Address,
+  type Hex,
+  type PublicClient,
 } from 'viem'
+
 import {
-  Network,
-  networks,
-  getViemChainForNetworkName,
-} from '../utils/viemScriptHelpers'
-import {
+  autoWhitelistPeripheryContracts,
   coreFacets,
   corePeriphery,
-  autoWhitelistPeripheryContracts,
   pauserWallet,
 } from '../../config/global.json'
+import {
+  getViemChainForNetworkName,
+  networks,
+  type Network,
+} from '../utils/viemScriptHelpers'
 
 const SAFE_THRESHOLD = 3
 
@@ -89,9 +89,7 @@ const main = defineCommand({
     if (!diamondDeployed) {
       logError(`LiFiDiamond not deployed`)
       finish()
-    } else {
-      consola.success('LiFiDiamond deployed')
-    }
+    } else consola.success('LiFiDiamond deployed')
 
     const diamondAddress = deployedContracts['LiFiDiamond']
 
@@ -134,15 +132,15 @@ const main = defineCommand({
     //          │          Check that all facets are registered           │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking facets registered in diamond...')
-    $.quiet = true
 
     let registeredFacets: string[] = []
     try {
       if (networksConfig[network.toLowerCase()].rpcUrl) {
-        const rpcUrl: string = networksConfig[network.toLowerCase()].rpcUrl
-        const facetsResult =
-          await $`cast call ${diamondAddress} "facets() returns ((address,bytes4[])[])" --rpc-url ${rpcUrl}`
-        const rawString = facetsResult.stdout
+        const rpcUrl: string = chain.rpcUrls.default.http
+        const rawString = execSync(
+          `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
+          { encoding: 'utf8' }
+        )
 
         const jsonCompatibleString = rawString
           .replace(/\(/g, '[')
@@ -159,36 +157,25 @@ const main = defineCommand({
             })
           )
 
-          const onChainFacetAddresses = onChainFacets.map(([address]) =>
-            address.toLowerCase()
-          )
-
-          const configuredFacetAddresses = Object.keys(configFacetsByAddress)
-
           registeredFacets = onChainFacets.map(([address]) => {
             return configFacetsByAddress[address.toLowerCase()]
           })
         }
-      } else {
-        throw new Error('Failed to get rpc from network config file')
-      }
+      } else throw new Error('Failed to get rpc from network config file')
     } catch (error) {
       consola.warn('Unable to parse output - skipping facet registration check')
       consola.warn('Error:', error)
     }
 
-    for (const facet of [...coreFacets, ...nonCoreFacets]) {
-      if (!registeredFacets.includes(facet)) {
+    for (const facet of [...coreFacets, ...nonCoreFacets])
+      if (!registeredFacets.includes(facet))
         logError(
           `Facet ${facet} not registered in Diamond or possibly unverified`
         )
-      } else {
-        consola.success(`Facet ${facet} registered in Diamond`)
-      }
-    }
+      else consola.success(`Facet ${facet} registered in Diamond`)
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │      Check that core periphery facets are deployed      │
+    //          │      Check that core periphery contracts are deployed   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking deploy status of periphery contracts...')
     for (const contract of corePeriphery) {
@@ -221,11 +208,9 @@ const main = defineCommand({
       executorAddress,
     ])
 
-    if (!isExecutorAuthorized) {
+    if (!isExecutorAuthorized)
       logError('Executor is not authorized in ERC20Proxy')
-    } else {
-      consola.success('Executor is authorized in ERC20Proxy')
-    }
+    else consola.success('Executor is authorized in ERC20Proxy')
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
@@ -249,10 +234,11 @@ const main = defineCommand({
       if (!peripheryAddress)
         logError(`Periphery contract ${periphery} not deployed `)
       else if (!addresses.includes(getAddress(peripheryAddress))) {
+        // skip the registration check for LiFiTimelockController (no need to register it)
+        if (periphery === 'LiFiTimelockController') continue
         logError(`Periphery contract ${periphery} not registered in Diamond`)
-      } else {
+      } else
         consola.success(`Periphery contract ${periphery} registered in Diamond`)
-      }
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -308,9 +294,7 @@ const main = defineCommand({
         if (!approvedDexs.includes(normalized)) {
           logError(`Periphery contract ${name} not approved as a DEX`)
           numMissing++
-        } else {
-          consola.success(`Periphery contract ${name} approved as a DEX`)
-        }
+        } else consola.success(`Periphery contract ${name} approved as a DEX`)
       }
 
       consola.info(
@@ -328,9 +312,9 @@ const main = defineCommand({
       // Function to split array into chunks
       const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
         const chunks: T[][] = []
-        for (let i = 0; i < array.length; i += chunkSize) {
+        for (let i = 0; i < array.length; i += chunkSize)
           chunks.push(array.slice(i, i + chunkSize))
-        }
+
         return chunks
       }
 
@@ -350,57 +334,54 @@ const main = defineCommand({
 
         const results = await publicClient.multicall({ contracts: calls })
 
-        for (let i = 0; i < results.length; i++) {
+        for (let i = 0; i < results.length; i++)
           if (results[i].status !== 'success' || !results[i].result) {
             console.log('Function not approved:', batch[i])
             sigsToApprove.push(batch[i] as Hex)
           }
-        }
       }
 
-      if (sigsToApprove.length > 0) {
+      if (sigsToApprove.length > 0)
         logError(`Missing ${sigsToApprove.length} DEX signatures`)
-      } else {
-        consola.success('No missing signatures.')
-      }
+      else consola.success('No missing signatures.')
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check contract ownership                 │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking ownership...')
 
-      const withdrawWallet = getAddress(globalConfig.withdrawWallet)
-      const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
+      const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
 
       // Check ERC20Proxy ownership
       const erc20ProxyOwner = await erc20Proxy.read.owner()
-      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet)) {
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
         logError(
           `ERC20Proxy owner is ${getAddress(
             erc20ProxyOwner
           )}, expected ${getAddress(deployerWallet)}`
         )
-      } else {
-        consola.success('ERC20Proxy owner is correct')
-      }
+      else consola.success('ERC20Proxy owner is correct')
 
-      // Check that Diamond is owned by SAFE
-      if (networksConfig[network.toLowerCase()].safeAddress) {
-        const safeAddress = networksConfig[network.toLowerCase()].safeAddress
+      // Check that Diamond is owned by Timelock
+      if (deployedContracts.LiFiTimelockController) {
+        const timelockAddress = deployedContracts.LiFiTimelockController
 
         await checkOwnership(
           'LiFiDiamond',
-          safeAddress,
+          timelockAddress,
           deployedContracts,
           publicClient
         )
-      }
+      } else
+        consola.error(
+          'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
+        )
 
       // FeeCollector
       await checkOwnership(
         'FeeCollector',
-        withdrawWallet,
+        feeCollectorOwner,
         deployedContracts,
         publicClient
       )
@@ -416,33 +397,7 @@ const main = defineCommand({
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check emergency pause config             │
       //          ╰─────────────────────────────────────────────────────────╯
-      consola.box('Checking emergency pause config...')
-      const filePath: string = path.join(
-        '.github',
-        'workflows',
-        'diamondEmergencyPause.yml'
-      )
-
-      try {
-        const fileContent: string = fs.readFileSync(filePath, 'utf8')
-
-        const networkUpper: string = network.toUpperCase()
-        const pattern = new RegExp(
-          `ETH_NODE_URI_${networkUpper}\\s*:\\s*\\$\\{\\{\\s*secrets\\.ETH_NODE_URI_${networkUpper}\\s*\\}\\}`
-        )
-
-        const exists: boolean = pattern.test(fileContent)
-
-        if (!exists) {
-          logError(`Missing ETH_NODE_URI config for ${network} in ${filePath}`)
-        } else
-          consola.success(
-            `Found ETH_NODE_URI_${networkUpper} in diamondEmergencyPause.yml`
-          )
-      } catch (error: any) {
-        logError(`Error checking workflow file: ${error.message}`)
-      }
-      console.log('')
+      consola.box('Checking funding of pauser wallet...')
 
       const pauserBalance = formatEther(
         await publicClient.getBalance({
@@ -472,22 +427,20 @@ const main = defineCommand({
         name: string
       }[]
 
-      for (const sig of approveSigs) {
+      for (const sig of approveSigs)
         if (
           !(await accessManager.read.addressCanExecuteMethod([
             sig.sig,
             deployerWallet,
           ]))
-        ) {
+        )
           logError(
             `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
           )
-        } else {
+        else
           consola.success(
             `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
           )
-        }
-      }
 
       // Refund wallet
       const refundSigs = globalConfig.approvedSigsForRefundWallet as {
@@ -495,31 +448,29 @@ const main = defineCommand({
         name: string
       }[]
 
-      for (const sig of refundSigs) {
+      for (const sig of refundSigs)
         if (
           !(await accessManager.read.addressCanExecuteMethod([
             sig.sig,
             refundWallet,
           ]))
-        ) {
+        )
           logError(
             `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
           )
-        } else {
+        else
           consola.success(
             `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
           )
-        }
-      }
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                   SAFE Configuration                    │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking SAFE configuration...')
       const networkConfig: Network = networks[network.toLowerCase()]
-      if (!networkConfig.safeAddress) {
+      if (!networkConfig.safeAddress)
         consola.warn('SAFE address not configured')
-      } else {
+      else {
         const safeOwners = globalConfig.safeOwners
         const safeAddress = networkConfig.safeAddress
 
@@ -540,23 +491,21 @@ const main = defineCommand({
               (owner) => getAddress(owner) === safeOwner
             )
 
-            if (!isOwner) {
+            if (!isOwner)
               logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-            } else {
+            else
               consola.success(
                 `SAFE owner ${safeOwner} is in SAFE configuration`
               )
-            }
           }
 
           // Check that threshold is correct
-          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD)) {
+          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
             logError(
               `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
             )
-          } else {
+          else
             consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
-          }
 
           // Show current nonce
           consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
@@ -598,15 +547,13 @@ const checkOwnership = async (
       contractAddress,
       publicClient
     ).read.owner()
-    if (getAddress(owner) !== getAddress(expectedOwner)) {
+    if (getAddress(owner) !== getAddress(expectedOwner))
       logError(
         `${name} owner is ${getAddress(owner)}, expected ${getAddress(
           expectedOwner
         )}`
       )
-    } else {
-      consola.success(`${name} owner is correct`)
-    }
+    else consola.success(`${name} owner is correct`)
   }
 }
 
@@ -615,19 +562,19 @@ const checkIsDeployed = async (
   deployedContracts: Record<string, Address>,
   publicClient: PublicClient
 ): Promise<boolean> => {
-  if (!deployedContracts[contract]) {
-    return false
-  }
+  if (!deployedContracts[contract]) return false
+
   const code = await publicClient.getCode({
     address: deployedContracts[contract],
   })
-  if (code === '0x') {
-    return false
-  }
+  if (code === '0x') return false
+
   return true
 }
 
 const finish = () => {
+  // this line ensures that all logs are actually written before the script ends
+  process.stdout.write('', () => process.stdout.end())
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
     process.exit(1)

@@ -2,6 +2,9 @@
   "mainnet": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "abstract": {
+    "airlift": "0x5501e28f588b3A246a590a391A7Ae7B2bA065ddE"
+  },
   "arbitrum": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
@@ -23,11 +26,26 @@
   "celo": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "corn": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "etherlink": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "flare": {
+    "airlift": "0x0905E21AEf470adEf9Cf9dCf7922431610c875b5"
+  },
   "gnosis": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "hyperevm": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
   "ink": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "katana": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
   "linea": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
@@ -35,11 +53,14 @@
   "lisk": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "mantle": {
+    "airlift": "0x686893D73fA3817A13217E858652A4866B096dCa"
+  },
   "mode": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "optimism": {
-    "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+    "airlift": "0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663"
   },
   "polygon": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
@@ -47,8 +68,17 @@
   "polygonzkevm": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "ronin": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
+  "rootstock": {
+    "airlift": "0xB303FEb7c38B7fbee5Bcb0dba2aCC1171478E6D5"
+  },
   "scroll": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "sei": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
   "sonic": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
@@ -58,5 +88,11 @@
   },
   "unichain": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
+  },
+  "viction": {
+    "airlift": "0x2aEEC3AD32B39Fc67a1284Ea23a59eD986c3C47b"
+  },
+  "zksync": {
+    "airlift": "0xA0246202aC2537C9978BE8940D51dc70b3d38426"
   }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { ScriptBase } from "./ScriptBase.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract DeployScriptBase is ScriptBase {
     address internal predicted;
@@ -37,38 +38,28 @@ contract DeployScriptBase is ScriptBase {
         bytes memory constructorArgs = getConstructorArgs();
 
         vm.startBroadcast(deployerPrivateKey);
+        emit log_named_address("LI.FI: Predicted Address: ", predicted);
 
-        if (isDeployed()) {
-            emit log("Contract is already deployed");
+        if (LibAsset.isContract(predicted)) {
+            emit log("LI.FI: Contract is already deployed");
             return payable(predicted);
         }
 
+        // @DEV: activate on demand when deployment fails (e.g. to try manual deployment)
         // reproduce and log calldata that is sent to CREATE3
-        bytes memory create3Calldata = abi.encodeWithSelector(
-            CREATE3Factory.deploy.selector,
-            salt,
-            bytes.concat(creationCode, constructorArgs)
-        );
-        emit log("Contract is already deployed");
-        emit log_bytes(create3Calldata);
+        // bytes memory create3Calldata = abi.encodeWithSelector(
+        //     CREATE3Factory.deploy.selector,
+        //     salt,
+        //     bytes.concat(creationCode, constructorArgs)
+        // );
+        // emit log("LI.FI: Will send this calldata to CREATE3Factory now: ");
+        // emit log_bytes(create3Calldata);
+        // emit log("        ");
 
         deployed = payable(
             factory.deploy(salt, bytes.concat(creationCode, constructorArgs))
         );
 
         vm.stopBroadcast();
-    }
-
-    function isContract(address _contractAddr) internal view returns (bool) {
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            size := extcodesize(_contractAddr)
-        }
-        return size > 0;
-    }
-
-    function isDeployed() internal view returns (bool) {
-        return isContract(predicted);
     }
 }

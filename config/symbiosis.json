@@ -51,6 +51,14 @@
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
+  "hyperevm": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
+  "katana": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
   "linea": {
     "metaRouter": "0x9A31bAC4b3B958C835C243800B474818D04393dd",
     "gateway": "0x83f71AabdDBb9F0E3B6462Cc7635b6fFAD0f2f2e"
@@ -66,6 +74,10 @@
   "mantle": {
     "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
     "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
+  },
+  "opbnb": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
   "optimism": {
     "metaRouter": "0x0f91052dc5B4baE53d0FeA5DAe561A117268f5d2",

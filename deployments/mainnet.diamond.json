@@ -37,9 +37,9 @@
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x0eF01249E2731082A078C0B3f408c2929c90Ac9c": {
+      "0x9a82bB477c30D92dAB74875027E14D1De3510ef9": {
         "Name": "GnosisBridgeFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x090e074bc934c4D8B84e168cb6597e87Da0C019b": {
         "Name": "ArbitrumBridgeFacet",
@@ -97,9 +97,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
+      "0xAE5325C02b87ff1D3752a1d3100Ec82537605B72": {
         "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+        "Version": "2.1.0"
       },
       "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
         "Name": "HopFacetPacked",
@@ -109,9 +109,9 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
-      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
-        "Name": "CelerIMFacetMutable",
-        "Version": "2.0.0"
+      "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
+        "Name": "ChainflipFacet",
+        "Version": "1.0.0"
       },
       "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
         "Name": "StandardizedCallFacet",
@@ -133,9 +133,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+      "0x8C9dBA771220Ed09580b77F0765e7153fbDE7790": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "1.0.2"
       },
       "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
         "Name": "AmarokFacetPacked",
@@ -149,9 +149,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x6ADA8e557E1571c56D004D28006cD609e8837C58": {
+      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
         "Name": "MayanFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
@@ -169,9 +169,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0xF5c923a087fb3c554579e2DD10AB6E37E0f6F849": {
+      "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",
@@ -186,13 +186,14 @@
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "Permit2Proxy": "0x6307119078556Fc8aD77781DFC67df20d75FB4f9",
+      "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+      "Patcher": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
-      "ReceiverChainflip": "",
+      "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }

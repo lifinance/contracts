@@ -1,5 +1,6 @@
 {
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
+  "feeCollectorOwner": "0xAB483D44705Af49a83553821A1F7aAd8BBc70576",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
@@ -30,11 +31,11 @@
   ],
   "safeOwners": [
     "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
-    "0xe5552E1a40cBcB95b4905d92907336C06681280c",
-    "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb",
     "0x518ee3D0F8AC59deDAc278859A7B8bc13dA360Dc",
     "0xb4557653119Dd49F7433fef4aE270665Be2cbf4F",
-    "0xFF0cC7DdcE415293c5dE85b8737bC487eff176cF"
+    "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb",
+    "0xFF0cC7DdcE415293c5dE85b8737bC487eff176cF",
+    "0xe5552E1a40cBcB95b4905d92907336C06681280c"
   ],
   "autoWhitelistPeripheryContracts": [
     "FeeCollector",
@@ -49,6 +50,7 @@
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
+    "GasZipFacet",
     "GenericSwapFacet",
     "GenericSwapFacetV3",
     "OwnershipFacet",
@@ -61,6 +63,7 @@
     "FeeCollector",
     "GasZipPeriphery",
     "LiFiDEXAggregator",
+    "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"
   ]

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -9,20 +9,25 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.0
-contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @custom:version 1.2.1
+contract MayanFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
 
-    // solhint-disable-next-line immutable-vars-naming
-    IMayan public immutable mayan;
+    IMayan public immutable MAYAN;
 
     /// @dev Mayan specific bridge data
     /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
@@ -36,21 +41,15 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Errors ///
     error InvalidReceiver(address expected, address actual);
-    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
-
-    /// Events ///
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes32 receiver
-    );
+    error ProtocolDataTooShort();
 
     /// Constructor ///
 
     /// @notice Constructor for the contract.
     constructor(IMayan _mayan) {
-        mayan = _mayan;
+        if (address(_mayan) == address(0)) revert InvalidConfig();
+
+        MAYAN = _mayan;
     }
 
     /// External Methods ///
@@ -146,17 +145,11 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
-                revert InvalidNonEVMReceiver(
-                    _mayanData.nonEVMReceiver,
-                    bytes32(0)
-                );
+                revert InvalidNonEVMReceiver();
             }
             bytes32 receiver = _parseReceiver(_mayanData.protocolData);
             if (_mayanData.nonEVMReceiver != receiver) {
-                revert InvalidNonEVMReceiver(
-                    _mayanData.nonEVMReceiver,
-                    receiver
-                );
+                revert InvalidNonEVMReceiver();
             }
         } else {
             address receiver = address(
@@ -172,11 +165,11 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(mayan),
+                address(MAYAN),
                 _bridgeData.minAmount
             );
 
-            mayan.forwardERC20(
+            MAYAN.forwardERC20(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 emptyPermitParams,
@@ -184,14 +177,14 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _mayanData.protocolData
             );
         } else {
-            mayan.forwardEth{ value: _bridgeData.minAmount }(
+            MAYAN.forwardEth{ value: _bridgeData.minAmount }(
                 _mayanData.mayanProtocol,
                 _mayanData.protocolData
             );
         }
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            emit BridgeToNonEVMChain(
+            emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 _mayanData.nonEVMReceiver
@@ -224,26 +217,32 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 receiver := mload(add(protocolData, 0xc4)) // MayanCircle::bridgeWithLockedFee()
             }
             case 0xafd9b706 {
+                // solhint-disable-next-line max-line-length
                 // 0xafd9b706 createOrder((address,uint256,uint64,[*bytes32*],uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
                 receiver := mload(add(protocolData, 0x84)) // MayanCircle::createOrder()
             }
             case 0x6111ad25 {
+                // solhint-disable-next-line max-line-length
                 // 0x6111ad25 swap((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes),address,uint256)
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::swap()
             }
             case 0x1eb1cff0 {
+                // solhint-disable-next-line max-line-length
                 // 0x1eb1cff0 wrapAndSwapETH((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes))
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::wrapAndSwapETH()
             }
             case 0xb866e173 {
+                // solhint-disable-next-line max-line-length
                 // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x104)) // MayanSwift::createOrderWithEth()
             }
             case 0x8e8d142b {
+                // solhint-disable-next-line max-line-length
                 // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
             }
             case 0x1c59b7fc {
+                // solhint-disable-next-line max-line-length
                 // 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))
                 receiver := mload(add(protocolData, 0x84))
             }
@@ -256,10 +255,12 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 receiver := mload(add(protocolData, 0xa4))
             }
             case 0xf58b6de8 {
+                // solhint-disable-next-line max-line-length
                 // 0xf58b6de8 FastMCTP::bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
                 receiver := mload(add(protocolData, 0xc4))
             }
             case 0x2337e236 {
+                // solhint-disable-next-line max-line-length
                 // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0xe4))
             }
@@ -291,8 +292,10 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes memory protocolData,
         uint256 inputAmount
     ) internal pure returns (bytes memory) {
-        // solhint-disable-next-line gas-custom-errors
-        require(protocolData.length >= 68, "protocol data too short");
+        if (protocolData.length < 68) {
+            revert ProtocolDataTooShort();
+        }
+
         bytes memory modifiedData = new bytes(protocolData.length);
         bytes4 functionSelector = bytes4(protocolData[0]) |
             (bytes4(protocolData[1]) >> 8) |
@@ -308,20 +311,19 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             amountIndex = 36;
         }
 
-        /* solhint-disable gas-custom-errors, explicit-types */
         // Copy the function selector and params before amount in
-        for (uint i = 0; i < amountIndex; i++) {
+        for (uint256 i = 0; i < amountIndex; i++) {
             modifiedData[i] = protocolData[i];
         }
 
         // Encode the amount and place it into the modified call data
         bytes memory encodedAmount = abi.encode(inputAmount);
-        for (uint i = 0; i < 32; i++) {
+        for (uint256 i = 0; i < 32; i++) {
             modifiedData[i + amountIndex] = encodedAmount[i];
         }
 
         // Copy the rest of the original data after the input argument
-        for (uint i = amountIndex + 32; i < protocolData.length; i++) {
+        for (uint256 i = amountIndex + 32; i < protocolData.length; i++) {
             modifiedData[i] = protocolData[i];
         }
 

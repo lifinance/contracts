@@ -21,9 +21,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x7Ea86FE59Ab35d76ba2446b09104A52E95d3267e": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x9c3C2a13a5dd24D078D247EEC09Cebf2fC4E4686": {
+        "Name": "",
+        "Version": ""
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
@@ -121,17 +121,17 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xa137Fe4C41A2E04ca34578DC9023ad45cC194389": {
+      "0x2EFD6843C35952115E6D40A93586615674Da1b78": {
+        "Name": "MayanFacet",
+        "Version": "1.2.0"
+      },
+      "0x681a3409c35F12224c436D50Ce14F25f954B6Ea2": {
         "Name": "",
         "Version": ""
       },
-      "0x3cf7dE0e31e13C93c8Aada774ADF1C7eD58157f5": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
+      "0x7C27b0FD92dbC5a1cA268255A649320E8C649e70": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x21767081Ff52CE5563A29f27149D01C7127775A2": {
         "Name": "AcrossFacetPackedV3",
@@ -141,9 +141,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0x08BfAc22A3B41637edB8A7920754fDb30B18f740": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0xF336cc028Fc5328472f96e377d32Fd32F8eE1750": {
+        "Name": "",
+        "Version": ""
       },
       "0xF82830B952Bc60b93206FA22f1cD4770cedb2840": {
         "Name": "GlacisFacet",
@@ -153,13 +153,17 @@
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
       },
-      "0x2EFD6843C35952115E6D40A93586615674Da1b78": {
-        "Name": "MayanFacet",
-        "Version": "1.2.0"
+      "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
       },
-      "0x37f3F3E9d909fB1163448C511193b8481e541C62": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.3"
+      "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C]": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -167,12 +171,14 @@
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "GasZipPeriphery": "",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
       "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
+      "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }

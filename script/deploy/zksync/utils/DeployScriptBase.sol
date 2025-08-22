@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
-
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { stdJson } from "forge-std/Script.sol";
 
 interface IContractDeployer {
@@ -60,7 +60,11 @@ contract DeployScriptBase is ScriptBase {
                 constructorArgs
             );
 
-        if (isContract(predicted)) {
+        emit log_named_address("LI.FI: Predicted Address: ", predicted);
+
+        if (LibAsset.isContract(predicted)) {
+            emit log("LI.FI: Contract is already deployed");
+
             return payable(predicted);
         }
 
@@ -72,14 +76,5 @@ contract DeployScriptBase is ScriptBase {
         }
 
         vm.stopBroadcast();
-    }
-
-    function isContract(address _contractAddr) internal view returns (bool) {
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            size := extcodesize(_contractAddr)
-        }
-        return size > 0;
     }
 }

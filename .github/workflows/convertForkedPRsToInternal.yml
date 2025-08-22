@@ -1,0 +1,143 @@
+# This GitHub Action automatically handles PRs opened from forked repositories.
+# Context:
+# - Forked PRs cannot access secrets or run CI in this repo due to security restrictions.
+# - To continue the contribution process, we need to recreate the PR using a local branch.
+#
+# What this action does:
+# ✅ Detects if a PR comes from a fork.
+# ✅ Fetches the forked PR branch and creates a new local branch in the main repo.
+# ✅ Opens a new PR from that local branch using the original PR's title and body.
+# ✅ Comments on the new PR and the original one to link them clearly.
+# ✅ Closes the original forked PR.
+#
+# Additional Notes:
+# - Uses GitHub CLI (`gh`) to create and comment on PRs.
+# - Uses the bot's Personal Access Token to ensure permissions for editing/closing PRs.
+# - Ensures actions and CI can run safely on the new PR.
+
+name: Convert Fork PR to Internal PR
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  handle-fork-pr:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fork-pr-migration-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+
+    env:
+      GH_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Fetch forked branch content
+        id: fetch_fork
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "Lifi Bot"
+          git config --global user.email "actions@users.noreply.github.com"
+
+          # Sanitize repo and ref inputs (basic alphanumeric + symbols)
+          FORK_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          FORK_REF="${{ github.event.pull_request.head.ref }}"
+          NEW_BRANCH="fork-pr-${{ github.event.pull_request.number }}"
+
+          # Allow only expected characters in ref and repo
+          SAFE_FORK_REPO=$(echo "$FORK_REPO" | sed 's/[^a-zA-Z0-9_.\/-]//g')
+          SAFE_FORK_REF=$(echo "$FORK_REF" | sed 's/[^a-zA-Z0-9_.\/-]//g')
+          SAFE_NEW_BRANCH=$(echo "$NEW_BRANCH" | sed 's/[^a-zA-Z0-9_.\/-]//g')
+
+          # Check if branch already exists
+          if git show-ref --verify --quiet refs/remotes/origin/"$SAFE_NEW_BRANCH"; then
+            echo "Branch $SAFE_NEW_BRANCH already exists, using timestamp suffix"
+            SAFE_NEW_BRANCH="${SAFE_NEW_BRANCH}-$(date +%s)"
+          fi
+
+          echo "SAFE_NEW_BRANCH=$SAFE_NEW_BRANCH" >> $GITHUB_ENV
+
+          git remote add fork "https://github.com/${SAFE_FORK_REPO}.git"
+          git fetch fork "$SAFE_FORK_REF"
+          git checkout -b "$SAFE_NEW_BRANCH" FETCH_HEAD
+          git push origin "$SAFE_NEW_BRANCH"
+
+      - name: Create internal PR
+        id: create_internal_pr
+        run: |
+          set -euo pipefail
+
+          # Safely escape PR title for shell usage
+          PR_TITLE=$(printf "%q" "${{ github.event.pull_request.title }}")
+          ORIGINAL_PR_NUMBER="${{ github.event.pull_request.number }}"
+          ORIGINAL_PR_URL="https://github.com/${{ github.repository }}/pull/$ORIGINAL_PR_NUMBER"
+          ORIGINAL_AUTHOR="@${{ github.event.pull_request.user.login }}"
+
+          # Safely handle PR body with proper escaping
+          RAW_BODY="${{ github.event.pull_request.body }}"
+          PR_BODY="${RAW_BODY:-No original PR description.}"
+
+          # Create a temporary file for the PR body to avoid shell escaping issues
+          cat > /tmp/pr_body.md << 'EOF'
+> 🔄 This PR was created automatically from external PR [#$ORIGINAL_PR_NUMBER]($ORIGINAL_PR_URL) for CI/security purposes.
+
+Original PR by $ORIGINAL_AUTHOR: $ORIGINAL_PR_URL
+
+---
+
+$PR_BODY
+EOF
+
+          NEW_PR_URL=$(gh pr create \
+            --base "${{ github.event.pull_request.base.ref }}" \
+            --head "$SAFE_NEW_BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file /tmp/pr_body.md)
+
+          echo "NEW_PR_URL=$NEW_PR_URL" >> $GITHUB_ENV
+          echo "NEW_PR_NUMBER=$(basename "$NEW_PR_URL")" >> $GITHUB_ENV
+
+      - name: Comment on new PR linking original
+        run: |
+          set -euo pipefail
+          NEW_PR_NUMBER=$(echo "$NEW_PR_URL" | awk -F'/' '{print $NF}')
+          ORIGINAL_PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          gh pr comment "$NEW_PR_NUMBER" --body "This PR was created from #$ORIGINAL_PR_NUMBER (external fork) to enable full CI and audit checks."
+
+      - name: Comment and close original PR
+        run: |
+          set -euo pipefail
+          ORIGINAL_PR="${{ github.event.pull_request.number }}"
+
+          COMMENT_BODY="Thanks for your contribution! 🙌
+
+Unfortunately, we can't run GitHub Actions or access required secrets on PRs from forked repositories.
+
+To proceed, we've copied your changes to a new internal PR that our CI can safely test and audit:
+👉 $NEW_PR_URL
+
+We're closing this PR in favor of continuing the review on the new one. Please follow progress there!"
+
+          gh pr comment "$ORIGINAL_PR" --body "$COMMENT_BODY"
+          gh pr close "$ORIGINAL_PR"
+
+      - name: Cleanup on failure
+        if: failure()
+        run: |
+          set -euo pipefail
+          echo "Action failed, cleaning up temporary branch if it exists"
+          if [ -n "$SAFE_NEW_BRANCH" ]; then
+            git push origin --delete "$SAFE_NEW_BRANCH" || true
+          fi

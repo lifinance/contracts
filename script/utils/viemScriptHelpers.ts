@@ -1,60 +1,28 @@
+import * as fs from 'fs'
+import * as path from 'path'
+import readline from 'readline'
+
+import { consola } from 'consola'
+import * as dotenv from 'dotenv'
 import {
-  Chain,
   defineChain,
   encodeFunctionData,
   getAddress,
   parseAbi,
-  type Address,
-  type Hex,
+  type Chain,
 } from 'viem'
+
 import networksConfig from '../../config/networks.json'
-import * as dotenv from 'dotenv'
-import * as path from 'path'
-import * as fs from 'fs'
-import consola from 'consola'
-import { privateKeyToAccount } from 'viem/accounts'
-import { createWalletClient, http, createPublicClient } from 'viem'
 import {
-  getNextNonce,
-  getSafeMongoCollection,
-  initializeSafeClient,
-  OperationType,
-  storeTransactionInMongoDB,
-} from '../deploy/safe/safe-utils'
-import { getDeployments } from '../demoScripts/utils/demoScriptHelpers'
-import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
+  EnvironmentEnum,
+  type INetwork,
+  type INetworksObject,
+  type SupportedChain,
+} from '../common/types'
+
+import { getDeployments } from './deploymentHelpers'
+
 dotenv.config()
-
-export type NetworksObject = {
-  [key: string]: Omit<Network, 'id'>
-}
-
-export enum Environment {
-  'staging',
-  'production',
-}
-
-export type Network = {
-  name: string
-  chainId: number
-  nativeAddress: string
-  nativeCurrency: string
-  wrappedNativeAddress: string
-  status: string
-  type: string
-  rpcUrl: string
-  verificationType: string
-  explorerUrl: string
-  explorerApiUrl: string
-  multicallAddress: string
-  safeApiUrl: string
-  safeAddress: string
-  safeWebUrl: string
-  deployedWithEvmVersion: string
-  deployedWithSolcVersion: string
-  gasZipChainId: number
-  id: string
-}
 
 const colors = {
   reset: '\x1b[0m',
@@ -62,7 +30,7 @@ const colors = {
   green: '\x1b[32m',
 }
 
-export const networks: NetworksObject = networksConfig
+export const networks: INetworksObject = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
@@ -101,7 +69,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   return chain
 }
 
-export const getAllNetworksArray = (): Network[] => {
+export const getAllNetworksArray = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = Object.entries(networksConfig).map(([key, value]) => ({
     ...value,
@@ -112,12 +80,12 @@ export const getAllNetworksArray = (): Network[] => {
 }
 
 // removes all networks with "status='inactive'"
-export const getAllActiveNetworks = (): Network[] => {
+export const getAllActiveNetworks = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = getAllNetworksArray()
 
   // Example: Filter networks where status is 'active'
-  const activeNetworks: Network[] = networkArray.filter(
+  const activeNetworks: INetwork[] = networkArray.filter(
     (network) => network.status === 'active'
   )
 
@@ -147,9 +115,8 @@ export const retry = async <T>(
       error: e,
       remainingRetries: retries - 1,
     })
-    if (retries > 0) {
-      return retry(func, retries - 1)
-    }
+    if (retries > 0) return retry(func, retries - 1)
+
     throw e
   }
 }
@@ -163,7 +130,7 @@ export const retry = async <T>(
 export const getContractAddressForNetwork = async (
   contractName: string,
   network: SupportedChain,
-  environment: Environment = Environment.production
+  environment: EnvironmentEnum = EnvironmentEnum.production
 ): Promise<string> => {
   // get network deploy log file
   const deployments = await getDeployments(network, environment)
@@ -198,9 +165,8 @@ export function getFunctionSelectors(
   )
 
   // Ensure the contract file exists
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath))
     throw new Error(`Contract JSON not found at path: ${filePath}`)
-  }
 
   // Load and parse the compiled contract JSON
   const raw = fs.readFileSync(filePath, 'utf8')
@@ -208,9 +174,8 @@ export function getFunctionSelectors(
   const identifiers = json?.methodIdentifiers
 
   // Ensure methodIdentifiers are present in the JSON (these map function signatures to selectors)
-  if (!identifiers) {
+  if (!identifiers)
     throw new Error(`No methodIdentifiers found in contract: ${contractName}`)
-  }
 
   // Clean the exclusion list (remove '0x' prefix and lowercase them for consistent comparison)
   const excludesClean = excludes.map((sel) =>
@@ -234,14 +199,14 @@ export function getFunctionSelectors(
  */
 export function getDeployLogFile(
   network: string,
-  environment: 'production' | 'staging'
+  environment: EnvironmentEnum
 ): Record<string, string> {
-  const suffix = environment === 'production' ? '' : `.${environment}`
+  const suffix =
+    environment === EnvironmentEnum.production ? '' : `.${environment}`
   const filePath = path.resolve(`deployments/${network}${suffix}.json`)
 
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)
-  }
 
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 }
@@ -294,131 +259,253 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
 }
 
 /**
- * Sends the calldata directly to the Diamond (if staging or override enabled),
- * or proposes it to the Safe (if production).
+ * Casts a string environment to EnvironmentEnum
+ * @param environment - The environment string
+ * @returns EnvironmentEnumvalue
  */
-export async function sendOrPropose({
-  calldata,
-  network,
-  environment,
-  diamondAddress,
-}: {
-  calldata: `0x${string}`
-  network: string
-  environment: 'staging' | 'production'
-  diamondAddress: string
-}) {
-  const isProd = environment === 'production'
-  const sendDirectly =
-    environment === 'staging' ||
-    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+export function castEnv(environment: string): EnvironmentEnum {
+  if (environment === 'production') return EnvironmentEnum.production
+  if (environment === 'staging') return EnvironmentEnum.staging
+  throw new Error(`Invalid environment: ${environment}`)
+}
 
-  // ───────────── DIRECT TX FLOW ───────────── //
-  if (sendDirectly) {
-    consola.info('📤 Sending transaction directly to the Diamond...')
+/**
+ * Helper function to display options in columns
+ */
+function displayOptionsInColumns(options: string[], columns = 3): void {
+  const maxLength = Math.max(...options.map((opt) => opt.length))
+  const paddedOptions = options.map((opt) => opt.padEnd(maxLength + 2))
 
-    const pk = process.env[isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY']
-    if (!pk) throw new Error('Missing private key in environment')
+  const rows = Math.ceil(options.length / columns)
 
-    // add 0x to privKey, if not there already
-    const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`
-    const account = privateKeyToAccount(normalizedPk as `0x${string}`)
-
-    const chain = getViemChainForNetworkName(network)
-
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(),
-    })
-
-    // Use PublicClient to wait for tx
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(),
-    })
-
-    const hash = await walletClient
-      .sendTransaction({
-        to: getAddress(diamondAddress),
-        data: calldata,
-      })
-      .catch((err) => {
-        consola.error('❌ Failed to broadcast tx:', err)
-        throw err
-      })
-
-    consola.info(`⏳ Waiting for tx ${hash} to be mined...`)
-
-    const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
-    if (receipt.status !== 'success')
-      throw new Error(`Tx reverted in block ${receipt.blockNumber}`)
-
-    consola.success(`✅ Tx confirmed in block ${receipt.blockNumber}`)
-
-    return
+  for (let row = 0; row < rows; row++) {
+    let line = ''
+    for (let col = 0; col < columns; col++) {
+      const index = row + col * rows
+      if (index < options.length) {
+        const number = (index + 1).toString().padStart(2)
+        line += `${number}. ${paddedOptions[index]}`
+      }
+    }
+    consola.log(line)
   }
+}
 
-  // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.SAFE_SIGNER_PRIVATE_KEY
-  if (!pk) throw new Error('Missing SAFE_SIGNER_PRIVATE_KEY in environment')
-
-  const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
-  consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
-
-  const { client: mongoClient, pendingTransactions } =
-    await getSafeMongoCollection()
-
-  const currentSafeNonce = await safe.getNonce()
-
-  const nextNonce = await getNextNonce(
-    pendingTransactions,
-    safeAddress,
-    network,
-    chain.id,
-    currentSafeNonce
-  )
-
-  const safeTransaction = await safe.createTransaction({
-    transactions: [
-      {
-        to: diamondAddress as Address,
-        value: 0n,
-        data: calldata as Hex,
-        operation: OperationType.Call,
-        nonce: nextNonce,
-      },
-    ],
+/**
+ * Helper function to get user input with proper signal handling
+ */
+export async function getUserInput(prompt: string): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
   })
 
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
-  consola.info('📝 Safe Address:', safeAddress)
-  consola.info('🧾 Safe Tx Hash:', safeTxHash)
-
-  try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      safe.account
-    )
-
-    if (!result.acknowledged) {
-      throw new Error('MongoDB insert was not acknowledged')
+  return new Promise((resolve, _reject) => {
+    // Set up signal handlers
+    const handleSigInt = () => {
+      rl.close()
+      consola.info('Operation cancelled.')
+      process.exit(0)
     }
 
-    consola.success('✅ Safe transaction proposed and stored in MongoDB')
-  } catch (err) {
-    consola.error('❌ Failed to store transaction in MongoDB:', err)
-    await mongoClient.close()
-    throw new Error(`Failed to store transaction in MongoDB: ${err.message}`)
+    const handleSigTerm = () => {
+      rl.close()
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
+
+    process.once('SIGINT', handleSigInt)
+    process.once('SIGTERM', handleSigTerm)
+
+    rl.question(prompt, (answer) => {
+      rl.close()
+      // Clean up signal handlers
+      process.removeListener('SIGINT', handleSigInt)
+      process.removeListener('SIGTERM', handleSigTerm)
+      resolve(answer.trim())
+    })
+  })
+}
+
+/**
+ * Helper function to filter options based on user input with better UX
+ */
+export async function selectWithSearch(
+  message: string,
+  options: string[]
+): Promise<string> {
+  let filteredOptions = options
+  let selected: string | undefined
+
+  while (!selected) {
+    // Show current state
+    consola.log(`\n${message}`)
+    consola.log(`Found ${filteredOptions.length} options.`)
+    consola.log('')
+
+    // Display all options in columns
+    displayOptionsInColumns(filteredOptions)
+
+    consola.log('')
+    consola.log('Options:')
+    consola.log('- Type a number to select')
+    consola.log('- Press Ctrl+C to cancel')
+    consola.log('')
+
+    try {
+      const input = await getUserInput('Enter selection: ')
+
+      if (!input) {
+        consola.warn('Please enter a valid selection.')
+        continue
+      }
+
+      // Check if input is a number (selection)
+      const selectionNumber = parseInt(input)
+      if (!isNaN(selectionNumber))
+        if (selectionNumber >= 1 && selectionNumber <= filteredOptions.length) {
+          // Valid option selected
+          const selectedOption = filteredOptions[selectionNumber - 1]
+          if (selectedOption) {
+            selected = selectedOption
+            break
+          }
+        } else {
+          consola.warn('Invalid selection number.')
+          continue
+        }
+      else {
+        // Input is not a number - treat as search term
+        filteredOptions = options.filter((option) =>
+          option.toLowerCase().includes(input.toLowerCase())
+        )
+        if (filteredOptions.length === 0) {
+          consola.warn('No matches found. Showing all options.')
+          filteredOptions = options
+        }
+        continue
+      }
+    } catch (error) {
+      // Handle Ctrl+C or other interruptions
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
   }
 
-  await mongoClient.close()
+  if (!selected) throw new Error('No option was selected')
+
+  return selected
+}
+
+/**
+ * Helper function to filter options for multiselect with better UX
+ */
+export async function multiselectWithSearch(
+  message: string,
+  options: string[]
+): Promise<string[]> {
+  let filteredOptions = options
+  let selected: string[] = []
+  let isComplete = false
+
+  while (!isComplete) {
+    // Show current state
+    consola.log(`\n${message}`)
+    if (selected.length > 0) consola.log(`Selected: ${selected.join(', ')}`)
+
+    consola.log(`Found ${filteredOptions.length} options.`)
+    consola.log('')
+
+    // Display all options in columns with selection markers
+    const displayOptions = filteredOptions.map((option, index) => {
+      const isSelected = selected.includes(option)
+      const marker = isSelected ? '✓' : ' '
+      const number = (index + 1).toString().padStart(2)
+      return `${number}. [${marker}] ${option}`
+    })
+
+    // Display in columns
+    const columns = 2 // Use fewer columns for multiselect to accommodate checkboxes
+    const maxLength = Math.max(...displayOptions.map((opt) => opt.length))
+    const paddedOptions = displayOptions.map((opt) => opt.padEnd(maxLength + 2))
+
+    const rows = Math.ceil(displayOptions.length / columns)
+
+    for (let row = 0; row < rows; row++) {
+      let line = ''
+      for (let col = 0; col < columns; col++) {
+        const index = row + col * rows
+        if (index < displayOptions.length) line += paddedOptions[index]
+      }
+      consola.log(line)
+    }
+
+    consola.log('')
+    consola.log('Options:')
+    consola.log(
+      "- Type numbers (comma-separated) to select/deselect, e.g.: '1,2,3"
+    )
+    consola.log('- Type "done" when finished')
+    consola.log('- Press Ctrl+C to cancel')
+    consola.log('')
+
+    try {
+      const input = await getUserInput('Enter selection: ')
+
+      if (!input) {
+        consola.warn('Please enter a valid selection.')
+        continue
+      }
+
+      if (input.toLowerCase() === 'done')
+        if (selected.length > 0) {
+          isComplete = true
+          break
+        } else {
+          consola.warn('Please select at least one option.')
+          continue
+        }
+
+      // Check if input is numbers (selection)
+      const numbers = input
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s)
+      const allNumbers = numbers.every((n) => !isNaN(parseInt(n)))
+
+      if (allNumbers && numbers.length > 0) {
+        const selectionNumbers = numbers.map((n) => parseInt(n))
+
+        // Process regular selections
+        for (const num of selectionNumbers)
+          if (num >= 1 && num <= filteredOptions.length) {
+            const option = filteredOptions[num - 1]
+            if (option)
+              if (selected.includes(option))
+                selected = selected.filter((item) => item !== option)
+              else selected.push(option)
+          }
+
+        consola.info(`Facet(s) selected: ${selected.join(', ')}`)
+        isComplete = true
+        break
+      } else {
+        // Input is not numbers - treat as search term
+        filteredOptions = options.filter((option) =>
+          option.toLowerCase().includes(input.toLowerCase())
+        )
+        if (filteredOptions.length === 0) {
+          consola.warn('No matches found. Showing all options.')
+          filteredOptions = options
+        }
+        continue
+      }
+    } catch (error) {
+      // Handle Ctrl+C or other interruptions
+      consola.info('Operation cancelled.')
+      process.exit(0)
+    }
+  }
+
+  return selected
 }
