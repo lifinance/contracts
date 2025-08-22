@@ -647,7 +647,7 @@ export const getDeployments = async (
  */
 export const setupEnvironment = async (
   chain: SupportedChain,
-  facetAbi: Narrow<readonly any[]> | null,
+  diamondABI: Narrow<readonly any[]> | null,
   environment: EnvironmentEnum = EnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {
@@ -671,7 +671,9 @@ export const setupEnvironment = async (
     account: walletAccount,
   })
 
-  const deployments = facetAbi ? await getDeployments(chain, environment) : null
+  const deployments = diamondABI
+    ? await getDeployments(chain, environment)
+    : null
 
   const client = { public: publicClient, wallet: walletClient }
 
@@ -680,10 +682,10 @@ export const setupEnvironment = async (
     : null
 
   const lifiDiamondContract =
-    facetAbi && lifiDiamondAddress
+    diamondABI && lifiDiamondAddress
       ? getContract({
           address: lifiDiamondAddress,
-          abi: facetAbi,
+          abi: diamondABI,
           client,
         })
       : null

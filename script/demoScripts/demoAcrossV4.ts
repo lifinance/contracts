@@ -1,14 +1,14 @@
-import { BigNumber, constants, ethers, utils } from 'ethers'
+import { BigNumber, constants, utils } from 'ethers'
 
-import { AcrossFacetV4__factory, type AcrossFacetV4 } from '../../typechain'
-import type { LibSwap } from '../../typechain/AcrossFacetV4'
-import { EnvironmentEnum } from '../common/types'
-import { getDeployments } from '../utils/deploymentHelpers'
-
+import deploymentsARB from '../../deployments/arbitrum.staging.json'
+import deploymentsOPT from '../../deployments/optimism.staging.json'
 import {
-  createDefaultBridgeData,
-  type BridgeData,
-} from './utils/bridgeDataHelpers'
+  type AcrossFacetV4,
+  type ILiFi,
+  AcrossFacetV4__factory,
+} from '../../typechain'
+import type { LibSwap } from '../../typechain/AcrossFacetV4'
+
 import {
   ADDRESS_DEV_WALLET_SOLANA_BYTES32,
   ADDRESS_DEV_WALLET_V4,
@@ -152,7 +152,7 @@ const isTransferWithinSendLimit = async (
     : receivingAssetId
 
   const apiUrl = `${ACROSS_API_BASE_URL}${endpointURL}?inputToken=${inputTokenAddress}&outputToken=${outputTokenAddress}&originChainId=${fromChainId}&destinationChainId=${toChainId}`
-  console.log('Checking limits with URL:', apiUrl)
+  logDebug(`Checking limits with URL: ${apiUrl}`)
 
   try {
     const response = await fetch(apiUrl)
@@ -291,7 +291,7 @@ const getAcrossQuote = async (
 
 const calculateOutputAmountPercentage = (quote: IAcrossV4Quote): string => {
   // Convert the relay fee percentage from basis points to 18 decimal fixed point
-  const totalFeePercent = BigNumber.from(quote.relayFeePct)
+  const totalFeePercent = BigNumber.from(quote.relayFeePct || '0')
 
   // Calculate output percentage as (100% - fee%) where 100% = 1e18
   const oneHundredPercent = BigNumber.from(10).pow(18) // 1e18 represents 100%
@@ -316,7 +316,7 @@ const getMinAmountOut = (quote: IAcrossV4Quote, fromAmount: string) => {
 }
 
 const createDestCallPayload = (
-  bridgeData: BridgeData,
+  bridgeData: ILiFi.BridgeDataStruct,
   swapData: LibSwap.SwapDataStruct[],
   receiverAddress: string
 ): string => {
@@ -369,9 +369,12 @@ const WITH_DEST_CALL =
 const WITH_EXCLUSIVE_RELAYER = false
 const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
-// These will be set in main() after getting deployments
-let DIAMOND_ADDRESS_SRC: string
-let RECEIVER_ADDRESS_DST: string
+const DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
+const RECEIVER_ADDRESS_DST = isSolana
+  ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
+  : WITH_DEST_CALL
+  ? deploymentsARB.ReceiverAcrossV3
+  : ADDRESS_DEV_WALLET_V4
 const EXPLORER_BASE_URL = 'https://optimistic.etherscan.io/tx/'
 
 // ############################################################################################################
@@ -387,10 +390,9 @@ async function main() {
     if (isNative) {
       // For ETH, convert from wei to ETH (18 decimals)
       const ethAmount = BigNumber.from(amount).div(BigNumber.from(10).pow(18))
-      return `${ethAmount.toString()}.${amount
-        .slice(-18)
-        .padStart(18, '0')
-        .slice(0, 6)} ETH`
+      const remainder = BigNumber.from(amount).mod(BigNumber.from(10).pow(18))
+      const remainderStr = remainder.toString().padStart(18, '0')
+      return `${ethAmount.toString()}.${remainderStr.slice(0, 6)} ETH`
     } else {
       // For USDC, convert from micro USDC to USDC (6 decimals)
       const usdcAmount = BigNumber.from(amount).div(BigNumber.from(10).pow(6))
@@ -421,33 +423,7 @@ async function main() {
   console.log(`🔄 Transaction Type: ${ITransactionTypeEnum[TRANSACTION_TYPE]}`)
   console.log('')
 
-  // get deployments dynamically
-  const deploymentsOPT = await getDeployments(
-    'optimism',
-    EnvironmentEnum.staging
-  )
-  const deploymentsARB = await getDeployments(
-    'arbitrum',
-    EnvironmentEnum.staging
-  )
-
-  // Set the addresses that depend on deployments
-  DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
-  RECEIVER_ADDRESS_DST = isSolana
-    ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
-    : WITH_DEST_CALL
-    ? deploymentsARB.ReceiverAcrossV3
-    : ADDRESS_DEV_WALLET_V4
-
-  // Debug: Check what's in the deployments
-  // console.log('Available deployments on Optimism:')
-  // console.log(Object.keys(deploymentsOPT))
-  // console.log('AcrossFacetV4 deployment:', deploymentsOPT.AcrossFacetV4)
-
-  // make sure facet is deployed
-  const isAcrossFacetV4Deployed = true // Assume deployed since user confirmed
-
-  // get our diamond contract to interact with (using AcrossFacetV4 interface)
+  // get our diamond contract to interact with (using AcrossV4 interface)
   const acrossV4Facet = AcrossFacetV4__factory.connect(
     DIAMOND_ADDRESS_SRC,
     wallet
@@ -466,7 +442,6 @@ async function main() {
   )
     throw Error('Route is not available. Script cannot continue.')
   else console.log('✅ Route is available')
-  console.log('')
 
   // get all AcrossV4-supported routes (>> bridge definitions)
   const routes = await getAllAvailableAcrossRoutes()
@@ -482,19 +457,23 @@ async function main() {
     ? RECEIVER_ADDRESS_DST
     : walletAddress
 
-  const bridgeData = createDefaultBridgeData(
-    'acrossV4',
-    isNativeTX(TRANSACTION_TYPE) ? constants.AddressZero : sendingAssetIdSrc,
-    bridgeDataReceiver,
-    fromAmount,
-    toChainId,
-    TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC ||
+  const bridgeData: ILiFi.BridgeDataStruct = {
+    transactionId: utils.randomBytes(32),
+    bridge: 'acrossV4',
+    integrator: 'demoScript',
+    referrer: constants.AddressZero,
+    sendingAssetId: isNativeTX(TRANSACTION_TYPE)
+      ? constants.AddressZero
+      : sendingAssetIdSrc,
+    receiver: bridgeDataReceiver,
+    minAmount: fromAmount,
+    destinationChainId: toChainId,
+    hasSourceSwaps:
+      TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC ||
       TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_SRC,
-    WITH_DEST_CALL
-  )
-  console.log('📋 BRIDGE DATA PARAMETERS:')
-  console.log(JSON.stringify(bridgeData, null, 2))
-  console.log('')
+    hasDestinationCall: WITH_DEST_CALL,
+  }
+  console.log('📋 bridgeData prepared')
 
   // Calculate required input amount for source swap if needed
   let finalFromAmount = BigNumber.from(fromAmount)
@@ -541,23 +520,24 @@ async function main() {
       throw error
     }
 
-  // Single approval of the sending asset to the Diamond contract
-  if (bridgeData.hasSourceSwaps && srcSwapData[0])
-    await ensureBalanceAndAllowanceToDiamond(
-      ADDRESS_USDC_OPT,
-      wallet,
-      DIAMOND_ADDRESS_SRC,
-      BigNumber.from(srcSwapData[0].fromAmount.toString()),
-      false
-    )
-  else
-    await ensureBalanceAndAllowanceToDiamond(
-      sendingAssetId, // Use the actual sending asset ID, not the source asset ID
-      wallet,
-      DIAMOND_ADDRESS_SRC,
-      BigNumber.from(bridgeData.minAmount),
-      isNativeTX(TRANSACTION_TYPE)
-    )
+  // Single approval of the sending asset to the Diamond contract (only when sending TX)
+  if (SEND_TX)
+    if (bridgeData.hasSourceSwaps && srcSwapData[0])
+      await ensureBalanceAndAllowanceToDiamond(
+        ADDRESS_USDT_OPT,
+        wallet,
+        DIAMOND_ADDRESS_SRC,
+        BigNumber.from(srcSwapData[0].fromAmount.toString()),
+        false
+      )
+    else
+      await ensureBalanceAndAllowanceToDiamond(
+        sendingAssetIdSrc,
+        wallet,
+        DIAMOND_ADDRESS_SRC,
+        BigNumber.from(bridgeData.minAmount),
+        isNativeTX(TRANSACTION_TYPE)
+      )
 
   // get a quote using adjusted amount
   const quote = await getAcrossQuote(
@@ -567,17 +547,15 @@ async function main() {
     toChainId,
     finalFromAmount.toString()
   )
-  console.log('📊 ACROSS QUOTE RECEIVED:')
-  console.log(JSON.stringify(quote, null, 2))
-  console.log('')
+  console.log('📊 quote obtained')
 
   // calculate fees/minAmountOut and outputAmountPercent
   let minAmountOut = getMinAmountOut(quote, fromAmount)
-  console.log('minAmountOut determined: ', minAmountOut.toString())
+  console.log('💰 minAmountOut determined: ', minAmountOut.toString())
 
   // Calculate outputAmountPercent based on the relay fees from the quote
   const finalOutputAmountPercent = calculateOutputAmountPercentage(quote)
-  console.log('calculated outputAmountPercent:', finalOutputAmountPercent)
+  logDebug('calculated outputAmountPercent: ' + finalOutputAmountPercent)
 
   // Display quote summary
   console.log('\n📊 QUOTE SUMMARY:')
@@ -594,8 +572,8 @@ async function main() {
     `📈 LP Fee: ${quote.lpFee?.total || '0'} (${quote.lpFeePct} basis points)`
   )
   console.log(
-    `📦 Expected Output: ${minAmountOut.toString()} ${
-      isSolana ? 'USDC (Solana)' : 'USDC (Arbitrum)'
+    `📦 Expected Output: ${formatAmount(minAmountOut.toString(), false)} on ${
+      isSolana ? 'Solana' : 'Arbitrum'
     }`
   )
   console.log(
@@ -623,7 +601,7 @@ async function main() {
 
     // prepare dest calldata, if tx has destination call
     payload = createDestCallPayload(bridgeData, swapData, walletAddress)
-    console.log('payload prepared')
+    console.log('🎯 payload prepared')
 
     // get updated quote
     const quote = await getAcrossQuote(
@@ -639,7 +617,7 @@ async function main() {
     // update minAmountOut
     minAmountOut = getMinAmountOut(quote, fromAmount)
     console.log(
-      'minAmountOut updated (with payload estimate): ',
+      '💰 minAmountOut updated (with payload estimate): ',
       minAmountOut.toString()
     )
 
@@ -675,7 +653,7 @@ async function main() {
     outputAmountMultiplier: '1000000000000000000', // 1e18 for no adjustment
     exclusiveRelayer: WITH_EXCLUSIVE_RELAYER
       ? leftPadAddressToBytes32(EXCLUSIVE_RELAYER)
-      : '0x0000000000000000000000000000000000000000000000000000000000000000',
+      : constants.HashZero,
     quoteTimestamp: quote.timestamp || '0',
     fillDeadline: quote.timestamp
       ? BigNumber.from(quote.timestamp)
@@ -690,35 +668,10 @@ async function main() {
         : '0',
     message: payload,
   }
-  console.log('📋 ACROSS V4 DATA PARAMETERS:')
-  console.log(JSON.stringify(acrossV4Data, null, 2))
-  console.log('')
+  console.log('📋 acrossV4Data prepared')
 
   // execute src transaction
   if (SEND_TX) {
-    if (!isAcrossFacetV4Deployed) {
-      console.log(
-        '❌ Cannot execute transaction: AcrossFacetV4 is not deployed'
-      )
-      console.log('📋 Prepared data for demonstration:')
-      console.log('Bridge Data:', JSON.stringify(bridgeData, null, 2))
-      console.log('Across V4 Data:', JSON.stringify(acrossV4Data, null, 2))
-      console.log(
-        'Source Swap Data:',
-        srcSwapData.length > 0 ? JSON.stringify(srcSwapData, null, 2) : 'None'
-      )
-      console.log(
-        'Destination Swap Data:',
-        swapData.length > 0 ? JSON.stringify(swapData, null, 2) : 'None'
-      )
-      console.log('')
-      console.log('🚀 To deploy AcrossFacetV4 and make this script functional:')
-      console.log('1. Run the deployment script for AcrossFacetV4')
-      console.log('2. Update the diamond with the new facet')
-      console.log('3. Set isAcrossFacetV4Deployed to true in this script')
-      return
-    }
-
     // create calldata from facet interface
     const executeTxData = bridgeData.hasSourceSwaps
       ? await acrossV4Facet.populateTransaction
@@ -727,10 +680,10 @@ async function main() {
             srcSwapData,
             acrossV4Data
           )
-          .then((tx) => tx.data || '0x')
+          .then((tx: any) => tx.data)
       : await acrossV4Facet.populateTransaction
           .startBridgeTokensViaAcrossV4(bridgeData, acrossV4Data)
-          .then((tx) => tx.data || '0x')
+          .then((tx: any) => tx.data)
 
     // determine msg.value
     const msgValue = BigNumber.from(
@@ -739,150 +692,20 @@ async function main() {
         : 0
     )
 
-    console.log('🚀 EXECUTING TRANSACTION...')
-    console.log('')
-
-    // Debug: Check allowance and balance before transaction
-    const tokenContract = new ethers.Contract(
-      sendingAssetId,
-      [
-        'function allowance(address,address) view returns (uint256)',
-        'function balanceOf(address) view returns (uint256)',
-      ],
-      wallet.provider
+    console.log('🚀 executing bridge transaction now...')
+    const transactionResponse = await sendTransaction(
+      wallet,
+      acrossV4Facet.address,
+      executeTxData,
+      msgValue
     )
+    logDebug(`calldata: ${transactionResponse.data}\n`)
 
-    const allowance = await tokenContract.allowance(
-      walletAddress,
-      DIAMOND_ADDRESS_SRC // Check allowance for the diamond
-    )
-    const balance = await tokenContract.balanceOf(walletAddress)
-    const requiredAmount = BigNumber.from(bridgeData.minAmount)
-
-    console.log(`🔍 PRE-TRANSACTION CHECKS:`)
+    console.log('\n🎉 BRIDGE TRANSACTION EXECUTED SUCCESSFULLY!')
+    console.log(`📤 Deposit TX Hash: ${transactionResponse.hash}`)
     console.log(
-      `   Balance: ${formatAmount(
-        balance.toString(),
-        isNativeTX(TRANSACTION_TYPE)
-      )}`
+      `🔗 Explorer Link: ${EXPLORER_BASE_URL}${transactionResponse.hash}`
     )
-    console.log(
-      `   Allowance: ${formatAmount(
-        allowance.toString(),
-        isNativeTX(TRANSACTION_TYPE)
-      )}`
-    )
-    console.log(
-      `   Required: ${formatAmount(
-        requiredAmount.toString(),
-        isNativeTX(TRANSACTION_TYPE)
-      )}`
-    )
-    console.log(`   Diamond Address: ${DIAMOND_ADDRESS_SRC}`)
-    console.log(`   Facet Address: ${acrossV4Facet.address}`)
-    console.log('')
-
-    // Check and approve allowance if needed
-    if (requiredAmount.gt(allowance)) {
-      console.log('🔐 APPROVING TOKEN ALLOWANCE...')
-      const approveTx = await tokenContract.approve(
-        DIAMOND_ADDRESS_SRC, // Approve the diamond
-        requiredAmount
-      )
-      await approveTx.wait()
-      console.log('✅ Token approved for bridging')
-      console.log('')
-    } else {
-      console.log('✅ Sufficient allowance already exists')
-      console.log('')
-    }
-
-    // Test if the facet is accessible by calling a simple view function
-    // try {
-    //   console.log('🔍 Testing facet accessibility...')
-    //   const spokePool = await acrossV4Facet.SPOKEPOOL()
-    //   console.log(`✅ Facet is accessible. SpokePool: ${spokePool}`)
-    // } catch (error: any) {
-    //   console.log(`❌ Facet accessibility test failed: ${error.message}`)
-    // }
-
-    try {
-      const transactionResponse = await sendTransaction(
-        wallet,
-        acrossV4Facet.address,
-        executeTxData,
-        msgValue
-      )
-      logDebug(`calldata: ${transactionResponse.data}\n`)
-
-      console.log('\n🎉 TRANSACTION EXECUTED SUCCESSFULLY!')
-      console.log(`📤 Deposit TX Hash: ${transactionResponse.hash}`)
-      console.log(
-        `🔗 Explorer Link: ${EXPLORER_BASE_URL}${transactionResponse.hash}`
-      )
-      console.log(
-        `💰 Amount Deposited: ${formatAmount(
-          fromAmount,
-          isNativeTX(TRANSACTION_TYPE)
-        )}`
-      )
-      console.log(`📥 Destination: ${isSolana ? 'Solana' : 'Arbitrum'}`)
-      console.log(
-        `👤 Receiver: ${
-          isSolana
-            ? 'S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4'
-            : walletAddress
-        }`
-      )
-      console.log(
-        `⏱️  Expected Fill Time: ${quote.estimatedFillTimeSec || 'N/A'} seconds`
-      )
-      console.log('')
-
-      // Wait for transaction confirmation and get receipt
-      console.log('⏳ Waiting for transaction confirmation...')
-      const receipt = await transactionResponse.wait()
-      console.log('✅ Transaction confirmed!')
-      console.log('')
-
-      console.log('📊 TRANSACTION RECEIPT DETAILS:')
-      console.log(
-        `   Status: ${receipt.status === 1 ? '✅ Success' : '❌ Failed'}`
-      )
-      console.log(`   Block Number: ${receipt.blockNumber}`)
-      console.log(`   Gas Used: ${receipt.gasUsed?.toString() || 'N/A'}`)
-      console.log(
-        `   Effective Gas Price: ${
-          receipt.effectiveGasPrice?.toString() || 'N/A'
-        } wei`
-      )
-      console.log(
-        `   Cumulative Gas Used: ${
-          receipt.cumulativeGasUsed?.toString() || 'N/A'
-        }`
-      )
-      console.log(`   From: ${receipt.from}`)
-      console.log(`   To: ${receipt.to}`)
-      console.log(`   Contract Address: ${receipt.contractAddress || 'N/A'}`)
-      console.log(`   Transaction Index: ${receipt.transactionIndex}`)
-      console.log(`   Logs: ${receipt.logs?.length || 0} events emitted`)
-      console.log('')
-    } catch (error: any) {
-      console.log('\n❌ TRANSACTION FAILED!')
-      console.log(`Error: ${error.message}`)
-      throw error
-    }
-  } else {
-    // Show mock transaction hash for demonstration when SEND_TX is false
-    const mockTxHash =
-      '0x' +
-      Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join('')
-
-    console.log('\n🎉 TRANSACTION PREPARED SUCCESSFULLY!')
-    console.log(`📤 Deposit TX Hash: ${mockTxHash}`)
-    console.log(`🔗 Explorer Link: ${EXPLORER_BASE_URL}${mockTxHash}`)
     console.log(
       `💰 Amount Deposited: ${formatAmount(
         fromAmount,
@@ -897,10 +720,6 @@ async function main() {
     )
     console.log(
       `⏱️  Expected Fill Time: ${quote.estimatedFillTimeSec || 'N/A'} seconds`
-    )
-    console.log('')
-    console.log(
-      '💡 Note: This is a demonstration. Set SEND_TX = true to execute the actual transaction.'
     )
     console.log('')
   }
