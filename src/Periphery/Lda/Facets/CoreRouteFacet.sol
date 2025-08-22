@@ -140,11 +140,78 @@ contract CoreRouteFacet is
     }
 
     /// @notice Interprets and executes commands from the route byte stream
-    /// @dev Processes commands in sequence: ERC20, native, permits, and pool interactions
+    /// @dev A route is a packed byte stream of sequential commands. Each command begins with a 1-byte opcode:
+    /// - 1 = HandleSelfERC20 (tokens already on this contract)
+    /// - 2 = HandleUserERC20 (tokens from user)
+    /// - 3 = HandleNative (ETH held by this contract)
+    /// - 4 = HandleSinglePool (tokens already in pool)
+    /// - 5 = ApplyPermit (EIP-2612 permit for tokenIn on behalf of msg.sender)
+    ///
+    /// Stream formats per opcode:
+    /// 1. HandleSelfERC20:
+    ///    [1][token: address][n: uint8] then n legs, each:
+    ///      [share: uint16][len: uint16][data: bytes]
+    ///    total = IERC20(token).balanceOf(address(this)) minus 1 wei (undrain protection)
+    ///    from = address(this), tokenIn = token
+    ///
+    /// 2. HandleUserERC20:
+    ///    [2][token: address][n: uint8] then n legs, each:
+    ///      [share: uint16][len: uint16][data: bytes]
+    ///    total = declaredAmountIn
+    ///    from = msg.sender, tokenIn = token
+    ///
+    /// 3. HandleNative:
+    ///    [3][n: uint8] then n legs, each:
+    ///      [share: uint16][len: uint16][data: bytes]
+    ///    total = address(this).balance (includes msg.value and any residual ETH)
+    ///    from = address(this), tokenIn = INTERNAL_INPUT_SOURCE
+    ///
+    /// 4. HandleSinglePool:
+    ///    [4][token: address][len: uint16][data: bytes]
+    ///    amountIn = 0 (pool sources tokens internally), from = INTERNAL_INPUT_SOURCE
+    ///
+    /// 5. ApplyPermit:
+    ///    [5][value: uint256][deadline: uint256][v: uint8][r: bytes32][s: bytes32]
+    ///    Calls permit on tokenIn for msg.sender → address(this). No swap occurs.
+    ///
+    /// Leg data encoding:
+    /// Each leg's data field contains [selector (4 bytes) | payload (bytes)].
+    /// The selector determines the DEX facet function to call. The router delegatecalls the facet with:
+    /// (bytes swapData, address from, address tokenIn, uint256 amountIn)
+    /// where swapData is the payload from the route, containing DEX-specific data:
+    /// - Example for UniV3-style: abi.encode(pool, direction, recipient)
+    /// - Each DEX facet defines its own payload format based on what its pools need
+    ///
+    /// Example multihop route (two legs on user ERC20, then single-pool hop):
+    /// ```
+    /// // Leg payloads with facet selectors:
+    /// leg1 = abi.encodePacked(
+    ///     UniV3StyleFacet.swapUniV3.selector,
+    ///     abi.encode(poolA, DIRECTION_TOKEN0_TO_TOKEN1, poolC)  // recipient is the final pool
+    /// );
+    /// leg2 = abi.encodePacked(
+    ///     IzumiV3Facet.swapIzumiV3.selector,
+    ///     abi.encode(poolB, DIRECTION_TOKEN0_TO_TOKEN1, poolC)  // recipient is the final pool
+    /// );
+    /// leg3 = abi.encodePacked(
+    ///     SomePoolFacet.swapSinglePool.selector,
+    ///     abi.encode(poolC, finalRecipient, otherPoolParams)  // pool that received tokens from leg1&2
+    /// );
+    ///
+    /// // Full route: [2][tokenA][2 legs][60% leg1][40% leg2] then [4][tokenB][leg3]
+    /// route = abi.encodePacked(
+    ///     uint8(2), tokenA, uint8(2),
+    ///     uint16(39321), uint16(leg1.length), leg1,   // ~60% of amountIn
+    ///     uint16(26214), uint16(leg2.length), leg2,   // ~40% of amountIn
+    ///     uint8(4), tokenB,
+    ///     uint16(leg3.length), leg3
+    /// );
+    /// ```
     /// @param tokenIn The input token address
     /// @param declaredAmountIn The declared input amount
     /// @param route The encoded route data
-    /// @return realAmountIn The actual amount used in the first hop
+    /// @return realAmountIn The actual amount used in the first hop. For opcode 1: contract balance minus 1,
+    ///         for opcode 3: contract's ETH balance, for opcode 2: equals declaredAmountIn
     function _runRoute(
         address tokenIn,
         uint256 declaredAmountIn,
