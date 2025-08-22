@@ -86,16 +86,15 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
     function test_ProcessNativeCommandSendsEthToRecipient() public {
         _addMockNativeFacet();
 
-        address recipient = USER_RECEIVER;
         uint256 amount = 1 ether;
 
         // Fund the actual caller (USER_SENDER)
         vm.deal(USER_SENDER, amount);
 
-        // swapData: selector + abi.encode(recipient)
+        // swapData: selector + abi.encode(USER_RECEIVER)
         bytes memory swapData = abi.encodePacked(
             MockNativeFacet.handleNative.selector,
-            abi.encode(recipient)
+            abi.encode(USER_RECEIVER)
         );
 
         // route: [3][num=1][share=FULL_SHARE][len][swapData]
@@ -105,7 +104,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             amountIn: amount,
             minOut: 0,
             sender: USER_SENDER, // Use USER_SENDER directly
-            recipient: recipient,
+            recipient: USER_RECEIVER,
             commandType: CommandType.ProcessNative
         });
 
