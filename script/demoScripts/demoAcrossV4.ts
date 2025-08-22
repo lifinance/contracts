@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import { BigNumber, constants, utils } from 'ethers'
 
 import deploymentsARB from '../../deployments/arbitrum.staging.json'
@@ -107,7 +108,7 @@ const ACROSS_CHAIN_ID_SOL = 34268394551451 // Across Custom ID for Solana
 
 /// HELPER FUNCTIONS
 const logDebug = (msg: string) => {
-  if (DEBUG) console.log(msg)
+  consola.debug(msg)
 }
 
 const getAllAvailableAcrossRoutes = async (): Promise<IAcrossV4Route[]> => {
@@ -118,7 +119,7 @@ const getAllAvailableAcrossRoutes = async (): Promise<IAcrossV4Route[]> => {
       resp.json()
     )
   } catch (error) {
-    console.error(`error: ${JSON.stringify(error, null, 2)}`)
+    consola.error(`error: ${JSON.stringify(error, null, 2)}`)
   }
 
   if (!resp) throw Error(`Could not obtain a list of available routes`)
@@ -172,7 +173,7 @@ const isTransferWithinSendLimit = async (
 
     return fromAmount.lte(maxDeposit) && fromAmount.gte(minDeposit)
   } catch (error) {
-    console.error('Error checking transfer limits:', error)
+    consola.error('Error checking transfer limits:', error)
     throw error
   }
 }
@@ -278,7 +279,7 @@ const getAcrossQuote = async (
   try {
     resp = await fetch(fullURL).then((response) => response.json())
   } catch (error) {
-    console.error(error)
+    consola.error(error)
   }
 
   if (!resp)
@@ -336,7 +337,6 @@ const createDestCallPayload = (
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
 const TRANSACTION_TYPE = ITransactionTypeEnum.ERC20 as ITransactionTypeEnum // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
-const DEBUG = true // set to true for higher verbosity in console output
 
 // change these values only if you need to
 const fromChainId = 10 as number
@@ -383,7 +383,7 @@ async function main() {
   const provider = getProvider(SRC_CHAIN)
   const wallet = getWalletFromPrivateKeyInDotEnv(provider)
   const walletAddress = await wallet.getAddress()
-  console.log('you are using this wallet address: ', walletAddress)
+  consola.info('you are using this wallet address: ', walletAddress)
 
   // Helper function to format amount with decimals
   const formatAmount = (amount: string, isNative: boolean): string => {
@@ -403,32 +403,32 @@ async function main() {
   }
 
   // Display route details
-  console.log('\n🌉 BRIDGE ROUTE DETAILS:')
-  console.log(`📤 Source Chain: ${SRC_CHAIN} (Chain ID: ${fromChainId})`)
-  console.log(
+  consola.info('\n🌉 BRIDGE ROUTE DETAILS:')
+  consola.info(`📤 Source Chain: ${SRC_CHAIN} (Chain ID: ${fromChainId})`)
+  consola.info(
     `📥 Destination Chain: ${
       isSolana ? 'Solana' : 'Arbitrum'
     } (Chain ID: ${toChainId})`
   )
-  console.log(
+  consola.info(
     `💰 Amount: ${formatAmount(fromAmount, isNativeTX(TRANSACTION_TYPE))}`
   )
-  console.log(`🎯 Sending Asset: ${sendingAssetId}`)
-  console.log(`📦 Receiving Asset: ${receivingAssetId}`)
-  console.log(
+  consola.info(`🎯 Sending Asset: ${sendingAssetId}`)
+  consola.info(`📦 Receiving Asset: ${receivingAssetId}`)
+  consola.info(
     `👤 Receiver: ${
       isSolana ? 'S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4' : walletAddress
     }`
   )
-  console.log(`🔄 Transaction Type: ${ITransactionTypeEnum[TRANSACTION_TYPE]}`)
-  console.log('')
+  consola.info(`🔄 Transaction Type: ${ITransactionTypeEnum[TRANSACTION_TYPE]}`)
+  consola.info('')
 
   // get our diamond contract to interact with (using AcrossV4 interface)
   const acrossV4Facet = AcrossFacetV4__factory.connect(
     DIAMOND_ADDRESS_SRC,
     wallet
   )
-  console.log('diamond/AcrossFacetV4 connected: ', acrossV4Facet.address)
+  consola.info('diamond/AcrossFacetV4 connected: ', acrossV4Facet.address)
 
   // make sure that the desired route is available
   if (
@@ -441,12 +441,12 @@ async function main() {
     ))
   )
     throw Error('Route is not available. Script cannot continue.')
-  else console.log('✅ Route is available')
+  else consola.info('✅ Route is available')
 
   // get all AcrossV4-supported routes (>> bridge definitions)
   const routes = await getAllAvailableAcrossRoutes()
-  console.log(`📊 Across currently supports ${routes.length} routes`)
-  console.log('')
+  consola.info(`📊 Across currently supports ${routes.length} routes`)
+  consola.info('')
 
   // prepare bridgeData first
   // For Solana, use NON_EVM_ADDRESS in bridgeData (the real Solana address goes in AcrossV4Data)
@@ -473,7 +473,7 @@ async function main() {
       TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_SRC,
     hasDestinationCall: WITH_DEST_CALL,
   }
-  console.log('📋 bridgeData prepared')
+  consola.info('📋 bridgeData prepared')
 
   // Calculate required input amount for source swap if needed
   let finalFromAmount = BigNumber.from(fromAmount)
@@ -511,12 +511,12 @@ async function main() {
       bridgeData.minAmount = fromAmount
       finalFromAmount = BigNumber.from(fromAmount)
 
-      console.log(
+      consola.info(
         'Required input amount:',
         srcSwapData[0].fromAmount.toString()
       )
     } catch (error) {
-      console.error('Error in source swap calculation:', error)
+      consola.error('Error in source swap calculation:', error)
       throw error
     }
 
@@ -547,39 +547,39 @@ async function main() {
     toChainId,
     finalFromAmount.toString()
   )
-  console.log('📊 quote obtained')
+  consola.info('📊 quote obtained')
 
   // calculate fees/minAmountOut and outputAmountPercent
   let minAmountOut = getMinAmountOut(quote, fromAmount)
-  console.log('💰 minAmountOut determined: ', minAmountOut.toString())
+  consola.info('💰 minAmountOut determined: ', minAmountOut.toString())
 
   // Calculate outputAmountPercent based on the relay fees from the quote
   const finalOutputAmountPercent = calculateOutputAmountPercentage(quote)
   logDebug('calculated outputAmountPercent: ' + finalOutputAmountPercent)
 
   // Display quote summary
-  console.log('\n📊 QUOTE SUMMARY:')
-  console.log(
+  consola.info('\n📊 QUOTE SUMMARY:')
+  consola.info(
     `💸 Relay Fee: ${quote.relayFeeTotal} (${quote.relayFeePct} basis points)`
   )
-  console.log(
+  consola.info(
     `⛽ Gas Fee: ${quote.relayGasFeeTotal} (${quote.relayGasFeePct} basis points)`
   )
-  console.log(
+  consola.info(
     `💰 Capital Fee: ${quote.capitalFeeTotal} (${quote.capitalFeePct} basis points)`
   )
-  console.log(
+  consola.info(
     `📈 LP Fee: ${quote.lpFee?.total || '0'} (${quote.lpFeePct} basis points)`
   )
-  console.log(
+  consola.info(
     `📦 Expected Output: ${formatAmount(minAmountOut.toString(), false)} on ${
       isSolana ? 'Solana' : 'Arbitrum'
     }`
   )
-  console.log(
+  consola.info(
     `⏱️  Estimated Fill Time: ${quote.estimatedFillTimeSec || 'N/A'} seconds`
   )
-  console.log('')
+  consola.info('')
 
   const swapData = []
   let payload = '0x'
@@ -601,7 +601,7 @@ async function main() {
 
     // prepare dest calldata, if tx has destination call
     payload = createDestCallPayload(bridgeData, swapData, walletAddress)
-    console.log('🎯 payload prepared')
+    consola.info('🎯 payload prepared')
 
     // get updated quote
     const quote = await getAcrossQuote(
@@ -616,7 +616,7 @@ async function main() {
 
     // update minAmountOut
     minAmountOut = getMinAmountOut(quote, fromAmount)
-    console.log(
+    consola.info(
       '💰 minAmountOut updated (with payload estimate): ',
       minAmountOut.toString()
     )
@@ -668,7 +668,7 @@ async function main() {
         : '0',
     message: payload,
   }
-  console.log('📋 acrossV4Data prepared')
+  consola.info('📋 acrossV4Data prepared')
 
   // execute src transaction
   if (SEND_TX) {
@@ -692,7 +692,7 @@ async function main() {
         : 0
     )
 
-    console.log('🚀 executing bridge transaction now...')
+    consola.info('🚀 executing bridge transaction now...')
     const transactionResponse = await sendTransaction(
       wallet,
       acrossV4Facet.address,
@@ -701,37 +701,37 @@ async function main() {
     )
     logDebug(`calldata: ${transactionResponse.data}\n`)
 
-    console.log('\n🎉 BRIDGE TRANSACTION EXECUTED SUCCESSFULLY!')
-    console.log(`📤 Deposit TX Hash: ${transactionResponse.hash}`)
-    console.log(
+    consola.info('\n🎉 BRIDGE TRANSACTION EXECUTED SUCCESSFULLY!')
+    consola.info(`📤 Deposit TX Hash: ${transactionResponse.hash}`)
+    consola.info(
       `🔗 Explorer Link: ${EXPLORER_BASE_URL}${transactionResponse.hash}`
     )
-    console.log(
+    consola.info(
       `💰 Amount Deposited: ${formatAmount(
         fromAmount,
         isNativeTX(TRANSACTION_TYPE)
       )}`
     )
-    console.log(`📥 Destination: ${isSolana ? 'Solana' : 'Arbitrum'}`)
-    console.log(
+    consola.info(`📥 Destination: ${isSolana ? 'Solana' : 'Arbitrum'}`)
+    consola.info(
       `👤 Receiver: ${
         isSolana ? 'S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4' : walletAddress
       }`
     )
-    console.log(
+    consola.info(
       `⏱️  Expected Fill Time: ${quote.estimatedFillTimeSec || 'N/A'} seconds`
     )
-    console.log('')
+    consola.info('')
   }
 }
 
 main()
   .then(() => {
-    console.log('Script successfully completed')
+    consola.info('Script successfully completed')
     process.exit(0)
   })
   .catch((error) => {
-    console.error(error)
-    console.log('Script ended with errors :(')
+    consola.error(error)
+    consola.info('Script ended with errors :(')
     process.exit(1)
   })
