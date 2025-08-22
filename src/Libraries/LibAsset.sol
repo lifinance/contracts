@@ -6,10 +6,10 @@ import { LibSwap } from "./LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 // solhint-disable-next-line max-line-length
-import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount } from "../Errors/GenericErrors.sol";
 
 /// @title LibAsset
-/// @custom:version 2.1.1
+/// @custom:version 2.1.2
 /// @author LI.FI (https://li.fi)
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
@@ -77,7 +77,7 @@ library LibAsset {
         address assetId,
         address recipient,
         uint256 amount
-    ) private {
+    ) internal {
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) {
             revert InvalidReceiver();
@@ -98,11 +98,6 @@ library LibAsset {
         address recipient,
         uint256 amount
     ) internal {
-        // check if native asset
-        if (isNativeAsset(assetId)) {
-            revert NullAddrIsNotAnERC20Token();
-        }
-
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) {
             revert InvalidReceiver();
