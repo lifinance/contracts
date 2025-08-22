@@ -583,7 +583,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         );
     }
 
-    function test_WillRevertIfExecuteCallAndWithdrawFails() public {
+    function testRevert_WillRevertIfExecuteCallAndWithdrawFails() public {
         vm.expectRevert();
         acrossStandAlone.executeCallAndWithdraw(
             address(claimContract),
