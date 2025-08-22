@@ -39099,7 +39099,7 @@
             "TIMESTAMP": "2025-08-22 08:25:40",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004cd00e387622c35bddb9b4c962c136462338bc31",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
