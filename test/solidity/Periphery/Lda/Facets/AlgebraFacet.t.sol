@@ -135,7 +135,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -145,22 +145,9 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 recipient: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: RANDOM_APE_ETH_HOLDER_APECHAIN,
-                recipient: RANDOM_APE_ETH_HOLDER_APECHAIN,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             new ExpectedEvent[](0),
-            true // This is a fee-on-transfer token
+            true // This is a fee-on-transfer token,
         );
 
         vm.stopPrank();
@@ -251,7 +238,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
 
         bytes memory swapData = _buildCallbackSwapData(mockPool, USER_SENDER);
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -261,20 +248,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             SwapCallbackNotExecuted.selector
         );
 
@@ -306,7 +280,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -316,20 +290,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             InvalidCallData.selector
         );
 
@@ -383,32 +344,17 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            swapData
-        );
+        SwapTestParams memory params = SwapTestParams({
+            tokenIn: address(tokenIn),
+            tokenOut: address(tokenOut),
+            amountIn: _getDefaultAmountForTokenIn(),
+            minOut: 0,
+            sender: USER_SENDER,
+            recipient: USER_SENDER,
+            commandType: CommandType.ProcessUserERC20
+        });
 
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
-            InvalidCallData.selector
-        );
+        _buildRouteAndExecuteSwap(params, swapData, InvalidCallData.selector);
 
         vm.stopPrank();
         vm.clearMockedCalls();

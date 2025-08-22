@@ -100,7 +100,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -111,19 +111,6 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenMid),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route
         );
 
         vm.stopPrank();
@@ -147,7 +134,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -158,19 +145,6 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 commandType: CommandType.ProcessMyERC20
             }),
             swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenMid),
-                amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
-                minOut: 0,
-                sender: address(coreRouteFacet),
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
-            }),
-            route
         );
 
         vm.stopPrank();
@@ -275,7 +249,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenMid),
                 tokenOut: address(tokenIn),
@@ -285,20 +259,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 recipient: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenMid),
-                tokenOut: address(tokenIn),
-                amountIn: type(uint216).max,
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             InvalidCallData.selector
         );
 

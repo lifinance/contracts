@@ -291,6 +291,64 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
+    /// @dev Helper that builds route and executes swap in one call
+    function _buildRouteAndExecuteSwap(
+        SwapTestParams memory params,
+        bytes memory swapData,
+        ExpectedEvent[] memory expectedEvents,
+        bool expectRevert,
+        RouteEventVerification memory verification
+    ) internal {
+        bytes memory route = _buildBaseRoute(params, swapData);
+        _executeAndVerifySwap(
+            params,
+            route,
+            expectedEvents,
+            expectRevert,
+            verification
+        );
+    }
+
+    /// @dev Overload with default parameters for simple cases
+    function _buildRouteAndExecuteSwap(
+        SwapTestParams memory params,
+        bytes memory swapData
+    ) internal {
+        _buildRouteAndExecuteSwap(
+            params,
+            swapData,
+            new ExpectedEvent[](0),
+            false,
+            RouteEventVerification({ expectedExactOut: 0, checkData: false })
+        );
+    }
+
+    /// @dev Overload for revert cases
+    function _buildRouteAndExecuteSwap(
+        SwapTestParams memory params,
+        bytes memory swapData,
+        bytes4 expectedRevert
+    ) internal {
+        bytes memory route = _buildBaseRoute(params, swapData);
+        _executeAndVerifySwap(params, route, expectedRevert);
+    }
+
+    /// @dev Overload matching _executeAndVerifySwap's 4-parameter signature
+    function _buildRouteAndExecuteSwap(
+        SwapTestParams memory params,
+        bytes memory swapData,
+        ExpectedEvent[] memory additionalEvents,
+        bool isFeeOnTransferToken
+    ) internal {
+        bytes memory route = _buildBaseRoute(params, swapData);
+        _executeAndVerifySwap(
+            params,
+            route,
+            additionalEvents,
+            isFeeOnTransferToken
+        );
+    }
+
     // helper: load a 32-byte topic from a 32-byte abi.encode(param)
     function _asTopic(bytes memory enc) internal pure returns (bytes32 topic) {
         if (enc.length != 32) revert InvalidTopicLength();

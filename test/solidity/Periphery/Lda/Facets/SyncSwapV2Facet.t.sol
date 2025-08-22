@@ -64,7 +64,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -75,19 +75,6 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenMid),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route
         );
 
         vm.stopPrank();
@@ -109,7 +96,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -120,19 +107,6 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenMid),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route
         );
 
         vm.stopPrank();
@@ -158,7 +132,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -169,19 +143,6 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 commandType: CommandType.ProcessMyERC20
             }),
             swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenMid),
-                amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
-            }),
-            route
         );
 
         vm.stopPrank();
@@ -207,7 +168,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -218,19 +179,6 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 commandType: CommandType.ProcessMyERC20
             }),
             swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenMid),
-                amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
-            }),
-            route
         );
 
         vm.stopPrank();
@@ -326,7 +274,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -336,20 +284,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             InvalidCallData.selector
         );
 
@@ -362,7 +297,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
 
         vm.startPrank(USER_SENDER);
 
-        bytes memory swapData = _buildSyncSwapV2SwapData(
+        bytes memory swapDataWithInvalidPool = _buildSyncSwapV2SwapData(
             SyncSwapV2SwapParams({
                 pool: address(0),
                 to: address(USER_SENDER),
@@ -372,20 +307,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory routeWithInvalidPool = _buildBaseRoute(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -395,7 +317,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            routeWithInvalidPool,
+            swapDataWithInvalidPool,
             InvalidCallData.selector
         );
 
@@ -409,20 +331,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        bytes memory routeWithInvalidRecipient = _buildBaseRoute(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER, // Send to next pool
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            swapDataWithInvalidRecipient
-        );
-
-        _executeAndVerifySwap(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -432,7 +341,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            routeWithInvalidRecipient,
+            swapDataWithInvalidRecipient,
             InvalidCallData.selector
         );
 
@@ -453,20 +362,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 })
             );
 
-        bytes memory routeWithInvalidWithdrawMode = _buildBaseRoute(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: 1, // Arbitrary amount for this test
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            swapDataWithInvalidWithdrawMode
-        );
-
-        _executeAndVerifySwap(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -476,7 +372,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            routeWithInvalidWithdrawMode,
+            swapDataWithInvalidWithdrawMode,
             InvalidCallData.selector
         );
 

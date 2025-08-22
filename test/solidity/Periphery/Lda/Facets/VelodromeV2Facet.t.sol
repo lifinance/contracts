@@ -452,25 +452,16 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
 
         // --- Test case 1: Zero pool address ---
         // 1. Create the specific swap data blob
-        bytes memory swapDataZeroPool = abi.encodePacked(
-            VelodromeV2Facet.swapVelodromeV2.selector,
-            address(0), // Invalid pool
-            uint8(SwapDirection.Token1ToToken0),
-            USER_SENDER,
-            uint8(CallbackStatus.Disabled)
+        bytes memory swapDataZeroPool = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: address(0), // Invalid pool
+                direction: SwapDirection.Token1ToToken0,
+                recipient: USER_SENDER,
+                callbackStatus: CallbackStatus.Disabled
+            })
         );
 
-        // 2. Create the full route with the length-prefixed swap data
-        bytes memory routeWithZeroPool = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(tokenIn),
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapDataZeroPool.length), // Length prefix
-            swapDataZeroPool
-        );
-
-        _executeAndVerifySwap(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -480,29 +471,21 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            routeWithZeroPool,
+            swapDataZeroPool,
             InvalidCallData.selector
         );
 
         // --- Test case 2: Zero recipient address ---
-        bytes memory swapDataZeroRecipient = abi.encodePacked(
-            VelodromeV2Facet.swapVelodromeV2.selector,
-            validPool,
-            uint8(SwapDirection.Token1ToToken0),
-            address(0), // Invalid recipient
-            uint8(CallbackStatus.Disabled)
+        bytes memory swapDataZeroRecipient = _buildVelodromeV2SwapData(
+            VelodromeV2SwapData({
+                pool: validPool,
+                direction: SwapDirection.Token1ToToken0,
+                recipient: address(0), // Invalid recipient
+                callbackStatus: CallbackStatus.Disabled
+            })
         );
 
-        bytes memory routeWithZeroRecipient = abi.encodePacked(
-            uint8(CommandType.ProcessUserERC20),
-            address(tokenIn),
-            uint8(1),
-            FULL_SHARE,
-            uint16(swapDataZeroRecipient.length), // Length prefix
-            swapDataZeroRecipient
-        );
-
-        _executeAndVerifySwap(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -512,7 +495,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            routeWithZeroRecipient,
+            swapDataZeroRecipient,
             InvalidCallData.selector
         );
 
@@ -669,7 +652,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: params.amountIn,
-                minOut: 0,
+                minOut: expectedOutput[1],
                 sender: params.from,
                 recipient: params.to,
                 commandType: commandCode

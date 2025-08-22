@@ -38,7 +38,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -48,20 +48,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             InvalidCallData.selector
         );
 
@@ -82,7 +69,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
             })
         );
 
-        bytes memory route = _buildBaseRoute(
+        _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -92,20 +79,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
                 recipient: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapData
-        );
-
-        _executeAndVerifySwap(
-            SwapTestParams({
-                tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: _getDefaultAmountForTokenIn(),
-                minOut: 0,
-                sender: USER_SENDER,
-                recipient: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
-            }),
-            route,
+            swapData,
             InvalidCallData.selector
         );
 
