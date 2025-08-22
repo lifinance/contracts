@@ -345,9 +345,7 @@ contract CoreRouteFacet is
             // Prevent swaps with uselessly small amounts (like 1 wei) that could:
             // 1. Cause the entire transaction to fail (most DEXs reject such tiny trades)
             // 2. Waste gas even if they succeeded
-            // By subtracting 1 from any positive balance, we ensure:
-            // - A balance of 1 becomes a swap amount of 0 (effectively skipping the swap)
-            // - Larger balances are barely affected
+            // By subtracting 1 from any positive balance, we ensure a balance of 1 becomes a swap amount of 0 (effectively skipping the swap)
             if (total > 0) total -= 1;
         }
         _distributeAndSwap(cur, address(this), token, total);
@@ -392,6 +390,10 @@ contract CoreRouteFacet is
 
     /// @notice Dispatches a swap call to the appropriate DEX facet
     /// @dev Uses direct selector dispatch with optimized calldata construction
+    ///      Assembly is used to:
+    ///      - Build calldata for delegatecall without extra memory copies/abi.encode overhead
+    ///      - Reuse the payload already read from the stream without re-encoding
+    ///      - Keep memory usage predictable and cheap across arbitrary payload sizes
     /// @param cur The current position in the byte stream
     /// @param from The source address for tokens
     /// @param tokenIn The input token address
@@ -402,12 +404,14 @@ contract CoreRouteFacet is
         address tokenIn,
         uint256 amountIn
     ) private {
+        // Read [selector | payload] for the specific DEX facet
         bytes memory data = cur.readBytesWithLength();
 
         bytes4 selector = _readSelector(data);
-        // in-place payload alias (no copy)
+        // In-place payload alias (no copy): point to data+4 and change length to exclude selector
         bytes memory payload;
         assembly {
+            // payload = data + 4; then set payload.length = data.length - 4
             payload := add(data, 4)
             mstore(payload, sub(mload(data), 4))
         }
@@ -418,44 +422,70 @@ contract CoreRouteFacet is
         bool success;
         bytes memory returnData;
         assembly {
+            // Load free memory pointer where we’ll build calldata
             let free := mload(0x40)
-            // selector
+
+            // Calldata layout we build:
+            // [0..3]   function selector
+            // [4..]    ABI-encoded args:
+            //   head (4 slots):
+            //     slot0: offset_to_payload (0x80 = after 4 static slots)
+            //     slot1: from (address)
+            //     slot2: tokenIn (address)
+            //     slot3: amountIn (uint256)
+            //   payload area:
+            //     slot4: payload.length
+            //     slot5+: payload bytes (padded to 32)
+
+            // Write function selector at free
             mstore(free, selector)
             let args := add(free, 4)
 
-            // head (4 args): [offset_to_payload, from, tokenIn, amountIn]
-            mstore(args, 0x80) // offset to payload data (after 4 static slots)
+            // Head area: [offset_to_payload, from, tokenIn, amountIn]
+            // offset_to_payload = 0x80 (4 slots * 32 bytes)
+            mstore(args, 0x80)
             mstore(add(args, 0x20), from)
             mstore(add(args, 0x40), tokenIn)
             mstore(add(args, 0x60), amountIn)
 
-            // payload area
+            // Write payload area (length + bytes)
             let d := add(args, 0x80)
             let len := mload(payload)
             mstore(d, len)
-            // copy payload bytes
-            // identity precompile is cheapest for arbitrary-length copy
+
+            // Copy payload bytes into memory using the identity precompile (address 0x04)
+            // This is cheaper for arbitrary-size copies versus manual 32-byte loops.
+            // to = d+32; from = payload+32; size = len
             pop(
                 staticcall(gas(), 0x04, add(payload, 32), len, add(d, 32), len)
             )
 
+            // Round up payload length to 32 bytes for total calldata size
             let padded := and(add(len, 31), not(31))
+            // total calldata = 4 (selector) + 0x80 (head) + 0x20 (payload length) + padded payload
             let total := add(4, add(0x80, add(0x20, padded)))
+
+            // Perform delegatecall to the facet with our constructed calldata
+            // - delegatecall preserves msg.sender and storage context (diamond pattern)
             success := delegatecall(gas(), facet, free, total, 0, 0)
 
-            // update free memory pointer
+            // Advance the free memory pointer to after our calldata
             mstore(0x40, add(free, total))
 
-            // capture return data
+            // Capture return data into a new bytes array:
+            // returnData = new bytes(returndatasize())
             let rsize := returndatasize()
             returnData := mload(0x40)
             mstore(returnData, rsize)
             let rptr := add(returnData, 32)
             returndatacopy(rptr, 0, rsize)
+
+            // Bump free memory pointer past the returnData buffer (rounded to 32 bytes)
             mstore(0x40, add(rptr, and(add(rsize, 31), not(31))))
         }
 
         if (!success) {
+            // Bubble up revert reason from facet if present
             LibUtil.revertWith(returnData);
         }
     }
@@ -463,6 +493,10 @@ contract CoreRouteFacet is
     // ==== Private Functions - Helpers ====
 
     /// @notice Extracts function selector from calldata
+    /// @dev Assembly used to load the first 4 bytes (selector) directly from the bytes blob:
+    ///      - bytes are laid out as [len (32 bytes) | data...]
+    ///      - mload(add(blob, 32)) loads the first 32 bytes of data
+    ///      - Solidity ABI selectors occupy the first 4 bytes
     /// @param blob The calldata bytes
     /// @return sel The extracted selector
     function _readSelector(
@@ -473,14 +507,20 @@ contract CoreRouteFacet is
         }
     }
 
-    /// @notice Creates a new bytes array without the selector
+    /// @notice Creates a new bytes view that aliases blob without the first 4 bytes (selector)
+    /// @dev Assembly used to:
+    ///      - Point into the original bytes (no allocation/copy)
+    ///      - Rewrite the length to exclude the 4-byte selector
+    ///      This is safe here because we treat the result as a read-only slice.
     /// @param blob The original calldata bytes
     /// @return payload The calldata without selector
     function _payloadFrom(
         bytes memory blob
     ) private pure returns (bytes memory payload) {
         assembly {
+            // payload points at blob + 4, sharing the same underlying buffer
             payload := add(blob, 4)
+            // set payload.length = blob.length - 4
             mstore(payload, sub(mload(blob), 4))
         }
     }
