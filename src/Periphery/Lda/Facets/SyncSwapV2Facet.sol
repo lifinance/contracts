@@ -10,7 +10,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @title SyncSwapV2Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles SyncSwap V2 pool swaps with vault integration
-/// @dev Implements direct selector-callable swap function for both V1 and V2 SyncSwap pools
+/// @dev Supports both V1 and V2 SyncSwap pools
 /// @custom:version 1.0.0
 contract SyncSwapV2Facet {
     using LibPackedStream for uint256;
@@ -59,6 +59,8 @@ contract SyncSwapV2Facet {
         // if from is not msg.sender or address(this), it must be INTERNAL_INPUT_SOURCE
         // which means tokens are already in the vault/pool, no transfer needed
 
+        // SyncSwap V1 pools require tokens to be deposited into their vault first
+        // before they can be used for swapping
         if (isV1Pool) {
             ISyncSwapVault(target).deposit(tokenIn, pool);
         }
