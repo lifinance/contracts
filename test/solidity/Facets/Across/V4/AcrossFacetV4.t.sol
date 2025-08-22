@@ -596,6 +596,12 @@ contract AcrossFacetV4Test is TestBaseFacet {
         new TestAcrossFacetV4(IAcrossSpokePoolV4(address(0)));
     }
 
+    function testRevert_WhenConstructedWithZeroWrappedNative() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new AcrossFacetV4(IAcrossSpokePoolV4(SPOKE_POOL), bytes32(0));
+    }
+
     /// @notice Converts an address to a bytes32
     /// @param _address The address to convert
     function _convertAddressToBytes32(

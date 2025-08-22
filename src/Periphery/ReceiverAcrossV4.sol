@@ -49,6 +49,7 @@ contract ReceiverAcrossV4 is ILiFi, WithdrawablePeriphery {
     /// @notice Completes an AcrossV4 cross-chain transaction on the receiving chain
     /// @dev Token transfer and message execution will happen in one atomic transaction
     /// @dev This function can only be called the Across SpokePool on this network
+    /// @dev Across did not rename this function to V4 but it can be used for V4 as well
     /// @param tokenSent The address of the token that was received
     /// @param amount The amount of tokens received
     /// @param * - unused(relayer) The address of the relayer who is executing this message
@@ -101,7 +102,9 @@ contract ReceiverAcrossV4 is ILiFi, WithdrawablePeriphery {
                 assetId,
                 receiver
             )
-        {} catch {
+        {
+            // do nothing
+        } catch {
             // send the bridged (and unswapped) funds to receiver address
             LibAsset.transferERC20(assetId, receiver, amount);
 
