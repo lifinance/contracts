@@ -2012,7 +2012,7 @@ function verifyContract() {
 
   # Add verifier URL if available (for custom verifiers like oklink)
   local VERIFIER_URL
-  VERIFIER_URL=$(getVerifierUrl "$NETWORK" 2>/dev/null)
+  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
   if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
     VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
   fi
@@ -2173,11 +2173,11 @@ function getEtherscanApiKeyName() {
   echo "$ENV_VAR"
 }
 
-function getVerifierUrl() {
+function getVerifierUrlFromFoundryToml() {
   local NETWORK="$1"
 
   if [[ -z "$NETWORK" ]]; then
-    echo "Usage: getVerifierUrl <network>" >&2
+    echo "Usage: getVerifierUrlFromFoundryToml <network>" >&2
     return 1
   fi
 
