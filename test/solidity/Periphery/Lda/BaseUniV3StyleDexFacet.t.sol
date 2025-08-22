@@ -3,9 +3,9 @@ pragma solidity ^0.8.17;
 
 import { UniV3StyleFacet } from "lifi/Periphery/LDA/Facets/UniV3StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
-import { BaseDexFacetWithCallbackTest } from "./BaseDexFacetWithCallback.t.sol";
+import { BaseDEXFacetWithCallbackTest } from "./BaseDEXFacetWithCallback.t.sol";
 
-abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetWithCallbackTest {
+abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     UniV3StyleFacet internal uniV3Facet;
 
     // ==== Types ====

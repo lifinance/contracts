@@ -3,9 +3,9 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/LDA/Facets/UniV3StyleFacet.sol";
-import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
+import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
-contract EnosysDexV3FacetTest is BaseUniV3StyleDexFacetTest {
+contract EnosysDEXV3FacetTest is BaseUniV3StyleDEXFacetTest {
     // ==== Setup Functions ====
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({

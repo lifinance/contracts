@@ -8,9 +8,9 @@ import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { VelodromeV2Facet } from "lifi/Periphery/LDA/Facets/VelodromeV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseDexFacetTest } from "../BaseDexFacet.t.sol";
+import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 
-contract VelodromeV2FacetTest is BaseDexFacetTest {
+contract VelodromeV2FacetTest is BaseDEXFacetTest {
     VelodromeV2Facet internal velodromeV2Facet;
 
     // ==== Constants ====

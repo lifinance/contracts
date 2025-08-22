@@ -4,10 +4,10 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IzumiV3Facet } from "lifi/Periphery/LDA/Facets/IzumiV3Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseDexFacetWithCallbackTest } from "../BaseDexFacetWithCallback.t.sol";
+import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
 import { MockNoCallbackPool } from "../../../utils/MockNoCallbackPool.sol";
 
-contract IzumiV3FacetTest is BaseDexFacetWithCallbackTest {
+contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     IzumiV3Facet internal izumiV3Facet;
 
     // ==== Types ====
@@ -253,7 +253,7 @@ contract IzumiV3FacetTest is BaseDexFacetWithCallbackTest {
 
         vm.store(
             address(ldaDiamond),
-            keccak256("com.lifi.lda.callbackauthenticator"),
+            keccak256("com.lifi.lda.callbackAuthenticator"),
             bytes32(uint256(uint160(poolInMid)))
         );
 

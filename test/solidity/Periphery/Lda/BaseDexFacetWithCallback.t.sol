@@ -3,10 +3,10 @@ pragma solidity ^0.8.17;
 
 import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
 import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
-import { BaseDexFacetTest } from "./BaseDexFacet.t.sol";
+import { BaseDEXFacetTest } from "./BaseDEXFacet.t.sol";
 import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
 
-abstract contract BaseDexFacetWithCallbackTest is BaseDexFacetTest {
+abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
     // Each DEX with callback must implement these hooks
     function _getCallbackSelector() internal virtual returns (bytes4);
     function _buildCallbackSwapData(

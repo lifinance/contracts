@@ -11,9 +11,9 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
 import { TestToken as ERC20 } from "../../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../../utils/MockTokenFeeOnTransfer.sol";
-import { BaseDexFacetWithCallbackTest } from "../BaseDexFacetWithCallback.t.sol";
+import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
 
-contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
+contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
     AlgebraFacet internal algebraFacet;
 
     // ==== Constants ====

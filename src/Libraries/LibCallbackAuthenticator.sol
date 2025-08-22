@@ -8,7 +8,7 @@ pragma solidity ^0.8.17;
 library LibCallbackAuthenticator {
     /// Types ///
     bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.lda.callbackauthenticator");
+        keccak256("com.lifi.lda.callbackAuthenticator");
 
     /// Storage ///
     struct CallbackStorage {

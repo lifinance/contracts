@@ -7,10 +7,10 @@ import { BaseCoreRouteTest } from "./BaseCoreRouteTest.t.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 /**
- * @title BaseDexFacetTest
+ * @title BaseDEXFacetTest
  * @notice Base test contract with common functionality and abstractions for DEX-specific tests
  */
-abstract contract BaseDexFacetTest is BaseCoreRouteTest {
+abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
     using SafeERC20 for IERC20;
 
     // ==== Types ====

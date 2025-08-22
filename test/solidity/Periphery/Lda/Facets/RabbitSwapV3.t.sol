@@ -4,9 +4,9 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/LDA/Facets/UniV3StyleFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDexFacet.t.sol";
+import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
-contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
+contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "viction",
@@ -30,7 +30,6 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         vm.startPrank(USER_SENDER);
         tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
-        // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
                 pool: address(0), // Invalid pool address
@@ -39,7 +38,6 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             })
         );
 
-        // Use _buildBaseRoute from base class
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
                 tokenIn: address(tokenIn),
@@ -76,7 +74,6 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
         vm.startPrank(USER_SENDER);
         tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
-        // Use _buildUniV3SwapData from base class
         bytes memory swapData = _buildUniV3SwapData(
             UniV3SwapParams({
                 pool: poolInOut,
@@ -85,7 +82,6 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
             })
         );
 
-        // Use _buildBaseRoute from base class
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
                 tokenIn: address(tokenIn),
