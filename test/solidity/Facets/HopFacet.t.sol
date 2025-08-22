@@ -247,7 +247,7 @@ contract HopFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(hopFacet2), functionSelectors);
+        addFacet(diamond2, address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
