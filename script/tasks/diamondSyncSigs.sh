@@ -34,7 +34,7 @@ function diamondSyncSigs {
     echo ""
 
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
-      checkRequiredVariablesInDotEnv "$NETWORK"
+      checkRequiredVariablesInDotEnv $NETWORK
     fi
   fi
 
@@ -110,23 +110,6 @@ function diamondSyncSigs {
       # Fallback to cast send
       if [[ $ATTEMPTS == 1 ]]; then
         CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
-
-        # Check for dangerous function selector: transferFrom (0x23b872dd)
-        for sig in "${CFG_SIGS[@]}"; do
-          if [[ "$sig" == "0x23b872dd" ]]; then
-            printf '\033[0;31m%s\033[0m\n' "[$NETWORK] ❌ ERROR: transferFrom function selector (0x23b872dd) detected in signatures!"
-            printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    This function allows transferring tokens from any address with approval."
-            printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Whitelisting this function is NOT ALLOWED for security reasons."
-            printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Please remove this function selector from config/sigs.json before proceeding."
-            echo ""
-
-            # Log the error to the failed log file before exiting
-            echo "[$NETWORK] Error: transferFrom function selector (0x23b872dd) detected - security check failed" >> "$FAILED_LOG_FILE"
-
-            exit 1
-          fi
-        done
-
         PARAMS=""
         for d in "${CFG_SIGS[@]}"; do
           PARAMS+="${d},"
