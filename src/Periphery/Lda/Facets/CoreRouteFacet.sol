@@ -404,15 +404,19 @@ contract CoreRouteFacet is
         address tokenIn,
         uint256 amountIn
     ) private {
-        // Read [selector | payload] for the specific DEX facet
+        // Read [selector | payload] blob for the specific DEX facet
         bytes memory data = cur.readBytesWithLength();
 
+        // Extract function selector (first 4 bytes of data)
         bytes4 selector = _readSelector(data);
-        // In-place payload alias (no copy): point to data+4 and change length to exclude selector
+
+        // Create an in-place alias for the payload (skip the first 4 bytes).
+        // This avoids allocating/copying a second bytes array for the payload.
         bytes memory payload;
         assembly {
-            // payload = data + 4; then set payload.length = data.length - 4
+            // payload points to data + 4 and shares the same buffer
             payload := add(data, 4)
+            // payload.length = data.length - 4
             mstore(payload, sub(mload(data), 4))
         }
 
@@ -422,70 +426,94 @@ contract CoreRouteFacet is
         bool success;
         bytes memory returnData;
         assembly {
-            // Load free memory pointer where we’ll build calldata
+            // Example: Building calldata for swapUniV3(bytes,address,address,uint256)
+            // with example values:
+            // - selector: 0x1234abcd
+            // - from: 0xaaa...
+            // - tokenIn: 0xbbb... (USDC)
+            // - amountIn: 1000000 (1 USDC)
+            // - swapData: abi.encode(
+            //     pool: 0x123...,
+            //     direction: 1,
+            //     recipient: 0x456...
+            // )
+            //
+            // Memory layout it builds (each line is 32 bytes):
+            // Position  Content
+            // 0x80:     0x1234abcd00000000...  // selector
+            // 0x84:     0x80                   // offset to swapData
+            // 0xa4:     0xaaa...               // from address
+            // 0xc4:     0xbbb...               // tokenIn address
+            // 0xe4:     0x0f4240               // amountIn (1000000)
+            // 0x104:    0x60                   // swapData length (96)
+            // 0x124:    0x123...               // pool address
+            // 0x144:    0x01                   // direction
+            // 0x164:    0x456...               // recipient
+
+            // Free memory pointer where we’ll build calldata for delegatecall
             let free := mload(0x40)
 
             // Calldata layout we build:
             // [0..3]   function selector
             // [4..]    ABI-encoded args:
-            //   head (4 slots):
-            //     slot0: offset_to_payload (0x80 = after 4 static slots)
-            //     slot1: from (address)
-            //     slot2: tokenIn (address)
-            //     slot3: amountIn (uint256)
+            //   head (4 words):
+            //     word0: offset_to_payload (0x80 = after 4 static words)
+            //     word1: from (address)
+            //     word2: tokenIn (address)
+            //     word3: amountIn (uint256)
             //   payload area:
-            //     slot4: payload.length
-            //     slot5+: payload bytes (padded to 32)
+            //     word4: payload.length
+            //     word5+: payload bytes (padded to 32 bytes)
 
-            // Write function selector at free
+            // Write function selector
             mstore(free, selector)
             let args := add(free, 4)
 
-            // Head area: [offset_to_payload, from, tokenIn, amountIn]
-            // offset_to_payload = 0x80 (4 slots * 32 bytes)
-            mstore(args, 0x80)
+            // Head: [offset_to_payload, from, tokenIn, amountIn]
+            mstore(args, 0x80) // offset to payload data
             mstore(add(args, 0x20), from)
             mstore(add(args, 0x40), tokenIn)
             mstore(add(args, 0x60), amountIn)
 
-            // Write payload area (length + bytes)
+            // Payload area (length + bytes)
             let d := add(args, 0x80)
             let len := mload(payload)
             mstore(d, len)
 
-            // Copy payload bytes into memory using the identity precompile (address 0x04)
-            // This is cheaper for arbitrary-size copies versus manual 32-byte loops.
+            // Copy payload via the identity precompile (address 0x04).
+            // This is cheaper for arbitrary-length copies vs. manual loops.
             // to = d+32; from = payload+32; size = len
             pop(
                 staticcall(gas(), 0x04, add(payload, 32), len, add(d, 32), len)
             )
 
-            // Round up payload length to 32 bytes for total calldata size
+            // Round payload length up to a multiple of 32 and compute total calldata size
             let padded := and(add(len, 31), not(31))
-            // total calldata = 4 (selector) + 0x80 (head) + 0x20 (payload length) + padded payload
+            // total = 4 (selector) + 0x80 (head) + 0x20 (payload length) + padded payload
             let total := add(4, add(0x80, add(0x20, padded)))
 
-            // Perform delegatecall to the facet with our constructed calldata
-            // - delegatecall preserves msg.sender and storage context (diamond pattern)
+            // Perform delegatecall into facet.
+            // delegatecall preserves msg.sender and storage context (diamond pattern).
             success := delegatecall(gas(), facet, free, total, 0, 0)
 
-            // Advance the free memory pointer to after our calldata
+            // Advance the free memory pointer past our calldata buffer (even on failure).
             mstore(0x40, add(free, total))
 
-            // Capture return data into a new bytes array:
-            // returnData = new bytes(returndatasize())
-            let rsize := returndatasize()
-            returnData := mload(0x40)
-            mstore(returnData, rsize)
-            let rptr := add(returnData, 32)
-            returndatacopy(rptr, 0, rsize)
-
-            // Bump free memory pointer past the returnData buffer (rounded to 32 bytes)
-            mstore(0x40, add(rptr, and(add(rsize, 31), not(31))))
+            // Only allocate/copy return data on failure to save gas on success.
+            switch success
+            case 0 {
+                let rsize := returndatasize()
+                returnData := mload(0x40)
+                mstore(returnData, rsize)
+                let rptr := add(returnData, 32)
+                returndatacopy(rptr, 0, rsize)
+                // bump free memory pointer past the return data buffer (padded)
+                mstore(0x40, add(rptr, and(add(rsize, 31), not(31))))
+            }
         }
 
+        // Bubble up revert data if delegatecall failed
         if (!success) {
-            // Bubble up revert reason from facet if present
             LibUtil.revertWith(returnData);
         }
     }
