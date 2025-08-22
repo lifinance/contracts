@@ -44,6 +44,8 @@ contract CoreRouteFacet is
     error SwapFailed();
     error UnknownSelector();
 
+    /// @notice Constructor
+    /// @param _owner The address of the contract owner
     constructor(address _owner) WithdrawablePeriphery(_owner) {
         if (_owner == address(0)) revert InvalidConfig();
     }
@@ -94,6 +96,9 @@ contract CoreRouteFacet is
         address to,
         bytes calldata route
     ) private returns (uint256 amountOut) {
+        // For native assets (ETH), we skip balance tracking since:
+        // 1. ETH balance checks would be misleading due to gas costs, so calling address(to).balance at the end of the route is not reliable
+        // 2. Native asset handling is done via _handleNative which consumes all ETH on the contract
         uint256 balInInitial = LibAsset.isNativeAsset(tokenIn)
             ? 0
             : IERC20(tokenIn).balanceOf(msg.sender);
