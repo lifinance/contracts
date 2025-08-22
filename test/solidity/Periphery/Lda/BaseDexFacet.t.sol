@@ -109,7 +109,7 @@ abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
         customBlockNumberForForking = forkConfig.blockNumber;
 
         fork();
-        BaseCoreRouteTest.setUp();
+        super.setUp();
         _setupDexEnv(); // populate tokens/pools
         _addDexFacet();
     }

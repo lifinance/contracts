@@ -16,7 +16,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
     // ==== Setup Functions ====
     function setUp() public override {
-        BaseCoreRouteTest.setUp();
+        super.setUp();
         // Register mock pull facet once and store selector
         MockPullERC20Facet mockPull = new MockPullERC20Facet();
         bytes4[] memory sel = new bytes4[](1);
