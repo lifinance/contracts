@@ -257,11 +257,31 @@ contract MayanFacet is
                 receiver := mload(add(protocolData, 0xe4))
             }
             case 0xe27dce37 {
-                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,[*address*],uint64,uint256,uint256,(uint64, tuple))
+                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,address,uint64,uint256,uint256,(uint64,([*address*],uint256,uint256,(bytes32,bytes32,uint8))))
+                // @notice Important behavior regarding permits and receivers in Mayan bridge for Hypercore:
+                // 1. The DepositPayload struct (tuple) only contains permit data, with no separate receiver field
+                // 2. The permit signer in DepositPayload struct (not the trader (3rd argument)) is who receives the bridged funds
+                // 3. While technically possible to bridge to a different receiver, it requires having that receiver's permit
+                //
+                // Implementation note:
+                // Due to these constraints, the sender must act as the receiver
+                // since they need to provide their own permit. This limitation is handled at the backend level
+                // by disabling the option to specify a different receiver.
+                ///
                 receiver := mload(add(protocolData, 0xe4))
             }
             case 0x4d1ed73b {
-                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,[*address*],uint256,uint64,bytes32,uint8, uint32, uint256,(uint64, tuple))
+                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,address,uint256,uint64,bytes32,uint8,uint32,uint256,(uint64,([*address*],uint256,uint256,(bytes32,bytes32,uint8))))
+                // @notice Important behavior regarding permits and receivers in Mayan bridge for Hypercore:
+                // 1. The DepositPayload struct (tuple) only contains permit data, with no separate receiver field
+                // 2. The permit signer in DepositPayload struct (not the trader (3rd argument)) is who receives the bridged funds
+                // 3. While technically possible to bridge to a different receiver, it requires having that receiver's permit
+                //
+                // Implementation note:
+                // Due to these constraints, the sender must act as the receiver
+                // since they need to provide their own permit. This limitation is handled at the backend level
+                // by disabling the option to specify a different receiver.
+                ///
                 receiver := mload(add(protocolData, 0x164))
             }
             default {
