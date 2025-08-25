@@ -20,7 +20,7 @@ contract CurveFacet {
     // ==== External Functions ====
     /// @notice Executes a swap through a Curve pool
     /// @dev Handles both modern pools that return amounts and legacy pools that require balance tracking
-    /// @param swapData Encoded swap parameters [pool, poolType, fromIndex, toIndex, recipient, tokenOut]
+    /// @param swapData Encoded swap parameters [pool, poolType, fromIndex, toIndex, destinationAddress, tokenOut]
     /// @param from Token source address - if equals msg.sender, tokens will be pulled from the caller;
     ///        otherwise assumes tokens are already at this contract
     /// @param tokenIn Input token address
@@ -37,10 +37,10 @@ contract CurveFacet {
         uint8 poolType = stream.readUint8();
         int128 fromIndex = int8(stream.readUint8());
         int128 toIndex = int8(stream.readUint8());
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
         address tokenOut = stream.readAddress();
 
-        if (pool == address(0) || recipient == address(0))
+        if (pool == address(0) || destinationAddress == address(0))
             revert InvalidCallData();
 
         uint256 amountOut;
@@ -80,8 +80,12 @@ contract CurveFacet {
             }
         }
 
-        if (recipient != address(this)) {
-            LibAsset.transferAsset(tokenOut, payable(recipient), amountOut);
+        if (destinationAddress != address(this)) {
+            LibAsset.transferAsset(
+                tokenOut,
+                payable(destinationAddress),
+                amountOut
+            );
         }
     }
 }

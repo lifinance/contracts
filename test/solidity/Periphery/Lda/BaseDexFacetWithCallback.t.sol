@@ -18,11 +18,11 @@ abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
 
     /// @notice Builds swap data that arms callback verification for the DEX under test.
     /// @param pool Pool expected to invoke the callback.
-    /// @param recipient Receiver of swap proceeds.
+    /// @param destinationAddress Destionation address of swap proceeds.
     /// @return swapData Encoded payload that triggers the DEX callback path.
     function _buildCallbackSwapData(
         address pool,
-        address recipient
+        address destinationAddress
     ) internal virtual returns (bytes memory);
 
     /// @notice Provides a mock pool that never performs the callback (negative path).
@@ -77,7 +77,7 @@ abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -91,7 +91,7 @@ abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             route,

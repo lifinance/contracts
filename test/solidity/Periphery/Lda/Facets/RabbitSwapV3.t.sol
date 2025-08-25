@@ -8,7 +8,7 @@ import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
 /// @title RabbitSwapV3FacetTest
 /// @notice Viction UniV3-style tests for RabbitSwap V3 pools.
-/// @dev Covers invalid pool/recipient edge cases plus standard setup.
+/// @dev Covers invalid pool/destinationAddress edge cases plus standard setup.
 contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
     /// @notice Selects Viction fork and block height used in tests.
     function _setupForkConfig() internal override {
@@ -41,7 +41,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
             UniV3SwapParams({
                 pool: address(0), // Invalid pool address
                 direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER
+                destinationAddress: USER_SENDER
             })
         );
 
@@ -52,7 +52,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,
@@ -62,8 +62,8 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
         vm.stopPrank();
     }
 
-    /// @notice Negative: zero recipient must be rejected by facet call data validation.
-    function testRevert_RabbitSwapInvalidRecipient() public {
+    /// @notice Negative: zero destinationAddress must be rejected by facet call data validation.
+    function testRevert_RabbitSwapInvalidDestinationAddress() public {
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
         vm.startPrank(USER_SENDER);
@@ -73,7 +73,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
             UniV3SwapParams({
                 pool: poolInOut,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: address(0) // Invalid recipient address
+                destinationAddress: address(0) // Invalid destination address
             })
         );
 
@@ -84,7 +84,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,

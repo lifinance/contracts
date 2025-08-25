@@ -30,7 +30,7 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
     // ==== External Functions ====
     /// @notice Executes a swap through an Algebra pool
     /// @dev Handles both regular swaps and fee-on-transfer token swaps
-    /// @param swapData Encoded swap parameters [pool, direction, recipient, supportsFeeOnTransfer]
+    /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, supportsFeeOnTransfer]
     /// @param from Token source address - if equals msg.sender,
     ///         tokens will be pulled from the caller; otherwise assumes tokens are already at this contract
     /// @param tokenIn Input token address
@@ -45,10 +45,10 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
 
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0;
 
-        if (pool == address(0) || recipient == address(0))
+        if (pool == address(0) || destinationAddress == address(0))
             revert InvalidCallData();
 
         if (from == msg.sender) {
@@ -64,7 +64,7 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
         if (supportsFeeOnTransfer) {
             IAlgebraPool(pool).swapSupportingFeeOnInputTokens(
                 address(this),
-                recipient,
+                destinationAddress,
                 direction,
                 int256(amountIn),
                 direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
@@ -72,7 +72,7 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
             );
         } else {
             IAlgebraPool(pool).swap(
-                recipient,
+                destinationAddress,
                 direction,
                 int256(amountIn),
                 direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,

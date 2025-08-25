@@ -26,7 +26,7 @@ contract UniV2StyleFacet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Executes a UniswapV2-style swap
     /// @dev Handles token transfers and calculates output amounts based on pool reserves
-    /// @param swapData Encoded swap parameters [pool, direction, recipient, fee]
+    /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, fee]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
     ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
     /// @param tokenIn Input token address
@@ -41,10 +41,10 @@ contract UniV2StyleFacet is BaseRouteConstants {
 
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
         uint24 fee = stream.readUint24(); // pool fee in 1/1_000_000
 
-        if (pool == address(0) || recipient == address(0)) {
+        if (pool == address(0) || destinationAddress == address(0)) {
             revert InvalidCallData();
         }
 
@@ -77,7 +77,7 @@ contract UniV2StyleFacet is BaseRouteConstants {
         IUniV2StylePool(pool).swap(
             amount0Out,
             amount1Out,
-            recipient,
+            destinationAddress,
             new bytes(0)
         );
     }

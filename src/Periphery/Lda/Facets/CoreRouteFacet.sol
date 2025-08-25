@@ -9,7 +9,7 @@ import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title CoreRouteFacet
@@ -29,7 +29,7 @@ contract CoreRouteFacet is
     // ==== Events ====
     event Route(
         address indexed from,
-        address to,
+        address receiverAddress,
         address indexed tokenIn,
         address indexed tokenOut,
         uint256 amountIn,
@@ -59,7 +59,7 @@ contract CoreRouteFacet is
     /// @param amountIn The amount of input tokens
     /// @param tokenOut The expected output token address (address(0) for native)
     /// @param amountOutMin The minimum acceptable output amount
-    /// @param to The recipient address for the output tokens
+    /// @param receiverAddress The receiver address for the output tokens
     /// @param route The encoded route data containing function selectors and parameters
     /// @return amountOut The actual amount of output tokens received
     function processRoute(
@@ -67,16 +67,17 @@ contract CoreRouteFacet is
         uint256 amountIn,
         address tokenOut,
         uint256 amountOutMin,
-        address to,
+        address receiverAddress,
         bytes calldata route
     ) external payable nonReentrant returns (uint256 amountOut) {
+        if (receiverAddress == address(0)) revert InvalidReceiver();
         return
             _executeRoute(
                 tokenIn,
                 amountIn,
                 tokenOut,
                 amountOutMin,
-                to,
+                receiverAddress,
                 route
             );
     }
@@ -88,7 +89,7 @@ contract CoreRouteFacet is
     /// @param amountIn The amount of input tokens
     /// @param tokenOut The expected output token address (address(0) for native)
     /// @param amountOutMin The minimum acceptable output amount
-    /// @param to The recipient address for the output tokens
+    /// @param receiverAddress The receiver address for the output tokens
     /// @param route The encoded route data containing function selectors and parameters
     /// @return amountOut The actual amount of output tokens received
     function _executeRoute(
@@ -96,7 +97,7 @@ contract CoreRouteFacet is
         uint256 amountIn,
         address tokenOut,
         uint256 amountOutMin,
-        address to,
+        address receiverAddress,
         bytes calldata route
     ) private returns (uint256 amountOut) {
         bool isNativeIn = LibAsset.isNativeAsset(tokenIn);
@@ -106,7 +107,7 @@ contract CoreRouteFacet is
         (uint256 balInInitial, uint256 balOutInitial) = _getInitialBalances(
             tokenIn,
             tokenOut,
-            to,
+            receiverAddress,
             isNativeIn,
             isNativeOut
         );
@@ -122,14 +123,14 @@ contract CoreRouteFacet is
             tokenOut,
             amountOutMin,
             balOutInitial,
-            to,
+            receiverAddress,
             isNativeIn,
             isNativeOut
         );
 
         emit Route(
             msg.sender,
-            to,
+            receiverAddress,
             tokenIn,
             tokenOut,
             realAmountIn,
@@ -144,7 +145,7 @@ contract CoreRouteFacet is
     ///      2. Native asset handling is done via _handleNative which consumes all ETH on the contract
     /// @param tokenIn The input token address
     /// @param tokenOut The output token address
-    /// @param to The recipient address for output tokens
+    /// @param receiverAddress The receiver address for output tokens
     /// @param isNativeIn Whether input token is native ETH
     /// @param isNativeOut Whether output token is native ETH
     /// @return balInInitial Initial balance of input token
@@ -152,14 +153,14 @@ contract CoreRouteFacet is
     function _getInitialBalances(
         address tokenIn,
         address tokenOut,
-        address to,
+        address receiverAddress,
         bool isNativeIn,
         bool isNativeOut
     ) private view returns (uint256 balInInitial, uint256 balOutInitial) {
         balInInitial = isNativeIn ? 0 : IERC20(tokenIn).balanceOf(msg.sender);
         balOutInitial = isNativeOut
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
+            ? address(receiverAddress).balance
+            : IERC20(tokenOut).balanceOf(receiverAddress);
     }
 
     function _getFinalBalancesAndCheck(
@@ -169,7 +170,7 @@ contract CoreRouteFacet is
         address tokenOut,
         uint256 amountOutMin,
         uint256 balOutInitial,
-        address to,
+        address receiverAddress,
         bool isNativeIn,
         bool isNativeOut
     ) private view returns (uint256 amountOut) {
@@ -184,8 +185,8 @@ contract CoreRouteFacet is
         }
 
         uint256 balOutFinal = isNativeOut
-            ? address(to).balance
-            : IERC20(tokenOut).balanceOf(to);
+            ? address(receiverAddress).balance
+            : IERC20(tokenOut).balanceOf(receiverAddress);
         amountOut = balOutFinal - balOutInitial;
         if (amountOut < amountOutMin) {
             revert SwapTokenOutAmountTooLow(amountOut);
@@ -232,7 +233,7 @@ contract CoreRouteFacet is
     /// The selector determines the DEX facet function to call. The router delegatecalls the facet with:
     /// (bytes swapData, address from, address tokenIn, uint256 amountIn)
     /// where swapData is the payload from the route, containing DEX-specific data:
-    /// - Example for UniV3-style: abi.encode(pool, direction, recipient) // for Uniswap V3, PancakeV3, etc.
+    /// - Example for UniV3-style: abi.encode(pool, direction, destinationAddress) // for Uniswap V3, PancakeV3, etc.
     /// - Each DEX facet defines its own payload format based on what its pools need
     ///
     /// Example multihop route (two legs on user ERC20, then single-pool hop):
@@ -240,15 +241,15 @@ contract CoreRouteFacet is
     /// // Leg payloads with facet selectors:
     /// leg1 = abi.encodePacked(
     ///     UniV3StyleFacet.swapUniV3.selector,
-    ///     abi.encode(poolA, DIRECTION_TOKEN0_TO_TOKEN1, poolC)  // recipient is the final pool
+    ///     abi.encode(poolA, DIRECTION_TOKEN0_TO_TOKEN1, poolC)  // destinationAddress is the final pool
     /// );
     /// leg2 = abi.encodePacked(
     ///     IzumiV3Facet.swapIzumiV3.selector,
-    ///     abi.encode(poolB, DIRECTION_TOKEN0_TO_TOKEN1, poolC)  // recipient is the final pool
+    ///     abi.encode(poolB, DIRECTION_TOKEN0_TO_TOKEN1, poolC)  // destinationAddress is the final pool
     /// );
     /// leg3 = abi.encodePacked(
     ///     SomePoolFacet.swapSinglePool.selector,
-    ///     abi.encode(poolC, finalRecipient, otherPoolParams)  // pool that received tokens from leg1&2
+    ///     abi.encode(poolC, finalReceiver, otherPoolParams)  // pool that received tokens from leg1&2
     /// );
     ///
     /// // Full route: [2][tokenA][2 legs][60% leg1][40% leg2] then [4][tokenB][leg3]
@@ -435,7 +436,7 @@ contract CoreRouteFacet is
             // - swapData: abi.encode(
             //     pool: 0x123...,
             //     direction: 1,
-            //     recipient: 0x456...
+            //     destinationAddress: 0x456...
             // )
             //
             // Memory layout it builds (each line is 32 bytes):
@@ -448,7 +449,7 @@ contract CoreRouteFacet is
             // 0x104:    0x60                   // swapData length (96)
             // 0x124:    0x123...               // pool address
             // 0x144:    0x01                   // direction
-            // 0x164:    0x456...               // recipient
+            // 0x164:    0x456...               // destinationAddress
 
             // Free memory pointer where we’ll build calldata for delegatecall
             let free := mload(0x40)

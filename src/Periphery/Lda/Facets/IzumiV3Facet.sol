@@ -31,7 +31,7 @@ contract IzumiV3Facet is BaseRouteConstants, PoolCallbackAuthenticated {
     // ==== External Functions ====
     /// @notice Executes a swap through an iZiSwap V3 pool
     /// @dev Handles both X to Y and Y to X swaps with callback verification
-    /// @param swapData Encoded swap parameters [pool, direction, recipient]
+    /// @param swapData Encoded swap parameters [pool, direction, destinationAddress]
     /// @param from Token source address - if equals msg.sender, tokens will be pulled from the caller
     /// @param tokenIn Input token address
     /// @param amountIn Amount of input tokens
@@ -45,11 +45,11 @@ contract IzumiV3Facet is BaseRouteConstants, PoolCallbackAuthenticated {
 
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // 0 = Y2X, 1 = X2Y
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
 
         if (
             pool == address(0) ||
-            recipient == address(0) ||
+            destinationAddress == address(0) ||
             amountIn > type(uint128).max
         ) revert InvalidCallData();
 
@@ -66,14 +66,14 @@ contract IzumiV3Facet is BaseRouteConstants, PoolCallbackAuthenticated {
 
         if (direction) {
             IiZiSwapPool(pool).swapX2Y(
-                recipient,
+                destinationAddress,
                 uint128(amountIn),
                 IZUMI_LEFT_MOST_PT + 1,
                 abi.encode(tokenIn)
             );
         } else {
             IiZiSwapPool(pool).swapY2X(
-                recipient,
+                destinationAddress,
                 uint128(amountIn),
                 IZUMI_RIGHT_MOST_PT - 1,
                 abi.encode(tokenIn)

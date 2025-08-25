@@ -107,9 +107,9 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         new CoreRouteFacet(address(0));
     }
 
-    /// @notice Verifies ProcessNative command passes ETH to recipient and emits Route with exact out.
+    /// @notice Verifies ProcessNative command passes ETH to receiver and emits Route with exact out.
     /// @dev Builds a route with a mock native handler and funds USER_SENDER with 1 ETH.
-    function test_ProcessNativeCommandSendsEthToRecipient() public {
+    function test_ProcessNativeCommandSendsEthToReceiver() public {
         _addMockNativeFacet();
 
         uint256 amount = 1 ether;
@@ -130,7 +130,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             amountIn: amount,
             minOut: 0,
             sender: USER_SENDER, // Use USER_SENDER directly
-            recipient: USER_RECEIVER,
+            destinationAddress: USER_RECEIVER,
             commandType: CommandType.ProcessNative
         });
 
@@ -235,7 +235,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 amountIn: 0,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -277,7 +277,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 amountIn: amountIn,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -333,7 +333,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 amountIn: amountIn,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -375,7 +375,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             "OUT",
             USER_RECEIVER,
             0
-        ); // recipient starts at 0
+        ); // destination address starts at 0
 
         bytes memory swapData = abi.encodePacked(sel);
 
@@ -387,11 +387,11 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 amountIn: amountIn,
                 minOut: 1,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
-        ); // single step; no tokenOut will be sent to recipient
+        ); // single step; no tokenOut will be sent to receiver
 
         vm.startPrank(USER_SENDER);
         IERC20(address(tokenIn)).approve(address(ldaDiamond), amountIn);
@@ -436,7 +436,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 amountIn: amountIn,
                 minOut: 1,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -493,8 +493,8 @@ contract MockNativeFacet {
         address /*tokenIn*/,
         uint256 amountIn
     ) external payable returns (uint256) {
-        address recipient = abi.decode(payload, (address));
-        LibAsset.transferAsset(address(0), payable(recipient), amountIn);
+        address receiverAddress = abi.decode(payload, (address));
+        LibAsset.transferAsset(address(0), payable(receiverAddress), amountIn);
         return amountIn;
     }
 }

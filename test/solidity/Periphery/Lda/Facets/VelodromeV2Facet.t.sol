@@ -73,7 +73,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
     struct VelodromeV2SwapData {
         address pool;
         SwapDirection direction;
-        address recipient;
+        address destinationAddress;
         CallbackStatus callbackStatus;
     }
 
@@ -309,7 +309,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
-            recipient: params.pool2, // Send to next pool
+            destinationAddress: params.pool2, // Send to next pool
             commandType: CommandType.ProcessUserERC20
         });
 
@@ -318,7 +318,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: params.pool1,
                 direction: SwapDirection.Token0ToToken1,
-                recipient: params.pool2,
+                destinationAddress: params.pool2,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -330,7 +330,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             amountIn: params.amounts1[1], // Use output from first hop
             sender: params.pool2,
             minOut: 0,
-            recipient: USER_SENDER, // Send to next pool
+            destinationAddress: USER_SENDER, // Send to next pool
             commandType: CommandType.ProcessOnePool
         });
 
@@ -339,7 +339,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: params.pool2,
                 direction: SwapDirection.Token0ToToken1,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -354,7 +354,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             route
@@ -406,7 +406,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
-            recipient: params.pool2, // Send to next pool
+            destinationAddress: params.pool2, // Send to next pool
             commandType: CommandType.ProcessUserERC20
         });
 
@@ -414,7 +414,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: params.pool1,
                 direction: SwapDirection.Token0ToToken1,
-                recipient: params.pool2,
+                destinationAddress: params.pool2,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -426,7 +426,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             amountIn: params.amounts1[1], // Use output from first hop
             sender: params.pool2,
             minOut: 0,
-            recipient: USER_SENDER,
+            destinationAddress: USER_SENDER,
             commandType: CommandType.ProcessOnePool
         });
 
@@ -434,7 +434,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: params.pool2,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -448,7 +448,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             route
@@ -457,7 +457,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidPoolOrRecipient() public {
+    function testRevert_InvalidPoolOrDestinationAddress() public {
         vm.startPrank(USER_SENDER);
 
         // Get a valid pool address first for comparison
@@ -474,7 +474,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: address(0), // Invalid pool
                 direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -486,22 +486,23 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapDataZeroPool,
             InvalidCallData.selector
         );
 
-        // --- Test case 2: Zero recipient address ---
-        bytes memory swapDataZeroRecipient = _buildVelodromeV2SwapData(
-            VelodromeV2SwapData({
-                pool: validPool,
-                direction: SwapDirection.Token1ToToken0,
-                recipient: address(0), // Invalid recipient
-                callbackStatus: CallbackStatus.Disabled
-            })
-        );
+        // --- Test case 2: Zero destination address ---
+        bytes
+            memory swapDataZeroDestinationAddress = _buildVelodromeV2SwapData(
+                VelodromeV2SwapData({
+                    pool: validPool,
+                    direction: SwapDirection.Token1ToToken0,
+                    destinationAddress: address(0), // Invalid destination address
+                    callbackStatus: CallbackStatus.Disabled
+                })
+            );
 
         _buildRouteAndExecuteSwap(
             SwapTestParams({
@@ -510,10 +511,10 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapDataZeroRecipient,
+            swapDataZeroDestinationAddress,
             InvalidCallData.selector
         );
 
@@ -543,7 +544,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
-            recipient: params.pool2, // Send to next pool
+            destinationAddress: params.pool2, // Send to next pool
             commandType: CommandType.ProcessUserERC20
         });
 
@@ -551,7 +552,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: params.pool1,
                 direction: SwapDirection.Token0ToToken1,
-                recipient: params.pool2,
+                destinationAddress: params.pool2,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -563,7 +564,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             amountIn: 0, // Not used in ProcessOnePool
             minOut: 0,
             sender: params.pool2,
-            recipient: USER_SENDER,
+            destinationAddress: USER_SENDER,
             commandType: CommandType.ProcessOnePool
         });
 
@@ -571,7 +572,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: params.pool2,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 callbackStatus: CallbackStatus.Disabled
             })
         );
@@ -661,7 +662,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VelodromeV2SwapData({
                 pool: pool,
                 direction: params.direction,
-                recipient: params.to,
+                destinationAddress: params.to,
                 callbackStatus: params.callbackStatus
             })
         );
@@ -673,7 +674,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 amountIn: params.amountIn,
                 minOut: expectedOutput[1],
                 sender: params.from,
-                recipient: params.to,
+                destinationAddress: params.to,
                 commandType: commandCode
             }),
             swapData
@@ -710,7 +711,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 amountIn: params.amountIn,
                 minOut: expectedOutput[1],
                 sender: params.from,
-                recipient: params.to,
+                destinationAddress: params.to,
                 commandType: params.from == address(ldaDiamond)
                     ? CommandType.ProcessMyERC20
                     : CommandType.ProcessUserERC20
@@ -798,7 +799,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
     }
 
     /// @notice Encodes swap payload for VelodromeV2Facet.swapVelodromeV2.
-    /// @param params pool/direction/recipient/callback status.
+    /// @param params pool/direction/destinationAddress/callback status.
     /// @return Packed bytes payload.
     function _buildVelodromeV2SwapData(
         VelodromeV2SwapData memory params
@@ -808,7 +809,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 VelodromeV2Facet.swapVelodromeV2.selector,
                 params.pool,
                 uint8(params.direction),
-                params.recipient,
+                params.destinationAddress,
                 params.callbackStatus
             );
     }

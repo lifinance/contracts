@@ -205,7 +205,7 @@ abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
     }
 
     /// @notice Concatenates multiple base routes into a single multi-hop route for `processRoute`.
-    /// @param hopParams Array of hop parameters (tokenIn/out, amountIn, sender/recipient, command type).
+    /// @param hopParams Array of hop parameters (tokenIn/out, amountIn, sender/destinationAddress, command type).
     /// @param hopData Array of corresponding DEX-specific swap data for each hop.
     /// @return Concatenated route bytes suitable for `CoreRouteFacet.processRoute`.
     /// @dev Reverts if arrays mismatch or empty. Example:

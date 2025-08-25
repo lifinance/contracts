@@ -19,11 +19,11 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     /// @notice Parameters for a single Izumi V3 swap step.
     /// @param pool Target pool.
     /// @param direction Direction of the swap.
-    /// @param recipient Address receiving the proceeds.
+    /// @param destinationAddress Address receiving the proceeds.
     struct IzumiV3SwapParams {
         address pool;
         SwapDirection direction;
-        address recipient;
+        address destinationAddress;
     }
 
     // ==== Errors ====
@@ -95,17 +95,17 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
 
     /// @notice Encodes swap payload for callback arming tests.
     /// @param pool Pool to use.
-    /// @param recipient Recipient of proceeds.
+    /// @param destinationAddress Destination address of proceeds.
     function _buildCallbackSwapData(
         address pool,
-        address recipient
+        address destinationAddress
     ) internal pure override returns (bytes memory) {
         return
             abi.encodePacked(
                 IzumiV3Facet.swapIzumiV3.selector,
                 pool,
                 uint8(1), // direction TOKEN0_TO_TOKEN1
-                recipient
+                destinationAddress
             );
     }
 
@@ -121,7 +121,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             IzumiV3SwapParams({
                 pool: poolInMid,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: USER_RECEIVER
+                destinationAddress: USER_RECEIVER
             })
         );
 
@@ -132,7 +132,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -156,7 +156,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             IzumiV3SwapParams({
                 pool: poolInMid,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: USER_SENDER
+                destinationAddress: USER_SENDER
             })
         );
 
@@ -167,7 +167,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
                 minOut: 0,
                 sender: address(coreRouteFacet),
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
             }),
             swapData
@@ -187,7 +187,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             IzumiV3SwapParams({
                 pool: poolInMid,
                 direction: SwapDirection.Token1ToToken0,
-                recipient: address(coreRouteFacet)
+                destinationAddress: address(coreRouteFacet)
             })
         );
 
@@ -196,7 +196,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             IzumiV3SwapParams({
                 pool: poolMidOut,
                 direction: SwapDirection.Token0ToToken1,
-                recipient: USER_SENDER
+                destinationAddress: USER_SENDER
             })
         );
 
@@ -211,7 +211,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             amountIn: amountIn,
             minOut: 0,
             sender: USER_SENDER,
-            recipient: address(coreRouteFacet),
+            destinationAddress: address(coreRouteFacet),
             commandType: CommandType.ProcessUserERC20
         });
         swapData[0] = firstSwapData;
@@ -223,7 +223,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             amountIn: 0, // Will be determined by first swap
             minOut: 0,
             sender: USER_SENDER,
-            recipient: USER_SENDER,
+            destinationAddress: USER_SENDER,
             commandType: CommandType.ProcessMyERC20
         });
         swapData[1] = secondSwapData;
@@ -239,7 +239,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: amountIn,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             route
@@ -273,7 +273,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             IzumiV3SwapParams({
                 pool: poolInMid,
                 direction: SwapDirection.Token0ToToken1,
-                recipient: USER_RECEIVER
+                destinationAddress: USER_RECEIVER
             })
         );
 
@@ -284,7 +284,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: type(uint216).max,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_RECEIVER,
+                destinationAddress: USER_RECEIVER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,
@@ -297,7 +297,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     // ==== Helper Functions ====
 
     /// @notice Encodes Izumi V3 swap payloads for route steps.
-    /// @param params Pool/direction/recipient.
+    /// @param params Pool/direction/destinationAddress.
     /// @return Packed calldata for `swapIzumiV3`.
     function _buildIzumiV3SwapData(
         IzumiV3SwapParams memory params
@@ -307,7 +307,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 izumiV3Facet.swapIzumiV3.selector,
                 params.pool,
                 uint8(params.direction),
-                params.recipient
+                params.destinationAddress
             );
     }
 }

@@ -26,7 +26,7 @@ contract VelodromeV2Facet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Performs a swap through VelodromeV2 pools
     /// @dev Handles token transfers and optional callbacks, with comprehensive safety checks
-    /// @param swapData Encoded swap parameters [pool, direction, recipient, callback]
+    /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, callback]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
     ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
     /// @param tokenIn Input token address
@@ -41,13 +41,13 @@ contract VelodromeV2Facet is BaseRouteConstants {
 
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
 
-        if (pool == address(0) || recipient == address(0))
+        if (pool == address(0) || destinationAddress == address(0))
             revert InvalidCallData();
 
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data.
-        // Will revert if contract (recipient) does not implement IVelodromeV2PoolCallee.
+        // Will revert if contract (destinationAddress) does not implement IVelodromeV2PoolCallee.
 
         if (from == INTERNAL_INPUT_SOURCE) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
@@ -86,21 +86,21 @@ contract VelodromeV2Facet is BaseRouteConstants {
         // - Token transfer safety: SafeERC20 is used to ensure token transfers revert on failure
         // - Expected output verification: The contract calls getAmountOut (including fees) before executing the swap
         // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
-        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut
+        // - Post-swap verification: In processRouteInternal, it verifies that the destinationAddress receives at least minAmountOut
         //      and that the sender's final balance is not less than the initial balance
         // - Immutable interaction: Velodrome V2 pools and the router are not upgradable,
         //      so we can rely on the behavior of getAmountOut and swap
 
         // ATTENTION FOR CALLBACKS / HOOKS:
-        // - recipient contracts should validate that msg.sender is the Velodrome pool contract who is calling the hook
-        // - recipient contracts must not manipulate their own tokenOut balance
+        // - destinationAddress contracts should validate that msg.sender is the Velodrome pool contract who is calling the hook
+        // - destinationAddress contracts must not manipulate their own tokenOut balance
         //   (as this may bypass/invalidate the built-in slippage protection)
-        // - @developers: never trust balance-based slippage protection for callback recipients
-        // - @integrators: do not use slippage guarantees when recipient is a contract with side-effects
+        // - @developers: never trust balance-based slippage protection for callback of destinationAddress
+        // - @integrators: do not use slippage guarantees when destinationAddress is a contract with side-effects
         IVelodromeV2Pool(pool).swap(
             amount0Out,
             amount1Out,
-            recipient,
+            destinationAddress,
             callback ? abi.encode(tokenIn) : bytes("")
         );
     }

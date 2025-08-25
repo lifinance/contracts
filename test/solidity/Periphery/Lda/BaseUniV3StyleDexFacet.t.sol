@@ -17,11 +17,11 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     /// @notice Parameters for a single UniV3-style swap step.
     /// @param pool Target pool address.
     /// @param direction Direction of the swap (token0->token1 or vice versa).
-    /// @param recipient Recipient of the proceeds.
+    /// @param destinationAddress Destination address of the proceeds.
     struct UniV3SwapParams {
         address pool;
         SwapDirection direction;
-        address recipient;
+        address destinationAddress;
     }
 
     /// @notice Parameters for convenience auto-execution.
@@ -67,7 +67,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     // ==== Helper Functions ====
 
     /// @notice Builds packed swap data for UniV3-style swap dispatch.
-    /// @param params Struct including pool, direction and recipient.
+    /// @param params Struct including pool, direction and destinationAddress.
     /// @return Packed payload starting with `swapUniV3` selector.
     function _buildUniV3SwapData(
         UniV3SwapParams memory params
@@ -77,12 +77,12 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
                 uniV3Facet.swapUniV3.selector,
                 params.pool,
                 uint8(params.direction),
-                params.recipient
+                params.destinationAddress
             );
     }
 
     /// @notice Executes a UniV3-style swap for arbitrary pool and direction.
-    /// @param params Swap test params (sender/recipient/funding mode).
+    /// @param params Swap test params (sender/destinationAddress/funding mode).
     /// @param pool Pool to swap on.
     /// @param direction Swap direction to use.
     /// @dev Funds sender or diamond accordingly, builds route and executes with default assertions.
@@ -105,7 +105,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
             UniV3SwapParams({
                 pool: pool,
                 direction: direction,
-                recipient: params.recipient
+                destinationAddress: params.destinationAddress
             })
         );
 
@@ -154,7 +154,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
             UniV3SwapParams({
                 pool: poolInOut,
                 direction: direction,
-                recipient: USER_SENDER
+                destinationAddress: USER_SENDER
             })
         );
 
@@ -166,7 +166,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: amountIn,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: params.commandType
             }),
             swapData
@@ -179,7 +179,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: amountIn,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: params.commandType
             }),
             route
@@ -192,18 +192,18 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
 
     /// @notice Builds callback-arming swap data for `BaseDEXFacetWithCallbackTest` harness.
     /// @param pool Pool to invoke against in callback tests.
-    /// @param recipient Receiver for proceeds in these tests.
+    /// @param destinationAddress Destination address for proceeds in these tests.
     /// @return Packed swap payload.
     function _buildCallbackSwapData(
         address pool,
-        address recipient
+        address destinationAddress
     ) internal view override returns (bytes memory) {
         return
             _buildUniV3SwapData(
                 UniV3SwapParams({
                     pool: pool,
                     direction: SwapDirection.Token0ToToken1,
-                    recipient: recipient
+                    destinationAddress: destinationAddress
                 })
             );
     }

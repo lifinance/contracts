@@ -29,7 +29,7 @@ contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticated {
     // ==== External Functions ====
     /// @notice Executes a swap through a UniV3-style pool
     /// @dev Handles token transfers and manages callback verification
-    /// @param swapData Encoded swap parameters [pool, direction, recipient]
+    /// @param swapData Encoded swap parameters [pool, direction, destinationAddress]
     /// @param from Token source address - if equals msg.sender, tokens will be pulled from the caller
     /// @param tokenIn Input token address
     /// @param amountIn Amount of input tokens
@@ -43,9 +43,9 @@ contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticated {
 
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
 
-        if (pool == address(0) || recipient == address(0)) {
+        if (pool == address(0) || destinationAddress == address(0)) {
             revert InvalidCallData();
         }
 
@@ -64,7 +64,7 @@ contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticated {
 
         // Execute swap
         IUniV3StylePool(pool).swap(
-            recipient,
+            destinationAddress,
             direction,
             int256(amountIn),
             direction ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,

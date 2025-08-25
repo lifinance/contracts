@@ -40,7 +40,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
 
     /// @notice Parameters for the high-level `_testSwap` helper.
     /// @param from Logical sender (user or aggregator/diamond).
-    /// @param to Recipient of proceeds.
+    /// @param destinationAddress Destination address of swap.
     /// @param tokenIn Input token.
     /// @param amountIn Input amount.
     /// @param tokenOut Output token.
@@ -48,7 +48,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
     /// @param supportsFeeOnTransfer Toggle fee-on-transfer compatibility in swap data.
     struct AlgebraSwapTestParams {
         address from;
-        address to;
+        address destinationAddress;
         address tokenIn;
         uint256 amountIn;
         address tokenOut;
@@ -79,13 +79,13 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
     /// @notice Parameters to pack swap data for AlgebraFacet.
     /// @param commandCode Command determining source of funds.
     /// @param tokenIn Input token address.
-    /// @param recipient Recipient address.
+    /// @param destinationAddress Destination address.
     /// @param pool Algebra pool.
     /// @param supportsFeeOnTransfer Toggle fee-on-transfer handling.
     struct AlgebraRouteParams {
         CommandType commandCode; // 1 for contract funds, 2 for user funds
         address tokenIn; // Input token address
-        address recipient; // Address receiving the output tokens
+        address destinationAddress; // Address receiving the output tokens
         address pool; // Algebra pool address
         bool supportsFeeOnTransfer; // Whether to support fee-on-transfer tokens
     }
@@ -158,7 +158,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         _testSwap(
             AlgebraSwapTestParams({
                 from: address(coreRouteFacet),
-                to: address(USER_SENDER),
+                destinationAddress: address(USER_SENDER),
                 tokenIn: address(tokenIn),
                 amountIn: _getDefaultAmountForTokenIn() - 1,
                 tokenOut: address(tokenOut),
@@ -180,7 +180,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
                 tokenIn: address(tokenIn),
-                recipient: RANDOM_APE_ETH_HOLDER_APECHAIN,
+                destinationAddress: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 pool: poolInOut,
                 supportsFeeOnTransfer: true
             })
@@ -193,7 +193,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: RANDOM_APE_ETH_HOLDER_APECHAIN,
-                recipient: RANDOM_APE_ETH_HOLDER_APECHAIN,
+                destinationAddress: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,
@@ -220,7 +220,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         _testSwap(
             AlgebraSwapTestParams({
                 from: USER_SENDER,
-                to: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 tokenIn: address(tokenIn),
                 amountIn: _getDefaultAmountForTokenIn(),
                 tokenOut: address(tokenOut),
@@ -243,7 +243,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         _testSwap(
             AlgebraSwapTestParams({
                 from: USER_SENDER,
-                to: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 tokenIn: address(tokenOut),
                 amountIn: amountIn,
                 tokenOut: address(tokenIn),
@@ -306,7 +306,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,
@@ -336,7 +336,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
                 tokenIn: address(tokenIn),
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 pool: address(0), // Zero address pool
                 supportsFeeOnTransfer: true
             })
@@ -349,7 +349,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,
@@ -367,26 +367,26 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         return algebraFacet.algebraSwapCallback.selector;
     }
 
-    /// @notice Hook: build Algebra swap data [pool, direction(uint8), recipient, supportsFeeOnTransfer(uint8)]
+    /// @notice Hook: build Algebra swap data [pool, direction(uint8), destinationAddress, supportsFeeOnTransfer(uint8)]
     /// @param pool Pool to be used for callback arming tests.
-    /// @param recipient Recipient address.
+    /// @param destinationAddress Destination address.
     /// @return swapData Packed bytes starting with `swapAlgebra` selector.
     function _buildCallbackSwapData(
         address pool,
-        address recipient
+        address destinationAddress
     ) internal pure override returns (bytes memory) {
         return
             abi.encodePacked(
                 AlgebraFacet.swapAlgebra.selector,
                 pool,
                 uint8(1), // Token0->Token1; only the callback arming/clearing is under test
-                recipient,
+                destinationAddress,
                 uint8(0) // no fee-on-transfer
             );
     }
 
-    /// @notice Validates revert when recipient is zero address in swap data.
-    function testRevert_AlgebraSwap_ZeroAddressRecipient() public {
+    /// @notice Validates revert when destinationAddress is zero address in swap data.
+    function testRevert_AlgebraSwap_ZeroAddressDestinationAddress() public {
         // Transfer tokens from whale to user
         vm.prank(RANDOM_APE_ETH_HOLDER_APECHAIN);
         IERC20(tokenIn).transfer(USER_SENDER, 1 * 1e18);
@@ -400,12 +400,12 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             abi.encode(tokenIn)
         );
 
-        // Build route with address(0) as recipient
+        // Build route with address(0) as destination address
         bytes memory swapData = _buildAlgebraSwapData(
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
                 tokenIn: address(tokenIn),
-                recipient: address(0), // Zero address recipient
+                destinationAddress: address(0), // Zero address destination address
                 pool: poolInOut,
                 supportsFeeOnTransfer: true
             })
@@ -417,7 +417,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
-            recipient: USER_SENDER,
+            destinationAddress: USER_SENDER,
             commandType: CommandType.ProcessUserERC20
         });
 
@@ -534,7 +534,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             amountIn: state.amountIn,
             minOut: 0,
             sender: USER_SENDER,
-            recipient: address(ldaDiamond), // Send to aggregator for next hop
+            destinationAddress: address(ldaDiamond), // Send to aggregator for next hop
             commandType: CommandType.ProcessUserERC20
         });
 
@@ -543,7 +543,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessUserERC20,
                 tokenIn: address(state.tokenA),
-                recipient: address(ldaDiamond),
+                destinationAddress: address(ldaDiamond),
                 pool: state.pool1,
                 supportsFeeOnTransfer: false
             })
@@ -556,7 +556,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             amountIn: 0, // Not used for ProcessMyERC20
             minOut: 0,
             sender: address(ldaDiamond),
-            recipient: USER_SENDER,
+            destinationAddress: USER_SENDER,
             commandType: CommandType.ProcessMyERC20
         });
 
@@ -565,7 +565,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             AlgebraRouteParams({
                 commandCode: CommandType.ProcessMyERC20,
                 tokenIn: address(state.tokenB),
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 pool: state.pool2,
                 supportsFeeOnTransfer: state.isFeeOnTransfer
             })
@@ -580,7 +580,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: state.amountIn,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             route
@@ -684,7 +684,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 AlgebraFacet.swapAlgebra.selector,
                 params.pool,
                 uint8(direction),
-                params.recipient,
+                params.destinationAddress,
                 params.supportsFeeOnTransfer ? uint8(1) : uint8(0)
             );
     }
@@ -716,7 +716,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             AlgebraRouteParams({
                 commandCode: commandCode,
                 tokenIn: params.tokenIn,
-                recipient: params.to,
+                destinationAddress: params.destinationAddress,
                 pool: pool,
                 supportsFeeOnTransfer: params.supportsFeeOnTransfer
             })
@@ -730,7 +730,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: params.amountIn,
                 minOut: minOutput,
                 sender: params.from,
-                recipient: params.to,
+                destinationAddress: params.destinationAddress,
                 commandType: commandCode
             }),
             swapData
@@ -743,7 +743,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: params.amountIn,
                 minOut: minOutput,
                 sender: params.from,
-                recipient: params.to,
+                destinationAddress: params.destinationAddress,
                 commandType: params.from == address(ldaDiamond)
                     ? CommandType.ProcessMyERC20
                     : CommandType.ProcessUserERC20

@@ -17,7 +17,7 @@ contract SyncSwapV2Facet {
 
     /// @notice Executes a swap through a SyncSwap V2 pool
     /// @dev Handles both V1 (vault-based) and V2 (direct) pool swaps
-    /// @param swapData Encoded swap parameters [pool, recipient, withdrawMode, isV1Pool, vault]
+    /// @param swapData Encoded swap parameters [pool, destinationAddress, withdrawMode, isV1Pool, vault]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
     ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
     /// @param tokenIn Input token address
@@ -31,9 +31,9 @@ contract SyncSwapV2Facet {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
 
-        if (pool == address(0) || recipient == address(0))
+        if (pool == address(0) || destinationAddress == address(0))
             revert InvalidCallData();
 
         // withdrawMode meaning for SyncSwap via vault:
@@ -65,7 +65,11 @@ contract SyncSwapV2Facet {
             ISyncSwapVault(target).deposit(tokenIn, pool);
         }
 
-        bytes memory data = abi.encode(tokenIn, recipient, withdrawMode);
+        bytes memory data = abi.encode(
+            tokenIn,
+            destinationAddress,
+            withdrawMode
+        );
 
         ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
     }

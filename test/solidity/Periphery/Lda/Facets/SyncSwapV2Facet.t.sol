@@ -81,7 +81,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -114,7 +114,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData
@@ -151,7 +151,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
             }),
             swapData
@@ -188,7 +188,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessMyERC20
             }),
             swapData
@@ -236,7 +236,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             amountIn: _getDefaultAmountForTokenIn(),
             minOut: 0,
             sender: USER_SENDER,
-            recipient: SYNC_SWAP_VAULT,
+            destinationAddress: SYNC_SWAP_VAULT,
             commandType: CommandType.ProcessUserERC20
         });
         swapData[0] = firstSwapData;
@@ -248,7 +248,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             amountIn: 0, // Not used in ProcessOnePool
             minOut: 0,
             sender: USER_SENDER,
-            recipient: USER_SENDER,
+            destinationAddress: USER_SENDER,
             commandType: CommandType.ProcessOnePool
         });
         swapData[1] = secondSwapData;
@@ -263,7 +263,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             route
@@ -296,7 +296,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapData,
@@ -306,8 +306,8 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
-    /// @notice Invalid pool/recipient combinations should revert.
-    function testRevert_InvalidPoolOrRecipient() public {
+    /// @notice Invalid pool/destinationAddress combinations should revert.
+    function testRevert_InvalidPoolOrDestinationAddress() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
@@ -330,22 +330,23 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER, // Send to next pool
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapDataWithInvalidPool,
             InvalidCallData.selector
         );
 
-        bytes memory swapDataWithInvalidRecipient = _buildSyncSwapV2SwapData(
-            SyncSwapV2SwapParams({
-                pool: poolInOut,
-                to: address(0),
-                withdrawMode: 2,
-                isV1Pool: 1,
-                vault: SYNC_SWAP_VAULT
-            })
-        );
+        bytes
+            memory swapDataWithInvalidDestinationAddress = _buildSyncSwapV2SwapData(
+                SyncSwapV2SwapParams({
+                    pool: poolInOut,
+                    to: address(0),
+                    withdrawMode: 2,
+                    isV1Pool: 1,
+                    vault: SYNC_SWAP_VAULT
+                })
+            );
 
         _buildRouteAndExecuteSwap(
             SwapTestParams({
@@ -354,10 +355,10 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
-            swapDataWithInvalidRecipient,
+            swapDataWithInvalidDestinationAddress,
             InvalidCallData.selector
         );
 
@@ -386,7 +387,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 amountIn: 1,
                 minOut: 0,
                 sender: USER_SENDER,
-                recipient: USER_SENDER,
+                destinationAddress: USER_SENDER,
                 commandType: CommandType.ProcessUserERC20
             }),
             swapDataWithInvalidWithdrawMode,
