@@ -113,6 +113,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     error InvalidTopicLength();
     /// @notice Thrown when data verification encounters dynamic params (unsupported).
     error DynamicParamsNotSupported();
+    error InvalidIndexedParamPosition(uint8 position, uint256 totalParams);
 
     // ==== Setup Functions ====
 
@@ -501,6 +502,12 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
             bool[8] memory isIndexed; // up to 8 params; expand if needed
             for (uint256 k = 0; k < topicsCount; k++) {
                 uint8 pos = idx[k];
+                if (pos >= evt.eventParams.length) {
+                    revert InvalidIndexedParamPosition(
+                        pos,
+                        evt.eventParams.length
+                    );
+                }
                 if (pos < isIndexed.length) isIndexed[pos] = true;
             }
 
