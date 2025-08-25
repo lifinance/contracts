@@ -54,8 +54,8 @@ const main = defineCommand({
   async run({ args }) {
     const { network } = args
 
-    // Skip tron-shasta testnet but allow tron mainnet
-    if (network.toLowerCase() === 'tron-shasta') {
+    // Skip tronshasta testnet but allow tron mainnet
+    if (network.toLowerCase() === 'tronshasta') {
       consola.info('Health checks are not implemented for Tron Shasta testnet.')
       consola.info('Skipping all tests.')
       process.exit(0)

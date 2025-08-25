@@ -30,16 +30,14 @@ function getFacetSelectors(facetName: string): string[] {
       `${facetName}.json`
     )
 
-    if (!fs.existsSync(artifactPath)) 
+    if (!fs.existsSync(artifactPath))
       throw new Error(`Artifact not found: ${artifactPath}`)
-    
 
     const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
     const methodIdentifiers = artifact.methodIdentifiers
 
-    if (!methodIdentifiers) 
+    if (!methodIdentifiers)
       throw new Error(`No methodIdentifiers found in artifact for ${facetName}`)
-    
 
     // Convert to array of selectors with 0x prefix
     const selectors = Object.values(methodIdentifiers).map(
@@ -74,14 +72,13 @@ function getAllFacetSelectors(): Record<string, string[]> {
 
   const facetSelectors: Record<string, string[]> = {}
 
-  for (const facet of facets) 
+  for (const facet of facets)
     try {
       facetSelectors[facet] = getFacetSelectors(facet)
     } catch (error) {
       consola.warn(`Could not extract selectors for ${facet}, skipping...`)
       facetSelectors[facet] = []
     }
-  
 
   return facetSelectors
 }
@@ -423,7 +420,7 @@ async function registerFacetsToDiamond(
     // Get environment and determine network
     const environment = await getEnvironment()
     const networkName =
-      environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
+      environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 
     // 1. Load deployment addresses from network-specific file
     const fileSuffix =

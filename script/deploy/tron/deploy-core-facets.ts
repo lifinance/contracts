@@ -104,9 +104,9 @@ async function deployCoreFacetsImpl(options: {
   const networksConfig = await Bun.file('config/networks.json').json()
 
   // Get network configuration from networks.json
-  // Use tron-shasta for staging/testnet, tron for production
+  // Use tronshasta for staging/testnet, tron for production
   const networkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tron-shasta'
+    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 
   const tronConfig = networksConfig[networkName]
   if (!tronConfig) {

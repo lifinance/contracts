@@ -1167,8 +1167,8 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs"
   },
-  "tron-shasta": {
-    "name": "tron-shasta",
+  "tronshasta": {
+    "name": "tronshasta",
     "chainId": 2494104990,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "TRX",

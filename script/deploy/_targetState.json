@@ -1916,7 +1916,7 @@
       }
     }
   },
-  "tron-shasta": {
+  "tronshasta": {
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
