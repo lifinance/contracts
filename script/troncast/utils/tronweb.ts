@@ -20,11 +20,17 @@ import { getRPCEnvVarName } from '../../utils/network'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 
-export function initTronWeb(env: Environment, privateKey?: string): TronWeb {
-  // Get RPC URL from environment variables using repo helpers
-  const networkName = env === 'mainnet' ? 'tron' : 'tronshasta'
-  const envVarName = getRPCEnvVarName(networkName)
-  const rpcUrl = getEnvVar(envVarName)
+export function initTronWeb(
+  env: Environment,
+  rpcUrl?: string,
+  privateKey?: string
+): TronWeb {
+  if (!rpcUrl) {
+    // Get RPC URL from environment variables using repo helpers
+    const networkName = env === 'mainnet' ? 'tron' : 'tronshasta'
+    const envVarName = getRPCEnvVarName(networkName)
+    rpcUrl = getEnvVar(envVarName)
+  }
 
   consola.debug(`Initializing TronWeb with ${env} network: ${rpcUrl}`)
 

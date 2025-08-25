@@ -98,7 +98,7 @@ const main = defineCommand({
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
-    if (isTron) tronWeb = initTronWeb('mainnet')
+    if (isTron) tronWeb = initTronWeb('mainnet', networksConfig[network].rpcUrl)
     else {
       const chain = getViemChainForNetworkName(network.toLowerCase())
       publicClient = createPublicClient({
