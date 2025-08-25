@@ -248,6 +248,15 @@ We use Foundry as our primary development and testing framework. Foundry provide
      /// @return Description of return value
      /// @dev Additional details about implementation (optional)
      ```
+   - Incorrect format (do not use):
+     ```solidity
+     /** @notice Brief description of function purpose
+      * @param parameterName Description of parameter
+      * @return Description of return value
+      * @dev Additional details about implementation (optional)
+      */
+     ```
+   - Always use `///` single-line format instead of `/** */` block format for better readability and gas efficiency
 
 4. **Complex Logic Documentation**
    - Add inline comments for complex algorithms
