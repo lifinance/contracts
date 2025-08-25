@@ -10,13 +10,23 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
 import { TestBaseRandomConstants } from "../../../utils/TestBaseRandomConstants.sol";
 
-contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
+/// @title LDADiamondTest
+/// @notice Spins up a minimal LDA Diamond with loupe, ownership, and emergency pause facets for periphery tests.
+/// @dev Child test suites inherit this to get a ready-to-cut diamond and helper to assemble facets.
+contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
+    /// @notice The diamond proxy under test.
     LDADiamond internal ldaDiamond;
 
+    /// @notice Deploys a clean LDA diamond with base facets and sets owner/pauser.
+    /// @dev This runs before higher-level test setup in BaseCoreRouteTest/BaseDEXFacetTest.
     function setUp() public virtual {
         ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
     }
 
+    /// @notice Creates an LDA diamond and wires up Loupe, Ownership and EmergencyPause facets.
+    /// @param _diamondOwner Owner address for the diamond.
+    /// @param _pauserWallet Pauser address for the emergency pause facet.
+    /// @return diamond The newly created diamond instance.
     function createLdaDiamond(
         address _diamondOwner,
         address _pauserWallet
@@ -41,7 +51,7 @@ contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
 
         // Add PeripheryRegistry TODO?!?!?
 
-        // Add EmergencyPause
+        // Add EmergencyPause (removeFacet, pause/unpause)
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = emergencyPause.removeFacet.selector;
         functionSelectors[1] = emergencyPause.pauseDiamond.selector;

@@ -9,12 +9,19 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
 
+/// @title CoreRouteFacetTest
+/// @notice Tests the CoreRouteFacet's command parser, permit handling, and minimal invariants.
+/// @dev Adds small mock “facets” that emulate pull/native handlers for exercising route execution.
 contract CoreRouteFacetTest is BaseCoreRouteTest {
     using SafeTransferLib for address;
 
+    /// @notice Cached selector for the mock pull facet to simplify route building in tests.
     bytes4 internal pullSel;
 
     // ==== Setup Functions ====
+
+    /// @notice Registers a mock pull facet once and stores its selector for reuse.
+    /// @dev Also calls parent `setUp` to add CoreRouteFacet to the diamond.
     function setUp() public override {
         super.setUp();
         // Register mock pull facet once and store selector
@@ -26,6 +33,8 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
     }
 
     // ==== Helper Functions ====
+
+    /// @notice Adds a mock native handler facet to the diamond for ProcessNative tests.
     function _addMockNativeFacet() internal {
         MockNativeFacet mock = new MockNativeFacet();
         bytes4[] memory selectors = new bytes4[](1);
@@ -33,6 +42,8 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         addFacet(address(ldaDiamond), address(mock), selectors);
     }
 
+    /// @notice Adds a mock pull facet to the diamond and returns its selector.
+    /// @return sel Selector of the mock pull function.
     function _addMockPullFacet() internal returns (bytes4 sel) {
         MockPullERC20Facet mock = new MockPullERC20Facet();
         bytes4[] memory selectors = new bytes4[](1);
@@ -41,6 +52,16 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         return selectors[0];
     }
 
+    /// @notice Signs an EIP-2612 permit for a mock token and returns the ECDSA tuple.
+    /// @param token Permit-enabled mock token.
+    /// @param ownerPk Private key of the owner (forge-anvil test key).
+    /// @param owner Owner address.
+    /// @param spender Spender to approve (diamond in our tests).
+    /// @param value Allowance value.
+    /// @param deadline Permit deadline.
+    /// @return v ECDSA v
+    /// @return r ECDSA r
+    /// @return s ECDSA s
     function _signPermit(
         ERC20PermitMock token,
         uint256 ownerPk,
@@ -69,6 +90,8 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
     }
 
     // ==== Test Cases ====
+
+    /// @notice Sanity-checks deployment wiring and ownership.
     function test_ContractIsSetUpCorrectly() public {
         // Test that owner is set correctly
         assertEq(
@@ -78,11 +101,14 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
+    /// @notice Constructor must revert on zero owner; verifies InvalidConfig.
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
         new CoreRouteFacet(address(0));
     }
 
+    /// @notice Verifies ProcessNative command passes ETH to recipient and emits Route with exact out.
+    /// @dev Builds a route with a mock native handler and funds USER_SENDER with 1 ETH.
     function test_ProcessNativeCommandSendsEthToRecipient() public {
         _addMockNativeFacet();
 
@@ -123,6 +149,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
+    /// @notice Applies an EIP-2612 permit via ApplyPermit command and verifies allowance on diamond.
     function test_ApplyPermitCommandSetsAllowanceOnDiamond() public {
         uint256 ownerPk = 0xA11CE;
         address owner = vm.addr(ownerPk);
@@ -173,6 +200,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
+    /// @notice Unknown command codes should revert; verifies UnknownCommandCode error.
     function testRevert_WhenCommandCodeIsUnknown() public {
         bytes memory route = abi.encodePacked(uint8(9));
 
@@ -188,6 +216,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
+    /// @notice Unknown selectors in a step should revert; verifies UnknownSelector.
     function testRevert_WhenSelectorIsUnknown() public {
         ERC20PermitMock token = new ERC20PermitMock(
             "Mock2",
@@ -224,7 +253,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
-    // TokenInSpendingExceeded: trigger by charging the user twice via two ProcessUserERC20 steps.
+    /// @notice TokenInSpendingExceeded: trigger by charging the user twice via two ProcessUserERC20 steps.
     function testRevert_WhenInputBalanceIsInsufficientForTwoSteps() public {
         // Prepare token and approvals
         uint256 amountIn = 1e18;
@@ -274,7 +303,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         vm.stopPrank();
     }
 
-    // Same as above but with tokenOut set to an ERC20, to ensure path-independent behavior.
+    /// @notice Same as above but with tokenOut set to an ERC20, to ensure path-independent behavior.
     function testRevert_WhenInputBalanceIsInsufficientForTwoStepsWithERC20Out()
         public
     {

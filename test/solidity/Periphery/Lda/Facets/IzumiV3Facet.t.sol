@@ -7,10 +7,19 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
 import { MockNoCallbackPool } from "../../../utils/MockNoCallbackPool.sol";
 
+/// @title IzumiV3FacetTest
+/// @notice Forked + local tests for Izumi V3 pools routed through LDA.
+/// @dev Validates swap paths, aggregator/user flows, multi-hop, callback auth, and revert cases.
 contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
+    /// @notice Facet proxy handle bound to diamond after facet cut.
     IzumiV3Facet internal izumiV3Facet;
 
     // ==== Types ====
+
+    /// @notice Parameters for a single Izumi V3 swap step.
+    /// @param pool Target pool.
+    /// @param direction Direction of the swap.
+    /// @param recipient Address receiving the proceeds.
     struct IzumiV3SwapParams {
         address pool;
         SwapDirection direction;
@@ -18,9 +27,13 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Errors ====
+
+    /// @notice Emitted when callback amounts are non-positive (guard against bad pool behavior).
     error IzumiV3SwapCallbackNotPositiveAmount();
 
     // ==== Setup Functions ====
+
+    /// @notice Selects Base fork and block height used by the tests.
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "base",
@@ -28,6 +41,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         });
     }
 
+    /// @notice Deploys facet and returns swap + callback selectors for diamond cut.
     function _createFacetAndSelectors()
         internal
         override
@@ -41,12 +55,14 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         return (address(izumiV3Facet), functionSelectors);
     }
 
+    /// @notice Sets `izumiV3Facet` to the diamond proxy.
     function _setFacetInstance(
         address payable facetAddress
     ) internal override {
         izumiV3Facet = IzumiV3Facet(facetAddress);
     }
 
+    /// @notice Defines a USDC/WETH/USDB_C path and pools on Base for tests.
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913); // USDC
         tokenMid = IERC20(0x4200000000000000000000000000000000000006); // WETH
@@ -55,6 +71,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         poolMidOut = 0xdb5D62f06EEcEf0Da7506e0700c2f03c57016De5; // WETH/USDB_C
     }
 
+    /// @notice Default amount for USDC (6 decimals) used in tests.
     function _getDefaultAmountForTokenIn()
         internal
         pure
@@ -65,14 +82,20 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Callback Test Hooks ====
+
+    /// @notice Chooses which callback to use under the base callback tests.
     function _getCallbackSelector() internal view override returns (bytes4) {
         return izumiV3Facet.swapX2YCallback.selector;
     }
 
+    /// @notice Supplies a no-callback pool for negative tests.
     function _deployNoCallbackPool() internal override returns (address) {
         return address(new MockNoCallbackPool());
     }
 
+    /// @notice Encodes swap payload for callback arming tests.
+    /// @param pool Pool to use.
+    /// @param recipient Recipient of proceeds.
     function _buildCallbackSwapData(
         address pool,
         address recipient
@@ -87,6 +110,8 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Test Cases ====
+
+    /// @notice User-funded swap USDC->WETH on poolInMid, sending to USER_RECEIVER.
     function test_CanSwap() public override {
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
@@ -116,6 +141,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         vm.stopPrank();
     }
 
+    /// @notice Aggregator-funded swap USDC->WETH on poolInMid to USER_SENDER.
     function test_CanSwap_FromDexAggregator() public override {
         // Test USDC -> WETH
         deal(
@@ -150,6 +176,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         vm.stopPrank();
     }
 
+    /// @notice Multi-hop user→aggregator USDC->WETH->USDB_C flow.
     function test_CanSwap_MultiHop() public override {
         // Fund the sender with tokens
         uint256 amountIn = _getDefaultAmountForTokenIn();
@@ -221,7 +248,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         vm.stopPrank();
     }
 
-    // ==== Revert Cases ====
+    /// @notice Negative test: callback should revert when amounts are not positive.
     function testRevert_IzumiV3SwapCallbackNotPositiveAmount() public {
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
@@ -236,6 +263,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         izumiV3Facet.swapY2XCallback(0, 0, abi.encode(tokenIn));
     }
 
+    /// @notice Negative test: too-large amount encodings must revert with InvalidCallData.
     function testRevert_FailsIfAmountInIsTooLarge() public {
         deal(address(tokenMid), USER_SENDER, type(uint256).max);
 
@@ -267,6 +295,10 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Helper Functions ====
+
+    /// @notice Encodes Izumi V3 swap payloads for route steps.
+    /// @param params Pool/direction/recipient.
+    /// @return Packed calldata for `swapIzumiV3`.
     function _buildIzumiV3SwapData(
         IzumiV3SwapParams memory params
     ) internal view returns (bytes memory) {

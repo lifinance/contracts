@@ -6,12 +6,22 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
-import { LdaDiamondTest } from "./utils/LdaDiamondTest.sol";
+import { LDADiamondTest } from "./utils/LDADiamondTest.sol";
 
-abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
+/// @title BaseCoreRouteTest
+/// @notice Shared utilities to build route bytes and execute swaps against `CoreRouteFacet`.
+/// @dev Offers:
+///      - Flexible route building for single/multi-hop
+///      - Event expectations helpers
+///      - Overloads of `_executeAndVerifySwap` including revert path
+///      Concrete tests compose these helpers to succinctly define swap scenarios.
+abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     using SafeERC20 for IERC20;
 
     // ==== Types ====
+
+    /// @notice Command types recognized by CoreRouteFacet route parser.
+    /// @dev Controls how `processRoute` resolves the source of funds.
     enum CommandType {
         None, // 0 - not used
         ProcessMyERC20, // 1 - processMyERC20 (Aggregator's funds)
@@ -21,6 +31,14 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         ApplyPermit // 5 - applyPermit
     }
 
+    /// @notice Generic event expectation shape for verifying external protocol emissions alongside Route.
+    /// @param checkTopic1 Whether to check topic1 (indexed param #1).
+    /// @param checkTopic2 Whether to check topic2 (indexed param #2).
+    /// @param checkTopic3 Whether to check topic3 (indexed param #3).
+    /// @param checkData Whether to check event data (non-indexed params).
+    /// @param eventSelector keccak256 hash of the event signature.
+    /// @param eventParams Params encoded as abi.encode(param) each; indexed must be exactly 32 bytes.
+    /// @param indexedParamIndices Indices of params that are indexed (map to topics 1..3).
     struct ExpectedEvent {
         bool checkTopic1;
         bool checkTopic2;
@@ -31,11 +49,22 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         uint8[] indexedParamIndices; // indices of params that are indexed (→ topics 1..3)
     }
 
+    /// @notice Tuning for verifying the core `Route` event.
+    /// @param expectedExactOut Set >0 to match exact amountOut, otherwise only structure is validated.
+    /// @param checkData Whether to validate event data payload.
     struct RouteEventVerification {
         uint256 expectedExactOut; // Only for event verification
         bool checkData;
     }
 
+    /// @notice Parameters passed to `_buildBaseRoute` and `_executeAndVerifySwap`.
+    /// @param tokenIn Input token address (or NATIVE constant).
+    /// @param tokenOut Output token address (or NATIVE constant).
+    /// @param amountIn Input amount.
+    /// @param minOut Minimum acceptable output amount (slippage).
+    /// @param sender Logical sender of the funds for this hop.
+    /// @param recipient Receiver of the swap proceeds.
+    /// @param commandType Command determining source of funds.
     struct SwapTestParams {
         address tokenIn;
         address tokenOut;
@@ -47,12 +76,25 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     }
 
     // ==== Constants ====
+
+    /// @notice Denotes 100% share in route encoding.
     uint16 internal constant FULL_SHARE = 65535;
 
     // ==== Variables ====
+
+    /// @notice Proxy handle to CoreRouteFacet on the test diamond.
     CoreRouteFacet internal coreRouteFacet;
 
     // ==== Events ====
+
+    /// @notice Emitted by CoreRouteFacet upon route processing completion.
+    /// @param from Sender address (user or synthetic if aggregator-funded).
+    /// @param to Recipient address.
+    /// @param tokenIn Input token.
+    /// @param tokenOut Output token.
+    /// @param amountIn Input amount.
+    /// @param amountOutMin Min acceptable output amount.
+    /// @param amountOut Actual output amount.
     event Route(
         address indexed from,
         address to,
@@ -64,16 +106,25 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     );
 
     // ==== Errors ====
-    error InvalidTopicLength();
+
+    /// @notice Thrown if an event expectation includes >3 indexed params.
     error TooManyIndexedParams();
+    /// @notice Thrown when building topics from non-32-byte encoded params.
+    error InvalidTopicLength();
+    /// @notice Thrown when data verification encounters dynamic params (unsupported).
     error DynamicParamsNotSupported();
 
     // ==== Setup Functions ====
+
+    /// @notice Deploys and attaches `CoreRouteFacet` to the diamond under test.
+    /// @dev Invoked from `setUp` of child tests via inheritance chain.
     function setUp() public virtual override {
-        LdaDiamondTest.setUp();
+        LDADiamondTest.setUp();
         _addCoreRouteFacet();
     }
 
+    /// @notice Internal helper to deploy CoreRouteFacet and add its `processRoute` selector.
+    /// @dev Sets `coreRouteFacet` to the diamond proxy after cut.
     function _addCoreRouteFacet() internal {
         coreRouteFacet = new CoreRouteFacet(USER_DIAMOND_OWNER);
         bytes4[] memory selectors = new bytes4[](1);
@@ -83,6 +134,18 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     }
 
     // ==== Helper Functions ====
+
+    /// @notice Builds a base route-blob for a single hop given `SwapTestParams` and `swapData`.
+    /// @param params Swap parameters including command type.
+    /// @param swapData DEX-specific data (usually starts with facet.swapX.selector).
+    /// @return Encoded hop bytes to be concatenated for multi-hop or passed directly for single-hop.
+    /// @dev Format depends on command:
+    ///      - ProcessNative: [cmd(1)][numPools(1)=1][share(2)=FULL][len(2)][data]
+    ///      - ProcessOnePool: [cmd(1)][tokenIn(20)][len(2)][data]
+    ///      - Others (User/MyERC20): [cmd(1)][tokenIn(20)][numPools(1)=1][share(2)=FULL][len(2)][data]
+    /// @custom:example Single-hop user ERC20
+    ///      bytes memory data = abi.encodePacked(facet.swapUniV2.selector, pool, uint8(1), recipient);
+    ///      bytes memory route = _buildBaseRoute(params, data);
     function _buildBaseRoute(
         SwapTestParams memory params,
         bytes memory swapData
@@ -117,6 +180,13 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         }
     }
 
+    /// @notice Executes a built route and verifies balances and events.
+    /// @param params Swap params; if ProcessMyERC20, measures in/out at the diamond.
+    /// @param route Pre-built route bytes (single or multi-hop).
+    /// @param additionalEvents Additional external events to expect.
+    /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer (tolerates off-by-1 spent).
+    /// @param routeEventVerification Route event check configuration (exact out optional).
+    /// @dev Approves tokenIn if not aggregator-funded. Emits and verifies Route event.
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -223,6 +293,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         assertGt(outAfter - outBefore, 0, "Should receive tokens");
     }
 
+    /// @notice Convenience overload for `_executeAndVerifySwap` without exact-out check.
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -238,6 +309,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
+    /// @notice Convenience overload for `_executeAndVerifySwap` with only params and route.
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route
@@ -251,6 +323,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
+    /// @notice Convenience overload for `_executeAndVerifySwap` with fee-on-transfer toggle.
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -265,7 +338,13 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
-    // Keep the revert case separate
+    /// @notice Executes route expecting a specific revert error selector.
+    /// @param params Swap params; for aggregator funds, the helper deliberately uses amountIn-1 to trigger errors.
+    /// @param route Pre-built route bytes.
+    /// @param expectedRevert Error selector expected from `processRoute`.
+    /// @dev Example:
+    ///      vm.expectRevert(Errors.SwapCallbackNotExecuted.selector);
+    ///      _executeAndVerifySwap(params, route, Errors.SwapCallbackNotExecuted.selector);
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -291,7 +370,13 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
-    /// @dev Helper that builds route and executes swap in one call
+    /// @notice Helper that builds route and executes swap in one call, with extended verification options.
+    /// @param params SwapTestParams for building and executing.
+    /// @param swapData DEX-specific swap data to pack.
+    /// @param expectedEvents Additional events to expect.
+    /// @param expectRevert Treats token as fee-on-transfer to adjust spent checking if true.
+    /// @param verification Route event verification configuration.
+    /// @dev Primarily used by complex tests to keep scenario assembly terse.
     function _buildRouteAndExecuteSwap(
         SwapTestParams memory params,
         bytes memory swapData,
@@ -309,7 +394,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
-    /// @dev Overload with default parameters for simple cases
+    /// @notice Overload: builds route and runs default execution checks.
     function _buildRouteAndExecuteSwap(
         SwapTestParams memory params,
         bytes memory swapData
@@ -323,7 +408,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
-    /// @dev Overload for revert cases
+    /// @notice Overload: builds route and expects a revert.
     function _buildRouteAndExecuteSwap(
         SwapTestParams memory params,
         bytes memory swapData,
@@ -333,7 +418,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         _executeAndVerifySwap(params, route, expectedRevert);
     }
 
-    /// @dev Overload matching _executeAndVerifySwap's 4-parameter signature
+    /// @notice Overload: builds route and runs with fee-on-transfer toggle and extra events.
     function _buildRouteAndExecuteSwap(
         SwapTestParams memory params,
         bytes memory swapData,
@@ -349,7 +434,9 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
         );
     }
 
-    // helper: load a 32-byte topic from a 32-byte abi.encode(param)
+    /// @notice Helper to load a topic value from a 32-byte abi.encode(param).
+    /// @param enc A 32-byte abi-encoded static param.
+    /// @return topic The bytes32 topic.
     function _asTopic(bytes memory enc) internal pure returns (bytes32 topic) {
         if (enc.length != 32) revert InvalidTopicLength();
         assembly {
@@ -360,6 +447,7 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     /**
      * @notice Sets up event expectations for a list of events
      * @param events Array of events to expect
+     * @dev Each `ExpectedEvent` can independently toggle checking indexed topics and data.
      */
     function _expectEvents(ExpectedEvent[] memory events) internal {
         for (uint256 i = 0; i < events.length; i++) {
@@ -370,6 +458,10 @@ abstract contract BaseCoreRouteTest is LdaDiamondTest, TestHelpers {
     /**
      * @notice Sets up expectation for a single event
      * @param evt The event to expect with its check parameters and data
+     * @dev Builds the right number of topics based on `indexedParamIndices`, and an ABI-packed data
+     *      payload of non-indexed params (static only).
+     * @custom:error TooManyIndexedParams if more than 3 indexed params are specified.
+     * @custom:error DynamicParamsNotSupported if any non-indexed param is not 32 bytes.
      */
     function _expectEvent(ExpectedEvent memory evt) internal {
         vm.expectEmit(

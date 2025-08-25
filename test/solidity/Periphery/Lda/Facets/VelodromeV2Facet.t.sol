@@ -10,24 +10,33 @@ import { VelodromeV2Facet } from "lifi/Periphery/LDA/Facets/VelodromeV2Facet.sol
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 
+/// @title VelodromeV2FacetTest
+/// @notice Optimism Velodrome V2 tests covering stable/volatile pools, aggregator/user flows, multi-hop, and precise reserve accounting.
+/// @dev Includes a flashloan callback path to assert event expectations and reserve deltas.
 contract VelodromeV2FacetTest is BaseDEXFacetTest {
+    /// @notice Facet proxy bound to the diamond after setup.
     VelodromeV2Facet internal velodromeV2Facet;
 
     // ==== Constants ====
+    /// @notice Router used to compute amounts and resolve pools.
     IVelodromeV2Router internal constant VELODROME_V2_ROUTER =
         IVelodromeV2Router(0xa062aE8A9c5e11aaA026fc2670B0D65cCc8B2858); // optimism router
+    /// @notice Factory registry used by the router for pool lookup.
     address internal constant VELODROME_V2_FACTORY_REGISTRY =
         0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a;
 
+    /// @notice Mock receiver for exercising the pool's flashloan callback hook.
     MockVelodromeV2FlashLoanCallbackReceiver
         internal mockFlashloanCallbackReceiver;
 
     // ==== Types ====
+    /// @notice Enables/disables the flashloan callback during swap.
     enum CallbackStatus {
         Disabled, // 0
         Enabled // 1
     }
 
+    /// @notice Encapsulates a single Velodrome V2 swap request under test.
     struct VelodromeV2SwapTestParams {
         address from;
         address to;
@@ -39,6 +48,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         CallbackStatus callbackStatus;
     }
 
+    /// @notice Parameters and precomputed amounts used by multi-hop tests.
     struct MultiHopTestParams {
         address tokenIn;
         address tokenMid;
@@ -51,6 +61,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         uint256 pool2Fee;
     }
 
+    /// @notice Snapshot of reserve states across two pools for before/after assertions.
     struct ReserveState {
         uint256 reserve0Pool1;
         uint256 reserve1Pool1;
@@ -58,6 +69,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         uint256 reserve1Pool2;
     }
 
+    /// @notice Swap data payload packed for VelodromeV2Facet.
     struct VelodromeV2SwapData {
         address pool;
         SwapDirection direction;
@@ -66,6 +78,8 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
     }
 
     // ==== Setup Functions ====
+
+    /// @notice Picks Optimism fork and block height.
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "optimism",
@@ -73,6 +87,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         });
     }
 
+    /// @notice Deploys facet and returns its swap selector.
     function _createFacetAndSelectors()
         internal
         override
@@ -84,12 +99,14 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         return (address(velodromeV2Facet), functionSelectors);
     }
 
+    /// @notice Sets the facet instance to the diamond proxy.
     function _setFacetInstance(
         address payable facetAddress
     ) internal override {
         velodromeV2Facet = VelodromeV2Facet(facetAddress);
     }
 
+    /// @notice Assigns tokens used in tests; pool addresses are resolved per-test from the router.
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85); // USDC
         tokenMid = IERC20(0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97); // STG
@@ -97,6 +114,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         // pools vary by test; and they are fetched inside tests
     }
 
+    /// @notice Default amount for 6-decimal tokens on Optimism.
     function _getDefaultAmountForTokenIn()
         internal
         pure
@@ -606,8 +624,9 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
     // ==== Helper Functions ====
 
     /**
-     * @dev Helper function to test a VelodromeV2 swap.
-     * Uses a struct to group parameters and reduce stack depth.
+     * @notice Helper to execute a VelodromeV2 swap with optional callback expectation and strict event checking.
+     * @param params The swap request including direction and whether callback is enabled.
+     * @dev Computes expected outputs via router, builds payload, and asserts Route + optional HookCalled event.
      */
     function _testSwap(VelodromeV2SwapTestParams memory params) internal {
         // get expected output amounts from the router.
@@ -706,7 +725,13 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         );
     }
 
-    // Helper function to set up routes and get amounts
+    /// @notice Builds routes and computes amounts for two-hop paths using the router.
+    /// @param tokenIn First hop input.
+    /// @param tokenMid Intermediate token between hops.
+    /// @param tokenOut Final output token.
+    /// @param isStableFirst Whether hop1 uses a stable pool.
+    /// @param isStableSecond Whether hop2 uses a stable pool.
+    /// @return params MultiHopTestParams including pool addresses, amounts and pool fees.
     function _setupRoutes(
         address tokenIn,
         address tokenMid,
@@ -772,6 +797,9 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         return params;
     }
 
+    /// @notice Encodes swap payload for VelodromeV2Facet.swapVelodromeV2.
+    /// @param params pool/direction/recipient/callback status.
+    /// @return Packed bytes payload.
     function _buildVelodromeV2SwapData(
         VelodromeV2SwapData memory params
     ) private pure returns (bytes memory) {
@@ -785,6 +813,9 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             );
     }
 
+    /// @notice Verifies exact reserve deltas on both pools against computed amounts and fees.
+    /// @param params Multi-hop parameters returned by `_setupRoutes`.
+    /// @param initialReserves Reserves captured before the swap.
     function _verifyReserves(
         MultiHopTestParams memory params,
         ReserveState memory initialReserves
@@ -868,6 +899,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
 
 contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
     // ==== Events ====
+    /// @notice Emitted by the mock to validate callback plumbing during tests.
     event HookCalled(
         address sender,
         uint256 amount0,
@@ -875,6 +907,7 @@ contract MockVelodromeV2FlashLoanCallbackReceiver is IVelodromeV2PoolCallee {
         bytes data
     );
 
+    /// @notice Simple hook that emits `HookCalled` with passthrough data.
     function hook(
         address sender,
         uint256 amount0,

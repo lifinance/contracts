@@ -5,25 +5,45 @@ import { UniV3StyleFacet } from "lifi/Periphery/LDA/Facets/UniV3StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { BaseDEXFacetWithCallbackTest } from "./BaseDEXFacetWithCallback.t.sol";
 
+/// @title BaseUniV3StyleDEXFacetTest
+/// @notice Shared UniV3-style testing helpers built atop BaseDEXFacetWithCallbackTest.
+/// @dev Handles selector wiring, pool direction inference (token0/token1), and auto-execution flows.
 abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
+    /// @notice UniV3-style facet proxy handle (points to diamond after setup).
     UniV3StyleFacet internal uniV3Facet;
 
     // ==== Types ====
+
+    /// @notice Parameters for a single UniV3-style swap step.
+    /// @param pool Target pool address.
+    /// @param direction Direction of the swap (token0->token1 or vice versa).
+    /// @param recipient Recipient of the proceeds.
     struct UniV3SwapParams {
         address pool;
         SwapDirection direction;
         address recipient;
     }
 
+    /// @notice Parameters for convenience auto-execution.
+    /// @param commandType Whether to use aggregator funds or user funds.
+    /// @param amountIn Input amount to test with.
     struct UniV3AutoSwapParams {
         CommandType commandType;
         uint256 amountIn;
     }
 
     // ==== Errors ====
+
+    /// @notice Thrown when a pool does not include the provided token.
+    /// @param token Token address not found in pool.
+    /// @param pool Pool address.
     error TokenNotInPool(address token, address pool);
 
     // ==== Setup Functions ====
+
+    /// @notice Deploys UniV3Style facet and registers `swapUniV3` + DEX-specific callback selector.
+    /// @return facetAddress Address of the deployed facet implementation.
+    /// @return functionSelectors Selectors for swap and callback.
     function _createFacetAndSelectors()
         internal
         override
@@ -36,6 +56,8 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         return (address(uniV3Facet), functionSelectors);
     }
 
+    /// @notice Sets `uniV3Facet` to the diamond proxy (post-cut).
+    /// @param facetAddress Diamond proxy address.
     function _setFacetInstance(
         address payable facetAddress
     ) internal override {
@@ -43,6 +65,12 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Helper Functions ====
+
+    /// @notice Builds packed swap data for UniV3-style swap dispatch.
+    /// @param params Struct including pool, direction and recipient.
+    /// @return Packed payload starting with `swapUniV3` selector.
+    /// @custom:example
+    ///      bytes memory data = _buildUniV3SwapData(UniV3SwapParams(pool, dir, user));
     function _buildUniV3SwapData(
         UniV3SwapParams memory params
     ) internal view returns (bytes memory) {
@@ -55,6 +83,11 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
             );
     }
 
+    /// @notice Executes a UniV3-style swap for arbitrary pool and direction.
+    /// @param params Swap test params (sender/recipient/funding mode).
+    /// @param pool Pool to swap on.
+    /// @param direction Swap direction to use.
+    /// @dev Funds sender or diamond accordingly, builds route and executes with default assertions.
     function _executeUniV3StyleSwap(
         SwapTestParams memory params,
         address pool,
@@ -84,7 +117,10 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         vm.stopPrank();
     }
 
-    // Infer swap direction from pool's token0/token1 and TOKEN_IN
+    /// @notice Infers direction (token0->token1 or token1->token0) given a pool and `tokenIn`.
+    /// @param pool The target UniV3-style pool.
+    /// @param tokenIn The input token address.
+    /// @return Inferred direction.
     function _getDirection(
         address pool,
         address tokenIn
@@ -96,6 +132,9 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         revert TokenNotInPool(tokenIn, pool);
     }
 
+    /// @notice Convenience flow: infers direction from `poolInOut` and executes with given funding mode.
+    /// @param params commandType + amountIn
+    /// @dev Funds sender or diamond, builds route for `poolInOut`, and executes.
     function _executeUniV3StyleSwapAuto(
         UniV3AutoSwapParams memory params
     ) internal {
@@ -152,6 +191,11 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Overrides ====
+
+    /// @notice Builds callback-arming swap data for `BaseDEXFacetWithCallbackTest` harness.
+    /// @param pool Pool to invoke against in callback tests.
+    /// @param recipient Receiver for proceeds in these tests.
+    /// @return Packed swap payload.
     function _buildCallbackSwapData(
         address pool,
         address recipient
@@ -167,6 +211,8 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     // ==== Test Cases ====
+
+    /// @notice Intentionally skipped: UniV3 multi-hop unsupported due to amountSpecified=0 limitation on second hop.
     function test_CanSwap_MultiHop() public virtual override {
         // SKIPPED: UniV3 forke dex multi-hop unsupported due to AS (amount specified) requirement.
         // UniV3 forke dex does not support a "one-pool" second hop today,
@@ -176,6 +222,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         // in a single processRoute invocation.
     }
 
+    /// @notice User-funded single-hop swap on UniV3-style pool inferred from `poolInOut`.
     function test_CanSwap() public virtual override {
         _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
@@ -185,6 +232,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         );
     }
 
+    /// @notice Aggregator-funded single-hop swap on UniV3-style.
     function test_CanSwap_FromDexAggregator() public virtual override {
         _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({

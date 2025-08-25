@@ -6,15 +6,22 @@ import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 import { SyncSwapV2Facet } from "lifi/Periphery/LDA/Facets/SyncSwapV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
+/// @title SyncSwapV2FacetTest
+/// @notice Linea SyncSwap V2 tests via LDA route; includes both v1 and v2 pool wiring.
+/// @dev Verifies single-hop, aggregator flow, multi-hop (with ProcessOnePool), and revert paths.
 contract SyncSwapV2FacetTest is BaseDEXFacetTest {
+    /// @notice Facet proxy for swaps bound to the diamond after setup.
     SyncSwapV2Facet internal syncSwapV2Facet;
 
+    /// @notice SyncSwap vault address used by V1 pools.
     address internal constant SYNC_SWAP_VAULT =
         address(0x7160570BB153Edd0Ea1775EC2b2Ac9b65F1aB61B);
 
+    /// @notice A Linea v2 pool used by specific tests.
     address internal constant USDC_WETH_POOL_V2 =
         address(0xDDed227D71A096c6B5D87807C1B5C456771aAA94);
 
+    /// @notice Selects Linea fork and block height used by tests.
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
             networkName: "linea",
@@ -22,6 +29,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         });
     }
 
+    /// @notice Deploys SyncSwapV2Facet and returns its swap selector for diamond cut.
     function _createFacetAndSelectors()
         internal
         override
@@ -33,12 +41,14 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         return (address(syncSwapV2Facet), functionSelectors);
     }
 
+    /// @notice Sets the facet instance to the diamond proxy after facet cut.
     function _setFacetInstance(
         address payable facetAddress
     ) internal override {
         syncSwapV2Facet = SyncSwapV2Facet(facetAddress);
     }
 
+    /// @notice Defines tokens and pools used by tests (WETH/USDC/USDT).
     function _setupDexEnv() internal override {
         tokenIn = IERC20(0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f); // WETH
         tokenMid = IERC20(0x176211869cA2b568f2A7D4EE941E073a821EE1ff); // USDC
@@ -47,7 +57,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         poolMidOut = 0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2; // USDC-USDT V1
     }
 
-    /// @notice Single‐pool swap: USER sends WETH → receives USDC
+    /// @notice Single‐pool swap: USER sends WETH → receives USDC.
     function test_CanSwap() public override {
         // Transfer 1 000 WETH from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
@@ -80,6 +90,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice User-funded swap on a V2 pool variant.
     function test_CanSwap_PoolV2() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
@@ -112,6 +123,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Aggregator-funded swap on a V1 pool; uses amountIn-1 for undrain protection.
     function test_CanSwap_FromDexAggregator() public override {
         // Fund the aggregator with 1 000 WETH
         deal(
@@ -148,6 +160,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Aggregator-funded swap on a V2 pool; same undrain behavior.
     function test_CanSwap_FromDexAggregator_PoolV2() public {
         // Fund the aggregator with 1 000 WETH
         deal(
@@ -184,6 +197,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Multi-hop WETH->USDC (v1) then USDC->USDT (v1) where hop2 consumes hop1 outputs.
     function test_CanSwap_MultiHop() public override {
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
 
@@ -258,6 +272,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice V1 pools require non-zero vault; zero must revert.
     function testRevert_V1PoolMissingVaultAddress() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
@@ -291,6 +306,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Invalid pool/recipient combinations should revert.
     function testRevert_InvalidPoolOrRecipient() public {
         // Transfer 1 000 WETH from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
@@ -348,6 +364,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Only withdrawMode 0/1/2 are supported; invalid modes must revert.
     function testRevert_InvalidWithdrawMode() public {
         vm.startPrank(USER_SENDER);
 
@@ -391,6 +408,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         // SyncSwapV2 does not use callbacks - test intentionally empty
     }
 
+    /// @notice SyncSwap V2 swap parameter shape used for `swapSyncSwapV2`.
     struct SyncSwapV2SwapParams {
         address pool;
         address to;
@@ -399,6 +417,8 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         address vault;
     }
 
+    /// @notice Builds SyncSwapV2 swap payload for route steps.
+    /// @param params pool/to/withdrawMode/isV1Pool/vault tuple.
     function _buildSyncSwapV2SwapData(
         SyncSwapV2SwapParams memory params
     ) internal view returns (bytes memory) {

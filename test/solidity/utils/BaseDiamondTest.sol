@@ -7,10 +7,16 @@ import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { Test } from "forge-std/Test.sol";
 
+/// @title BaseDiamondTest
+/// @notice Minimal helper to compose a test Diamond and add facets/selectors for test scenarios.
+/// @dev Provides overloads to add facets with or without init calldata.
+///      This contract is used by higher-level LDA test scaffolding to assemble the test Diamond.
 abstract contract BaseDiamondTest is Test {
     LibDiamond.FacetCut[] internal cut;
 
-    // Common function to add Diamond Loupe selectors
+    /// @notice Adds standard Diamond Loupe selectors to the `cut` buffer.
+    /// @param _diamondLoupe Address of a deployed `DiamondLoupeFacet`.
+    /// @dev Call this before invoking diamondCut with the buffered `cut`.
     function _addDiamondLoupeSelectors(address _diamondLoupe) internal {
         bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = DiamondLoupeFacet
@@ -30,7 +36,9 @@ abstract contract BaseDiamondTest is Test {
         );
     }
 
-    // Common function to add Ownership selectors
+    /// @notice Adds standard Ownership selectors to the `cut` buffer.
+    /// @param _ownership Address of a deployed `OwnershipFacet`.
+    /// @dev Call this before invoking diamondCut with the buffered `cut`.
     function _addOwnershipSelectors(address _ownership) internal {
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
@@ -49,6 +57,11 @@ abstract contract BaseDiamondTest is Test {
         );
     }
 
+    /// @notice Adds a facet and function selectors to the target diamond.
+    /// @param _diamond Address of the diamond proxy.
+    /// @param _facet Address of the facet implementation to add.
+    /// @param _selectors Function selectors to expose in the diamond.
+    /// @dev Convenience overload with no initializer; see the 5-arg overload for init flows.
     function addFacet(
         address _diamond,
         address _facet,
@@ -57,6 +70,13 @@ abstract contract BaseDiamondTest is Test {
         _addFacet(_diamond, _facet, _selectors, address(0), "");
     }
 
+    /// @notice Adds a facet and function selectors to the target diamond, optionally executing an initializer.
+    /// @param _diamond Address of the diamond proxy.
+    /// @param _facet Address of the facet implementation to add.
+    /// @param _selectors Function selectors to expose in the diamond.
+    /// @param _init Address of an initializer (can be facet or another contract).
+    /// @param _initCallData ABI-encoded calldata for the initializer.
+    /// @dev Owner is impersonated via vm.startPrank for the duration of the diamondCut.
     function addFacet(
         address _diamond,
         address _facet,
@@ -67,6 +87,15 @@ abstract contract BaseDiamondTest is Test {
         _addFacet(_diamond, _facet, _selectors, _init, _initCallData);
     }
 
+    /// @notice Performs diamondCut with an appended `FacetCut`.
+    /// @param _diamond Address of the diamond proxy.
+    /// @param _facet Address of the facet implementation to add.
+    /// @param _selectors Function selectors to expose in the diamond.
+    /// @param _init Address of an initializer (address(0) for none).
+    /// @param _initCallData ABI-encoded calldata for the initializer (empty if none).
+    /// @dev Example:
+    ///      - Append loupe + ownership cuts first.
+    ///      - Then call `_addFacet(diamond, address(myFacet), selectors, address(0), "")`.
     function _addFacet(
         address _diamond,
         address _facet,
