@@ -11,6 +11,10 @@ pragma solidity ^0.8.17;
 ///      - No callbacks during swaps (unlike V3-style pools)
 /// @custom:version 1.0.0
 interface IUniV2StylePool {
+    /// @notice Returns the address of the token0
+    function token0() external view returns (address);
+    /// @notice Returns the address of the token1
+    function token1() external view returns (address);
     /// @notice Returns the current reserves of the pool and the last block timestamp
     /// @dev Values are stored as uint112 to fit into a single storage slot for gas optimization
     /// @return reserve0 The reserve of token0
