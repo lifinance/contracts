@@ -153,7 +153,8 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 - **Error Handling:**
 
-  - All custom errors must be defined in `src/Errors/GenericErrors.sol`
+  - Custom errors should be defined in `src/Errors/GenericErrors.sol` with the following exceptions:
+    - LDA-specific errors should be defined in `src/Periphery/LDA/Errors/Errors.sol`
   - Error names should be descriptive and follow PascalCase
   - Errors should not include error messages (gas optimization)
   - Use custom error types rather than generic `revert()` statements
@@ -248,6 +249,15 @@ We use Foundry as our primary development and testing framework. Foundry provide
      /// @return Description of return value
      /// @dev Additional details about implementation (optional)
      ```
+   - Incorrect format (do not use):
+     ```solidity
+     /** @notice Brief description of function purpose
+      * @param parameterName Description of parameter
+      * @return Description of return value
+      * @dev Additional details about implementation (optional)
+      */
+     ```
+   - Always use `///` single-line format instead of `/** */` block format for better readability and gas efficiency
 
 4. **Complex Logic Documentation**
    - Add inline comments for complex algorithms

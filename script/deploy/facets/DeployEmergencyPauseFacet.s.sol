@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Security/EmergencyPauseFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;

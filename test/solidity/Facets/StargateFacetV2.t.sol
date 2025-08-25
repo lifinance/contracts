@@ -75,7 +75,11 @@ contract StargateFacetV2Test is TestBaseFacet {
             .selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
-        addFacet(diamond, address(stargateFacetV2), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(stargateFacetV2),
+            functionSelectors
+        );
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond

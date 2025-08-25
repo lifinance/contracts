@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
-import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
+import { MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
 
@@ -39,7 +39,7 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetV3Test is TestBase, TestHelpers {
+contract GenericSwapFacetV3Test is TestBase {
     using SafeTransferLib for ERC20;
 
     // These values are for Mainnet
@@ -73,7 +73,11 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         functionSelectors[3] = genericSwapFacet
             .setFunctionApprovalBySignature
             .selector;
-        addFacet(diamond, address(genericSwapFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacet),
+            functionSelectors
+        );
 
         // add genericSwapFacet (v3) to diamond
         bytes4[] memory functionSelectorsV3 = new bytes4[](6);
@@ -96,7 +100,11 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             .swapTokensMultipleV3NativeToERC20
             .selector;
 
-        addFacet(diamond, address(genericSwapFacetV3), functionSelectorsV3);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacetV3),
+            functionSelectorsV3
+        );
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacetV3 = TestGenericSwapFacetV3(address(diamond));

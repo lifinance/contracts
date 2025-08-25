@@ -4,12 +4,10 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibSwap } from "./LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-
-// solhint-disable-next-line max-line-length
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
 
 /// @title LibAsset
-/// @custom:version 2.1.1
+/// @custom:version 2.1.2
 /// @author LI.FI (https://li.fi)
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
@@ -61,7 +59,7 @@ library LibAsset {
     function transferNativeAsset(
         address payable recipient,
         uint256 amount
-    ) private {
+    ) internal {
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) revert InvalidReceiver();
 
@@ -77,7 +75,7 @@ library LibAsset {
         address assetId,
         address recipient,
         uint256 amount
-    ) private {
+    ) internal {
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) {
             revert InvalidReceiver();

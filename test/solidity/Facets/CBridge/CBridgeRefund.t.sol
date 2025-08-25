@@ -93,7 +93,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         selector[0] = withdrawFacet.executeCallAndWithdraw.selector;
 
         vm.startPrank(OWNER_ADDRESS);
-        addFacet(diamond, address(withdrawFacet), selector);
+        addFacet(address(diamond), address(withdrawFacet), selector);
         vm.stopPrank();
 
         withdrawFacet = WithdrawFacet(address(diamond));

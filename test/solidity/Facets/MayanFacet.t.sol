@@ -111,7 +111,11 @@ contract MayanFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(mayanBridgeFacet),
+            functionSelectors
+        );
         mayanBridgeFacet = TestMayanFacet(address(diamond));
         mayanBridgeFacet.addDex(ADDRESS_UNISWAP);
         mayanBridgeFacet.setFunctionApprovalBySignature(

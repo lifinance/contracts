@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../../utils/TestBase.sol";
-import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
-import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
+import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "lifi/Errors/GenericErrors.sol";
+import { EmergencyPauseFacet } from "lifi/Security/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";

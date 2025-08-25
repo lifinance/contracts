@@ -56,7 +56,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(acrossFacetV3), functionSelectors);
+        addFacet(address(diamond), address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
         acrossFacetV3.addDex(ADDRESS_UNISWAP);
         acrossFacetV3.setFunctionApprovalBySignature(

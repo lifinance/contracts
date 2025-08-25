@@ -89,7 +89,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
         functionSelectors[4] = cBridge.triggerRefund.selector;
 
-        addFacet(diamond, address(cBridge), functionSelectors);
+        addFacet(address(diamond), address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));

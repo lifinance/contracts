@@ -471,7 +471,11 @@ contract GasZipPeripheryTest is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(_gnosisBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(_gnosisBridgeFacet),
+            functionSelectors
+        );
 
         _gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 

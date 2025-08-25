@@ -58,7 +58,7 @@ contract SquidFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(squidFacet), functionSelectors);
+        addFacet(address(diamond), address(squidFacet), functionSelectors);
         squidFacet = TestSquidFacet(address(diamond));
         squidFacet.addDex(ADDRESS_UNISWAP);
         squidFacet.setFunctionApprovalBySignature(
