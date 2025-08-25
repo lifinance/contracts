@@ -141,6 +141,22 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
+      "0x91559A75bd9045681265C77922b3cAeDB3D5120d": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
+      },
+      "0x0f4D0D8890bAF9036D3895315559a6F0d573e2EC": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x59A1Bcaa32EdB1a233fEF945857529BBD6df247f": {
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
+      },
       "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
@@ -148,10 +164,6 @@
       "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
-      },
-      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
-        "Name": "GlacisFacet",
-        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -161,6 +173,7 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
       "ReceiverChainflip": "",

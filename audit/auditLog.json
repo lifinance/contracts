@@ -349,6 +349,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.08.22_GlacisFacet(v1.1.0).pdf",
       "auditCommitHash": "15f4a1c3fe53e344245f3c1834df81643dde7830"
+    },
+    "audit20250825": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.25_MayanFacet(v1.2.2).pdf",
+      "auditCommitHash": "b7e4b66ae83961f2873454f0bf09347e9ac8959d"
     }
   },
   "auditedContracts": {
@@ -540,7 +547,8 @@
       "1.0.0": ["audit20250508"],
       "1.1.0": ["audit20250228"],
       "1.2.0": ["audit20250327"],
-      "1.2.1": ["audit20250718"]
+      "1.2.1": ["audit20250718"],
+      "1.2.2": ["audit20250825"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
