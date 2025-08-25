@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
-import type { AbiFunction} from 'viem';
+import type { AbiFunction } from 'viem'
 import { decodeFunctionResult, parseAbi } from 'viem'
 
 import type { Environment } from '../types'
@@ -41,6 +41,10 @@ export const callCommand = defineCommand({
       type: 'string',
       description: 'Block number for historical queries',
     },
+    rpcUrl: {
+      type: 'string',
+      description: 'Custom RPC URL (overrides environment variable)',
+    },
   },
   async run({ args }) {
     try {
@@ -52,8 +56,8 @@ export const callCommand = defineCommand({
       if (env !== 'mainnet' && env !== 'testnet')
         throw new Error('Environment must be "mainnet" or "testnet"')
 
-      // Initialize TronWeb
-      const tronWeb = initTronWeb(env)
+      // Initialize TronWeb with optional custom RPC URL
+      const tronWeb = initTronWeb(env, undefined, args.rpcUrl)
 
       // Parse function signature
       const funcSig = parseFunctionSignature(args.signature)
@@ -139,9 +143,9 @@ export const callCommand = defineCommand({
       }
 
       if (!(abi[0] as AbiFunction)?.outputs.length) {
-        if (result.constant_result.length) 
+        if (result.constant_result.length)
           console.log(`0x${result.constant_result[0]}`)
-        
+
         return
       }
 

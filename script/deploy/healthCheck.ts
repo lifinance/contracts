@@ -98,7 +98,12 @@ const main = defineCommand({
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
-    if (isTron) tronWeb = initTronWeb('mainnet', networksConfig[network].rpcUrl)
+    if (isTron)
+      tronWeb = initTronWeb(
+        'mainnet',
+        undefined,
+        networksConfig[network].rpcUrl
+      )
     else {
       const chain = getViemChainForNetworkName(network.toLowerCase())
       publicClient = createPublicClient({
@@ -200,8 +205,9 @@ const main = defineCommand({
       if (isTron) {
         // Use troncast for Tron
         // Diamond address in deployments is already in Tron format
+        const rpcUrl = networksConfig[network].rpcUrl
         const rawString = execSync(
-          `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])"`,
+          `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
           { encoding: 'utf8' }
         )
 

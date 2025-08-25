@@ -22,11 +22,11 @@ import type { Environment } from '../types'
 
 export function initTronWeb(
   env: Environment,
-  rpcUrl?: string,
-  privateKey?: string
+  privateKey?: string,
+  rpcUrl?: string
 ): TronWeb {
+  // Get RPC URL from environment variables using repo helpers if not provided
   if (!rpcUrl) {
-    // Get RPC URL from environment variables using repo helpers
     const networkName = env === 'mainnet' ? 'tron' : 'tronshasta'
     const envVarName = getRPCEnvVarName(networkName)
     rpcUrl = getEnvVar(envVarName)

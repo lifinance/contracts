@@ -69,6 +69,10 @@ export const sendCommand = defineCommand({
       description: 'Output result as JSON',
       default: false,
     },
+    rpcUrl: {
+      type: 'string',
+      description: 'Custom RPC URL (overrides environment variable)',
+    },
   },
   async run({ args }) {
     try {
@@ -85,8 +89,8 @@ export const sendCommand = defineCommand({
       if (!privateKey)
         throw new Error('Private key is required for sending transactions')
 
-      // Initialize TronWeb with private key
-      const tronWeb = initTronWeb(env, privateKey)
+      // Initialize TronWeb with private key and optional custom RPC URL
+      const tronWeb = initTronWeb(env, privateKey, args.rpcUrl)
 
       // Parse function signature
       const funcSig = parseFunctionSignature(args.signature)
