@@ -67,7 +67,7 @@ contract GasZipFacetTest is TestBaseFacet {
         functionSelectors[5] = gasZipFacet
             .setFunctionApprovalBySignature
             .selector;
-        addFacet(diamond, address(gasZipFacet), functionSelectors);
+        addFacet(address(diamond), address(gasZipFacet), functionSelectors);
 
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 

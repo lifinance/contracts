@@ -5,7 +5,6 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { Test } from "forge-std/Test.sol";
 
 abstract contract BaseDiamondTest is Test {
@@ -51,7 +50,7 @@ abstract contract BaseDiamondTest is Test {
     }
 
     function addFacet(
-        LiFiDiamond _diamond,
+        address _diamond,
         address _facet,
         bytes4[] memory _selectors
     ) public virtual {
@@ -59,7 +58,7 @@ abstract contract BaseDiamondTest is Test {
     }
 
     function addFacet(
-        LiFiDiamond _diamond,
+        address _diamond,
         address _facet,
         bytes4[] memory _selectors,
         address _init,
@@ -69,13 +68,13 @@ abstract contract BaseDiamondTest is Test {
     }
 
     function _addFacet(
-        LiFiDiamond _diamond,
+        address _diamond,
         address _facet,
         bytes4[] memory _selectors,
         address _init,
         bytes memory _initCallData
     ) internal virtual {
-        vm.startPrank(OwnershipFacet(address(_diamond)).owner());
+        vm.startPrank(OwnershipFacet(_diamond).owner());
         cut.push(
             LibDiamond.FacetCut({
                 facetAddress: _facet,
@@ -84,11 +83,7 @@ abstract contract BaseDiamondTest is Test {
             })
         );
 
-        DiamondCutFacet(address(_diamond)).diamondCut(
-            cut,
-            _init,
-            _initCallData
-        );
+        DiamondCutFacet(_diamond).diamondCut(cut, _init, _initCallData);
 
         delete cut;
         vm.stopPrank();

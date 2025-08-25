@@ -121,7 +121,7 @@ abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
             bytes4[] memory functionSelectors
         ) = _createFacetAndSelectors();
 
-        addFacet(ldaDiamond, facetAddress, functionSelectors);
+        addFacet(address(ldaDiamond), facetAddress, functionSelectors);
 
         _setFacetInstance(payable(address(ldaDiamond)));
     }

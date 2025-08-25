@@ -108,7 +108,11 @@ contract AcrossFacetPackedTest is TestBase {
             .selector;
 
         // add facet to diamond
-        addFacet(diamond, address(acrossFacetPacked), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(acrossFacetPacked),
+            functionSelectors
+        );
         acrossFacetPacked = AcrossFacetPacked(payable(address(diamond)));
 
         /// Prepare parameters

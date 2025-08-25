@@ -78,7 +78,7 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
             .selector;
         functionSelectors[4] = allBridgeFacet.getAllBridgeChainId.selector;
 
-        addFacet(diamond, address(allBridgeFacet), functionSelectors);
+        addFacet(address(diamond), address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
         allBridgeFacet.addDex(ADDRESS_UNISWAP);
         allBridgeFacet.setFunctionApprovalBySignature(

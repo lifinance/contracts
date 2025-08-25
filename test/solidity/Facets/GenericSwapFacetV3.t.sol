@@ -73,7 +73,11 @@ contract GenericSwapFacetV3Test is TestBase {
         functionSelectors[3] = genericSwapFacet
             .setFunctionApprovalBySignature
             .selector;
-        addFacet(diamond, address(genericSwapFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacet),
+            functionSelectors
+        );
 
         // add genericSwapFacet (v3) to diamond
         bytes4[] memory functionSelectorsV3 = new bytes4[](6);
@@ -96,7 +100,11 @@ contract GenericSwapFacetV3Test is TestBase {
             .swapTokensMultipleV3NativeToERC20
             .selector;
 
-        addFacet(diamond, address(genericSwapFacetV3), functionSelectorsV3);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacetV3),
+            functionSelectorsV3
+        );
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacetV3 = TestGenericSwapFacetV3(address(diamond));

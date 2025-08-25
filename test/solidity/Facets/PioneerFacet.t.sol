@@ -50,7 +50,11 @@ contract PioneerFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(basePioneerFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(basePioneerFacet),
+            functionSelectors
+        );
         pioneerFacet = TestPioneerFacet(address(diamond));
         pioneerFacet.addDex(ADDRESS_UNISWAP);
         pioneerFacet.setFunctionApprovalBySignature(

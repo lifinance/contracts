@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { LDADiamond } from "lifi/Periphery/Lda/LDADiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
@@ -11,7 +11,7 @@ import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
 import { TestBaseRandomConstants } from "../../../utils/TestBaseRandomConstants.sol";
 
 contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
-    LiFiDiamond internal ldaDiamond;
+    LDADiamond internal ldaDiamond;
 
     function setUp() public virtual {
         ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
@@ -20,7 +20,7 @@ contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
     function createLdaDiamond(
         address _diamondOwner,
         address _pauserWallet
-    ) internal returns (LiFiDiamond) {
+    ) internal returns (LDADiamond) {
         vm.startPrank(_diamondOwner);
         DiamondCutFacet diamondCut = new DiamondCutFacet();
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
@@ -28,7 +28,7 @@ contract LdaDiamondTest is BaseDiamondTest, TestBaseRandomConstants {
         EmergencyPauseFacet emergencyPause = new EmergencyPauseFacet(
             _pauserWallet
         );
-        LiFiDiamond diamond = new LiFiDiamond(
+        LDADiamond diamond = new LDADiamond(
             _diamondOwner,
             address(diamondCut)
         );

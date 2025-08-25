@@ -63,7 +63,11 @@ contract OptimismBridgeFacetTest is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(optimismBridgeFacet),
+            functionSelectors
+        );
 
         OptimismBridgeFacet.Config[]
             memory configs = new OptimismBridgeFacet.Config[](1);
