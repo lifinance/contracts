@@ -267,7 +267,7 @@ contract MayanFacet is
                 // Due to these constraints, the sender must act as the receiver
                 // since they need to provide their own permit. This limitation is handled at the backend level
                 // by disabling the option to specify a different receiver.
-                ///
+                //
                 receiver := mload(add(protocolData, 0xe4))
             }
             case 0x4d1ed73b {
@@ -281,7 +281,7 @@ contract MayanFacet is
                 // Due to these constraints, the sender must act as the receiver
                 // since they need to provide their own permit. This limitation is handled at the backend level
                 // by disabling the option to specify a different receiver.
-                ///
+                //
                 receiver := mload(add(protocolData, 0x164))
             }
             default {
