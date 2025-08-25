@@ -24,3 +24,9 @@ export function node_url(networkName: string): string {
 
   return uri
 }
+
+// Helper function to get RPC environment variable name from network name
+// This must match the logic in helperFunctions.sh getRPCEnvVarName function
+export function getRPCEnvVarName(networkName: string): string {
+  return `ETH_NODE_URI_${networkName.toUpperCase().replace(/-/g, '_')}`
+}
