@@ -106,6 +106,11 @@ contract RelayDepositoryFacet is
         ILiFi.BridgeData memory _bridgeData,
         RelayDepositoryData calldata _relayDepositoryData
     ) internal {
+        // prevent invalid deposits or deposits being accidentally credited to msg.sender (our diamond)
+        if (_relayDepositoryData.depositorAddress == address(0)) {
+            revert InvalidCallData();
+        }
+
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token deposit
             IRelayDepository(RELAY_DEPOSITORY).depositNative{

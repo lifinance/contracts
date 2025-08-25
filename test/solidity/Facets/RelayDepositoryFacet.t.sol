@@ -431,6 +431,73 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    // Test revert when depositor address is zero address
+    function testRevert_WhenDepositorAddressIsZero() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create invalid depository data with zero address
+        RelayDepositoryFacet.RelayDepositoryData
+            memory invalidDepositoryData = RelayDepositoryFacet
+                .RelayDepositoryData({
+                    orderId: bytes32("test-order-id"),
+                    depositorAddress: address(0)
+                });
+
+        // Approval for ERC20 case
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // Expect revert with InvalidCallData error for ERC20 deposit
+        vm.expectRevert(InvalidCallData.selector);
+        relayDepositoryFacet.startBridgeTokensViaRelayDepository(
+            bridgeData,
+            invalidDepositoryData
+        );
+
+        // Test native token case as well
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        // Expect revert with InvalidCallData error for native deposit
+        vm.expectRevert(InvalidCallData.selector);
+        relayDepositoryFacet.startBridgeTokensViaRelayDepository{
+            value: defaultNativeAmount
+        }(bridgeData, invalidDepositoryData);
+
+        vm.stopPrank();
+    }
+
+    // Test revert when depositor address is zero address in swap and bridge
+    function testRevert_WhenDepositorAddressIsZeroInSwapAndBridge() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create invalid depository data with zero address
+        RelayDepositoryFacet.RelayDepositoryData
+            memory invalidDepositoryData = RelayDepositoryFacet
+                .RelayDepositoryData({
+                    orderId: bytes32("test-order-id"),
+                    depositorAddress: address(0)
+                });
+
+        // Prepare bridge data with source swaps
+        bridgeData.hasSourceSwaps = true;
+
+        // Reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // Approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // Expect revert with InvalidCallData error
+        vm.expectRevert(InvalidCallData.selector);
+        relayDepositoryFacet.swapAndStartBridgeTokensViaRelayDepository(
+            bridgeData,
+            swapData,
+            invalidDepositoryData
+        );
+
+        vm.stopPrank();
+    }
+
     // Test fuzzed amounts
     function test_FuzzedAmounts(uint256 amount) public {
         vm.assume(amount > 0 && amount < 100_000);
