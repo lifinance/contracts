@@ -342,6 +342,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.07.30_Patcher(v1.0.0).pdf",
       "auditCommitHash": "1536e96068d5cb1672e48078d22da27c79f4c2ef"
+    },
+    "audit20250822": {
+      "auditCompletedOn": "22.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.22_GlacisFacet(v1.1.0).pdf",
+      "auditCommitHash": "15f4a1c3fe53e344245f3c1834df81643dde7830"
     }
   },
   "auditedContracts": {
@@ -449,7 +456,8 @@
       "1.0.2": ["audit20250610"]
     },
     "GlacisFacet": {
-      "1.0.0": ["audit20250219"]
+      "1.0.0": ["audit20250219"],
+      "1.1.0": ["audit20250822"]
     },
     "GnosisBridgeFacet": {
       "1.0.0": ["audit20250508"],
