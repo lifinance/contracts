@@ -10,13 +10,13 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
   getEnvironment,
-  getNetworkConfig,
   getContractAddress,
   checkExistingDeployment,
   deployContractWithLogging,
@@ -53,19 +53,12 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   // Use tronshasta for staging/testnet, tron for production
   const networkName =
     environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
-  let tronConfig
-  try {
-    tronConfig = getNetworkConfig(networkName as SupportedChain)
-  } catch (error: any) {
-    consola.error(error.message)
-    consola.error(
-      `Please ensure "${networkName}" network is configured in config/networks.json`
-    )
-    process.exit(1)
-  }
 
   const network = networkName as SupportedChain
-  const rpcUrl = tronConfig.rpcUrl
+
+  // Get RPC URL from environment variable
+  const envVarName = getRPCEnvVarName(network)
+  const rpcUrl = getEnvVar(envVarName)
 
   // Get the correct private key based on environment
   let privateKey: string
