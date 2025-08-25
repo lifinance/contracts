@@ -69,8 +69,6 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     /// @notice Builds packed swap data for UniV3-style swap dispatch.
     /// @param params Struct including pool, direction and recipient.
     /// @return Packed payload starting with `swapUniV3` selector.
-    /// @custom:example
-    ///      bytes memory data = _buildUniV3SwapData(UniV3SwapParams(pool, dir, user));
     function _buildUniV3SwapData(
         UniV3SwapParams memory params
     ) internal view returns (bytes memory) {
