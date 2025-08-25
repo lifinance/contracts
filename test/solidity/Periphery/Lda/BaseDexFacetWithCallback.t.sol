@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
