@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { LDADiamond } from "lifi/Periphery/Lda/LDADiamond.sol";
+import { LDADiamond } from "lifi/Periphery/LDA/LDADiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
@@ -11,7 +11,7 @@ import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
 import { TestBaseRandomConstants } from "../../../utils/TestBaseRandomConstants.sol";
 
 /// @title LDADiamondTest
-/// @notice Spins up a minimal LDA Diamond with loupe, ownership, and emergency pause facets for periphery tests.
+/// @notice Spins up a minimal LDA (LiFi DEX Aggregator) Diamond with loupe, ownership, and emergency pause facets for periphery tests.
 /// @dev Child test suites inherit this to get a ready-to-cut diamond and helper to assemble facets.
 contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
     /// @notice The diamond proxy under test.

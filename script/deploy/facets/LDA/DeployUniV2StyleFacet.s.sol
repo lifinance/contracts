@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
-import { UniV2StyleFacet } from "lifi/Periphery/Lda/Facets/UniV2StyleFacet.sol";
+import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("UniV2StyleFacet") {}

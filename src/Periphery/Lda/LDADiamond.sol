@@ -6,7 +6,7 @@ import { IDiamondCut } from "../../Interfaces/IDiamondCut.sol";
 
 /// @title LDADiamond
 /// @author LI.FI (https://li.fi)
-/// @notice Base EIP-2535 Diamond Proxy Contract.
+/// @notice Base EIP-2535 Diamond Proxy Contract for LDA (LiFi DEX Aggregator).
 /// @custom:version 1.0.0
 contract LDADiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
