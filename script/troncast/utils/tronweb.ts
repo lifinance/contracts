@@ -15,26 +15,16 @@ if (
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { getRPCEnvVarName } from '../../utils/network'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 
 export function initTronWeb(env: Environment, privateKey?: string): TronWeb {
-  // Get RPC URL from environment variables
-  let rpcUrl: string
-
-  if (env === 'mainnet') {
-    // For mainnet, use ETH_NODE_URI_TRON environment variable
-    rpcUrl = process.env.ETH_NODE_URI_TRON || ''
-    if (!rpcUrl) 
-      throw new Error('ETH_NODE_URI_TRON environment variable is not set')
-    
-  } else {
-    // For testnet, use ETH_NODE_URI_TRONSHASTA environment variable
-    rpcUrl = process.env.ETH_NODE_URI_TRONSHASTA || ''
-    if (!rpcUrl) 
-      throw new Error('ETH_NODE_URI_TRONSHASTA environment variable is not set')
-    
-  }
+  // Get RPC URL from environment variables using repo helpers
+  const networkName = env === 'mainnet' ? 'tron' : 'tronshasta'
+  const envVarName = getRPCEnvVarName(networkName)
+  const rpcUrl = getEnvVar(envVarName)
 
   consola.debug(`Initializing TronWeb with ${env} network: ${rpcUrl}`)
 

@@ -11,6 +11,7 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig } from './types'
@@ -66,7 +67,21 @@ async function deployAndRegisterPeripheryImpl(options: {
   }
 
   const network = networkName as SupportedChain
-  const rpcUrl = tronConfig.rpcUrl // Use RPC URL from networks.json
+
+  // Get RPC URL from environment variable
+  let rpcUrl: string
+  try {
+    const envVarName = getRPCEnvVarName(networkName)
+    rpcUrl = getEnvVar(envVarName)
+  } catch (error: any) {
+    consola.error(
+      `Failed to get RPC URL from environment variable: ${error.message}`
+    )
+    consola.error(
+      `Please ensure the RPC URL environment variable is set for ${networkName}`
+    )
+    process.exit(1)
+  }
 
   // Get the correct private key based on environment
   let privateKey: string
@@ -120,7 +135,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       consola.warn('Low balance detected. Deployment may fail.')
 
     // Check if LiFiDiamond exists
-    const diamondAddress = await getContractAddress('tron', 'LiFiDiamond')
+    const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) {
       consola.error('LiFiDiamond not found in deployment file')
       consola.error(
