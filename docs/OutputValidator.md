@@ -19,14 +19,17 @@ The `OutputValidator` contract is a periphery contract that validates swap outpu
 
 ### Native Token Flow
 
-1. The calling contract (Diamond) sends a portion of native tokens as `msg.value` for excess handling
-2. **Calculates excess**: `excessAmount = (msg.sender.balance + msg.value) - expectedAmount`
-3. **Smart distribution**:
-   - If `excessAmount >= msg.value`: All `msg.value` goes to validation wallet
-   - If `excessAmount < msg.value`: Sends `excessAmount` to validation wallet, returns `msg.value - excessAmount` to sender, if anything left
+1. The calling contract (Diamond) forwards some or all native output as `msg.value` for excess handling.
+2. **Compute pre-call balance and excess**:
+   - `preCallBalance = msg.sender.balance + msg.value` (caller’s balance before invoking this function)
+   - `excessAmount = preCallBalance - expectedAmount`
+3. **Distribution**:
+   - Sends `min(excessAmount, msg.value)` to the validation wallet.
+   - Refunds the remainder `msg.value - min(excessAmount, msg.value)` back to the caller.
+
+Integration note: If you intend to forward all excess, ensure `msg.value >= excessAmount`; otherwise any residual excess stays with the caller by design.
 
 **Note**: This function requires `msg.value` to work as expected, otherwise it cannot determine how much excess exists.
-
 ### ERC20 Token Flow
 
 1. The calling contract (Diamond) must have sufficient ERC20 token balance and approve this contract
