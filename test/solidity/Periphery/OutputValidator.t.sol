@@ -12,7 +12,6 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { TransferFromFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { stdError } from "forge-std/StdError.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
@@ -162,7 +161,7 @@ contract OutputValidatorTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_validateOutputERC20LessThanExpected() public {
+    function test_validateOutputERC20LessThanExpected() public {
         vm.startPrank(address(diamond));
 
         // Arrange - test case where actual amount is less than expected (should revert)
@@ -175,12 +174,22 @@ contract OutputValidatorTest is TestBase {
         // Approve OutputValidator to spend tokens from diamond
         dai.approve(address(outputValidator), actualAmount);
 
-        // Act - call from diamond
-        vm.expectRevert(stdError.arithmeticError);
         outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
+        );
+
+        // Assert
+        assertEq(
+            dai.balanceOf(validationWallet),
+            0,
+            "No excess tokens should be transferred"
+        );
+        assertEq(
+            dai.balanceOf(address(diamond)),
+            actualAmount,
+            "Should keep actual amount"
         );
 
         vm.stopPrank();
@@ -195,7 +204,7 @@ contract OutputValidatorTest is TestBase {
         uint256 diamondBalance = 10 ether; // Diamond has some native tokens
 
         // Fund diamond with some native tokens
-        vm.deal(address(diamond), diamondBalance);
+        vm.deal(address(diamond), msgValue + diamondBalance);
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -209,7 +218,7 @@ contract OutputValidatorTest is TestBase {
         // - Send all 100 ether to validation wallet
         assertEq(
             validationWallet.balance,
-            100 ether,
+            msgValue,
             "Validation wallet should receive all msg.value"
         );
         assertEq(
@@ -219,7 +228,7 @@ contract OutputValidatorTest is TestBase {
         );
         assertEq(
             address(outputValidator).balance,
-            0 ether,
+            0,
             "OutputValidator should have no remaining balance"
         );
 
@@ -233,9 +242,10 @@ contract OutputValidatorTest is TestBase {
         uint256 expectedAmount = 5 ether;
         uint256 msgValue = 100 ether;
         uint256 diamondBalance = 2 ether; // Diamond has some native tokens
+        uint256 excessAmount = msgValue + diamondBalance - expectedAmount;
 
         // Fund diamond with some native tokens
-        vm.deal(address(diamond), diamondBalance);
+        vm.deal(address(diamond), msgValue + diamondBalance);
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -244,23 +254,22 @@ contract OutputValidatorTest is TestBase {
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 2 + 100 = 102 ether
-        // excessAmount = 102 - 5 = 97 ether
         // Since excessAmount (97) < msg.value (100), we go to else branch:
-        // - Send 97 ether to validation wallet
-        // - Return 3 ether to msg.sender
+        // - Send excessAmount to validation wallet
+        // - Return remaining msg.value to msg.sender
         assertEq(
             validationWallet.balance,
-            97 ether,
+            excessAmount,
             "Validation wallet should receive excess amount"
         );
         assertEq(
             address(diamond).balance,
-            diamondBalance + 3,
+            diamondBalance + msgValue - excessAmount,
             "Sender should get refund of remaining msg.value"
         );
         assertEq(
             address(outputValidator).balance,
-            0 ether,
+            0,
             "OutputValidator should have no remaining balance"
         );
 
@@ -276,7 +285,7 @@ contract OutputValidatorTest is TestBase {
         uint256 diamondBalance = 10 ether; // Diamond has some native tokens
 
         // Fund diamond with some native tokens
-        vm.deal(address(diamond), diamondBalance);
+        vm.deal(address(diamond), msgValue + diamondBalance);
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -285,11 +294,10 @@ contract OutputValidatorTest is TestBase {
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 10 + 5 = 15 ether
-        // excessAmount = 15 - 0 = 15 ether
         // Since excessAmount (15) >= msg.value (5), all 5 ether goes to validation wallet
         assertEq(
             validationWallet.balance,
-            5 ether,
+            msgValue,
             "Validation wallet should receive all msg.value"
         );
         assertEq(
@@ -299,7 +307,7 @@ contract OutputValidatorTest is TestBase {
         );
         assertEq(
             address(outputValidator).balance,
-            0 ether,
+            0,
             "OutputValidator should have no remaining balance"
         );
 
@@ -354,7 +362,7 @@ contract OutputValidatorTest is TestBase {
         uint256 diamondBalance = 150 ether; // Diamond has some native tokens
 
         // Fund diamond with some native tokens
-        vm.deal(address(diamond), diamondBalance);
+        vm.deal(address(diamond), msgValue + diamondBalance);
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -372,12 +380,12 @@ contract OutputValidatorTest is TestBase {
         );
         assertEq(
             address(diamond).balance,
-            diamondBalance + 50,
+            msgValue + diamondBalance,
             "Sender should get all msg.value back"
         );
         assertEq(
             address(outputValidator).balance,
-            0 ether,
+            0,
             "OutputValidator should have no remaining balance"
         );
 
@@ -393,7 +401,7 @@ contract OutputValidatorTest is TestBase {
         uint256 diamondBalance = 100 ether; // Diamond has some native tokens
 
         // Fund diamond with some native tokens
-        vm.deal(address(diamond), diamondBalance);
+        vm.deal(address(diamond), msgValue + diamondBalance);
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -403,20 +411,20 @@ contract OutputValidatorTest is TestBase {
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 100 + 50 = 150 ether
         // Since outputAmount (150) < expectedAmount (200), no excess
-        // All msg.value (50) is returned to sender
+        // All msg.value is returned to sender
         assertEq(
             validationWallet.balance,
-            0 ether,
+            0,
             "Validation wallet should receive nothing"
         );
         assertEq(
             address(diamond).balance,
-            diamondBalance + 50,
+            diamondBalance + msgValue,
             "Sender should get all msg.value back"
         );
         assertEq(
             address(outputValidator).balance,
-            0 ether,
+            0,
             "OutputValidator should have no remaining balance"
         );
 
@@ -565,13 +573,11 @@ contract OutputValidatorTest is TestBase {
         vm.startPrank(address(diamond));
 
         // Arrange - test with maximum uint256 value
-        uint256 positiveSlippage = 20 ether;
-        uint256 expectedAmount = type(uint256).max - positiveSlippage;
+        uint256 expectedAmount = type(uint256).max;
         uint256 msgValue = 100 ether;
-        uint256 diamondBalance = 0; // No diamond balance for this test
 
         // Fund diamond with some native tokens
-        vm.deal(address(diamond), diamondBalance);
+        vm.deal(address(diamond), msgValue);
 
         // Act - should succeed
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -579,8 +585,8 @@ contract OutputValidatorTest is TestBase {
             validationWallet
         );
 
-        // Assert - with logic: outputAmount = diamondBalance + msgValue = 0 + 100 = 100 ether
-        // Since outputAmount (100) < expectedAmount (maxUint256 - 20), no excess
+        // Assert - with logic: outputAmount = msgValue = 100 ether
+        // Since outputAmount (100) < expectedAmount (maxUint256), no excess
         // All msg.value (100) is returned to sender
         assertEq(
             validationWallet.balance,
@@ -589,7 +595,7 @@ contract OutputValidatorTest is TestBase {
         );
         assertEq(
             address(diamond).balance,
-            diamondBalance + msgValue,
+            msgValue,
             "Sender should get all msg.value back"
         );
         assertEq(
