@@ -34,7 +34,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param destinationPortal Portal address on destination chain
     /// @param prover Address of the prover contract for validation
     /// @param rewardDeadline Timestamp for reward claim eligibility
-    /// @param allowPartial Whether to allow partial funding
+    /// @param solverReward Native token amount to reward the solver
     /// @param destinationCalls Optional calls to execute on destination
     struct EcoData {
         address receiverAddress;
@@ -45,7 +45,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         address destinationPortal;
         address prover;
         uint64 rewardDeadline;
-        bool allowPartial;
+        uint256 solverReward;
         IEcoPortal.Call[] destinationCalls;
     }
 
@@ -102,7 +102,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _ecoData.solverReward
         );
 
         _startBridge(_bridgeData, _ecoData);
@@ -145,15 +146,24 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 routeCalls = new IEcoPortal.Call[](0);
             } else {
                 routeCalls = new IEcoPortal.Call[](1);
-                routeCalls[0] = IEcoPortal.Call({
-                    target: _ecoData.receivingAssetId,
-                    data: abi.encodeWithSignature(
-                        "transfer(address,uint256)",
-                        _ecoData.receiverAddress,
-                        _bridgeData.minAmount
-                    ),
-                    value: 0
-                });
+
+                if (!LibAsset.isNativeAsset(_ecoData.receivingAssetId)) {
+                    routeCalls[0] = IEcoPortal.Call({
+                        target: _ecoData.receivingAssetId,
+                        data: abi.encodeWithSignature(
+                            "transfer(address,uint256)",
+                            _ecoData.receiverAddress,
+                            _bridgeData.minAmount
+                        ),
+                        value: 0
+                    });
+                } else {
+                    routeCalls[0] = IEcoPortal.Call({
+                        target: _ecoData.receiverAddress,
+                        data: "",
+                        value: _bridgeData.minAmount
+                    });
+                }
             }
         }
 
@@ -191,15 +201,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
 
         if (isNative) {
-            uint256 rewardAmount = msg.value > _bridgeData.minAmount
-                ? msg.value - _bridgeData.minAmount
-                : 0;
-            intent.reward.nativeAmount = rewardAmount;
+            // Use explicit solver reward from EcoData
+            intent.reward.nativeAmount = _ecoData.solverReward;
             intent.route.nativeAmount = _bridgeData.minAmount;
 
+            // Total value to send is bridge amount + solver reward
             intentSource.publishAndFund{
-                value: _bridgeData.minAmount + rewardAmount
-            }(intent, _ecoData.allowPartial);
+                value: _bridgeData.minAmount + _ecoData.solverReward
+            }(intent, false);
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
@@ -207,11 +216,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _bridgeData.minAmount
             );
 
-            intent.reward.nativeAmount = msg.value;
+            // For ERC20, solver reward is paid in native token
+            intent.reward.nativeAmount = _ecoData.solverReward;
 
-            intentSource.publishAndFund{ value: msg.value }(
+            intentSource.publishAndFund{ value: _ecoData.solverReward }(
                 intent,
-                _ecoData.allowPartial
+                false
             );
         }
 

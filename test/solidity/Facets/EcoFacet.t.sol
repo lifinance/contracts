@@ -3,20 +3,11 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-
-contract MockEcoPortal is IEcoPortal {
-    function publishAndFund(
-        Intent calldata,
-        bool
-    ) external payable override returns (bytes32 intentHash, address vault) {
-        intentHash = keccak256(abi.encode(block.timestamp, msg.sender));
-        vault = address(this);
-    }
-}
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _intentSource) EcoFacet(_intentSource) {}
@@ -32,14 +23,21 @@ contract TestEcoFacet is EcoFacet {
 
 contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
-    MockEcoPortal internal mockPortal;
+    address internal constant PORTAL =
+        0x90F0c8aCC1E083Bcb4F487f84FC349ae8d5e28D7;
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        customBlockNumberForForking = 34694289;
+        customRpcUrlForForking = "ETH_NODE_URI_BASE";
         initTestBase();
+        addLiquidity(
+            ADDRESS_USDC,
+            ADDRESS_DAI,
+            1000000 * 10 ** ERC20(ADDRESS_USDC).decimals(),
+            1000000 * 10 ** ERC20(ADDRESS_DAI).decimals()
+        );
 
-        mockPortal = new MockEcoPortal();
-        ecoFacet = new TestEcoFacet(IEcoPortal(address(mockPortal)));
+        ecoFacet = new TestEcoFacet(IEcoPortal(PORTAL));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = ecoFacet.startBridgeTokensViaEco.selector;
@@ -67,7 +65,7 @@ contract EcoFacetTest is TestBaseFacet {
         setFacetAddressInTestBase(address(ecoFacet), "EcoFacet");
 
         bridgeData.bridge = "eco";
-        bridgeData.destinationChainId = 137;
+        bridgeData.destinationChainId = 10;
     }
 
     function getValidEcoData()
@@ -81,13 +79,13 @@ contract EcoFacetTest is TestBaseFacet {
             EcoFacet.EcoData({
                 receiverAddress: USER_RECEIVER,
                 nonEVMReceiver: "",
-                receivingAssetId: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, // Polygon USDC
+                receivingAssetId: ADDRESS_USDC_OPTIMISM,
                 salt: keccak256(abi.encode(block.timestamp)),
                 routeDeadline: uint64(block.timestamp + 1 days),
-                destinationPortal: address(mockPortal),
+                destinationPortal: PORTAL, // Same on OP,
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
-                allowPartial: false,
+                solverReward: 0.0001 ether, // Use addToMessageValue as the solver reward
                 destinationCalls: emptyCalls
             });
     }
@@ -96,12 +94,15 @@ contract EcoFacetTest is TestBaseFacet {
         EcoFacet.EcoData memory validEcoData = getValidEcoData();
 
         if (isNative) {
-            ecoFacet.startBridgeTokensViaEco{ value: bridgeData.minAmount }(
-                bridgeData,
-                validEcoData
-            );
+            // For native tokens, send bridge amount + solver reward (similar to StargateFacetV2)
+            ecoFacet.startBridgeTokensViaEco{
+                value: bridgeData.minAmount + validEcoData.solverReward
+            }(bridgeData, validEcoData);
         } else {
-            ecoFacet.startBridgeTokensViaEco(bridgeData, validEcoData);
+            // For ERC20 tokens, only send solver reward as msg.value
+            ecoFacet.startBridgeTokensViaEco{
+                value: validEcoData.solverReward
+            }(bridgeData, validEcoData);
         }
     }
 
@@ -111,15 +112,15 @@ contract EcoFacetTest is TestBaseFacet {
         EcoFacet.EcoData memory validEcoData = getValidEcoData();
 
         if (isNative) {
+            // For swapping to native, send swap input amount + solver reward
             ecoFacet.swapAndStartBridgeTokensViaEco{
-                value: swapData[0].fromAmount
+                value: swapData[0].fromAmount + validEcoData.solverReward
             }(bridgeData, swapData, validEcoData);
         } else {
-            ecoFacet.swapAndStartBridgeTokensViaEco(
-                bridgeData,
-                swapData,
-                validEcoData
-            );
+            // For swapping from native to ERC20, only send solver reward
+            ecoFacet.swapAndStartBridgeTokensViaEco{
+                value: validEcoData.solverReward
+            }(bridgeData, swapData, validEcoData);
         }
     }
 
