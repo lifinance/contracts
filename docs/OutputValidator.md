@@ -30,6 +30,7 @@ The `OutputValidator` contract is a periphery contract that validates swap outpu
 Integration note: If you intend to forward all excess, ensure `msg.value >= excessAmount`; otherwise any residual excess stays with the caller by design.
 
 **Note**: This function requires `msg.value` to work as expected, otherwise it cannot determine how much excess exists.
+
 ### ERC20 Token Flow
 
 1. The calling contract (Diamond) must have sufficient ERC20 token balance and approve this contract
@@ -38,8 +39,6 @@ Integration note: If you intend to forward all excess, ensure `msg.value >= exce
 4. **Safety checks**: Validates wallet address and handles zero excess gracefully
 
 > **Design Philosophy**: The contract handles excess distribution only. Users receive their `expectedAmount` through the primary swap mechanism, while this contract ensures proper excess management without holding funds permanently. The contract does not validate expected amounts to save gas, and tokens are never lost - even if amount == 0, all tokens will be forwarded to the validation wallet.
-
-**Note**: The case where `outputAmount < expectedAmount` should not be possible since the diamond ensures that `minAmountOut` is received from a swap and that same value is used as `expectedAmount` for this call.
 
 ## Functions
 
