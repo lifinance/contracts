@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 import { CurveFacet } from "lifi/Periphery/LDA/Facets/CurveFacet.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title CurveFacetTest
 /// @notice Linea Curve tests via LDA route.
@@ -202,6 +203,145 @@ contract CurveFacetTest is BaseDEXFacetTest {
     /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
     function testRevert_SwapWithoutCallback() public override {
         // Curve does not use callbacks - test intentionally empty
+    }
+
+    /// @notice Legacy 3pool swap: USER sends USDC → receives USDT via 4-arg exchange (isV2=false).
+    function test_CanSwap_Legacy3Pool_USDC_to_USDT() public {
+        // 3pool (DAI,USDC,USDT) mainnet
+        address poolLegacy = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7;
+        uint256 amountIn = 1_000 * 1e6; // 1,000 USDC (6 decimals)
+
+        // Fund user with USDC
+        deal(address(tokenMid), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        // Build legacy swap data (isV2=false → 4-arg exchange)
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolLegacy,
+                isV2: false, // legacy/main path
+                fromIndex: 1, // USDC index in 3pool
+                toIndex: 2, // USDT index in 3pool
+                destinationAddress: USER_SENDER,
+                tokenOut: address(tokenOut) // USDT
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenMid), // USDC
+                tokenOut: address(tokenOut), // USDT
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Legacy 3pool swap funded by aggregator: USDC → USDT via 4-arg exchange (isV2=false).
+    function test_CanSwap_FromDexAggregator_Legacy3Pool_USDC_to_USDT() public {
+        address poolLegacy = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7;
+        uint256 amountIn = 1_000 * 1e6;
+
+        // Fund aggregator with USDC
+        deal(address(tokenMid), address(ldaDiamond), amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolLegacy,
+                isV2: false, // legacy/main path
+                fromIndex: 1, // USDC
+                toIndex: 2, // USDT
+                destinationAddress: USER_SENDER,
+                tokenOut: address(tokenOut)
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenMid), // USDC
+                tokenOut: address(tokenOut), // USDT
+                amountIn: amountIn - 1, // follow undrain convention
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessMyERC20
+            }),
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Tests that the facet reverts on zero pool or destination addresses.
+    /// @dev Verifies the InvalidCallData revert condition in swapCurve.
+    function testRevert_InvalidPoolOrDestinationAddress() public {
+        // Fund user with tokens to avoid underflow in approval
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
+        vm.startPrank(USER_SENDER);
+
+        // --- Test case 1: Zero pool address ---
+        bytes memory swapDataZeroPool = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: address(0), // Invalid pool
+                isV2: true,
+                fromIndex: 1,
+                toIndex: 0,
+                destinationAddress: USER_SENDER,
+                tokenOut: address(tokenMid)
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(), // Use actual amount since we need valid approvals
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapDataZeroPool,
+            InvalidCallData.selector
+        );
+
+        // --- Test case 2: Zero destination address ---
+        bytes memory swapDataZeroDestination = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolInMid,
+                isV2: true,
+                fromIndex: 1,
+                toIndex: 0,
+                destinationAddress: address(0), // Invalid destination
+                tokenOut: address(tokenMid)
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(), // Use actual amount since we need valid approvals
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapDataZeroDestination,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
     }
 
     /// @notice Curve swap parameter shape used for `swapCurve`.

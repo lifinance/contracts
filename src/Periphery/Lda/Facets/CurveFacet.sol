@@ -10,24 +10,21 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title CurveFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Swaps via Curve pools across legacy/main (4-arg) and factory/NG (5-arg) interfaces.
+/// @notice Handles swaps across all Curve pool variants (Legacy, Factory, NG)
 /// @dev
-/// - Pool interface selection is driven by `isV2`.
-///   - isV2 = false → legacy/main pools exposing `exchange(i,j,dx,min_dy)` (4 args).
-///   - isV2 = true  → modern pools exposing `exchange(i,j,dx,min_dy,receiver)` (5 args),
-///                    which includes Factory pools and Stable NG pools.
-/// - NG-only “optimistic” swaps: NG pools also implement `exchange_received(...)`.
-///   This facet will call `exchange_received` iff:
-///     (a) isV2 == true, and
-///     (b) `from == address(0)` is provided by the route, signaling the tokens were pre-sent
-///         to the pool by a previous hop. In that case we pass a small positive dx (1) as a hint.
-///   Notes/constraints for NG:
-///     - `_dx` MUST be > 0 (pool asserts actual delta ≥ _dx).
-///     - Reverts if the pool contains rebasing tokens.
-/// - Amount out is always computed via balanceBefore/After:
-///     - For 5-arg pools (isV2=true) we measure at `destinationAddress`.
-///     - For 4-arg pools (isV2=false) we measure at this contract and forward tokens afterwards.
-/// - Native ETH is not supported (use ERC20).
+/// Pool Types & Interface Selection:
+/// 1. Legacy Pools (isV2 = false):
+///    - Version <= 0.2.4 (like 3pool, compound, etc.)
+///    - Uses 4-arg exchange(i, j, dx, min_dy)
+///    - No receiver param, always sends to msg.sender
+///    - We must transfer output tokens manually
+///
+/// 2. Modern Pools (isV2 = true):
+///    - Factory pools and StableNG pools
+///    - Uses 5-arg exchange(i, j, dx, min_dy, receiver)
+///    - Direct transfer to specified receiver
+///    - For NG pools only: supports optimistic swap via exchange_received
+///      when from == address(0) signals tokens were pre-sent
 /// @custom:version 1.0.0
 contract CurveFacet {
     using LibPackedStream for uint256;
