@@ -2295,7 +2295,7 @@ function removeFacetFromDiamond() {
   local ABI="./out/$FACET_NAME.sol/$FACET_NAME.json"
 
   # get RPC URL
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC=$(getRPCEnvVarName "$NETWORK")
 
   local ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 
@@ -3257,7 +3257,7 @@ function getFacetFunctionSelectorsFromDiamond() {
   fi
 
   # get RPC URL
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC=$(getRPCEnvVarName "$NETWORK")
 
   # get path of diamond log file
   local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
@@ -3295,7 +3295,7 @@ function getFacetAddressFromSelector() {
   #echo "FUNCTION_SELECTOR in Func: $FUNCTION_SELECTOR"
 
   # get RPC URL
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC=$(getRPCEnvVarName "$NETWORK")
 
   # loop until FACET_ADDRESS has a value or maximum attempts are reached
   local FACET_ADDRESS
@@ -3491,12 +3491,20 @@ function doNotContinueUnlessGasIsBelowThreshold() {
     sleep 5
   done
 }
+function getRPCEnvVarName() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  # get RPC KEY (convert to uppercase and replace hyphens with underscores)
+  echo "ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK" | tr '-' '_')"
+}
+
 function getRPCUrl() {
   # read function arguments into variables
   local NETWORK=$1
 
-  # get RPC KEY
-  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # get RPC KEY using the helper function
+  RPC_KEY=$(getRPCEnvVarName "$NETWORK")
 
   # return RPC URL
   echo "${!RPC_KEY}"
