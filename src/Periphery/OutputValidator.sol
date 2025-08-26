@@ -35,33 +35,43 @@ contract OutputValidator is WithdrawablePeriphery {
         // tokens are not lost, even if expectedAmount == 0 (>> all tokens will be forwarded to validation wallet)
         // wallet address is validated in LibAsset
 
-        // calculate the excess amount
         // outputAmount is calculated as what was sent to this contract as msg.value plus the remaining native
         // balance of the sending contract (msg.sender)
-        // the case expectedAmount > outputAmount must be handled/prevented by the calling contract (diamond)
-        uint256 excessAmount = (address(msg.sender).balance + msg.value) -
-            expectedAmount;
+        uint256 outputAmount = address(msg.sender).balance + msg.value;
 
-        if (excessAmount >= msg.value) {
-            // if excess is equal/more than what was sent, forward all msg.value to validation wallet
-            LibAsset.transferAsset(
-                LibAsset.NULL_ADDRESS,
-                payable(validationWalletAddress),
-                msg.value
-            );
+        // only continue if outputAmount is greater than expectedAmount
+        if (outputAmount > expectedAmount) {
+            // calculate the excess amount
+            uint256 excessAmount = outputAmount - expectedAmount;
+
+            if (excessAmount >= msg.value) {
+                // if excess is equal/more than what was sent, forward all msg.value to validation wallet
+                LibAsset.transferAsset(
+                    LibAsset.NULL_ADDRESS,
+                    payable(validationWalletAddress),
+                    msg.value
+                );
+            } else {
+                // forward excess to validation wallet
+                LibAsset.transferAsset(
+                    LibAsset.NULL_ADDRESS,
+                    payable(validationWalletAddress),
+                    excessAmount
+                );
+
+                // return remaining balance to msg.sender (in any case)
+                LibAsset.transferAsset(
+                    LibAsset.NULL_ADDRESS,
+                    payable(msg.sender),
+                    msg.value - excessAmount
+                );
+            }
         } else {
-            // forward excess to validation wallet
-            LibAsset.transferAsset(
-                LibAsset.NULL_ADDRESS,
-                payable(validationWalletAddress),
-                excessAmount
-            );
-
-            // return remaining balance to msg.sender (in any case)
+            // return msg.value back to msg.sender (in any case)
             LibAsset.transferAsset(
                 LibAsset.NULL_ADDRESS,
                 payable(msg.sender),
-                msg.value - excessAmount
+                msg.value
             );
         }
     }
@@ -80,12 +90,10 @@ contract OutputValidator is WithdrawablePeriphery {
 
         // ERC20: outputAmount is the ERC20 balance of the calling contract
         // an approval needs to be set from msg.sender to this contract with at least == excessAmount
-        // the case expectedAmount > outputAmount must be handled/prevented by the calling contract (diamond)
-        uint256 excessAmount = ERC20(tokenAddress).balanceOf(msg.sender) -
-            expectedAmount;
+        uint256 outputAmount = ERC20(tokenAddress).balanceOf(msg.sender);
 
         // make sure we do not attempt any token transfers if there is no excess amount
-        if (excessAmount > 0) {
+        if (outputAmount > expectedAmount) {
             // validate wallet address
             if (validationWalletAddress == address(0)) {
                 revert InvalidCallData();
@@ -96,7 +104,7 @@ contract OutputValidator is WithdrawablePeriphery {
             tokenAddress.safeTransferFrom(
                 msg.sender,
                 validationWalletAddress,
-                excessAmount
+                outputAmount - expectedAmount
             );
         }
     }
