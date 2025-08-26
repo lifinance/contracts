@@ -44,7 +44,7 @@ contract OptimismBridgeFacetTest is TestBase {
     ILiFi.BridgeData internal validBridgeData;
     OptimismBridgeFacet.OptimismData internal validOptimismData;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 15876510;
         initTestBase();
 

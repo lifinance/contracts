@@ -44,7 +44,7 @@ contract LidoWrapperTest is TestBase, LiFiData {
 
     error ContractNotYetReadyForMainnet();
 
-    function setUp() public {
+    function setUp() public override {
         vm.label(ST_ETH_ADDRESS_OPTIMISM, "stETH");
         vm.label(WST_ETH_ADDRESS_OPTIMISM, "wstETH");
 

@@ -35,7 +35,7 @@ contract AcrossFacetTest is TestBaseFacet {
     AcrossFacet.AcrossData internal validAcrossData;
     TestAcrossFacet internal acrossFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 17130542;
         initTestBase();
 

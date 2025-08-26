@@ -31,7 +31,7 @@ contract PioneerFacetTest is TestBaseFacet {
 
     PioneerFacet.PioneerData internal pioneerData;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 17130542;
         initTestBase();
 

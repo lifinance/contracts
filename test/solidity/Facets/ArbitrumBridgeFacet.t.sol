@@ -37,7 +37,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
     ArbitrumBridgeFacet.ArbitrumData internal arbitrumData;
     uint256 internal cost;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         arbitrumBridgeFacet = new TestArbitrumBridgeFacet(

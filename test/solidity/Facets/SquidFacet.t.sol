@@ -42,7 +42,7 @@ contract SquidFacetTest is TestBaseFacet {
     ISquidMulticall.Call internal sourceCall;
     TestSquidFacet internal squidFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 18810880;
         customBlockNumberForForking = 19664946;
         initTestBase();

@@ -21,7 +21,7 @@ contract WithdrawablePeripheryTest is TestBase {
 
     error UnAuthorized();
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         // deploy contract

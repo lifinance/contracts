@@ -77,7 +77,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         bytes4[] memory functionSelectors = new bytes4[](5);

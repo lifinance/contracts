@@ -64,7 +64,7 @@ contract MayanFacetTest is TestBaseFacet {
     error InvalidReceiver(address expected, address actual);
     error ProtocolDataTooShort();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19968172;
         initTestBase();
 

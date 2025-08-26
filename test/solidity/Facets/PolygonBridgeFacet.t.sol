@@ -33,7 +33,7 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
 
     TestPolygonBridgeFacet internal polygonBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         polygonBridgeFacet = new TestPolygonBridgeFacet(

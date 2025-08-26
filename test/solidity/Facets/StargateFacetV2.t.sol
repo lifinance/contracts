@@ -52,7 +52,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     TestStargateFacetV2 internal stargateFacetV2;
     StargateFacetV2.StargateData internal stargateData;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19979843;
 

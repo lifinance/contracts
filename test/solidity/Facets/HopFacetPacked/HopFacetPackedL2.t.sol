@@ -69,7 +69,7 @@ contract HopFacetPackedL2Test is TestBase {
     BridgeParams internal usdcBridgeParams;
     BridgeParams internal usdtBridgeParams;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 58467500;
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         initTestBase();

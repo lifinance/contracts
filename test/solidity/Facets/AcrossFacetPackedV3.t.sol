@@ -65,7 +65,7 @@ contract AcrossFacetPackedV3Test is TestBase {
 
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19960294;
 
         initTestBase();

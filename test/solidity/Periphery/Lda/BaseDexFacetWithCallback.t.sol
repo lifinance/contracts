@@ -78,7 +78,7 @@ abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -92,7 +92,7 @@ abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             route,
             SwapCallbackNotExecuted.selector

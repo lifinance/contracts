@@ -26,7 +26,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
     ThorSwapFacet.ThorSwapData internal validThorSwapData;
     TestThorSwapFacet internal thorSwapFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 16661275;
         initTestBase();
 

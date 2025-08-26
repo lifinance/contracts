@@ -29,7 +29,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
 
     TestCBridgeFacet internal cBridge;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 14847528;
         initTestBase();
 

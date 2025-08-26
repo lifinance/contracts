@@ -34,7 +34,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
     ILiFi.BridgeData internal validBridgeData;
     HopFacetOptimized.HopData internal validHopData;
 
-    function setUp() public {
+    function setUp() public override {
         // Custom Config
         customRpcUrlForForking = "ETH_NODE_URI_POLYGON";
         customBlockNumberForForking = 59534582;

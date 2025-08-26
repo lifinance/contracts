@@ -26,7 +26,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
     TestSymbiosisFacet internal symbiosisFacet;
     SymbiosisFacet.SymbiosisData internal symbiosisData;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19317492;
         initTestBase();
         // MockMetaRouter mockMetaRouter = new MockMetaRouter();

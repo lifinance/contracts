@@ -35,7 +35,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
     uint256 internal payableAmount = 1 ether;
 
-    function setUp() public virtual {
+    function setUp() public virtual override {
         initTestBase();
 
         srcToken = ERC20(addressSrcToken);

@@ -178,7 +178,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         // Build route for algebra swap with command code 2 (user funds)
         bytes memory swapData = _buildAlgebraSwapData(
             AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
+                commandCode: CommandType.DistributeUserERC20,
                 tokenIn: address(tokenIn),
                 destinationAddress: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 pool: poolInOut,
@@ -194,7 +194,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: RANDOM_APE_ETH_HOLDER_APECHAIN,
                 destinationAddress: RANDOM_APE_ETH_HOLDER_APECHAIN,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             new ExpectedEvent[](0),
@@ -307,7 +307,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             SwapCallbackNotExecuted.selector
@@ -334,7 +334,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         // Build route with address(0) as pool
         bytes memory swapData = _buildAlgebraSwapData(
             AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
+                commandCode: CommandType.DistributeUserERC20,
                 tokenIn: address(tokenIn),
                 destinationAddress: USER_SENDER,
                 pool: address(0), // Zero address pool
@@ -350,7 +350,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             InvalidCallData.selector
@@ -403,7 +403,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         // Build route with address(0) as destination address
         bytes memory swapData = _buildAlgebraSwapData(
             AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
+                commandCode: CommandType.DistributeUserERC20,
                 tokenIn: address(tokenIn),
                 destinationAddress: address(0), // Zero address destination address
                 pool: poolInOut,
@@ -418,7 +418,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: USER_SENDER,
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
 
         _buildRouteAndExecuteSwap(params, swapData, InvalidCallData.selector);
@@ -535,13 +535,13 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: address(ldaDiamond), // Send to aggregator for next hop
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
 
         // Build first hop swap data
         swapData[0] = _buildAlgebraSwapData(
             AlgebraRouteParams({
-                commandCode: CommandType.ProcessUserERC20,
+                commandCode: CommandType.DistributeUserERC20,
                 tokenIn: address(state.tokenA),
                 destinationAddress: address(ldaDiamond),
                 pool: state.pool1,
@@ -553,17 +553,17 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         swapParams[1] = SwapTestParams({
             tokenIn: address(state.tokenB),
             tokenOut: address(state.tokenC),
-            amountIn: 0, // Not used for ProcessMyERC20
+            amountIn: 0, // Not used for DistributeSelfERC20
             minOut: 0,
             sender: address(ldaDiamond),
             destinationAddress: USER_SENDER,
-            commandType: CommandType.ProcessMyERC20
+            commandType: CommandType.DistributeSelfERC20
         });
 
         // Build second hop swap data
         swapData[1] = _buildAlgebraSwapData(
             AlgebraRouteParams({
-                commandCode: CommandType.ProcessMyERC20,
+                commandCode: CommandType.DistributeSelfERC20,
                 tokenIn: address(state.tokenB),
                 destinationAddress: USER_SENDER,
                 pool: state.pool2,
@@ -581,7 +581,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             route
         );
@@ -708,8 +708,8 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
 
         // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
         CommandType commandCode = params.from == address(ldaDiamond)
-            ? CommandType.ProcessMyERC20
-            : CommandType.ProcessUserERC20;
+            ? CommandType.DistributeSelfERC20
+            : CommandType.DistributeUserERC20;
 
         // Pack the specific data for this swap
         bytes memory swapData = _buildAlgebraSwapData(
@@ -745,8 +745,8 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
                 sender: params.from,
                 destinationAddress: params.destinationAddress,
                 commandType: params.from == address(ldaDiamond)
-                    ? CommandType.ProcessMyERC20
-                    : CommandType.ProcessUserERC20
+                    ? CommandType.DistributeSelfERC20
+                    : CommandType.DistributeUserERC20
             }),
             route,
             new ExpectedEvent[](0),

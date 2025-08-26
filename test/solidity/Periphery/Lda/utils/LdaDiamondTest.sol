@@ -21,14 +21,14 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
     /// @notice Deploys a clean LDA diamond with base facets and sets owner/pauser.
     /// @dev This runs before higher-level test setup in BaseCoreRouteTest/BaseDEXFacetTest.
     function setUp() public virtual {
-        ldaDiamond = createLdaDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+        ldaDiamond = createLDADiamond(USER_DIAMOND_OWNER, USER_PAUSER);
     }
 
     /// @notice Creates an LDA diamond and wires up Loupe, Ownership and EmergencyPause facets.
     /// @param _diamondOwner Owner address for the diamond.
     /// @param _pauserWallet Pauser address for the emergency pause facet.
     /// @return diamond The newly created diamond instance.
-    function createLdaDiamond(
+    function createLDADiamond(
         address _diamondOwner,
         address _pauserWallet
     ) internal returns (LDADiamond) {

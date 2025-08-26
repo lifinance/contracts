@@ -28,7 +28,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
     TestCelerCircleBridgeFacet internal celerCircleBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         // Custom Config
         customBlockNumberForForking = 17118891; // after proxy+bridge configuration
 

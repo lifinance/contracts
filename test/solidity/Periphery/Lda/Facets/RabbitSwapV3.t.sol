@@ -53,7 +53,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             InvalidCallData.selector
@@ -85,7 +85,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             InvalidCallData.selector

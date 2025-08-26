@@ -8,7 +8,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title SyncSwapV2FacetTest
 /// @notice Linea SyncSwap V2 tests via LDA route; includes both v1 and v2 pool wiring.
-/// @dev Verifies single-hop, aggregator flow, multi-hop (with ProcessOnePool), and revert paths.
+/// @dev Verifies single-hop, aggregator flow, multi-hop (with DispatchSinglePoolSwap), and revert paths.
 contract SyncSwapV2FacetTest is BaseDEXFacetTest {
     /// @notice Facet proxy for swaps bound to the diamond after setup.
     SyncSwapV2Facet internal syncSwapV2Facet;
@@ -82,7 +82,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -115,7 +115,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -152,7 +152,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
+                commandType: CommandType.DistributeSelfERC20
             }),
             swapData
         );
@@ -189,7 +189,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
+                commandType: CommandType.DistributeSelfERC20
             }),
             swapData
         );
@@ -237,7 +237,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: SYNC_SWAP_VAULT,
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
         swapData[0] = firstSwapData;
 
@@ -245,11 +245,11 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         params[1] = SwapTestParams({
             tokenIn: address(tokenMid),
             tokenOut: address(tokenOut),
-            amountIn: 0, // Not used in ProcessOnePool
+            amountIn: 0, // Not used in DispatchSinglePoolSwap
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: USER_SENDER,
-            commandType: CommandType.ProcessOnePool
+            commandType: CommandType.DistributeSelfERC20
         });
         swapData[1] = secondSwapData;
 
@@ -264,7 +264,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             route
         );
@@ -297,7 +297,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             InvalidCallData.selector
@@ -331,7 +331,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER, // Send to next pool
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapDataWithInvalidPool,
             InvalidCallData.selector
@@ -356,7 +356,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapDataWithInvalidDestinationAddress,
             InvalidCallData.selector
@@ -388,7 +388,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapDataWithInvalidWithdrawMode,
             InvalidCallData.selector

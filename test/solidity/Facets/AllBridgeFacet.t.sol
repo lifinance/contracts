@@ -60,7 +60,7 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
     AllBridgeFacet.AllBridgeData internal validAllBridgeData;
     TestAllBridgeFacet internal allBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 17556456;
         initTestBase();
 

@@ -18,7 +18,7 @@ contract AccessManagerFacetTest is TestBase {
     AccessManagerFacet internal accessMgr;
     RestrictedContract internal restricted;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         accessMgr = new AccessManagerFacet();

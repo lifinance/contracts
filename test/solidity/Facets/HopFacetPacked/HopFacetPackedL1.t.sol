@@ -59,7 +59,7 @@ contract HopFacetPackedL1Test is TestBase {
     BridgeParams internal usdtParams;
     BridgeParams internal nativeParams;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 15588208;
         initTestBase();

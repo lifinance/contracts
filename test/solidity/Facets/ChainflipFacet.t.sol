@@ -35,7 +35,7 @@ contract ChainflipFacetTest is TestBaseFacet, LiFiData {
     uint256 internal constant CHAIN_ID_SOLANA = 1151111081099710;
     uint256 internal constant CHAIN_ID_BITCOIN = 20000000000001;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 18277082;
         initTestBase();
 

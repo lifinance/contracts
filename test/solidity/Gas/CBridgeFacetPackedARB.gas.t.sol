@@ -27,7 +27,7 @@ contract CBridgeGasARBTest is TestBase {
     uint256 internal amountUSDC;
     bytes internal packedUSDC;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 58467500;
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         initTestBase();

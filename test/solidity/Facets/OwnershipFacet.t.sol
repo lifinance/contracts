@@ -23,7 +23,7 @@ contract OwnershipFacetTest is TestBase {
         address indexed newOwner
     );
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         ownershipFacet = OwnershipFacet(address(diamond));

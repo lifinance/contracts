@@ -42,7 +42,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19279222;
         initTestBase();
 

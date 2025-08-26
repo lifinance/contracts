@@ -92,7 +92,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         SwapDirection direction
     ) internal {
         // Fund the appropriate account
-        if (params.commandType == CommandType.ProcessMyERC20) {
+        if (params.commandType == CommandType.DistributeSelfERC20) {
             // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
             deal(params.tokenIn, address(ldaDiamond), params.amountIn + 1);
         } else {
@@ -136,12 +136,13 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     function _executeUniV3StyleSwapAuto(
         UniV3AutoSwapParams memory params
     ) internal {
-        uint256 amountIn = params.commandType == CommandType.ProcessMyERC20
+        uint256 amountIn = params.commandType ==
+            CommandType.DistributeSelfERC20
             ? params.amountIn + 1
             : params.amountIn;
 
         // Fund the appropriate account
-        if (params.commandType == CommandType.ProcessMyERC20) {
+        if (params.commandType == CommandType.DistributeSelfERC20) {
             deal(address(tokenIn), address(ldaDiamond), amountIn + 1);
         } else {
             deal(address(tokenIn), USER_SENDER, amountIn);
@@ -224,7 +225,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     function test_CanSwap() public virtual override {
         _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
-                commandType: CommandType.ProcessUserERC20,
+                commandType: CommandType.DistributeUserERC20,
                 amountIn: _getDefaultAmountForTokenIn()
             })
         );
@@ -234,7 +235,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     function test_CanSwap_FromDexAggregator() public virtual override {
         _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
-                commandType: CommandType.ProcessMyERC20,
+                commandType: CommandType.DistributeSelfERC20,
                 amountIn: _getDefaultAmountForTokenIn() - 1
             })
         );

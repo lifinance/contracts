@@ -39,7 +39,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
     error InvalidQuoteTimestamp();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19960294;
         initTestBase();
 

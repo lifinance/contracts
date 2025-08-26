@@ -34,7 +34,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
     ILiFi.BridgeData internal validBridgeData;
     HopFacetOptimized.HopData internal validHopData;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);

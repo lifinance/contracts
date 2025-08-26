@@ -33,7 +33,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     EmergencyPauseFacet internal emergencyPauseFacet;
     address[] internal blacklist = new address[](0);
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19979843;
 

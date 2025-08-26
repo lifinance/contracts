@@ -46,7 +46,7 @@ contract CBridgeFacetPackedTest is TestBase {
         uint256 amount
     );
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 58467500;
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         initTestBase();

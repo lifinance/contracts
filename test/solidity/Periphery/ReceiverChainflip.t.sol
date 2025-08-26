@@ -27,7 +27,7 @@ contract ReceiverChainflipTest is TestBase {
 
     event ExecutorSet(address indexed executor);
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 18277082;
         initTestBase();
 

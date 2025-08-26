@@ -24,10 +24,10 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @dev Controls how `processRoute` resolves the source of funds.
     enum CommandType {
         None, // 0 - not used
-        ProcessMyERC20, // 1 - processMyERC20 (Aggregator's funds)
-        ProcessUserERC20, // 2 - processUserERC20 (User's funds)
-        ProcessNative, // 3 - processNative
-        ProcessOnePool, // 4 - processOnePool (Pool's funds)
+        DistributeSelfERC20, // 1 - distributeSelfERC20 (Aggregator's funds)
+        DistributeUserERC20, // 2 - distributeUserERC20 (User's funds)
+        DistributeNative, // 3 - distributeNative
+        DispatchSinglePoolSwap, // 4 - dispatchSinglePoolSwap (Pool's funds)
         ApplyPermit // 5 - applyPermit
     }
 
@@ -141,8 +141,8 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @param swapData DEX-specific data (usually starts with facet.swapX.selector).
     /// @return Encoded hop bytes to be concatenated for multi-hop or passed directly for single-hop.
     /// @dev Format depends on command:
-    ///      - ProcessNative: [cmd(1)][numPools(1)=1][share(2)=FULL][len(2)][data]
-    ///      - ProcessOnePool: [cmd(1)][tokenIn(20)][len(2)][data]
+    ///      - DistributeNative: [cmd(1)][numPools(1)=1][share(2)=FULL][len(2)][data]
+    ///      - DispatchSinglePoolSwap: [cmd(1)][tokenIn(20)][len(2)][data]
     ///      - Others (User/MyERC20): [cmd(1)][tokenIn(20)][numPools(1)=1][share(2)=FULL][len(2)][data]
     /// @custom:example Single-hop user ERC20
     ///      bytes memory data = abi.encodePacked(facet.swapUniV2.selector, pool, uint8(1), destinationAddress);
@@ -151,7 +151,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         SwapTestParams memory params,
         bytes memory swapData
     ) internal pure returns (bytes memory) {
-        if (params.commandType == CommandType.ProcessNative) {
+        if (params.commandType == CommandType.DistributeNative) {
             return
                 abi.encodePacked(
                     uint8(params.commandType),
@@ -160,7 +160,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
                     uint16(swapData.length),
                     swapData
                 );
-        } else if (params.commandType == CommandType.ProcessOnePool) {
+        } else if (params.commandType == CommandType.DispatchSinglePoolSwap) {
             return
                 abi.encodePacked(
                     uint8(params.commandType),
@@ -182,7 +182,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     }
 
     /// @notice Executes a built route and verifies balances and events.
-    /// @param params Swap params; if ProcessMyERC20, measures in/out at the diamond.
+    /// @param params Swap params; if DistributeSelfERC20, measures in/out at the diamond.
     /// @param route Pre-built route bytes (single or multi-hop).
     /// @param additionalEvents Additional external events to expect.
     /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer (tolerates off-by-1 spent).
@@ -196,7 +196,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         RouteEventVerification memory routeEventVerification
     ) internal {
         if (
-            params.commandType != CommandType.ProcessMyERC20 &&
+            params.commandType != CommandType.DistributeSelfERC20 &&
             !LibAsset.isNativeAsset(params.tokenIn)
         ) {
             IERC20(params.tokenIn).approve(
@@ -211,7 +211,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
             : IERC20(params.tokenOut).balanceOf(params.destinationAddress);
 
         // For aggregator funds, check the diamond's balance
-        if (params.commandType == CommandType.ProcessMyERC20) {
+        if (params.commandType == CommandType.DistributeSelfERC20) {
             inBefore = LibAsset.isNativeAsset(params.tokenIn)
                 ? address(ldaDiamond).balance
                 : IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
@@ -265,7 +265,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
             : IERC20(params.tokenOut).balanceOf(params.destinationAddress);
 
         // Check balance change on the correct address
-        if (params.commandType == CommandType.ProcessMyERC20) {
+        if (params.commandType == CommandType.DistributeSelfERC20) {
             inAfter = LibAsset.isNativeAsset(params.tokenIn)
                 ? address(ldaDiamond).balance
                 : IERC20(params.tokenIn).balanceOf(address(ldaDiamond));
@@ -351,7 +351,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         bytes memory route,
         bytes4 expectedRevert
     ) internal {
-        if (params.commandType != CommandType.ProcessMyERC20) {
+        if (params.commandType != CommandType.DistributeSelfERC20) {
             IERC20(params.tokenIn).approve(
                 address(ldaDiamond),
                 params.amountIn
@@ -361,7 +361,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         vm.expectRevert(expectedRevert);
         coreRouteFacet.processRoute(
             params.tokenIn,
-            params.commandType == CommandType.ProcessMyERC20
+            params.commandType == CommandType.DistributeSelfERC20
                 ? params.amountIn
                 : params.amountIn - 1,
             params.tokenOut,

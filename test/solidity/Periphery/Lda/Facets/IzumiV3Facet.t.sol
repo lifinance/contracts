@@ -133,7 +133,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -168,7 +168,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: address(coreRouteFacet),
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessMyERC20
+                commandType: CommandType.DistributeSelfERC20
             }),
             swapData
         );
@@ -212,7 +212,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: address(coreRouteFacet),
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
         swapData[0] = firstSwapData;
 
@@ -224,7 +224,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: USER_SENDER,
-            commandType: CommandType.ProcessMyERC20
+            commandType: CommandType.DistributeSelfERC20
         });
         swapData[1] = secondSwapData;
 
@@ -240,7 +240,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             route
         );
@@ -285,7 +285,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             InvalidCallData.selector

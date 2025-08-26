@@ -41,7 +41,7 @@ contract CBridgeGasETHTest is TestBase {
     ILiFi.BridgeData internal bridgeDataUSDC;
     CBridgeFacet.CBridgeData internal cbridgeDataUSDC;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 15588208;
         initTestBase();
 

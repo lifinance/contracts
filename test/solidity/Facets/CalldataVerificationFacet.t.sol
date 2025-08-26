@@ -22,7 +22,7 @@ contract CalldataVerificationFacetTest is TestBase {
 
     error SliceOutOfBounds();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19979843;
         initTestBase();
         calldataVerificationFacet = new CalldataVerificationFacet();

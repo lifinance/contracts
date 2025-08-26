@@ -111,9 +111,9 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         new CoreRouteFacet(address(0));
     }
 
-    /// @notice Verifies ProcessNative command passes ETH to receiver and emits Route with exact out.
+    /// @notice Verifies DistributeNative command passes ETH to receiver and emits Route with exact out.
     /// @dev Builds a route with a mock native handler and funds USER_SENDER with 1 ETH.
-    function test_ProcessNativeCommandSendsEthToReceiver() public {
+    function test_DistributeNativeCommandSendsEthToReceiver() public {
         _addMockNativeFacet();
 
         uint256 amount = 1 ether;
@@ -135,7 +135,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             minOut: 0,
             sender: USER_SENDER, // Use USER_SENDER directly
             destinationAddress: USER_RECEIVER,
-            commandType: CommandType.ProcessNative
+            commandType: CommandType.DistributeNative
         });
 
         bytes memory route = _buildBaseRoute(params, swapData);
@@ -231,7 +231,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         bytes memory swapData = abi.encodePacked(bytes4(0xdeadbeef));
 
-        // ProcessUserERC20: [2][tokenIn][num=1][share=FULL_SHARE][len=4][selector=0xdeadbeef]
+        // DistributeUserERC20: [2][tokenIn][num=1][share=FULL_SHARE][len=4][selector=0xdeadbeef]
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
                 tokenIn: address(token),
@@ -240,7 +240,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -257,7 +257,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         );
     }
 
-    /// @notice TokenInSpendingExceeded: trigger by charging the user twice via two ProcessUserERC20 steps.
+    /// @notice TokenInSpendingExceeded: trigger by charging the user twice via two DistributeUserERC20 steps.
     function testRevert_WhenInputBalanceIsInsufficientForTwoSteps() public {
         // Prepare token and approvals
         uint256 amountIn = 1e18;
@@ -282,7 +282,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -338,7 +338,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -383,7 +383,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         bytes memory swapData = abi.encodePacked(sel);
 
-        // Build one ProcessUserERC20 step: [2][tokenIn][num=1][share=FULL_SHARE][len=4][sel]
+        // Build one DistributeUserERC20 step: [2][tokenIn][num=1][share=FULL_SHARE][len=4][sel]
         bytes memory route = _buildBaseRoute(
             SwapTestParams({
                 tokenIn: address(tokenIn),
@@ -392,7 +392,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 minOut: 1,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         ); // single step; no tokenOut will be sent to receiver
@@ -441,7 +441,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
                 minOut: 1,
                 sender: USER_SENDER,
                 destinationAddress: USER_RECEIVER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData
         );
@@ -486,12 +486,12 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             totalAmount
         );
 
-        // Build route: ProcessUserERC20 with 2 legs, 50%/50%
+        // Build route: DistributeUserERC20 with 2 legs, 50%/50%
         uint16 shareScale = type(uint16).max;
         uint16 halfShare = shareScale / 2;
         bytes memory legCalldata = abi.encodePacked(selectors[0]); // 4 bytes
         bytes memory route = abi.encodePacked(
-            uint8(2), // ProcessUserERC20
+            uint8(2), // DistributeUserERC20
             address(token), // tokenIn
             uint8(2), // n = 2 legs
             halfShare,
@@ -573,7 +573,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
         bytes memory legCalldata = abi.encodePacked(selectors[0]); // 4 bytes
         bytes memory route = abi.encodePacked(
-            uint8(2), // ProcessUserERC20
+            uint8(2), // DistributeUserERC20
             address(token), // tokenIn
             uint8(3), // n = 3 legs
             quarterShare,

@@ -14,7 +14,7 @@ contract LidoWrapperTestSON is TestBase {
     address private constant ST_ETH_WHALE =
         0xB67FB1422ACa6F017BFdF1c40b372dA9eEdD03BF;
 
-    function setUp() public {
+    function setUp() public override {
         vm.label(ST_ETH_ADDRESS, "stETH");
         vm.label(WST_ETH_ADDRESS, "wstETH");
 

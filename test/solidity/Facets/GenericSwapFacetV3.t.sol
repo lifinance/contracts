@@ -57,7 +57,7 @@ contract GenericSwapFacetV3Test is TestBase {
     TestGenericSwapFacet internal genericSwapFacet;
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19834820;
         initTestBase();

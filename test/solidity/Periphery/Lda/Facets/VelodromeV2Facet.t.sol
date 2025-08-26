@@ -310,7 +310,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: params.pool2, // Send to next pool
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
 
         // Build first hop swap data
@@ -331,7 +331,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             sender: params.pool2,
             minOut: 0,
             destinationAddress: USER_SENDER, // Send to next pool
-            commandType: CommandType.ProcessOnePool
+            commandType: CommandType.DispatchSinglePoolSwap
         });
 
         // Build second hop swap data
@@ -355,7 +355,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             route
         );
@@ -407,7 +407,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: params.pool2, // Send to next pool
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
 
         hopData[0] = _buildVelodromeV2SwapData(
@@ -427,7 +427,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             sender: params.pool2,
             minOut: 0,
             destinationAddress: USER_SENDER,
-            commandType: CommandType.ProcessOnePool
+            commandType: CommandType.DispatchSinglePoolSwap
         });
 
         hopData[1] = _buildVelodromeV2SwapData(
@@ -449,7 +449,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             route
         );
@@ -487,7 +487,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapDataZeroPool,
             InvalidCallData.selector
@@ -512,7 +512,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapDataZeroDestinationAddress,
             InvalidCallData.selector
@@ -545,7 +545,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             minOut: 0,
             sender: USER_SENDER,
             destinationAddress: params.pool2, // Send to next pool
-            commandType: CommandType.ProcessUserERC20
+            commandType: CommandType.DistributeUserERC20
         });
 
         hopData[0] = _buildVelodromeV2SwapData(
@@ -561,11 +561,11 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
         hopParams[1] = SwapTestParams({
             tokenIn: params.tokenMid,
             tokenOut: params.tokenOut,
-            amountIn: 0, // Not used in ProcessOnePool
+            amountIn: 0, // Not used in DispatchSinglePoolSwap
             minOut: 0,
             sender: params.pool2,
             destinationAddress: USER_SENDER,
-            commandType: CommandType.ProcessOnePool
+            commandType: CommandType.DispatchSinglePoolSwap
         });
 
         hopData[1] = _buildVelodromeV2SwapData(
@@ -586,7 +586,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             _getDefaultAmountForTokenIn()
         );
 
-        // Mock getReserves for the second pool (which uses processOnePool) to return zero reserves
+        // Mock getReserves for the second pool (which uses dispatchSinglePoolSwap) to return zero reserves
         vm.mockCall(
             params.pool2,
             abi.encodeWithSelector(IVelodromeV2Pool.getReserves.selector),
@@ -654,8 +654,8 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
 
         // if tokens come from the aggregator (address(liFiDEXAggregator)), use command code 1; otherwise, use 2.
         CommandType commandCode = params.from == address(ldaDiamond)
-            ? CommandType.ProcessMyERC20
-            : CommandType.ProcessUserERC20;
+            ? CommandType.DistributeSelfERC20
+            : CommandType.DistributeUserERC20;
 
         // 1. Pack the data for the specific swap FIRST
         bytes memory swapData = _buildVelodromeV2SwapData(
@@ -713,8 +713,8 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 sender: params.from,
                 destinationAddress: params.to,
                 commandType: params.from == address(ldaDiamond)
-                    ? CommandType.ProcessMyERC20
-                    : CommandType.ProcessUserERC20
+                    ? CommandType.DistributeSelfERC20
+                    : CommandType.DistributeUserERC20
             }),
             route,
             expectedEvents,

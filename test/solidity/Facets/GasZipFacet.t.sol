@@ -45,7 +45,7 @@ contract GasZipFacetTest is TestBaseFacet {
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block no for mainnet forking
         customBlockNumberForForking = 20828620;
 

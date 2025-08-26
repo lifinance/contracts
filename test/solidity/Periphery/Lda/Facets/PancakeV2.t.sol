@@ -63,7 +63,7 @@ contract PancakeV2FacetTest is BaseUniV2StyleDEXFacetTest {
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
-                commandType: CommandType.ProcessUserERC20
+                commandType: CommandType.DistributeUserERC20
             }),
             swapData,
             WrongPoolReserves.selector

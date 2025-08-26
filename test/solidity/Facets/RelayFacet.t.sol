@@ -52,7 +52,7 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
 
     error InvalidQuote();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19767662;
         initTestBase();
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);

@@ -39,7 +39,7 @@ contract SwapperV2Test is TestBase {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
 
-    function setUp() public {
+    function setUp() public override {
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         amm = new TestAMM();
         swapper = new TestSwapperV2();

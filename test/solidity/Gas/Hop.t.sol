@@ -13,7 +13,7 @@ contract HopGasTest is TestBase {
     IHopBridge internal hop;
     HopFacet internal hopFacet;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 14847528;
         initTestBase();

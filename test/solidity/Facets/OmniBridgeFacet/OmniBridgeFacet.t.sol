@@ -33,7 +33,7 @@ contract OmniBridgeFacetTest is TestBaseFacet {
 
     TestOmniBridgeFacet internal omniBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         omniBridgeFacet = new TestOmniBridgeFacet(
