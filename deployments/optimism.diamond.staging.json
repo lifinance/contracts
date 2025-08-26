@@ -167,7 +167,7 @@
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
-      "OutputValidator": "0xd54C00CA32eC8Db51B7dBbC73124De83096C850A",
+      "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
       "Patcher": ""
     }
   }
