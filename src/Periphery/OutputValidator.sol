@@ -24,8 +24,7 @@ contract OutputValidator is WithdrawablePeriphery {
     /// External Methods ///
 
     /// @notice Validates native token swap output amount and transfers excess tokens to validation wallet
-    /// @dev This function requires a msg.value, otherwise it cannot work as expected. We do not know if and
-    ///      how much excessTokens there are.
+    /// @dev This function requires a msg.value to handle excess tokens, otherwise it cannot work as expected
     /// @param expectedAmount The expected amount of native tokens
     /// @param validationWalletAddress The address to send excess tokens to
     function validateNativeOutput(
@@ -39,6 +38,7 @@ contract OutputValidator is WithdrawablePeriphery {
         // calculate the excess amount
         // outputAmount is calculated as what was sent to this contract as msg.value plus the remaining native
         // balance of the sending contract (msg.sender)
+        // the case expectedAmount > outputAmount must be handled/prevented by the calling contract (diamond)
         uint256 excessAmount = (address(msg.sender).balance + msg.value) -
             expectedAmount;
 
@@ -80,8 +80,7 @@ contract OutputValidator is WithdrawablePeriphery {
 
         // ERC20: outputAmount is the ERC20 balance of the calling contract
         // an approval needs to be set from msg.sender to this contract with at least == excessAmount
-        // the case that outputAmount < expectedAmount should not be possible, since the diamond ensures that
-        // minAmountOut is received from a swap and that same value is used as expectedAmount for this call
+        // the case expectedAmount > outputAmount must be handled/prevented by the calling contract (diamond)
         uint256 excessAmount = ERC20(tokenAddress).balanceOf(msg.sender) -
             expectedAmount;
 
@@ -92,8 +91,8 @@ contract OutputValidator is WithdrawablePeriphery {
                 revert InvalidCallData();
             }
 
-            // transfer excess to validation wallet
-            // no need to validate the tokenAddress, it will fail if it's an invalid address
+            // transfer excess tokens to validation wallet
+            // no need to validate the tokenAddress, tx will fail if address is invalid
             tokenAddress.safeTransferFrom(
                 msg.sender,
                 validationWalletAddress,
