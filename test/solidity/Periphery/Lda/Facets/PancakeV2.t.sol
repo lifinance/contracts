@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IUniV2StylePool } from "lifi/Interfaces/IUniV2StylePool.sol";
 import { BaseUniV2StyleDEXFacetTest } from "../BaseUniV2StyleDEXFacet.t.sol";
 
 /// @title PancakeV2FacetTest
@@ -26,5 +27,50 @@ contract PancakeV2FacetTest is BaseUniV2StyleDEXFacetTest {
     /// @return fee The pool fee in basis points (e.g., 2500 for 0.25%)
     function _getPoolFee() internal pure override returns (uint24) {
         return 2500;
+    }
+
+    /// @notice Tests that the facet reverts when pool reserves are zero
+    function testRevert_WrongPoolReserves() public {
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
+        vm.startPrank(USER_SENDER);
+        IERC20(address(tokenIn)).approve(
+            address(ldaDiamond),
+            _getDefaultAmountForTokenIn()
+        );
+
+        // Mock getReserves to return zero reserves
+        vm.mockCall(
+            poolInOut,
+            abi.encodeWithSelector(IUniV2StylePool.getReserves.selector),
+            abi.encode(0, 0, block.timestamp)
+        );
+
+        bytes memory swapData = _buildUniV2SwapData(
+            UniV2SwapParams({
+                pool: poolInOut,
+                direction: SwapDirection.Token0ToToken1,
+                destinationAddress: USER_SENDER,
+                fee: _getPoolFee()
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData,
+            WrongPoolReserves.selector
+        );
+
+        // Clean up mock
+        vm.clearMockedCalls();
+        vm.stopPrank();
     }
 }

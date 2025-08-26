@@ -7,6 +7,7 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { EmergencyPauseFacet } from "lifi/Security/EmergencyPauseFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
 import { TestBaseRandomConstants } from "../../../utils/TestBaseRandomConstants.sol";
 
@@ -68,5 +69,48 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
         delete cut;
         vm.stopPrank();
         return diamond;
+    }
+
+    /// @notice Tests that diamond creation fails when owner address is zero
+    function testRevert_CannotDeployDiamondWithZeroOwner() public {
+        address diamondCutFacet = address(new DiamondCutFacet());
+
+        vm.expectRevert(InvalidConfig.selector);
+        new LDADiamond(
+            address(0), // Zero owner address
+            diamondCutFacet
+        );
+    }
+
+    function testRevert_CannotDeployDiamondWithZeroDiamondCut() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new LDADiamond(
+            USER_DIAMOND_OWNER,
+            address(0) // Zero diamondCut address
+        );
+    }
+
+    function testRevert_CannotCallNonExistentFunction() public {
+        // Create arbitrary calldata with non-existent selector
+        bytes memory nonExistentCalldata = abi.encodeWithSelector(
+            bytes4(keccak256("nonExistentFunction()")),
+            ""
+        );
+
+        vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
+        address(ldaDiamond).call(nonExistentCalldata);
+    }
+
+    function testRevert_CannotCallUnregisteredSelector() public {
+        // Use a real function selector that exists but hasn't been registered yet
+        bytes memory unregisteredCalldata = abi.encodeWithSelector(
+            DiamondCutFacet.diamondCut.selector, // Valid selector but not registered yet
+            new LibDiamond.FacetCut[](0),
+            address(0),
+            ""
+        );
+
+        vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
+        address(ldaDiamond).call(unregisteredCalldata);
     }
 }

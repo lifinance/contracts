@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { BaseDEXFacetTest } from "./BaseDEXFacet.t.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title BaseUniV2StyleDEXFacetTest
 /// @notice Shared UniV2-style testing helpers built atop BaseDEXFacetTest.
@@ -82,7 +83,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
                 params.pool,
                 uint8(params.direction),
                 params.destinationAddress,
-                _getPoolFee()
+                params.fee
             );
     }
 
@@ -196,6 +197,96 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
     }
 
     // ==== Test Cases ====
+
+    /// @notice Tests that the facet reverts when pool address is zero
+    function testRevert_InvalidPool() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapDataZeroPool = _buildUniV2SwapData(
+            UniV2SwapParams({
+                pool: address(0),
+                direction: SwapDirection.Token0ToToken1,
+                destinationAddress: USER_SENDER,
+                fee: 3000 // 0.3% standard fee
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapDataZeroPool,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Tests that the facet reverts when destination address is zero
+    function testRevert_InvalidDestinationAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapDataZeroDestination = _buildUniV2SwapData(
+            UniV2SwapParams({
+                pool: poolInOut,
+                direction: SwapDirection.Token0ToToken1,
+                destinationAddress: address(0),
+                fee: 3000
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapDataZeroDestination,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Tests that the facet reverts when fee is invalid (>= FEE_DENOMINATOR)
+    function testRevert_InvalidFee() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapDataInvalidFee = _buildUniV2SwapData(
+            UniV2SwapParams({
+                pool: poolInOut,
+                direction: SwapDirection.Token0ToToken1,
+                destinationAddress: USER_SENDER,
+                fee: 1_000_000 // Equal to FEE_DENOMINATOR
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapDataInvalidFee,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
+    }
 
     /// @notice Intentionally skipped: UniV2 multi-hop unsupported due to amountSpecified=0 limitation on second hop.
     function test_CanSwap_MultiHop() public virtual override {

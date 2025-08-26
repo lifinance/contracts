@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../../Libraries/LibDiamond.sol";
 import { IDiamondCut } from "../../Interfaces/IDiamondCut.sol";
+import { InvalidConfig } from "../../Errors/GenericErrors.sol";
 
 /// @title LDADiamond
 /// @author LI.FI (https://li.fi)
@@ -10,6 +11,9 @@ import { IDiamondCut } from "../../Interfaces/IDiamondCut.sol";
 /// @custom:version 1.0.0
 contract LDADiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
+        if (_contractOwner == address(0) || _diamondCutFacet == address(0)) {
+            revert InvalidConfig();
+        }
         LibDiamond.setContractOwner(_contractOwner);
 
         // Add the diamondCut external function from the diamondCutFacet

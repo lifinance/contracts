@@ -44,7 +44,11 @@ contract UniV2StyleFacet is BaseRouteConstants {
         address destinationAddress = stream.readAddress();
         uint24 fee = stream.readUint24(); // pool fee in 1/1_000_000
 
-        if (pool == address(0) || destinationAddress == address(0)) {
+        if (
+            pool == address(0) ||
+            destinationAddress == address(0) ||
+            fee >= FEE_DENOMINATOR
+        ) {
             revert InvalidCallData();
         }
 
