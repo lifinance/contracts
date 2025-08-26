@@ -8,6 +8,7 @@ import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 /// @title CoreRouteFacetTest
 /// @notice Tests the CoreRouteFacet's command parser, permit handling, and minimal invariants.
@@ -17,6 +18,9 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
 
     /// @notice Cached selector for the mock pull facet to simplify route building in tests.
     bytes4 internal pullSel;
+
+    // ==== Events ====
+    event Pulled(uint256 amt);
 
     // ==== Setup Functions ====
 
@@ -462,6 +466,193 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
             route
         );
         vm.stopPrank();
+    }
+
+    function test_DistributeUserERC20_TwoLegs_50_50_UsesOriginalTotalAndRemainder()
+        public
+    {
+        // Deploy + register mock facet that records each leg's amount via an event
+        MockRecordPullFacet mock = new MockRecordPullFacet();
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = MockRecordPullFacet.pullAndRecord.selector;
+        addFacet(address(ldaDiamond), address(mock), selectors);
+
+        // Mint token to USER_SENDER
+        uint256 totalAmount = 1e18;
+        ERC20PermitMock token = new ERC20PermitMock(
+            "IN",
+            "IN",
+            USER_SENDER,
+            totalAmount
+        );
+
+        // Build route: ProcessUserERC20 with 2 legs, 50%/50%
+        uint16 shareScale = type(uint16).max;
+        uint16 halfShare = shareScale / 2;
+        bytes memory legCalldata = abi.encodePacked(selectors[0]); // 4 bytes
+        bytes memory route = abi.encodePacked(
+            uint8(2), // ProcessUserERC20
+            address(token), // tokenIn
+            uint8(2), // n = 2 legs
+            halfShare,
+            uint16(4),
+            legCalldata, // leg1: 50%
+            halfShare,
+            uint16(4),
+            legCalldata // leg2: 50%
+        );
+
+        vm.startPrank(USER_SENDER);
+        IERC20(address(token)).approve(address(ldaDiamond), totalAmount);
+
+        // Record logs and run
+        vm.recordLogs();
+        coreRouteFacet.processRoute(
+            address(token), // tokenIn
+            totalAmount, // declared amount
+            address(0), // tokenOut (unused)
+            0,
+            USER_RECEIVER,
+            route
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        vm.stopPrank();
+
+        // Collect Pulled(uint256) amounts
+        bytes32 pulledEventTopic = keccak256("Pulled(uint256)");
+        uint256[] memory pulledAmounts = new uint256[](2);
+        uint256 eventCount = 0;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (
+                logs[i].topics.length > 0 &&
+                logs[i].topics[0] == pulledEventTopic
+            ) {
+                pulledAmounts[eventCount++] = uint256(bytes32(logs[i].data));
+            }
+        }
+        assertEq(eventCount, 2, "expected two leg pulls");
+
+        // Expected amounts: first computed from original total, last is exact remainder
+        uint256 expectedFirstLeg = (totalAmount * halfShare) / shareScale;
+        uint256 expectedSecondLeg = totalAmount - expectedFirstLeg;
+
+        assertEq(pulledAmounts[0], expectedFirstLeg, "leg1 amount mismatch");
+        assertEq(
+            pulledAmounts[1],
+            expectedSecondLeg,
+            "leg2 remainder mismatch"
+        );
+        assertEq(
+            pulledAmounts[0] + pulledAmounts[1],
+            totalAmount,
+            "sum != total"
+        );
+    }
+
+    function test_DistributeUserERC20_ThreeLegs_25_25_50_UsesOriginalTotalAndRemainder()
+        public
+    {
+        // Deploy + register mock facet
+        MockRecordPullFacet mock = new MockRecordPullFacet();
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = MockRecordPullFacet.pullAndRecord.selector;
+        addFacet(address(ldaDiamond), address(mock), selectors);
+
+        uint256 totalAmount = 1e18;
+        ERC20PermitMock token = new ERC20PermitMock(
+            "IN2",
+            "IN2",
+            USER_SENDER,
+            totalAmount
+        );
+
+        uint16 shareScale = type(uint16).max;
+        uint16 quarterShare = shareScale / 4;
+        // Third leg share is arbitrary; last leg receives remainder by design
+        uint16 dummyShare = shareScale / 2;
+
+        bytes memory legCalldata = abi.encodePacked(selectors[0]); // 4 bytes
+        bytes memory route = abi.encodePacked(
+            uint8(2), // ProcessUserERC20
+            address(token), // tokenIn
+            uint8(3), // n = 3 legs
+            quarterShare,
+            uint16(4),
+            legCalldata, // 25%
+            quarterShare,
+            uint16(4),
+            legCalldata, // 25%
+            dummyShare,
+            uint16(4),
+            legCalldata // (ignored) gets remainder
+        );
+
+        vm.startPrank(USER_SENDER);
+        IERC20(address(token)).approve(address(ldaDiamond), totalAmount);
+        vm.recordLogs();
+        coreRouteFacet.processRoute(
+            address(token),
+            totalAmount,
+            address(0),
+            0,
+            USER_RECEIVER,
+            route
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        vm.stopPrank();
+
+        bytes32 pulledEventTopic = keccak256("Pulled(uint256)");
+        uint256[] memory pulledAmounts = new uint256[](3);
+        uint256 eventCount = 0;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (
+                logs[i].topics.length > 0 &&
+                logs[i].topics[0] == pulledEventTopic
+            ) {
+                pulledAmounts[eventCount++] = uint256(bytes32(logs[i].data));
+            }
+        }
+        assertEq(eventCount, 3, "expected three leg pulls");
+
+        uint256 expectedFirstLeg = (totalAmount * quarterShare) / shareScale;
+        uint256 expectedSecondLeg = (totalAmount * quarterShare) / shareScale;
+        uint256 expectedThirdLeg = totalAmount -
+            (expectedFirstLeg + expectedSecondLeg);
+
+        assertEq(pulledAmounts[0], expectedFirstLeg, "leg1 amount mismatch");
+        assertEq(pulledAmounts[1], expectedSecondLeg, "leg2 amount mismatch");
+        assertEq(
+            pulledAmounts[2],
+            expectedThirdLeg,
+            "leg3 remainder mismatch"
+        );
+        assertEq(
+            pulledAmounts[0] + pulledAmounts[1] + pulledAmounts[2],
+            totalAmount,
+            "sum != total"
+        );
+    }
+}
+
+/// @dev Mock facet that records each leg's amount via an event
+contract MockRecordPullFacet {
+    event Pulled(uint256 amt);
+    function pullAndRecord(
+        bytes memory /*payload*/,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) external returns (uint256) {
+        if (from == msg.sender) {
+            LibAsset.transferFromERC20(
+                tokenIn,
+                msg.sender,
+                address(this),
+                amountIn
+            );
+        }
+        emit Pulled(amountIn);
+        return amountIn;
     }
 }
 

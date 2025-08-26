@@ -380,10 +380,14 @@ contract CoreRouteFacet is
     ) private {
         uint8 n = cur.readUint8();
         unchecked {
+            uint256 remaining = total;
             for (uint256 i = 0; i < n; ++i) {
                 uint16 share = cur.readUint16();
-                uint256 amt = (total * share) / type(uint16).max;
-                total -= amt;
+                uint256 amt = i == n - 1
+                    ? remaining
+                    : (total * share) / type(uint16).max; // compute vs original total
+                if (amt > remaining) amt = remaining;
+                remaining -= amt;
                 _dispatchSwap(cur, from, tokenIn, amt);
             }
         }
