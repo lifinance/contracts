@@ -1938,7 +1938,6 @@ function verifyContract() {
   # verify contract using forge
   MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
   RETRY_COUNT=0
-  COMMAND_STATUS=1
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
   FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
   CHAIN_ID=$(getChainId "$NETWORK")
@@ -2011,47 +2010,84 @@ function verifyContract() {
     fi
   fi
 
+  # Add verifier URL if available (for custom verifiers like oklink)
+  local VERIFIER_URL
+  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
+    VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
+  fi
+
     echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-  # Attempt verification with retries
-  while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
-    # execute verification command and capture output
+    # Attempt verification with retries (for cases where block explorer isn't synced)
+  while [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
+    echo "[info] Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Submitting verification for [$FULL_PATH] $ADDRESS..."
+    echo "[info] ...using the following command: "
+    echo "[info] ${VERIFY_CMD[*]}"
+
+    # Execute verification command with --watch flag (will wait for completion)
     VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1)
-    COMMAND_STATUS=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
 
     # Check if contract is already verified
     if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
-      COMMAND_STATUS=0
       return 0
     fi
 
-    # Parse verification response
-    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
-    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+    # Parse the final verification response from --watch output
+    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | tail -1 | awk '{print $2}' | tr -d '`')
+    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | tail -1 | cut -d'`' -f2)
 
-    # Check if verification actually succeeded
-    if [[ "$RESPONSE" == "OK" && "$DETAILS" != *"Fail"* && "$DETAILS" != *"Unable to verify"* && "$DETAILS" != *"Pending"* ]]; then
+    # Check if verification succeeded based on final response
+    if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
       return 0
+    elif [[ "$RESPONSE" == "OK" && "$DETAILS" == *"Pending"* ]]; then
+      # If still pending after --watch, wait a bit more and check again
+      echo "[info] Verification still pending after --watch, waiting 30 seconds before checking final status..."
+      sleep 30
+
+      # Check final status
+      local CHECK_CMD=()
+      if isZkEvmNetwork "$NETWORK"; then
+        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--chain" "$CHAIN_ID" "$ADDRESS")
+      else
+        CHECK_CMD=("forge" "verify-check" "--chain" "$CHAIN_ID" "$ADDRESS")
+      fi
+
+      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1)
+      local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
+      local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+
+      if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
+        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after final check"
+        return 0
+      else
+        warning "Verification failed after final check: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
+        # Continue to next retry instead of returning 1
+      fi
     elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
-      # HTTP request succeeded but verification failed
       warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
-      COMMAND_STATUS=1
+      # Continue to next retry instead of returning 1
+    else
+      warning "Unexpected verification response: Response=$RESPONSE, Details=$DETAILS"
+      # Continue to next retry instead of returning 1
     fi
 
     # increase retry counter
     RETRY_COUNT=$((RETRY_COUNT + 1))
 
-    # sleep for 2 seconds before trying again
-    [ $COMMAND_STATUS -ne 0 ] && sleep 2
+    # sleep before trying again (longer sleep for block explorer sync issues)
+    if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+      echo "[info] Verification attempt failed, waiting 15 seconds before retry..."
+      sleep 15
+    fi
   done
 
   # If we get here, verification failed after all retries
   echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
-  return 1
 
   # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
@@ -2071,24 +2107,32 @@ function verifyContract() {
   fi
 
   # Check Sourcify verification
+  echo "[info] Checking Sourcify verification status..."
+  local SOURCIFY_OUTPUT
   if isZkEvmNetwork "$NETWORK"; then
-    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
+    SOURCIFY_OUTPUT=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
       --zksync \
       --chain-id "$CHAIN_ID" \
-      --verifier sourcify
+      --verifier sourcify 2>&1)
   else
-    forge verify-check "$ADDRESS" \
+    SOURCIFY_OUTPUT=$(forge verify-check "$ADDRESS" \
       --chain-id "$CHAIN_ID" \
-      --verifier sourcify
+      --verifier sourcify 2>&1)
   fi
 
-  if [ $? -eq 0 ]; then
-    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
-    return 1
+  echoDebug "SOURCIFY_OUTPUT: $SOURCIFY_OUTPUT"
+
+  # Check if Sourcify verification actually succeeded by analyzing the output
+  if echo "$SOURCIFY_OUTPUT" | grep -q "Contract source code is not verified"; then
+    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify - contract not verified"
+  elif echo "$SOURCIFY_OUTPUT" | grep -q "Contract source code is verified" || echo "$SOURCIFY_OUTPUT" | grep -q "Successful"; then
+    success "$CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
   else
-    warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
-    return 1
+    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify - unknown status"
   fi
+
+  # return 1 in any case to indicate that the (main) verification failed
+  return 1
 }
 
 function getEtherscanApiKeyName() {
@@ -2127,6 +2171,44 @@ function getEtherscanApiKeyName() {
   fi
 
   echo "$ENV_VAR"
+}
+
+function getVerifierUrlFromFoundryToml() {
+  local NETWORK="$1"
+
+  if [[ -z "$NETWORK" ]]; then
+    echo "Usage: getVerifierUrlFromFoundryToml <network>" >&2
+    return 1
+  fi
+
+  if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
+    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    return 1
+  fi
+
+  # Extract the line with the verifier URL for the given network
+  local URL_LINE
+  URL_LINE=$(awk -v net="$NETWORK" '
+    $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
+    in_etherscan && /^\[/ { in_etherscan=0 }
+    in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
+  ' "$FOUNDRY_TOML_FILE_PATH")
+
+  if [[ -z "$URL_LINE" ]]; then
+    echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
+    return 1
+  fi
+
+  # extract the verifier URL
+  local VERIFIER_URL
+  VERIFIER_URL=$(echo "$URL_LINE" | sed -n 's/.*url *= *"\([^"]*\)".*/\1/p')
+
+  if [[ -z "$VERIFIER_URL" ]]; then
+    echo "Error: Could not extract verifier URL from line: $URL_LINE" >&2
+    return 1
+  fi
+
+  echo "$VERIFIER_URL"
 }
 
 function verifyAllUnverifiedContractsInLogFile() {

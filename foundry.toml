@@ -122,7 +122,7 @@ hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.
 etherlink = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
 ink = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
 immutablezkevm = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
-kaia = { key = "${BLOCKSCOUT_API_KEY}", url = "https://api-cypress.klaytnscope.com/api", chain = "8217", verifier = "blockscout" }
+kaia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/kaia", chain = "8217", verifier = "oklink" }
 katana = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-katana.t.conduit.xyz/api", chain = "747474", verifier = "blockscout" }
 lens = { key = "${LENS_ETHERSCAN_API_KEY}", url = "https://api-explorer-verify.lens.matterhosted.dev/contract_verification", chain = "232", verifier = "zksync" }
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }
