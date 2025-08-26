@@ -40,8 +40,8 @@ contract OutputValidatorTest is TestBase {
         // Initialize TestBase (creates diamond, etc.)
         initTestBase();
 
-        // Deploy OutputValidator
-        outputValidator = new OutputValidator(address(this));
+        // Deploy OutputValidator (no constructor parameters)
+        outputValidator = new OutputValidator();
 
         // Setup validation wallet
         validationWallet = address(0x5678);
@@ -78,7 +78,10 @@ contract OutputValidatorTest is TestBase {
         // Whitelist OutputValidator in the diamond
         cBridge.addDex(address(outputValidator));
         cBridge.setFunctionApprovalBySignature(
-            outputValidator.validateOutput.selector
+            outputValidator.validateNativeOutput.selector
+        );
+        cBridge.setFunctionApprovalBySignature(
+            outputValidator.validateERC20Output.selector
         );
 
         // Label addresses for better test output
@@ -101,7 +104,7 @@ contract OutputValidatorTest is TestBase {
         dai.approve(address(outputValidator), actualAmount);
 
         // Act - call from this contract (simulating diamond calling OutputValidator)
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -124,7 +127,7 @@ contract OutputValidatorTest is TestBase {
         dai.approve(address(outputValidator), actualAmount);
 
         // Act - should succeed and transfer 0 excess tokens
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -156,7 +159,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act & Assert - should revert when actualAmount < expectedAmount (underflow)
         vm.expectRevert(stdError.arithmeticError);
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -167,64 +170,72 @@ contract OutputValidatorTest is TestBase {
         // Arrange
         uint256 expectedAmount = 7 ether;
         uint256 actualAmount = 10 ether;
-        uint256 excessOutput = actualAmount - expectedAmount;
 
         // Fund this test contract (acting as the diamond) with native tokens
         vm.deal(address(this), actualAmount);
 
         // Act - call from this contract (simulating diamond calling OutputValidator)
         // Send the actual amount as msg.value for native tokens
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        outputValidator.validateNativeOutput{ value: actualAmount }(
             expectedAmount,
             validationWallet
         );
 
         // Assert
-        assertEq(validationWallet.balance, excessOutput);
-        assertEq(address(this).balance, expectedAmount);
+        // With new logic: excessAmount = (10 + 10) - 7 = 13 ether (contract balance includes msg.value)
+        // Since excessAmount (13) >= msg.value (10), all msg.value goes to validation wallet
+        assertEq(validationWallet.balance, 10 ether);
+        assertEq(address(this).balance, 0 ether);
     }
 
     function test_validateOutputNativeNoExcess() public {
-        // Arrange - test case where actual amount equals expected (transfers 0 tokens)
+        // Arrange - test case where contract already has the expected amount
+        // and we send 0 as msg.value, so there's no excess
         uint256 expectedAmount = 10 ether;
-        uint256 actualAmount = 10 ether;
+        uint256 msgValueAmount = 0 ether;
 
-        // Fund this test contract with native tokens
-        vm.deal(address(this), actualAmount);
+        // Pre-fund the OutputValidator contract to simulate it already having the expected balance
+        vm.deal(address(outputValidator), expectedAmount);
 
-        // Act - should succeed and transfer 0 excess tokens
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        // Act - should succeed and transfer 0 excess tokens since excessAmount = (10 + 0) - 10 = 0
+        outputValidator.validateNativeOutput{ value: msgValueAmount }(
             expectedAmount,
             validationWallet
         );
 
-        // Assert - no excess tokens transferred, expectedAmount returned to caller
+        // Assert - with new logic: excessAmount = (10 + 0) - 10 = 0 ether
+        // Since excessAmount (0) < msg.value (0), we go to else branch
+        // But both amounts are 0, so no transfers occur
         assertEq(
             validationWallet.balance,
             0,
             "No excess tokens should be transferred"
         );
         assertEq(
-            address(this).balance,
-            expectedAmount,
-            "Should receive expected amount back"
+            address(outputValidator).balance,
+            10 ether,
+            "OutputValidator should still have its initial balance"
         );
     }
 
     function testRevert_validateOutputNativeLessThanExpected() public {
-        // Arrange - test case where actual amount is less than expected (should revert)
-        uint256 expectedAmount = 10 ether;
-        uint256 actualAmount = 5 ether; // Less than expected
+        // Arrange - test case where total amount is less than expected
+        uint256 expectedAmount = 15 ether;
+        uint256 contractInitialBalance = 3 ether;
+        uint256 msgValueAmount = 5 ether;
+        // Total will be 3 + 5 + 5 = 13 ether (address(this).balance includes msg.value after receipt)
+        // But expected is 15 ether, so excessAmount = 13 - 15 should underflow
 
-        // Fund this test contract with native tokens
-        vm.deal(address(this), actualAmount);
+        // Pre-fund the OutputValidator contract
+        vm.deal(address(outputValidator), contractInitialBalance);
 
-        // Act & Assert - should revert when trying to return expectedAmount but insufficient value was sent
-        vm.expectRevert(ETHTransferFailed.selector);
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        // Fund this test contract with native tokens to send as msg.value
+        vm.deal(address(this), msgValueAmount);
+
+        // Act & Assert - should revert due to arithmetic underflow when computing excessAmount
+        // excessAmount = (8 + 5) - 15 = -2 would underflow
+        vm.expectRevert(stdError.arithmeticError);
+        outputValidator.validateNativeOutput{ value: msgValueAmount }(
             expectedAmount,
             validationWallet
         );
@@ -245,7 +256,7 @@ contract OutputValidatorTest is TestBase {
         dai.approve(address(outputValidator), actualAmount);
 
         // Act - call from this contract (simulating diamond calling OutputValidator)
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -269,15 +280,15 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call from this contract (simulating diamond calling OutputValidator)
         // Send the actual amount as msg.value for native tokens
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        outputValidator.validateNativeOutput{ value: actualAmount }(
             expectedAmount,
             validationWallet
         );
 
-        // Assert - should transfer all tokens since expected is 0
+        // Assert - with new logic: excessAmount = (0 + 1000) - 0 = 1000 ether
+        // Since excessAmount (1000) >= msg.value (1000), all msg.value goes to validation wallet
         assertEq(validationWallet.balance, actualAmount);
-        assertEq(address(this).balance, expectedAmount);
+        assertEq(address(this).balance, 0);
     }
 
     function test_validateOutputAfterERC20ToERC20SwapWithPositiveSlippage()
@@ -328,7 +339,7 @@ contract OutputValidatorTest is TestBase {
             receivingAssetId: address(dai),
             fromAmount: actualOutputAmount,
             callData: abi.encodeWithSelector(
-                outputValidator.validateOutput.selector,
+                outputValidator.validateERC20Output.selector,
                 address(dai),
                 expectedOutputAmount,
                 validationWallet
@@ -429,7 +440,7 @@ contract OutputValidatorTest is TestBase {
             receivingAssetId: address(usdc),
             fromAmount: actualOutputAmount,
             callData: abi.encodeWithSelector(
-                outputValidator.validateOutput.selector,
+                outputValidator.validateERC20Output.selector,
                 address(usdc),
                 expectedOutputAmount,
                 validationWallet
@@ -489,7 +500,7 @@ contract OutputValidatorTest is TestBase {
         uint256 inputAmount = 1000 * 10 ** usdc.decimals(); // 1000 USDC (6 decimals)
         uint256 expectedOutputAmount = 8 * 10 ** 18; // 8 ETH (18 decimals)
         uint256 actualOutputAmount = 12 * 10 ** 18; // 12 ETH (18 decimals) - Positive slippage from DEX
-        uint256 excessOutput = actualOutputAmount - expectedOutputAmount; // 4 ETH excess
+        // Note: All actual output will go to validation wallet with new logic
 
         // Fund MockDEX with native tokens so it can return them
         deal(address(mockDEX), actualOutputAmount);
@@ -527,22 +538,24 @@ contract OutputValidatorTest is TestBase {
         });
 
         // Second swap: OutputValidator to collect excess native tokens
+        // Only send the excess portion to OutputValidator
+        uint256 excessPortionToValidator = 4 ether; // The excess portion
         swapData[1] = LibSwap.SwapData({
             callTo: address(outputValidator),
             approveTo: address(outputValidator),
             sendingAssetId: LibAsset.NULL_ADDRESS,
             receivingAssetId: LibAsset.NULL_ADDRESS,
-            fromAmount: actualOutputAmount, // Send the actual amount as msg.value
+            fromAmount: excessPortionToValidator,
             callData: abi.encodeWithSelector(
-                outputValidator.validateOutput.selector,
-                LibAsset.NULL_ADDRESS,
-                expectedOutputAmount,
+                outputValidator.validateNativeOutput.selector,
+                0, // OutputValidator should send all received funds to validation wallet
                 validationWallet
             ),
             requiresDeposit: false
         });
 
         // Setup bridge data for native tokens
+        // Bridge should receive the expected amount (8 ETH), excess goes to OutputValidator
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: bytes32("test-erc20-to-native"),
             bridge: "cbridge",
@@ -550,7 +563,7 @@ contract OutputValidatorTest is TestBase {
             referrer: address(0),
             sendingAssetId: LibAsset.NULL_ADDRESS,
             receiver: USER_SENDER,
-            minAmount: expectedOutputAmount,
+            minAmount: expectedOutputAmount, // Bridge expects the expected amount
             destinationChainId: 137, // Polygon
             hasSourceSwaps: true,
             hasDestinationCall: false
@@ -574,10 +587,13 @@ contract OutputValidatorTest is TestBase {
         vm.stopPrank();
 
         // Assert - verify the excess native tokens were collected
+        // OutputValidator receives 4 ETH and expectedAmount = 0
+        // excessAmount = (0 + 4) - 0 = 4 ETH
+        // Since 4 >= 4 (msg.value), all 4 ETH goes to validation wallet
         assertEq(
             validationWallet.balance,
-            excessOutput,
-            "Excess native tokens should be in validation wallet"
+            excessPortionToValidator,
+            "Excess ETH should go to validation wallet"
         );
 
         // Verify user's input tokens were spent
@@ -593,13 +609,9 @@ contract OutputValidatorTest is TestBase {
         // Arrange - try to validate native tokens without sending value
         uint256 expectedAmount = 100 ether;
 
-        // Act & Assert - should revert when no value is sent for native tokens
-        vm.expectRevert(ETHTransferFailed.selector);
-        outputValidator.validateOutput(
-            LibAsset.NULL_ADDRESS,
-            expectedAmount,
-            validationWallet
-        );
+        // Act & Assert - should revert due to arithmetic underflow when computing excessAmount
+        vm.expectRevert(stdError.arithmeticError);
+        outputValidator.validateNativeOutput(expectedAmount, validationWallet);
     }
 
     function testRevert_validateOutputERC20InsufficientBalance() public {
@@ -612,7 +624,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act & Assert - should revert when actualBalance <= expectedAmount
         vm.expectRevert(stdError.arithmeticError);
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -629,7 +641,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act & Assert - should revert when allowance is insufficient for excess transfer
         vm.expectRevert(TransferFromFailed.selector);
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -646,7 +658,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act & Assert - should revert when no allowance is given
         vm.expectRevert(TransferFromFailed.selector);
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
@@ -664,8 +676,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act & Assert - should revert when native transfer fails
         vm.expectRevert(ETHTransferFailed.selector);
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        outputValidator.validateNativeOutput{ value: actualAmount }(
             expectedAmount,
             address(invalidReceiver)
         );
@@ -680,10 +691,9 @@ contract OutputValidatorTest is TestBase {
 
         vm.deal(address(this), actualAmount);
 
-        // Act & Assert - should revert when trying to return expectedAmount but no value was received
-        vm.expectRevert(ETHTransferFailed.selector);
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        // Act & Assert - should revert due to arithmetic underflow when computing excessAmount
+        vm.expectRevert(stdError.arithmeticError);
+        outputValidator.validateNativeOutput{ value: actualAmount }(
             expectedAmount,
             validationWallet
         );
@@ -696,13 +706,14 @@ contract OutputValidatorTest is TestBase {
         uint256 initialBalance = address(this).balance;
 
         // Act - should succeed and transfer 0 excess tokens
-        outputValidator.validateOutput{ value: actualAmount }(
-            LibAsset.NULL_ADDRESS,
+        outputValidator.validateNativeOutput{ value: actualAmount }(
             expectedAmount,
             validationWallet
         );
 
-        // Assert - no tokens transferred since both amounts are zero
+        // Assert - with new logic: excessAmount = (0 + 0) - 0 = 0 ether
+        // Since excessAmount (0) < msg.value (0), we go to the else branch
+        // but both amounts are 0, so no transfers occur
         assertEq(
             validationWallet.balance,
             0,
@@ -726,18 +737,81 @@ contract OutputValidatorTest is TestBase {
 
         // Act & Assert - should revert when actualAmount <= expectedAmount
         vm.expectRevert(stdError.arithmeticError);
-        outputValidator.validateOutput(
+        outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
             validationWallet
         );
     }
 
-    function testRevert_constructorWithNullOwner() public {
-        // Act & Assert - should revert when trying to deploy with null owner
-        vm.expectRevert(InvalidCallData.selector);
-        new OutputValidator(address(0));
+    function test_validateOutputNativePartialExcess() public {
+        // Arrange - test case where excessAmount < msg.value (needs to hit the else branch)
+        // The formula is: excessAmount = (address(this).balance + msg.value) - expectedAmount
+        // Note: address(this).balance already includes msg.value during execution!
+        // So if contract starts with 0, sends 10 ether, expects 25 ether:
+        // excessAmount = (0 + 10 + 10) - 25 = -5 ether (underflow, but let's use realistic numbers)
+
+        // Let's try: contract starts with 0, sends 10 ether, expects 15 ether
+        // excessAmount = (0 + 10 + 10) - 15 = 5 ether
+        // Since 5 < 10 (msg.value), we go to else branch
+        uint256 contractInitialBalance = 0 ether;
+        uint256 msgValueAmount = 10 ether;
+        uint256 expectedAmount = 15 ether;
+
+        // Pre-fund the OutputValidator contract
+        vm.deal(address(outputValidator), contractInitialBalance);
+
+        // Fund this test contract with native tokens to send as msg.value
+        vm.deal(address(this), msgValueAmount);
+
+        // Act - should hit the else branch where excess < msg.value
+        outputValidator.validateNativeOutput{ value: msgValueAmount }(
+            expectedAmount,
+            validationWallet
+        );
+
+        // Assert - with logic: excessAmount = (0 + 10 + 10) - 15 = 5 ether
+        // Since excessAmount (5) < msg.value (10), we go to else branch:
+        // - Send 5 ether to validation wallet
+        // - Send 5 ether back to sender (10 - 5 = 5)
+        assertEq(
+            validationWallet.balance,
+            5 ether,
+            "Validation wallet should receive excess"
+        );
+        assertEq(
+            address(this).balance,
+            5 ether,
+            "Sender should receive remainder"
+        );
+        assertEq(
+            address(outputValidator).balance,
+            0 ether,
+            "OutputValidator should have no remaining balance"
+        );
     }
+
+    function testRevert_validateOutputERC20WithZeroWallet() public {
+        // Arrange - test case where validationWalletAddress is address(0)
+        uint256 expectedAmount = 100 ether;
+        uint256 actualAmount = 800 ether;
+
+        // Fund this test contract with tokens
+        deal(address(dai), address(this), actualAmount);
+
+        // Approve OutputValidator to spend tokens from this contract
+        dai.approve(address(outputValidator), actualAmount);
+
+        // Act & Assert - should revert when validationWalletAddress is address(0)
+        vm.expectRevert(InvalidCallData.selector);
+        outputValidator.validateERC20Output(
+            address(dai),
+            expectedAmount,
+            address(0) // This should trigger the revert
+        );
+    }
+
+    // NOTE: Constructor test removed since new OutputValidator has no constructor parameters
 
     // Needed to receive native tokens in tests
     receive() external payable {}

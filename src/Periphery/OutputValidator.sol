@@ -82,8 +82,9 @@ contract OutputValidator {
         // make sure we do not attempt any token transfers if there is no excess amount
         if (excessAmount > 0) {
             // validate wallet address
-            if (validationWalletAddress == address(0))
+            if (validationWalletAddress == address(0)) {
                 revert InvalidCallData();
+            }
 
             // transfer excess to validation wallet
             // no need to validate the tokenAddress, it will fail if it's an invalid address
