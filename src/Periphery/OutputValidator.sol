@@ -11,7 +11,7 @@ import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for validating swap output amounts
 /// @notice This contract is designed to not hold any funds which is why it's safe to work with (full) balances
-/// @notice Accidentally stuck funds can easily be recovered (by anyone) using the provided public functions
+/// @notice Accidentally stuck funds can be recovered by the owner via the provided withdrawal functions
 /// @custom:version 1.0.0
 contract OutputValidator is WithdrawablePeriphery {
     using SafeTransferLib for address;
