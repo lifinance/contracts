@@ -1,0 +1,233 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
+import { CurveFacet } from "lifi/Periphery/LDA/Facets/CurveFacet.sol";
+
+/// @title CurveFacetTest
+/// @notice Linea Curve tests via LDA route.
+/// @dev Verifies single-hop, aggregator flow, and revert paths.
+contract CurveFacetTest is BaseDEXFacetTest {
+    /// @notice Facet proxy for swaps bound to the diamond after setup.
+    CurveFacet internal curveFacet;
+
+    /// @notice Selects Linea fork and block height used by tests.
+    function _setupForkConfig() internal override {
+        forkConfig = ForkConfig({
+            networkName: "mainnet",
+            blockNumber: 23224347
+        });
+    }
+
+    /// @notice Deploys CurveFacet and returns its swap selector for diamond cut.
+    function _createFacetAndSelectors()
+        internal
+        override
+        returns (address, bytes4[] memory)
+    {
+        curveFacet = new CurveFacet();
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = curveFacet.swapCurve.selector;
+        return (address(curveFacet), functionSelectors);
+    }
+
+    /// @notice Sets the facet instance to the diamond proxy after facet cut.
+    function _setFacetInstance(
+        address payable facetAddress
+    ) internal override {
+        curveFacet = CurveFacet(facetAddress);
+    }
+
+    /// @notice Defines tokens and pools used by tests (WETH/USDC/USDT).
+    function _setupDexEnv() internal override {
+        tokenIn = IERC20(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E); // crvUSD
+        tokenMid = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); // USDC
+        tokenOut = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7); // USDT
+        poolInMid = 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E; // crvUSD-USDC
+        poolMidOut = 0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85; // USDC-USDT
+    }
+
+    /// @notice Single‐pool swap: USER sends crvUSD → receives USDC.
+    function test_CanSwap() public override {
+        // Transfer 1 000 crvUSD from whale to USER_SENDER
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolInMid,
+                isV2: true, // This is a V2 pool
+                fromIndex: 1, // Changed: crvUSD is at index 1
+                toIndex: 0, // Changed: USDC is at index 0
+                destinationAddress: address(USER_SENDER),
+                tokenOut: address(tokenMid)
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_FromDexAggregator() public override {
+        // Fund the aggregator with 1 000 crvUSD
+        deal(
+            address(tokenIn),
+            address(ldaDiamond),
+            _getDefaultAmountForTokenIn()
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolInMid,
+                isV2: true, // This is a V2 pool
+                fromIndex: 1, // Changed: crvUSD is at index 1
+                toIndex: 0, // Changed: USDC is at index 0
+                destinationAddress: address(USER_SENDER),
+                tokenOut: address(tokenMid)
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessMyERC20
+            }),
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwap_MultiHop() public override {
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
+        vm.startPrank(USER_SENDER);
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
+
+        // Build swap data for both hops
+        bytes memory firstSwapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolInMid,
+                isV2: true, // This is a V2 pool
+                fromIndex: 1, // Changed: crvUSD is at index 1
+                toIndex: 0, // Changed: USDC is at index 0
+                destinationAddress: poolMidOut,
+                tokenOut: address(tokenMid)
+            })
+        );
+
+        bytes memory secondSwapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolMidOut,
+                isV2: true, // was false; NG pool uses 5-arg + exchange_received
+                fromIndex: 0,
+                toIndex: 1,
+                destinationAddress: address(USER_SENDER),
+                tokenOut: address(tokenOut)
+            })
+        );
+
+        // Rest of the function remains the same
+        SwapTestParams[] memory params = new SwapTestParams[](2);
+        bytes[] memory swapData = new bytes[](2);
+
+        params[0] = SwapTestParams({
+            tokenIn: address(tokenIn),
+            tokenOut: address(tokenMid),
+            amountIn: _getDefaultAmountForTokenIn(),
+            minOut: 0,
+            sender: USER_SENDER,
+            destinationAddress: poolMidOut,
+            commandType: CommandType.ProcessUserERC20
+        });
+        swapData[0] = firstSwapData;
+
+        params[1] = SwapTestParams({
+            tokenIn: address(tokenMid),
+            tokenOut: address(tokenOut),
+            amountIn: 0,
+            minOut: 0,
+            sender: USER_SENDER,
+            destinationAddress: USER_SENDER,
+            commandType: CommandType.ProcessOnePool
+        });
+        swapData[1] = secondSwapData;
+
+        bytes memory route = _buildMultiHopRoute(params, swapData);
+
+        _executeAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.ProcessUserERC20
+            }),
+            route
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Empty test as Curve does not use callbacks
+    /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
+    function testRevert_CallbackFromUnexpectedSender() public override {
+        // Curve does not use callbacks - test intentionally empty
+    }
+
+    /// @notice Empty test as Curve does not use callbacks
+    /// @dev Explicitly left empty as this DEX's architecture doesn't require callback verification
+    function testRevert_SwapWithoutCallback() public override {
+        // Curve does not use callbacks - test intentionally empty
+    }
+
+    /// @notice Curve swap parameter shape used for `swapCurve`.
+    struct CurveSwapParams {
+        address pool;
+        bool isV2;
+        int8 fromIndex;
+        int8 toIndex;
+        address destinationAddress;
+        address tokenOut;
+    }
+
+    /// @notice Builds Curve swap payload for route steps.
+    /// @param params pool/to/withdrawMode/isV1Pool/vault tuple.
+    function _buildCurveSwapData(
+        CurveSwapParams memory params
+    ) internal view returns (bytes memory) {
+        return
+            abi.encodePacked(
+                curveFacet.swapCurve.selector,
+                params.pool,
+                params.isV2 ? 1 : 0,
+                params.fromIndex,
+                params.toIndex,
+                params.destinationAddress,
+                params.tokenOut
+            );
+    }
+}
