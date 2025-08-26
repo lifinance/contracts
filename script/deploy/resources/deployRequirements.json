@@ -575,15 +575,6 @@
       }
     }
   },
-  "OutputValidator": {
-    "configData": {
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "ChainflipFacet": {
     "configData": {
       "_chainflipVault": {
