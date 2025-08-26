@@ -7,8 +7,6 @@ source .env
 # load script
 source script/config.sh
 
-
-
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
@@ -115,9 +113,9 @@ function logContractDeploymentInfo {
 
   # Create lock file path
   local LOCK_FILE="${LOG_FILE_PATH}.lock"
-  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_TIMEOUT=30 # 30 seconds timeout
   local LOCK_ATTEMPTS=0
-  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+  local MAX_LOCK_ATTEMPTS=60 # 60 attempts = 30 seconds total
 
   # Wait for lock to be available
   while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
@@ -132,7 +130,7 @@ function logContractDeploymentInfo {
   fi
 
   # Create lock file
-  echo "$$" > "$LOCK_FILE"
+  echo "$$" >"$LOCK_FILE"
 
   # Ensure lock is released on exit
   trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
@@ -578,7 +576,6 @@ function isMongoLoggingEnabled() {
   fi
 }
 
-
 function queryMongoDeployment() {
   local CONTRACT="$1"
   local NETWORK="$2"
@@ -618,14 +615,6 @@ function getLatestMongoDeployment() {
     --network="$NETWORK" 2>/dev/null
   return $?
 }
-
-
-
-
-
-
-
-
 
 function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
@@ -1156,9 +1145,9 @@ function saveContract() {
 
   # Create lock file path
   local LOCK_FILE="${ADDRESSES_FILE}.lock"
-  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_TIMEOUT=30 # 30 seconds timeout
   local LOCK_ATTEMPTS=0
-  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+  local MAX_LOCK_ATTEMPTS=60 # 60 attempts = 30 seconds total
 
   # Wait for lock to be available
   while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
@@ -1173,7 +1162,7 @@ function saveContract() {
   fi
 
   # Create lock file
-  echo "$$" > "$LOCK_FILE"
+  echo "$$" >"$LOCK_FILE"
 
   # Ensure lock is released on exit
   trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
@@ -1636,9 +1625,9 @@ function parseTargetStateGoogleSpreadsheet() {
   # Wait for all background jobs and check for failures
   wait
   if [ $? -ne 0 ]; then
-      error "One or more network processing jobs failed"
-      rm -rf "$TEMP_DIR"
-      return 1
+    error "One or more network processing jobs failed"
+    rm -rf "$TEMP_DIR"
+    return 1
   fi
 
   echo ""
@@ -1656,8 +1645,6 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "Processing completed successfully!"
   return 0
 }
-
-
 
 function processNetworkLine() {
   # Function: processNetworkLine
@@ -1678,13 +1665,13 @@ function processNetworkLine() {
   local CONTRACTS_ARRAY_STR="$6"
 
   # Convert contracts array string back to array
-  IFS=$'\n' read -d '' -r -a CONTRACTS_ARRAY <<< "$CONTRACTS_ARRAY_STR"
+  IFS=$'\n' read -d '' -r -a CONTRACTS_ARRAY <<<"$CONTRACTS_ARRAY_STR"
 
   echo "[$NETWORK] Starting processing..."
 
   # Create temporary JSON file for this network
   local NETWORK_JSON_FILE="$TEMP_DIR/${NETWORK}.json"
-  echo "{}" > "$NETWORK_JSON_FILE"
+  echo "{}" >"$NETWORK_JSON_FILE"
 
   # Split the line by comma into an array
   IFS=',' read -ra LINE_ARRAY <<<"$LINE"
@@ -1734,7 +1721,6 @@ function processNetworkLine() {
     # check if cell value is "latest" >> find version
     if [[ "$CELL_VALUE" == "latest" ]]; then
 
-
       # echo warning that sheet needs to be updated
       echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
 
@@ -1782,17 +1768,17 @@ function addContractVersionToNetworkJSON() {
 
   # Use jq to add the contract version to the network JSON file
   jq --arg NETWORK "$NETWORK" \
-     --arg ENVIRONMENT "$ENVIRONMENT" \
-     --arg CONTRACT "$CONTRACT" \
-     --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
-     --arg VERSION "$VERSION" \
-     '
+    --arg ENVIRONMENT "$ENVIRONMENT" \
+    --arg CONTRACT "$CONTRACT" \
+    --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
+    --arg VERSION "$VERSION" \
+    '
        .[$NETWORK]                 //= {}
        | .[$NETWORK][$ENVIRONMENT] //= {}
        | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE] //= {}
        | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE][$CONTRACT] = $VERSION
      ' \
-     "$JSON_FILE" > "${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
+    "$JSON_FILE" >"${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
 }
 
 function mergeNetworkResults() {
@@ -1814,14 +1800,12 @@ function mergeNetworkResults() {
   for NETWORK_JSON in "$TEMP_DIR"/*.json; do
     if [[ -f "$NETWORK_JSON" ]]; then
       # Merge this network's data into the main target state file
-      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" > "${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
+      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
     fi
   done
 
   echo "All network results merged into $TARGET_STATE_PATH"
 }
-
-
 
 function getBytecodeFromArtifact() {
   # read function arguments into variables
@@ -1867,7 +1851,6 @@ function addPeripheryToDexsJson() {
   # get number of periphery contracts to be added
   local ADD_COUNTER=${#CONTRACTS[@]}
 
-
   # get number of existing DEX addresses in the file for the given network
   local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
 
@@ -1895,9 +1878,8 @@ function addPeripheryToDexsJson() {
     else
       # add the address to dexs.json
       local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS >"$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
       rm -f "$TMP_FILE"
-
 
       success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
     fi
@@ -2017,9 +1999,9 @@ function verifyContract() {
     VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
   fi
 
-    echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
+  echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-    # Attempt verification with retries (for cases where block explorer isn't synced)
+  # Attempt verification with retries (for cases where block explorer isn't synced)
   while [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     echo "[info] Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Submitting verification for [$FULL_PATH] $ADDRESS..."
     echo "[info] ...using the following command: "
@@ -2060,6 +2042,14 @@ function verifyContract() {
       local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1)
       local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
       local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+
+      # Reuse verifier flags when available
+      if [[ -n "$VERIFIER_TYPE" ]]; then
+        CHECK_CMD+=("--verifier" "$VERIFIER_TYPE")
+      fi
+      if [[ -n "$VERIFIER_URL" ]]; then
+        CHECK_CMD+=("--verifier-url" "$VERIFIER_URL")
+      fi
 
       if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
         echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after final check"
@@ -2305,7 +2295,7 @@ function removeFacetFromDiamond() {
   local ABI="./out/$FACET_NAME.sol/$FACET_NAME.json"
 
   # get RPC URL
-  local RPC=$(getRPCEnvVarName "$NETWORK")
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
   local ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 
@@ -2708,7 +2698,6 @@ function checkNetworksJsonFilePath() {
     return 1
   fi
 }
-
 
 function getIncludedNetworksArray() {
   # prepare required variables
@@ -3192,7 +3181,6 @@ function doesDiamondHaveCoreFacetsRegistered() {
   FACETS_NAMES=($(getCoreFacetsArray))
   checkFailure $? "retrieve core facets array from global.json"
 
-
   # get a list of all facets that the diamond knows
   KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
   local CAST_EXIT_CODE=$?
@@ -3269,7 +3257,7 @@ function getFacetFunctionSelectorsFromDiamond() {
   fi
 
   # get RPC URL
-  local RPC=$(getRPCEnvVarName "$NETWORK")
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
   # get path of diamond log file
   local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
@@ -3307,7 +3295,7 @@ function getFacetAddressFromSelector() {
   #echo "FUNCTION_SELECTOR in Func: $FUNCTION_SELECTOR"
 
   # get RPC URL
-  local RPC=$(getRPCEnvVarName "$NETWORK")
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
   # loop until FACET_ADDRESS has a value or maximum attempts are reached
   local FACET_ADDRESS
@@ -3503,20 +3491,12 @@ function doNotContinueUnlessGasIsBelowThreshold() {
     sleep 5
   done
 }
-function getRPCEnvVarName() {
-  # read function arguments into variables
-  local NETWORK=$1
-
-  # get RPC KEY (convert to uppercase and replace hyphens with underscores)
-  echo "ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK" | tr '-' '_')"
-}
-
 function getRPCUrl() {
   # read function arguments into variables
   local NETWORK=$1
 
-  # get RPC KEY using the helper function
-  RPC_KEY=$(getRPCEnvVarName "$NETWORK")
+  # get RPC KEY
+  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
   # return RPC URL
   echo "${!RPC_KEY}"
@@ -3628,13 +3608,13 @@ function isZkEvmNetwork() {
   local NETWORK="$1"
 
   # Check if the network exists in networks.json
-  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
     error "Network '$NETWORK' not found in networks.json"
     return 1
   fi
 
   # Check if isZkEVM property exists for this network
-  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
     error "isZkEVM property not defined for network '$NETWORK' in networks.json"
     return 1
   fi
@@ -3643,9 +3623,9 @@ function isZkEvmNetwork() {
   local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
 
   if [[ "$IS_ZK_EVM" == "true" ]]; then
-    return 0  # Success (true)
+    return 0 # Success (true)
   else
-    return 1  # Failure (false)
+    return 1 # Failure (false)
   fi
 }
 
@@ -3654,9 +3634,9 @@ function isActiveMainnet() {
   local NETWORK="$1"
 
   # Check if the network exists in the JSON
-  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
     error "Network '$NETWORK' not found in networks.json"
-    return 1  # false
+    return 1 # false
   fi
 
   local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
@@ -3664,9 +3644,9 @@ function isActiveMainnet() {
 
   # Check if both values are present and match required conditions
   if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
-    return 0  # true
+    return 0 # true
   else
-    return 1  # false
+    return 1 # false
   fi
 }
 
@@ -3755,105 +3735,103 @@ function extractDeployedAddressFromRawReturnData() {
   fi
 }
 
-
 # transfers ownership of the given contract from old wallet to new wallet (e.g. new tester wallet)
 # will fail if old wallet is not owner
 # will transfer native funds from new owner to old owner, if old wallet has insufficient funds
 # will send all remaining native funds from old owner to new owner after ownership transfer
 transferContractOwnership() {
-    local PRIV_KEY_OLD_OWNER="$1"
-    local PRIV_KEY_NEW_OWNER="$2"
-    local CONTRACT_ADDRESS="$3"
-    local NETWORK="$4"
+  local PRIV_KEY_OLD_OWNER="$1"
+  local PRIV_KEY_NEW_OWNER="$2"
+  local CONTRACT_ADDRESS="$3"
+  local NETWORK="$4"
 
-    # Define minimum native balance
-    local MIN_NATIVE_BALANCE=$(convertToBcInt "100000000000000") # 100,000 Gwei
-    local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
-    local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
+  # Define minimum native balance
+  local MIN_NATIVE_BALANCE=$(convertToBcInt "100000000000000")         # 100,000 Gwei
+  local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
+  local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
 
-    local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-    # Get address of old and new owner
-    local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
-    local ADDRESS_NEW_OWNER=$(cast wallet address --private-key "$PRIV_KEY_NEW_OWNER")
-    echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
+  # Get address of old and new owner
+  local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
+  local ADDRESS_NEW_OWNER=$(cast wallet address --private-key "$PRIV_KEY_NEW_OWNER")
+  echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
 
-    # make sure OLD_OWNER is actually contract owner
-    local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
-    if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
-      error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
+  # make sure OLD_OWNER is actually contract owner
+  local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
+    error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
+    return 1
+  fi
+
+  # Check native funds of old owner wallet
+  local NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+  local NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+
+  echo "native balance old owner: $NATIVE_BALANCE_OLD"
+  echo "native balance new owner: $NATIVE_BALANCE_NEW"
+
+  # make sure that sufficient native balances are available on both wallets
+  if (($(echo "$NATIVE_BALANCE_OLD < $MIN_NATIVE_BALANCE" | bc -l))); then
+    echo "old balance is low"
+    if (($(echo "$NATIVE_BALANCE_NEW < $MIN_NATIVE_BALANCE_DOUBLE" | bc -l))); then
+      echo "balance of new owner wallet is too low. Cannot continue"
       return 1
-    fi
+    else
+      echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
+      # Send some funds from new to old wallet
+      cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
 
-    # Check native funds of old owner wallet
-    local NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-    local NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
-
-    echo "native balance old owner: $NATIVE_BALANCE_OLD"
-    echo "native balance new owner: $NATIVE_BALANCE_NEW"
-
-    # make sure that sufficient native balances are available on both wallets
-    if (( $(echo "$NATIVE_BALANCE_OLD < $MIN_NATIVE_BALANCE" | bc -l) )); then
-        echo "old balance is low"
-        if (( $(echo "$NATIVE_BALANCE_NEW < $MIN_NATIVE_BALANCE_DOUBLE" | bc -l) )); then
-            echo "balance of new owner wallet is too low. Cannot continue"
-            return 1
-        else
-            echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
-            # Send some funds from new to old wallet
-            cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
-
-            NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-            NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
-            echo ""
-            echo "native balance old owner: $NATIVE_BALANCE_OLD"
-            echo "native balance new owner: $NATIVE_BALANCE_NEW"
-        fi
-    fi
-
-    # # transfer ownership to new owner
-    echo ""
-    echo "[info] calling transferOwnership() function from old owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
-    echo ""
-
-    # # accept ownership transfer
-    echo ""
-    echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
-    echo ""
-    echo ""
-
-    # send remaining native tokens from old owner wallet to new owner wallet
-    NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-    SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
-    if [[ $SENDABLE_BALANCE -gt 0 ]]; then
+      NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+      NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
       echo ""
-      echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
-      cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
-    else
-      echo "remaining native balance in old wallet is too low to send back to new wallet"
+      echo "native balance old owner: $NATIVE_BALANCE_OLD"
+      echo "native balance new owner: $NATIVE_BALANCE_NEW"
     fi
+  fi
 
-    # check balances
-    NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-    NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
-    echo ""
-    echo "native balance old owner: $NATIVE_BALANCE_OLD"
-    echo "native balance new owner: $NATIVE_BALANCE_NEW"
+  # # transfer ownership to new owner
+  echo ""
+  echo "[info] calling transferOwnership() function from old owner wallet now"
+  cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+  echo ""
 
-    # make sure NEW OWNER is actually contract owner
-    CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  # # accept ownership transfer
+  echo ""
+  echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
+  cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+  echo ""
+  echo ""
+
+  # send remaining native tokens from old owner wallet to new owner wallet
+  NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+  SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
+  if [[ $SENDABLE_BALANCE -gt 0 ]]; then
     echo ""
-    if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
-      error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
-      return 1
-    else
-      echo "Ownership transfer executed successfully"
-      return 0
-    fi
+    echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
+    cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+  else
+    echo "remaining native balance in old wallet is too low to send back to new wallet"
+  fi
+
+  # check balances
+  NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+  NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+  echo ""
+  echo "native balance old owner: $NATIVE_BALANCE_OLD"
+  echo "native balance new owner: $NATIVE_BALANCE_NEW"
+
+  # make sure NEW OWNER is actually contract owner
+  CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  echo ""
+  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
+    error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
+    return 1
+  else
+    echo "Ownership transfer executed successfully"
+    return 0
+  fi
 }
-
 
 function printDeploymentsStatus() {
   # read function arguments into variables
@@ -4285,9 +4263,9 @@ function sendMessageToSlackSmartContractsChannel() {
 
   # Send the message
   curl -H "Content-Type: application/json" \
-     -X POST \
-     -d "{\"text\": \"$MESSAGE\"}" \
-     "$SLACK_WEBHOOK_SC_GENERAL"
+    -X POST \
+    -d "{\"text\": \"$MESSAGE\"}" \
+    "$SLACK_WEBHOOK_SC_GENERAL"
 
   echoDebug "Log message sent to Slack"
 
@@ -4301,7 +4279,7 @@ function getUserInfo() {
   # log Github email address
   EMAIL=$(git config --global user.email)
   if [ -z "$EMAIL" ]; then
-      EMAIL=$(git config --local user.email)
+    EMAIL=$(git config --local user.email)
   fi
 
   # return collected info
@@ -4344,7 +4322,7 @@ function updateDiamondLogForNetwork() {
   attempts=0 # initialize attempts to 0
 
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts+1))"
+    echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
     local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
 
@@ -4357,7 +4335,7 @@ function updateDiamondLogForNetwork() {
     sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION+1)) ]; then
+  if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION + 1)) ]; then
     warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
   fi
 
@@ -4474,8 +4452,8 @@ install_foundry_zksync() {
 
   # Verify that FOUNDRY_ZKSYNC_VERSION is set
   if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-      echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
-      return 1
+    echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+    return 1
   fi
 
   echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
@@ -4483,37 +4461,37 @@ install_foundry_zksync() {
   # Check if binaries already exist and are executable
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
-      echo "forge and cast binaries already exist in ${install_dir} and are executable"
-      echo "Skipping download and installation"
-      return 0
+    echo "forge and cast binaries already exist in ${install_dir} and are executable"
+    echo "Skipping download and installation"
+    return 0
   fi
 
   # Detect operating system
   # $OSTYPE is a bash variable that contains the operating system type
   local os
   if [[ "$OSTYPE" == "darwin"* ]]; then
-      os="darwin"
+    os="darwin"
   elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      os="linux"
+    os="linux"
   else
-      echo "Unsupported operating system"
-      return 1
+    echo "Unsupported operating system"
+    return 1
   fi
 
   # Detect CPU architecture
   # uname -m returns the machine hardware name
   local arch
   case $(uname -m) in
-      x86_64)  # Intel/AMD 64-bit
-          arch="amd64"
-          ;;
-      arm64|aarch64)  # ARM 64-bit (e.g., Apple Silicon, AWS Graviton)
-          arch="arm64"
-          ;;
-      *)
-          echo "Unsupported architecture: $(uname -m)"
-          return 1
-          ;;
+  x86_64) # Intel/AMD 64-bit
+    arch="amd64"
+    ;;
+  arm64 | aarch64) # ARM 64-bit (e.g., Apple Silicon, AWS Graviton)
+    arch="arm64"
+    ;;
+  *)
+    echo "Unsupported architecture: $(uname -m)"
+    return 1
+    ;;
   esac
 
   # Construct download URL using the specified version
@@ -4534,22 +4512,22 @@ install_foundry_zksync() {
   # Download the file using curl or wget, whichever is available
   # command -v checks if a command exists
   # &> /dev/null redirects both stdout and stderr to null
-  if command -v curl &> /dev/null; then
-      # -L flag follows redirects, -o specifies output file
-      curl -L -o "${install_dir}/${filename}" "$download_url"
-  elif command -v wget &> /dev/null; then
-      # -O specifies output file
-      wget -O "${install_dir}/${filename}" "$download_url"
+  if command -v curl &>/dev/null; then
+    # -L flag follows redirects, -o specifies output file
+    curl -L -o "${install_dir}/${filename}" "$download_url"
+  elif command -v wget &>/dev/null; then
+    # -O specifies output file
+    wget -O "${install_dir}/${filename}" "$download_url"
   else
-      echo "Neither curl nor wget is installed"
-      return 1
+    echo "Neither curl nor wget is installed"
+    return 1
   fi
 
   # Check if download was successful
   # $? contains the return status of the last command
   if [ $? -ne 0 ]; then
-      echo "Download failed"
-      return 1
+    echo "Download failed"
+    return 1
   fi
 
   echo "Download completed successfully"
@@ -4560,8 +4538,8 @@ install_foundry_zksync() {
   tar -xzf "${install_dir}/${filename}" -C "$install_dir"
 
   if [ $? -ne 0 ]; then
-      echo "Extraction failed"
-      return 1
+    echo "Extraction failed"
+    return 1
   fi
 
   # Make binaries executable
@@ -4570,8 +4548,8 @@ install_foundry_zksync() {
   chmod +x "${install_dir}/forge" "${install_dir}/cast"
 
   if [ $? -ne 0 ]; then
-      echo "Failed to set executable permissions"
-      return 1
+    echo "Failed to set executable permissions"
+    return 1
   fi
 
   # Clean up by removing the downloaded archive
@@ -4579,15 +4557,15 @@ install_foundry_zksync() {
   rm "${install_dir}/${filename}"
 
   if [ $? -ne 0 ]; then
-      echo "Cleanup failed"
-      return 1
+    echo "Cleanup failed"
+    return 1
   fi
 
   # Verify that binaries are executable
   # This is a final check to ensure everything worked
   if [ ! -x "${install_dir}/forge" ] || [ ! -x "${install_dir}/cast" ]; then
-      echo "Installation completed but binaries are not executable. Please check permissions."
-      return 1
+    echo "Installation completed but binaries are not executable. Please check permissions."
+    return 1
   fi
 
   echo "Installation completed successfully"
@@ -4650,7 +4628,7 @@ getContractDeploymentStatusSummary() {
   printf "%-20s %-10s %-10s %-42s\n" "NETWORK" "DEPLOYED" "VERIFIED" "ADDRESS"
   printf "%-20s %-10s %-10s %-42s\n" "--------------------" "----------" "----------" "------------------------------------------"
 
-    # Check each network
+  # Check each network
   for network in "${NETWORKS[@]}"; do
     # Check if contract is deployed - use a more robust approach
     local LOG_ENTRY=""
