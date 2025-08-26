@@ -32,13 +32,13 @@ contract OutputValidator is WithdrawablePeriphery {
         uint256 expectedAmount,
         address validationWalletAddress
     ) external payable {
-        // we do not validate the expected amount to save gas
-        // tokens are not lost, even if amount == 0 (tokens will be forwarded to validation wallet)
+        // we do not validate the expectedAmount to save gas
+        // tokens are not lost, even if expectedAmount == 0 (>> all tokens will be forwarded to validation wallet)
         // wallet address is validated in LibAsset
 
         // calculate the excess amount
         // outputAmount is calculated as what was sent to this contract as msg.value plus the remaining native
-        // balance of the sending contract
+        // balance of the sending contract (msg.sender)
         uint256 excessAmount = (address(msg.sender).balance + msg.value) -
             expectedAmount;
 

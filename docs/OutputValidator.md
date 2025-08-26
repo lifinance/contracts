@@ -20,11 +20,10 @@ The `OutputValidator` contract is a periphery contract that validates swap outpu
 ### Native Token Flow
 
 1. The calling contract (Diamond) sends a portion of native tokens as `msg.value` for excess handling
-2. **Calculates excess**: `excessAmount = (contract_balance + msg.value) - expectedAmount`
+2. **Calculates excess**: `excessAmount = (msg.sender.balance + msg.value) - expectedAmount`
 3. **Smart distribution**:
-   - If `excessAmount >= msg.value`: All `msg.value` goes to validation wallet (contract balance covers expected amount)
-   - If `excessAmount < msg.value`: Sends `excessAmount` to validation wallet, returns `msg.value - excessAmount` to sender
-4. **User receives expected amount** through the normal swap flow, not from this contract
+   - If `excessAmount >= msg.value`: All `msg.value` goes to validation wallet
+   - If `excessAmount < msg.value`: Sends `excessAmount` to validation wallet, returns `msg.value - excessAmount` to sender, if anything left
 
 **Note**: This function requires `msg.value` to work as expected, otherwise it cannot determine how much excess exists.
 
