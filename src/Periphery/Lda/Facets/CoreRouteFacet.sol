@@ -415,14 +415,11 @@ contract CoreRouteFacet is
         // Extract function selector (first 4 bytes of data)
         bytes4 selector = _readSelector(data);
 
-        // Create an in-place alias for the payload (skip the first 4 bytes).
-        // This avoids allocating/copying a second bytes array for the payload.
-        bytes memory payload;
+        // Compute payload length directly (data = [len | selector(4) | payload])
+
+        uint256 payloadLen;
         assembly {
-            // payload points to data + 4 and shares the same buffer
-            payload := add(data, 4)
-            // payload.length = data.length - 4
-            mstore(payload, sub(mload(data), 4))
+            payloadLen := sub(mload(data), 4)
         }
 
         address facet = LibDiamondLoupe.facetAddress(selector);
@@ -482,15 +479,12 @@ contract CoreRouteFacet is
 
             // Payload area (length + bytes)
             let d := add(args, 0x80)
-            let len := mload(payload)
+            let len := payloadLen
             mstore(d, len)
 
-            // Copy payload via the identity precompile (address 0x04).
-            // This is cheaper for arbitrary-length copies vs. manual loops.
-            // to = d+32; from = payload+32; size = len
-            pop(
-                staticcall(gas(), 0x04, add(payload, 32), len, add(d, 32), len)
-            )
+            // Copy from data + 32 (skip length) + 4 (skip selector)
+            // to = d+32; from = data+36; size = len
+            pop(staticcall(gas(), 0x04, add(data, 36), len, add(d, 32), len))
 
             // Round payload length up to a multiple of 32 and compute total calldata size
             let padded := and(add(len, 31), not(31))
