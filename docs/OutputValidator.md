@@ -59,8 +59,8 @@ function validateNativeOutput(
 
 **Behavior:**
 
-- Calculates total output as `contract_balance + msg.value`
-- Intelligently distributes excess between validation wallet and sender
+- Calculates pre-call balance as `preCallBalance = msg.sender.balance + msg.value` and excess as `excess = preCallBalance - expectedAmount`
+- Distributes `min(excess, msg.value)` to the validation wallet and refunds the remainder to the caller
 - Designed for scenarios where `msg.value` represents a portion sent for excess handling
 
 ### `validateERC20Output`
