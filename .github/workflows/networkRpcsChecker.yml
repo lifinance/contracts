@@ -55,9 +55,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           MISSING_RPCS=""
+          # Helper function to get RPC env var name (matches logic in helperFunctions.sh)
+          getRPCEnvVarName() {
+            echo "ETH_NODE_URI_$(echo "$1" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+          }
+
           # Read networks from temp file
           while read -r NETWORK; do
-            RPC_ENV_VAR="ETH_NODE_URI_${NETWORK^^}"
+            RPC_ENV_VAR=$(getRPCEnvVarName "$NETWORK")
             echo "Checking for RPC: $RPC_ENV_VAR"
             if [ -z "${!RPC_ENV_VAR}" ]; then
               echo -e "\033[31mRPC for network $NETWORK ($RPC_ENV_VAR) is missing!\033[0m"

@@ -33,11 +33,11 @@ function handleNetwork() {
   # convert the provided private key of the pauser wallet (from github) to an address
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY")
 
-  # get RPC URL for given network
-  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # get RPC URL for given network using helper function
+  RPC_KEY=$(getRPCEnvVarName "$NETWORK")
 
   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
-  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
+  eval "RPC_URL=\$$RPC_KEY"
 
   # make sure RPC_URL is available
   if [[ -z "$RPC_URL" ]]; then
@@ -137,10 +137,10 @@ function handleNetwork() {
 function printStatus() {
   local NETWORK="$1"
 
-  # get RPC URL for given network
-  local RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # get RPC URL for given network using helper function
+  local RPC_KEY=$(getRPCEnvVarName "$NETWORK")
   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
-  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
+  eval "RPC_URL=\$$RPC_KEY"
 
     # skip any non-prod networks
   case "$NETWORK" in
