@@ -5,6 +5,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 
 /// @title OutputValidator
 /// @author LI.FI (https://li.fi)
@@ -12,8 +13,13 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @notice This contract is designed to not hold any funds which is why it's safe to work with (full) balances
 /// @notice Accidentally stuck funds can easily be recovered (by anyone) using the provided public functions
 /// @custom:version 1.0.0
-contract OutputValidator {
+contract OutputValidator is WithdrawablePeriphery {
     using SafeTransferLib for address;
+
+    /// Constructor ///
+    constructor(address _owner) WithdrawablePeriphery(_owner) {
+        if (_owner == address(0)) revert InvalidCallData();
+    }
 
     /// External Methods ///
 
@@ -33,7 +39,7 @@ contract OutputValidator {
         // calculate the excess amount
         // outputAmount is calculated as what was sent to this contract as msg.value plus the remaining native
         // balance of the sending contract
-        uint256 excessAmount = (address(this).balance + msg.value) -
+        uint256 excessAmount = (address(msg.sender).balance + msg.value) -
             expectedAmount;
 
         if (excessAmount >= msg.value) {
