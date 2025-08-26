@@ -790,6 +790,9 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
 /// @notice Adds liquidity to an Algebra pool using balances available on this helper.
 /// @dev Implements `algebraMintCallback` to transfer owed amounts to the pool.
 contract AlgebraLiquidityAdderHelper {
+    error Token0TransferFailed();
+    error Token1TransferFailed();
+
     /// @notice token0 used by the target pool.
     address public immutable TOKEN_0;
     /// @notice token1 used by the target pool.
@@ -872,8 +875,7 @@ contract AlgebraLiquidityAdderHelper {
             uint256 balance0After = IERC20(TOKEN_0).balanceOf(
                 address(msg.sender)
             );
-            // solhint-disable-next-line gas-custom-errors
-            require(balance0After > balance0Before, "Transfer failed");
+            if (balance0After <= balance0Before) revert Token0TransferFailed();
         }
 
         if (amount1Owed > 0) {
@@ -887,8 +889,7 @@ contract AlgebraLiquidityAdderHelper {
             uint256 balance1After = IERC20(TOKEN_1).balanceOf(
                 address(msg.sender)
             );
-            // solhint-disable-next-line gas-custom-errors
-            require(balance1After > balance1Before, "Transfer failed");
+            if (balance1After <= balance1Before) revert Token1TransferFailed();
         }
     }
 }
