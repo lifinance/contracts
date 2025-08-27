@@ -336,6 +336,13 @@
       "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
       "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
     },
+    "audit20250728": {
+      "auditCompletedOn": "28.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.28_LiFiDexAggregator(v1.12.0).pdf",
+      "auditCommitHash": "da57cb55dbbb6103a00ba662c76dd8a03abdc8d1"
+    },
     "audit20250730": {
       "auditCompletedOn": "30.07.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -491,7 +498,8 @@
       "1.0.2": ["audit20250110_1", "audit20250508"],
       "2.0.0": ["audit20250506"],
       "2.1.0": ["audit20250620"],
-      "2.1.1": ["audit20250718"]
+      "2.1.1": ["audit20250718"],
+      "2.1.2": ["audit20250728"]
     },
     "LibBytes": {
       "1.0.0": ["audit20250508"]
@@ -528,7 +536,8 @@
       "1.8.0": ["audit20250422"],
       "1.9.0": ["audit20250510"],
       "1.10.0": ["audit20250608"],
-      "1.11.0": ["audit20250630"]
+      "1.11.0": ["audit20250630"],
+      "1.12.0": ["audit20250728"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],
