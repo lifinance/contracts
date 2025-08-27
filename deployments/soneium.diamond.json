@@ -68,6 +68,10 @@
       "0xE5b8Ab14A6c7D2b1e8f21050B5504D5b8abf4FcD": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xa8deab5134FBA01820E802c0F16337756E0f2a5E": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

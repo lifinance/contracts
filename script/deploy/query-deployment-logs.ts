@@ -64,7 +64,6 @@ class DeploymentLogQuerier {
       this.db = this.client.db(this.config.databaseName)
       const collectionName = this.environment
       this.collection = this.db.collection<IDeploymentRecord>(collectionName)
-      consola.info(`Connected to MongoDB collection: ${collectionName}`)
     } catch (error) {
       consola.error('Failed to connect to MongoDB:', error)
       throw error

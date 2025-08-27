@@ -1,4 +1,5 @@
 {
+  "LinkToDeployedToAddresses": "https://github.com/allbridge-io/allbridge-core-docs",
   "mainnet": {
     "allBridge": "0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e"
   },
@@ -17,10 +18,16 @@
   "celo": {
     "allBridge": "0x80858f5F8EFD2Ab6485Aba1A0B9557ED46C6ba0e"
   },
+  "optimism": {
+    "allBridge": "0x97E5BF5068eA6a9604Ee25851e6c9780Ff50d5ab"
+  },
   "polygon": {
     "allBridge": "0x7775d63836987f444E2F14AA0fA2602204D7D3E0"
   },
-  "optimism": {
-    "allBridge": "0x97E5BF5068eA6a9604Ee25851e6c9780Ff50d5ab"
+  "sonic": {
+    "allBridge": "0x801217549AB4b0860Bb506B1cbfF90f42819a116"
+  },
+  "tron": {
+    "allBridge": "TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2"
   }
 }

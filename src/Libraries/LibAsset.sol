@@ -7,8 +7,8 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
 
 /// @title LibAsset
-/// @custom:version 2.1.2
 /// @author LI.FI (https://li.fi)
+/// @custom:version 2.1.2
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
