@@ -365,30 +365,73 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
 
     /// @notice Only withdrawMode 0/1/2 are supported; invalid modes must revert.
     function testRevert_InvalidWithdrawMode() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
         vm.startPrank(USER_SENDER);
 
         bytes
             memory swapDataWithInvalidWithdrawMode = _buildSyncSwapV2SwapData(
                 SyncSwapV2SwapParams({
-                    pool: poolInOut,
+                    pool: poolInMid,
                     to: address(USER_SENDER),
-                    withdrawMode: 3,
+                    withdrawMode: 3, // Invalid withdraw mode (>2)
                     isV1Pool: 1,
                     vault: SYNC_SWAP_VAULT
                 })
             );
 
+        // Approve tokens for the swap
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
+
         _buildRouteAndExecuteSwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
-                tokenOut: address(tokenOut),
-                amountIn: 1,
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(),
                 minOut: 0,
                 sender: USER_SENDER,
                 destinationAddress: USER_SENDER,
                 commandType: CommandType.DistributeUserERC20
             }),
             swapDataWithInvalidWithdrawMode,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice V1 pools with zero target address should revert
+    function testRevert_V1PoolZeroTarget() public {
+        // Transfer 1 000 WETH from whale to USER_SENDER
+        deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
+
+        vm.startPrank(USER_SENDER);
+
+        // Swap data with isV1Pool=true but zero target (vault) address
+        bytes memory swapData = abi.encodePacked(
+            syncSwapV2Facet.swapSyncSwapV2.selector,
+            poolInMid, // pool address
+            USER_SENDER, // destination address
+            uint8(2), // withdrawMode
+            uint8(1), // isV1Pool = true
+            address(0) // target/vault address = zero address
+        );
+
+        // Approve tokens for the swap
+        tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenMid),
+                amountIn: _getDefaultAmountForTokenIn(),
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.DistributeUserERC20
+            }),
+            swapData,
             InvalidCallData.selector
         );
 
