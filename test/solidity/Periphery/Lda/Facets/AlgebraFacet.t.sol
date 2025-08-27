@@ -116,11 +116,9 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     /// @notice Binds `algebraFacet` to the diamond proxy after diamondCut.
-    /// @param facetAddress Diamond proxy address.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        algebraFacet = AlgebraFacet(facetAddress);
+    /// @param ldaDiamond Diamond proxy address.
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        algebraFacet = AlgebraFacet(ldaDiamond);
     }
 
     /// @notice Sets fork-based token/pool addresses used by tests.

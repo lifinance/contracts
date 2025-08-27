@@ -57,11 +57,9 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     /// @notice Sets `uniV3Facet` to the diamond proxy (post-cut).
-    /// @param facetAddress Diamond proxy address.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        uniV3Facet = UniV3StyleFacet(facetAddress);
+    /// @param ldaDiamond Diamond proxy address.
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        uniV3Facet = UniV3StyleFacet(ldaDiamond);
     }
 
     // ==== Helper Functions ====

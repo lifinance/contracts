@@ -100,10 +100,8 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
     }
 
     /// @notice Sets the facet instance to the diamond proxy.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        velodromeV2Facet = VelodromeV2Facet(facetAddress);
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        velodromeV2Facet = VelodromeV2Facet(ldaDiamond);
     }
 
     /// @notice Assigns tokens used in tests; pool addresses are resolved per-test from the router.

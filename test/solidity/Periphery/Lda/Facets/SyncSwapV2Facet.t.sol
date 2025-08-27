@@ -42,10 +42,8 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
     }
 
     /// @notice Sets the facet instance to the diamond proxy after facet cut.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        syncSwapV2Facet = SyncSwapV2Facet(facetAddress);
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        syncSwapV2Facet = SyncSwapV2Facet(ldaDiamond);
     }
 
     /// @notice Defines tokens and pools used by tests (WETH/USDC/USDT).

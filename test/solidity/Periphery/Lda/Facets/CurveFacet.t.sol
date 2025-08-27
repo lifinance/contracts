@@ -34,10 +34,8 @@ contract CurveFacetTest is BaseDEXFacetTest {
     }
 
     /// @notice Sets the facet instance to the diamond proxy after facet cut.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        curveFacet = CurveFacet(facetAddress);
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        curveFacet = CurveFacet(ldaDiamond);
     }
 
     /// @notice Defines tokens and pools used by tests (WETH/USDC/USDT).

@@ -100,8 +100,8 @@ abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
         returns (address, bytes4[] memory);
 
     /// @notice Child must set its facet instance to the diamond proxy.
-    /// @param facetAddress Address of the diamond proxy that now exposes the facet.
-    function _setFacetInstance(address payable facetAddress) internal virtual;
+    /// @param ldaDiamond Address of the diamond proxy that now exposes the facet.
+    function _setFacetInstance(address payable ldaDiamond) internal virtual;
 
     /// @notice Child must configure tokens/pools for the selected fork.
     function _setupDexEnv() internal virtual;

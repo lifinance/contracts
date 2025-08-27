@@ -58,11 +58,9 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
     }
 
     /// @notice Sets `uniV2Facet` to the diamond proxy (post-cut).
-    /// @param facetAddress Diamond proxy address.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        uniV2Facet = UniV2StyleFacet(facetAddress);
+    /// @param ldaDiamond Diamond proxy address.
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        uniV2Facet = UniV2StyleFacet(ldaDiamond);
     }
 
     // ==== Helper Functions ====

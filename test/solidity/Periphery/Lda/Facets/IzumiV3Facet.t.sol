@@ -56,10 +56,8 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
     }
 
     /// @notice Sets `izumiV3Facet` to the diamond proxy.
-    function _setFacetInstance(
-        address payable facetAddress
-    ) internal override {
-        izumiV3Facet = IzumiV3Facet(facetAddress);
+    function _setFacetInstance(address payable ldaDiamond) internal override {
+        izumiV3Facet = IzumiV3Facet(ldaDiamond);
     }
 
     /// @notice Defines a USDC/WETH/USDB_C path and pools on Base for tests.
