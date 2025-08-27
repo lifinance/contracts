@@ -56,18 +56,15 @@ function diamondSyncDEXs {
   function isTokenContract {
     local ADDRESS=$1
     local RPC_URL=$2
-
+    local RESULT
     # Try to call decimals() function
-    local result=$(cast call "$ADDRESS" "decimals() returns (uint8)" --rpc-url "$RPC_URL" 2>/dev/null)
-
-    if [[ $? -eq 0 && ! -z "$result" ]]; then
-      # Check if result is a valid number (0-255)
-      if [[ "$result" =~ ^[0-9]+$ && "$result" -ge 0 && "$result" -le 255 ]]; then
-        return 0  # True - it's a token contract
+    if RESULT=$(cast call "$ADDRESS" "decimals() returns (uint8)" --rpc-url "$RPC_URL" 2>/dev/null); then
+      # Validate 0–255 strictly
+      if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
+        return 0
       fi
     fi
-
-    return 1  # False - not a token contract
+    return 1
   }
 
   # Function to detect token contracts in DEX list
@@ -119,11 +116,11 @@ function diamondSyncDEXs {
       while [ $ATTEMPT -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
         result=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
 
-        if [[ $? -eq 0 && ! -z "$result" ]]; then
+        if [[ $? -eq 0 && -n "$result" ]]; then
           if [[ "$result" == "[]" ]]; then
             echo ""
           else
-            echo $(echo "${result:1:${#result}-2}" | tr ',' '\n' | tr '[:upper:]' '[:lower:]')
+            echo "${result:1:${#result}-2}" | tr ',' '\n' | tr '[:upper:]' '[:lower:]'
           fi
           return 0
         fi
@@ -190,7 +187,7 @@ function diamondSyncDEXs {
 
       local ATTEMPTS=1
       while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy >/dev/null
         sleep 5
 
         # Verify updated DEX list
