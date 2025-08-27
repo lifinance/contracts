@@ -56,7 +56,7 @@ contract CurveFacet {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();
@@ -71,20 +71,17 @@ contract CurveFacet {
 
         uint256 amountOut;
 
-        if (from == msg.sender && amountIn > 0) {
-            LibAsset.transferFromERC20(
-                tokenIn,
-                msg.sender,
-                address(this),
-                amountIn
-            );
+        if (from == msg.sender) {
+            LibAsset.depositAsset(tokenIn, amountIn);
         }
 
         LibAsset.maxApproveERC20(IERC20(tokenIn), pool, amountIn);
 
         // Track balances at the actual receiver for V2, otherwise at this contract
         address balAccount = isV2 ? destinationAddress : address(this);
-        uint256 balanceBefore = IERC20(tokenOut).balanceOf(balAccount);
+        uint256 balanceBefore = LibAsset.isNativeAsset(tokenOut)
+            ? balAccount.balance
+            : IERC20(tokenOut).balanceOf(balAccount);
 
         if (isV2) {
             if (from == address(0)) {
@@ -98,6 +95,7 @@ contract CurveFacet {
                     destinationAddress
                 );
             } else {
+                // Modern pools do not use pure native ETH path. They use WETH instead
                 ICurveV2(pool).exchange(
                     fromIndex,
                     toIndex,
@@ -107,10 +105,15 @@ contract CurveFacet {
                 );
             }
         } else {
-            ICurve(pool).exchange(fromIndex, toIndex, amountIn, 0);
+            // Legacy pools can accept/return native ETH
+            ICurve(pool).exchange{
+                value: LibAsset.isNativeAsset(tokenIn) ? amountIn : 0
+            }(fromIndex, toIndex, amountIn, 0);
         }
 
-        uint256 balanceAfter = IERC20(tokenOut).balanceOf(balAccount);
+        uint256 balanceAfter = LibAsset.isNativeAsset(tokenOut)
+            ? balAccount.balance
+            : IERC20(tokenOut).balanceOf(balAccount);
         amountOut = balanceAfter - balanceBefore;
 
         // Only transfer when legacy path kept tokens on this contract

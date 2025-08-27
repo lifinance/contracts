@@ -6,5 +6,10 @@ pragma solidity ^0.8.17;
 /// @notice Minimal Curve pool interface for exchange operations
 /// @custom:version 1.0.0
 interface ICurve {
-    function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external;
+    function exchange(
+        int128 i,
+        int128 j,
+        uint256 dx,
+        uint256 min_dy
+    ) external payable;
 }
