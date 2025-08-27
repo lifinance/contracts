@@ -13,7 +13,9 @@ import {
   http,
   parseAbi,
   zeroAddress,
-  type Narrow,
+  type Abi,
+  type PublicClient,
+  type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -633,7 +635,7 @@ export const getDeployments = async (
  */
 export const setupEnvironment = async (
   chain: SupportedChain,
-  facetAbi: Narrow<readonly any[]> | null,
+  facetAbi: Abi | readonly unknown[] | null,
   environment: EnvironmentEnum = EnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {
@@ -900,3 +902,73 @@ export const getPrivateKeyForEnvironment = (
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }
+
+/**
+ * Creates a contract object with the expected interface for helper functions.
+ *
+ * This function creates a standardized contract interface that provides type-safe
+ * access to common ERC20 token functions (balanceOf, allowance, approve) with
+ * proper error handling for each async operation.
+ *
+ * @param address - The contract address as a string
+ * @param abi - The contract ABI definition
+ * @param publicClient - The viem public client for read operations
+ * @param walletClient - The viem wallet client for write operations
+ * @returns An object with read and write methods for token operations
+ */
+export const createContractObject = (
+  address: string,
+  abi: Abi,
+  publicClient: PublicClient,
+  walletClient: WalletClient
+) => ({
+  read: {
+    balanceOf: async (args: [string]): Promise<bigint> => {
+      try {
+        return (await publicClient.readContract({
+          address: address as `0x${string}`,
+          abi,
+          functionName: 'balanceOf',
+          args,
+        })) as bigint
+      } catch (error) {
+        console.error(`[${address}] Failed to read balanceOf:`, error)
+        throw new Error(
+          `Failed to read balanceOf for address ${args[0]}: ${error}`
+        )
+      }
+    },
+    allowance: async (args: [string, string]): Promise<bigint> => {
+      try {
+        return (await publicClient.readContract({
+          address: address as `0x${string}`,
+          abi,
+          functionName: 'allowance',
+          args,
+        })) as bigint
+      } catch (error) {
+        console.error(`[${address}] Failed to read allowance:`, error)
+        throw new Error(
+          `Failed to read allowance for owner ${args[0]} and spender ${args[1]}: ${error}`
+        )
+      }
+    },
+  },
+  write: {
+    approve: async (args: [string, bigint]): Promise<`0x${string}`> => {
+      try {
+        return await walletClient.writeContract({
+          address: address as `0x${string}`,
+          abi,
+          functionName: 'approve',
+          args,
+        } as any)
+      } catch (error) {
+        console.error(`[${address}] Failed to approve:`, error)
+        throw new Error(
+          `Failed to approve spender ${args[0]} for amount ${args[1]}: ${error}`
+        )
+      }
+    },
+  },
+})
