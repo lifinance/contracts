@@ -13,6 +13,8 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title RelayDepositoryFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for depositing assets into Relay Protocol V2 Depositories
+/// @notice WARNING: We cannot guarantee that our bridgeData corresponds to (off-chain-)
+/// @notice          data associated with the provided orderId
 /// @custom:version 1.0.0
 contract RelayDepositoryFacet is
     ILiFi,
@@ -108,6 +110,9 @@ contract RelayDepositoryFacet is
         if (_relayDepositoryData.depositorAddress == address(0)) {
             revert InvalidCallData();
         }
+
+        // WARNING: We cannot validate / guarantee that the off-chain-data associated with the provided
+        //          orderId corresponds to the _bridgeData (e.g. receiver, destinationChain)
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token deposit
