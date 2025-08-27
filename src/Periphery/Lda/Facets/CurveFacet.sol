@@ -84,12 +84,15 @@ contract CurveFacet is BaseRouteConstants {
             LibAsset.depositAsset(tokenIn, amountIn);
         }
 
-        LibAsset.maxApproveERC20(IERC20(tokenIn), pool, amountIn);
+        bool isNativeOut = LibAsset.isNativeAsset(tokenOut);
+        bool isNativeIn = LibAsset.isNativeAsset(tokenIn);
+        if (!isNativeIn) {
+            LibAsset.maxApproveERC20(IERC20(tokenIn), pool, amountIn);
+        }
 
         // Only track balances for legacy path that needs manual transfer. Legacy pools doesn't have receiver param and always sends tokenOut to msg.sender
         uint256 balanceBefore;
         if (!isV2 && destinationAddress != address(this)) {
-            bool isNativeOut = LibAsset.isNativeAsset(tokenOut);
             balanceBefore = isNativeOut
                 ? address(this).balance
                 : IERC20(tokenOut).balanceOf(address(this));
@@ -118,14 +121,16 @@ contract CurveFacet is BaseRouteConstants {
             }
         } else {
             // Legacy pools can accept/return native ETH
-            ICurve(pool).exchange{
-                value: LibAsset.isNativeAsset(tokenIn) ? amountIn : 0
-            }(fromIndex, toIndex, amountIn, 0);
+            ICurve(pool).exchange{ value: isNativeIn ? amountIn : 0 }(
+                fromIndex,
+                toIndex,
+                amountIn,
+                0
+            );
         }
 
         // Only transfer when legacy path kept tokens on this contract
         if (!isV2 && destinationAddress != address(this)) {
-            bool isNativeOut = LibAsset.isNativeAsset(tokenOut);
             uint256 balanceAfter = isNativeOut
                 ? address(this).balance
                 : IERC20(tokenOut).balanceOf(address(this));
