@@ -25,6 +25,7 @@ contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
         0x90F0c8aCC1E083Bcb4F487f84FC349ae8d5e28D7;
+    uint256 internal constant SOLVER_REWARD = 0.0001 ether;
 
     function setUp() public {
         customBlockNumberForForking = 34694289;
@@ -35,6 +36,12 @@ contract EcoFacetTest is TestBaseFacet {
             ADDRESS_DAI,
             1000000 * 10 ** ERC20(ADDRESS_USDC).decimals(),
             1000000 * 10 ** ERC20(ADDRESS_DAI).decimals()
+        );
+        addLiquidity(
+            ADDRESS_WRAPPED_NATIVE,
+            ADDRESS_USDC,
+            100 ether,
+            1000000 * 10 ** ERC20(ADDRESS_USDC).decimals()
         );
 
         ecoFacet = new TestEcoFacet(IEcoPortal(PORTAL));
@@ -66,6 +73,9 @@ contract EcoFacetTest is TestBaseFacet {
 
         bridgeData.bridge = "eco";
         bridgeData.destinationChainId = 10;
+
+        // Set addToMessageValue to the solver reward (similar to how StargateFacetV2 sets it to the bridge fee)
+        addToMessageValue = SOLVER_REWARD;
     }
 
     function getValidEcoData()
@@ -85,42 +95,43 @@ contract EcoFacetTest is TestBaseFacet {
                 destinationPortal: PORTAL, // Same on OP,
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
-                solverReward: 0.0001 ether, // Use addToMessageValue as the solver reward
+                solverReward: SOLVER_REWARD,
                 destinationCalls: emptyCalls
             });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        EcoFacet.EcoData memory validEcoData = getValidEcoData();
+        EcoFacet.EcoData memory ecoData = getValidEcoData();
 
         if (isNative) {
-            // For native tokens, send bridge amount + solver reward (similar to StargateFacetV2)
+            // For native tokens, send bridge amount + addToMessageValue (solver reward)
             ecoFacet.startBridgeTokensViaEco{
-                value: bridgeData.minAmount + validEcoData.solverReward
-            }(bridgeData, validEcoData);
+                value: bridgeData.minAmount + addToMessageValue
+            }(bridgeData, ecoData);
         } else {
-            // For ERC20 tokens, only send solver reward as msg.value
-            ecoFacet.startBridgeTokensViaEco{
-                value: validEcoData.solverReward
-            }(bridgeData, validEcoData);
+            // For ERC20 tokens, only send addToMessageValue (solver reward) as msg.value
+            ecoFacet.startBridgeTokensViaEco{ value: addToMessageValue }(
+                bridgeData,
+                ecoData
+            );
         }
     }
 
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        EcoFacet.EcoData memory validEcoData = getValidEcoData();
+        EcoFacet.EcoData memory ecoData = getValidEcoData();
 
         if (isNative) {
-            // For swapping to native, send swap input amount + solver reward
+            // For swapping to native, send swap input amount + addToMessageValue (solver reward)
             ecoFacet.swapAndStartBridgeTokensViaEco{
-                value: swapData[0].fromAmount + validEcoData.solverReward
-            }(bridgeData, swapData, validEcoData);
+                value: swapData[0].fromAmount + addToMessageValue
+            }(bridgeData, swapData, ecoData);
         } else {
-            // For swapping from native to ERC20, only send solver reward
+            // For swapping from native to ERC20, only send addToMessageValue (solver reward)
             ecoFacet.swapAndStartBridgeTokensViaEco{
-                value: validEcoData.solverReward
-            }(bridgeData, swapData, validEcoData);
+                value: addToMessageValue
+            }(bridgeData, swapData, ecoData);
         }
     }
 

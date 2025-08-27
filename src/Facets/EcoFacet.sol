@@ -115,6 +115,34 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
+        _validateBridgeData(_bridgeData, _ecoData);
+
+        IEcoPortal.Call[] memory routeCalls = _buildRouteCalls(
+            _bridgeData,
+            _ecoData
+        );
+
+        IEcoPortal.TokenAmount[] memory routeTokens = _buildRouteTokens(
+            _bridgeData,
+            _ecoData
+        );
+
+        IEcoPortal.Intent memory intent = _buildIntent(
+            _bridgeData,
+            _ecoData,
+            routeCalls,
+            routeTokens
+        );
+
+        _publishIntent(_bridgeData, _ecoData, intent);
+
+        _emitEvents(_bridgeData, _ecoData);
+    }
+
+    function _validateBridgeData(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData
+    ) private pure {
         if (
             (_ecoData.destinationCalls.length > 0) !=
             _bridgeData.hasDestinationCall
@@ -136,76 +164,100 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ) {
             revert InvalidReceiver();
         }
+    }
 
-        IEcoPortal.Call[] memory routeCalls;
-
+    function _buildRouteCalls(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData
+    ) private pure returns (IEcoPortal.Call[] memory) {
         if (_ecoData.destinationCalls.length > 0) {
-            routeCalls = _ecoData.destinationCalls;
-        } else {
-            if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-                routeCalls = new IEcoPortal.Call[](0);
-            } else {
-                routeCalls = new IEcoPortal.Call[](1);
-
-                if (!LibAsset.isNativeAsset(_ecoData.receivingAssetId)) {
-                    routeCalls[0] = IEcoPortal.Call({
-                        target: _ecoData.receivingAssetId,
-                        data: abi.encodeWithSignature(
-                            "transfer(address,uint256)",
-                            _ecoData.receiverAddress,
-                            _bridgeData.minAmount
-                        ),
-                        value: 0
-                    });
-                } else {
-                    routeCalls[0] = IEcoPortal.Call({
-                        target: _ecoData.receiverAddress,
-                        data: "",
-                        value: _bridgeData.minAmount
-                    });
-                }
-            }
+            return _ecoData.destinationCalls;
         }
 
-        IEcoPortal.TokenAmount[] memory routeTokens;
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            return new IEcoPortal.Call[](0);
+        }
 
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            routeTokens = new IEcoPortal.TokenAmount[](1);
-            routeTokens[0] = IEcoPortal.TokenAmount({
-                token: _ecoData.receivingAssetId,
-                amount: _bridgeData.minAmount
+        IEcoPortal.Call[] memory routeCalls = new IEcoPortal.Call[](1);
+
+        if (!LibAsset.isNativeAsset(_ecoData.receivingAssetId)) {
+            routeCalls[0] = IEcoPortal.Call({
+                target: _ecoData.receivingAssetId,
+                data: abi.encodeWithSignature(
+                    "transfer(address,uint256)",
+                    _ecoData.receiverAddress,
+                    _bridgeData.minAmount
+                ),
+                value: 0
             });
         } else {
-            routeTokens = new IEcoPortal.TokenAmount[](0);
+            routeCalls[0] = IEcoPortal.Call({
+                target: _ecoData.receiverAddress,
+                data: "",
+                value: _bridgeData.minAmount
+            });
         }
 
-        IEcoPortal.Intent memory intent = IEcoPortal.Intent({
-            destination: uint64(_bridgeData.destinationChainId),
-            route: IEcoPortal.Route({
-                salt: _ecoData.salt,
-                deadline: _ecoData.routeDeadline,
-                portal: _ecoData.destinationPortal,
-                nativeAmount: 0,
-                tokens: routeTokens,
-                calls: routeCalls
-            }),
-            reward: IEcoPortal.Reward({
-                deadline: _ecoData.rewardDeadline,
-                creator: msg.sender,
-                prover: _ecoData.prover,
-                nativeAmount: 0,
-                tokens: new IEcoPortal.TokenAmount[](0)
-            })
+        return routeCalls;
+    }
+
+    function _buildRouteTokens(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData
+    ) private pure returns (IEcoPortal.TokenAmount[] memory) {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            return new IEcoPortal.TokenAmount[](0);
+        }
+
+        IEcoPortal.TokenAmount[]
+            memory routeTokens = new IEcoPortal.TokenAmount[](1);
+        routeTokens[0] = IEcoPortal.TokenAmount({
+            token: _ecoData.receivingAssetId,
+            amount: _bridgeData.minAmount
         });
 
+        return routeTokens;
+    }
+
+    function _buildIntent(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData,
+        IEcoPortal.Call[] memory routeCalls,
+        IEcoPortal.TokenAmount[] memory routeTokens
+    ) private view returns (IEcoPortal.Intent memory) {
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+
+        return
+            IEcoPortal.Intent({
+                destination: uint64(_bridgeData.destinationChainId),
+                route: IEcoPortal.Route({
+                    salt: _ecoData.salt,
+                    deadline: _ecoData.routeDeadline,
+                    portal: _ecoData.destinationPortal,
+                    nativeAmount: isNative ? _bridgeData.minAmount : 0,
+                    tokens: routeTokens,
+                    calls: routeCalls
+                }),
+                reward: IEcoPortal.Reward({
+                    deadline: _ecoData.rewardDeadline,
+                    creator: msg.sender,
+                    prover: _ecoData.prover,
+                    nativeAmount: isNative
+                        ? _ecoData.solverReward + _bridgeData.minAmount
+                        : _ecoData.solverReward,
+                    tokens: new IEcoPortal.TokenAmount[](0)
+                })
+            });
+    }
+
+    function _publishIntent(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData,
+        IEcoPortal.Intent memory intent
+    ) private {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
 
         if (isNative) {
-            // Use explicit solver reward from EcoData
-            intent.reward.nativeAmount = _ecoData.solverReward;
-            intent.route.nativeAmount = _bridgeData.minAmount;
-
-            // Total value to send is bridge amount + solver reward
             intentSource.publishAndFund{
                 value: _bridgeData.minAmount + _ecoData.solverReward
             }(intent, false);
@@ -216,15 +268,17 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _bridgeData.minAmount
             );
 
-            // For ERC20, solver reward is paid in native token
-            intent.reward.nativeAmount = _ecoData.solverReward;
-
             intentSource.publishAndFund{ value: _ecoData.solverReward }(
                 intent,
                 false
             );
         }
+    }
 
+    function _emitEvents(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData
+    ) private {
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
