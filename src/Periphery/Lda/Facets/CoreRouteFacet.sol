@@ -330,7 +330,7 @@ contract CoreRouteFacet is
     /// @return total The total amount of ETH to process
     function _distributeNative(uint256 cur) private returns (uint256 total) {
         total = address(this).balance;
-        _distributeAndSwap(cur, address(this), INTERNAL_INPUT_SOURCE, total);
+        _distributeAndSwap(cur, address(this), LibAsset.NULL_ADDRESS, total);
     }
 
     /// @notice Distributes ERC20 tokens already on this contract
@@ -364,7 +364,7 @@ contract CoreRouteFacet is
     /// @param cur The current position in the byte stream
     function _dispatchSinglePoolSwap(uint256 cur) private {
         address token = cur.readAddress();
-        _dispatchSwap(cur, INTERNAL_INPUT_SOURCE, token, 0);
+        _dispatchSwap(cur, FUNDS_IN_RECEIVER, token, 0);
     }
 
     /// @notice Distributes tokens across multiple pools based on share ratios

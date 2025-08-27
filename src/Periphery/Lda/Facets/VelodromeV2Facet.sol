@@ -49,7 +49,7 @@ contract VelodromeV2Facet is BaseRouteConstants {
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data.
         // Will revert if contract (destinationAddress) does not implement IVelodromeV2PoolCallee.
 
-        if (from == INTERNAL_INPUT_SOURCE) {
+        if (from == FUNDS_IN_RECEIVER) {
             (uint256 reserve0, uint256 reserve1, ) = IVelodromeV2Pool(pool)
                 .getReserves();
             if (reserve0 == 0 || reserve1 == 0) revert WrongPoolReserves();
