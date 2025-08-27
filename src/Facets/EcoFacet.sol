@@ -74,10 +74,13 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
-        LibAsset.depositAsset(
-            _bridgeData.sendingAssetId,
-            _bridgeData.minAmount
-        );
+        // For ERC20, we need to deposit the full amount including reward
+        uint256 depositAmount = _bridgeData.minAmount;
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            depositAmount += _ecoData.solverReward;
+        }
+
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, depositAmount);
 
         _startBridge(_bridgeData, _ecoData);
     }
@@ -98,13 +101,30 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // For ERC20 tokens, we need to reserve the solver reward from the swapped amount
+        // Only pass native fee reservation if the final asset is native
+        uint256 nativeFeeAmount = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        )
+            ? _ecoData.solverReward
+            : 0;
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender),
-            _ecoData.solverReward
+            nativeFeeAmount
         );
+
+        // For ERC20, ensure we have enough for both bridge and reward
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // require(
+            //     _bridgeData.minAmount >= _ecoData.solverReward,
+            //     "Insufficient amount for solver reward"
+            // );
+            _bridgeData.minAmount -= _ecoData.solverReward;
+        }
 
         _startBridge(_bridgeData, _ecoData);
     }
@@ -227,6 +247,18 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ) private view returns (IEcoPortal.Intent memory) {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
 
+        // Build reward tokens array for ERC20
+        IEcoPortal.TokenAmount[] memory rewardTokens;
+        if (!isNative) {
+            rewardTokens = new IEcoPortal.TokenAmount[](1);
+            rewardTokens[0] = IEcoPortal.TokenAmount({
+                token: _bridgeData.sendingAssetId,
+                amount: _bridgeData.minAmount + _ecoData.solverReward
+            });
+        } else {
+            rewardTokens = new IEcoPortal.TokenAmount[](0);
+        }
+
         return
             IEcoPortal.Intent({
                 destination: uint64(_bridgeData.destinationChainId),
@@ -244,8 +276,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                     prover: _ecoData.prover,
                     nativeAmount: isNative
                         ? _ecoData.solverReward + _bridgeData.minAmount
-                        : _ecoData.solverReward,
-                    tokens: new IEcoPortal.TokenAmount[](0)
+                        : 0, // No native amount for ERC20
+                    tokens: rewardTokens // Include token reward for ERC20
                 })
             });
     }
@@ -262,16 +294,17 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 value: _bridgeData.minAmount + _ecoData.solverReward
             }(intent, false);
         } else {
+            // For ERC20: approve total amount (bridge + reward)
+            uint256 totalAmount = _bridgeData.minAmount +
+                _ecoData.solverReward;
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(portal),
-                _bridgeData.minAmount
+                totalAmount
             );
 
-            portal.publishAndFund{ value: _ecoData.solverReward }(
-                intent,
-                false
-            );
+            // No native value needed for ERC20 rewards
+            portal.publishAndFund(intent, false);
         }
     }
 

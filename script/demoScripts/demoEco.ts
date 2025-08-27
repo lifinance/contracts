@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 
+import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
 import { parseUnits, zeroAddress, type Narrow } from 'viem'
 import { erc20Abi } from 'viem'
@@ -28,9 +29,13 @@ const ECO_FACET_ABI = ecoFacetArtifact.abi as Narrow<
 const ECO_PORTAL_ADDRESS = '0x90F0c8aCC1E083Bcb4F487f84FC349ae8d5e28D7'
 const ECO_PROVER_ADDRESS = '0xC09483299100ab9960eA1F641b0f94B9E6e0923C'
 
-async function main() {
+async function main(args: {
+  srcChain: SupportedChain
+  dstChain: string
+  amount: string
+}) {
   // === Set up environment ===
-  const srcChain: SupportedChain = 'optimism'
+  const srcChain = args.srcChain
 
   const { publicClient, walletAccount, walletClient, lifiDiamondContract } =
     await setupEnvironment(srcChain, ECO_FACET_ABI)
@@ -39,12 +44,14 @@ async function main() {
   if (!lifiDiamondContract || !lifiDiamondContract.address)
     throw new Error('LiFi Diamond contract not found')
 
-  console.info(`Bridge 5 USDC from ${srcChain} --> Base`)
+  console.info(
+    `Bridge ${args.amount} USDC from ${srcChain} --> ${args.dstChain}`
+  )
   console.info(`Connected wallet address: ${signerAddress}`)
 
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = ADDRESS_USDC_OPT as `0x${string}`
-  const amount = parseUnits('5', 6) // 5 USDC (6 decimals)
+  const amount = parseUnits(args.amount, 6) // USDC has 6 decimals
 
   // Ensure wallet has sufficient USDC balance
   const usdcContract = {
@@ -70,7 +77,7 @@ async function main() {
     referrer: zeroAddress,
     sendingAssetId: SRC_TOKEN_ADDRESS,
     receiver: signerAddress, // Receiver on destination chain (same as signer)
-    destinationChainId: 8453, // Base chain ID
+    destinationChainId: args.dstChain === 'base' ? 8453 : 8453, // Default to Base for now
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
@@ -147,9 +154,35 @@ async function main() {
   )
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error)
-    process.exit(1)
-  })
+const command = defineCommand({
+  meta: {
+    name: 'demoEco',
+    description: 'Demo script for bridging tokens via Eco Protocol',
+  },
+  args: {
+    srcChain: {
+      type: 'string',
+      default: 'optimism',
+      description: 'Source chain for the bridge (e.g., optimism)',
+    },
+    dstChain: {
+      type: 'string',
+      default: 'base',
+      description: 'Destination chain for the bridge (e.g., base)',
+    },
+    amount: {
+      type: 'string',
+      default: '5',
+      description: 'Amount of USDC to bridge',
+    },
+  },
+  async run({ args }) {
+    await main({
+      srcChain: args.srcChain as SupportedChain,
+      dstChain: args.dstChain,
+      amount: args.amount,
+    })
+  },
+})
+
+runMain(command)
