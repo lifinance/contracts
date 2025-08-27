@@ -38549,11 +38549,11 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x35B861C331858Eaf9d7Be1737EA008820fBB8b50",
+            "ADDRESS": "0xcC9b58959574009deFde35FC3446425aa10eAc31",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-21 08:26:03",
+            "TIMESTAMP": "2025-08-27 17:17:31",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
-            "SALT": "20250721",
+            "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
