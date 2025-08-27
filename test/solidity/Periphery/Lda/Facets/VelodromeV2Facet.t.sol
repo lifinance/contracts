@@ -650,7 +650,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             VELODROME_V2_FACTORY_REGISTRY
         );
 
-        // if tokens come from the aggregator (address(liFiDEXAggregator)), use command code 1; otherwise, use 2.
+        // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
         CommandType commandCode = params.from == address(ldaDiamond)
             ? CommandType.DistributeSelfERC20
             : CommandType.DistributeUserERC20;

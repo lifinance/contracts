@@ -14,5 +14,5 @@ abstract contract BaseRouteConstants {
     /// receiving contract (e.g., from a previous swap in a multi-step route).
     /// This tells the facet to use its current token balance instead of
     /// pulling funds from an external address via `transferFrom`.
-    address internal constant FUNDS_IN_RECEIVER = address(0);
+    address internal constant FUNDS_IN_RECEIVER = address(1);
 }

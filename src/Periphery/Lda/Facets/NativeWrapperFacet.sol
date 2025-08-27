@@ -19,7 +19,7 @@ contract NativeWrapperFacet is BaseRouteConstants {
     /// @dev Handles unwrapping WETH and sending native ETH to recipient
     /// @param swapData Encoded swap parameters [destinationAddress]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
-    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
+    ///        otherwise assumes tokens are at receiver address (FUNDS_IN_RECEIVER)
     /// @param tokenIn WETH token address
     /// @param amountIn Amount of WETH to unwrap
     function unwrapNative(

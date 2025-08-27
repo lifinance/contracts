@@ -218,11 +218,11 @@ contract CoreRouteFacet is
     ///    [3][n: uint8] then n legs, each:
     ///      [share: uint16][len: uint16][data: bytes]
     ///    total = address(this).balance (includes msg.value and any residual ETH)
-    ///    from = address(this), tokenIn = INTERNAL_INPUT_SOURCE
+    ///    from = address(this), tokenIn is native ETH (address(0))
     ///
     /// 4. DispatchSinglePoolSwap:
     ///    [4][token: address][len: uint16][data: bytes]
-    ///    amountIn = 0 (pool sources tokens internally), from = INTERNAL_INPUT_SOURCE
+    ///    amountIn = 0 (pool sources tokens internally), from = FUNDS_IN_RECEIVER
     ///
     /// 5. ApplyPermit:
     ///    [5][value: uint256][deadline: uint256][v: uint8][r: bytes32][s: bytes32]

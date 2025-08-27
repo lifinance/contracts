@@ -28,7 +28,7 @@ contract VelodromeV2Facet is BaseRouteConstants {
     /// @dev Handles token transfers and optional callbacks, with comprehensive safety checks
     /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, callback]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
-    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
+    ///        otherwise assumes tokens are at receiver address (FUNDS_IN_RECEIVER)
     /// @param tokenIn Input token address
     /// @param amountIn Amount of input tokens
     function swapVelodromeV2(

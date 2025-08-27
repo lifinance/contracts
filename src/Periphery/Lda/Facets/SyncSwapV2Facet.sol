@@ -19,7 +19,7 @@ contract SyncSwapV2Facet {
     /// @dev Handles both V1 (vault-based) and V2 (direct) pool swaps
     /// @param swapData Encoded swap parameters [pool, destinationAddress, withdrawMode, isV1Pool, vault]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
-    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
+    ///        otherwise assumes tokens are at receiver address
     /// @param tokenIn Input token address
     /// @param amountIn Amount of input tokens
     function swapSyncSwapV2(
@@ -56,7 +56,7 @@ contract SyncSwapV2Facet {
         } else if (from == address(this)) {
             LibAsset.transferERC20(tokenIn, target, amountIn);
         }
-        // if from is not msg.sender or address(this), it must be INTERNAL_INPUT_SOURCE
+        // if from is not msg.sender or address(this), it must be FUNDS_IN_RECEIVER
         // which means tokens are already in the vault/pool, no transfer needed
 
         // SyncSwap V1 pools require tokens to be deposited into their vault first

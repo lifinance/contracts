@@ -28,7 +28,7 @@ contract UniV2StyleFacet is BaseRouteConstants {
     /// @dev Handles token transfers and calculates output amounts based on pool reserves
     /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, fee]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
-    ///        otherwise assumes tokens are at INTERNAL_INPUT_SOURCE
+    ///        otherwise assumes tokens are at receiver address (FUNDS_IN_RECEIVER)
     /// @param tokenIn Input token address
     /// @param amountIn Amount of input tokens
     function swapUniV2(
