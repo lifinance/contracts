@@ -2,31 +2,57 @@
 
 ## How it works
 
-The Eco Facet works by ...
+The Eco Facet enables cross-chain token transfers using the Eco Protocol's intent-based bridging system. It creates an intent that specifies the desired outcome on the destination chain, which solvers then fulfill in exchange for a reward. The facet supports both EVM and non-EVM destination chains, as well as optional destination calls for complex cross-chain workflows.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->EcoFacet;
-    EcoFacet -- CALL --> C(Eco)
+    EcoFacet -- CALL --> EcoPortal[Eco Portal]
 ```
 
 ## Public Methods
 
 - `function startBridgeTokensViaEco(BridgeData calldata _bridgeData, EcoData calldata _ecoData)`
-  - Simply bridges tokens using eco
-- `swapAndStartBridgeTokensViaEco(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, ecoData memory _ecoData)`
-  - Performs swap(s) before bridging tokens using eco
+  - Bridges tokens using Eco Protocol without performing any swaps
+- `swapAndStartBridgeTokensViaEco(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, EcoData memory _ecoData)`
+  - Performs swap(s) before bridging tokens using Eco Protocol
 
-## eco Specific Parameters
+## Eco Specific Parameters
 
-The methods listed above take a variable labeled `_ecoData`. This data is specific to eco and is represented as the following struct type:
+The methods listed above take a variable labeled `_ecoData`. This data is specific to Eco Protocol and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct ecoData {
-  string example;
+/// @dev Eco specific parameters
+/// @param receiverAddress Address that will receive tokens on destination chain
+/// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
+/// @param receivingAssetId Address of the token to receive on destination
+/// @param salt Unique identifier for the intent (prevents duplicates)
+/// @param routeDeadline Timestamp by which route must be executed
+/// @param destinationPortal Portal address on destination chain
+/// @param prover Address of the prover contract for validation
+/// @param rewardDeadline Timestamp for reward claim eligibility
+/// @param solverReward Native token amount to reward the solver
+/// @param destinationCalls Optional calls to execute on destination
+struct EcoData {
+  address receiverAddress;
+  bytes nonEVMReceiver;
+  address receivingAssetId;
+  bytes32 salt;
+  uint64 routeDeadline;
+  address destinationPortal;
+  address prover;
+  uint64 rewardDeadline;
+  uint256 solverReward;
+  IEcoPortal.Call[] destinationCalls;
 }
 ```
+
+### Important Notes
+
+- **Solver Reward**: The `solverReward` must be sent as `msg.value` with the transaction. This incentivizes solvers to fulfill the intent on the destination chain.
+- **Non-EVM Destinations**: For non-EVM chains, set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (inherit from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
+- **Native Token Bridging**: When bridging native tokens, the bridge amount plus the solver reward must be sent as `msg.value`.
+- **Token Approvals**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the required amount.
 
 ## Swap Data
 
@@ -77,16 +103,16 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 
 ### Cross Only
 
-To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
+To get a transaction for a transfer from 5 USDC on Optimism to USDC on Base you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=eco&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=OPT&fromAmount=5000000&fromToken=USDC&toChain=BAS&toToken=USDC&slippage=0.03&allowBridges=eco&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
 
-To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
+To get a transaction for a transfer from 5 USDT on Optimism to USDC on Base you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=eco&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=OPT&fromAmount=5000000&fromToken=USDT&toChain=BAS&toToken=USDC&slippage=0.03&allowBridges=eco&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
