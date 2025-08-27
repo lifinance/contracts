@@ -52,7 +52,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
         returns (address, bytes4[] memory)
     {
         uniV2Facet = new UniV2StyleFacet();
-        bytes4[] memory functionSelectors = new bytes4[](2);
+        bytes4[] memory functionSelectors = new bytes4[](1);
         functionSelectors[0] = uniV2Facet.swapUniV2.selector;
         return (address(uniV2Facet), functionSelectors);
     }
