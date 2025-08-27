@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.1
+/// @custom:version 1.2.2
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -217,32 +217,26 @@ contract MayanFacet is
                 receiver := mload(add(protocolData, 0xc4)) // MayanCircle::bridgeWithLockedFee()
             }
             case 0xafd9b706 {
-                // solhint-disable-next-line max-line-length
                 // 0xafd9b706 createOrder((address,uint256,uint64,[*bytes32*],uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
                 receiver := mload(add(protocolData, 0x84)) // MayanCircle::createOrder()
             }
             case 0x6111ad25 {
-                // solhint-disable-next-line max-line-length
                 // 0x6111ad25 swap((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes),address,uint256)
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::swap()
             }
             case 0x1eb1cff0 {
-                // solhint-disable-next-line max-line-length
                 // 0x1eb1cff0 wrapAndSwapETH((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes))
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::wrapAndSwapETH()
             }
             case 0xb866e173 {
-                // solhint-disable-next-line max-line-length
                 // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x104)) // MayanSwift::createOrderWithEth()
             }
             case 0x8e8d142b {
-                // solhint-disable-next-line max-line-length
                 // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
             }
             case 0x1c59b7fc {
-                // solhint-disable-next-line max-line-length
                 // 0x1c59b7fc MayanCircle::createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8))
                 receiver := mload(add(protocolData, 0x84))
             }
@@ -255,14 +249,40 @@ contract MayanFacet is
                 receiver := mload(add(protocolData, 0xa4))
             }
             case 0xf58b6de8 {
-                // solhint-disable-next-line max-line-length
                 // 0xf58b6de8 FastMCTP::bridge(address,uint256,uint64,uint256,uint64,[*bytes32*],uint32,bytes32,uint8,uint8,uint32,bytes)
                 receiver := mload(add(protocolData, 0xc4))
             }
             case 0x2337e236 {
-                // solhint-disable-next-line max-line-length
                 // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0xe4))
+            }
+            case 0xe27dce37 {
+                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,address,uint64,uint256,uint256,(uint64,([*address*],uint256,uint256,(bytes32,bytes32,uint8))))
+                // @notice Important behavior regarding permits and receivers in Mayan bridge for Hypercore:
+                // 1. The DepositPayload struct (tuple) only contains permit data, with no separate receiver field
+                // 2. The permit signer in DepositPayload struct (not the trader (3rd argument)) is who receives the bridged funds
+                // 3. While technically possible to bridge to a different receiver, it requires having that receiver's permit
+                //
+                // Implementation note:
+                // Due to these constraints, the sender must act as the receiver
+                // since they need to provide their own permit. This limitation is handled at the backend level
+                // by disabling the option to specify a different receiver.
+                //
+                receiver := mload(add(protocolData, 0xe4))
+            }
+            case 0x4d1ed73b {
+                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,address,uint256,uint64,bytes32,uint8,uint32,uint256,(uint64,([*address*],uint256,uint256,(bytes32,bytes32,uint8))))
+                // @notice Important behavior regarding permits and receivers in Mayan bridge for Hypercore:
+                // 1. The DepositPayload struct (tuple) only contains permit data, with no separate receiver field
+                // 2. The permit signer in DepositPayload struct (not the trader (3rd argument)) is who receives the bridged funds
+                // 3. While technically possible to bridge to a different receiver, it requires having that receiver's permit
+                //
+                // Implementation note:
+                // Due to these constraints, the sender must act as the receiver
+                // since they need to provide their own permit. This limitation is handled at the backend level
+                // by disabling the option to specify a different receiver.
+                //
+                receiver := mload(add(protocolData, 0x164))
             }
             default {
                 receiver := 0x0
