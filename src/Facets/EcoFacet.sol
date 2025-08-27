@@ -74,6 +74,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
+        // Validate eco-specific data before depositing
+        _validateEcoData(_bridgeData, _ecoData);
+
         // For ERC20, we need to deposit the full amount including reward
         uint256 depositAmount = _bridgeData.minAmount;
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -101,6 +104,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // Validate eco-specific data before swapping
+        _validateEcoData(_bridgeData, _ecoData);
+
         // For ERC20 tokens, we need to reserve the solver reward from the swapped amount
         // Only pass native fee reservation if the final asset is native
         uint256 nativeFeeAmount = LibAsset.isNativeAsset(
@@ -117,13 +123,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             nativeFeeAmount
         );
 
-        // For ERC20, ensure we have enough for both bridge and reward
+        // For ERC20 tokens, the swap result includes the solver reward
+        // We need to subtract it to get the actual bridge amount
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // require(
-            //     _bridgeData.minAmount >= _ecoData.solverReward,
-            //     "Insufficient amount for solver reward"
-            // );
-            _bridgeData.minAmount -= _ecoData.solverReward;
+            _bridgeData.minAmount =
+                _bridgeData.minAmount -
+                _ecoData.solverReward;
         }
 
         _startBridge(_bridgeData, _ecoData);
@@ -135,8 +140,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
-        _validateBridgeData(_bridgeData, _ecoData);
-
         IEcoPortal.Call[] memory routeCalls = _buildRouteCalls(
             _bridgeData,
             _ecoData
@@ -159,7 +162,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         _emitEvents(_bridgeData, _ecoData);
     }
 
-    function _validateBridgeData(
+    function _validateEcoData(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) private pure {
