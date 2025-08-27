@@ -113,6 +113,8 @@ contract RelayDepositoryFacet is
 
         // WARNING: We cannot validate / guarantee that the off-chain-data associated with the provided
         //          orderId corresponds to the _bridgeData (e.g. receiver, destinationChain)
+        // NOTE: If a deposit is higher than the amount associated with the orderId, then the overpaid amount
+        //       will be forwarded to receiver address destination chain (as specified in orderId data off-chain)
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token deposit

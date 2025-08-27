@@ -6,6 +6,8 @@ The RelayDepositoryFacet enables direct deposits of assets into Relay Protocol V
 
 The facet is configured with a specific Relay Depository address during deployment via its constructor parameter. All deposit operations must use this configured depository address.
 
+**Note**: If a deposit amount is higher than the amount associated with the orderId, the overpaid amount will be forwarded to the destination chain (to the receiverAddress specified in the off-chain data associated with orderId)
+
 ## ⚠️ SECURITY WARNING
 
 **IMPORTANT**: This facet has a security limitation that integrators must be aware of:
