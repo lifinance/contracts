@@ -52,8 +52,11 @@ async function main(args: {
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = ADDRESS_USDC_OPT as `0x${string}`
   const amount = parseUnits(args.amount, 6) // USDC has 6 decimals
+  const feeAmount = parseUnits('0.25', 6) // 0.25 USDC fee
 
-  // Ensure wallet has sufficient USDC balance
+  // Ensure wallet has sufficient USDC balance (amount + fee)
+  const totalAmount = amount + feeAmount
+
   const usdcContract = {
     read: {
       balanceOf: async (args: [`0x${string}`]): Promise<bigint> => {
@@ -67,7 +70,7 @@ async function main(args: {
     },
   } as const
 
-  await ensureBalance(usdcContract, signerAddress, amount, publicClient)
+  await ensureBalance(usdcContract, signerAddress, totalAmount, publicClient)
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
@@ -93,7 +96,7 @@ async function main(args: {
     destinationPortal: ECO_PORTAL_ADDRESS,
     prover: ECO_PROVER_ADDRESS,
     rewardDeadline: BigInt(Math.floor(Date.now() / 1000) + 7200), // 2 hours from now
-    solverReward: parseUnits('0.0001', 18), // 0.0001 ETH reward
+    solverReward: feeAmount, // 0.25 USDC fee instead of ETH
     destinationCalls: [], // No destination calls for this demo
   }
 
@@ -129,13 +132,13 @@ async function main(args: {
     tokenContract,
     signerAddress as `0x${string}`,
     lifiDiamondContract.address,
-    amount,
+    amount + feeAmount, // Approve minAmount + fee
     publicClient
   )
 
   // === Start bridging ===
   console.log('Transaction details:')
-  console.log('  Value to send:', ecoData.solverReward.toString())
+  console.log('  USDC fee:', ecoData.solverReward.toString())
   console.log('  Bridge data:', bridgeData)
   console.log('  Eco data:', ecoData)
 
@@ -146,7 +149,7 @@ async function main(args: {
         abi: ECO_FACET_ABI,
         functionName: 'startBridgeTokensViaEco',
         args: [bridgeData, ecoData],
-        value: ecoData.solverReward, // Must send solver reward as msg.value
+        // No value needed - fee is paid in USDC
       }),
     'Starting bridge tokens via Eco',
     publicClient,
