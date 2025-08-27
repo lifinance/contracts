@@ -36,9 +36,8 @@ async function main() {
     await setupEnvironment(srcChain, ECO_FACET_ABI)
   const signerAddress = walletAccount.address
 
-  if (!lifiDiamondContract || !lifiDiamondContract.address) 
+  if (!lifiDiamondContract || !lifiDiamondContract.address)
     throw new Error('LiFi Diamond contract not found')
-  
 
   console.info(`Bridge 5 USDC from ${srcChain} --> Base`)
   console.info(`Connected wallet address: ${signerAddress}`)
@@ -128,6 +127,11 @@ async function main() {
   )
 
   // === Start bridging ===
+  console.log('Transaction details:')
+  console.log('  Value to send:', ecoData.solverReward.toString())
+  console.log('  Bridge data:', bridgeData)
+  console.log('  Eco data:', ecoData)
+
   await executeTransaction(
     () =>
       walletClient.writeContract({
@@ -135,6 +139,7 @@ async function main() {
         abi: ECO_FACET_ABI,
         functionName: 'startBridgeTokensViaEco',
         args: [bridgeData, ecoData],
+        value: ecoData.solverReward, // Must send solver reward as msg.value
       }),
     'Starting bridge tokens via Eco',
     publicClient,
