@@ -7,6 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ICurve } from "lifi/Interfaces/ICurve.sol";
 import { ICurveV2 } from "lifi/Interfaces/ICurveV2.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { BaseRouteConstants } from "lifi/Periphery/LDA/BaseRouteConstants.sol";
 
 /// @title CurveFacet
 /// @author LI.FI (https://li.fi)
@@ -14,10 +15,13 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 /// @dev
 /// Pool Types & Interface Selection:
 /// 1. Legacy Pools (isV2 = false):
-///    - Version <= 0.2.4 (like 3pool, compound, etc.)
+///    - Version <= 0.2.4 (like 3pool, compound, ETH/stETH etc.)
 ///    - Uses 4-arg exchange(i, j, dx, min_dy)
 ///    - No receiver param, always sends to msg.sender
-///    - We must transfer output tokens manually
+///    - Native ETH Support:
+///      * When selling ETH (i == 0): Accepts msg.value as input
+///      * When buying ETH (j == 0): Returns native ETH via raw_call
+///    - We must transfer output tokens manually to destinationAddress
 ///
 /// 2. Modern Pools (isV2 = true):
 ///    - Factory pools and StableNG pools
@@ -25,8 +29,9 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 ///    - Direct transfer to specified receiver
 ///    - For NG pools only: supports optimistic swap via exchange_received
 ///      when from == address(0) signals tokens were pre-sent
+///    - Does not support pure native ETH (uses wrapped versions)
 /// @custom:version 1.0.0
-contract CurveFacet {
+contract CurveFacet is BaseRouteConstants {
     using LibPackedStream for uint256;
     using LibAsset for IERC20;
 
@@ -45,11 +50,17 @@ contract CurveFacet {
     ///     - if `from != msg.sender` - tokens are assumed to be already available (e.g., previous hop).
     ///   Special case (NG optimistic): if `isV2 == 1` and `from == address(0)`, the facet calls
     ///   `exchange_received` on NG pools (tokens must have been pre-sent to the pool).
-    /// - Indices (i,j) must match the pool’s coin ordering.
+    /// - Indices (i,j) must match the pool's coin ordering.
+    /// - Native ETH handling:
+    ///   * For legacy pools (isV2 = false):
+    ///     - When tokenIn is native: msg.value must equal amountIn
+    ///     - When tokenOut is native: balance tracking uses address.balance
+    ///   * For modern pools (isV2 = true):
+    ///     - Native ETH not supported, use wrapped versions
     /// @param swapData Encoded swap parameters [pool, isV2, fromIndex, toIndex, destinationAddress, tokenOut]
     /// @param from Token source address; if equals msg.sender, tokens will be pulled;
     ///             if set to address(0) with isV2==1, signals NG optimistic hop (tokens pre-sent)
-    /// @param tokenIn Input token address
+    /// @param tokenIn Input token address (address(0) for native ETH in legacy pools)
     /// @param amountIn Amount of input tokens (ignored for NG optimistic hop)
     function swapCurve(
         bytes memory swapData,
@@ -69,22 +80,23 @@ contract CurveFacet {
         if (pool == address(0) || destinationAddress == address(0))
             revert InvalidCallData();
 
-        uint256 amountOut;
-
         if (from == msg.sender) {
             LibAsset.depositAsset(tokenIn, amountIn);
         }
 
         LibAsset.maxApproveERC20(IERC20(tokenIn), pool, amountIn);
 
-        // Track balances at the actual receiver for V2, otherwise at this contract
-        address balAccount = isV2 ? destinationAddress : address(this);
-        uint256 balanceBefore = LibAsset.isNativeAsset(tokenOut)
-            ? balAccount.balance
-            : IERC20(tokenOut).balanceOf(balAccount);
+        // Only track balances for legacy path that needs manual transfer. Legacy pools doesn't have receiver param and always sends tokenOut to msg.sender
+        uint256 balanceBefore;
+        if (!isV2 && destinationAddress != address(this)) {
+            bool isNativeOut = LibAsset.isNativeAsset(tokenOut);
+            balanceBefore = isNativeOut
+                ? address(this).balance
+                : IERC20(tokenOut).balanceOf(address(this));
+        }
 
         if (isV2) {
-            if (from == address(0)) {
+            if (from == FUNDS_IN_RECEIVER) {
                 // Optimistic NG hop: tokens already sent to pool by previous hop.
                 // NG requires _dx > 0 and asserts actual delta >= _dx.
                 ICurveV2(pool).exchange_received(
@@ -111,17 +123,17 @@ contract CurveFacet {
             }(fromIndex, toIndex, amountIn, 0);
         }
 
-        uint256 balanceAfter = LibAsset.isNativeAsset(tokenOut)
-            ? balAccount.balance
-            : IERC20(tokenOut).balanceOf(balAccount);
-        amountOut = balanceAfter - balanceBefore;
-
         // Only transfer when legacy path kept tokens on this contract
         if (!isV2 && destinationAddress != address(this)) {
+            bool isNativeOut = LibAsset.isNativeAsset(tokenOut);
+            uint256 balanceAfter = isNativeOut
+                ? address(this).balance
+                : IERC20(tokenOut).balanceOf(address(this));
+
             LibAsset.transferAsset(
                 tokenOut,
                 payable(destinationAddress),
-                amountOut
+                balanceAfter - balanceBefore
             );
         }
     }

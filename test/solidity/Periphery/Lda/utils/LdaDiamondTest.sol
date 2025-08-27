@@ -98,7 +98,11 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
         );
 
         vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
-        address(ldaDiamond).call(nonExistentCalldata);
+        (bool success, bytes memory returnData) = address(ldaDiamond).call(
+            nonExistentCalldata
+        );
+        success; // silence unused variable warning
+        returnData; // silence unused variable warning
     }
 
     function testRevert_CannotCallUnregisteredSelector() public {
@@ -111,6 +115,11 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
         );
 
         vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
-        address(ldaDiamond).call(unregisteredCalldata);
+        // solhint-disable-next-line unused-return
+        (bool success, bytes memory returnData) = address(ldaDiamond).call(
+            unregisteredCalldata
+        );
+        success; // silence unused variable warning
+        returnData; // silence unused variable warning
     }
 }

@@ -13,6 +13,11 @@ contract CurveFacetTest is BaseDEXFacetTest {
     /// @notice Facet proxy for swaps bound to the diamond after setup.
     CurveFacet internal curveFacet;
 
+    /// @notice Additional legacy curve pool for stETH/ETH
+    address internal poolStETHETH;
+    /// @notice stETH token for stETH/ETH pool
+    IERC20 internal stETH;
+
     /// @notice Selects Linea fork and block height used by tests.
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({
@@ -45,6 +50,10 @@ contract CurveFacetTest is BaseDEXFacetTest {
         tokenOut = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7); // USDT
         poolInMid = 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E; // crvUSD-USDC
         poolMidOut = 0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85; // USDC-USDT
+
+        // additional tokens for legacy curve pools
+        poolStETHETH = 0xDC24316b9AE028F1497c275EB9192a3Ea0f67022; // stETH/ETH pool
+        stETH = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84); // stETH
     }
 
     /// @notice Single‐pool swap: USER sends crvUSD → receives USDC.
@@ -147,7 +156,6 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        // Rest of the function remains the same
         SwapTestParams[] memory params = new SwapTestParams[](2);
         bytes[] memory swapData = new bytes[](2);
 
@@ -337,6 +345,88 @@ contract CurveFacetTest is BaseDEXFacetTest {
             }),
             swapDataZeroDestination,
             InvalidCallData.selector
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Legacy stETH pool swap: USER sends native ETH → receives stETH via 4-arg exchange.
+    function test_CanSwap_LegacyEthPool_ETH_to_stETH() public {
+        // stETH/ETH pool on mainnet
+        uint256 amountIn = 1 ether; // 1 native ETH
+
+        // Fund user with ETH
+        vm.deal(USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        // Build legacy swap data for ETH -> stETH
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolStETHETH,
+                isV2: false, // legacy path
+                fromIndex: 0, // ETH index in stETH pool
+                toIndex: 1, // stETH index in stETH pool
+                destinationAddress: USER_SENDER,
+                tokenOut: address(stETH)
+            })
+        );
+
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(0), // Native ETH
+                tokenOut: address(stETH),
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.DistributeNative // Use native ETH distribution
+            }),
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Legacy stETH pool swap: USER sends stETH → receives native ETH via 4-arg exchange.
+    function test_CanSwap_LegacyEthPool_stETH_to_ETH() public {
+        // stETH/ETH pool on mainnet
+        uint256 amountIn = 1 ether; // 1 stETH
+
+        address stETHWhaleAddress = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+
+        // Fund user with stETH
+        vm.prank(stETHWhaleAddress);
+        stETH.transfer(USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        // Build legacy swap data for stETH -> ETH
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolStETHETH,
+                isV2: false, // legacy path
+                fromIndex: 1, // stETH index
+                toIndex: 0, // ETH index
+                destinationAddress: USER_SENDER,
+                tokenOut: address(0) // Native ETH
+            })
+        );
+
+        // Use the standard helper with isFeeOnTransferToken=true to handle stETH balance differences
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(stETH),
+                tokenOut: address(0), // Native ETH
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.DistributeUserERC20
+            }),
+            swapData,
+            new ExpectedEvent[](0),
+            true // Allow for small balance differences due to stETH rebasing
         );
 
         vm.stopPrank();
