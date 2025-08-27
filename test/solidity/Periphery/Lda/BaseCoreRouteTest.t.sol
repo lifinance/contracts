@@ -351,7 +351,10 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         bytes memory route,
         bytes4 expectedRevert
     ) internal {
-        if (params.commandType != CommandType.DistributeSelfERC20) {
+        if (
+            params.commandType != CommandType.DistributeSelfERC20 &&
+            !LibAsset.isNativeAsset(params.tokenIn)
+        ) {
             IERC20(params.tokenIn).approve(
                 address(ldaDiamond),
                 params.amountIn

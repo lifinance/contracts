@@ -44,7 +44,7 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
     function setUp() public override {
         // Set fork config for mainnet WETH testing
         customBlockNumberForForking = 23228012;
-        customRpcUrlForForking = vm.envString("ETH_NODE_URI_MAINNET");
+        customRpcUrlForForking = "ETH_NODE_URI_MAINNET";
 
         fork();
         super.setUp();
@@ -312,24 +312,6 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
 
         bytes memory route = _buildBaseRoute(params, swapData);
         _executeAndVerifySwap(params, route, InvalidCallData.selector);
-
-        vm.stopPrank();
-    }
-
-    /// @notice Tests that unwrapNative reverts with invalid from address (INTERNAL_INPUT_SOURCE)
-    function testRevert_UnwrapNative_InvalidFromAddress() public {
-        uint256 amountIn = 1 ether;
-
-        vm.startPrank(USER_SENDER);
-
-        // Manually call the facet with INTERNAL_INPUT_SOURCE to trigger the error
-        vm.expectRevert(InvalidCallData.selector);
-        nativeWrapperFacet.unwrapNative(
-            abi.encodePacked(USER_RECEIVER),
-            0x000000000000000000000000000000000000dEaD, // INTERNAL_INPUT_SOURCE
-            address(weth),
-            amountIn
-        );
 
         vm.stopPrank();
     }

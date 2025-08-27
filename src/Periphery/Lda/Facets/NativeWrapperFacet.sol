@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
@@ -13,14 +12,7 @@ import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 /// @notice Handles wrapping/unwrapping of native tokens (ETH <-> WETH)
 /// @custom:version 1.0.0
 contract NativeWrapperFacet is BaseRouteConstants {
-    using SafeTransferLib for address;
     using LibPackedStream for uint256;
-
-    // ==== Errors ====
-    /// @dev Thrown when native token operations fail
-    error NativeTransferFailed();
-    /// @dev Thrown when WETH operations fail
-    error WETHOperationFailed();
 
     // ==== External Functions ====
     /// @notice Unwraps WETH to native ETH
@@ -51,39 +43,33 @@ contract NativeWrapperFacet is BaseRouteConstants {
                 address(this),
                 amountIn
             );
-        } else if (from != address(this)) {
-            // INTERNAL_INPUT_SOURCE means tokens are already at this contract
-            revert InvalidCallData();
         }
 
-        try IWETH(tokenIn).withdraw(amountIn) {
-            destinationAddress.safeTransferETH(amountIn);
-        } catch {
-            revert WETHOperationFailed();
+        IWETH(tokenIn).withdraw(amountIn);
+        if (destinationAddress != address(this)) {
+            LibAsset.transferNativeAsset(
+                payable(destinationAddress),
+                amountIn
+            );
         }
     }
 
     /// @notice Wraps native ETH to WETH
     /// @dev Handles wrapping native ETH to WETH and sending to recipient
     /// @param swapData Encoded swap parameters [wrappedNative, destinationAddress]
-    /// @param tokenIn Should be INTERNAL_INPUT_SOURCE
     /// @param amountIn Amount of native ETH to wrap
     function wrapNative(
         bytes memory swapData,
-        address from,
-        address tokenIn,
+        address, // from is not used
+        address, // tokenIn is not used
         uint256 amountIn
     ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
+
         address wrappedNative = stream.readAddress();
         address destinationAddress = stream.readAddress();
 
-        if (
-            wrappedNative == address(0) ||
-            destinationAddress == address(0) ||
-            from != address(this) || // opcode 3 invariant
-            tokenIn != INTERNAL_INPUT_SOURCE // opcode 3 invariant
-        ) {
+        if (wrappedNative == address(0) || destinationAddress == address(0)) {
             revert InvalidCallData();
         }
 
