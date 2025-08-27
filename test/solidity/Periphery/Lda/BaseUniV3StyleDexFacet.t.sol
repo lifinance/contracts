@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { UniV3StyleFacet } from "lifi/Periphery/LDA/Facets/UniV3StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDEXFacetWithCallbackTest } from "./BaseDEXFacetWithCallback.t.sol";
 
 /// @title BaseUniV3StyleDEXFacetTest
@@ -237,5 +238,41 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
                 amountIn: _getDefaultAmountForTokenIn() - 1
             })
         );
+    }
+
+    /// @notice Tests that swaps with amountIn > type(int256).max revert
+    function testBase_Revert_SwapUniV3WithAmountOverInt256Max() public {
+        uint256 amountIn = uint256(type(int256).max) + 10;
+
+        // Fund the sender
+        deal(address(tokenIn), USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        SwapDirection direction = _getDirection(poolInOut, address(tokenIn));
+        bytes memory swapData = _buildUniV3SwapData(
+            UniV3SwapParams({
+                pool: poolInOut,
+                direction: direction,
+                destinationAddress: USER_SENDER
+            })
+        );
+
+        // Build route and execute with expected revert
+        _buildRouteAndExecuteSwap(
+            SwapTestParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.DistributeUserERC20
+            }),
+            swapData,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
     }
 }

@@ -48,8 +48,11 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
         address destinationAddress = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0;
 
-        if (pool == address(0) || destinationAddress == address(0))
-            revert InvalidCallData();
+        if (
+            pool == address(0) ||
+            destinationAddress == address(0) ||
+            amountIn > uint256(type(int256).max)
+        ) revert InvalidCallData();
 
         if (from == msg.sender) {
             IERC20(tokenIn).safeTransferFrom(

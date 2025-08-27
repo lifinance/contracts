@@ -45,7 +45,11 @@ contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticated {
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
         address destinationAddress = stream.readAddress();
 
-        if (pool == address(0) || destinationAddress == address(0)) {
+        if (
+            pool == address(0) ||
+            destinationAddress == address(0) ||
+            amountIn > uint256(type(int256).max)
+        ) {
             revert InvalidCallData();
         }
 
