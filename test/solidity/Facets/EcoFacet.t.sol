@@ -10,7 +10,7 @@ import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
-    constructor(IEcoPortal _intentSource) EcoFacet(_intentSource) {}
+    constructor(IEcoPortal _portal) EcoFacet(_portal) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);

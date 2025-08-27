@@ -21,7 +21,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Storage ///
 
     // solhint-disable-next-line immutable-vars-naming
-    IEcoPortal public immutable intentSource;
+    IEcoPortal public immutable portal;
 
     /// Types ///
 
@@ -51,11 +51,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// Constructor ///
 
-    constructor(IEcoPortal _intentSource) {
-        if (address(_intentSource) == address(0)) {
+    constructor(IEcoPortal _portal) {
+        if (address(_portal) == address(0)) {
             revert InvalidConfig();
         }
-        intentSource = _intentSource;
+        portal = _portal;
     }
 
     /// External Methods ///
@@ -258,17 +258,17 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
 
         if (isNative) {
-            intentSource.publishAndFund{
+            portal.publishAndFund{
                 value: _bridgeData.minAmount + _ecoData.solverReward
             }(intent, false);
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(intentSource),
+                address(portal),
                 _bridgeData.minAmount
             );
 
-            intentSource.publishAndFund{ value: _ecoData.solverReward }(
+            portal.publishAndFund{ value: _ecoData.solverReward }(
                 intent,
                 false
             );
