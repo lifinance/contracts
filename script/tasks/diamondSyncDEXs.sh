@@ -48,7 +48,7 @@ function diamondSyncDEXs {
   if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
     NETWORKS=($(getIncludedNetworksArray))
   else
-    NETWORKS=($NETWORK)
+    NETWORKS=("$NETWORK")
   fi
 
   # Function to check if an address is a token contract
