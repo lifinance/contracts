@@ -73,11 +73,12 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xE38621607316cB43367c134C65dca3f41B61250f",
+      "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5"
+      "TokenWrapper": "0xA5f21f42de766a7183609F4798D211A1CD490a3d"
     }
   }
 }

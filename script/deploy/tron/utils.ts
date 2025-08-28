@@ -1369,9 +1369,7 @@ export function parseTroncastFacetsOutput(
     const address = match[1] || ''
     const selectorsStr = match[2]?.trim() || ''
     const selectors = selectorsStr ? selectorsStr.split(/\s+/) : []
-    if (address) 
-      facets.push([address, selectors])
-    
+    if (address) facets.push([address, selectors])
   }
 
   return facets
