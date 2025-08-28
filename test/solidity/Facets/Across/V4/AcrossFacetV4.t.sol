@@ -6,7 +6,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub AcrossFacetV4 Contract
 contract TestAcrossFacetV4 is AcrossFacetV4 {
@@ -583,6 +583,22 @@ contract AcrossFacetV4Test is TestBaseFacet {
         validAcrossData.receiverAddress = bytes32(0);
 
         vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        acrossFacetV4.startBridgeTokensViaAcrossV4(
+            bridgeData,
+            validAcrossData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_WillFailIfRefundAddressIsZero() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
+
+        // Set refund address to zero (which should cause InvalidCallData)
+        validAcrossData.refundAddress = bytes32(0);
+
+        vm.expectRevert(InvalidCallData.selector);
 
         acrossFacetV4.startBridgeTokensViaAcrossV4(
             bridgeData,

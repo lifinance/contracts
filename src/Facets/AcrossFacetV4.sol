@@ -9,7 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidNonEVMReceiver, InvalidReceiver, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidNonEVMReceiver, InvalidReceiver, InvalidConfig, InvalidCallData } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title AcrossFacetV4
@@ -184,6 +184,11 @@ contract AcrossFacetV4 is
             if (_acrossData.receiverAddress == bytes32(0)) {
                 revert InvalidReceiver();
             }
+        }
+
+        // validate refund address to prevent lost funds
+        if (_acrossData.refundAddress == bytes32(0)) {
+            revert InvalidCallData();
         }
 
         // check if sendingAsset is native or ERC20

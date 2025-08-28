@@ -11,6 +11,10 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title AcrossFacetPackedV4
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across in a gas-optimized way
+/// @dev This packed implementation prioritizes gas optimization over runtime validation.
+///      Critical parameters like refund addresses are not validated to minimize gas costs.
+///      Callers must ensure valid parameters to avoid potential loss of funds.
+///      For more validation and safety, use the non-packed AcrossFacetV4 via LiFiDiamond.
 /// @custom:version 1.0.0
 contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// Storage ///
@@ -38,7 +42,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     struct PackedParameters {
         bytes32 transactionId;
         bytes32 receiver;
-        bytes32 depositor;
+        bytes32 depositor; // also acts as refund address in case release tx cannot be executed
         bytes32 sendingAssetId;
         uint64 destinationChainId;
         bytes32 receivingAssetId;
@@ -96,7 +100,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [0:4] - function selector
     /// [4:12] - transactionId
     /// [12:44] - receiver
-    /// [44:76] - depositor
+    /// [44:76] - depositor (also acts as refund address in case release tx cannot be executed)
     /// [76:108] - sendingAssetId (bytes32)
     /// [108:140] - outputAmount
     /// [140:172] - destinationChainId
@@ -105,6 +109,10 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [208:212] - fillDeadline
     /// [212:216] - exclusivityDeadline
     /// [216:] - message
+    /// @dev NOTE: This packed implementation prioritizes gas optimization over runtime validation.
+    ///      The depositor parameter (refund address) is not validated to be non-zero.
+    ///      Callers must ensure valid parameters to avoid potential loss of funds.
+    ///      For full validation, use the non-packed AcrossFacetV4 implementation.
     function startBridgeTokensViaAcrossV4NativePacked() external payable {
         // call Across spoke pool to bridge assets
         SPOKEPOOL.deposit{ value: msg.value }(
@@ -127,6 +135,10 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
 
     /// @notice Bridges native tokens via Across (minimal implementation)
     /// @param _parameters Contains all parameters required for native bridging with AcrossV4
+    /// @dev NOTE: This minimal implementation prioritizes gas optimization over runtime validation.
+    ///      The depositor parameter (refund address) is not validated to be non-zero.
+    ///      Callers must ensure valid parameters to avoid potential loss of funds.
+    ///      For full validation, use the non-packed AcrossFacetV4 implementation.
     function startBridgeTokensViaAcrossV4NativeMin(
         PackedParameters calldata _parameters
     ) external payable {
@@ -154,7 +166,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [0:4] - function selector
     /// [4:12] - transactionId
     /// [12:44] - receiver
-    /// [44:76] - depositor
+    /// [44:76] - depositor (also acts as refund address in case release tx cannot be executed)
     /// [76:108] - sendingAssetId (bytes32)
     /// [108:124] - inputAmount
     /// [124:128] - destinationChainId
@@ -165,6 +177,10 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [228:232] - fillDeadline
     /// [232:236] - exclusivityDeadline
     /// [236:] - message
+    /// @dev NOTE: This packed implementation prioritizes gas optimization over runtime validation.
+    ///      The depositor parameter (refund address) is not validated to be non-zero.
+    ///      Callers must ensure valid parameters to avoid potential loss of funds.
+    ///      For full validation, use the non-packed AcrossFacetV4 implementation.
     function startBridgeTokensViaAcrossV4ERC20Packed() external {
         bytes32 sendingAssetId = bytes32(msg.data[76:108]);
         uint256 inputAmount = uint256(uint128(bytes16(msg.data[108:124])));
@@ -197,6 +213,10 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// @notice Bridges ERC20 tokens via Across (minimal implementation)
     /// @param _parameters Contains all base parameters required for bridging with AcrossV4
     /// @param inputAmount The amount to be bridged (including fees)
+    /// @dev NOTE: This minimal implementation prioritizes gas optimization over runtime validation.
+    ///      The depositor parameter (refund address) is not validated to be non-zero.
+    ///      Callers must ensure valid parameters to avoid potential loss of funds.
+    ///      For full validation, use the non-packed AcrossFacetV4 implementation.
     function startBridgeTokensViaAcrossV4ERC20Min(
         PackedParameters calldata _parameters,
         uint256 inputAmount
