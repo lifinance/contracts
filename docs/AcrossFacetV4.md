@@ -15,7 +15,7 @@ graph LR;
 - **Non-EVM Chain Support**: Enhanced support for non-EVM chains like Solana with proper address validation and event emission
 - **Bytes32 Address Format**: Uses `bytes32` format for addresses to support both EVM and non-EVM chains
 - **Decimal Adjustment**: Automatic output amount adjustment for pre-bridge swaps using `outputAmountMultiplier`
-- **Chain ID Mapping**: Custom chain ID mapping for non-EVM chains (e.g., Solana)
+- **Chain ID Mapping**: Custom chain ID mapping for non-EVM chains (e.g., Solana uses Across-specific ID 34268394551451)
 - **Enhanced Validation**: Improved validation for receiver addresses and destination calls
 
 ## Public Methods
@@ -71,6 +71,16 @@ struct AcrossV4Data {
 3. **Non-EVM Support**: Enhanced validation and event emission for non-EVM chains
 4. **Chain ID Mapping**: Custom chain ID conversion for non-EVM chains
 
+### Chain ID Mapping
+
+AcrossFacetV4 includes custom chain ID mapping for non-EVM chains:
+
+- **LiFi Internal ID**: `LIFI_CHAIN_ID_SOLANA = 1151111081099710` (used internally by LiFi)
+- **Across-Specific ID**: `ACROSS_CHAIN_ID_SOLANA = 34268394551451` (used when calling Across SpokePool)
+- **EVM Chains**: Chain IDs are passed through unchanged (no mapping required)
+
+The `_getAcrossChainId()` function automatically converts LiFi internal chain IDs to their Across-specific equivalents when needed.
+
 ### Output Amount Multiplier
 
 The `outputAmountMultiplier` field is used to adjust the output amount when performing pre-bridge swaps. It accounts for differences in token decimals between input and output tokens. The calculation is:
@@ -85,7 +95,7 @@ The division by 1e18 allows for adjustment in both directions (e.g., from 6 to 1
 
 AcrossFacetV4 includes enhanced support for non-EVM chains:
 
-- **Solana Support**: Custom chain ID mapping (100000) for Solana
+- **Solana Support**: Custom chain ID mapping (34268394551451) for Solana
 - **Address Validation**: Proper validation for non-EVM receiver addresses
 - **Event Emission**: Special events for non-EVM chain transfers
 - **Bytes32 Format**: All addresses use bytes32 format for cross-chain compatibility

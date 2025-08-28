@@ -103,7 +103,7 @@ interface IAcrossV4Limit {
 // const ACROSS_API_BASE_URL = 'https://across.to/api'
 const ACROSS_API_BASE_URL =
   'https://app-frontend-v3-git-epic-solana-v1-uma.vercel.app/api' // tmp API for testing
-const ACROSS_CHAIN_ID_SOL = 34268394551451 // Across Custom ID for Solana
+const ACROSS_CHAIN_ID_SOL = 34268394551451 // Across Custom ID for Solana (differs from LiFi internal ID 1151111081099710)
 /// #################
 
 /// HELPER FUNCTIONS
