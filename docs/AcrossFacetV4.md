@@ -33,9 +33,10 @@ The methods listed above take a variable labeled `_acrossData`. This data is spe
 /// @param receiverAddress The address that will receive the token on dst chain
 ///                        (our Receiver contract or the user-defined receiver address)
 /// @param refundAddress The address that will be used for potential bridge refunds
+/// @param sendingAssetId The address of the token being sent from the source chain
 /// @param receivingAssetId The address of the token to be received at destination chain
 /// @param outputAmount The amount to be received at destination chain (after fees)
-/// @param outputAmountMultiplier In case of pre-bridge swaps we need to adjust the output amount
+/// @param outputAmountMultiplier In case of pre-bridge swaps we need to adjust the output amount (uint128 type, 1e18 base)
 /// @param exclusiveRelayer This is the exclusive relayer who can fill the deposit before the exclusivity deadline.
 /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
 /// @param fillDeadline The destination chain timestamp until which the order can be filled
@@ -51,6 +52,7 @@ The methods listed above take a variable labeled `_acrossData`. This data is spe
 struct AcrossV4Data {
   bytes32 receiverAddress;
   bytes32 refundAddress;
+  bytes32 sendingAssetId;
   bytes32 receivingAssetId;
   uint256 outputAmount;
   uint128 outputAmountMultiplier;
@@ -74,10 +76,10 @@ struct AcrossV4Data {
 The `outputAmountMultiplier` field is used to adjust the output amount when performing pre-bridge swaps. It accounts for differences in token decimals between input and output tokens. The calculation is:
 
 ```
-adjustedOutputAmount = (inputAmount * outputAmountMultiplier) / 1e30
+adjustedOutputAmount = (inputAmount * outputAmountMultiplier) / 1e18
 ```
 
-The division by 1e30 allows for adjustment in both directions (e.g., from 6 to 18 decimals and vice versa).
+The division by 1e18 allows for adjustment in both directions (e.g., from 6 to 18 decimals and vice versa). The multiplier should be calculated as: `multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)`.
 
 ## Non-EVM Chain Support
 
