@@ -65,12 +65,11 @@ contract SyncSwapV2Facet {
             ISyncSwapVault(target).deposit(tokenIn, pool);
         }
 
-        bytes memory data = abi.encode(
-            tokenIn,
-            destinationAddress,
-            withdrawMode
+        ISyncSwapPool(pool).swap(
+            abi.encode(tokenIn, destinationAddress, withdrawMode),
+            from,
+            address(0),
+            new bytes(0)
         );
-
-        ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
     }
 }

@@ -7,6 +7,7 @@ import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IUniV2StylePool } from "lifi/Interfaces/IUniV2StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
+import { WrongPoolReserves } from "../Errors/Errors.sol";
 
 /// @title UniV2StyleFacet
 /// @author LI.FI (https://li.fi)
@@ -18,10 +19,6 @@ contract UniV2StyleFacet is BaseRouteConstants {
     // ==== Constants ====
     /// @dev Fee denominator for UniV2-style pools (100% = 1_000_000)
     uint256 private constant FEE_DENOMINATOR = 1_000_000;
-
-    // ==== Errors ====
-    /// @dev Thrown when pool reserves are zero, indicating an invalid pool state
-    error WrongPoolReserves();
 
     // ==== External Functions ====
     /// @notice Executes a UniswapV2-style swap

@@ -260,7 +260,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         );
 
         // Build route and execute with expected revert
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),

@@ -184,7 +184,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -297,7 +297,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
 
         bytes memory swapData = _buildCallbackSwapData(mockPool, USER_SENDER);
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -340,7 +340,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -419,7 +419,11 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
             commandType: CommandType.DistributeUserERC20
         });
 
-        _buildRouteAndExecuteSwap(params, swapData, InvalidCallData.selector);
+        _buildRouteAndExecuteAndVerifySwap(
+            params,
+            swapData,
+            InvalidCallData.selector
+        );
 
         vm.stopPrank();
         vm.clearMockedCalls();

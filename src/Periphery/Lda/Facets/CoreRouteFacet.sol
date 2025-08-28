@@ -226,7 +226,7 @@ contract CoreRouteFacet is
     ///
     /// 5. ApplyPermit:
     ///    [5][value: uint256][deadline: uint256][v: uint8][r: bytes32][s: bytes32]
-    ///    Calls permit on tokenIn for msg.sender → address(this). No swap occurs.
+    ///    Calls permit on tokenIn for msg.sender -> address(this). No swap occurs.
     ///
     /// Leg data encoding:
     /// Each leg's data field contains [selector (4 bytes) | payload (bytes)].
@@ -264,8 +264,7 @@ contract CoreRouteFacet is
     /// @param tokenIn The input token address
     /// @param declaredAmountIn The declared input amount
     /// @param route The encoded route data
-    /// @return realAmountIn The actual amount used in the first hop. For opcode 1: contract balance minus 1,
-    ///         for opcode 3: contract's ETH balance, for opcode 2: equals declaredAmountIn
+    /// @return realAmountIn The actual amount used in the first hop
     function _runRoute(
         address tokenIn,
         uint256 declaredAmountIn,
@@ -368,37 +367,50 @@ contract CoreRouteFacet is
     }
 
     /// @notice Distributes tokens across multiple pools based on share ratios
+    /// @dev This function implements proportional distribution where:
+    ///      - Each leg gets a percentage of the total based on its share value
+    ///      - Shares are encoded as uint16 where 65535 (type(uint16).max) = 100%
+    ///      - The last leg gets all remaining tokens to handle rounding errors
+    ///      - Example: 60/40 split would use shares [39321, 26214] since:
+    ///        39321/65535 ≈ 0.6 and 26214/65535 ≈ 0.4
     /// @param cur The current position in the byte stream
     /// @param from The source address for tokens
     /// @param tokenIn The token being distributed
-    /// @param total The total amount to distribute
+    /// @param total The total amount to distribute across all legs
     function _distributeAndSwap(
         uint256 cur,
         address from,
         address tokenIn,
         uint256 total
     ) private {
+        // Read number of swap legs from the stream
         uint8 n = cur.readUint8();
         unchecked {
             uint256 remaining = total;
             for (uint256 i = 0; i < n; ++i) {
+                // Read the proportional share for this leg (0-65535 scale)
                 uint16 share = cur.readUint16();
-                uint256 amt = i == n - 1
-                    ? remaining
-                    : (total * share) / type(uint16).max; // compute vs original total
-                if (amt > remaining) amt = remaining;
-                remaining -= amt;
-                _dispatchSwap(cur, from, tokenIn, amt);
+
+                // Calculate amount for this leg:
+                // - For intermediate legs: proportional amount based on share
+                // - For last leg: all remaining tokens (handles rounding dust)
+                uint256 legAmount = i == n - 1
+                    ? remaining // Last leg gets all remaining to avoid dust
+                    : (total * share) / type(uint16).max; // Proportional calculation
+
+                // Safety check: never exceed what's left to distribute
+                if (legAmount > remaining) legAmount = remaining;
+
+                // Update remaining balance for next iteration
+                remaining -= legAmount;
+
+                // Execute the swap for this leg with calculated amount
+                _dispatchSwap(cur, from, tokenIn, legAmount);
             }
         }
     }
 
     /// @notice Dispatches a swap call to the appropriate DEX facet
-    /// @dev Uses direct selector dispatch with optimized calldata construction
-    ///      Assembly is used to:
-    ///      - Build calldata for delegatecall without extra memory copies/abi.encode overhead
-    ///      - Reuse the payload already read from the stream without re-encoding
-    ///      - Keep memory usage predictable and cheap across arbitrary payload sizes
     /// @param cur The current position in the byte stream
     /// @param from The source address for tokens
     /// @param tokenIn The input token address
@@ -415,8 +427,9 @@ contract CoreRouteFacet is
         // Extract function selector (first 4 bytes of data)
         bytes4 selector = _readSelector(data);
 
-        // Compute payload length directly (data = [len | selector(4) | payload])
-
+        // Calculate payload length by subtracting selector size from total data length
+        // data memory layout: [length][selector(4 bytes)][payload...]
+        // mload(data) reads the length field, then we subtract 4 bytes for the selector
         uint256 payloadLen;
         assembly {
             payloadLen := sub(mload(data), 4)
@@ -535,19 +548,17 @@ contract CoreRouteFacet is
     }
 
     /// @notice Creates a new bytes view that aliases blob without the first 4 bytes (selector)
-    /// @dev Assembly used to:
-    ///      - Point into the original bytes (no allocation/copy)
-    ///      - Rewrite the length to exclude the 4-byte selector
-    ///      This is safe here because we treat the result as a read-only slice.
     /// @param blob The original calldata bytes
     /// @return payload The calldata without selector
     function _payloadFrom(
         bytes memory blob
     ) private pure returns (bytes memory payload) {
         assembly {
-            // payload points at blob + 4, sharing the same underlying buffer
+            // Point payload 4 bytes into blob's data section (skipping selector)
+            // Memory layout: [length][data...] -> payload points to [data+4...]
             payload := add(blob, 4)
-            // set payload.length = blob.length - 4
+            // Update length field: original_length - 4 (selector size)
+            // This creates a valid bytes object that references blob's memory
             mstore(payload, sub(mload(blob), 4))
         }
     }

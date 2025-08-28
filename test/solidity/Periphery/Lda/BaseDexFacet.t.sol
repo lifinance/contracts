@@ -6,19 +6,16 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { BaseCoreRouteTest } from "./BaseCoreRouteTest.t.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
-/**
- * @title BaseDEXFacetTest
- * @notice Base test contract with common functionality and abstractions for DEX-specific tests.
- * @dev Child tests implement the virtual hooks to:
- *      - choose fork/network
- *      - set pool/token addresses
- *      - deploy and register their DEX facet + callback (if applicable)
- *
- *      Usage:
- *      - Inherit and implement `_setupForkConfig`, `_setupDexEnv`,
- *        and facet creation hooks.
- *      - Call core helpers like `_buildMultiHopRoute` and `_addDexFacet`.
- */
+/// @title BaseDEXFacetTest
+/// @notice Base test contract with common functionality and abstractions for DEX-specific tests.
+/// @dev Child tests implement the virtual hooks to:
+///      - choose fork/network
+///      - set pool/token addresses
+///      - deploy and register their DEX facet + callback (if applicable)///
+///      Usage:
+///      - Inherit and implement `_setupForkConfig`, `_setupDexEnv`,
+///        and facet creation hooks.
+///      - Call core helpers like `_buildMultiHopRoute` and `_addDexFacet`.
 abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
     using SafeERC20 for IERC20;
 
@@ -43,8 +40,6 @@ abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
 
     // ==== Errors ====
 
-    /// @notice Thrown when an expected pool reserve shape is not met in setup.
-    error WrongPoolReserves();
     /// @notice Thrown when a required on-chain pool does not exist.
     error PoolDoesNotExist();
     /// @notice Thrown when hopParams and hopData arrays differ in length.

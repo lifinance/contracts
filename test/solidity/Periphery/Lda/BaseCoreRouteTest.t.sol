@@ -46,7 +46,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         bool checkData;
         bytes32 eventSelector; // The event selector (keccak256 hash of the event signature)
         bytes[] eventParams; // The event parameters, each encoded separately
-        uint8[] indexedParamIndices; // indices of params that are indexed (→ topics 1..3)
+        uint8[] indexedParamIndices; // indices of params that are indexed (topics 1..3)
     }
 
     /// @notice Tuning for verifying the core `Route` event.
@@ -181,13 +181,19 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         }
     }
 
-    /// @notice Executes a built route and verifies balances and events.
-    /// @param params Swap params; if DistributeSelfERC20, measures in/out at the diamond.
-    /// @param route Pre-built route bytes (single or multi-hop).
-    /// @param additionalEvents Additional external events to expect.
-    /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer (tolerates off-by-1 spent).
-    /// @param routeEventVerification Route event check configuration (exact out optional).
-    /// @dev Approves tokenIn if not aggregator-funded. Emits and verifies Route event.
+    /// @notice Executes a built route and verifies balances and events with full verification options
+    /// @param params Swap parameters including token addresses, amounts, and command type
+    /// @param route Pre-built route bytes (single or multi-hop)
+    /// @param additionalEvents Additional external events to expect during execution
+    /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer token (tolerates off-by-1 spent)
+    /// @param routeEventVerification Route event check configuration for exact output and data validation
+    /// @dev Handles the following:
+    ///      - Approves tokenIn if not aggregator-funded
+    ///      - Tracks balances before/after for both input and output tokens
+    ///      - Emits and verifies Route event with specified verification options
+    ///      - Supports native token transfers via msg.value
+    ///      - Validates token spent matches expected amount (with fee-on-transfer tolerance)
+    ///      - Ensures positive output amount received
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -294,7 +300,15 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         assertGt(outAfter - outBefore, 0, "Should receive tokens");
     }
 
-    /// @notice Convenience overload for `_executeAndVerifySwap` without exact-out check.
+    /// @notice Executes a built route with basic verification and no exact output check
+    /// @param params Swap parameters including token addresses, amounts, and command type
+    /// @param route Pre-built route bytes (single or multi-hop)
+    /// @param additionalEvents Additional external events to expect during execution
+    /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer token (tolerates off-by-1 spent)
+    /// @dev Convenience overload that:
+    ///      - Sets expectedExactOut to 0 (no exact output verification)
+    ///      - Disables Route event data validation
+    ///      - Maintains all other verification steps from the full version
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -310,7 +324,15 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         );
     }
 
-    /// @notice Convenience overload for `_executeAndVerifySwap` with only params and route.
+    /// @notice Executes a built route with minimal verification
+    /// @param params Swap parameters including token addresses, amounts, and command type
+    /// @param route Pre-built route bytes (single or multi-hop)
+    /// @dev Simplest overload that:
+    ///      - Assumes non-fee-on-transfer token
+    ///      - Expects no additional events
+    ///      - Disables exact output verification
+    ///      - Disables Route event data validation
+    ///      - Useful for basic swap tests without complex verification needs
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route
@@ -324,7 +346,16 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         );
     }
 
-    /// @notice Convenience overload for `_executeAndVerifySwap` with fee-on-transfer toggle.
+    /// @notice Executes a built route with fee-on-transfer support
+    /// @param params Swap parameters including token addresses, amounts, and command type
+    /// @param route Pre-built route bytes (single or multi-hop)
+    /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer token (tolerates off-by-1 spent)
+    /// @dev Convenience overload that:
+    ///      - Supports fee-on-transfer tokens via tolerance parameter
+    ///      - Expects no additional events
+    ///      - Disables exact output verification
+    ///      - Disables Route event data validation
+    ///      - Useful for testing fee-on-transfer tokens without complex event verification
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -339,13 +370,15 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         );
     }
 
-    /// @notice Executes route expecting a specific revert error selector.
-    /// @param params Swap params; for aggregator funds, the helper deliberately uses amountIn-1 to trigger errors.
-    /// @param route Pre-built route bytes.
-    /// @param expectedRevert Error selector expected from `processRoute`.
-    /// @dev Example:
-    ///      vm.expectRevert(Errors.SwapCallbackNotExecuted.selector);
-    ///      _executeAndVerifySwap(params, route, Errors.SwapCallbackNotExecuted.selector);
+    /// @notice Executes a route expecting a specific revert error
+    /// @param params Swap parameters including token addresses, amounts, and command type
+    /// @param route Pre-built route bytes (single or multi-hop)
+    /// @param expectedRevert Error selector that should be thrown by processRoute
+    /// @dev Special overload for testing failure cases:
+    ///      - For aggregator funds (DistributeSelfERC20), uses amountIn-1 to trigger errors
+    ///      - For user funds, approves full amountIn but sends amountIn-1
+    ///      - Sets minOut to 0 for testing focus
+    ///      - Verifies exact error selector match
     function _executeAndVerifySwap(
         SwapTestParams memory params,
         bytes memory route,
@@ -374,14 +407,18 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         );
     }
 
-    /// @notice Helper that builds route and executes swap in one call, with extended verification options.
-    /// @param params SwapTestParams for building and executing.
-    /// @param swapData DEX-specific swap data to pack.
-    /// @param expectedEvents Additional events to expect.
-    /// @param expectRevert Treats token as fee-on-transfer to adjust spent checking if true.
-    /// @param verification Route event verification configuration.
-    /// @dev Primarily used by complex tests to keep scenario assembly terse.
-    function _buildRouteAndExecuteSwap(
+    /// @notice Builds route and executes swap with full verification options in a single call
+    /// @param params SwapTestParams for building and executing the swap
+    /// @param swapData DEX-specific swap data to pack into the route
+    /// @param expectedEvents Additional events to expect during execution
+    /// @param expectRevert Whether to treat tokenIn as fee-on-transfer for spent checking
+    /// @param verification Route event verification configuration
+    /// @dev Comprehensive helper that:
+    ///      - Builds route using _buildBaseRoute
+    ///      - Executes swap with full verification options
+    ///      - Supports all verification features: events, fee-on-transfer, exact output
+    ///      - Primarily used by complex test scenarios to keep code concise
+    function _buildRouteAndExecuteAndVerifySwap(
         SwapTestParams memory params,
         bytes memory swapData,
         ExpectedEvent[] memory expectedEvents,
@@ -398,12 +435,22 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         );
     }
 
-    /// @notice Overload: builds route and runs default execution checks.
-    function _buildRouteAndExecuteSwap(
+    /// @notice Builds route and executes swap with default verification settings
+    /// @param params SwapTestParams for building and executing the swap
+    /// @param swapData DEX-specific swap data to pack into the route
+    /// @dev Simple helper that:
+    ///      - Builds route using _buildBaseRoute
+    ///      - Executes with default settings:
+    ///        - No additional events
+    ///        - No fee-on-transfer handling
+    ///        - No exact output verification
+    ///        - No Route event data validation
+    ///      - Useful for basic swap test scenarios
+    function _buildRouteAndExecuteAndVerifySwap(
         SwapTestParams memory params,
         bytes memory swapData
     ) internal {
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             params,
             swapData,
             new ExpectedEvent[](0),
@@ -412,8 +459,16 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         );
     }
 
-    /// @notice Overload: builds route and expects a revert.
-    function _buildRouteAndExecuteSwap(
+    /// @notice Builds route and executes swap expecting a specific revert error
+    /// @param params SwapTestParams for building and executing the swap
+    /// @param swapData DEX-specific swap data to pack into the route
+    /// @param expectedRevert Error selector that should be thrown by processRoute
+    /// @dev Revert testing helper that:
+    ///      - Builds route using _buildBaseRoute
+    ///      - Delegates to _executeAndVerifySwap's revert testing logic
+    ///      - For aggregator funds, uses amountIn-1 to trigger errors
+    ///      - Sets minOut to 0 to focus on specific error cases
+    function _buildRouteAndExecuteAndVerifySwap(
         SwapTestParams memory params,
         bytes memory swapData,
         bytes4 expectedRevert
@@ -422,8 +477,19 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         _executeAndVerifySwap(params, route, expectedRevert);
     }
 
-    /// @notice Overload: builds route and runs with fee-on-transfer toggle and extra events.
-    function _buildRouteAndExecuteSwap(
+    /// @notice Builds route and executes swap with fee-on-transfer support and event verification
+    /// @param params SwapTestParams for building and executing the swap
+    /// @param swapData DEX-specific swap data to pack into the route
+    /// @param additionalEvents Additional events to expect during execution
+    /// @param isFeeOnTransferToken Whether tokenIn is fee-on-transfer token (tolerates off-by-1 spent)
+    /// @dev Extended helper that:
+    ///      - Builds route using _buildBaseRoute
+    ///      - Supports fee-on-transfer tokens via tolerance parameter
+    ///      - Allows verification of additional protocol events
+    ///      - Disables exact output verification
+    ///      - Disables Route event data validation
+    ///      - Useful for testing complex scenarios with fee-on-transfer tokens
+    function _buildRouteAndExecuteAndVerifySwap(
         SwapTestParams memory params,
         bytes memory swapData,
         ExpectedEvent[] memory additionalEvents,
@@ -448,25 +514,19 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         }
     }
 
-    /**
-     * @notice Sets up event expectations for a list of events
-     * @param events Array of events to expect
-     * @dev Each `ExpectedEvent` can independently toggle checking indexed topics and data.
-     */
+    /// @notice Sets up event expectations for a list of events
+    /// @param events Array of events to expect
+    /// @dev Each `ExpectedEvent` can independently toggle checking indexed topics and data.
     function _expectEvents(ExpectedEvent[] memory events) internal {
         for (uint256 i = 0; i < events.length; i++) {
             _expectEvent(events[i]);
         }
     }
 
-    /**
-     * @notice Sets up expectation for a single event
-     * @param evt The event to expect with its check parameters and data
-     * @dev Builds the right number of topics based on `indexedParamIndices`, and an ABI-packed data
-     *      payload of non-indexed params (static only).
-     * @custom:error TooManyIndexedParams if more than 3 indexed params are specified.
-     * @custom:error DynamicParamsNotSupported if any non-indexed param is not 32 bytes.
-     */
+    /// @notice Sets up expectation for a single event
+    /// @param evt The event to expect with its check parameters and data
+    /// @dev Builds the right number of topics based on `indexedParamIndices`, and an ABI-packed data
+    ///      payload of non-indexed params (static only).
     function _expectEvent(ExpectedEvent memory evt) internal {
         vm.expectEmit(
             evt.checkTopic1,

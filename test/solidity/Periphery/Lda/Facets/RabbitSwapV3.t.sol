@@ -45,7 +45,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -77,7 +77,7 @@ contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),

@@ -7,6 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
+import { WrongPoolReserves } from "../Errors/Errors.sol";
 
 /// @title VelodromeV2Facet
 /// @author LI.FI (https://li.fi)
@@ -18,10 +19,6 @@ contract VelodromeV2Facet is BaseRouteConstants {
     // ==== Constants ====
     /// @dev Flag to enable post-swap callback with flashloan data
     uint8 internal constant CALLBACK_ENABLED = 1;
-
-    // ==== Errors ====
-    /// @dev Thrown when pool reserves are zero, indicating an invalid pool state
-    error WrongPoolReserves();
 
     // ==== External Functions ====
     /// @notice Performs a swap through VelodromeV2 pools

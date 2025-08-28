@@ -68,7 +68,7 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
         weth = IWETH(ADDRESS_WRAPPED_NATIVE); // Use constant from TestBase
     }
 
-    // ==== Positive Test Cases ====
+    // ==== Test Cases ====
 
     /// @notice Tests unwrapping WETH to ETH from user funds
     function test_CanUnwrap() public {
@@ -218,8 +218,6 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
 
         vm.stopPrank();
     }
-
-    // ==== Negative Test Cases ====
 
     /// @notice Tests that unwrapNative reverts with zero destination address
     function testRevert_UnwrapNative_ZeroDestinationAddress() public {

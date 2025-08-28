@@ -123,7 +123,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -158,7 +158,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -174,7 +174,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
         vm.stopPrank();
     }
 
-    /// @notice Multi-hop user→aggregator USDC->WETH->USDB_C flow.
+    /// @notice Multi-hop user->aggregator USDC->WETH->USDB_C flow.
     function test_CanSwap_MultiHop() public override {
         // Fund the sender with tokens
         uint256 amountIn = _getDefaultAmountForTokenIn();
@@ -275,7 +275,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenMid),
                 tokenOut: address(tokenIn),

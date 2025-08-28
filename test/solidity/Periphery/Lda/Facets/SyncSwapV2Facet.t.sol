@@ -55,7 +55,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         poolMidOut = 0x258d5f860B11ec73Ee200eB14f1b60A3B7A536a2; // USDC-USDT V1
     }
 
-    /// @notice Single‐pool swap: USER sends WETH → receives USDC.
+    /// @notice Single‐pool swap: USER sends WETH -> receives USDC.
     function test_CanSwap() public override {
         // Transfer 1 000 WETH from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
@@ -72,7 +72,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -105,7 +105,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -142,7 +142,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -179,7 +179,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -287,7 +287,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -321,7 +321,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -346,7 +346,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 })
             );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -384,7 +384,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         // Approve tokens for the swap
         tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -421,7 +421,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
         // Approve tokens for the swap
         tokenIn.approve(address(ldaDiamond), _getDefaultAmountForTokenIn());
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),

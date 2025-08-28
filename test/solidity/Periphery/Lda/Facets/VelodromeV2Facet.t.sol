@@ -8,6 +8,7 @@ import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { VelodromeV2Facet } from "lifi/Periphery/Lda/Facets/VelodromeV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { WrongPoolReserves } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 
 /// @title VelodromeV2FacetTest
@@ -477,7 +478,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -502,7 +503,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
                 })
             );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -622,11 +623,9 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
 
     // ==== Helper Functions ====
 
-    /**
-     * @notice Helper to execute a VelodromeV2 swap with optional callback expectation and strict event checking.
-     * @param params The swap request including direction and whether callback is enabled.
-     * @dev Computes expected outputs via router, builds payload, and asserts Route + optional HookCalled event.
-     */
+    /// @notice Helper to execute a VelodromeV2 swap with optional callback expectation and strict event checking.
+    /// @param params The swap request including direction and whether callback is enabled.
+    /// @dev Computes expected outputs via router, builds payload, and asserts Route + optional HookCalled event.
     function _testSwap(VelodromeV2SwapTestParams memory params) internal {
         // get expected output amounts from the router.
         IVelodromeV2Router.Route[]

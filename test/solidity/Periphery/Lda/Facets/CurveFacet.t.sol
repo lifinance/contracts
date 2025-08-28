@@ -56,7 +56,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
         stETH = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84); // stETH
     }
 
-    /// @notice Single‐pool swap: USER sends crvUSD → receives USDC.
+    /// @notice Single‐pool swap: USER sends crvUSD -> receives USDC.
     function test_CanSwap() public override {
         // Transfer 1 000 crvUSD from whale to USER_SENDER
         deal(address(tokenIn), USER_SENDER, _getDefaultAmountForTokenIn());
@@ -74,7 +74,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -111,7 +111,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -211,7 +211,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
         // Curve does not use callbacks - test intentionally empty
     }
 
-    /// @notice Legacy 3pool swap: USER sends USDC → receives USDT via 4-arg exchange (isV2=false).
+    /// @notice Legacy 3pool swap: USER sends USDC -> receives USDT via 4-arg exchange (isV2=false).
     function test_CanSwap_Legacy3Pool_USDC_to_USDT() public {
         // 3pool (DAI,USDC,USDT) mainnet
         address poolLegacy = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7;
@@ -222,7 +222,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
 
         vm.startPrank(USER_SENDER);
 
-        // Build legacy swap data (isV2=false → 4-arg exchange)
+        // Build legacy swap data (isV2=false -> 4-arg exchange)
         bytes memory swapData = _buildCurveSwapData(
             CurveSwapParams({
                 pool: poolLegacy,
@@ -234,7 +234,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenMid), // USDC
                 tokenOut: address(tokenOut), // USDT
@@ -250,7 +250,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
-    /// @notice Legacy 3pool swap funded by aggregator: USDC → USDT via 4-arg exchange (isV2=false).
+    /// @notice Legacy 3pool swap funded by aggregator: USDC -> USDT via 4-arg exchange (isV2=false).
     function test_CanSwap_FromDexAggregator_Legacy3Pool_USDC_to_USDT() public {
         address poolLegacy = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7;
         uint256 amountIn = 1_000 * 1e6;
@@ -271,7 +271,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenMid), // USDC
                 tokenOut: address(tokenOut), // USDT
@@ -307,7 +307,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -333,7 +333,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenMid),
@@ -350,7 +350,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
-    /// @notice Legacy stETH pool swap: USER sends native ETH → receives stETH via 4-arg exchange.
+    /// @notice Legacy stETH pool swap: USER sends native ETH -> receives stETH via 4-arg exchange.
     function test_CanSwap_LegacyEthPool_ETH_to_stETH() public {
         // stETH/ETH pool on mainnet
         uint256 amountIn = 1 ether; // 1 native ETH
@@ -372,7 +372,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(0), // Native ETH
                 tokenOut: address(stETH),
@@ -388,7 +388,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
-    /// @notice Legacy stETH pool swap: USER sends stETH → receives native ETH via 4-arg exchange.
+    /// @notice Legacy stETH pool swap: USER sends stETH -> receives native ETH via 4-arg exchange.
     function test_CanSwap_LegacyEthPool_stETH_to_ETH() public {
         // stETH/ETH pool on mainnet
         uint256 amountIn = 1 ether; // 1 stETH
@@ -414,7 +414,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
         );
 
         // Use the standard helper with isFeeOnTransferToken=true to handle stETH balance differences
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(stETH),
                 tokenOut: address(0), // Native ETH

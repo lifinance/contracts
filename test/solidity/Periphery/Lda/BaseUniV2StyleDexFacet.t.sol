@@ -211,7 +211,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -241,7 +241,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
@@ -271,7 +271,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
             })
         );
 
-        _buildRouteAndExecuteSwap(
+        _buildRouteAndExecuteAndVerifySwap(
             SwapTestParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
