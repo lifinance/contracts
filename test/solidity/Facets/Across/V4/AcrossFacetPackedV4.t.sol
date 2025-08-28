@@ -583,7 +583,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         );
     }
 
-    function test_revert_WillNotExecuteCallAndWithdrawForNonOwner() public {
+    function testRevert_WillNotExecuteCallAndWithdrawForNonOwner() public {
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(UnAuthorized.selector);
