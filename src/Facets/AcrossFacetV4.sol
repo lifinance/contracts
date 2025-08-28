@@ -128,7 +128,7 @@ contract AcrossFacetV4 is
         // In case any of different decimals between input and output, we will adjust the outputAmount
         // with the outputAmountMultiplier to account for the difference in decimals. We divide by 1e18
         // to allow room for adjustment in both directions, i.e. from 6 > 18 decimals and vice versa.
-        // The multiplier should be calculated as: 1e18 * 10^(outputDecimals - inputDecimals)
+        // The multiplier should be calculated as:  multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)
         AcrossV4Data memory modifiedAcrossData = _acrossData;
         modifiedAcrossData.outputAmount =
             (_bridgeData.minAmount * _acrossData.outputAmountMultiplier) /
@@ -147,8 +147,9 @@ contract AcrossFacetV4 is
         AcrossV4Data memory _acrossData
     ) internal {
         // validate destination call flag
-        if (_acrossData.message.length > 0 != _bridgeData.hasDestinationCall)
+        if (_acrossData.message.length > 0 != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
+        }
 
         // get across (custom) destination chain id, if applicable
         uint256 destinationChainId = _getAcrossChainId(
@@ -159,8 +160,9 @@ contract AcrossFacetV4 is
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             // destination chain is non-EVM
             // make sure it's non-zero (we cannot validate further)
-            if (_acrossData.receiverAddress == bytes32(0))
+            if (_acrossData.receiverAddress == bytes32(0)) {
                 revert InvalidNonEVMReceiver();
+            }
 
             // emit event for non-EVM chain
             emit BridgeToNonEVMChainBytes32(
@@ -234,9 +236,11 @@ contract AcrossFacetV4 is
         uint256 _destinationChainId
     ) internal pure returns (uint256) {
         // currently only Solana has a custom chainId
-        if (_destinationChainId == LIFI_CHAIN_ID_SOLANA)
+        if (_destinationChainId == LIFI_CHAIN_ID_SOLANA) {
             return ACROSS_CHAIN_ID_SOLANA;
-        else return _destinationChainId;
+        } else {
+            return _destinationChainId;
+        }
     }
 
     /// @notice Converts an address to a bytes32
