@@ -3,13 +3,13 @@ pragma solidity ^0.8.17;
 
 import { UniV2StyleFacet } from "lifi/Periphery/Lda/Facets/UniV2StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
-import { BaseDexFacetTest } from "./BaseDEXFacet.t.sol";
+import { BaseDEXFacetTest } from "./BaseDEXFacet.t.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
-/// @title BaseUniV2StyleDexFacetTest
-/// @notice Shared UniV2-style testing helpers built atop BaseDexFacetTest.
+/// @title BaseUniV2StyleDEXFacetTest
+/// @notice Shared UniV2-style testing helpers built atop BaseDEXFacetTest.
 /// @dev Handles selector wiring, pool direction inference (token0/token1), and auto-execution flows.
-abstract contract BaseUniV2StyleDexFacetTest is BaseDexFacetTest {
+abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
     /// @notice UniV2-style facet proxy handle (points to diamond after setup).
     UniV2StyleFacet internal uniV2Facet;
 

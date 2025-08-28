@@ -4,12 +4,12 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IHyperswapV3Factory } from "lifi/Interfaces/IHyperswapV3Factory.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
-import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
+import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
 /// @title HyperswapV3FacetTest
 /// @notice Fork-based UniV3-style tests for HyperswapV3 integration.
 /// @dev Selects Hyperevm fork, sets pool/token addresses, and delegates logic to base UniV3 test helpers.
-contract HyperswapV3FacetTest is BaseUniV3StyleDexFacetTest {
+contract HyperswapV3FacetTest is BaseUniV3StyleDEXFacetTest {
     // ==== Setup Functions ====
 
     /// @notice Selects `hyperevm` network and block for fork tests.

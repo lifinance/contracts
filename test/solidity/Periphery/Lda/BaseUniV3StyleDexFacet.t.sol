@@ -4,12 +4,12 @@ pragma solidity ^0.8.17;
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseDexFacetWithCallbackTest } from "./BaseDEXFacetWithCallback.t.sol";
+import { BaseDEXFacetWithCallbackTest } from "./BaseDEXFacetWithCallback.t.sol";
 
-/// @title BaseUniV3StyleDexFacetTest
-/// @notice Shared UniV3-style testing helpers built atop BaseDexFacetWithCallbackTest.
+/// @title BaseUniV3StyleDEXFacetTest
+/// @notice Shared UniV3-style testing helpers built atop BaseDEXFacetWithCallbackTest.
 /// @dev Handles selector wiring, pool direction inference (token0/token1), and auto-execution flows.
-abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetWithCallbackTest {
+abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     /// @notice UniV3-style facet proxy handle (points to diamond after setup).
     UniV3StyleFacet internal uniV3Facet;
 
@@ -191,7 +191,7 @@ abstract contract BaseUniV3StyleDexFacetTest is BaseDexFacetWithCallbackTest {
 
     // ==== Overrides ====
 
-    /// @notice Builds callback-arming swap data for `BaseDexFacetWithCallbackTest` harness.
+    /// @notice Builds callback-arming swap data for `BaseDEXFacetWithCallbackTest` harness.
     /// @param pool Pool to invoke against in callback tests.
     /// @param destinationAddress Destination address for proceeds in these tests.
     /// @return Packed swap payload.

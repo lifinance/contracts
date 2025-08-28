@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { BaseDexFacetTest } from "../BaseDEXFacet.t.sol";
+import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 import { SyncSwapV2Facet } from "lifi/Periphery/Lda/Facets/SyncSwapV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title SyncSwapV2FacetTest
 /// @notice Linea SyncSwap V2 tests via LDA route; includes both v1 and v2 pool wiring.
 /// @dev Verifies single-hop, aggregator flow, multi-hop (with DispatchSinglePoolSwap), and revert paths.
-contract SyncSwapV2FacetTest is BaseDexFacetTest {
+contract SyncSwapV2FacetTest is BaseDEXFacetTest {
     /// @notice Facet proxy for swaps bound to the diamond after setup.
     SyncSwapV2Facet internal syncSwapV2Facet;
 

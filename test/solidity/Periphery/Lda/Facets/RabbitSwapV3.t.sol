@@ -4,12 +4,12 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
+import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
 /// @title RabbitSwapV3FacetTest
 /// @notice Viction UniV3-style tests for RabbitSwap V3 pools.
 /// @dev Covers invalid pool/destinationAddress edge cases plus standard setup.
-contract RabbitSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
+contract RabbitSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
     /// @notice Selects Viction fork and block height used in tests.
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({

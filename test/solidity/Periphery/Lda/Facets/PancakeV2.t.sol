@@ -3,13 +3,13 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniV2StylePool } from "lifi/Interfaces/IUniV2StylePool.sol";
-import { BaseUniV2StyleDexFacetTest } from "../BaseUniV2StyleDEXFacet.t.sol";
+import { BaseUniV2StyleDEXFacetTest } from "../BaseUniV2StyleDEXFacet.t.sol";
 import { WrongPoolReserves } from "lifi/Periphery/Lda/Errors/Errors.sol";
 
 /// @title PancakeV2FacetTest
 /// @notice Fork-based UniV2-style tests for PancakeV2 integration.
 /// @dev Selects BSC fork, sets pool/token addresses, and delegates logic to base UniV2 test helpers.
-contract PancakeV2FacetTest is BaseUniV2StyleDexFacetTest {
+contract PancakeV2FacetTest is BaseUniV2StyleDEXFacetTest {
     // ==== Setup Functions ====
 
     /// @notice Selects `bsc` network and block for fork tests.

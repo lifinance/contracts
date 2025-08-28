@@ -6,7 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { BaseCoreRouteTest } from "./BaseCoreRouteTest.t.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
-/// @title BaseDexFacetTest
+/// @title BaseDEXFacetTest
 /// @notice Base test contract with common functionality and abstractions for DEX-specific tests.
 /// @dev Child tests implement the virtual hooks to:
 ///      - choose fork/network
@@ -16,7 +16,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 ///      - Inherit and implement `_setupForkConfig`, `_setupDexEnv`,
 ///        and facet creation hooks.
 ///      - Call core helpers like `_buildMultiHopRoute` and `_addDexFacet`.
-abstract contract BaseDexFacetTest is BaseCoreRouteTest {
+abstract contract BaseDEXFacetTest is BaseCoreRouteTest {
     using SafeERC20 for IERC20;
 
     // ==== Types ====
