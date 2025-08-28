@@ -1,0 +1,76 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x953ad37E0c1883c5A8b6ee5527Eb392Da18d2e64": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x8b169B668f4a34647D03D79b571a56c419Fc6C7E": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x898994244A182565F4167A8085bB1d9181fdA5F2": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x6C4f0E7Ef3564f6bc6FE5590B927dC053A005b04": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x7a21d604e97bfa571f1dfe4261DAa49041D7edef": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.2"
+      },
+      "0x87158BfcC84E661ddb09b461d2F83e1313d7e3F9": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
+      },
+      "0xc27D55C782E00B490e15f3DBacDfD8f06c626f46": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x755eDEFef9b778aE7B975b7214F0E15915a528f4": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xe9DAfe70244Eb4b3D4a68ca77B1b83ab719a7aBD": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.2"
+      },
+      "0x50ed69FDe7A20780B5a927dCE7F694680185767e": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
+      },
+      "0x21a7f57A27BCde7D0B1944c7587b527d678B9cC9": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0xd132D79E5bf0365d85DD4e8f819D1f115e67Fa96": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x225e2aB2b9a51C24BE290E622Fd40B53B535cE9c": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
+      },
+      "0xA77abE6A3E0Fe927d503c68fCF9B26e11A8bB1A4": {
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "GasZipPeriphery": "",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
+      "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
+      "Permit2Proxy": "",
+      "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": ""
+    }
+  }
+}

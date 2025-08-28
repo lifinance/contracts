@@ -16,7 +16,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["node", "jest"]
+    "types": ["node", "bun"]
   },
   "include": ["./script/**/*.ts", "./tasks/**/*.ts", ".eslintrc.cjs"],
   "exclude": ["node_modules", "out"]

@@ -21,7 +21,7 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x9c3C2a13a5dd24D078D247EEC09Cebf2fC4E4686": {
+      "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A": {
         "Name": "",
         "Version": ""
       },
@@ -172,6 +172,10 @@
       "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
