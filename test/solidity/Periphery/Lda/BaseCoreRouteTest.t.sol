@@ -562,7 +562,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         if (evt.checkData) {
             // Only support static params for now (each abi.encode(param) must be 32 bytes)
             uint256 total = evt.eventParams.length;
-            bool[8] memory isIndexed; // up to 8 params; expand if needed
+            bool[] memory isIndexed = new bool[](total);
             for (uint256 k = 0; k < topicsCount; k++) {
                 uint8 pos = idx[k];
                 if (pos >= evt.eventParams.length) {
@@ -571,7 +571,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
                         evt.eventParams.length
                     );
                 }
-                if (pos < isIndexed.length) isIndexed[pos] = true;
+                isIndexed[pos] = true;
             }
 
             for (uint256 p = 0; p < total; p++) {
