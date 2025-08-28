@@ -109,32 +109,47 @@ The packed version optimizes gas usage by encoding parameters directly into call
 [44:76] - depositor (bytes32)
 [76:108] - receivingAssetId (bytes32)
 [108:140] - outputAmount (uint256)
-[140:172] - destinationChainId (uint64)
-[172:204] - exclusiveRelayer (bytes32)
-[204:208] - quoteTimestamp (uint32)
-[208:212] - fillDeadline (uint32)
-[212:216] - exclusivityParameter (uint32)
-[216:]   - message
+[140:144] - destinationChainId (uint32) - 4 bytes, not 32
+[144:176] - exclusiveRelayer (bytes32)
+[176:180] - quoteTimestamp (uint32)
+[180:184] - fillDeadline (uint32)
+[184:188] - exclusivityParameter (uint32)
+[188:]   - message
 ```
+
+**Important Notes:**
+
+- For native transfers, `inputToken` is always `WRAPPED_NATIVE` and `inputAmount` is always `msg.value`
+- These values are **NOT** read from calldata but are hardcoded for gas optimization
+- The `destinationChainId` is stored as 4 bytes but the struct uses `uint64` for compatibility
+- **Note**: The native packed function has been optimized to remove unnecessary `sendingAssetId` parameter, reducing calldata from 220 to 188 bytes
+- **Note**: ERC20 transfers still require `sendingAssetId` as a separate parameter since it's needed for token transfers
 
 ### ERC20 Packed Calldata Mapping
 
-```
+```text
 [0:4]   - function selector
-[4:36]  - transactionId (bytes32)
-[36:68] - receiver (bytes32)
-[68:100] - depositor (bytes32)
-[100:120] - sendingAssetId (address) + 12 bytes padding
-[120:136] - inputAmount (uint128)
-[136:140] - destinationChainId (uint32)
-[140:172] - receivingAssetId (bytes32)
-[172:204] - outputAmount (uint256)
-[204:236] - exclusiveRelayer (bytes32)
-[236:240] - quoteTimestamp (uint32)
-[240:244] - fillDeadline (uint32)
-[244:248] - exclusivityParameter (uint32)
-[248:]   - message
+[4:12]  - transactionId (bytes8)
+[12:44] - receiver (bytes32)
+[44:76] - depositor (bytes32)
+[76:108] - sendingAssetId (bytes32)
+[108:124] - inputAmount (uint128)
+[124:128] - destinationChainId (uint32)
+[128:160] - receivingAssetId (bytes32)
+[160:192] - outputAmount (uint256)
+[192:224] - exclusiveRelayer (bytes32)
+[224:228] - quoteTimestamp (uint32)
+[228:232] - fillDeadline (uint32)
+[232:236] - exclusivityParameter (uint32)
+[236:]   - message
 ```
+
+**Important Notes:**
+
+- For ERC20 transfers, `sendingAssetId` is required and must be passed as a separate parameter to the encoding/decoding functions
+- The `inputAmount` is limited to `uint128` to fit within the calldata structure
+- The `destinationChainId` is stored as 4 bytes but the struct uses `uint64` for compatibility
+- For ERC20 transfers, `inputToken` and `inputAmount` are read from calldata positions `[76:108]` and `[108:124]` respectively
 
 ## Usage Examples
 

@@ -144,7 +144,6 @@ contract AcrossFacetPackedV4Test is TestBase {
             transactionId: transactionId,
             receiver: _convertAddressToBytes32(USER_RECEIVER),
             depositor: _convertAddressToBytes32(USER_SENDER),
-            sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC),
             destinationChainId: destinationChainId,
             receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
             outputAmount: (defaultUSDCAmount * 99) / 100,
@@ -167,26 +166,22 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         // usdt params
         amountUSDT = 100 * 10 ** usdt.decimals();
-        packedParameters.sendingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDT
-        );
         packedUSDTCalldata = acrossFacetPackedV4
             .encode_startBridgeTokensViaAcrossV4ERC20Packed(
                 packedParameters,
+                _convertAddressToBytes32(ADDRESS_USDT),
                 amountUSDT
             );
 
         deal(ADDRESS_USDT, USER_SENDER, amountUSDT);
 
         // usdc params
-        packedParameters.sendingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDC
-        );
         amountUSDC = 100 * 10 ** usdc.decimals();
         packedParameters.outputAmount = (amountUSDC * 99) / 100;
         packedUSDCCalldata = acrossFacetPackedV4
             .encode_startBridgeTokensViaAcrossV4ERC20Packed(
                 packedParameters,
+                _convertAddressToBytes32(ADDRESS_USDC),
                 amountUSDC
             );
 
@@ -365,10 +360,6 @@ contract AcrossFacetPackedV4Test is TestBase {
     {
         vm.startPrank(USER_SENDER);
 
-        packedParameters.sendingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDT
-        );
-
         // approve diamond to spend sender's tokens
         IERC20(ADDRESS_USDT).safeApprove(
             address(acrossStandAlone),
@@ -400,6 +391,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossFacetPackedV4.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
+            _convertAddressToBytes32(ADDRESS_USDC),
             amountUSDC
         );
 
@@ -408,10 +400,6 @@ contract AcrossFacetPackedV4Test is TestBase {
 
     function test_canBridgeERC20TokensViaMinFunction_Facet_USDT() public {
         vm.startPrank(USER_SENDER);
-
-        packedParameters.sendingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDT
-        );
 
         // approve diamond to spend sender's tokens
         IERC20(ADDRESS_USDT).safeApprove(address(diamond), amountUSDT);
@@ -423,6 +411,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossFacetPackedV4.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
+            _convertAddressToBytes32(ADDRESS_USDT),
             amountUSDT
         );
 
@@ -442,6 +431,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
+            _convertAddressToBytes32(ADDRESS_USDC),
             amountUSDC
         );
 
@@ -450,10 +440,6 @@ contract AcrossFacetPackedV4Test is TestBase {
 
     function test_canBridgeERC20TokensViaMinFunction_Standalone_USDT() public {
         vm.startPrank(USER_SENDER);
-
-        packedParameters.sendingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDT
-        );
 
         // approve diamond to spend sender's tokens
         IERC20(ADDRESS_USDT).safeApprove(
@@ -468,6 +454,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV4ERC20Min(
             packedParameters,
+            _convertAddressToBytes32(ADDRESS_USDT),
             amountUSDT
         );
 
@@ -558,6 +545,7 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
             packedParameters,
+            _convertAddressToBytes32(ADDRESS_USDC),
             amountUSDC
         );
     }
@@ -569,6 +557,7 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
             packedParameters,
+            _convertAddressToBytes32(ADDRESS_USDC),
             invalidInputAmount
         );
     }
@@ -646,8 +635,8 @@ contract AcrossFacetPackedV4Test is TestBase {
     }
 
     function testRevert_WillFailIfNativeCalldataLengthIsTooShort() public {
-        // Create calldata that is shorter than the required 220 bytes
-        bytes memory shortCalldata = new bytes(219); // 1 byte short
+        // Create calldata that is shorter than the required 188 bytes
+        bytes memory shortCalldata = new bytes(187); // 1 byte short
 
         vm.expectRevert(InvalidCalldataLength.selector);
 
