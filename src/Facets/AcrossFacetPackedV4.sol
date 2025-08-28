@@ -342,7 +342,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             AcrossFacetV4.AcrossV4Data memory acrossData
         )
     {
-        if (data.length < 188) {
+        if (data.length < 220) {
             revert InvalidCalldataLength();
         }
 

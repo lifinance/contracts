@@ -104,17 +104,17 @@ The packed version optimizes gas usage by encoding parameters directly into call
 
 ```text
 [0:4]   - function selector
-[4:36]  - transactionId (bytes32)
-[36:68] - receiver (bytes32)
-[68:100] - depositor (bytes32)
-[100:104] - destinationChainId (uint32)
-[104:136] - receivingAssetId (bytes32)
-[136:168] - outputAmount (uint256)
-[168:200] - exclusiveRelayer (bytes32)
-[200:204] - quoteTimestamp (uint32)
-[204:208] - fillDeadline (uint32)
-[208:212] - exclusivityParameter (uint32)
-[212:]   - message
+[4:12]  - transactionId (bytes8)
+[12:44] - receiver (bytes32)
+[44:76] - depositor (bytes32)
+[76:108] - receivingAssetId (bytes32)
+[108:140] - outputAmount (uint256)
+[140:172] - destinationChainId (uint64)
+[172:204] - exclusiveRelayer (bytes32)
+[204:208] - quoteTimestamp (uint32)
+[208:212] - fillDeadline (uint32)
+[212:216] - exclusivityParameter (uint32)
+[216:]   - message
 ```
 
 ### ERC20 Packed Calldata Mapping

@@ -97,6 +97,7 @@ localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 
 [lint]
 lint_on_build=false
+ignore = ["src/*"]
 
 
 [etherscan]

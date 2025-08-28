@@ -646,8 +646,8 @@ contract AcrossFacetPackedV4Test is TestBase {
     }
 
     function testRevert_WillFailIfNativeCalldataLengthIsTooShort() public {
-        // Create calldata that is shorter than the required 188 bytes
-        bytes memory shortCalldata = new bytes(187); // 1 byte short
+        // Create calldata that is shorter than the required 220 bytes
+        bytes memory shortCalldata = new bytes(219); // 1 byte short
 
         vm.expectRevert(InvalidCalldataLength.selector);
 
