@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
+import { UniV3StyleFacet } from "lifi/Periphery/lda/Facets/UniV3StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDEXFacetWithCallbackTest } from "./BaseDEXFacetWithCallback.t.sol";
@@ -135,10 +135,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
     function _executeUniV3StyleSwapAuto(
         UniV3AutoSwapParams memory params
     ) internal {
-        uint256 amountIn = params.commandType ==
-            CommandType.DistributeSelfERC20
-            ? params.amountIn + 1
-            : params.amountIn;
+        uint256 amountIn = params.amountIn;
 
         // Fund the appropriate account
         if (params.commandType == CommandType.DistributeSelfERC20) {
@@ -235,7 +232,7 @@ abstract contract BaseUniV3StyleDEXFacetTest is BaseDEXFacetWithCallbackTest {
         _executeUniV3StyleSwapAuto(
             UniV3AutoSwapParams({
                 commandType: CommandType.DistributeSelfERC20,
-                amountIn: _getDefaultAmountForTokenIn() - 1
+                amountIn: _getDefaultAmountForTokenIn()
             })
         );
     }

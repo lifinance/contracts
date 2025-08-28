@@ -141,10 +141,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
     function _executeUniV2StyleSwapAuto(
         UniV2AutoSwapParams memory params
     ) internal {
-        uint256 amountIn = params.commandType ==
-            CommandType.DistributeSelfERC20
-            ? params.amountIn + 1
-            : params.amountIn;
+        uint256 amountIn = params.amountIn;
 
         // Fund the appropriate account
         if (params.commandType == CommandType.DistributeSelfERC20) {
@@ -324,7 +321,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
         _executeUniV2StyleSwapAuto(
             UniV2AutoSwapParams({
                 commandType: CommandType.DistributeSelfERC20,
-                amountIn: _getDefaultAmountForTokenIn() - 1
+                amountIn: _getDefaultAmountForTokenIn()
             })
         );
     }
