@@ -113,9 +113,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
-      "0x9434480Dd4D98A213A93bb92bd23fA5E166De244": {
+      "0x29BEDC1Be2EeCB654F7a9CD3f21B466c148186c2": {
         "Name": "MayanFacet",
-        "Version": "1.2.1"
+        "Version": "1.2.2"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
