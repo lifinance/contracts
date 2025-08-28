@@ -100,7 +100,7 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
         // Test that owner is set correctly
         assertEq(
             coreRouteFacet.owner(),
-            USER_DIAMOND_OWNER,
+            USER_LDA_DIAMOND_OWNER,
             "owner not set correctly"
         );
     }
