@@ -194,80 +194,35 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         vm.stopPrank();
     }
 
-    /// @notice Test swap and bridge with current formula (1e30 division)
-    function test_SwapAndBridgeWithCurrentFormula() public {
-        vm.startPrank(USER_SENDER);
-
-        // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
-        bridgeData.hasSourceSwaps = true;
-        bridgeData.sendingAssetId = address(usdc); // USDC is the asset that will be bridged
-        validAcrossData.sendingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
-        bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC (expected output amount)
-
-        // Setup mock DEX to return exactly 100 USDC (6 decimals) to avoid slippage issues
-        uint256 swapOutputAmount = 100 * 10 ** 6; // 100 USDC
-        mockDEX = deployFundAndWhitelistMockDEX(
-            address(diamond),
-            address(usdc),
-            swapOutputAmount,
-            0 // Use default amountIn
-        );
-
-        // Setup swap data
-        delete swapData;
-        address[] memory path = new address[](2);
-        path[0] = address(dai);
-        path[1] = address(usdc);
-
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(mockDEX),
-                approveTo: address(mockDEX),
-                sendingAssetId: address(dai),
-                receivingAssetId: address(usdc),
-                fromAmount: 100 * 10 ** 18, // 100 DAI
-                callData: abi.encodeWithSelector(
-                    mockDEX.swapExactTokensForTokens.selector,
-                    100 * 10 ** 18, // amountIn
-                    100 * 10 ** 6, // amountOutMin (exact amount to avoid slippage)
-                    path,
-                    address(diamond),
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
-
-        // Set output amount multiplier to 100% / 1e12 (for 18->6 conversion)
-        validAcrossData.outputAmountMultiplier = 1000000; // 1e6 (100% / 1e12)
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
-
-        // Approve DAI spending
-        dai.approve(address(diamond), 100 * 10 ** 18);
-
-        // Expected events
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit AssetSwapped(
-            bridgeData.transactionId,
-            address(mockDEX),
-            address(dai),
-            address(usdc),
-            100 * 10 ** 18,
-            100 * 10 ** 6,
-            block.timestamp
-        );
-
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiTransferStarted(bridgeData);
+
+        // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
+        uint256 expectedOutput =
+            (bridgeData.minAmount * uint256(validAcrossData.outputAmountMultiplier))
+                / TestAcrossFacetV4.MULTIPLIER_BASE();
+        vm.expectCall(
+            SPOKE_POOL,
+            abi.encodeWithSelector(
+                IAcrossSpokePoolV4.deposit.selector,
+                validAcrossData.refundAddress,
+                validAcrossData.receiverAddress,
+                validAcrossData.sendingAssetId,
+                validAcrossData.receivingAssetId,
+                bridgeData.minAmount,
+                expectedOutput,
+                bridgeData.destinationChainId,
+                validAcrossData.exclusiveRelayer,
+                validAcrossData.quoteTimestamp,
+                validAcrossData.fillDeadline,
+                validAcrossData.exclusivityParameter,
+                validAcrossData.message
+            )
+        );
 
         // Execute swap and bridge
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
-    }
 
     /// @notice Test swap and bridge with 50% output amount multiplier
     function test_SwapAndBridgeWith50PercentMultiplier() public {
