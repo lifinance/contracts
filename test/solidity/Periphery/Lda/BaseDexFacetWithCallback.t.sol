@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { BaseDEXFacetTest } from "./BaseDEXFacet.t.sol";
 import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
 

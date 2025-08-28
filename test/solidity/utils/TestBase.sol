@@ -15,7 +15,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
-import { LDADiamondTest } from "../Periphery/LDA/utils/LdaDiamondTest.sol";
+import { LDADiamondTest } from "../Periphery/Lda/utils/LdaDiamondTest.sol";
 
 using stdJson for string;
 

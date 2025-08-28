@@ -7,8 +7,8 @@ import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticato
 import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
-import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
+import { PoolCallbackAuthenticated } from "lifi/Periphery/Lda/PoolCallbackAuthenticated.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title UniV3StyleFacet

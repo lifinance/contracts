@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
-import { CurveFacet } from "lifi/Periphery/LDA/Facets/CurveFacet.sol";
+import { CurveFacet } from "lifi/Periphery/Lda/Facets/CurveFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("CurveFacet") {}

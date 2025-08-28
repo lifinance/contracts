@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IzumiV3Facet } from "lifi/Periphery/LDA/Facets/IzumiV3Facet.sol";
+import { IzumiV3Facet } from "lifi/Periphery/Lda/Facets/IzumiV3Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
 import { MockNoCallbackPool } from "../../../utils/MockNoCallbackPool.sol";

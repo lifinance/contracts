@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
-import { IzumiV3Facet } from "lifi/Periphery/LDA/Facets/IzumiV3Facet.sol";
+import { IzumiV3Facet } from "lifi/Periphery/Lda/Facets/IzumiV3Facet.sol";
 
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("IzumiV3Facet") {}
