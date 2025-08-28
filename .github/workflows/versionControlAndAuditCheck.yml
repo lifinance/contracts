@@ -131,10 +131,8 @@ jobs:
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
-              ##### Get all changes of the current file/contract
-              DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
-
               ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
+              DIFF_OUTPUT=$(git diff "origin/${{ github.event.pull_request.base.ref }}" HEAD -- "$FILE_PATH")
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
                 | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
                 | grep -vE '^(\+\+\+|---)' \
@@ -142,79 +140,55 @@ jobs:
 
               ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then
-                ##### Log what is considered relevant (if anything)
-                echo "--------------------"
-                echo "The following lines were identified as audit-relevant code changes:"
-                echo "$RELEVANT_CHANGES"
-                echo "--------------------"
-                echo "Checking if version was updated..."
+                  ##### Log what is considered relevant (if anything)
+                  echo "--------------------"
+                  echo "The following lines were identified as audit-relevant code changes:"
+                  echo "$RELEVANT_CHANGES"
+                  echo "--------------------"
+                  echo "Checking if version was updated..."
 
-                ##### Check if version was updated in this PR
-                if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-                  echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
-                  NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                  CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
+                  OLD_FILE_CONTENT=$(git show "origin/${{ github.event.pull_request.base.ref }}:${FILE_PATH}" 2>/dev/null || echo "")
+                  OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
 
-                  ###### interfaces do not required to be audited, so check if this is an interface first
-                  if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
-                    ###### we only need to add the contract to these arrays if version was updated cause otherwise the action will fail anyway
-                    CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
-                    echo -e "$FILE_PATH marked for audit.\033[0m"
-                  else
-                    echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
+                  # If there was no old version line in the diff, it's a new file.
+                  # We set a default old version to ensure the comparison works correctly.
+                  if [[ -z "$OLD_VERSION" ]]; then
+                    # This handles new files. A check for a missing tag on new files
+                    # has already run earlier in the script.
+                    OLD_VERSION="0.0.0"
                   fi
 
-                else
-                  ##### Relevant changes but no version update — needs fixing
-                  echo -e "\033[31mThe file has relevant changes but the file version was not updated\033[0m"
-                  MISSING_VERSION_UPDATE+=("$FILE_PATH")
-                fi
+                  # Compare the current version from the file with the old version from the diff.
+                  if [[ "$VERSION" != "$OLD_VERSION" ]]; then
+                    # This is a valid version bump.
+                    # Use a different message for new files.
+                    if [[ "$OLD_VERSION" == "0.0.0" ]]; then
+                      echo -e "\033[32m New contract added with version v${VERSION}.\033[0m"
+                    else
+                      echo -e "\033[32m Version changed from v${OLD_VERSION} to v${VERSION}.\033[0m"
+                    fi
+
+                    CONTRACTS_FOR_TITLE+=("${FILENAME} v${VERSION}")
+
+                    # Mark for audit, unless it's an interface.
+                    if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
+                        CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
+                        echo -e "$FILE_PATH marked for audit.\033[0m"
+                    else
+                        echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
+                    fi
+                  else
+                    ##### Relevant changes but no version update — needs fixing
+                    echo -e "\033[31mThe file has relevant changes but the version (v${VERSION}) was not updated.\033[0m"
+                    MISSING_VERSION_UPDATE+=("$FILE_PATH")
+                  fi
               else
-                ##### No relevant changes — only comments or pragma touched
-                echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
+                  ##### No relevant changes — only comments or pragma touched
+                  echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
             echo "===================================================================================="
           done <<< "$CONTRACTS"
-
-          # while IFS= read -r FILE_PATH; do
-          #   echo "Now checking contract: $FILE_PATH"
-          #   VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
-          #   VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
-
-          #   ##### Extract the filename without extension
-          #   FILENAME=$(basename "$FILE_PATH" .sol)
-
-          #   ##### Check if a version tag exists in the contract file
-          #   if [[ -z "$VERSION_TAG" ]]; then
-          #     echo -e "\033[31mFile does not contain a version tag\033[0m"
-          #     MISSING_VERSION_TAG+=("$FILE_PATH")
-          #   else
-          #     echo -e "\033[32mFile contains a custom:version tag\033[0m"
-          #     ##### get all changes of the current file/contract
-          #     DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
-          #     echo "DIFF_OUTPUT: $DIFF_OUTPUT"
-
-          #     ##### Check if the version was updated in this PR
-          #     if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-          #       echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
-          #       NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-          #       CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
-          #       CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
-          #     else
-          #       ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
-          #       if echo "$DIFF_OUTPUT" | grep -qE '^\+//|^\+pragma'; then
-          #         echo -e "\033[32mChange is non-relevant (comments/formatting/pragma/license). No version update required.\033[0m"
-          #       else
-          #         ##### add to files with missing version updates
-          #         echo -e "\033[31mThe file changed but the file version was not updated\033[0m"
-          #         MISSING_VERSION_UPDATE+=("$FILE_PATH")
-          #       fi
-          #     fi
-          #   fi
-          #   echo "--------------------"
-          # done <<< "$CONTRACTS"
-
 
           ##### If any contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
