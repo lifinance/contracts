@@ -277,7 +277,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
                 tokenOut: address(tokenOut), // USDT
                 amountIn: amountIn - 1, // follow undrain convention
                 minOut: 0,
-                sender: USER_SENDER,
+                sender: address(ldaDiamond),
                 destinationAddress: USER_SENDER,
                 commandType: CommandType.DistributeSelfERC20
             }),

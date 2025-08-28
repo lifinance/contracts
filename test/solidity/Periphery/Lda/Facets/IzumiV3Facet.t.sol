@@ -220,7 +220,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
             tokenOut: address(tokenOut),
             amountIn: 0, // Will be determined by first swap
             minOut: 0,
-            sender: USER_SENDER,
+            sender: address(ldaDiamond),
             destinationAddress: USER_SENDER,
             commandType: CommandType.DistributeSelfERC20
         });
