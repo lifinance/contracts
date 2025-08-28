@@ -148,7 +148,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
                 minOut: 0,
-                sender: USER_SENDER,
+                sender: address(ldaDiamond),
                 destinationAddress: USER_SENDER,
                 commandType: CommandType.DistributeSelfERC20
             }),
@@ -185,7 +185,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // Account for slot-undrain
                 minOut: 0,
-                sender: USER_SENDER,
+                sender: address(ldaDiamond),
                 destinationAddress: USER_SENDER,
                 commandType: CommandType.DistributeSelfERC20
             }),
@@ -245,7 +245,7 @@ contract SyncSwapV2FacetTest is BaseDEXFacetTest {
             tokenOut: address(tokenOut),
             amountIn: 0, // Not used in DispatchSinglePoolSwap
             minOut: 0,
-            sender: USER_SENDER,
+            sender: address(ldaDiamond),
             destinationAddress: USER_SENDER,
             commandType: CommandType.DistributeSelfERC20
         });

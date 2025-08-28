@@ -164,7 +164,7 @@ contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
                 tokenOut: address(tokenMid),
                 amountIn: _getDefaultAmountForTokenIn() - 1, // -1 for undrain protection
                 minOut: 0,
-                sender: address(coreRouteFacet),
+                sender: address(ldaDiamond),
                 destinationAddress: USER_SENDER,
                 commandType: CommandType.DistributeSelfERC20
             }),

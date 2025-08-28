@@ -126,7 +126,7 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
             tokenOut: address(0), // Native ETH
             amountIn: amountIn,
             minOut: amountIn, // Expect 1:1 unwrapping
-            sender: USER_SENDER,
+            sender: address(ldaDiamond),
             destinationAddress: USER_RECEIVER,
             commandType: CommandType.DistributeSelfERC20
         });
