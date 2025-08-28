@@ -363,6 +363,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.08.25_MayanFacet(v1.2.2).pdf",
       "auditCommitHash": "b7e4b66ae83961f2873454f0bf09347e9ac8959d"
+    },
+    "audit20250825_1": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.08.25_RelayDepositoryFacet(v1.0.0).pdf",
+      "auditCommitHash": "4837b45b3ae705dee625015b1a084b3c69dee2a2"
     }
   },
   "auditedContracts": {
@@ -607,6 +614,9 @@
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "RelayDepositoryFacet": {
+      "1.0.0": ["audit20250825_1"]
     },
     "RelayFacet": {
       "1.0.0": ["audit20241202", "audit20250508"],
