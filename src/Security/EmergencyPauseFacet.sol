@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibDiamondLoupe } from "../Libraries/LibDiamondLoupe.sol";
-import { UnAuthorized, InvalidCallData, DiamondIsPaused } from "../Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidCallData, DiamondIsPaused, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
@@ -11,7 +11,7 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet
 ///         or pause the diamond in case of emergency
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 /// @dev Admin-Facet for emergency purposes only
 contract EmergencyPauseFacet {
     /// Events ///
@@ -51,6 +51,7 @@ contract EmergencyPauseFacet {
     /// Constructor ///
     /// @param _pauserWallet The address of the wallet that can execute emergency facet removal actions
     constructor(address _pauserWallet) {
+        if (_pauserWallet == address(0)) revert InvalidConfig();
         pauserWallet = _pauserWallet;
         _emergencyPauseFacetAddress = address(this);
     }
