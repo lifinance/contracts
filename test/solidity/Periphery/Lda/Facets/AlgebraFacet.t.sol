@@ -702,7 +702,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
         );
 
         // Add 1 wei slippage buffer
-        uint256 minOutput = expectedOutput - 1;
+        uint256 minOutput = expectedOutput > 0 ? expectedOutput - 1 : 0;
 
         // if tokens come from the aggregator (address(ldaDiamond)), use command code 1; otherwise, use 2.
         CommandType commandCode = params.from == address(ldaDiamond)
