@@ -10,10 +10,10 @@ import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { LdaDiamondTest } from "./Lda/utils/LdaDiamondTest.sol";
-import { CoreRouteFacet } from "lifi/Periphery/Lda/Facets/CoreRouteFacet.sol";
-import { UniV2StyleFacet } from "lifi/Periphery/Lda/Facets/UniV2StyleFacet.sol";
-import { NativeWrapperFacet } from "lifi/Periphery/Lda/Facets/NativeWrapperFacet.sol";
+import { LDADiamondTest } from "./LDA/utils/LDADiamondTest.sol";
+import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
+import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
+import { NativeWrapperFacet } from "lifi/Periphery/LDA/Facets/NativeWrapperFacet.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {
@@ -61,7 +61,7 @@ contract GasZipPeripheryTest is TestBase {
     function setUp() public override {
         customBlockNumberForForking = 22566858;
         initTestBase();
-        LdaDiamondTest.setUp();
+        LDADiamondTest.setUp();
 
         // deploy contracts
         gasZipPeriphery = new TestGasZipPeriphery(

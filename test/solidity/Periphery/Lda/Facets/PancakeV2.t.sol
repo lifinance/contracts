@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniV2StylePool } from "lifi/Interfaces/IUniV2StylePool.sol";
 import { BaseUniV2StyleDEXFacetTest } from "../BaseUniV2StyleDEXFacet.t.sol";
-import { WrongPoolReserves } from "lifi/Periphery/Lda/Errors/Errors.sol";
+import { WrongPoolReserves } from "lifi/Periphery/LDA/Errors/Errors.sol";
 
 /// @title PancakeV2FacetTest
 /// @notice Fork-based UniV2-style tests for PancakeV2 integration.

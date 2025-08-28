@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { UniV2StyleFacet } from "lifi/Periphery/Lda/Facets/UniV2StyleFacet.sol";
+import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { BaseDEXFacetTest } from "./BaseDEXFacet.t.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";

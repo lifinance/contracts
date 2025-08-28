@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IWETH } from "lifi/Interfaces/IWETH.sol";
 import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
-import { NativeWrapperFacet } from "lifi/Periphery/Lda/Facets/NativeWrapperFacet.sol";
+import { NativeWrapperFacet } from "lifi/Periphery/LDA/Facets/NativeWrapperFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title NativeWrapperFacetTest

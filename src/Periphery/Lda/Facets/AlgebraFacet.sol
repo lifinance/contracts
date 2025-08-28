@@ -8,8 +8,8 @@ import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticato
 import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
-import { PoolCallbackAuthenticated } from "lifi/Periphery/Lda/PoolCallbackAuthenticated.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
+import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title AlgebraFacet

@@ -7,7 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ICurve } from "lifi/Interfaces/ICurve.sol";
 import { ICurveV2 } from "lifi/Interfaces/ICurveV2.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseRouteConstants } from "lifi/Periphery/Lda/BaseRouteConstants.sol";
+import { BaseRouteConstants } from "lifi/Periphery/LDA/BaseRouteConstants.sol";
 
 /// @title CurveFacet
 /// @author LI.FI (https://li.fi)

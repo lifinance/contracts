@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
-import { SyncSwapV2Facet } from "lifi/Periphery/Lda/Facets/SyncSwapV2Facet.sol";
+import { SyncSwapV2Facet } from "lifi/Periphery/LDA/Facets/SyncSwapV2Facet.sol";
 
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("SyncSwapV2Facet") {}

@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
-import { CurveFacet } from "lifi/Periphery/Lda/Facets/CurveFacet.sol";
+import { CurveFacet } from "lifi/Periphery/LDA/Facets/CurveFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title CurveFacetTest
