@@ -1,0 +1,108 @@
+{
+  "mainnet": {
+    "assets": [
+      {
+        "name": "ETH",
+        "assetAddress": "0x0000000000000000000000000000000000000000",
+        "htlcAddress": "0xE413743B51f3cC8b3ac24addf50D18fa138cB0Bb",
+        "assetType": 0
+      },
+      {
+        "name": "USDC",
+        "assetAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "htlcAddress": "0x5fA58e4E89c85B8d678Ade970bD6afD4311aF17E",
+        "assetType": 1
+      },
+      {
+        "name": "WBTC",
+        "assetAddress": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+        "htlcAddress": "0xD781a2abB3FCB9fC0D1Dd85697c237d06b75fe95",
+        "assetType": 1
+      },
+      {
+        "name": "cbBTC",
+        "assetAddress": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+        "htlcAddress": "0xe35d025d0f0d9492db4700FE8646f7F89150eC04",
+        "assetType": 1
+      },
+      {
+        "name": "iBTC",
+        "assetAddress": "0x20157DBAbb84e3BBFE68C349d0d44E48AE7B5AD2",
+        "htlcAddress": "0x3aebBC6Dd1d024BE1C579E18e2EB92667B6f3579",
+        "assetType": 1
+      },
+      {
+        "name": "SEED",
+        "assetAddress": "0x5eed99d066a8CaF10f3E4327c1b3D8b673485eED",
+        "htlcAddress": "0xCE511De667885f92B8c36fcfC79C3B5bEb875463",
+        "assetType": 1
+      }
+    ]
+  },
+  "bsc": {
+    "assets": [
+      {
+        "name": "BNB",
+        "assetAddress": "0x0000000000000000000000000000000000000000",
+        "htlcAddress": "0xE413743B51f3cC8b3ac24addf50D18fa138cB0Bb",
+        "assetType": 0
+      },
+      {
+        "name": "BTCB",
+        "assetAddress": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+        "htlcAddress": "0xe74784E5A45528fDEcB257477DD6bd31c8ef0761",
+        "assetType": 1
+      },
+      {
+        "name": "USDC",
+        "assetAddress": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+        "htlcAddress": "0x5fA58e4E89c85B8d678Ade970bD6afD4311aF17E",
+        "assetType": 1
+      }
+    ]
+  },
+  "base": {
+    "assets": [
+      {
+        "name": "USDC",
+        "assetAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "htlcAddress": "0x5fA58e4E89c85B8d678Ade970bD6afD4311aF17E",
+        "assetType": 1
+      },
+      {
+        "name": "cbBTC",
+        "assetAddress": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+        "htlcAddress": "0xe35d025d0f0d9492db4700FE8646f7F89150eC04",
+        "assetType": 1
+      }
+    ]
+  },
+  "arbitrum": {
+    "assets": [
+      {
+        "name": "WBTC",
+        "assetAddress": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+        "htlcAddress": "0xb5AE9785349186069C48794a763DB39EC756B1cF",
+        "assetType": 1
+      },
+      {
+        "name": "USDC",
+        "assetAddress": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "htlcAddress": "0x8E12d730756457B99ce6E6AbFd60eBe751dA169B",
+        "assetType": 1
+      },
+      {
+        "name": "iBTC",
+        "assetAddress": "0x050C24dBf1eEc17babE5fc585F06116A259CC77A",
+        "htlcAddress": "0x7e8c18fa79bd4014cfCf49294Bf315139eD39f45",
+        "assetType": 1
+      },
+      {
+        "name": "SEED",
+        "assetAddress": "0x86f65121804D2Cdbef79F9f072D4e0c2eEbABC08",
+        "htlcAddress": "0xFBD30cB9313fe580031A7E0258693E1cec002803",
+        "assetType": 1
+      }
+    ]
+  }
+}
