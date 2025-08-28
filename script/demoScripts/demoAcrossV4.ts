@@ -586,6 +586,9 @@ async function main() {
   let uniswapAddress, executorAddress
   // prepare swapData, if tx has destination call
   if (WITH_DEST_CALL) {
+    if (isSolana) {
+      throw new Error('Destination call is not supported for Solana routes in this demo.');
+    }
     uniswapAddress = ADDRESS_UNISWAP_ARB
     executorAddress = deploymentsARB.Executor
 
