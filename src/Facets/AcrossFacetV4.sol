@@ -34,6 +34,9 @@ contract AcrossFacetV4 is
     /// @notice The Across custom chain ID for Solana
     uint256 public constant ACROSS_CHAIN_ID_SOLANA = 34268394551451;
 
+    /// @notice The base for the outputAmountMultiplier (to allow room for adjustments in both directions)
+    uint256 public constant MULTIPLIER_BASE = 1e18;
+
     /// Types ///
 
     /// @param receiverAddress The address that will receive the token on dst chain
@@ -134,7 +137,7 @@ contract AcrossFacetV4 is
         AcrossV4Data memory modifiedAcrossData = _acrossData;
         modifiedAcrossData.outputAmount =
             (_bridgeData.minAmount * _acrossData.outputAmountMultiplier) /
-            1e18;
+            MULTIPLIER_BASE;
 
         _startBridge(_bridgeData, modifiedAcrossData);
     }
