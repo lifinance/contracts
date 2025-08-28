@@ -169,7 +169,9 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
                 tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 minOut: 0,
-                sender: USER_SENDER,
+                sender: params.commandType == CommandType.DistributeSelfERC20
+                    ? address(ldaDiamond)
+                    : USER_SENDER,
                 destinationAddress: USER_SENDER,
                 commandType: params.commandType
             }),
@@ -182,7 +184,9 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
                 tokenOut: address(tokenOut),
                 amountIn: amountIn,
                 minOut: 0,
-                sender: USER_SENDER,
+                sender: params.commandType == CommandType.DistributeSelfERC20
+                    ? address(ldaDiamond)
+                    : USER_SENDER,
                 destinationAddress: USER_SENDER,
                 commandType: params.commandType
             }),
