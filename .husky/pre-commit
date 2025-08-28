@@ -1,16 +1,47 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
+
 echo ""
-echo "Running 'forge build' now"
+echo "Running 'forge build' and 'typechain generation'..."
+
+# Run forge build first (required for typechain)
+echo "Building contracts with forge..."
 forge build
 
-# If the build fails, abort the commit
 if [ $? -ne 0 ]; then
   echo "\nForge build failed. Aborting commit.\n"
   exit 1
 fi
 
+echo "Forge build completed successfully!"
 echo ""
+
+# Run typechain generation (now that artifacts are available)
+echo "Generating TypeChain types..."
+bun typechain:incremental
+
+if [ $? -ne 0 ]; then
+  echo "\nTypeChain generation failed. Aborting commit.\n"
+  exit 1
+fi
+
+echo "TypeChain generation completed successfully!"
+echo ""
+
+# Run TypeScript compilation to catch any type errors from outdated typings
+echo "Running TypeScript compilation to check for type errors..."
+bunx tsc-files --noEmit
+
+if [ $? -ne 0 ]; then
+  echo "\nTypeScript compilation failed. This may indicate outdated TypeChain types."
+  echo "Please run 'bun typechain' manually and fix any type errors before committing.\n"
+  exit 1
+fi
+
+echo ""
+echo "TypeScript compilation passed - all types are up to date!"
+echo ""
+
 echo ""
 echo "Running 'bun lint-staged' now:"
 bun lint-staged
@@ -57,16 +88,16 @@ else
 fi
 
 printRed() {
-  local MESSAGE=$1
+  local MESSAGE="$1"
   printf '\033[31m%s\033[0m\n' "$MESSAGE"
 }
 printYellow() {
-  local MESSAGE=$1
+  local MESSAGE="$1"
   printf '\033[33m%s\033[0m\n' "$MESSAGE"
 }
 
 printAdvise() {
-  local ACTION=$1
+  local ACTION="$1"
 
   echo ""
   printf '\033[91m%s\033[0m\n' "NEXT STEPS"
@@ -81,8 +112,8 @@ printAdvise() {
 
 # checks if the given line number or the line above contain a comment to disable the check
 isKnownFalsePositiveMatch() {
-  local FILE=$1
-  local LINE_NUMBER=$2
+  local FILE="$1"
+  local LINE_NUMBER="$2"
 
   if [ "$LINE_NUMBER" -gt 1 ]; then
     local PREV_LINE=$(sed "$((LINE_NUMBER - 1))q;d" "$FILE")
@@ -109,7 +140,7 @@ isKnownFalsePositiveMatch() {
 
 # checks if a file contains any of the secrets in .env
 doesFileContainDotEnvSecret() {
-  local FILE=$1
+  local FILE="$1"
   # iterate through all secrets
   for SECRET in $ENV_SECRETS; do
     # extract key and value
@@ -149,8 +180,8 @@ doesFileContainDotEnvSecret() {
 
 # checks if a file contains a potential private key (=> a 64 hex string)
 doesFileContainPotentialPrivateKey() {
-  local FILE=$1
-  local KEY=$2
+  local FILE="$1"
+  local KEY="$2"
 
   # check file content for matches with private key regEx
   local MATCHES=$(grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$FILE")
