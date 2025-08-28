@@ -6,6 +6,20 @@ The RelayDepositoryFacet enables direct deposits of assets into Relay Protocol V
 
 The facet is configured with a specific Relay Depository address during deployment via its constructor parameter. All deposit operations must use this configured depository address.
 
+**Note**: If a deposit amount is higher than the amount associated with the orderId, the overpaid amount will be forwarded to the destination chain (to the receiverAddress specified in the off-chain data associated with orderId)
+
+## ⚠️ SECURITY WARNING
+
+**IMPORTANT**: This facet has a security limitation that integrators must be aware of:
+
+**The facet cannot validate or guarantee that the off-chain data associated with the provided `orderId` corresponds to the `_bridgeData` parameters (e.g., receiver address, destination chain).**
+
+This means:
+
+- There is **no on-chain validation** that the `orderId` matches the intended recipient or destination
+- Malicious actors could potentially exploit this by providing mismatched data
+- Only use calldata provided by LI.FI backend
+
 ## Public Methods
 
 - `startBridgeTokensViaRelayDepository`

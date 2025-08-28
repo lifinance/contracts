@@ -8,19 +8,19 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LiFiData } from "../Helpers/LiFiData.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title RelayDepositoryFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for depositing assets into Relay Protocol V2 Depositories
+/// @notice WARNING: We cannot guarantee that our bridgeData corresponds to (off-chain-)
+/// @notice          data associated with the provided orderId
 /// @custom:version 1.0.0
 contract RelayDepositoryFacet is
     ILiFi,
     ReentrancyGuard,
     SwapperV2,
-    Validatable,
-    LiFiData
+    Validatable
 {
     /// Storage ///
 
@@ -110,6 +110,11 @@ contract RelayDepositoryFacet is
         if (_relayDepositoryData.depositorAddress == address(0)) {
             revert InvalidCallData();
         }
+
+        // WARNING: We cannot validate / guarantee that the off-chain-data associated with the provided
+        //          orderId corresponds to the _bridgeData (e.g. receiver, destinationChain)
+        // NOTE: If a deposit is higher than the amount associated with the orderId, then the overpaid amount
+        //       will be forwarded to receiver address destination chain (as specified in orderId data off-chain)
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token deposit
