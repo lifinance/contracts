@@ -4,13 +4,13 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IzumiV3Facet } from "lifi/Periphery/Lda/Facets/IzumiV3Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
+import { BaseDexFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
 import { MockNoCallbackPool } from "../../../utils/MockNoCallbackPool.sol";
 
 /// @title IzumiV3FacetTest
 /// @notice Forked + local tests for Izumi V3 pools routed through LDA.
 /// @dev Validates swap paths, aggregator/user flows, multi-hop, callback auth, and revert cases.
-contract IzumiV3FacetTest is BaseDEXFacetWithCallbackTest {
+contract IzumiV3FacetTest is BaseDexFacetWithCallbackTest {
     /// @notice Facet proxy handle bound to diamond after facet cut.
     IzumiV3Facet internal izumiV3Facet;
 

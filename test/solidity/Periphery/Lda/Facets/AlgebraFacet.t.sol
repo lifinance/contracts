@@ -11,7 +11,7 @@ import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
 import { TestToken as ERC20 } from "../../../utils/TestToken.sol";
 import { MockFeeOnTransferToken } from "../../../utils/MockTokenFeeOnTransfer.sol";
-import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
+import { BaseDexFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol";
 
 /// @title AlgebraFacetTest
 /// @notice Forked tests for Algebra pools integrated via LDA CoreRoute.
@@ -20,7 +20,7 @@ import { BaseDEXFacetWithCallbackTest } from "../BaseDEXFacetWithCallback.t.sol"
 ///      - fee-on-transfer compatibility
 ///      - multi-hop routes combining user and aggregator steps
 ///      - callback protection and revert scenarios
-contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
+contract AlgebraFacetTest is BaseDexFacetWithCallbackTest {
     /// @notice Facet proxy handle exposed on the diamond.
     AlgebraFacet internal algebraFacet;
 

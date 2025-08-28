@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
+import { BaseDexFacetTest } from "../BaseDEXFacet.t.sol";
 import { CurveFacet } from "lifi/Periphery/Lda/Facets/CurveFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 /// @title CurveFacetTest
 /// @notice Linea Curve tests via LDA route.
 /// @dev Verifies single-hop, aggregator flow, and revert paths.
-contract CurveFacetTest is BaseDEXFacetTest {
+contract CurveFacetTest is BaseDexFacetTest {
     /// @notice Facet proxy for swaps bound to the diamond after setup.
     CurveFacet internal curveFacet;
 

@@ -9,12 +9,12 @@ import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { VelodromeV2Facet } from "lifi/Periphery/Lda/Facets/VelodromeV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { WrongPoolReserves } from "lifi/Periphery/Lda/Errors/Errors.sol";
-import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
+import { BaseDexFacetTest } from "../BaseDEXFacet.t.sol";
 
 /// @title VelodromeV2FacetTest
 /// @notice Optimism Velodrome V2 tests covering stable/volatile pools, aggregator/user flows, multi-hop, and precise reserve accounting.
 /// @dev Includes a flashloan callback path to assert event expectations and reserve deltas.
-contract VelodromeV2FacetTest is BaseDEXFacetTest {
+contract VelodromeV2FacetTest is BaseDexFacetTest {
     /// @notice Facet proxy bound to the diamond after setup.
     VelodromeV2Facet internal velodromeV2Facet;
 

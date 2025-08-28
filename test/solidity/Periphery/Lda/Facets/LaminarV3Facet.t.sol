@@ -3,12 +3,12 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
-import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
+import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
 /// @title LaminarV3FacetTest
 /// @notice Hyperevm UniV3-style tests for Laminar pools via LDA.
 /// @dev Minimal setup; inherits all execution helpers from the base.
-contract LaminarV3FacetTest is BaseUniV3StyleDEXFacetTest {
+contract LaminarV3FacetTest is BaseUniV3StyleDexFacetTest {
     /// @notice Selects Hyperevm fork and block used by tests.
     function _setupForkConfig() internal override {
         forkConfig = ForkConfig({

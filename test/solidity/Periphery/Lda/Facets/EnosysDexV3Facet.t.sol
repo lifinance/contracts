@@ -3,12 +3,12 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
-import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
+import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
 /// @title EnosysDEXV3FacetTest
 /// @notice Forked UniV3-style tests for Enosys DEX V3 pools via LDA route.
 /// @dev Configures Flare network and a concrete pool pair; inherits execution helpers from the base.
-contract EnosysDEXV3FacetTest is BaseUniV3StyleDEXFacetTest {
+contract EnosysDEXV3FacetTest is BaseUniV3StyleDexFacetTest {
     // ==== Setup Functions ====
 
     /// @notice Selects Flare fork and block height used for deterministic tests.

@@ -3,12 +3,12 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniV3StyleFacet } from "lifi/Periphery/Lda/Facets/UniV3StyleFacet.sol";
-import { BaseUniV3StyleDEXFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
+import { BaseUniV3StyleDexFacetTest } from "../BaseUniV3StyleDEXFacet.t.sol";
 
 /// @title XSwapV3FacetTest
 /// @notice XDC chain UniV3-style tests for XSwap V3 integration via LDA.
 /// @dev Minimal setup; inherits execution logic from base UniV3-style test harness.
-contract XSwapV3FacetTest is BaseUniV3StyleDEXFacetTest {
+contract XSwapV3FacetTest is BaseUniV3StyleDexFacetTest {
     // ==== Setup Functions ====
 
     /// @notice Selects XDC fork and block height used by the tests.

@@ -3,15 +3,15 @@ pragma solidity ^0.8.17;
 
 import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
 import { SwapCallbackNotExecuted } from "lifi/Periphery/Lda/Errors/Errors.sol";
-import { BaseDEXFacetTest } from "./BaseDEXFacet.t.sol";
+import { BaseDexFacetTest } from "./BaseDEXFacet.t.sol";
 import { MockNoCallbackPool } from "../../utils/MockNoCallbackPool.sol";
 
-/// @title BaseDEXFacetWithCallbackTest
+/// @title BaseDexFacetWithCallbackTest
 /// @notice Base harness for testing DEX facets that rely on swap callbacks.
 /// @dev Provides callback selector/data hooks and two negative tests:
 ///      - unexpected callback sender
 ///      - swap path where pool never calls back (should revert)
-abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
+abstract contract BaseDexFacetWithCallbackTest is BaseDexFacetTest {
     /// @notice Returns the callback selector used by the DEX under test.
     /// @return selector Function selector for the DEX's swap callback.
     function _getCallbackSelector() internal virtual returns (bytes4);
