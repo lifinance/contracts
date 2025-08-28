@@ -520,7 +520,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         assertEqAcrossData(validAcrossData, acrossData);
     }
 
-    function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_Native()
+    function testRevert_cannotEncodeDestinationChainIdAboveUint32Max_Native()
         public
     {
         packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
@@ -534,7 +534,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         );
     }
 
-    function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_ERC20()
+    function testRevert_cannotEncodeDestinationChainIdAboveUint32Max_ERC20()
         public
     {
         packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
@@ -583,7 +583,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         );
     }
 
-    function test_revert_WillNotExecuteCallAndWithdrawForNonOwner() public {
+    function testRevert_WillNotExecuteCallAndWithdrawForNonOwner() public {
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(UnAuthorized.selector);
