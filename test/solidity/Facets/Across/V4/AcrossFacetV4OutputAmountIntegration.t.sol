@@ -102,7 +102,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             exclusiveRelayer: _convertAddressToBytes32(address(0)),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
-            exclusivityDeadline: 0,
+            exclusivityParameter: 0,
             message: ""
         });
 

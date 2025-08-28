@@ -21,8 +21,14 @@ interface IAcrossSpokePoolV4 {
     ///                         Set to zero bytes32 if no exclusive relayer is specified
     /// @param quoteTimestamp The timestamp when the quote was created, used for fee calculation and validation
     /// @param fillDeadline The timestamp on the destination chain after which this deposit can no longer be filled by any relayer
-    /// @param exclusivityDeadline The timestamp on the destination chain after which any relayer can fill the deposit.
-    ///                           Before this deadline, only the exclusive relayer can fill the deposit
+    /// @param exclusivityParameter This value is used to set the exclusivity deadline timestamp in the emitted deposit
+    ///                           event. Before this destination chain timestamp, only the exclusiveRelayer (if set to a non-zero address),
+    ///                           can fill this deposit. There are three ways to use this parameter:
+    ///                           1. NO EXCLUSIVITY: If this value is set to 0, then a timestamp of 0 will be emitted,
+    ///                              meaning that there is no exclusivity period.
+    ///                           2. OFFSET: If this value is less than MAX_EXCLUSIVITY_PERIOD_SECONDS, then add this value to
+    ///                              the block.timestamp to derive the exclusive relayer deadline.
+    ///                           3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
     ///                This can include swap instructions, destination call data, or other cross-chain messages
     function deposit(
@@ -36,7 +42,7 @@ interface IAcrossSpokePoolV4 {
         bytes32 exclusiveRelayer,
         uint32 quoteTimestamp,
         uint32 fillDeadline,
-        uint32 exclusivityDeadline,
+        uint32 exclusivityParameter,
         bytes calldata message
     ) external payable;
 }

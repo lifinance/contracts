@@ -660,7 +660,7 @@ async function main() {
           .add(60 * 60)
           .toString() // 60 minutes from now
       : '0',
-    exclusivityDeadline:
+    exclusivityParameter:
       WITH_EXCLUSIVE_RELAYER && quote.timestamp
         ? BigNumber.from(quote.timestamp)
             .add(5 * 60)

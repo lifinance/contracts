@@ -50,7 +50,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         bytes32 exclusiveRelayer;
         uint32 quoteTimestamp;
         uint32 fillDeadline;
-        uint32 exclusivityDeadline;
+        uint32 exclusivityParameter;
         bytes message;
     }
 
@@ -107,7 +107,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [172:204] - exclusiveRelayer
     /// [204:208] - quoteTimestamp
     /// [208:212] - fillDeadline
-    /// [212:216] - exclusivityDeadline
+    /// [212:216] - exclusivityParameter
     /// [216:] - message
     /// @dev NOTE: This packed implementation prioritizes gas optimization over runtime validation.
     ///      The depositor parameter (refund address) is not validated to be non-zero.
@@ -126,7 +126,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             bytes32(msg.data[176:208]), // exclusiveRelayer
             uint32(bytes4(msg.data[208:212])), // quoteTimestamp
             uint32(bytes4(msg.data[212:216])), // fillDeadline
-            uint32(bytes4(msg.data[216:220])), // exclusivityDeadline
+            uint32(bytes4(msg.data[216:220])), // exclusivityParameter
             msg.data[220:msg.data.length]
         );
 
@@ -154,7 +154,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             _parameters.exclusiveRelayer,
             _parameters.quoteTimestamp,
             _parameters.fillDeadline,
-            _parameters.exclusivityDeadline,
+            _parameters.exclusivityParameter,
             _parameters.message
         );
 
@@ -175,7 +175,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// [192:224] - exclusiveRelayer
     /// [224:228] - quoteTimestamp
     /// [228:232] - fillDeadline
-    /// [232:236] - exclusivityDeadline
+    /// [232:236] - exclusivityParameter
     /// [236:] - message
     /// @dev NOTE: This packed implementation prioritizes gas optimization over runtime validation.
     ///      The depositor parameter (refund address) is not validated to be non-zero.
@@ -203,7 +203,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             bytes32(msg.data[192:224]), // exclusiveRelayer
             uint32(bytes4(msg.data[224:228])), // quoteTimestamp
             uint32(bytes4(msg.data[228:232])), // fillDeadline
-            uint32(bytes4(msg.data[232:236])), // exclusivityDeadline
+            uint32(bytes4(msg.data[232:236])), // exclusivityParameter
             msg.data[236:msg.data.length]
         );
 
@@ -246,7 +246,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             _parameters.exclusiveRelayer,
             _parameters.quoteTimestamp,
             _parameters.fillDeadline,
-            _parameters.exclusivityDeadline,
+            _parameters.exclusivityParameter,
             _parameters.message
         );
 
@@ -279,7 +279,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
                 _parameters.exclusiveRelayer,
                 bytes4(_parameters.quoteTimestamp),
                 bytes4(_parameters.fillDeadline),
-                bytes4(_parameters.exclusivityDeadline),
+                bytes4(_parameters.exclusivityParameter),
                 _parameters.message
             );
     }
@@ -323,7 +323,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             _parameters.exclusiveRelayer,
             bytes4(_parameters.quoteTimestamp),
             bytes4(_parameters.fillDeadline),
-            bytes4(_parameters.exclusivityDeadline)
+            bytes4(_parameters.exclusivityParameter)
         );
 
         // Combine all parts with the message
@@ -359,7 +359,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         acrossData.exclusiveRelayer = bytes32(data[176:208]);
         acrossData.quoteTimestamp = uint32(bytes4(data[208:212]));
         acrossData.fillDeadline = uint32(bytes4(data[212:216]));
-        acrossData.exclusivityDeadline = uint32(bytes4(data[216:220]));
+        acrossData.exclusivityParameter = uint32(bytes4(data[216:220]));
         acrossData.message = data[220:];
 
         return (bridgeData, acrossData);
@@ -396,7 +396,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         acrossData.exclusiveRelayer = bytes32(data[192:224]);
         acrossData.quoteTimestamp = uint32(bytes4(data[224:228]));
         acrossData.fillDeadline = uint32(bytes4(data[228:232]));
-        acrossData.exclusivityDeadline = uint32(bytes4(data[232:236]));
+        acrossData.exclusivityParameter = uint32(bytes4(data[232:236]));
         acrossData.message = data[236:];
 
         return (bridgeData, acrossData);

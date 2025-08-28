@@ -49,7 +49,14 @@ contract AcrossFacetV4 is
     /// @param exclusiveRelayer This is the exclusive relayer who can fill the deposit before the exclusivity deadline.
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
-    /// @param exclusivityDeadline The timestamp on the destination chain after which any relayer can fill the deposit
+    /// @param exclusivityParameter This value is used to set the exclusivity deadline timestamp in the emitted deposit
+    ///                           event. Before this destination chain timestamp, only the exclusiveRelayer (if set to a non-zero address),
+    ///                           can fill this deposit. There are three ways to use this parameter:
+    ///                           1. NO EXCLUSIVITY: If this value is set to 0, then a timestamp of 0 will be emitted,
+    ///                              meaning that there is no exclusivity period.
+    ///                           2. OFFSET: If this value is less than MAX_EXCLUSIVITY_PERIOD_SECONDS, then add this value to
+    ///                              the block.timestamp to derive the exclusive relayer deadline.
+    ///                           3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
     struct AcrossV4Data {
         bytes32 receiverAddress;
@@ -61,7 +68,7 @@ contract AcrossFacetV4 is
         bytes32 exclusiveRelayer;
         uint32 quoteTimestamp;
         uint32 fillDeadline;
-        uint32 exclusivityDeadline;
+        uint32 exclusivityParameter;
         bytes message;
     }
 
@@ -210,7 +217,7 @@ contract AcrossFacetV4 is
                 _acrossData.exclusiveRelayer, // exclusiveRelayer
                 _acrossData.quoteTimestamp, // quoteTimestamp
                 _acrossData.fillDeadline, // fillDeadline
-                _acrossData.exclusivityDeadline, // exclusivityDeadline
+                _acrossData.exclusivityParameter, // exclusivityParameter
                 _acrossData.message // message
             );
         } else {
@@ -231,7 +238,7 @@ contract AcrossFacetV4 is
                 _acrossData.exclusiveRelayer, // exclusiveRelayer
                 _acrossData.quoteTimestamp, // quoteTimestamp
                 _acrossData.fillDeadline, // fillDeadline
-                _acrossData.exclusivityDeadline, // exclusivityDeadline
+                _acrossData.exclusivityParameter, // exclusivityParameter
                 _acrossData.message // message
             );
         }

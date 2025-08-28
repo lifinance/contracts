@@ -136,7 +136,7 @@ contract AcrossFacetPackedV4Test is TestBase {
             exclusiveRelayer: bytes32(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
-            exclusivityDeadline: 0,
+            exclusivityParameter: 0,
             message: ""
         });
 
@@ -151,7 +151,7 @@ contract AcrossFacetPackedV4Test is TestBase {
             exclusiveRelayer: bytes32(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
-            exclusivityDeadline: 0,
+            exclusivityParameter: 0,
             message: ""
         });
 

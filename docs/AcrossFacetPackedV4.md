@@ -68,7 +68,7 @@ struct PackedParameters {
   bytes32 exclusiveRelayer;
   uint32 quoteTimestamp;
   uint32 fillDeadline;
-  uint32 exclusivityDeadline;
+  uint32 exclusivityParameter;
   bytes message;
 }
 ```
@@ -84,7 +84,14 @@ struct PackedParameters {
 - `exclusiveRelayer`: Exclusive relayer address (bytes32 for non-EVM support)
 - `quoteTimestamp`: Timestamp of the quote
 - `fillDeadline`: Deadline for filling the deposit
-- `exclusivityDeadline`: Deadline for exclusive relayer
+- `exclusivityParameter`: This value is used to set the exclusivity deadline timestamp in the emitted deposit
+  event. Before this destination chain timestamp, only the exclusiveRelayer (if set to a non-zero address),
+  can fill this deposit. There are three ways to use this parameter:
+  1. NO EXCLUSIVITY: If this value is set to 0, then a timestamp of 0 will be emitted,
+     meaning that there is no exclusivity period.
+  2. OFFSET: If this value is less than MAX_EXCLUSIVITY_PERIOD_SECONDS, then add this value to
+     the block.timestamp to derive the exclusive relayer deadline.
+  3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
 - `message`: Additional message data
 - `sendingAssetId`: Source token address (for ERC20 transfers)
 - `inputAmount`: Amount to bridge (for ERC20 transfers)
@@ -106,7 +113,7 @@ The packed version optimizes gas usage by encoding parameters directly into call
 [168:200] - exclusiveRelayer (bytes32)
 [200:204] - quoteTimestamp (uint32)
 [204:208] - fillDeadline (uint32)
-[208:212] - exclusivityDeadline (uint32)
+[208:212] - exclusivityParameter (uint32)
 [212:]   - message
 ```
 
@@ -125,7 +132,7 @@ The packed version optimizes gas usage by encoding parameters directly into call
 [204:236] - exclusiveRelayer (bytes32)
 [236:240] - quoteTimestamp (uint32)
 [240:244] - fillDeadline (uint32)
-[244:248] - exclusivityDeadline (uint32)
+[244:248] - exclusivityParameter (uint32)
 [248:]   - message
 ```
 
@@ -145,7 +152,7 @@ PackedParameters memory params = PackedParameters({
     exclusiveRelayer: bytes32(0),
     quoteTimestamp: uint32(block.timestamp),
     fillDeadline: uint32(block.timestamp + 3600),
-    exclusivityDeadline: 0,
+    exclusivityParameter: 0,
     message: ""
 });
 
@@ -170,7 +177,7 @@ PackedParameters memory params = PackedParameters({
     exclusiveRelayer: bytes32(0),
     quoteTimestamp: uint32(block.timestamp),
     fillDeadline: uint32(block.timestamp + 3600),
-    exclusivityDeadline: 0,
+    exclusivityParameter: 0,
     message: ""
 });
 
