@@ -233,7 +233,13 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
 
         _expectEvents(additionalEvents);
 
-        vm.expectEmit(true, true, true, routeEventVerification.checkData);
+        vm.expectEmit(
+            true,
+            true,
+            true,
+            routeEventVerification.checkData,
+            address(ldaDiamond)
+        );
         emit Route(
             fromAddress,
             params.destinationAddress,
@@ -395,16 +401,31 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
         }
 
         vm.expectRevert(expectedRevert);
-        coreRouteFacet.processRoute(
-            params.tokenIn,
-            params.commandType == CommandType.DistributeSelfERC20
+        {
+            uint256 sendAmount = params.commandType ==
+                CommandType.DistributeSelfERC20
                 ? params.amountIn
-                : params.amountIn - 1,
-            params.tokenOut,
-            0, // minOut = 0 for tests
-            params.destinationAddress,
-            route
-        );
+                : params.amountIn - 1;
+            if (LibAsset.isNativeAsset(params.tokenIn)) {
+                coreRouteFacet.processRoute{ value: sendAmount }(
+                    params.tokenIn,
+                    sendAmount,
+                    params.tokenOut,
+                    0, // minOut = 0 for tests
+                    params.destinationAddress,
+                    route
+                );
+            } else {
+                coreRouteFacet.processRoute(
+                    params.tokenIn,
+                    sendAmount,
+                    params.tokenOut,
+                    0, // minOut = 0 for tests
+                    params.destinationAddress,
+                    route
+                );
+            }
+        }
     }
 
     /// @notice Builds route and executes swap with full verification options in a single call

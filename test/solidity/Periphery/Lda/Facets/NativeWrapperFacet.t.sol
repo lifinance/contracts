@@ -250,19 +250,19 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
         vm.stopPrank();
     }
 
-    /// @notice Tests that wrapNative reverts with zero wrapped native address
-    function testRevert_WrapNative_ZeroWrappedNative() public {
+    /// @notice Tests that wrapNative reverts with zero destination address
+    function testRevert_WrapNative_ZeroDestinationAddress() public {
         uint256 amountIn = 1 ether;
 
-        // Fund aggregator with ETH
-        vm.deal(address(ldaDiamond), amountIn);
+        // Fund user with ETH (not aggregator, since this is DistributeNative)
+        vm.deal(USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
 
         bytes memory swapData = _buildWrapSwapData(
             WrapParams({
-                wrappedNative: address(0), // Invalid wrapped native
-                destinationAddress: USER_RECEIVER
+                wrappedNative: address(weth),
+                destinationAddress: address(0) // Invalid destination
             })
         );
 
@@ -282,19 +282,19 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
         vm.stopPrank();
     }
 
-    /// @notice Tests that wrapNative reverts with zero destination address
-    function testRevert_WrapNative_ZeroDestinationAddress() public {
+    /// @notice Tests that wrapNative reverts with zero wrapped native address
+    function testRevert_WrapNative_ZeroWrappedNative() public {
         uint256 amountIn = 1 ether;
 
-        // Fund aggregator with ETH
-        vm.deal(address(ldaDiamond), amountIn);
+        // Fund user with ETH (not aggregator, since this is DistributeNative)
+        vm.deal(USER_SENDER, amountIn);
 
         vm.startPrank(USER_SENDER);
 
         bytes memory swapData = _buildWrapSwapData(
             WrapParams({
-                wrappedNative: address(weth),
-                destinationAddress: address(0) // Invalid destination
+                wrappedNative: address(0), // Invalid wrapped native
+                destinationAddress: USER_RECEIVER
             })
         );
 
