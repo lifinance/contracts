@@ -142,12 +142,12 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
     // ==== Test Cases ====
 
     /// @notice Aggregator-funded swap on Algebra using funds transferred from a whale.
-    /// @dev Transfers APE_ETH to `coreRouteFacet` (aggregator) and executes swap to `USER_SENDER`.
+    /// @dev Transfers APE_ETH to `ldaDiamond` (aggregator) and executes swap to `USER_SENDER`.
     function test_CanSwap_FromDexAggregator() public override {
         // Fund LDA from whale address
         vm.prank(RANDOM_APE_ETH_HOLDER_APECHAIN);
         IERC20(tokenIn).transfer(
-            address(coreRouteFacet),
+            address(ldaDiamond),
             _getDefaultAmountForTokenIn()
         );
 
@@ -155,7 +155,7 @@ contract AlgebraFacetTest is BaseDEXFacetWithCallbackTest {
 
         _testSwap(
             AlgebraSwapTestParams({
-                from: address(coreRouteFacet),
+                from: address(ldaDiamond),
                 destinationAddress: address(USER_SENDER),
                 tokenIn: address(tokenIn),
                 amountIn: _getDefaultAmountForTokenIn() - 1,
