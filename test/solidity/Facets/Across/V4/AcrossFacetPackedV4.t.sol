@@ -550,7 +550,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         );
     }
 
-    function test_revert_cannotUseMinAmountAboveUint128Max_ERC20() public {
+    function testRevert_cannotUseMinAmountAboveUint128Max_ERC20() public {
         uint256 invalidInputAmount = uint256(type(uint128).max) + 1;
 
         vm.expectRevert(AcrossFacetPackedV4.InvalidInputAmount.selector);
