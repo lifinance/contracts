@@ -30,7 +30,6 @@ contract TestClaimContract {
 contract AcrossFacetPackedV4Test is TestBase {
     using SafeERC20 for IERC20;
 
-    error InvalidDestinationChainId();
     error InvalidInputAmount();
     error InvalidCalldataLength();
 
@@ -53,7 +52,7 @@ contract AcrossFacetPackedV4Test is TestBase {
     AcrossFacetPackedV4.PackedParameters internal packedParameters;
     TestClaimContract internal claimContract;
 
-    bytes32 internal transactionId;
+    bytes8 internal transactionId;
     uint64 internal destinationChainId;
 
     uint256 internal amountNative;
@@ -121,7 +120,7 @@ contract AcrossFacetPackedV4Test is TestBase {
         acrossFacetPackedV4 = AcrossFacetPackedV4(payable(address(diamond)));
 
         /// Prepare parameters
-        transactionId = "someID";
+        transactionId = bytes8("someID");
         destinationChainId = 137;
 
         // define valid AcrossData
@@ -130,7 +129,7 @@ contract AcrossFacetPackedV4Test is TestBase {
             receiverAddress: _convertAddressToBytes32(USER_RECEIVER),
             refundAddress: _convertAddressToBytes32(USER_SENDER), // Set to match the depositor
             sendingAssetId: _convertAddressToBytes32(ADDRESS_USDC),
-            receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
+            receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC),
             outputAmount: (defaultUSDCAmount * 99) / 100, // 99%
             outputAmountMultiplier: uint64(1000000000000000000), // 100.00%
             exclusiveRelayer: bytes32(0),
@@ -145,7 +144,7 @@ contract AcrossFacetPackedV4Test is TestBase {
             receiver: _convertAddressToBytes32(USER_RECEIVER),
             depositor: _convertAddressToBytes32(USER_SENDER),
             destinationChainId: destinationChainId,
-            receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC_POL),
+            receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC),
             outputAmount: (defaultUSDCAmount * 99) / 100,
             exclusiveRelayer: bytes32(0),
             quoteTimestamp: quoteTimestamp,
@@ -465,11 +464,16 @@ contract AcrossFacetPackedV4Test is TestBase {
         AcrossFacetV4.AcrossV4Data memory original,
         AcrossFacetV4.AcrossV4Data memory decoded
     ) public {
+        assertEq(original.refundAddress == decoded.refundAddress, true);
         assertEq(original.receivingAssetId == decoded.receivingAssetId, true);
         assertEq(original.outputAmount == decoded.outputAmount, true);
-        assertEq(original.fillDeadline == decoded.fillDeadline, true);
+        assertEq(original.exclusiveRelayer == decoded.exclusiveRelayer, true);
         assertEq(original.quoteTimestamp == decoded.quoteTimestamp, true);
-        assertEq(original.refundAddress == decoded.refundAddress, true); // Add check for refundAddress/depositor
+        assertEq(original.fillDeadline == decoded.fillDeadline, true);
+        assertEq(
+            original.exclusivityParameter == decoded.exclusivityParameter,
+            true
+        );
         assertEq(
             keccak256(abi.encode(original.message)) ==
                 keccak256(abi.encode(decoded.message)),
@@ -518,36 +522,6 @@ contract AcrossFacetPackedV4Test is TestBase {
 
         // validate acrossData
         assertEqAcrossData(validAcrossData, acrossData);
-    }
-
-    function testRevert_cannotEncodeDestinationChainIdAboveUint32Max_Native()
-        public
-    {
-        packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
-
-        vm.expectRevert(
-            AcrossFacetPackedV4.InvalidDestinationChainId.selector
-        );
-
-        acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4NativePacked(
-            packedParameters
-        );
-    }
-
-    function testRevert_cannotEncodeDestinationChainIdAboveUint32Max_ERC20()
-        public
-    {
-        packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
-
-        vm.expectRevert(
-            AcrossFacetPackedV4.InvalidDestinationChainId.selector
-        );
-
-        acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
-            packedParameters,
-            _convertAddressToBytes32(ADDRESS_USDC),
-            amountUSDC
-        );
     }
 
     function testRevert_cannotUseMinAmountAboveUint128Max_ERC20() public {
@@ -635,8 +609,8 @@ contract AcrossFacetPackedV4Test is TestBase {
     }
 
     function testRevert_WillFailIfNativeCalldataLengthIsTooShort() public {
-        // Create calldata that is shorter than the required 188 bytes
-        bytes memory shortCalldata = new bytes(187); // 1 byte short
+        // Create calldata that is shorter than the required 192 bytes
+        bytes memory shortCalldata = new bytes(191); // 1 byte short
 
         vm.expectRevert(InvalidCalldataLength.selector);
 
@@ -646,8 +620,8 @@ contract AcrossFacetPackedV4Test is TestBase {
     }
 
     function testRevert_WillFailIfERC20CalldataLengthIsTooShort() public {
-        // Create calldata that is shorter than the required 236 bytes
-        bytes memory shortCalldata = new bytes(235); // 1 byte short
+        // Create calldata that is shorter than the required 240 bytes
+        bytes memory shortCalldata = new bytes(239); // 1 byte short
 
         vm.expectRevert(InvalidCalldataLength.selector);
 
