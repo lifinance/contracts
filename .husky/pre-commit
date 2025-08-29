@@ -181,7 +181,6 @@ doesFileContainDotEnvSecret() {
 # checks if a file contains a potential private key (=> a 64 hex string)
 doesFileContainPotentialPrivateKey() {
   local FILE="$1"
-  local KEY="$2"
 
   # check file content for matches with private key regEx
   local MATCHES=$(grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$FILE")
@@ -229,7 +228,7 @@ processGitDiff() {
     fi
 
     # Check for potential private keys
-    RESULT_PRIVKEY=$(doesFileContainPotentialPrivateKey "$FILE" "$KEY")
+    RESULT_PRIVKEY=$(doesFileContainPotentialPrivateKey "$FILE")
     if [[ -n $RESULT_PRIVKEY ]]; then
       printYellow "$RESULT_PRIVKEY"
       echo ""
