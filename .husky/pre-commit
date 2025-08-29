@@ -9,7 +9,7 @@ echo "Building contracts with forge..."
 forge build
 
 if [ $? -ne 0 ]; then
-  echo "\nForge build failed. Aborting commit.\n"
+  printf '\n%s\n\n' "Forge build failed. Aborting commit."
   exit 1
 fi
 
@@ -21,7 +21,7 @@ echo "Generating TypeChain types..."
 bun typechain:incremental
 
 if [ $? -ne 0 ]; then
-  echo "\nTypeChain generation failed. Aborting commit.\n"
+  printf '\n%s\n\n' "TypeChain generation failed. Aborting commit."
   exit 1
 fi
 
@@ -33,8 +33,8 @@ echo "Running TypeScript compilation to check for type errors..."
 bunx tsc-files --noEmit
 
 if [ $? -ne 0 ]; then
-  echo "\nTypeScript compilation failed. This may indicate outdated TypeChain types."
-  echo "Please run 'bun typechain' manually and fix any type errors before committing.\n"
+  printf '\n%s\n' "TypeScript compilation failed. This may indicate outdated TypeChain types."
+  printf '%s\n\n' "Please run 'bun typechain' manually and fix any type errors before committing."
   exit 1
 fi
 
