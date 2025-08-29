@@ -125,37 +125,37 @@ diamondUpdateFacet() {
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
+      fi
 
-        # Extract JSON starting with {"logs": from mixed output
-        # sometimes there are leading or trailing characters such as error messages, etc.
-        # we dont want/need those
-        JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+      # Extract JSON starting with {"logs": from mixed output
+      # sometimes there are leading or trailing characters such as error messages, etc.
+      # we dont want/need those
+      JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
 
-        # Extract cutData from the cleaned JSON output
-        FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
-        echo "FACET_CUT: ($FACET_CUT)"
-        echo ""
+      # Extract cutData from the cleaned JSON output
+      FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
+      echo "FACET_CUT: ($FACET_CUT)"
+      echo ""
 
-        if [[ "$FACET_CUT" != "0x" && -n "$FACET_CUT" ]]; then
-          echo "Proposing facet cut for $CONTRACT_NAME on network $NETWORK..."
-          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+      if [[ "$FACET_CUT" != "0x" && -n "$FACET_CUT" ]]; then
+        echo "Proposing facet cut for $CONTRACT_NAME on network $NETWORK..."
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
-          RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+        RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-          # Check if timelock is enabled and available
-          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+        # Check if timelock is enabled and available
+        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+        if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+          echo "[info] Using timelock controller for facet update"
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
         else
-          error "FacetCut is empty"
-          return 1
+          echo "[info] Using diamond directly for facet update"
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
         fi
+      else
+        error "FacetCut is empty"
+        return 1
       fi
     else
       # STAGING (or new network deployment): just deploy normally without further checks

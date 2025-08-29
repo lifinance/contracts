@@ -21,5 +21,6 @@
   "ReceiverStargateV2": "0x0E6a7ac318453c33f90cFcC75ee5D8593Cc6e2D7",
   "TokenWrapper": "0xbBdf9FfB0Fe437280b14176a7EFC70c93896d9dd",
   "GasZipPeriphery": "0xefC86E5D45A1Cca48C57d439159d60a0D78F5738",
-  "LiFiTimelockController": "0x669a5E3a2fEdc695E33aFc9FC50A0621bAafe7a0"
+  "LiFiTimelockController": "0x669a5E3a2fEdc695E33aFc9FC50A0621bAafe7a0",
+  "GlacisFacet": "0xeaa333cfB9261d600DBDEa82C3c99cB558e9C016"
 }

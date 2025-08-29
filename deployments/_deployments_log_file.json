@@ -38617,6 +38617,66 @@
           }
         ]
       }
+    },
+    "bob": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xD2aD75302aaa3D36dE69F26DCe005CA46C713A69",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-29 11:08:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xeaa333cfB9261d600DBDEa82C3c99cB558e9C016",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-29 11:16:47",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000051729fd7638111e05ca5f30435e26da53b08816a",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x39CE4e6b1c8Bc0Ac631b1779F7deCD5714893AE2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-29 11:25:35",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "vana": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xC57F68327b5f4C773e3DeDBbcE0D3Ea6E074A9C3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-29 11:27:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
