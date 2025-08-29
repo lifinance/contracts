@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LibAllowList, TestBase } from "../../../../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, UnAuthorized, DiamondIsPaused } from "lifi/Errors/GenericErrors.sol";
 import { LDAEmergencyPauseFacet } from "lifi/Periphery/LDA/Facets/LDAEmergencyPauseFacet.sol";
 import { LDAPeripheryRegistryFacet } from "lifi/Periphery/LDA/Facets/LDAPeripheryRegistryFacet.sol";
 import { LDADiamondCutFacet } from "lifi/Periphery/LDA/Facets/LDADiamondCutFacet.sol";

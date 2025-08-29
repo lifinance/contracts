@@ -2,7 +2,7 @@
 
 # deploys a single contract
 # should be called like this:
-# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
+# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true false)
 deploySingleContract() {
   # load config & helper functions
   source script/config.sh
@@ -15,7 +15,7 @@ deploySingleContract() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
-
+  local IS_LDA_CONTRACT="$6"
   # load env variables
   source .env
 
@@ -67,12 +67,26 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkEVM Chains
-  # We need to use zksync specific scripts that are able to be compiled for
-  # the zkvm
+  # Determine deployment script directory based on network type and contract type
+  # We need to support 4 combinations:
+  # 1. Regular + Non-zkEVM = script/deploy/facets/
+  # 2. Regular + zkEVM = script/deploy/zksync/
+  # 3. LDA + Non-zkEVM = script/deploy/facets/LDA/
+  # 4. LDA + zkEVM = script/deploy/zksync/LDA/
+  
   if isZkEvmNetwork "$NETWORK"; then
-    DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+    if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/LDA/"
+    else
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+    fi
     FILE_EXTENSION=".zksync.s.sol"
+  else
+    if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
+    else
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
+    fi
   fi
 
   if [[ -z "$CONTRACT" ]]; then
@@ -112,6 +126,15 @@ deploySingleContract() {
 
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  
+  # For LDA contracts, modify FILE_SUFFIX to include "lda."
+  if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      FILE_SUFFIX="lda."
+    else
+      FILE_SUFFIX="lda.staging."
+    fi
+  fi
 
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value

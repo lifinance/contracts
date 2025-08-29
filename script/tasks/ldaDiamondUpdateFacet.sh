@@ -1,0 +1,168 @@
+#!/bin/bash
+
+# executes a diamond update script to update an LDA facet on LDADiamond
+function ldaDiamondUpdateFacet() {
+
+  # load required variables and helper functions
+  source script/config.sh
+  source script/helperFunctions.sh
+
+  # read function arguments into variables
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local DIAMOND_CONTRACT_NAME="$3"
+  local UPDATE_SCRIPT="$4"
+  local SHOW_LOGS="$5"
+
+  # if no NETWORK was passed to this function, ask user to select it
+  if [[ -z "$NETWORK" ]]; then
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+    NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
+    checkRequiredVariablesInDotEnv $NETWORK
+  fi
+
+  # if no ENVIRONMENT was passed to this function, determine it
+  if [[ -z "$ENVIRONMENT" ]]; then
+    if [[ "$PRODUCTION" == "true" ]]; then
+      # make sure that PRODUCTION was selected intentionally by user
+      echo "    "
+      echo "    "
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+      printf '\033[33m%s\033[0m\n' "This means you will be updating LDA contracts in production";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+      echo "    "
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+      PROD_SELECTION=$(gum choose \
+          "yes" \
+          "no" \
+          )
+
+      if [[ $PROD_SELECTION != "no" ]]; then
+        echo "...exiting script"
+        exit 0
+      fi
+
+      ENVIRONMENT="production"
+    else
+      ENVIRONMENT="staging"
+    fi
+  fi
+
+  # get file suffix based on value in variable ENVIRONMENT
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # if no DIAMOND_CONTRACT_NAME was passed to this function, default to LDADiamond
+  if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
+    DIAMOND_CONTRACT_NAME="LDADiamond"
+  fi
+
+  # if no UPDATE_SCRIPT was passed to this function, ask user to select it
+  if [[ -z "$UPDATE_SCRIPT" ]]; then
+    echo ""
+    echo "Please select which LDA update script you would like to execute"
+    local SCRIPT=$(ls -1 script/deploy/facets/LDA/ | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update LDA Script")
+    UPDATE_SCRIPT="$SCRIPT"
+  fi
+
+  # set LDA-specific script directory
+  LDA_UPDATE_SCRIPT_PATH="script/deploy/facets/LDA/${UPDATE_SCRIPT}.s.sol"
+
+  # check if LDA update script exists
+  if ! checkIfFileExists "$LDA_UPDATE_SCRIPT_PATH" >/dev/null; then
+    error "could not find LDA update script for $UPDATE_SCRIPT in this path: $LDA_UPDATE_SCRIPT_PATH."
+    return 1
+  fi
+
+  # get LDA diamond address from LDA deployment file
+  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.lda.${FILE_SUFFIX}json"
+  local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$LDA_DEPLOYMENT_FILE")
+
+  # if no diamond address was found, throw an error and exit this script
+  if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file '$LDA_DEPLOYMENT_FILE' - exiting script now"
+    return 1
+  fi
+
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
+  fi
+
+  # logging for debug purposes
+  if [[ $SHOW_LOGS == "true" ]]; then
+    echo ""
+    echoDebug "in function ldaDiamondUpdateFacet"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+    echoDebug "UPDATE_SCRIPT=$UPDATE_SCRIPT"
+    echoDebug "LDA_UPDATE_SCRIPT_PATH=$LDA_UPDATE_SCRIPT_PATH"
+    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+    echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
+    echo ""
+  fi
+
+  # execute LDA diamond update script
+  local attempts=1
+
+  while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "[info] trying to execute LDA diamond update script $UPDATE_SCRIPT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+
+    # ensure that gas price is below maximum threshold (for mainnet only)
+    doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+
+    # try to execute call
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+
+    local RETURN_CODE=$?
+
+    # print return data only if debug mode is activated
+    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+
+    # check return data for error message (regardless of return code as this is not 100% reliable)
+    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+      warning "The transaction was executed but the return value suggests that no logs were emitted"
+      warning "This happens if contracts are already up-to-date."
+      warning "This may also be a sign that the transaction was not executed properly."
+      warning "Please check manually if the transaction was executed and if the LDA diamond was updated"
+      echo ""
+      return 0
+    fi
+
+    # get returned JSON
+    JSON_RETURN_DATA=$(getJsonFromRawForgeScriptReturnValue "$RAW_RETURN_DATA")
+
+    # check whether call was successful or not
+    if [[ $RETURN_CODE -eq 0 ]] && [[ ! -z "$JSON_RETURN_DATA" ]]; then
+
+      # check whether the call was successful
+      local CONTRACT_ADDRESS=$(echo "$JSON_RETURN_DATA" | jq -r '.returns.deployed.value')
+
+      echo "[info] LDA diamond update was successful"
+      if [[ $SHOW_LOGS == "true" ]]; then
+        echo "[info] new contract address: $CONTRACT_ADDRESS"
+      fi
+
+      return 0
+
+    else
+      echo "[error] Call failed with error code $RETURN_CODE"
+      echo "[error] Error message: $RAW_RETURN_DATA"
+
+      attempts=$((attempts + 1))
+
+      # exit the loop if this was the last attempt
+      if [ $attempts -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+        error "max attempts reached, execution of LDA diamond update for $UPDATE_SCRIPT failed"
+        return 1
+      fi
+
+      # wait a bit before retrying
+      echo "retrying in $TIME_TO_WAIT_BEFORE_RETRY_ON_ERROR seconds..."
+      sleep $TIME_TO_WAIT_BEFORE_RETRY_ON_ERROR
+    fi
+  done
+
+  return 1
+}

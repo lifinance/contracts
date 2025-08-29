@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
+import { DeployLDAScriptBase } from "./utils/DeployLDAScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { LDAEmergencyPauseFacet } from "lifi/Periphery/LDA/Facets/LDAEmergencyPauseFacet.sol";
 
-contract DeployScript is DeployScriptBase {
+contract DeployScript is DeployLDAScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LDAEmergencyPauseFacet") {}
+    constructor() DeployLDAScriptBase("LDAEmergencyPauseFacet") {}
 
     function run()
         public

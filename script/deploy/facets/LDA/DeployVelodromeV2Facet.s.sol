@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
+import { DeployLDAScriptBase } from "./utils/DeployLDAScriptBase.sol";
 import { VelodromeV2Facet } from "lifi/Periphery/LDA/Facets/VelodromeV2Facet.sol";
 
-contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("VelodromeV2Facet") {}
+contract DeployScript is DeployLDAScriptBase {
+    constructor() DeployLDAScriptBase("VelodromeV2Facet") {}
 
     function run() public returns (VelodromeV2Facet deployed) {
         deployed = VelodromeV2Facet(

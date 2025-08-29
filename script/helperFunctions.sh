@@ -4764,3 +4764,116 @@ function removeNetworkFromTargetStateJSON() {
     return 1
   fi
 }
+
+# ==== LDA-SPECIFIC HELPER FUNCTIONS ====
+
+# Deploy LDA Diamond with core facets
+deployLDADiamondWithCoreFacets() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployLDADiamondWithCoreFacets"
+  
+  # load required resources
+  source script/config.sh
+  source script/helperFunctions.sh
+  source script/deploy/deployLDACoreFacets.sh
+  source script/deploy/deploySingleContract.sh
+  source script/tasks/ldaDiamondUpdateFacet.sh
+  
+  # Deploy LDA core facets first
+  deployLDACoreFacets "$NETWORK" "$ENVIRONMENT"
+  checkFailure $? "deploy LDA core facets to network $NETWORK"
+  
+  # Get LDA Diamond version
+  local VERSION=$(getCurrentContractVersion "LDADiamond")
+  
+  # Deploy LDA Diamond
+  deploySingleContract "LDADiamond" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true" "true"
+  checkFailure $? "deploy LDADiamond to network $NETWORK"
+  
+  # Update LDA Diamond with core facets
+  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "LDADiamond" "UpdateLDACoreFacets" false
+  checkFailure $? "update LDA core facets in LDADiamond on network $NETWORK"
+  
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployLDADiamondWithCoreFacets completed"
+  
+  return 0
+}
+
+# Deploy and add contract to LDA Diamond
+deployAndAddContractToLDADiamond() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT="$3"
+  local DIAMOND_NAME="$4"
+  local VERSION="$5"
+  
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAndAddContractToLDADiamond"
+  
+  # load required resources
+  source script/config.sh
+  source script/helperFunctions.sh
+  source script/deploy/deploySingleContract.sh
+  source script/tasks/ldaDiamondUpdateFacet.sh
+  
+  # Deploy the contract (LDA contract)
+  deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "true"
+  checkFailure $? "deploy contract $CONTRACT to network $NETWORK"
+  
+  # Add contract to LDA Diamond
+  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "Update${CONTRACT}" false
+  checkFailure $? "add contract $CONTRACT to $DIAMOND_NAME on network $NETWORK"
+  
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAndAddContractToLDADiamond completed"
+  
+  return 0
+}
+
+# Deploy facet and add to LDA Diamond
+deployFacetAndAddToLDADiamond() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local FACET_NAME="$3"
+  local DIAMOND_NAME="$4"
+  local VERSION="$5"
+  
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployFacetAndAddToLDADiamond for $FACET_NAME"
+  
+  # Deploy the facet and add it to LDA Diamond
+  deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_NAME" "$VERSION"
+  
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployFacetAndAddToLDADiamond completed for $FACET_NAME"
+  
+  return 0
+}
+
+# Get LDA deployment file path
+getLDADeploymentFilePath() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  echo "deployments/${NETWORK}.lda.${FILE_SUFFIX}json"
+}
+
+# Update LDA diamond logs
+updateLDADiamondLogs() {
+  local ENVIRONMENT="$1"
+  local NETWORK="$2"
+  
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start updateLDADiamondLogs"
+  
+  if [[ -n "$NETWORK" ]]; then
+    echo "[info] Updating LDA diamond log for network: $NETWORK"
+    bunx tsx script/deploy/updateLDADiamondLog.ts --environment "$ENVIRONMENT" --network "$NETWORK"
+  else
+    echo "[info] Updating LDA diamond logs for all networks"
+    bunx tsx script/deploy/updateLDADiamondLog.ts --environment "$ENVIRONMENT"
+  fi
+  
+  checkFailure $? "update LDA diamond logs"
+  
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updateLDADiamondLogs completed"
+  
+  return 0
+}
