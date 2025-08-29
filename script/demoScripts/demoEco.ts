@@ -11,6 +11,7 @@ import type { SupportedChain } from '../common/types'
 
 import {
   ADDRESS_USDC_OPT,
+  ADDRESS_USDC_BASE,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -52,7 +53,7 @@ async function main(args: {
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = ADDRESS_USDC_OPT as `0x${string}`
   const amount = parseUnits(args.amount, 6) // USDC has 6 decimals
-  const feeAmount = parseUnits('0.25', 6) // 0.25 USDC fee
+  const feeAmount = parseUnits('0.015', 6) // 0.25 USDC fee
 
   // Ensure wallet has sufficient USDC balance (amount + fee)
   const totalAmount = amount + feeAmount
@@ -90,7 +91,7 @@ async function main(args: {
   const ecoData = {
     receiverAddress: signerAddress, // Receiver on destination chain (same as signer)
     nonEVMReceiver: '0x', // Empty for EVM chains
-    receivingAssetId: SRC_TOKEN_ADDRESS, // Same USDC token on Base
+    receivingAssetId: ADDRESS_USDC_BASE, // USDC token on Base
     salt: `0x${randomBytes(32).toString('hex')}`, // Unique identifier
     routeDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour from now
     destinationPortal: ECO_PORTAL_ADDRESS,
@@ -175,7 +176,7 @@ const command = defineCommand({
     },
     amount: {
       type: 'string',
-      default: '5',
+      default: '1',
       description: 'Amount of USDC to bridge',
     },
   },
