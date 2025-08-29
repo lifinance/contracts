@@ -379,6 +379,191 @@ We use Foundry as our primary development and testing framework. Foundry provide
   }
   ```
 
+## LDA (LiFi DEX Aggregator) Conventions
+
+The LDA (LiFi DEX Aggregator) is a specialized component within the LI.FI ecosystem that provides efficient, modular DEX integration capabilities through its own Diamond Standard implementation.
+
+### Architecture Overview
+
+#### Core Components
+
+- **LDADiamond.sol**: Base EIP-2535 Diamond Proxy Contract for LDA
+- **CoreRouteFacet.sol**: Orchestrates route execution using direct function selector dispatch
+- **BaseRouteConstants.sol**: Shared constants across DEX facets
+- **PoolCallbackAuthenticated.sol**: Abstract contract providing pool callback authentication
+
+#### Location Structure
+
+```
+src/Periphery/LDA/
+├── LDADiamond.sol              # LDA Diamond proxy implementation
+├── BaseRouteConstants.sol      # Common constants for DEX facets
+├── PoolCallbackAuthenticated.sol # Callback authentication base
+├── Facets/                     # LDA-specific facets
+│   ├── CoreRouteFacet.sol      # Route orchestration
+│   ├── UniV3StyleFacet.sol     # UniV3-style DEX integrations
+│   ├── UniV2StyleFacet.sol     # UniV2-style DEX integrations
+│   ├── NativeWrapperFacet.sol  # Native token wrapping
+│   └── {DexName}Facet.sol      # Custom DEX integrations
+└── Errors/
+    └── Errors.sol              # LDA-specific error definitions
+```
+
+### DEX Integration Decision Tree
+
+When integrating a new DEX, follow this decision tree:
+
+1. **Is the DEX a UniV3 fork (same logic, different callback name)?**
+   - ✅ Yes → Extend `UniV3StyleFacet.sol` with a new callback
+   - Add tests inheriting `BaseUniV3StyleDEXFacetTest`
+
+2. **Else, is it a UniV2-style fork?**
+   - ✅ Yes → No new facet needed
+   - Add tests inheriting `BaseUniV2StyleDEXFacetTest`
+
+3. **Else, does it use a callback?**
+   - ✅ Yes → Create new custom facet with swap function and callback
+   - Write tests inheriting `BaseDEXFacetWithCallbackTest`
+
+4. **Else** → Create new custom facet with swap function without callbacks
+   - Write tests inheriting `BaseDEXFacetTest`
+
+### LDA Facet Requirements
+
+#### Naming and Location
+
+- Must reside in `src/Periphery/LDA/Facets/`
+- Names must include "Facet" suffix
+- Use descriptive names (e.g., `UniV3StyleFacet`, `CurveFacet`)
+
+#### Required Inheritance
+
+- **BaseRouteConstants**: For common constants (`DIRECTION_TOKEN0_TO_TOKEN1`, `FUNDS_IN_RECEIVER`)
+- **PoolCallbackAuthenticated**: For facets requiring callback verification
+- **No ReentrancyGuard**: CoreRouteFacet handles reentrancy protection
+
+#### Function Patterns
+
+**Swap Functions:**
+- Must follow pattern: `swap{DexName}(bytes memory swapData, address from, address tokenIn, uint256 amountIn)`
+- Use `LibPackedStream` for efficient parameter unpacking
+- Handle token transfers based on `from` parameter (if `from == msg.sender`, pull tokens)
+
+**Callback Functions:**
+- Must use `onlyExpectedPool` modifier
+- **IMPORTANT**: Callback function names are protocol-specific and cannot be guessed. You must inspect the target pool contract's interface directly in the block explorer or source code to determine the exact callback function name(s). Examples include `uniswapV3SwapCallback`, `pancakeV3SwapCallback`, `swapX2YCallback`, `swapY2XCallback`, etc.
+- Use `LibCallbackAuthenticator` for pool verification
+
+#### Parameter Handling
+
+- **swapData Encoding**: Use packed encoding for efficiency
+  - Common pattern: `[pool, direction, destinationAddress]`
+  - Additional parameters as needed per DEX
+- **Direction Parameter**: Use `uint8` where `1 = token0 -> token1`, `0 = token1 -> token0`
+- **Validation**: Always validate pool addresses and amounts. For invalid inputs, revert with `InvalidCallData()` from `GenericErrors.sol`
+
+#### Error Handling
+
+- **LDA-specific errors**: Define in `src/Periphery/LDA/Errors/Errors.sol`
+- **Generic errors**: Use existing errors from `src/Errors/GenericErrors.sol`
+
+### LDA Testing Conventions
+
+#### Test File Structure
+
+```
+test/solidity/Periphery/LDA/
+├── BaseCoreRouteTest.t.sol           # Base route testing functionality
+├── BaseDEXFacet.t.sol                # Base for custom DEX tests
+├── BaseDEXFacetWithCallback.t.sol    # Base for callback-enabled DEX tests
+├── BaseUniV3StyleDEXFacet.t.sol      # Base for UniV3-style DEX tests
+├── BaseUniV2StyleDEXFacet.t.sol      # Base for UniV2-style DEX tests
+└── Facets/
+    └── {DexName}Facet.t.sol          # Specific DEX implementation tests
+```
+
+#### Test Implementation Requirements
+
+**All LDA DEX tests must implement:**
+
+1. **`_setupForkConfig()`**: Configure network and block number
+   - Use valid `networkName` from `config/networks.json`
+   - **IMPORTANT**: You must manually specify a block number where the target pools have healthy liquidity. Do not guess block numbers - check the pool's transaction history on a block explorer to find a recent block with sufficient reserves for testing
+   - Example:
+     ```solidity
+     function _setupForkConfig() internal override {
+         forkConfig = ForkConfig({
+             networkName: "mainnet",
+             blockNumber: 18500000  // Manually verified block with healthy pool liquidity
+         });
+     }
+     ```
+
+2. **`_createFacetAndSelectors()`**: Deploy facet and return selectors
+   - Return facet address and function selectors for diamond cut
+   - Include both swap function and callback selectors (if applicable)
+
+3. **`_setFacetInstance()`**: Connect test handle to diamond proxy
+   - Set local facet instance to diamond address after cut
+
+4. **`_setupDexEnv()`**: Configure test tokens and pools
+   - Set `tokenIn`, `tokenOut`, `poolInOut` with sufficient liquidity
+   - Verify pools exist and have proper reserves
+
+#### Test Categories by Inheritance
+
+**BaseDEXFacetTest** (Custom DEX without callbacks):
+- Implement single-hop and multi-hop tests (if supported)
+- Focus on direct swap execution
+- Example: `SyncSwapV2Facet.t.sol`
+
+**BaseDEXFacetWithCallbackTest** (Custom DEX with callbacks):
+- Include callback verification tests
+- Override `_getCallbackSelector()` for negative tests
+- Implement `_deployNoCallbackPool()` if needed
+- Example: `IzumiV3Facet.t.sol`
+
+**BaseUniV3StyleDEXFacetTest** (UniV3 forks):
+- Override `_getCallbackSelector()` for DEX-specific callback
+- No multi-hop support (skipped for UniV3-style)
+- Example: `AlgebraFacet.t.sol`
+
+**BaseUniV2StyleDEXFacetTest** (UniV2 forks):
+- Override `_getPoolFee()` for DEX-specific fee structure
+- Support multi-hop routing
+- Example: `VelodromeV2Facet.t.sol`
+
+#### Test Validation Requirements
+
+- **Liquidity Validation**: Ensure pools have sufficient liquidity for test amounts
+- **Token Decimals**: Override `_getDefaultAmountForTokenIn()` for non-18 decimal tokens
+- **Pool Verification**: Verify pool addresses exist and are correctly configured. Ensure the chosen fork block number has the pools deployed and contains sufficient liquidity for testing
+
+### LDA Deployment Scripts
+
+#### Location and Naming
+
+- **Location**: `script/deploy/facets/LDA/`
+- **Naming**: `Deploy{DexName}Facet.s.sol`
+- **Pattern**: Follow standard deployment script structure
+
+#### Deployment Script Structure
+
+```solidity
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
+
+import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
+import { {DexName}Facet } from "lifi/Periphery/LDA/Facets/{DexName}Facet.sol";
+
+contract DeployScript is DeployScriptBase {
+    constructor() DeployScriptBase("{DexName}Facet") {}
+
+    function run() public returns ({DexName}Facet deployed) {
+        deployed = {DexName}Facet(deploy(type({DexName}Facet).creationCode));
+    }
+}
+```
 ## Solidity Test Conventions (.t.sol files)
 
 ### File Naming and Structure
