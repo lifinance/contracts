@@ -6,8 +6,23 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GardenFacet } from "lifi/Facets/GardenFacet.sol";
 
+// Mock Garden Registry Contract
+contract MockGardenRegistry {
+    mapping(address => address) private _htlcs;
+
+    function setHtlc(address assetId, address htlcAddress) external {
+        _htlcs[assetId] = htlcAddress;
+    }
+
+    function htlcs(address assetId) external view returns (address) {
+        return _htlcs[assetId];
+    }
+}
+
 // Stub GardenFacet Contract
 contract TestGardenFacet is GardenFacet {
+    constructor(address _htlcRegistry) GardenFacet(_htlcRegistry) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -18,9 +33,6 @@ contract TestGardenFacet is GardenFacet {
 }
 
 contract GardenFacetTest is TestBaseFacet {
-    // EVENTS
-    event GardenInitialized();
-
     // These values are for Mainnet from config/garden.json
     address internal constant USDC_HTLC =
         0x5fA58e4E89c85B8d678Ade970bD6afD4311aF17E;
@@ -33,6 +45,7 @@ contract GardenFacetTest is TestBaseFacet {
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
+    MockGardenRegistry internal mockRegistry;
     TestGardenFacet internal gardenFacet;
     ILiFi.BridgeData internal validBridgeData;
     GardenFacet.GardenData internal validGardenData;
@@ -40,41 +53,27 @@ contract GardenFacetTest is TestBaseFacet {
     function setUp() public {
         customBlockNumberForForking = 23238500;
         initTestBase();
-        gardenFacet = new TestGardenFacet();
-        bytes4[] memory functionSelectors = new bytes4[](5);
+
+        // Setup mock registry
+        mockRegistry = new MockGardenRegistry();
+        mockRegistry.setHtlc(ADDRESS_USDC, USDC_HTLC);
+        mockRegistry.setHtlc(WBTC_ADDRESS, WBTC_HTLC);
+        mockRegistry.setHtlc(address(0), ETH_HTLC); // For native ETH
+
+        gardenFacet = new TestGardenFacet(address(mockRegistry));
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gardenFacet.startBridgeTokensViaGarden.selector;
         functionSelectors[1] = gardenFacet
             .swapAndStartBridgeTokensViaGarden
             .selector;
-        functionSelectors[2] = gardenFacet.initGarden.selector;
-        functionSelectors[3] = gardenFacet.addDex.selector;
-        functionSelectors[4] = gardenFacet
+        functionSelectors[2] = gardenFacet.addDex.selector;
+        functionSelectors[3] = gardenFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(gardenFacet), functionSelectors);
 
-        GardenFacet.InitConfig[] memory configs = new GardenFacet.InitConfig[](
-            3
-        );
-        configs[0] = GardenFacet.InitConfig(
-            ADDRESS_USDC,
-            USDC_HTLC,
-            GardenFacet.AssetType.ERC20
-        );
-        configs[1] = GardenFacet.InitConfig(
-            WBTC_ADDRESS,
-            WBTC_HTLC,
-            GardenFacet.AssetType.ERC20
-        );
-        configs[2] = GardenFacet.InitConfig(
-            address(0),
-            ETH_HTLC,
-            GardenFacet.AssetType.NATIVE
-        );
-
         gardenFacet = TestGardenFacet(address(diamond));
-        gardenFacet.initGarden(configs);
 
         gardenFacet.addDex(address(uniswap));
         gardenFacet.setFunctionApprovalBySignature(

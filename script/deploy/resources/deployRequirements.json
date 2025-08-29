@@ -611,5 +611,14 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "GardenFacet": {
+    "configData": {
+      "_htlcRegistry": {
+        "configFileName": "garden.json",
+        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }

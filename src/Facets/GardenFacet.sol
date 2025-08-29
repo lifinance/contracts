@@ -3,8 +3,7 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IGarden } from "../Interfaces/IGarden.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { IGarden, IGardenRegistry } from "../Interfaces/IGarden.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -19,24 +18,15 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.garden");
+    /// @dev Immutable registry address
+    IGardenRegistry private immutable REGISTRY;
 
-    /// @dev Asset type enumeration
-    enum AssetType {
-        NATIVE,
-        ERC20
-    }
+    /// Constructor ///
 
-    /// @dev Storage for Garden configuration
-    struct Storage {
-        mapping(address => AssetConfig) assetConfigs; // token address => HTLC config
-    }
-
-    /// @dev Configuration for each supported asset
-    struct AssetConfig {
-        address htlcAddress; // HTLC contract address for this asset
-        AssetType assetType; // Whether asset is NATIVE or ERC20
-        bool isActive; // Whether this asset is currently supported
+    /// @notice Constructor initializes the immutable registry
+    /// @param _htlcRegistry Address of the HTLC registry contract
+    constructor(address _htlcRegistry) {
+        REGISTRY = IGardenRegistry(_htlcRegistry);
     }
 
     /// Types ///
@@ -48,58 +38,10 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes32 secretHash;
     }
 
-    /// Events ///
-
-    event GardenInitialized();
-
     /// Errors ///
 
     /// @notice Thrown when attempting to bridge an unsupported asset
     error AssetNotSupported();
-
-    /// @notice Thrown when an invalid configuration is provided
-    error InvalidGardenConfig();
-
-    /// Init ///
-
-    /// @dev Configuration structure for initializing assets
-    struct InitConfig {
-        address assetAddress; // Token address (use address(0) for native)
-        address htlcAddress; // HTLC contract for this asset
-        AssetType assetType; // NATIVE or ERC20
-    }
-
-    /// @notice Initialize Garden facet with supported assets
-    /// @param configs Array of asset configurations
-    function initGarden(InitConfig[] calldata configs) external {
-        LibDiamond.enforceIsContractOwner();
-
-        Storage storage s = getStorage();
-
-        for (uint256 i = 0; i < configs.length; i++) {
-            // Validate configuration
-            if (configs[i].htlcAddress == address(0)) {
-                revert InvalidGardenConfig();
-            }
-
-            // For native assets, ensure assetAddress is NULL_ADDRESS
-            if (
-                configs[i].assetType == AssetType.NATIVE &&
-                configs[i].assetAddress != LibAsset.NULL_ADDRESS
-            ) {
-                revert InvalidGardenConfig();
-            }
-
-            // Store configuration
-            s.assetConfigs[configs[i].assetAddress] = AssetConfig({
-                htlcAddress: configs[i].htlcAddress,
-                assetType: configs[i].assetType,
-                isActive: true
-            });
-        }
-
-        emit GardenInitialized();
-    }
 
     /// External Methods ///
 
@@ -160,25 +102,23 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GardenData calldata _gardenData
     ) internal {
-        Storage storage s = getStorage();
-
-        // Determine the mapping key - use NULL_ADDRESS for native assets
+        // Determine the asset key - use NULL_ADDRESS for native assets
         address assetKey = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
             ? LibAsset.NULL_ADDRESS
             : _bridgeData.sendingAssetId;
 
-        // Get asset configuration
-        AssetConfig memory config = s.assetConfigs[assetKey];
+        // Get HTLC address from registry
+        address htlcAddress = REGISTRY.htlcs(assetKey);
 
         // Validate asset is supported
-        if (!config.isActive || config.htlcAddress == address(0)) {
+        if (htlcAddress == address(0)) {
             revert AssetNotSupported();
         }
 
         // Get the Garden HTLC contract instance
-        IGarden garden = IGarden(config.htlcAddress);
+        IGarden garden = IGarden(htlcAddress);
 
-        if (config.assetType == AssetType.NATIVE) {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token bridging - send value with the call
             garden.initiateOnBehalf{ value: _bridgeData.minAmount }(
                 address(this), // initiator is always the Diamond
@@ -191,7 +131,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // ERC20 token bridging - approve and call with 0 value
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                config.htlcAddress,
+                htlcAddress,
                 _bridgeData.minAmount
             );
 
@@ -205,14 +145,5 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
     }
 }
