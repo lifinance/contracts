@@ -402,14 +402,10 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
 
         vm.expectRevert(expectedRevert);
         {
-            uint256 sendAmount = params.commandType ==
-                CommandType.DistributeSelfERC20
-                ? params.amountIn
-                : params.amountIn - 1;
             if (LibAsset.isNativeAsset(params.tokenIn)) {
-                coreRouteFacet.processRoute{ value: sendAmount }(
+                coreRouteFacet.processRoute{ value: params.amountIn }(
                     params.tokenIn,
-                    sendAmount,
+                    params.amountIn,
                     params.tokenOut,
                     0, // minOut = 0 for tests
                     params.destinationAddress,
@@ -418,7 +414,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
             } else {
                 coreRouteFacet.processRoute(
                     params.tokenIn,
-                    sendAmount,
+                    params.amountIn,
                     params.tokenOut,
                     0, // minOut = 0 for tests
                     params.destinationAddress,
