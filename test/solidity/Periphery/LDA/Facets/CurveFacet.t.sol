@@ -287,6 +287,42 @@ contract CurveFacetTest is BaseDEXFacetTest {
         vm.stopPrank();
     }
 
+    /// @notice Tests that V2/NG pools reject native ETH input
+    /// @dev Verifies the InvalidCallData revert condition when sending ETH to modern pools
+    function testRevert_NativeETHWithV2Pool() public {
+        uint256 amountIn = 1 ether;
+        vm.deal(USER_SENDER, amountIn);
+
+        vm.startPrank(USER_SENDER);
+
+        bytes memory swapData = _buildCurveSwapData(
+            CurveSwapParams({
+                pool: poolInMid, // Using a V2 pool
+                isV2: true,
+                fromIndex: 0,
+                toIndex: 1,
+                destinationAddress: USER_SENDER,
+                tokenOut: address(tokenIn)
+            })
+        );
+
+        _buildRouteAndExecuteAndVerifySwap(
+            SwapTestParams({
+                tokenIn: address(0), // Native ETH
+                tokenOut: address(tokenIn),
+                amountIn: amountIn,
+                minOut: 0,
+                sender: USER_SENDER,
+                destinationAddress: USER_SENDER,
+                commandType: CommandType.DistributeNative
+            }),
+            swapData,
+            InvalidCallData.selector
+        );
+
+        vm.stopPrank();
+    }
+
     /// @notice Tests that the facet reverts on zero pool or destination addresses.
     /// @dev Verifies the InvalidCallData revert condition in swapCurve.
     function testRevert_InvalidPoolOrDestinationAddress() public {

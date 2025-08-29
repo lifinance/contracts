@@ -99,6 +99,7 @@ contract CurveFacet is BaseRouteConstants {
         }
 
         if (isV2) {
+            if (isNativeIn) revert InvalidCallData();
             if (from == FUNDS_IN_RECEIVER) {
                 // Optimistic NG hop: tokens already sent to pool by previous hop.
                 // NG requires _dx > 0 and asserts actual delta >= _dx.
