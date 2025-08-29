@@ -40,6 +40,13 @@ contract AcrossFacetPackedV4Test is TestBase {
     address internal constant ADDRESS_ACX_TOKEN =
         0x44108f0223A3C3028F5Fe7AEC7f9bb2E66beF82F;
 
+    // Solana-specific constants
+    uint64 internal constant CHAIN_ID_SOLANA = 1151111081099710;
+    bytes32 internal constant USDC_ADDRESS_SOLANA =
+        0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61;
+    bytes32 internal constant USER_RECEIVER_SOLANA =
+        0x98e43fd4b1f88564e7ecfa1dd5059e0ab4a8126fcdd31927f1db9eb51dd74b12;
+
     bytes internal constant WITHDRAW_REWARDS_CALLDATA =
         abi.encodeWithSignature("claimRewards()");
     bytes internal constant WILL_FAIL_CALLDATA =
@@ -628,5 +635,72 @@ contract AcrossFacetPackedV4Test is TestBase {
         acrossFacetPackedV4.decode_startBridgeTokensViaAcrossV4ERC20Packed(
             shortCalldata
         );
+    }
+
+    // ============ Solana Bridging Tests ============
+
+    function test_canBridgeNativeTokensToSolana() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create Solana-specific packed parameters for native bridging
+        AcrossFacetPackedV4.PackedParameters
+            memory solanaParams = AcrossFacetPackedV4.PackedParameters({
+                transactionId: bytes8("solanaID"),
+                receiver: USER_RECEIVER_SOLANA,
+                depositor: _convertAddressToBytes32(USER_SENDER),
+                destinationChainId: CHAIN_ID_SOLANA,
+                receivingAssetId: bytes32(0), // Native token on Solana
+                outputAmount: (amountNative * 99) / 100, // 99%
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        // Check that event is emitted correctly
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiAcrossTransfer(bytes8("solanaID"));
+
+        // Call facet through diamond to bridge native tokens to Solana
+        acrossFacetPackedV4.startBridgeTokensViaAcrossV4NativeMin{
+            value: amountNative
+        }(solanaParams);
+        vm.stopPrank();
+    }
+
+    function test_canBridgeERC20TokensToSolana() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create Solana-specific packed parameters for ERC20 bridging
+        AcrossFacetPackedV4.PackedParameters
+            memory solanaParams = AcrossFacetPackedV4.PackedParameters({
+                transactionId: bytes8("solanaID"),
+                receiver: USER_RECEIVER_SOLANA,
+                depositor: _convertAddressToBytes32(USER_SENDER),
+                destinationChainId: CHAIN_ID_SOLANA,
+                receivingAssetId: USDC_ADDRESS_SOLANA, // USDC on Solana
+                outputAmount: (amountUSDC * 99) / 100, // 99%
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        // Approve facet to spend sender's tokens
+        IERC20(ADDRESS_USDC).safeApprove(address(diamond), amountUSDC);
+
+        // Check that event is emitted correctly
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiAcrossTransfer(bytes8("solanaID"));
+
+        // Call facet through diamond to bridge USDC to Solana
+        acrossFacetPackedV4.startBridgeTokensViaAcrossV4ERC20Min(
+            solanaParams,
+            _convertAddressToBytes32(ADDRESS_USDC),
+            amountUSDC
+        );
+        vm.stopPrank();
     }
 }
