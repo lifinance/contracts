@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
+import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
+import { LDAEmergencyPauseFacet } from "lifi/Periphery/LDA/Facets/LDAEmergencyPauseFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("EmergencyPauseFacet") {}
+    constructor() DeployScriptBase("LDAEmergencyPauseFacet") {}
 
     function run()
         public
-        returns (EmergencyPauseFacet deployed, bytes memory constructorArgs)
+        returns (LDAEmergencyPauseFacet deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = EmergencyPauseFacet(
-            deploy(type(EmergencyPauseFacet).creationCode)
+        deployed = LDAEmergencyPauseFacet(
+            deploy(type(LDAEmergencyPauseFacet).creationCode)
         );
     }
 
