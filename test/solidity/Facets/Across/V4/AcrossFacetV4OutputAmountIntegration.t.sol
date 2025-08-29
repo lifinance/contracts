@@ -160,7 +160,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         usdc.approve(address(diamond), 100 * 10 ** 6);
 
         // Expected event
-        vm.expectEmit(true, true, true, true, address(diamond));
+        vm.expectEmit(true, true, true, true, address(acrossFacetV4));
         emit LiFiTransferStarted(bridgeData);
 
         // Execute direct bridge
@@ -189,18 +189,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiTransferStarted(bridgeData);
 
-        // Execute direct bridge
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiTransferStarted(bridgeData);
-
         // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
-        uint256 expectedOutput =
-            (bridgeData.minAmount * uint256(validAcrossData.outputAmountMultiplier))
-                / TestAcrossFacetV4.MULTIPLIER_BASE();
+        // For direct bridges, outputAmount is the value set in validAcrossData.outputAmount
         vm.expectCall(
             SPOKE_POOL,
             abi.encodeWithSelector(
@@ -210,7 +200,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
                 validAcrossData.sendingAssetId,
                 validAcrossData.receivingAssetId,
                 bridgeData.minAmount,
-                expectedOutput,
+                validAcrossData.outputAmount,
                 bridgeData.destinationChainId,
                 validAcrossData.exclusiveRelayer,
                 validAcrossData.quoteTimestamp,
@@ -220,9 +210,10 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             )
         );
 
-        // Execute swap and bridge
-        initiateSwapAndBridgeTxWithFacet(false);
+        // Execute direct bridge
+        initiateBridgeTxWithFacet(false);
         vm.stopPrank();
+    }
 
     /// @notice Test swap and bridge with 50% output amount multiplier
     function test_SwapAndBridgeWith50PercentMultiplier() public {
@@ -244,6 +235,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             swapOutputAmount,
             0 // Use default amountIn
         );
+        acrossFacetV4.addDex(address(mockDEX));
 
         // Setup swap data
         delete swapData;
@@ -291,7 +283,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             block.timestamp
         );
 
-        vm.expectEmit(true, true, true, true, address(diamond));
+        vm.expectEmit(true, true, true, true, address(acrossFacetV4));
         emit LiFiTransferStarted(bridgeData);
 
         // Execute swap and bridge
@@ -319,6 +311,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             swapOutputAmount,
             0 // Use default amountIn
         );
+        acrossFacetV4.addDex(address(mockDEX));
 
         // Setup swap data
         delete swapData;
@@ -366,7 +359,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             block.timestamp
         );
 
-        vm.expectEmit(true, true, true, true, address(diamond));
+        vm.expectEmit(true, true, true, true, address(acrossFacetV4));
         emit LiFiTransferStarted(bridgeData);
 
         // Execute swap and bridge
@@ -430,7 +423,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         setDefaultSwapDataSingleDAItoUSDC();
 
         // approval
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+        dai.approve(address(diamond), swapData[0].fromAmount);
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
