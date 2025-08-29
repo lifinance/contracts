@@ -181,12 +181,11 @@ bytes memory packedCalldata = acrossFacetPackedV4.encode_startBridgeTokensViaAcr
 
 ### Encoding ERC20 Transfer
 
-```solidity
 // Create packed parameters
 PackedParameters memory params = PackedParameters({
     transactionId: bytes8("someID"),
     receiver: bytes32(uint256(uint160(RECEIVER_ADDRESS))),
-    depositor: bytes32(uint256(uint160(USDC_ADDRESS))),
+    depositor: bytes32(uint256(uint160(DEPOSITOR_ADDRESS))),
     destinationChainId: 137,
     receivingAssetId: bytes32(uint256(uint160(USDC_ADDRESS))),
     outputAmount: 1000000,
@@ -196,7 +195,6 @@ PackedParameters memory params = PackedParameters({
     exclusivityParameter: 0,
     message: ""
 });
-
 // Encode the calldata
 bytes memory packedCalldata = acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
     params,
