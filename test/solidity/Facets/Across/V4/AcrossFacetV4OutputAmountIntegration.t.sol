@@ -156,6 +156,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             address(usdc)
         );
 
+        // For direct bridges, the contract expects validAcrossData.outputAmount to be set
+        validAcrossData.outputAmount = bridgeData.minAmount;
+
         // Approve USDC spending
         usdc.approve(address(diamond), 100 * 10 ** 6);
 
@@ -181,6 +184,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         validAcrossData.receivingAssetId = _convertAddressToBytes32(
             address(dai)
         );
+
+        // For direct bridges, the contract expects validAcrossData.outputAmount to be set
+        validAcrossData.outputAmount = bridgeData.minAmount;
 
         // Approve DAI spending
         dai.approve(address(diamond), 100 * 10 ** 18);
