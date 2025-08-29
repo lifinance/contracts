@@ -72,8 +72,8 @@ contract CurveFacet is BaseRouteConstants {
 
         address pool = stream.readAddress();
         bool isV2 = stream.readUint8() > 0; // Convert uint8 to bool. 0 = V1, 1 = V2
-        int128 fromIndex = int8(stream.readUint8());
-        int128 toIndex = int8(stream.readUint8());
+        int128 fromIndex = int128(uint128(stream.readUint8()));
+        int128 toIndex = int128(uint128(stream.readUint8()));
         address destinationAddress = stream.readAddress();
         address tokenOut = stream.readAddress();
 
