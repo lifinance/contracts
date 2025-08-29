@@ -18,7 +18,7 @@ abstract contract BaseDEXFacetWithCallbackTest is BaseDEXFacetTest {
 
     /// @notice Builds swap data that arms callback verification for the DEX under test.
     /// @param pool Pool expected to invoke the callback.
-    /// @param destinationAddress Destionation address of swap proceeds.
+    /// @param destinationAddress Destination address of swap proceeds.
     /// @return swapData Encoded payload that triggers the DEX callback path.
     function _buildCallbackSwapData(
         address pool,
