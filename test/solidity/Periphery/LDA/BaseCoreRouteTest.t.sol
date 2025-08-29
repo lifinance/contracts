@@ -381,9 +381,9 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @param route Pre-built route bytes (single or multi-hop)
     /// @param expectedRevert Error selector that should be thrown by processRoute
     /// @dev Special overload for testing failure cases:
-    ///      - For aggregator funds (DistributeSelfERC20), uses amountIn-1 to trigger errors
+    ///      - For aggregator funds (DistributeSelfERC20), sends amountIn-1 to trigger errors
     ///      - For user funds, approves full amountIn but sends amountIn-1
-    ///      - Sets minOut to 0 for testing focus
+    ///      - Sets minOut to 0 to focus on specific error cases
     ///      - Verifies exact error selector match
     function _executeAndVerifySwap(
         SwapTestParams memory params,
@@ -432,18 +432,18 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @param params SwapTestParams for building and executing the swap
     /// @param swapData DEX-specific swap data to pack into the route
     /// @param expectedEvents Additional events to expect during execution
-    /// @param expectRevert Whether to treat tokenIn as fee-on-transfer for spent checking
+    /// @param isFeeOnTransferToken Whether to allow 1 wei difference in spent amount for fee-on-transfer tokens
     /// @param verification Route event verification configuration
     /// @dev Comprehensive helper that:
     ///      - Builds route using _buildBaseRoute
     ///      - Executes swap with full verification options
-    ///      - Supports all verification features: events, fee-on-transfer, exact output
+    ///      - Supports all verification features: events, fee-on-transfer tokens, exact output
     ///      - Primarily used by complex test scenarios to keep code concise
     function _buildRouteAndExecuteAndVerifySwap(
         SwapTestParams memory params,
         bytes memory swapData,
         ExpectedEvent[] memory expectedEvents,
-        bool expectRevert,
+        bool isFeeOnTransferToken,
         RouteEventVerification memory verification
     ) internal {
         bytes memory route = _buildBaseRoute(params, swapData);
@@ -451,7 +451,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
             params,
             route,
             expectedEvents,
-            expectRevert,
+            isFeeOnTransferToken,
             verification
         );
     }

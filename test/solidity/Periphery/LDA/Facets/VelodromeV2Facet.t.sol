@@ -715,7 +715,7 @@ contract VelodromeV2FacetTest is BaseDEXFacetTest {
             }),
             route,
             expectedEvents,
-            false,
+            false, // Not a fee-on-transfer token
             RouteEventVerification({
                 expectedExactOut: expectedOutput[1],
                 checkData: true

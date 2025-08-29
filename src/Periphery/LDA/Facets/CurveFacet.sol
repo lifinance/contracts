@@ -48,7 +48,7 @@ contract CurveFacet is BaseRouteConstants {
     /// - `from` controls token sourcing:
     ///     - if `from == msg.sender` and amountIn > 0 - facet pulls `amountIn` from caller,
     ///     - if `from != msg.sender` - tokens are assumed to be already available (e.g., previous hop).
-    ///   Special case (NG optimistic): if `isV2 == 1` and `from == address(0)`, the facet calls
+    ///   Special case (NG optimistic): if `isV2 == 1` and `from == FUNDS_IN_RECEIVER` (address(1)), the facet calls
     ///   `exchange_received` on NG pools (tokens must have been pre-sent to the pool).
     /// - Indices (i,j) must match the pool's coin ordering.
     /// - Native ETH handling:
@@ -59,7 +59,7 @@ contract CurveFacet is BaseRouteConstants {
     ///     - Native ETH not supported, use wrapped versions
     /// @param swapData Encoded swap parameters [pool, isV2, fromIndex, toIndex, destinationAddress, tokenOut]
     /// @param from Token source address; if equals msg.sender, tokens will be pulled;
-    ///             if set to address(0) with isV2==1, signals NG optimistic hop (tokens pre-sent)
+    ///             if set to FUNDS_IN_RECEIVER (address(1)) with isV2==1, signals NG optimistic hop (tokens pre-sent)
     /// @param tokenIn Input token address (address(0) for native ETH in legacy pools)
     /// @param amountIn Amount of input tokens (ignored for NG optimistic hop)
     function swapCurve(

@@ -462,7 +462,7 @@ contract CurveFacetTest is BaseDEXFacetTest {
             }),
             swapData,
             new ExpectedEvent[](0),
-            true // Allow for small balance differences due to stETH rebasing
+            true // Allow for small balance differences due to stETH rebasing (fee-on-transfer behavior)
         );
 
         vm.stopPrank();
