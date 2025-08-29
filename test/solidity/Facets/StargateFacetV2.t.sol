@@ -52,7 +52,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     TestStargateFacetV2 internal stargateFacetV2;
     StargateFacetV2.StargateData internal stargateData;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19979843;
 
@@ -75,7 +75,11 @@ contract StargateFacetV2Test is TestBaseFacet {
             .selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
-        addFacet(diamond, address(stargateFacetV2), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(stargateFacetV2),
+            functionSelectors
+        );
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond

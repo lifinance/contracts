@@ -98,7 +98,7 @@ pragma solidity ^0.8.17;
 //             .encoder_startBridgeTokensViaHopL2ERC20Packed
 //             .selector;
 
-//         addFacet(diamond, address(hopFacetPacked), functionSelectors);
+//         addFacet(address(diamond), address(hopFacetPacked), functionSelectors);
 //         hopFacetPacked = HopFacetPacked(address(diamond));
 
 //         /// Perpare HopFacetOptimized & Approval

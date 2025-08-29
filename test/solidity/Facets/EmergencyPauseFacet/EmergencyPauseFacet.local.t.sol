@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../../utils/TestBase.sol";
-import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
@@ -33,7 +33,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     EmergencyPauseFacet internal emergencyPauseFacet;
     address[] internal blacklist = new address[](0);
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19979843;
 
@@ -47,6 +47,11 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
             address(emergencyPauseFacet),
             "EmergencyPauseFacet"
         );
+    }
+
+    function testRevert_WhenPauserWalletIsZeroAddress() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new EmergencyPauseFacet(address(0));
     }
 
     function test_PauserWalletCanPauseDiamond() public {
