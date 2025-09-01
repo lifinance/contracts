@@ -59,42 +59,31 @@ graph LR;
 
 ```solidity
 struct PackedParameters {
-  bytes32 transactionId;
-  bytes32 receiver;
-  bytes32 depositor;
-  uint64 destinationChainId;
-  bytes32 receivingAssetId;
-  uint256 outputAmount;
-  bytes32 exclusiveRelayer;
-  uint32 quoteTimestamp;
-  uint32 fillDeadline;
-  uint32 exclusivityParameter;
-  bytes message;
+  bytes32 transactionId; // Custom transaction ID for tracking
+  bytes32 receiver; // Receiving address (bytes32 for non-EVM support)
+  bytes32 depositor; // Depositor address (bytes32 for non-EVM support)
+  uint64 destinationChainId; // Target chain ID
+  bytes32 receivingAssetId; // Token to receive on destination
+  uint256 outputAmount; // Expected output amount on destination
+  bytes32 exclusiveRelayer; // Exclusive relayer address
+  uint32 quoteTimestamp; // Timestamp of the quote
+  uint32 fillDeadline; // Deadline for filling the deposit
+  uint32 exclusivityParameter; // Exclusivity deadline control
+  bytes message; // Additional message data
 }
 ```
 
-### Parameter Descriptions
+### Exclusivity Parameter Usage
 
-- `transactionId`: Custom transaction ID for tracking
-- `receiver`: Receiving address (bytes32 for non-EVM support)
-- `depositor`: Depositor address (bytes32 for non-EVM support)
-- `destinationChainId`: Target chain ID
-- `receivingAssetId`: Token to receive on destination (bytes32 for non-EVM support)
-- `outputAmount`: Expected output amount on destination
-- `exclusiveRelayer`: Exclusive relayer address (bytes32 for non-EVM support)
-- `quoteTimestamp`: Timestamp of the quote
-- `fillDeadline`: Deadline for filling the deposit
-- `exclusivityParameter`: This value is used to set the exclusivity deadline timestamp in the emitted deposit
-  event. Before this destination chain timestamp, only the exclusiveRelayer (if set to a non-zero address),
-  can fill this deposit. There are three ways to use this parameter:
-  1. NO EXCLUSIVITY: If this value is set to 0, then a timestamp of 0 will be emitted,
-     meaning that there is no exclusivity period.
-  2. OFFSET: If this value is less than MAX_EXCLUSIVITY_PERIOD_SECONDS, then add this value to
-     the block.timestamp to derive the exclusive relayer deadline.
-  3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
-- `message`: Additional message data
-- `sendingAssetId`: Source token identifier (bytes32 for non-EVM support) - **Note**: This is a separate parameter to the encoding function, not part of the PackedParameters struct
-- `inputAmount`: Amount to bridge (for ERC20 transfers) - **Note**: This is a separate parameter to the encoding function, not part of the PackedParameters struct
+The `exclusivityParameter` controls when only the `exclusiveRelayer` can fill the deposit. Before the exclusivity deadline timestamp, only the designated exclusive relayer (if set to a non-zero address) can fill this deposit. There are three ways to use this parameter:
+
+- **0 (NO EXCLUSIVITY)**: If this value is set to 0, then a timestamp of 0 will be emitted in the deposit event, meaning there is no exclusivity period and any relayer can fill the deposit immediately.
+
+- **< MAX_EXCLUSIVITY_PERIOD_SECONDS (OFFSET)**: If this value is less than the maximum exclusivity period, it's treated as an offset. The system adds this value to the current `block.timestamp` to derive the exclusive relayer deadline. This allows for relative timing from the current block.
+
+- **≥ MAX_EXCLUSIVITY_PERIOD_SECONDS (ABSOLUTE TIMESTAMP)**: If this value is greater than or equal to the maximum exclusivity period, it's treated as an absolute timestamp. The system uses this value directly as the exclusivity deadline timestamp, allowing for precise control over when the exclusivity period ends.
+
+**Note**: `sendingAssetId` and `inputAmount` are separate parameters to the encoding function, not part of this struct.
 
 ## Packed Calldata Format
 

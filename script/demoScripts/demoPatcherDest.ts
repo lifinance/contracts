@@ -3,16 +3,16 @@ import { randomBytes } from 'crypto'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  createPublicClient,
   createWalletClient,
-  encodeAbiParameters,
-  encodeFunctionData,
-  getAddress,
-  getContract,
+  createPublicClient,
   http,
-  parseAbi,
   parseUnits,
+  getContract,
   type Hex,
+  encodeFunctionData,
+  encodeAbiParameters,
+  parseAbi,
+  getAddress,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrum } from 'viem/chains'
@@ -22,9 +22,9 @@ import baseDeployments from '../../deployments/base.json'
 import baseStagingDeployments from '../../deployments/base.staging.json'
 
 import {
+  generateNeedle,
   findNeedleOffset,
   generateBalanceOfCalldata,
-  generateNeedle,
 } from './utils/patcherHelpers'
 
 /**

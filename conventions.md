@@ -431,12 +431,13 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 
 - **Always use existing helper functions** when available instead of reimplementing functionality
 - Common helper functions to check for:
+
   - `getDeployments()` from `script/utils/deploymentHelpers.ts` for loading deployment files
   - `getProvider()` and `getWalletFromPrivateKeyInDotEnv()` from `script/demoScripts/utils/demoScriptHelpers.ts`
   - `sendTransaction()` for transaction execution
   - `ensureBalanceAndAllowanceToDiamond()` for token approvals
   - `getUniswapData*()` functions for swap data generation
-  - `createDefaultBridgeData()` from `script/demoScripts/utils/bridgeDataHelpers.ts` for bridge data creation
+
 - Before implementing new functionality, search the codebase for existing helper functions
 - Helper functions provide consistent error handling, logging, and type safety across the project
 
@@ -444,8 +445,7 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 
 - **Always use proper typechain types** instead of `any` or custom types
 - Use `ILiFi.BridgeDataStruct` from typechain for bridge data
-- Use `createDefaultBridgeData()` helper function for consistent bridge data creation
-- Import `BridgeData` type alias from `bridgeDataHelpers.ts` for better readability
+
 - Never use `any` types for bridge data or other contract-related structures
 
 #### Testing Requirements for Helper Functions
@@ -475,8 +475,6 @@ script/
 │   └── someHelper.ts
 ├── demoScripts/
 │   └── utils/
-│       ├── bridgeDataHelpers.ts
-│       └── bridgeDataHelpers.test.ts  # Test file in same directory
 ```
 
 **Test File Template:**
@@ -508,7 +506,7 @@ Bun's test runner provides Jest-compatible assertions:
 **Running Tests:**
 
 - Single test file: `bun test path/to/test.test.ts`
-- All TypeScript tests: `npm run test:ts` (automatically finds and runs all `.test.ts` files in `script/` directory)
+- All TypeScript tests: `bun run test:ts` (automatically finds and runs all `.test.ts` files in `script/` directory)
 - Specific test: `bun test path/to/specific.test.ts`
 
 **Best Practices:**
