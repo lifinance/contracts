@@ -48,9 +48,14 @@ const main = defineCommand({
       description: 'EVM network to check',
       required: true,
     },
+    environment: {
+      type: 'string',
+      description: 'Environment to check (staging or production)',
+      default: 'production',
+    },
   },
   async run({ args }) {
-    const { network } = args
+    const { network, environment } = args
 
     // Skip tronshasta testnet but allow tron mainnet
     if (network.toLowerCase() === 'tronshasta') {
@@ -68,8 +73,16 @@ const main = defineCommand({
       process.exit(0)
     }
 
-    // Load LDA-specific deployments (production only)
-    const ldaDeploymentFile = `../../deployments/${network.toLowerCase()}.lda.production.json`
+    // Validate environment
+    if (environment !== 'staging' && environment !== 'production') {
+      consola.error(
+        `Invalid environment: ${environment}. Must be 'staging' or 'production'.`
+      )
+      process.exit(1)
+    }
+
+    // Load LDA-specific deployments
+    const ldaDeploymentFile = `../../deployments/${network.toLowerCase()}.lda.${environment}.json`
     let ldaDeployedContracts: Record<string, string>
 
     try {
@@ -78,22 +91,45 @@ const main = defineCommand({
     } catch (error) {
       consola.error(`Failed to load LDA deployment file: ${ldaDeploymentFile}`)
       consola.error(
-        'Please ensure LDA contracts are deployed to production first.'
+        `Please ensure LDA contracts are deployed to ${environment} first.`
       )
       process.exit(1)
     }
 
     // Load main deployment file for shared infrastructure (like LiFiTimelockController)
-    const mainDeploymentFile = `../../deployments/${network.toLowerCase()}.json`
+    // For staging, try environment-specific file first, then fallback to main
     let mainDeployedContracts: Record<string, string> = {}
+    const mainDeploymentFile = `../../deployments/${network.toLowerCase()}.json`
 
-    try {
-      const { default: contracts } = await import(mainDeploymentFile)
-      mainDeployedContracts = contracts
-    } catch (error) {
-      consola.warn(`Failed to load main deployment file: ${mainDeploymentFile}`)
-      consola.warn('Some shared infrastructure checks will be skipped.')
-    }
+    if (environment === 'staging') {
+      const stagingFile = `../../deployments/${network.toLowerCase()}.staging.json`
+      try {
+        const { default: contracts } = await import(stagingFile)
+        mainDeployedContracts = contracts
+      } catch (error) {
+        // Fallback to main deployment file for staging
+        try {
+          const { default: contracts } = await import(mainDeploymentFile)
+          mainDeployedContracts = contracts
+        } catch (fallbackError) {
+          consola.warn(
+            `Failed to load deployment files: ${stagingFile} and ${mainDeploymentFile}`
+          )
+          consola.warn('Some shared infrastructure checks will be skipped.')
+        }
+      }
+    } else 
+      // Production - use main deployment file
+      try {
+        const { default: contracts } = await import(mainDeploymentFile)
+        mainDeployedContracts = contracts
+      } catch (error) {
+        consola.warn(
+          `Failed to load main deployment file: ${mainDeploymentFile}`
+        )
+        consola.warn('Some shared infrastructure checks will be skipped.')
+      }
+    
 
     // Note: We keep LDA and main contracts separate for clarity
 
@@ -112,7 +148,9 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    consola.info('Running LDA Diamond post deployment checks...\n')
+    consola.info(
+      `Running LDA Diamond post deployment checks for ${environment}...\n`
+    )
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                Check LDA Diamond Contract               │
@@ -208,14 +246,32 @@ const main = defineCommand({
       const timelockAddress = mainDeployedContracts['LiFiTimelockController']
       if (timelockAddress) {
         consola.info(`Found LiFiTimelockController at: ${timelockAddress}`)
-        if (owner.toLowerCase() === timelockAddress.toLowerCase())
+        if (owner.toLowerCase() === timelockAddress.toLowerCase()) 
           consola.success('LDADiamond is owned by LiFiTimelockController')
-        else
-          logError(`LDADiamond owner is ${owner}, expected ${timelockAddress}`)
+         else 
+          if (environment === 'production') 
+            consola.error(
+              `LDADiamond owner is ${owner}, expected ${timelockAddress}`
+            )
+           else {
+            consola.warn(
+              `LDADiamond owner is ${owner}, expected ${timelockAddress} for production`
+            )
+            consola.info(
+              'For staging environment, ownership transfer to timelock is typically done later'
+            )
+          }
+        
       } else {
-        consola.error(
-          'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
-        )
+        if (environment === 'production') 
+          consola.error(
+            'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
+          )
+         else 
+          consola.warn(
+            'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
+          )
+        
         consola.info(
           'Note: LiFiTimelockController should be deployed as shared infrastructure before LDA deployment'
         )

@@ -36,9 +36,8 @@ deployAllLDAContracts() {
       "1) Initial setup and CREATE3Factory deployment" \
       "2) Deploy LDA core facets" \
       "3) Deploy LDA diamond and update with core facets" \
-      "4) Deploy LDA DEX facets and add to diamond" \
-      "5) Run LDA health check only" \
-      "6) Ownership transfer to timelock (production only)"
+      "4) Run LDA health check only" \
+      "5) Ownership transfer to timelock (production only)"
   )
 
   # Extract the stage number from the selection
@@ -52,8 +51,6 @@ deployAllLDAContracts() {
     START_STAGE=4
   elif [[ "$START_FROM" == *"5)"* ]]; then
     START_STAGE=5
-  elif [[ "$START_FROM" == *"6)"* ]]; then
-    START_STAGE=6
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
@@ -165,91 +162,37 @@ deployAllLDAContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 3 completed"
   fi
 
-  # Stage 4: Deploy LDA DEX facets and add to diamond
+  # Stage 4: Run LDA health check
   if [[ $START_STAGE -le 4 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Deploy LDA DEX facets and add to diamond"
-
-    # deploy all LDA DEX facets and add to diamond
-    echo ""
-    echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying LDA DEX facets and adding to diamond contract"
-    
-    # get all LDA facet contract names (excluding core facets)
-    local LDA_FACETS_PATH="script/deploy/facets/LDA/"
-    
-    # Read LDA core facets from config for exclusion
-    local GLOBAL_CONFIG_PATH="./config/global.json"
-    if [[ ! -f "$GLOBAL_CONFIG_PATH" ]]; then
-      error "Global config file not found: $GLOBAL_CONFIG_PATH"
-      return 1
-    fi
-
-    # Get LDA core facets from JSON config
-    local LDA_CORE_FACETS_JSON=$(jq -r '.ldaCoreFacets[]' "$GLOBAL_CONFIG_PATH")
-    local LDA_CORE_FACETS=()
-    while IFS= read -r facet; do
-      LDA_CORE_FACETS+=("$facet")
-    done <<< "$LDA_CORE_FACETS_JSON"
-
-    # Add LDADiamond to exclusions and build regex
-    LDA_CORE_FACETS+=("LDADiamond")
-    local EXCLUDED_LDA_FACETS_REGEXP="^($(printf '%s|' "${LDA_CORE_FACETS[@]}"))"
-    EXCLUDED_LDA_FACETS_REGEXP="${EXCLUDED_LDA_FACETS_REGEXP%|})$"
-
-    # loop through LDA facet contract names
-    for DEPLOY_SCRIPT in $(ls -1 "$LDA_FACETS_PATH" | grep '^Deploy.*\.s\.sol$'); do
-      FACET_NAME=$(echo "$DEPLOY_SCRIPT" | sed -e 's/Deploy//' -e 's/\.s\.sol$//')
-      
-      if ! [[ "$FACET_NAME" =~ $EXCLUDED_LDA_FACETS_REGEXP ]]; then
-        # check if facet is existing in target state JSON for LDA
-        TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$LDA_DIAMOND_CONTRACT_NAME")
-
-        # check result
-        if [[ $? -ne 0 ]]; then
-          echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$FACET_NAME >> no deployment needed"
-        else
-          # deploy LDA facet and add to LDA diamond
-          deployFacetAndAddToLDADiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$LDA_DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
-        fi
-      fi
-    done
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< LDA DEX facets part completed"
-
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Run LDA health check only"
+    bun script/deploy/ldaHealthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 4 completed"
-  fi
-
-  # Stage 5: Run LDA health check only
-  if [[ $START_STAGE -le 5 ]]; then
-    echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 5: Run LDA health check only"
-    bun script/deploy/ldaHealthCheck.ts --network "$NETWORK"
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 completed"
 
     # Pause and ask user if they want to continue with ownership transfer (for production)
-    if [[ "$ENVIRONMENT" == "production" && $START_STAGE -eq 5 ]]; then
+    if [[ "$ENVIRONMENT" == "production" && $START_STAGE -eq 4 ]]; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
-      echo "Continue with stage 6 (ownership transfer)? (y/n)"
+      echo "Continue with stage 5 (ownership transfer)? (y/n)"
       read -r response
       if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo "Proceeding with stage 6..."
+        echo "Proceeding with stage 5..."
       else
-        echo "Skipping stage 6 - ownership transfer cancelled by user"
+        echo "Skipping stage 5 - ownership transfer cancelled by user"
         echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllLDAContracts completed"
         return
       fi
     fi
   fi
 
-  # Stage 6: Ownership transfer to timelock (production only)
-  if [[ $START_STAGE -le 6 ]]; then
+  # Stage 5: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 5 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
       echo ""
-      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Ownership transfer to timelock (production only)"
+      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 5: Ownership transfer to timelock (production only)"
 
-      # make sure SAFE_ADDRESS is available (if starting in stage 6 it's not available yet)
+      # make sure SAFE_ADDRESS is available (if starting in stage 5 it's not available yet)
       SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         echo "SAFE address not found in networks.json. Cannot prepare ownership transfer to Timelock"
@@ -287,10 +230,10 @@ deployAllLDAContracts() {
       echo ""
       # ------------------------------------------------------------
     else
-      echo "Stage 6 skipped - ownership transfer to timelock is only for production environment"
+      echo "Stage 5 skipped - ownership transfer to timelock is only for production environment"
     fi
 
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 completed"
   fi
 
   echo ""

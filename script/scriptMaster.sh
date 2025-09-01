@@ -124,10 +124,7 @@ scriptMaster() {
       "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE" \
       "13) Remove facets or periphery from diamond" \
-      "14) Deploy LDA Diamond with core facets to one network" \
-      "15) Deploy all LDA contracts to one selected network (=new network)" \
-      "16) Deploy one LDA facet to one network" \
-      "17) Update LDA diamond log(s)" \
+      "14) Deploy all LDA diamond with core contracts to one selected network" \
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -597,35 +594,10 @@ scriptMaster() {
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 14: Deploy LDA Diamond with core facets to one network
+  # use case 15: Deploy all LDA diamond with core contracts to one selected network
   elif [[ "$SELECTION" == "14)"* ]]; then
     echo ""
-    echo "[info] selected use case: Deploy LDA Diamond with core facets to one network"
-
-    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-    # get user-selected network from list
-    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-    echo "[info] selected network: $NETWORK"
-
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-    checkRequiredVariablesInDotEnv "$NETWORK"
-
-    # call LDA deploy script
-    deployLDADiamondWithCoreFacets "$NETWORK" "$ENVIRONMENT"
-
-    # check if last command was executed successfully, otherwise exit script with error message
-    checkFailure $? "deploy LDA Diamond with core facets to network $NETWORK"
-
-    playNotificationSound
-
-  #---------------------------------------------------------------------------------------------------------------------
-  # use case 15: Deploy all LDA contracts to one selected network (=new network)
-  elif [[ "$SELECTION" == "15)"* ]]; then
-    echo ""
-    echo "[info] selected use case: Deploy all LDA contracts to one selected network (=new network)"
+    echo "[info] selected use case: Deploy all LDA diamond with core contracts to one selected network"
 
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
@@ -641,89 +613,6 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 16: Deploy one LDA facet to one network
-  elif [[ "$SELECTION" == "16)"* ]]; then
-    echo ""
-    echo "[info] selected use case: Deploy one LDA facet to one network"
-
-    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-    # get user-selected network from list
-    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-
-    echo "[info] selected network: $NETWORK"
-    echo "[info] loading deployer wallet balance..."
-
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-    checkRequiredVariablesInDotEnv "$NETWORK"
-
-    # get user-selected LDA deploy script and contract from list
-    SCRIPT=$(ls -1 "script/deploy/facets/LDA/" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "LDA Deploy Script")
-    CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
-
-    # check if new contract should be added to LDA diamond after deployment
-    if [[ ! "$CONTRACT" == "LDADiamond"* ]]; then
-      echo ""
-      echo "Do you want to add this LDA contract to LDADiamond after deployment?"
-      ADD_TO_DIAMOND=$(
-        gum choose \
-          "yes - to LDADiamond" \
-          " no - do not update any diamond"
-      )
-    fi
-
-    # get current contract version
-    local VERSION=$(getCurrentContractVersion "$CONTRACT")
-
-    # check if contract should be added after deployment
-    if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
-      echo "[info] selected option: $ADD_TO_DIAMOND"
-      deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LDADiamond" "$VERSION"
-    else
-      # just deploy the LDA contract
-      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false "true"
-    fi
-
-    # check if last command was executed successfully, otherwise exit script with error message
-    checkFailure $? "deploy LDA contract $CONTRACT to network $NETWORK"
-
-  #---------------------------------------------------------------------------------------------------------------------
-  # use case 17: Update LDA diamond log(s)
-  elif [[ "$SELECTION" == "17)"* ]]; then
-    # ask user if logs should be updated only for one network or for all networks
-    echo "Would you like to update LDA logs for all networks or one specific network?"
-    SELECTION_NETWORK=$(
-      gum choose \
-        "1) All networks" \
-        "2) One specific network (selection in next screen)"
-    )
-    echo "[info] selected option: $SELECTION_NETWORK"
-
-    if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
-      # call update LDA diamond log function for all networks
-      updateLDADiamondLogs "$ENVIRONMENT"
-    else
-      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-      # get user-selected network from list
-      local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-
-      echo "[info] selected network: $NETWORK"
-      echo "[info] loading deployer wallet balance..."
-
-      # get deployer wallet balance
-      BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-
-      echo "[info] deployer wallet balance in this network: $BALANCE"
-      echo ""
-      checkRequiredVariablesInDotEnv "$NETWORK"
-
-      # call update LDA diamond log function for specific network
-      updateLDADiamondLogs "$ENVIRONMENT" "$NETWORK"
-    fi
-
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     cleanup

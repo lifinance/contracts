@@ -84,6 +84,9 @@ function ldaDiamondUpdateFacet() {
     return 1
   fi
 
+  # set flag for LDA diamond (always false since LDADiamond is not the default diamond)
+  USE_LDA_DIAMOND=false
+
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
   fi
@@ -99,6 +102,7 @@ function ldaDiamondUpdateFacet() {
     echoDebug "LDA_UPDATE_SCRIPT_PATH=$LDA_UPDATE_SCRIPT_PATH"
     echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
     echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+    echoDebug "USE_LDA_DIAMOND=$USE_LDA_DIAMOND"
     echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
     echo ""
   fi
@@ -113,7 +117,7 @@ function ldaDiamondUpdateFacet() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
 
     local RETURN_CODE=$?
 
