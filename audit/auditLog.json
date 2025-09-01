@@ -370,7 +370,6 @@
       "auditorGitHandle": "burrasec",
       "auditReportPath": "./audit/reports/2025.08.25_RelayDepositoryFacet(v1.0.0).pdf",
       "auditCommitHash": "4837b45b3ae705dee625015b1a084b3c69dee2a2"
-    }
     },
     "audit20250901": {
       "auditCompletedOn": "01.09.2025",
