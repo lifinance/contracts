@@ -32,9 +32,11 @@ contract DeployLDAScriptBase is ScriptBase {
             );
         } else {
             // For all other LDA contracts, use standard salt with LDA prefix to avoid conflicts
-            salt = keccak256(abi.encodePacked(saltPrefix, "LDA", contractName));
+            salt = keccak256(
+                abi.encodePacked(saltPrefix, "LDA", contractName)
+            );
         }
-        
+
         factory = CREATE3Factory(factoryAddress);
         predicted = factory.getDeployed(deployerAddress, salt);
     }

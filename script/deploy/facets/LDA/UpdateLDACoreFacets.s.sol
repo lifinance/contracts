@@ -4,11 +4,40 @@ pragma solidity ^0.8.17;
 import { UpdateLDAScriptBase } from "./utils/UpdateLDAScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { LDADiamondCutFacet } from "lifi/Periphery/LDA/Facets/LDADiamondCutFacet.sol";
+import { IERC173 } from "lifi/Interfaces/IERC173.sol";
+import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 
 contract UpdateLDACoreFacets is UpdateLDAScriptBase {
     using stdJson for string;
 
     error FailedToReadLDACoreFacetsFromConfig();
+
+    /// @notice Returns function selectors to exclude for specific facets
+    /// @param facetName The name of the facet being processed
+    function getExcludes(
+        string memory facetName
+    ) internal pure returns (bytes4[] memory) {
+        // Exclude ownership function selectors from CoreRouteFacet to avoid collision with LDAOwnershipFacet
+        if (
+            keccak256(bytes(facetName)) == keccak256(bytes("CoreRouteFacet"))
+        ) {
+            bytes4[] memory excludes = new bytes4[](5);
+            excludes[0] = IERC173.transferOwnership.selector;
+            excludes[1] = TransferrableOwnership
+                .cancelOwnershipTransfer
+                .selector;
+            excludes[2] = TransferrableOwnership
+                .confirmOwnershipTransfer
+                .selector;
+            excludes[3] = IERC173.owner.selector;
+            excludes[4] = bytes4(keccak256("pendingOwner()")); // public state variable not a function
+            return excludes;
+        }
+
+        // No exclusions for other facets
+        bytes4[] memory emptyExcludes = new bytes4[](0);
+        return emptyExcludes;
+    }
 
     function run()
         public
@@ -26,8 +55,6 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
 
         emit log("LDA core facets found in config/global.json: ");
         emit log_uint(ldaCoreFacets.length);
-
-        bytes4[] memory exclude;
 
         // Check if the LDA loupe was already added to the diamond
         bool loupeExists;
@@ -48,7 +75,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             );
             bytes4[] memory loupeSelectors = getSelectors(
                 "LDADiamondLoupeFacet",
-                exclude
+                getExcludes("LDADiamondLoupeFacet")
             );
 
             buildInitialCut(loupeSelectors, ldaDiamondLoupeAddress);
@@ -88,7 +115,10 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
                 path,
                 string.concat(".", facetName)
             );
-            bytes4[] memory selectors = getSelectors(facetName, exclude);
+            bytes4[] memory selectors = getSelectors(
+                facetName,
+                getExcludes(facetName)
+            );
 
             // at this point we know for sure that LDA diamond loupe exists on diamond
             buildDiamondCut(selectors, facetAddress);

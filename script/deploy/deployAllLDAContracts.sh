@@ -37,7 +37,8 @@ deployAllLDAContracts() {
       "2) Deploy LDA core facets" \
       "3) Deploy LDA diamond and update with core facets" \
       "4) Deploy LDA DEX facets and add to diamond" \
-      "5) Run LDA health check only"
+      "5) Run LDA health check only" \
+      "6) Ownership transfer to timelock (production only)"
   )
 
   # Extract the stage number from the selection
@@ -51,6 +52,8 @@ deployAllLDAContracts() {
     START_STAGE=4
   elif [[ "$START_FROM" == *"5)"* ]]; then
     START_STAGE=5
+  elif [[ "$START_FROM" == *"6)"* ]]; then
+    START_STAGE=6
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
@@ -220,8 +223,74 @@ deployAllLDAContracts() {
   if [[ $START_STAGE -le 5 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 5: Run LDA health check only"
-    echo "[info] LDA health check functionality will be implemented later"
+    bun script/deploy/ldaHealthCheck.ts --network "$NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 completed"
+
+    # Pause and ask user if they want to continue with ownership transfer (for production)
+    if [[ "$ENVIRONMENT" == "production" && $START_STAGE -eq 5 ]]; then
+      echo ""
+      echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
+      echo "This should only be done if the health check shows only diamond ownership errors."
+      echo "Continue with stage 6 (ownership transfer)? (y/n)"
+      read -r response
+      if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo "Proceeding with stage 6..."
+      else
+        echo "Skipping stage 6 - ownership transfer cancelled by user"
+        echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllLDAContracts completed"
+        return
+      fi
+    fi
+  fi
+
+  # Stage 6: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 6 ]]; then
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      echo ""
+      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Ownership transfer to timelock (production only)"
+
+      # make sure SAFE_ADDRESS is available (if starting in stage 6 it's not available yet)
+      SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+      if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+        echo "SAFE address not found in networks.json. Cannot prepare ownership transfer to Timelock"
+        exit 1
+      fi
+
+      # ------------------------------------------------------------
+      # Prepare ownership transfer to Timelock
+      echo ""
+      echo "Preparing LDA Diamond ownership transfer to Timelock"
+      TIMELOCK_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiTimelockController")
+      if [[ -z "$TIMELOCK_ADDRESS" ]]; then
+        echo "Timelock address not found. Cannot prepare ownership transfer to Timelock"
+        exit 1
+      fi
+
+      # get LDA diamond address
+      LDA_DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$LDA_DIAMOND_CONTRACT_NAME")
+      if [[ -z "$LDA_DIAMOND_ADDRESS" ]]; then
+        echo "LDA Diamond address not found. Cannot prepare ownership transfer to Timelock"
+        exit 1
+      fi
+
+      # initiate ownership transfer
+      echo "Initiating LDA Diamond ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
+      cast send "$LDA_DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$(getRPCUrl "$NETWORK")" --legacy
+      echo "LDA Diamond ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
+      echo ""
+
+      echo ""
+      echo "Proposing LDA Diamond ownership transfer acceptance tx to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)"
+      # propose tx with calldata 0x79ba5097 = confirmOwnershipTransfer() to LDA diamond (propose to multisig and wrap in timelock calldata with --timelock flag)
+      bun script/deploy/safe/propose-to-safe.ts --to "$LDA_DIAMOND_ADDRESS" --calldata 0x79ba5097 --network "$NETWORK" --rpcUrl "$(getRPCUrl "$NETWORK")" --privateKey "$PRIVATE_KEY_PRODUCTION" --timelock
+      echo "LDA Diamond ownership transfer acceptance proposed to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)"
+      echo ""
+      # ------------------------------------------------------------
+    else
+      echo "Stage 6 skipped - ownership transfer to timelock is only for production environment"
+    fi
+
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
   fi
 
   echo ""

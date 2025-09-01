@@ -10,9 +10,4 @@ contract DeployScript is DeployLDAScriptBase {
     function run() public returns (CoreRouteFacet deployed) {
         deployed = CoreRouteFacet(deploy(type(CoreRouteFacet).creationCode));
     }
-
-    function getConstructorArgs() internal view override returns (bytes memory) {
-        // CoreRouteFacet constructor requires _owner parameter
-        return abi.encode(deployerAddress);
-    }
 }

@@ -36,7 +36,7 @@ contract UpdateLDAScriptBase is ScriptBase {
             "json"
         );
         json = vm.readFile(path);
-        
+
         // Get LDA Diamond address (not LiFi Diamond)
         ldaDiamond = json.readAddress(".LDADiamond");
         cutter = LDADiamondCutFacet(ldaDiamond);

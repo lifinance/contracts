@@ -130,38 +130,36 @@ function ldaDiamondUpdateFacet() {
       return 0
     fi
 
-    # get returned JSON
-    JSON_RETURN_DATA=$(getJsonFromRawForgeScriptReturnValue "$RAW_RETURN_DATA")
-
-    # check whether call was successful or not
-    if [[ $RETURN_CODE -eq 0 ]] && [[ ! -z "$JSON_RETURN_DATA" ]]; then
-
-      # check whether the call was successful
-      local CONTRACT_ADDRESS=$(echo "$JSON_RETURN_DATA" | jq -r '.returns.deployed.value')
-
-      echo "[info] LDA diamond update was successful"
-      if [[ $SHOW_LOGS == "true" ]]; then
-        echo "[info] new contract address: $CONTRACT_ADDRESS"
+    # check the return code the last call
+    if [ "$RETURN_CODE" -eq 0 ]; then
+      # extract the "returns" property directly from the JSON output
+      RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -r '.returns // empty' 2>/dev/null)
+      
+      # get the facet addresses that are known to the diamond from the return data
+      FACETS=$(echo "$RETURN_DATA" | jq -r '.facets.value // "{}"')
+      if [[ $FACETS != "{}" ]]; then
+        echo "[info] LDA diamond update was successful"
+        if [[ $SHOW_LOGS == "true" ]]; then
+          echo "[info] Updated diamond now has $(echo "$FACETS" | jq -r '. | length') facets"
+        fi
+        return 0 # exit the loop if the operation was successful
       fi
-
-      return 0
-
-    else
-      echo "[error] Call failed with error code $RETURN_CODE"
-      echo "[error] Error message: $RAW_RETURN_DATA"
-
-      attempts=$((attempts + 1))
-
-      # exit the loop if this was the last attempt
-      if [ $attempts -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-        error "max attempts reached, execution of LDA diamond update for $UPDATE_SCRIPT failed"
-        return 1
-      fi
-
-      # wait a bit before retrying
-      echo "retrying in $TIME_TO_WAIT_BEFORE_RETRY_ON_ERROR seconds..."
-      sleep $TIME_TO_WAIT_BEFORE_RETRY_ON_ERROR
     fi
+
+    echo "[error] Call failed with error code $RETURN_CODE"
+    echo "[error] Error message: $RAW_RETURN_DATA"
+
+    attempts=$((attempts + 1))
+
+    # exit the loop if this was the last attempt
+    if [ $attempts -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+      error "max attempts reached, execution of LDA diamond update for $UPDATE_SCRIPT failed"
+      return 1
+    fi
+
+    # wait a bit before retrying
+    echo "retrying in $TIME_TO_WAIT_BEFORE_RETRY_ON_ERROR seconds..."
+    sleep $TIME_TO_WAIT_BEFORE_RETRY_ON_ERROR
   done
 
   return 1
