@@ -88,7 +88,7 @@
     "mongo-logs:find": "bun script/deploy/query-deployment-logs.ts find",
     "mongo-logs:exists": "bun script/deploy/query-deployment-logs.ts exists",
     "mongo-logs:get": "bun script/deploy/query-deployment-logs.ts get",
-    "okr:contract-coverage-above-90": "bunx tsx script/utils/analyzeCoverage.ts",
+    "okr:contract-coverage-above-90": "bun run script/utils/analyzeCoverage.ts",
     "preinstall": "bash preinstall.sh",
     "prepare": "bun prepare:husky",
     "prepare:husky": "husky install",
@@ -100,6 +100,7 @@
     "test:ts": "bun script/runTypescriptTests.ts",
     "troncast": "bun run script/troncast/index.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
+    "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts"
   },
   "dependencies": {
