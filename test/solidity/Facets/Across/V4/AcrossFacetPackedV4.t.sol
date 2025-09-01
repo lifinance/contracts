@@ -471,6 +471,9 @@ contract AcrossFacetPackedV4Test is TestBase {
         AcrossFacetV4.AcrossV4Data memory original,
         AcrossFacetV4.AcrossV4Data memory decoded
     ) public {
+        // Only validate fields that are actually extracted from calldata
+        // receiverAddress and sendingAssetId may differ for native vs ERC20
+        // outputAmountMultiplier is not encoded in calldata
         assertEq(original.refundAddress == decoded.refundAddress, true);
         assertEq(original.receivingAssetId == decoded.receivingAssetId, true);
         assertEq(original.outputAmount == decoded.outputAmount, true);
@@ -702,5 +705,88 @@ contract AcrossFacetPackedV4Test is TestBase {
             amountUSDC
         );
         vm.stopPrank();
+    }
+
+    function test_canEncodeAndDecodeNonEVMPackedCalldataNative() public {
+        // Test with Solana address (non-EVM) - 32 bytes for native tokens
+        AcrossFacetPackedV4.PackedParameters
+            memory solanaParams = AcrossFacetPackedV4.PackedParameters({
+                transactionId: bytes8("solanaID"),
+                receiver: USER_RECEIVER_SOLANA, // 32-byte Solana address
+                depositor: _convertAddressToBytes32(USER_SENDER),
+                destinationChainId: CHAIN_ID_SOLANA,
+                receivingAssetId: bytes32(0), // Native token on Solana
+                outputAmount: (amountNative * 99) / 100,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        // Encode with Solana address for native tokens
+        bytes memory packedSolanaCalldata = acrossFacetPackedV4
+            .encode_startBridgeTokensViaAcrossV4NativePacked(solanaParams);
+
+        // Decode and verify non-EVM detection for native tokens
+        (
+            BridgeData memory bridgeData,
+            AcrossFacetV4.AcrossV4Data memory acrossData
+        ) = acrossFacetPackedV4
+                .decode_startBridgeTokensViaAcrossV4NativePacked(
+                    packedSolanaCalldata
+                );
+
+        // Verify that bridgeData.receiver is set to NON_EVM_ADDRESS for 32-byte addresses
+        assertEq(bridgeData.receiver == NON_EVM_ADDRESS, true);
+
+        // Verify that acrossData.receiverAddress contains the full 32-byte Solana address
+        assertEq(acrossData.receiverAddress == USER_RECEIVER_SOLANA, true);
+
+        // Test with EVM address (20 bytes) for native tokens - should work as before
+        AcrossFacetPackedV4.PackedParameters
+            memory evmParams = AcrossFacetPackedV4.PackedParameters({
+                transactionId: bytes8("evmID"),
+                receiver: _convertAddressToBytes32(USER_RECEIVER), // 20-byte EVM address (left-padded)
+                depositor: _convertAddressToBytes32(USER_SENDER),
+                destinationChainId: 137, // Polygon
+                receivingAssetId: _convertAddressToBytes32(ADDRESS_USDC),
+                outputAmount: (amountNative * 99) / 100,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        // Encode with EVM address for native tokens
+        bytes memory packedEVMCalldata = acrossFacetPackedV4
+            .encode_startBridgeTokensViaAcrossV4NativePacked(evmParams);
+
+        // Decode and verify EVM detection for native tokens
+        (
+            BridgeData memory bridgeDataEVM,
+            AcrossFacetV4.AcrossV4Data memory acrossDataEVM
+        ) = acrossFacetPackedV4
+                .decode_startBridgeTokensViaAcrossV4NativePacked(
+                    packedEVMCalldata
+                );
+
+        // Verify that bridgeData.receiver is set to the actual EVM address for 20-byte addresses
+        assertEq(bridgeDataEVM.receiver == USER_RECEIVER, true);
+
+        // Verify that acrossData.receiverAddress contains the full bytes32 representation
+        assertEq(
+            acrossDataEVM.receiverAddress ==
+                _convertAddressToBytes32(USER_RECEIVER),
+            true
+        );
+
+        // Verify that the logic correctly distinguishes between the two cases for native tokens
+        assertEq(bridgeData.receiver != bridgeDataEVM.receiver, true);
+        assertEq(
+            acrossData.receiverAddress != acrossDataEVM.receiverAddress,
+            true
+        );
     }
 }

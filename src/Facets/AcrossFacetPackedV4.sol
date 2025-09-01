@@ -7,6 +7,7 @@ import { AcrossFacetV4 } from "./AcrossFacetV4.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title AcrossFacetPackedV4
 /// @author LI.FI (https://li.fi)
@@ -16,7 +17,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 ///      Callers must ensure valid parameters to avoid potential loss of funds.
 ///      For more validation and safety, use the non-packed AcrossFacetV4 via LiFiDiamond.
 /// @custom:version 1.0.0
-contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
+contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership, LiFiData {
     /// Storage ///
 
     /// @notice The contract address of the across spokepool on the source chain.
@@ -352,12 +353,22 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         }
 
         // extract bridgeData
-        bridgeData.transactionId = bytes32(data[4:12]); // bytes8
-        bridgeData.receiver = address(uint160(uint256(bytes32(data[44:76]))));
+        bridgeData.transactionId = bytes32(data[4:12]);
+        // Check if receiver is EVM address (20 bytes) or non-EVM (longer)
+        // If the first 12 bytes are zero, it's likely an EVM address
+        if (bytes12(data[44:56]) == bytes12(0)) {
+            bridgeData.receiver = address(
+                uint160(uint256(bytes32(data[44:76])))
+            );
+        } else {
+            bridgeData.receiver = NON_EVM_ADDRESS;
+        }
         bridgeData.destinationChainId = uint64(bytes8(data[140:148]));
 
         // extract acrossData
+        acrossData.receiverAddress = bytes32(data[44:76]);
         acrossData.refundAddress = bytes32(data[12:44]);
+        acrossData.sendingAssetId = bytes32(0);
         acrossData.receivingAssetId = bytes32(data[76:108]);
         acrossData.outputAmount = uint256(bytes32(data[108:140]));
         acrossData.exclusiveRelayer = bytes32(data[148:180]);
@@ -390,17 +401,26 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
         bridgeData.sendingAssetId = address(
             uint160(uint256(bytes32(data[76:108])))
         ); // sendingAssetId
-        bridgeData.receiver = address(uint160(uint256(bytes32(data[44:76])))); // receiver
-        bridgeData.minAmount = uint256(uint128(bytes16(data[140:156]))); // inputAmount
-        bridgeData.destinationChainId = uint64(bytes8(data[188:196])); // destinationChainId
+        // Check if receiver is EVM address (20 bytes) or non-EVM (longer)
+        // If the first 12 bytes are zero, it's likely an EVM address
+        if (bytes12(data[44:56]) == bytes12(0)) {
+            bridgeData.receiver = address(
+                uint160(uint256(bytes32(data[44:76])))
+            );
+        } else {
+            bridgeData.receiver = NON_EVM_ADDRESS;
+        }
+        bridgeData.minAmount = uint256(uint128(bytes16(data[140:156])));
+        bridgeData.destinationChainId = uint64(bytes8(data[188:196]));
 
-        acrossData.refundAddress = bytes32(data[12:44]); // depositor
-        acrossData.sendingAssetId = bytes32(data[76:108]); // sendingAssetId
-        acrossData.receivingAssetId = bytes32(data[108:140]); // receivingAssetId
-        acrossData.outputAmount = uint256(bytes32(data[156:188])); // outputAmount
-        acrossData.exclusiveRelayer = bytes32(data[196:228]); // exclusiveRelayer
-        acrossData.quoteTimestamp = uint32(bytes4(data[228:232])); // quoteTimestamp
-        acrossData.fillDeadline = uint32(bytes4(data[232:236])); // fillDeadline
+        acrossData.receiverAddress = bytes32(data[44:76]);
+        acrossData.refundAddress = bytes32(data[12:44]);
+        acrossData.sendingAssetId = bytes32(data[76:108]);
+        acrossData.receivingAssetId = bytes32(data[108:140]);
+        acrossData.outputAmount = uint256(bytes32(data[156:188]));
+        acrossData.exclusiveRelayer = bytes32(data[196:228]);
+        acrossData.quoteTimestamp = uint32(bytes4(data[228:232]));
+        acrossData.fillDeadline = uint32(bytes4(data[232:236]));
         acrossData.exclusivityParameter = uint32(bytes4(data[236:240])); // exclusivityParameter
         acrossData.message = data[240:]; // message
 

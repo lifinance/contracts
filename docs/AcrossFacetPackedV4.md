@@ -141,6 +141,21 @@ The packed version optimizes gas usage by encoding parameters directly into call
 - For ERC20 transfers, `inputToken` and `inputAmount` are read from calldata positions `[76:108]` and `[140:156]` respectively
 - **Note**: The ERC20 packed function uses 240 bytes total calldata to accommodate the 8-byte destinationChainId
 
+## Decoding Logic
+
+### Smart Address Detection
+
+The decode functions automatically detect whether the receiver address is an EVM address or a non-EVM address:
+
+- **EVM Address Detection**: If the first 12 bytes of the receiver field (`data[44:56]`) are zero, the system assumes it's an EVM address and extracts the last 20 bytes as the address
+- **Non-EVM Address Detection**: If the first 12 bytes contain non-zero values, the system sets `bridgeData.receiver` to `NON_EVM_ADDRESS` constant
+- **Full Address Preservation**: The complete `bytes32` receiver address is always preserved in `acrossData.receiverAddress` for non-EVM chains
+
+### Decoding Behavior
+
+- **Field Extraction**: Only fields that are explicitly encoded in the calldata are populated during decoding
+- **Native vs ERC20**: The `sendingAssetId` field is set to `bytes32(0)` for native transfers and extracted from calldata for ERC20 transfers
+
 ## Usage Examples
 
 ### Encoding Native Transfer
@@ -170,30 +185,44 @@ bytes memory packedCalldata = acrossFacetPackedV4.encode_startBridgeTokensViaAcr
 
 ### Encoding ERC20 Transfer
 
+```solidity
 // Create packed parameters
 PackedParameters memory params = PackedParameters({
-transactionId: bytes8("someID"),
-receiver: bytes32(uint256(uint160(RECEIVER_ADDRESS))),
-depositor: bytes32(uint256(uint160(DEPOSITOR_ADDRESS))),
-destinationChainId: 137,
-receivingAssetId: bytes32(uint256(uint160(USDC_ADDRESS))),
-outputAmount: 1000000,
-exclusiveRelayer: bytes32(0),
-quoteTimestamp: uint32(block.timestamp),
-fillDeadline: uint32(block.timestamp + 3600),
-exclusivityParameter: 0,
-message: ""
+    transactionId: bytes8("someID"),
+    receiver: bytes32(uint256(uint160(RECEIVER_ADDRESS))),
+    depositor: bytes32(uint256(uint160(DEPOSITOR_ADDRESS))),
+    destinationChainId: 137,
+    receivingAssetId: bytes32(uint256(uint160(USDC_ADDRESS))),
+    outputAmount: 1000000,
+    exclusiveRelayer: bytes32(0),
+    quoteTimestamp: uint32(block.timestamp),
+    fillDeadline: uint32(block.timestamp + 3600),
+    exclusivityParameter: 0,
+    message: ""
 });
+
 // Encode the calldata
 bytes memory packedCalldata = acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
-params,
-USDT_ADDRESS,
-1000000
+    params,
+    USDT_ADDRESS,
+    1000000
 );
 
 // Execute the call
 (bool success, ) = address(diamond).call(packedCalldata);
+```
 
+### Decoding Example
+
+```solidity
+// Decode the calldata to extract parameters
+(BridgeData memory bridgeData, AcrossFacetV4.AcrossV4Data memory acrossData) =
+    acrossFacetPackedV4.decode_startBridgeTokensViaAcrossV4ERC20Packed(packedCalldata);
+
+// The decode function automatically handles EVM vs non-EVM address detection
+// - bridgeData.receiver will be either the EVM address or NON_EVM_ADDRESS
+// - acrossData.receiverAddress will contain the full bytes32 address
+// - Only encoded fields are populated (no default values)
 ```
 
 ## Getting Sample Calls
@@ -216,4 +245,3 @@ The Across Facet Packed V4 supports all networks that have Across V4 SpokePool d
 - Polygon
 - Base
 - And other networks with Across V4 support
-```
