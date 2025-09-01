@@ -371,6 +371,14 @@
       "auditReportPath": "./audit/reports/2025.08.25_RelayDepositoryFacet(v1.0.0).pdf",
       "auditCommitHash": "4837b45b3ae705dee625015b1a084b3c69dee2a2"
     }
+    },
+    "audit20250901": {
+      "auditCompletedOn": "01.09.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.09.01_AcrossV4(v1.0.0).pdf",
+      "auditCommitHash": "650d18eb98aff7fe45249147d6db7e352825c1e4"
+    }
   },
   "auditedContracts": {
     "AccessManagerFacet": {
@@ -386,9 +394,15 @@
       "1.0.0": ["audit20241007"],
       "1.2.0": ["audit20241206", "audit20250508"]
     },
+    "AcrossFacetPackedV4": {
+      "1.0.0": ["audit20250901"]
+    },
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"],
       "1.1.0": ["audit20250106", "audit20250508"]
+    },
+    "AcrossFacetV4": {
+      "1.0.0": ["audit20250901"]
     },
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
@@ -606,6 +620,9 @@
       "1.0.1": ["audit20241206"],
       "1.0.2": ["audit20250110_1"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "ReceiverAcrossV4": {
+      "1.0.0": ["audit20250901"]
     },
     "ReceiverChainflip": {
       "1.0.0": ["audit20250305", "audit20250508"],
