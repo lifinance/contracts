@@ -7,19 +7,16 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 
 /// @title TestAcrossFacetV4
 /// @author LI.FI (https://li.fi)
 /// @notice Stub contract for testing AcrossFacetV4 with mock DEX
 /// @custom:version 1.0.0
 contract TestAcrossFacetV4 is AcrossFacetV4 {
-    address internal constant ADDRESS_WETH =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
     constructor(
-        IAcrossSpokePoolV4 _spokePool
-    ) AcrossFacetV4(_spokePool, _convertAddressToBytes32(ADDRESS_WETH)) {}
+        IAcrossSpokePoolV4 _spokePool,
+        bytes32 _wrappedNativeAddress
+    ) AcrossFacetV4(_spokePool, _wrappedNativeAddress) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -54,12 +51,11 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         customBlockNumberForForking = 22989702;
         initTestBase();
 
-        // Use real tokens
-        usdc = ERC20(ADDRESS_USDC);
-        dai = ERC20(ADDRESS_DAI);
-
         // Deploy and setup AcrossFacetV4
-        acrossFacetV4 = new TestAcrossFacetV4(IAcrossSpokePoolV4(SPOKE_POOL));
+        acrossFacetV4 = new TestAcrossFacetV4(
+            IAcrossSpokePoolV4(SPOKE_POOL),
+            _convertAddressToBytes32(ADDRESS_WRAPPED_NATIVE)
+        );
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = acrossFacetV4
             .startBridgeTokensViaAcrossV4
@@ -79,12 +75,12 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Add Uniswap router to allowlist for base tests
         acrossFacetV4.addDex(ADDRESS_UNISWAP);
-        acrossFacetV4.setFunctionApprovalBySignature(0x38ed1739); // swapExactTokensForTokens
-        acrossFacetV4.setFunctionApprovalBySignature(0xfb3bdb41); // swapTokensForExactETH
-        acrossFacetV4.setFunctionApprovalBySignature(0x7ff36ab5); // swapExactETHForTokens
-        acrossFacetV4.setFunctionApprovalBySignature(0x18cbafe5); // swapExactTokensForETH
-        acrossFacetV4.setFunctionApprovalBySignature(0x4a25d94a); // swapExactTokensForTokensSupportingFeeOnTransferTokens
-        acrossFacetV4.setFunctionApprovalBySignature(0x162fd956); // swapExactETHForTokensSupportingFeeOnTransferTokens
+        acrossFacetV4.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        acrossFacetV4.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
         // Setup bridge data
         bridgeData.bridge = "across";
@@ -303,7 +299,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
         bridgeData.hasSourceSwaps = true;
-        bridgeData.sendingAssetId = address(usdc); // USDC is the asset that will be bridged
+        bridgeData.sendingAssetId = address(usdc);
         validAcrossData.sendingAssetId = _convertAddressToBytes32(
             address(usdc)
         );
