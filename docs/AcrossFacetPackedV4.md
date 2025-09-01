@@ -32,14 +32,14 @@ graph LR;
 
 - `function startBridgeTokensViaAcrossV4ERC20Packed()`
   - Bridge ERC20 tokens by passing custom encoded callData
-- `function startBridgeTokensViaAcrossV4ERC20Min(PackedParameters calldata _parameters, address sendingAssetId, uint256 inputAmount)`
+- `function startBridgeTokensViaAcrossV4ERC20Min(PackedParameters calldata _parameters, bytes32 sendingAssetId, uint256 inputAmount)`
   - Bridge ERC20 tokens by passing minimal required parameters
 
 ### Encoding/Decoding Functions
 
 - `function encode_startBridgeTokensViaAcrossV4NativePacked(PackedParameters calldata _parameters)`
   - Generate packed transaction data for native asset transfers
-- `function encode_startBridgeTokensViaAcrossV4ERC20Packed(PackedParameters calldata _parameters, address sendingAssetId, uint256 inputAmount)`
+- `function encode_startBridgeTokensViaAcrossV4ERC20Packed(PackedParameters calldata _parameters, bytes32 sendingAssetId, uint256 inputAmount)`
   - Generate packed transaction data for ERC20 token transfers
 - `function decode_startBridgeTokensViaAcrossV4NativePacked(bytes calldata data)`
   - Decode packed calldata for native transfers
@@ -93,7 +93,7 @@ struct PackedParameters {
      the block.timestamp to derive the exclusive relayer deadline.
   3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
 - `message`: Additional message data
-- `sendingAssetId`: Source token address (for ERC20 transfers) - **Note**: This is a separate parameter to the encoding function, not part of the PackedParameters struct
+- `sendingAssetId`: Source token identifier (bytes32 for non-EVM support) - **Note**: This is a separate parameter to the encoding function, not part of the PackedParameters struct
 - `inputAmount`: Amount to bridge (for ERC20 transfers) - **Note**: This is a separate parameter to the encoding function, not part of the PackedParameters struct
 
 ## Packed Calldata Format
@@ -183,27 +183,28 @@ bytes memory packedCalldata = acrossFacetPackedV4.encode_startBridgeTokensViaAcr
 
 // Create packed parameters
 PackedParameters memory params = PackedParameters({
-    transactionId: bytes8("someID"),
-    receiver: bytes32(uint256(uint160(RECEIVER_ADDRESS))),
-    depositor: bytes32(uint256(uint160(DEPOSITOR_ADDRESS))),
-    destinationChainId: 137,
-    receivingAssetId: bytes32(uint256(uint160(USDC_ADDRESS))),
-    outputAmount: 1000000,
-    exclusiveRelayer: bytes32(0),
-    quoteTimestamp: uint32(block.timestamp),
-    fillDeadline: uint32(block.timestamp + 3600),
-    exclusivityParameter: 0,
-    message: ""
+transactionId: bytes8("someID"),
+receiver: bytes32(uint256(uint160(RECEIVER_ADDRESS))),
+depositor: bytes32(uint256(uint160(DEPOSITOR_ADDRESS))),
+destinationChainId: 137,
+receivingAssetId: bytes32(uint256(uint160(USDC_ADDRESS))),
+outputAmount: 1000000,
+exclusiveRelayer: bytes32(0),
+quoteTimestamp: uint32(block.timestamp),
+fillDeadline: uint32(block.timestamp + 3600),
+exclusivityParameter: 0,
+message: ""
 });
 // Encode the calldata
 bytes memory packedCalldata = acrossFacetPackedV4.encode_startBridgeTokensViaAcrossV4ERC20Packed(
-    params,
-    USDT_ADDRESS,
-    1000000
+params,
+USDT_ADDRESS,
+1000000
 );
 
 // Execute the call
 (bool success, ) = address(diamond).call(packedCalldata);
+
 ```
 
 ## Getting Sample Calls
@@ -226,3 +227,4 @@ The Across Facet Packed V4 supports all networks that have Across V4 SpokePool d
 - Polygon
 - Base
 - And other networks with Across V4 support
+```
