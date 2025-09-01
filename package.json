@@ -88,7 +88,7 @@
     "mongo-logs:find": "bun script/deploy/query-deployment-logs.ts find",
     "mongo-logs:exists": "bun script/deploy/query-deployment-logs.ts exists",
     "mongo-logs:get": "bun script/deploy/query-deployment-logs.ts get",
-    "okr:contract-coverage-above-90": "bun run script/utils/analyzeCoverage.ts",
+    "okr:contract-coverage-above-90": "bunx tsx script/utils/analyzeCoverage.ts",
     "preinstall": "bash preinstall.sh",
     "prepare": "bun prepare:husky",
     "prepare:husky": "husky install",
