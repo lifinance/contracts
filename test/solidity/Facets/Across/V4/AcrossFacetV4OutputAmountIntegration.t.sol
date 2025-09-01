@@ -264,8 +264,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             })
         );
 
-        // Set output amount multiplier to 50% / 1e12 (for 18->6 conversion)
-        validAcrossData.outputAmountMultiplier = 500000; // 5e5 (50% / 1e12)
+        // Set output amount multiplier to 50% (1e18 base)
+        validAcrossData.outputAmountMultiplier = 500_000_000_000_000_000; // 0.5e18
         validAcrossData.receivingAssetId = _convertAddressToBytes32(
             address(usdc)
         );
@@ -285,8 +285,30 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             block.timestamp
         );
 
-        vm.expectEmit(true, true, true, true, address(acrossFacetV4));
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
+
+        // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
+        uint256 expectedOutput = (bridgeData.minAmount *
+            uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
+        vm.expectCall(
+            SPOKE_POOL,
+            abi.encodeWithSelector(
+                IAcrossSpokePoolV4.deposit.selector,
+                validAcrossData.refundAddress,
+                validAcrossData.receiverAddress,
+                validAcrossData.sendingAssetId,
+                validAcrossData.receivingAssetId,
+                bridgeData.minAmount,
+                expectedOutput,
+                bridgeData.destinationChainId,
+                validAcrossData.exclusiveRelayer,
+                validAcrossData.quoteTimestamp,
+                validAcrossData.fillDeadline,
+                validAcrossData.exclusivityParameter,
+                validAcrossData.message
+            )
+        );
 
         // Execute swap and bridge
         initiateSwapAndBridgeTxWithFacet(false);
@@ -340,8 +362,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             })
         );
 
-        // Set output amount multiplier to 102% / 1e12 (for 18->6 conversion)
-        validAcrossData.outputAmountMultiplier = 1020000; // 102e5 (102% / 1e12)
+        // Set output amount multiplier to 102% (1e18 base)
+        validAcrossData.outputAmountMultiplier = 1020000000000000000; // 1.02e18
         validAcrossData.receivingAssetId = _convertAddressToBytes32(
             address(usdc)
         );
@@ -361,8 +383,30 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             block.timestamp
         );
 
-        vm.expectEmit(true, true, true, true, address(acrossFacetV4));
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
+
+        // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
+        uint256 expectedOutput = (bridgeData.minAmount *
+            uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
+        vm.expectCall(
+            SPOKE_POOL,
+            abi.encodeWithSelector(
+                IAcrossSpokePoolV4.deposit.selector,
+                validAcrossData.refundAddress,
+                validAcrossData.receiverAddress,
+                validAcrossData.sendingAssetId,
+                validAcrossData.receivingAssetId,
+                bridgeData.minAmount,
+                expectedOutput,
+                bridgeData.destinationChainId,
+                validAcrossData.exclusiveRelayer,
+                validAcrossData.quoteTimestamp,
+                validAcrossData.fillDeadline,
+                validAcrossData.exclusivityParameter,
+                validAcrossData.message
+            )
+        );
 
         // Execute swap and bridge
         initiateSwapAndBridgeTxWithFacet(false);
