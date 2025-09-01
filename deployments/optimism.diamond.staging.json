@@ -142,8 +142,12 @@
         "Version": "2.0.4"
       },
       "0x91559A75bd9045681265C77922b3cAeDB3D5120d": {
-        "Name": "",
-        "Version": ""
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       },
       "0x36e1375B0755162d720276dFF6893DF02bd49225": {
         "Name": "GlacisFacet",
@@ -157,13 +161,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.2"
       },
-      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
+      "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
