@@ -160,7 +160,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             _parameters.message
         );
 
-        emit LiFiAcrossTransfer(bytes8(_parameters.transactionId));
+        emit LiFiAcrossTransfer(_parameters.transactionId);
     }
 
     /// @notice Bridges ERC20 tokens via Across (packed implementation)
@@ -250,7 +250,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             _parameters.message
         );
 
-        emit LiFiAcrossTransfer(bytes8(_parameters.transactionId));
+        emit LiFiAcrossTransfer(_parameters.transactionId);
     }
 
     /// @notice Encodes calldata that can be used to call the native 'packed' function
@@ -263,13 +263,13 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
                 AcrossFacetPackedV4
                     .startBridgeTokensViaAcrossV4NativePacked
                     .selector,
-                _parameters.transactionId, // already bytes8
-                bytes32(_parameters.depositor),
-                bytes32(_parameters.receiver),
-                bytes32(_parameters.receivingAssetId),
+                _parameters.transactionId,
+                _parameters.depositor,
+                _parameters.receiver,
+                _parameters.receivingAssetId,
                 bytes32(_parameters.outputAmount),
                 bytes8(_parameters.destinationChainId),
-                bytes32(_parameters.exclusiveRelayer),
+                _parameters.exclusiveRelayer,
                 bytes4(_parameters.quoteTimestamp),
                 bytes4(_parameters.fillDeadline),
                 bytes4(_parameters.exclusivityParameter),
@@ -310,21 +310,21 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
             AcrossFacetPackedV4
                 .startBridgeTokensViaAcrossV4ERC20Packed
                 .selector,
-            _parameters.transactionId, // already bytes8
-            bytes32(_parameters.depositor),
-            bytes32(_parameters.receiver),
+            _parameters.transactionId,
+            _parameters.depositor,
+            _parameters.receiver,
             bytes32(sendingAssetId)
         );
 
         bytes memory part2 = bytes.concat(
-            bytes32(_parameters.receivingAssetId),
+            _parameters.receivingAssetId,
             bytes16(uint128(inputAmount)),
             bytes32(_parameters.outputAmount),
             bytes8(_parameters.destinationChainId)
         );
 
         bytes memory part3 = bytes.concat(
-            bytes32(_parameters.exclusiveRelayer),
+            _parameters.exclusiveRelayer,
             bytes4(_parameters.quoteTimestamp),
             bytes4(_parameters.fillDeadline),
             bytes4(_parameters.exclusivityParameter)
@@ -353,18 +353,18 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
 
         // extract bridgeData
         bridgeData.transactionId = bytes32(data[4:12]); // bytes8
-        bridgeData.receiver = address(uint160(uint256(bytes32(data[44:76])))); // receiver - adjusted offset
-        bridgeData.destinationChainId = uint64(bytes8(data[140:148])); // Adjusted offset
+        bridgeData.receiver = address(uint160(uint256(bytes32(data[44:76]))));
+        bridgeData.destinationChainId = uint64(bytes8(data[140:148]));
 
         // extract acrossData
-        acrossData.refundAddress = bytes32(data[12:44]); // depositor - adjusted offset
-        acrossData.receivingAssetId = bytes32(data[76:108]); // adjusted offset
-        acrossData.outputAmount = uint256(bytes32(data[108:140])); // adjusted offset
-        acrossData.exclusiveRelayer = bytes32(data[148:180]); // adjusted offset
-        acrossData.quoteTimestamp = uint32(bytes4(data[180:184])); // adjusted offset
-        acrossData.fillDeadline = uint32(bytes4(data[184:188])); // adjusted offset
-        acrossData.exclusivityParameter = uint32(bytes4(data[188:192])); // adjusted offset
-        acrossData.message = data[192:]; // adjusted offset
+        acrossData.refundAddress = bytes32(data[12:44]);
+        acrossData.receivingAssetId = bytes32(data[76:108]);
+        acrossData.outputAmount = uint256(bytes32(data[108:140]));
+        acrossData.exclusiveRelayer = bytes32(data[148:180]);
+        acrossData.quoteTimestamp = uint32(bytes4(data[180:184]));
+        acrossData.fillDeadline = uint32(bytes4(data[184:188]));
+        acrossData.exclusivityParameter = uint32(bytes4(data[188:192]));
+        acrossData.message = data[192:];
 
         return (bridgeData, acrossData);
     }
