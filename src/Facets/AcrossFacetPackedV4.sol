@@ -19,7 +19,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership {
     /// Storage ///
 
-    /// @notice The contract address of the cbridge on the source chain.
+    /// @notice The contract address of the across spokepool on the source chain.
     IAcrossSpokePoolV4 public immutable SPOKEPOOL;
 
     /// @notice The WETH address on the current chain.
