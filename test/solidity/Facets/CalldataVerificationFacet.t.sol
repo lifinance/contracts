@@ -58,7 +58,7 @@ contract CalldataVerificationFacetTest is TestBase {
         );
     }
 
-    function test_DeploysWithoutErrors() public {
+    function test_DeploysWithoutErrors() public virtual override {
         calldataVerificationFacet = new CalldataVerificationFacet();
     }
 

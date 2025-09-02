@@ -30,7 +30,6 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     bytes internal validCalldata;
 
-    LiFiDiamond internal diamond;
     WithdrawFacet internal withdrawFacet;
 
     ///@notice Init calldata for extra call.
@@ -83,7 +82,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
     /// @notice Setup contracts for test.
     /// @dev It adds selector of new function(executeCallAndWithdraw).
     /// And initialize calldata for extra call.
-    function setUp() public {
+    function setUp() public override {
         fork();
 
         diamond = LiFiDiamond(payable(LIFI_ADDRESS));

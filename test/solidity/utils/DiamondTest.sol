@@ -11,28 +11,39 @@ import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { BaseDiamondTest } from "./BaseDiamondTest.sol";
 
 contract DiamondTest is BaseDiamondTest {
+    LiFiDiamond internal diamond;
+    DiamondCutFacet internal diamondCutFacet;
+    DiamondLoupeFacet internal diamondLoupeFacet;
+    OwnershipFacet internal ownershipFacet;
+    PeripheryRegistryFacet internal peripheryFacet;
+    EmergencyPauseFacet internal emergencyPauseFacet;
+
+    function setUp() public virtual {
+        diamondCutFacet = new DiamondCutFacet();
+        diamondLoupeFacet = new DiamondLoupeFacet();
+        ownershipFacet = new OwnershipFacet();
+        peripheryFacet = new PeripheryRegistryFacet();
+        emergencyPauseFacet = new EmergencyPauseFacet(USER_PAUSER);
+        createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+    }
+
     function createDiamond(
         address _diamondOwner,
         address _pauserWallet
     ) internal returns (LiFiDiamond) {
-        vm.startPrank(_diamondOwner);
-        DiamondCutFacet diamondCut = new DiamondCutFacet();
-        DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
-        OwnershipFacet ownership = new OwnershipFacet();
-        PeripheryRegistryFacet periphery = new PeripheryRegistryFacet();
-        EmergencyPauseFacet emergencyPause = new EmergencyPauseFacet(
-            _pauserWallet
-        );
-        LiFiDiamond diamond = new LiFiDiamond(
-            _diamondOwner,
-            address(diamondCut)
-        );
+        vm.startPrank(USER_DIAMOND_OWNER);
+        diamondCutFacet = new DiamondCutFacet();
+        diamondLoupeFacet = new DiamondLoupeFacet();
+        ownershipFacet = new OwnershipFacet();
+        peripheryFacet = new PeripheryRegistryFacet();
+        emergencyPauseFacet = new EmergencyPauseFacet(_pauserWallet);
+        diamond = new LiFiDiamond(_diamondOwner, address(diamondCutFacet));
 
         // Add Diamond Loupe
-        _addDiamondLoupeSelectors(address(diamondLoupe));
+        _addDiamondLoupeSelectors(address(diamondLoupeFacet));
 
         // Add Ownership
-        _addOwnershipSelectors(address(ownership));
+        _addOwnershipSelectors(address(ownershipFacet));
 
         // Add PeripheryRegistry
         bytes4[] memory functionSelectors = new bytes4[](2);
@@ -44,7 +55,7 @@ contract DiamondTest is BaseDiamondTest {
             .selector;
         cut.push(
             LibDiamond.FacetCut({
-                facetAddress: address(periphery),
+                facetAddress: address(peripheryFacet),
                 action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
@@ -52,12 +63,12 @@ contract DiamondTest is BaseDiamondTest {
 
         // Add EmergencyPause
         functionSelectors = new bytes4[](3);
-        functionSelectors[0] = emergencyPause.removeFacet.selector;
-        functionSelectors[1] = emergencyPause.pauseDiamond.selector;
-        functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
+        functionSelectors[0] = emergencyPauseFacet.removeFacet.selector;
+        functionSelectors[1] = emergencyPauseFacet.pauseDiamond.selector;
+        functionSelectors[2] = emergencyPauseFacet.unpauseDiamond.selector;
         cut.push(
             LibDiamond.FacetCut({
-                facetAddress: address(emergencyPause),
+                facetAddress: address(emergencyPauseFacet),
                 action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })

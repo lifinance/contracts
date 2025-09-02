@@ -6,7 +6,6 @@ import { DSTest } from "ds-test/test.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
@@ -15,7 +14,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
-import { LiFiDEXAggregatorDiamondTest } from "../Periphery/LDA/utils/LiFiDEXAggregatorDiamondTest.sol";
+import { LiFiDEXAggregatorDiamondTest } from "../Periphery/LDA/LiFiDEXAggregatorDiamond.t.sol";
 
 using stdJson for string;
 
@@ -98,7 +97,6 @@ abstract contract TestBase is
     TestBaseForksConstants,
     TestBaseRandomConstants,
     TestHelpers,
-    DiamondTest,
     LiFiDEXAggregatorDiamondTest,
     ILiFi
 {
@@ -110,7 +108,6 @@ abstract contract TestBase is
     ERC20 internal usdt;
     ERC20 internal dai;
     ERC20 internal weth;
-    LiFiDiamond internal diamond;
     FeeCollector internal feeCollector;
     ILiFi.BridgeData internal bridgeData;
     LibSwap.SwapData[] internal swapData;
@@ -241,9 +238,7 @@ abstract contract TestBase is
         dai = ERC20(ADDRESS_DAI);
         weth = ERC20(ADDRESS_WRAPPED_NATIVE);
 
-        // deploy & configure diamond
-        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
-        // deploy & configure LiFiDEXAggregatorDiamond
+        // deploy & configure LiFiDiamond and LiFiDEXAggregatorDiamond
         LiFiDEXAggregatorDiamondTest.setUp();
         // deploy feeCollector
         feeCollector = new FeeCollector(USER_DIAMOND_OWNER);

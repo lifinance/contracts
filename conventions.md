@@ -473,7 +473,7 @@ When integrating a new DEX, follow this decision tree:
 
 ```
 test/solidity/Periphery/LDA/
-├── BaseCoreRouteTest.t.sol           # Base route testing functionality
+├── BaseCoreRoute.t.sol           # Base route testing functionality
 ├── BaseDEXFacet.t.sol                # Base for custom DEX tests
 ├── BaseDEXFacetWithCallback.t.sol    # Base for callback-enabled DEX tests
 ├── BaseUniV3StyleDEXFacet.t.sol      # Base for UniV3-style DEX tests

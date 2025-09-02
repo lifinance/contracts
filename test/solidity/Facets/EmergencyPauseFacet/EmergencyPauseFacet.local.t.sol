@@ -23,14 +23,8 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     error NoFacetToPause();
 
     uint256 internal counter;
-    event DiamondCut(
-        LibDiamond.FacetCut[] _diamondCut,
-        address _init,
-        bytes _calldata
-    );
 
     // STORAGE
-    EmergencyPauseFacet internal emergencyPauseFacet;
     address[] internal blacklist = new address[](0);
 
     function setUp() public override {
@@ -39,7 +33,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
 
         initTestBase();
 
-        // // no need to add the facet to the diamond, it's already added in DiamondTest.sol
+        // no need to add the facet to the diamond, it's already added in DiamondTest.sol
         emergencyPauseFacet = EmergencyPauseFacet(payable(address(diamond)));
 
         // set facet address in TestBase
@@ -149,7 +143,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     }
 
     function test_CanUnpauseDiamondWithSingleBlacklist() public {
-        address ownershipFacetAddress = 0xB021CCbe1bd1EF2af8221A79E89dD3145947A082;
+        address ownershipFacetAddress = address(ownershipFacet);
 
         // get function selectors of OwnershipFacet
         bytes4[] memory ownershipFunctionSelectors = IDiamondLoupe(
@@ -205,8 +199,8 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         emit EmergencyUnpaused(USER_DIAMOND_OWNER);
 
         blacklist = new address[](2);
-        blacklist[0] = 0xB021CCbe1bd1EF2af8221A79E89dD3145947A082; // OwnershipFacet
-        blacklist[1] = 0xA412555Fa40F6AA4B67a773dB5a7f85983890341; // PeripheryRegistryFacet
+        blacklist[0] = address(ownershipFacet); // OwnershipFacet
+        blacklist[1] = address(peripheryFacet); // PeripheryRegistryFacet
 
         emergencyPauseFacet.unpauseDiamond(blacklist);
 
