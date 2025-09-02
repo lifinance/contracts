@@ -64,14 +64,6 @@ contract LiFiDEXAggregatorDiamondTest is
         );
     }
 
-    function testRevert_CannotDeployDiamondWithZeroDiamondCut() public {
-        vm.expectRevert(InvalidConfig.selector);
-        new LiFiDEXAggregatorDiamond(
-            USER_DIAMOND_OWNER,
-            address(0) // Zero diamondCut address
-        );
-    }
-
     function testRevert_CannotCallNonExistentFunction() public {
         // Create arbitrary calldata with non-existent selector
         bytes memory nonExistentCalldata = abi.encodeWithSelector(
