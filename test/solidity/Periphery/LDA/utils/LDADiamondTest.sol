@@ -2,11 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { LDADiamond } from "lifi/Periphery/LDA/LDADiamond.sol";
-import { LDADiamondCutFacet } from "lifi/Periphery/LDA/Facets/LDADiamondCutFacet.sol";
-import { LDADiamondLoupeFacet } from "lifi/Periphery/LDA/Facets/LDADiamondLoupeFacet.sol";
-import { LDAOwnershipFacet } from "lifi/Periphery/LDA/Facets/LDAOwnershipFacet.sol";
-import { LDAPeripheryRegistryFacet } from "lifi/Periphery/LDA/Facets/LDAPeripheryRegistryFacet.sol";
-import { LDAEmergencyPauseFacet } from "lifi/Periphery/LDA/Facets/LDAEmergencyPauseFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
+import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { BaseDiamondTest } from "../../../utils/BaseDiamondTest.sol";
@@ -22,29 +20,23 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
     /// @notice Deploys a clean LDA diamond with base facets and sets owner/pauser.
     /// @dev This runs before higher-level test setup in BaseCoreRouteTest/BaseDEXFacetTest.
     function setUp() public virtual {
-        ldaDiamond = createLDADiamond(USER_LDA_DIAMOND_OWNER, USER_LDA_PAUSER);
+        ldaDiamond = createLDADiamond(USER_LDA_DIAMOND_OWNER);
     }
 
     /// @notice Creates an LDA diamond and wires up Loupe, Ownership and EmergencyPause facets.
     /// @param _diamondOwner Owner address for the diamond.
-    /// @param _pauserWallet Pauser address for the emergency pause facet.
     /// @return diamond The newly created diamond instance.
     function createLDADiamond(
-        address _diamondOwner,
-        address _pauserWallet
+        address _diamondOwner
     ) internal returns (LDADiamond) {
         vm.startPrank(_diamondOwner);
-        LDADiamondCutFacet diamondCut = new LDADiamondCutFacet();
-        LDADiamondLoupeFacet diamondLoupe = new LDADiamondLoupeFacet();
-        LDAOwnershipFacet ownership = new LDAOwnershipFacet();
-        LDAEmergencyPauseFacet emergencyPause = new LDAEmergencyPauseFacet(
-            _pauserWallet
-        );
+        DiamondCutFacet diamondCut = new DiamondCutFacet();
+        DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
+        OwnershipFacet ownership = new OwnershipFacet();
         LDADiamond diamond = new LDADiamond(
             _diamondOwner,
             address(diamondCut)
         );
-        LDAPeripheryRegistryFacet periphery = new LDAPeripheryRegistryFacet();
 
         // Add Diamond Loupe
         _addDiamondLoupeSelectors(address(diamondLoupe));
@@ -52,36 +44,7 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
         // Add Ownership
         _addOwnershipSelectors(address(ownership));
 
-        // Add PeripheryRegistry
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = LDAPeripheryRegistryFacet
-            .registerPeripheryContract
-            .selector;
-        functionSelectors[1] = LDAPeripheryRegistryFacet
-            .getPeripheryContract
-            .selector;
-        cut.push(
-            LibDiamond.FacetCut({
-                facetAddress: address(periphery),
-                action: LibDiamond.FacetCutAction.Add,
-                functionSelectors: functionSelectors
-            })
-        );
-
-        // Add EmergencyPause
-        functionSelectors = new bytes4[](3);
-        functionSelectors[0] = emergencyPause.removeFacet.selector;
-        functionSelectors[1] = emergencyPause.pauseDiamond.selector;
-        functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
-        cut.push(
-            LibDiamond.FacetCut({
-                facetAddress: address(emergencyPause),
-                action: LibDiamond.FacetCutAction.Add,
-                functionSelectors: functionSelectors
-            })
-        );
-
-        LDADiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
+        DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
         delete cut;
         vm.stopPrank();
         return diamond;
@@ -89,7 +52,7 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
 
     /// @notice Tests that diamond creation fails when owner address is zero
     function testRevert_CannotDeployDiamondWithZeroOwner() public {
-        address diamondCutFacet = address(new LDADiamondCutFacet());
+        address diamondCutFacet = address(new DiamondCutFacet());
 
         vm.expectRevert(InvalidConfig.selector);
         new LDADiamond(
@@ -124,7 +87,7 @@ contract LDADiamondTest is BaseDiamondTest, TestBaseRandomConstants {
     function testRevert_CannotCallUnregisteredSelector() public {
         // Use a real function selector that exists but hasn't been registered yet
         bytes memory unregisteredCalldata = abi.encodeWithSelector(
-            LDADiamondCutFacet.diamondCut.selector, // Valid selector but not registered yet
+            DiamondCutFacet.diamondCut.selector, // Valid selector but not registered yet
             new LibDiamond.FacetCut[](0),
             address(0),
             ""

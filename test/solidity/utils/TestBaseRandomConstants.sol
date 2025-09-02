@@ -9,5 +9,4 @@ abstract contract TestBaseRandomConstants {
     address internal constant USER_DIAMOND_OWNER =
         0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_LDA_DIAMOND_OWNER = address(0x123457);
-    address internal constant USER_LDA_PAUSER = address(0x123458);
 }
