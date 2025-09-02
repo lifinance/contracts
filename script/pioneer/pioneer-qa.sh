@@ -84,7 +84,7 @@ do
 
   echo $QUERY_STRING
 
-  # Set the Pioneer endpoint (replace with actual endpoint if needed)
+  # Set the Pioneer endpoint
   PIONEER_ENDPOINT="https://solver-dev.li.fi"
 
   # Fetch quote from Pioneer
@@ -96,9 +96,6 @@ do
     exit 1
   fi
 
-#   # Print the quote response
-  echo "Quote response:"
-  echo "$RESPONSE"
   # Extract necessary fields from the response
   TO_CHAIN_ID=$(echo "$RESPONSE" | jq -r '.toChainId')
   TO_AMOUNT_MIN=$(echo "$RESPONSE" | jq -r '.toAmountMin')
@@ -112,8 +109,6 @@ echo "${RESPONSES[@]}";
 # Convert RESPONSES array into a flattened string for the script
 FLATTENED_RESPONSES=$(printf "(%s)," "${RESPONSES[@]}")
 FLATTENED_RESPONSES="[${FLATTENED_RESPONSES%,}]"
-echo "Formatted responses for script:"
-echo "$FLATTENED_RESPONSES"
 
-# # Execute transactions:
+# Execute transactions:
 forge script PioneerQA --sig "run(address,address,(bytes32,address,address,uint256,uint256,uint256)[])" "$DIAMOND" "$USER_ADDRESS" "$FLATTENED_RESPONSES" --private-key $PRIVATE_KEY --rpc-url $RPC_URL --broadcast -vvvv
