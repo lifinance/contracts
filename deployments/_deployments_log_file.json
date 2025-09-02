@@ -39749,6 +39749,21 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8Bbe822959F60D0d6a882486928C7d851bf52adc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 19:48:42",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "LDADiamondLoupeFacet": {
@@ -39778,6 +39793,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x63144D19F86EeeF3722af56a6804098DD1b58640",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 19:50:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -39813,6 +39843,21 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x53303BCE53bafFCD764501D0B4B3dcC798998b47",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 19:53:56",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "LDAEmergencyPauseFacet": {
@@ -39842,6 +39887,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x0000000000000000000000000000000000000000",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 19:56:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -39877,6 +39937,21 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xBbA05be3150Eafa7F0Ac3F57FEEFF0e57Da14F12",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 19:58:15",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "CoreRouteFacet": {
@@ -39906,6 +39981,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0000000000000000000000000000000000000000",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 20:00:24",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -40034,6 +40124,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0000000000000000000000000000000000000000",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-01 20:02:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
