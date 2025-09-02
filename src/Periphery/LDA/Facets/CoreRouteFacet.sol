@@ -8,8 +8,7 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
-import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
-import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title CoreRouteFacet
@@ -17,11 +16,7 @@ import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 /// @notice Orchestrates LDA route execution using direct function selector dispatch
 /// @dev Implements selector-based routing where each DEX facet's swap function is called directly via its selector
 /// @custom:version 1.0.0
-contract CoreRouteFacet is
-    BaseRouteConstants,
-    ReentrancyGuard,
-    WithdrawablePeriphery
-{
+contract CoreRouteFacet is BaseRouteConstants, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
     using LibPackedStream for uint256;
@@ -46,12 +41,6 @@ contract CoreRouteFacet is
     error UnknownCommandCode();
     error SwapFailed();
     error UnknownSelector();
-
-    /// @notice Constructor
-    /// @param _owner The address of the contract owner
-    constructor(address _owner) WithdrawablePeriphery(_owner) {
-        if (_owner == address(0)) revert InvalidConfig();
-    }
 
     // ==== External Functions ====
     /// @notice Process a route encoded with function selectors for direct DEX facet dispatch

@@ -127,7 +127,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @notice Internal helper to deploy CoreRouteFacet and add its `processRoute` selector.
     /// @dev Sets `coreRouteFacet` to the diamond proxy after cut.
     function _addCoreRouteFacet() internal {
-        coreRouteFacet = new CoreRouteFacet(USER_LDA_DIAMOND_OWNER);
+        coreRouteFacet = new CoreRouteFacet();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = CoreRouteFacet.processRoute.selector;
         addFacet(address(ldaDiamond), address(coreRouteFacet), selectors);

@@ -513,7 +513,7 @@ contract GasZipPeripheryTest is TestBase {
     function _wireLDARouteFacets() internal {
         bytes4[] memory selectors;
 
-        CoreRouteFacet core = new CoreRouteFacet(USER_DIAMOND_OWNER);
+        CoreRouteFacet core = new CoreRouteFacet();
         selectors = new bytes4[](1);
         selectors[0] = CoreRouteFacet.processRoute.selector;
         addFacet(address(ldaDiamond), address(core), selectors);
