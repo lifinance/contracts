@@ -15,7 +15,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
-import { LDADiamondTest } from "../Periphery/LDA/utils/LDADiamondTest.sol";
+import { LiFiDEXAggregatorDiamondTest } from "../Periphery/LDA/utils/LiFiDEXAggregatorDiamondTest.sol";
 
 using stdJson for string;
 
@@ -99,7 +99,7 @@ abstract contract TestBase is
     TestBaseRandomConstants,
     TestHelpers,
     DiamondTest,
-    LDADiamondTest,
+    LiFiDEXAggregatorDiamondTest,
     ILiFi
 {
     address internal _facetTestContractAddress;
@@ -243,8 +243,8 @@ abstract contract TestBase is
 
         // deploy & configure diamond
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
-        // deploy & configure ldaDiamond
-        LDADiamondTest.setUp();
+        // deploy & configure LiFiDEXAggregatorDiamond
+        LiFiDEXAggregatorDiamondTest.setUp();
         // deploy feeCollector
         feeCollector = new FeeCollector(USER_DIAMOND_OWNER);
 

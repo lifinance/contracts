@@ -5,11 +5,11 @@ import { LibDiamond } from "../../Libraries/LibDiamond.sol";
 import { IDiamondCut } from "../../Interfaces/IDiamondCut.sol";
 import { InvalidConfig } from "../../Errors/GenericErrors.sol";
 
-/// @title LDADiamond
+/// @title LiFiDEXAggregatorDiamond
 /// @author LI.FI (https://li.fi)
 /// @notice Base EIP-2535 Diamond Proxy Contract for LDA (LiFi DEX Aggregator).
 /// @custom:version 1.0.0
-contract LDADiamond {
+contract LiFiDEXAggregatorDiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
         if (_contractOwner == address(0) || _diamondCutFacet == address(0)) {
             revert InvalidConfig();

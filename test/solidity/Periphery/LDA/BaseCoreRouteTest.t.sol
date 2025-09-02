@@ -6,7 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
-import { LDADiamondTest } from "./utils/LDADiamondTest.sol";
+import { LiFiDEXAggregatorDiamondTest } from "./utils/LiFiDEXAggregatorDiamondTest.sol";
 
 /// @title BaseCoreRouteTest
 /// @notice Shared utilities to build route bytes and execute swaps against `CoreRouteFacet`.
@@ -15,7 +15,10 @@ import { LDADiamondTest } from "./utils/LDADiamondTest.sol";
 ///      - Event expectations helpers
 ///      - Overloads of `_executeAndVerifySwap` including revert path
 ///      Concrete tests compose these helpers to succinctly define swap scenarios.
-abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
+abstract contract BaseCoreRouteTest is
+    LiFiDEXAggregatorDiamondTest,
+    TestHelpers
+{
     using SafeERC20 for IERC20;
 
     // ==== Types ====
@@ -120,7 +123,7 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @notice Deploys and attaches `CoreRouteFacet` to the diamond under test.
     /// @dev Invoked from `setUp` of child tests via inheritance chain.
     function setUp() public virtual override {
-        LDADiamondTest.setUp();
+        LiFiDEXAggregatorDiamondTest.setUp();
         _addCoreRouteFacet();
     }
 

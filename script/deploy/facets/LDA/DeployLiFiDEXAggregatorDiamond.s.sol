@@ -3,19 +3,24 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { LDADiamond } from "lifi/Periphery/LDA/LDADiamond.sol";
+import { LiFiDEXAggregatorDiamond } from "lifi/Periphery/LDA/LiFiDEXAggregatorDiamond.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LDADiamond") {}
+    constructor() DeployScriptBase("LiFiDEXAggregatorDiamond") {}
 
     function run()
         public
-        returns (LDADiamond deployed, bytes memory constructorArgs)
+        returns (
+            LiFiDEXAggregatorDiamond deployed,
+            bytes memory constructorArgs
+        )
     {
         constructorArgs = getConstructorArgs();
-        deployed = LDADiamond(deploy(type(LDADiamond).creationCode));
+        deployed = LiFiDEXAggregatorDiamond(
+            deploy(type(LiFiDEXAggregatorDiamond).creationCode)
+        );
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
