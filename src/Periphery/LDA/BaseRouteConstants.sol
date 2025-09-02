@@ -9,6 +9,7 @@ pragma solidity ^0.8.17;
 abstract contract BaseRouteConstants {
     /// @dev Constant indicating swap direction from token0 to token1
     uint8 internal constant DIRECTION_TOKEN0_TO_TOKEN1 = 1;
+
     /// @dev A sentinel address (address(1)) used in the `from` parameter of a swap.
     /// It signals that the input tokens for the swap are already held by the
     /// receiving contract (e.g., from a previous swap in a multi-step route).
