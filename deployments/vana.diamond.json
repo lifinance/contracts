@@ -52,6 +52,10 @@
       "0xdEf2DFaAec9CE0DE50efc0663Cd2962C6bc88498": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
+      },
+      "0xC57F68327b5f4C773e3DeDBbcE0D3Ea6E074A9C3": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -61,6 +65,7 @@
       "GasZipPeriphery": "0xbd0196bE158d5c5da204839ecc1827C1Ed7e66C3",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
+      "Patcher": "",
       "Permit2Proxy": "0xac08C219Fd4856A33a090503BCbc14733d588588",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
