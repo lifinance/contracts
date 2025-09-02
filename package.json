@@ -99,9 +99,10 @@
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "test:ts": "bun script/runTypescriptTests.ts",
     "troncast": "bun run script/troncast/index.ts",
-    "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
-    "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
-    "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts"
+    "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
+    "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
+    "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts",
+    "balances": "bunx tsx ./script/balances.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
