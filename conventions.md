@@ -390,7 +390,7 @@ The LDA (LiFi DEX Aggregator) is a specialized component within the LI.FI ecosys
 - **LiFiDEXAggregatorDiamond.sol**: Base EIP-2535 Diamond Proxy Contract for LDA
 - **CoreRouteFacet.sol**: Orchestrates route execution using direct function selector dispatch
 - **BaseRouteConstants.sol**: Shared constants across DEX facets
-- **PoolCallbackAuthenticated.sol**: Abstract contract providing pool callback authentication
+- **PoolCallbackAuthenticator.sol**: Abstract contract providing pool callback authentication
 
 #### Location Structure
 
@@ -398,7 +398,7 @@ The LDA (LiFi DEX Aggregator) is a specialized component within the LI.FI ecosys
 src/Periphery/LDA/
 ├── LiFiDEXAggregatorDiamond.sol              # LiFiDEXAggregatorDiamond Diamond proxy implementation
 ├── BaseRouteConstants.sol      # Common constants for DEX facets
-├── PoolCallbackAuthenticated.sol # Callback authentication base
+├── PoolCallbackAuthenticator.sol # Callback authentication base
 ├── Facets/                     # LDA-specific facets
 │   ├── CoreRouteFacet.sol      # Route orchestration
 │   ├── UniV3StyleFacet.sol     # UniV3-style DEX integrations
@@ -439,7 +439,7 @@ When integrating a new DEX, follow this decision tree:
 #### Required Inheritance
 
 - **BaseRouteConstants**: For common constants (`DIRECTION_TOKEN0_TO_TOKEN1`, `FUNDS_IN_RECEIVER`)
-- **PoolCallbackAuthenticated**: For facets requiring callback verification
+- **PoolCallbackAuthenticator**: For facets requiring callback verification
 - **No ReentrancyGuard**: CoreRouteFacet handles reentrancy protection
 
 #### Function Patterns

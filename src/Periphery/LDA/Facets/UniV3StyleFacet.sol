@@ -8,14 +8,14 @@ import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IUniV3StylePool } from "lifi/Interfaces/IUniV3StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/LiFiDEXAggregatorErrors.sol";
-import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
+import { PoolCallbackAuthenticator } from "lifi/Periphery/LDA/PoolCallbackAuthenticator.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title UniV3StyleFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Uniswap V3 style swaps with callback verification
 /// @custom:version 1.0.0
-contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticated {
+contract UniV3StyleFacet is BaseRouteConstants, PoolCallbackAuthenticator {
     using LibCallbackAuthenticator for *;
     using LibPackedStream for uint256;
 

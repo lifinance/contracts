@@ -9,14 +9,14 @@ import { LibUniV3Logic } from "lifi/Libraries/LibUniV3Logic.sol";
 import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/LiFiDEXAggregatorErrors.sol";
-import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
+import { PoolCallbackAuthenticator } from "lifi/Periphery/LDA/PoolCallbackAuthenticator.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title AlgebraFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles Algebra swaps with callback management
 /// @custom:version 1.0.0
-contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticated {
+contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticator {
     using LibPackedStream for uint256;
     using SafeERC20 for IERC20;
 
