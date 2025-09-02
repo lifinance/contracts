@@ -165,11 +165,11 @@
         "Name": "AllBridgeFacet",
         "Version": "2.1.0"
       },
-      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
+      "0xb1b7786dfbb59dB5d1a65d4Be6c92C3B112fFb9b": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+      "0xf536ed5A4310455FF39dBf90336e17d11550E7b4": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
@@ -192,6 +192,7 @@
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
+      "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"

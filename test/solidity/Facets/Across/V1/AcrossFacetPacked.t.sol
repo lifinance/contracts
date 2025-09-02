@@ -1,13 +1,14 @@
 // // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
-import { AcrossFacetPackedV3 } from "lifi/Facets/AcrossFacetPackedV3.sol";
+import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
+import { AcrossFacetPacked } from "lifi/Facets/AcrossFacetPacked.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../../../utils/TestBase.sol";
+import { MockFailingContract } from "../../../utils/MockFailingContract.sol";
+
 import { UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 contract TestClaimContract {
@@ -15,21 +16,18 @@ contract TestClaimContract {
 
     IERC20 internal usdt = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
 
-    error ClaimFailed();
-
     // sends 100 USDT to msg.sender
     function claimRewards() external {
         usdt.safeTransfer(msg.sender, 100 * 10 ** 6);
     }
-
-    function willFail() external pure {
-        revert ClaimFailed();
-    }
 }
 
-contract AcrossFacetPackedV3Test is TestBase {
+contract AcrossFacetPackedTest is TestBase {
     using SafeERC20 for IERC20;
 
+    bytes public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
+    address public constant ACROSS_REFERRER_ADDRESS =
+        0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant ACROSS_SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
     address internal constant ACROSS_MERKLE_DISTRIBUTOR =
@@ -39,14 +37,11 @@ contract AcrossFacetPackedV3Test is TestBase {
 
     bytes internal constant WITHDRAW_REWARDS_CALLDATA =
         abi.encodeWithSignature("claimRewards()");
-    bytes internal constant WILL_FAIL_CALLDATA =
-        abi.encodeWithSignature("willFail()");
 
-    IAcrossSpokePool internal spokepool;
-    AcrossFacetPackedV3 internal acrossFacetPackedV3;
-    AcrossFacetPackedV3 internal acrossStandAlone;
-    AcrossFacetV3.AcrossV3Data internal validAcrossData;
-    AcrossFacetPackedV3.PackedParameters internal packedParameters;
+    IAcrossSpokePool internal across;
+    AcrossFacetPacked internal acrossFacetPacked;
+    AcrossFacetPacked internal acrossStandAlone;
+    AcrossFacet.AcrossData internal validAcrossData;
     TestClaimContract internal claimContract;
 
     bytes32 internal transactionId;
@@ -64,121 +59,119 @@ contract AcrossFacetPackedV3Test is TestBase {
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
     function setUp() public {
-        customBlockNumberForForking = 19960294;
+        customBlockNumberForForking = 19145375;
 
         initTestBase();
 
         /// Deploy contracts
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
-        spokepool = IAcrossSpokePool(ACROSS_SPOKE_POOL);
-        acrossFacetPackedV3 = new AcrossFacetPackedV3(
-            spokepool,
+        across = IAcrossSpokePool(ACROSS_SPOKE_POOL);
+        acrossFacetPacked = new AcrossFacetPacked(
+            across,
             ADDRESS_WRAPPED_NATIVE,
             address(this)
         );
-        acrossStandAlone = new AcrossFacetPackedV3(
-            spokepool,
+        acrossStandAlone = new AcrossFacetPacked(
+            across,
             ADDRESS_WRAPPED_NATIVE,
             address(this)
         );
         claimContract = new TestClaimContract();
 
         bytes4[] memory functionSelectors = new bytes4[](9);
-        functionSelectors[0] = AcrossFacetPackedV3
-            .setApprovalForBridge
+        functionSelectors[0] = acrossFacetPacked.setApprovalForBridge.selector;
+        functionSelectors[1] = acrossFacetPacked
+            .startBridgeTokensViaAcrossNativePacked
             .selector;
-        functionSelectors[1] = AcrossFacetPackedV3
-            .startBridgeTokensViaAcrossV3NativePacked
+        functionSelectors[2] = acrossFacetPacked
+            .startBridgeTokensViaAcrossNativeMin
             .selector;
-        functionSelectors[2] = AcrossFacetPackedV3
-            .startBridgeTokensViaAcrossV3NativeMin
+        functionSelectors[3] = acrossFacetPacked
+            .startBridgeTokensViaAcrossERC20Packed
             .selector;
-        functionSelectors[3] = AcrossFacetPackedV3
-            .startBridgeTokensViaAcrossV3ERC20Packed
+        functionSelectors[4] = acrossFacetPacked
+            .startBridgeTokensViaAcrossERC20Min
             .selector;
-        functionSelectors[4] = AcrossFacetPackedV3
-            .startBridgeTokensViaAcrossV3ERC20Min
+        functionSelectors[5] = acrossFacetPacked
+            .encode_startBridgeTokensViaAcrossNativePacked
             .selector;
-        functionSelectors[5] = AcrossFacetPackedV3
-            .encode_startBridgeTokensViaAcrossV3NativePacked
+        functionSelectors[6] = acrossFacetPacked
+            .encode_startBridgeTokensViaAcrossERC20Packed
             .selector;
-        functionSelectors[6] = AcrossFacetPackedV3
-            .encode_startBridgeTokensViaAcrossV3ERC20Packed
+        functionSelectors[7] = acrossFacetPacked
+            .decode_startBridgeTokensViaAcrossNativePacked
             .selector;
-        functionSelectors[7] = AcrossFacetPackedV3
-            .decode_startBridgeTokensViaAcrossV3NativePacked
-            .selector;
-        functionSelectors[8] = AcrossFacetPackedV3
-            .decode_startBridgeTokensViaAcrossV3ERC20Packed
+        functionSelectors[8] = acrossFacetPacked
+            .decode_startBridgeTokensViaAcrossERC20Packed
             .selector;
 
         // add facet to diamond
-        addFacet(diamond, address(acrossFacetPackedV3), functionSelectors);
-        acrossFacetPackedV3 = AcrossFacetPackedV3(payable(address(diamond)));
+        addFacet(diamond, address(acrossFacetPacked), functionSelectors);
+        acrossFacetPacked = AcrossFacetPacked(payable(address(diamond)));
 
         /// Prepare parameters
         transactionId = "someID";
         destinationChainId = 137;
 
         // define valid AcrossData
-        uint32 quoteTimestamp = uint32(block.timestamp);
-        validAcrossData = AcrossFacetV3.AcrossV3Data({
-            receiverAddress: USER_RECEIVER,
-            refundAddress: USER_SENDER, // Set to match the depositor
-            receivingAssetId: ADDRESS_USDC_POL,
-            outputAmount: (defaultUSDCAmount * 9) / 10,
-            outputAmountPercent: uint64(1000000000000000000), // 100.00%
-            exclusiveRelayer: address(0),
-            quoteTimestamp: quoteTimestamp,
-            fillDeadline: uint32(quoteTimestamp + 1000),
-            exclusivityDeadline: 0,
-            message: ""
+        validAcrossData = AcrossFacet.AcrossData({
+            relayerFeePct: 0,
+            quoteTimestamp: uint32(block.timestamp),
+            message: "bla",
+            maxCount: type(uint256).max
         });
 
-        packedParameters = AcrossFacetPackedV3.PackedParameters({
-            transactionId: transactionId,
-            receiver: USER_RECEIVER,
-            destinationChainId: destinationChainId,
-            receivingAssetId: ADDRESS_USDC_POL,
-            outputAmount: (defaultUSDCAmount * 9) / 10,
-            exclusiveRelayer: address(0),
-            quoteTimestamp: quoteTimestamp,
-            fillDeadline: uint32(quoteTimestamp + 1000),
-            exclusivityDeadline: 0,
-            message: "",
-            depositor: USER_SENDER // Add depositor field
-        });
-
-        vm.label(ACROSS_SPOKE_POOL, "SpokePool_PROX");
-        vm.label(0x08C21b200eD06D2e32cEC91a770C3FcA8aD5F877, "SpokePool_IMPL");
+        vm.label(ACROSS_SPOKE_POOL, "SpokePool");
         vm.label(ADDRESS_USDT, "USDT_TOKEN");
         vm.label(ACROSS_MERKLE_DISTRIBUTOR, "ACROSS_MERKLE_DISTRIBUTOR");
 
         // Native params
         amountNative = 1 ether;
-        packedNativeCalldata = acrossFacetPackedV3
-            .encode_startBridgeTokensViaAcrossV3NativePacked(packedParameters);
+        packedNativeCalldata = acrossFacetPacked
+            .encode_startBridgeTokensViaAcrossNativePacked(
+                transactionId,
+                USER_RECEIVER,
+                destinationChainId,
+                validAcrossData.relayerFeePct,
+                validAcrossData.quoteTimestamp,
+                validAcrossData.maxCount,
+                validAcrossData.message
+            );
+        packedNativeCalldata = addReferrerIdToCalldata(packedNativeCalldata);
 
         // usdt params
         amountUSDT = 100 * 10 ** usdt.decimals();
-        packedUSDTCalldata = acrossFacetPackedV3
-            .encode_startBridgeTokensViaAcrossV3ERC20Packed(
-                packedParameters,
+        packedUSDTCalldata = acrossFacetPacked
+            .encode_startBridgeTokensViaAcrossERC20Packed(
+                transactionId,
+                USER_RECEIVER,
                 ADDRESS_USDT,
-                amountUSDT
+                amountUSDT,
+                destinationChainId,
+                validAcrossData.relayerFeePct,
+                validAcrossData.quoteTimestamp,
+                validAcrossData.message,
+                validAcrossData.maxCount
             );
+        packedUSDTCalldata = addReferrerIdToCalldata(packedUSDTCalldata);
 
         deal(ADDRESS_USDT, USER_SENDER, amountUSDT);
 
         // usdc params
         amountUSDC = 100 * 10 ** usdc.decimals();
-        packedParameters.outputAmount = (amountUSDC * 9) / 10;
-        packedUSDCCalldata = acrossFacetPackedV3
-            .encode_startBridgeTokensViaAcrossV3ERC20Packed(
-                packedParameters,
+        packedUSDCCalldata = acrossFacetPacked
+            .encode_startBridgeTokensViaAcrossERC20Packed(
+                transactionId,
+                USER_RECEIVER,
                 ADDRESS_USDC,
-                amountUSDC
+                amountUSDC,
+                destinationChainId,
+                validAcrossData.relayerFeePct,
+                validAcrossData.quoteTimestamp,
+                validAcrossData.message,
+                validAcrossData.maxCount
             );
+        packedUSDCCalldata = addReferrerIdToCalldata(packedUSDCCalldata);
 
         // fund claim rewards contract
         deal(ADDRESS_USDT, address(claimContract), amountUSDT);
@@ -192,7 +185,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         acrossStandAlone.setApprovalForBridge(tokens);
 
         // set token approvals for facet via cheatcode (in production we will do this via script)
-        vm.startPrank(address(acrossFacetPackedV3));
+        vm.startPrank(address(acrossFacetPacked));
         LibAsset.maxApproveERC20(
             IERC20(ADDRESS_USDT),
             ACROSS_SPOKE_POOL,
@@ -200,6 +193,17 @@ contract AcrossFacetPackedV3Test is TestBase {
         );
         usdc.approve(ACROSS_SPOKE_POOL, type(uint256).max);
         vm.stopPrank();
+    }
+
+    function addReferrerIdToCalldata(
+        bytes memory callData
+    ) internal pure returns (bytes memory) {
+        return
+            bytes.concat(
+                callData,
+                ACROSS_REFERRER_DELIMITER,
+                bytes20(ACROSS_REFERRER_ADDRESS)
+            );
     }
 
     function test_canBridgeNativeTokensViaPackedFunction_Facet() public {
@@ -241,9 +245,17 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        acrossFacetPackedV3.startBridgeTokensViaAcrossV3NativeMin{
+        acrossFacetPacked.startBridgeTokensViaAcrossNativeMin{
             value: amountNative
-        }(packedParameters);
+        }(
+            transactionId,
+            USER_RECEIVER,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
+        );
 
         vm.stopPrank();
     }
@@ -255,9 +267,17 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        acrossStandAlone.startBridgeTokensViaAcrossV3NativeMin{
+        acrossStandAlone.startBridgeTokensViaAcrossNativeMin{
             value: amountNative
-        }(packedParameters);
+        }(
+            transactionId,
+            USER_RECEIVER,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
+        );
 
         vm.stopPrank();
     }
@@ -273,11 +293,9 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        (bool success, bytes memory reason) = address(diamond).call(
-            packedUSDCCalldata
-        );
+        (bool success, ) = address(diamond).call(packedUSDCCalldata);
         if (!success) {
-            revert(LibUtil.getRevertMsg(reason));
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -295,7 +313,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         // call facet through diamond
         (bool success, ) = address(diamond).call(packedUSDTCalldata);
         if (!success) {
-            revert ERC20BridgeFailed();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -318,7 +336,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         // call facet through diamond
         (bool success, ) = address(acrossStandAlone).call(packedUSDCCalldata);
         if (!success) {
-            revert ERC20BridgeFailed();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -342,7 +360,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         // call facet through diamond
         (bool success, ) = address(acrossStandAlone).call(packedUSDTCalldata);
         if (!success) {
-            revert ERC20BridgeFailed();
+            revert NativeBridgeFailed();
         }
         vm.stopPrank();
     }
@@ -358,10 +376,16 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        acrossFacetPackedV3.startBridgeTokensViaAcrossV3ERC20Min(
-            packedParameters,
+        acrossFacetPacked.startBridgeTokensViaAcrossERC20Min(
+            transactionId,
             ADDRESS_USDC,
-            amountUSDC
+            amountUSDC,
+            USER_RECEIVER,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
         );
 
         vm.stopPrank();
@@ -378,10 +402,16 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        acrossFacetPackedV3.startBridgeTokensViaAcrossV3ERC20Min(
-            packedParameters,
+        acrossFacetPacked.startBridgeTokensViaAcrossERC20Min(
+            transactionId,
             ADDRESS_USDT,
-            amountUSDT
+            amountUSDT,
+            USER_RECEIVER,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
         );
 
         vm.stopPrank();
@@ -398,10 +428,16 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        acrossStandAlone.startBridgeTokensViaAcrossV3ERC20Min(
-            packedParameters,
+        acrossStandAlone.startBridgeTokensViaAcrossERC20Min(
+            transactionId,
             ADDRESS_USDC,
-            amountUSDC
+            amountUSDC,
+            USER_RECEIVER,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
         );
 
         vm.stopPrank();
@@ -421,29 +457,33 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        acrossStandAlone.startBridgeTokensViaAcrossV3ERC20Min(
-            packedParameters,
+        acrossStandAlone.startBridgeTokensViaAcrossERC20Min(
+            transactionId,
             ADDRESS_USDT,
-            amountUSDT
+            amountUSDT,
+            USER_RECEIVER,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
         );
 
         vm.stopPrank();
     }
 
     function assertEqAcrossData(
-        AcrossFacetV3.AcrossV3Data memory original,
-        AcrossFacetV3.AcrossV3Data memory decoded
+        AcrossFacet.AcrossData memory original,
+        AcrossFacet.AcrossData memory decoded
     ) public {
-        assertEq(original.receivingAssetId == decoded.receivingAssetId, true);
-        assertEq(original.outputAmount == decoded.outputAmount, true);
-        assertEq(original.fillDeadline == decoded.fillDeadline, true);
+        assertEq(original.relayerFeePct == decoded.relayerFeePct, true);
         assertEq(original.quoteTimestamp == decoded.quoteTimestamp, true);
-        assertEq(original.refundAddress == decoded.refundAddress, true); // Add check for refundAddress/depositor
         assertEq(
             keccak256(abi.encode(original.message)) ==
                 keccak256(abi.encode(decoded.message)),
             true
         );
+        assertEq(original.relayerFeePct == decoded.relayerFeePct, true);
     }
 
     function assertEqBridgeData(BridgeData memory original) public {
@@ -455,11 +495,10 @@ contract AcrossFacetPackedV3Test is TestBase {
     function test_canEncodeAndDecodeNativePackedCalldata() public {
         (
             BridgeData memory bridgeData,
-            AcrossFacetV3.AcrossV3Data memory acrossData
-        ) = acrossFacetPackedV3
-                .decode_startBridgeTokensViaAcrossV3NativePacked(
-                    packedNativeCalldata
-                );
+            AcrossFacet.AcrossData memory acrossData
+        ) = acrossFacetPacked.decode_startBridgeTokensViaAcrossNativePacked(
+                packedNativeCalldata
+            );
 
         // validate bridgeData
         assertEqBridgeData(bridgeData);
@@ -471,8 +510,8 @@ contract AcrossFacetPackedV3Test is TestBase {
     function test_canEncodeAndDecodeERC20PackedCalldata() public {
         (
             BridgeData memory bridgeData,
-            AcrossFacetV3.AcrossV3Data memory acrossData
-        ) = acrossFacetPackedV3.decode_startBridgeTokensViaAcrossV3ERC20Packed(
+            AcrossFacet.AcrossData memory acrossData
+        ) = acrossFacetPacked.decode_startBridgeTokensViaAcrossERC20Packed(
                 packedUSDCCalldata
             );
 
@@ -488,42 +527,61 @@ contract AcrossFacetPackedV3Test is TestBase {
     function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_Native()
         public
     {
-        packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
+        uint64 invalidDestinationChainId = uint64(type(uint32).max) + 1;
 
         vm.expectRevert(
             "destinationChainId value passed too big to fit in uint32"
         );
 
-        acrossFacetPackedV3.encode_startBridgeTokensViaAcrossV3NativePacked(
-            packedParameters
+        acrossFacetPacked.encode_startBridgeTokensViaAcrossNativePacked(
+            transactionId,
+            USER_RECEIVER,
+            invalidDestinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.maxCount,
+            validAcrossData.message
         );
     }
 
     function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_ERC20()
         public
     {
-        packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
+        uint64 invalidDestinationChainId = uint64(type(uint32).max) + 1;
 
+        // USDC
         vm.expectRevert(
             "destinationChainId value passed too big to fit in uint32"
         );
 
-        acrossFacetPackedV3.encode_startBridgeTokensViaAcrossV3ERC20Packed(
-            packedParameters,
+        acrossFacetPacked.encode_startBridgeTokensViaAcrossERC20Packed(
+            transactionId,
+            USER_RECEIVER,
             ADDRESS_USDC,
-            amountUSDC
+            amountUSDC,
+            invalidDestinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
         );
     }
 
     function test_revert_cannotUseMinAmountAboveUint128Max_ERC20() public {
-        uint256 invalidInputAmount = uint256(type(uint128).max) + 1;
+        uint256 invalidMinAmount = uint256(type(uint128).max) + 1;
 
-        vm.expectRevert("inputAmount value passed too big to fit in uint128");
+        vm.expectRevert("minAmount value passed too big to fit in uint128");
 
-        acrossFacetPackedV3.encode_startBridgeTokensViaAcrossV3ERC20Packed(
-            packedParameters,
-            ADDRESS_USDC,
-            invalidInputAmount
+        acrossFacetPacked.encode_startBridgeTokensViaAcrossERC20Packed(
+            transactionId,
+            USER_RECEIVER,
+            ADDRESS_USDT,
+            invalidMinAmount,
+            destinationChainId,
+            validAcrossData.relayerFeePct,
+            validAcrossData.quoteTimestamp,
+            validAcrossData.message,
+            validAcrossData.maxCount
         );
     }
 
@@ -537,17 +595,8 @@ contract AcrossFacetPackedV3Test is TestBase {
         );
     }
 
-    function test_WillRevertIfExecuteCallAndWithdrawFails() public {
-        vm.expectRevert();
-        acrossStandAlone.executeCallAndWithdraw(
-            address(claimContract),
-            WILL_FAIL_CALLDATA,
-            ADDRESS_USDT,
-            address(this),
-            amountUSDT
-        );
-    }
-
+    /// @notice Fails to execute extra call and withdraw from non-owner.
+    /// @dev It calls executeCallAndWithdraw from address that is not OWNER_ADDRESS.
     function test_revert_WillNotExecuteCallAndWithdrawForNonOwner() public {
         vm.startPrank(USER_SENDER);
 
@@ -563,20 +612,21 @@ contract AcrossFacetPackedV3Test is TestBase {
         vm.stopPrank();
     }
 
-    function test_contractIsSetUpCorrectly() public {
-        acrossFacetPackedV3 = new AcrossFacetPackedV3(
-            IAcrossSpokePool(ACROSS_SPOKE_POOL),
-            ADDRESS_WRAPPED_NATIVE,
-            address(this)
+    function testRevert_FailIfCallToExternalContractFails() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        MockFailingContract failingContract = new MockFailingContract();
+
+        vm.expectRevert(AcrossFacetPacked.WithdrawFailed.selector);
+
+        acrossStandAlone.executeCallAndWithdraw(
+            address(failingContract),
+            WITHDRAW_REWARDS_CALLDATA,
+            ADDRESS_USDT,
+            address(this),
+            amountUSDT
         );
 
-        assertEq(
-            address(acrossFacetPackedV3.spokePool()) == ACROSS_SPOKE_POOL,
-            true
-        );
-        assertEq(
-            acrossFacetPackedV3.wrappedNative() == ADDRESS_WRAPPED_NATIVE,
-            true
-        );
+        vm.startPrank(USER_DIAMOND_OWNER);
     }
 }

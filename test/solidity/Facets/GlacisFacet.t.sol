@@ -7,7 +7,6 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig, InvalidCallData, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GlacisFacet Contract
@@ -23,7 +22,7 @@ contract TestGlacisFacet is GlacisFacet {
     }
 }
 
-abstract contract GlacisFacetTestBase is TestBaseFacet, LiFiData {
+abstract contract GlacisFacetTestBase is TestBaseFacet {
     GlacisFacet.GlacisData internal glacisData;
     IGlacisAirlift internal airliftContract;
     TestGlacisFacet internal glacisFacet;
