@@ -7,7 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IVelodromeV2Pool } from "lifi/Interfaces/IVelodromeV2Pool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
-import { WrongPoolReserves } from "../Errors/Errors.sol";
+import { WrongPoolReserves } from "../LiFiDEXAggregatorErrors.sol";
 
 /// @title VelodromeV2Facet
 /// @author LI.FI (https://li.fi)

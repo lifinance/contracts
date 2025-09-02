@@ -6,7 +6,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/LiFiDEXAggregatorErrors.sol";
 import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 

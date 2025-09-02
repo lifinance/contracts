@@ -154,7 +154,7 @@ We use Foundry as our primary development and testing framework. Foundry provide
 - **Error Handling:**
 
   - **Generic errors** must be defined in `src/Errors/GenericErrors.sol`
-    - LDA-specific errors should be defined in `src/Periphery/LDA/Errors/Errors.sol`
+    - LDA-specific errors should be defined in `src/Periphery/LDA/LiFiDEXAggregatorErrors.sol`
     - Use for common validation errors that apply across multiple contracts
     - When adding new generic errors, increment the version in `@custom:version` comment
     - Examples: `InvalidAmount()`, `InvalidCallData()`, `UnAuthorized()`
@@ -464,7 +464,7 @@ When integrating a new DEX, follow this decision tree:
 
 #### Error Handling
 
-- **LDA-specific errors**: Define in `src/Periphery/LDA/Errors/Errors.sol`
+- **LDA-specific errors**: Define in `src/Periphery/LDA/LiFiDEXAggregatorErrors.sol`
 - **Generic errors**: Use existing errors from `src/Errors/GenericErrors.sol`
 
 ### LDA Testing Conventions
