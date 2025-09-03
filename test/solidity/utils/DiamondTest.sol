@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { CommonDiamondTest } from "./CommonDiamondTest.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract DiamondTest is CommonDiamondTest {
     function setUp() public virtual override {
@@ -20,6 +21,15 @@ contract DiamondTest is CommonDiamondTest {
         assertTrue(
             address(testDiamond) != address(0),
             "Diamond should be deployed"
+        );
+    }
+
+    /// @notice Test that LiFiDiamond reverts when constructed with zero address owner
+    function testRevert_LiFiDiamondConstructedWithZeroAddressOwner() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new LiFiDiamond(
+            address(0), // This should trigger InvalidConfig
+            address(diamondCutFacet)
         );
     }
 }

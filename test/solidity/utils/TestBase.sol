@@ -14,7 +14,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
-import { LiFiDEXAggregatorDiamondTest } from "./LiFiDEXAggregatorDiamondTest.sol";
+import { DEXAggregatorDiamondTest } from "./DEXAggregatorDiamondTest.sol";
 
 using stdJson for string;
 
@@ -97,7 +97,7 @@ abstract contract TestBase is
     TestBaseForksConstants,
     TestBaseRandomConstants,
     TestHelpers,
-    LiFiDEXAggregatorDiamondTest,
+    DEXAggregatorDiamondTest,
     ILiFi
 {
     address internal _facetTestContractAddress;
@@ -239,7 +239,7 @@ abstract contract TestBase is
         weth = ERC20(ADDRESS_WRAPPED_NATIVE);
 
         // deploy & configure LiFiDiamond and LiFiDEXAggregatorDiamond
-        LiFiDEXAggregatorDiamondTest.setUp();
+        DEXAggregatorDiamondTest.setUp();
         // deploy feeCollector
         feeCollector = new FeeCollector(USER_DIAMOND_OWNER);
 

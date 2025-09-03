@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "../../LiFiDiamond.sol";
-import { InvalidConfig } from "../../Errors/GenericErrors.sol";
 
 /// @title LiFiDEXAggregatorDiamond
 /// @author LI.FI (https://li.fi)
@@ -12,9 +11,5 @@ contract LiFiDEXAggregatorDiamond is LiFiDiamond {
     constructor(
         address _contractOwner,
         address _diamondCutFacet
-    ) LiFiDiamond(_contractOwner, _diamondCutFacet) {
-        if (_contractOwner == address(0)) {
-            revert InvalidConfig();
-        }
-    }
+    ) LiFiDiamond(_contractOwner, _diamondCutFacet) {}
 }

@@ -5,19 +5,18 @@ import { LiFiDEXAggregatorDiamond } from "lifi/Periphery/LDA/LiFiDEXAggregatorDi
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { CommonDiamondTest } from "./CommonDiamondTest.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
-/// @title LiFiDEXAggregatorDiamondTest
+/// @title DEXAggregatorDiamondTest
 /// @notice Spins up a minimal LDA (LiFi DEX Aggregator) Diamond with loupe, ownership, and emergency pause facets for periphery tests.
 /// @dev Child test suites inherit this to get a ready-to-cut diamond and helper to assemble facets.
-contract LiFiDEXAggregatorDiamondTest is CommonDiamondTest {
+contract DEXAggregatorDiamondTest is CommonDiamondTest {
     LiFiDEXAggregatorDiamond public ldaDiamond;
 
     function setUp() public virtual override {
         super.setUp(); // This creates the main LiFiDiamond as 'diamond'
 
         ldaDiamond = new LiFiDEXAggregatorDiamond(
-            USER_LDA_DIAMOND_OWNER,
+            USER_DIAMOND_OWNER,
             address(diamondCutFacet)
         );
 
@@ -33,26 +32,15 @@ contract LiFiDEXAggregatorDiamondTest is CommonDiamondTest {
             functionSelectors: functionSelectors
         });
 
-        vm.prank(USER_LDA_DIAMOND_OWNER);
+        vm.prank(USER_DIAMOND_OWNER);
         DiamondCutFacet(address(ldaDiamond)).diamondCut(cut, address(0), "");
     }
 
     function test_DeploysWithoutErrors() public virtual override {
         ldaDiamond = new LiFiDEXAggregatorDiamond(
-            USER_LDA_DIAMOND_OWNER,
+            USER_DIAMOND_OWNER,
             address(diamondCutFacet)
         );
         super.test_DeploysWithoutErrors();
-    }
-
-    /// @notice Test that LiFiDEXAggregatorDiamond reverts when constructed with zero address owner
-    function testRevert_LiFiDEXAggregatorDiamondConstructedWithZeroAddressOwner()
-        public
-    {
-        vm.expectRevert(InvalidConfig.selector);
-        new LiFiDEXAggregatorDiamond(
-            address(0), // This should trigger InvalidConfig
-            address(diamondCutFacet)
-        );
     }
 }
