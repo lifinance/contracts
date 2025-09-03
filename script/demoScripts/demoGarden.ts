@@ -3,7 +3,7 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { utils } from 'ethers'
+import { utils, BigNumber } from 'ethers'
 
 import deployments from '../../deployments/mainnet.staging.json'
 import {
@@ -12,10 +12,13 @@ import {
   type ILiFi,
   type GardenFacet,
 } from '../../typechain'
+import type { LibSwap } from '../../typechain/GardenFacet'
 
 import {
   getProvider,
   getWalletFromPrivateKeyInDotEnv,
+  getUniswapDataERC20toExactERC20,
+  ensureBalanceAndAllowanceToDiamond,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -82,11 +85,18 @@ const main = defineCommand({
       description: 'Amount of USDC to bridge (in USDC units, e.g., 10 for $10)',
       default: '10',
     },
+    swap: {
+      type: 'boolean',
+      description: 'Perform a swap before bridging (WETH -> USDC)',
+      default: false,
+    },
   },
   run: async ({ args }) => {
     try {
       const LIFI_ADDRESS = deployments.LiFiDiamond
       const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' // Mainnet USDC
+      const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' // Mainnet WETH
+      const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D' // Mainnet Uniswap
 
       // Setup provider and wallet
       const provider = getProvider('mainnet')
@@ -95,15 +105,57 @@ const main = defineCommand({
 
       const amountInUsdc = parseFloat(args.amount)
       const amountInWei = utils.parseUnits(args.amount, 6) // USDC has 6 decimals
+      const withSwap = args.swap
 
       consola.info('=== Garden Bridge Demo ===')
       consola.info(`Environment: staging`)
+      consola.info(`Mode: ${withSwap ? 'Swap and Bridge' : 'Bridge only'}`)
       consola.info(`From: Mainnet`)
       consola.info(`To: Base`)
-      consola.info(`Asset: USDC`)
+      consola.info(`Asset: ${withSwap ? 'WETH -> USDC' : 'USDC'}`)
       consola.info(`Amount: ${amountInUsdc} USDC`)
       consola.info(`Wallet Address: ${address}`)
       consola.info(`Diamond: ${LIFI_ADDRESS}`)
+
+      // Prepare swap data if needed
+      let swapData: LibSwap.SwapDataStruct[] = []
+      let inputAmount = amountInWei
+
+      if (withSwap) {
+        consola.info('\n🔄 Preparing swap data (WETH -> USDC)...')
+
+        // Use the helper that calculates exact input for exact output
+        const swapDataItem = await getUniswapDataERC20toExactERC20(
+          UNISWAP_ADDRESS,
+          1, // Mainnet chain ID
+          WETH_ADDRESS,
+          USDC_ADDRESS,
+          amountInWei, // Exact USDC output we want
+          LIFI_ADDRESS,
+          true, // requiresDeposit
+          Math.floor(Date.now() / 1000) + 60 * 60 // 1 hour deadline
+        )
+
+        swapData = [swapDataItem]
+        inputAmount = BigNumber.from(swapDataItem.fromAmount) // The amount of WETH needed (with slippage)
+
+        consola.info(
+          `Swap prepared: ${utils.formatUnits(
+            inputAmount,
+            18
+          )} WETH (max with slippage) -> ${amountInUsdc} USDC (exact)`
+        )
+
+        // Check WETH balance and approval
+        consola.info('\n💰 Checking WETH balance and approval...')
+        await ensureBalanceAndAllowanceToDiamond(
+          WETH_ADDRESS,
+          wallet,
+          LIFI_ADDRESS,
+          inputAmount,
+          false
+        )
+      }
 
       // Step 1: Get quote from Garden API
       consola.info('\n📡 Fetching quote from Garden API...')
@@ -197,7 +249,7 @@ const main = defineCommand({
         receiver: address,
         minAmount: amountInWei,
         destinationChainId: 8453, // Base chain ID
-        hasSourceSwaps: false,
+        hasSourceSwaps: withSwap,
         hasDestinationCall: false,
       }
 
@@ -208,42 +260,55 @@ const main = defineCommand({
         secretHash: orderData.result.typed_data.message.secretHash,
       }
 
-      // Step 4: Check and approve USDC
-      consola.info('\n💰 Checking USDC balance and approval...')
+      // Step 4: If not swapping, check and approve USDC
+      if (!withSwap) {
+        consola.info('\n💰 Checking USDC balance and approval...')
 
-      const token = ERC20__factory.connect(USDC_ADDRESS, provider)
-      const balance = await token.balanceOf(address)
+        const token = ERC20__factory.connect(USDC_ADDRESS, provider)
+        const balance = await token.balanceOf(address)
 
-      if (balance.lt(amountInWei))
-        throw new Error(
-          `Insufficient USDC balance. Required: ${amountInUsdc}, Available: ${utils.formatUnits(
-            balance,
-            6
-          )}`
-        )
+        if (balance.lt(amountInWei))
+          throw new Error(
+            `Insufficient USDC balance. Required: ${amountInUsdc}, Available: ${utils.formatUnits(
+              balance,
+              6
+            )}`
+          )
 
-      consola.info(`Balance: ${utils.formatUnits(balance, 6)} USDC`)
+        consola.info(`Balance: ${utils.formatUnits(balance, 6)} USDC`)
 
-      const allowance = await token.allowance(address, LIFI_ADDRESS)
-      if (allowance.lt(amountInWei)) {
-        consola.info('Approving USDC...')
-        const approveTx = await token
-          .connect(wallet)
-          .approve(LIFI_ADDRESS, amountInWei)
-        await approveTx.wait()
-        consola.success('USDC approved')
-      } else consola.info('Sufficient allowance already exists')
+        const allowance = await token.allowance(address, LIFI_ADDRESS)
+        if (allowance.lt(amountInWei)) {
+          consola.info('Approving USDC...')
+          const approveTx = await token
+            .connect(wallet)
+            .approve(LIFI_ADDRESS, amountInWei)
+          await approveTx.wait()
+          consola.success('USDC approved')
+        } else consola.info('Sufficient allowance already exists')
+      }
 
       // Step 5: Execute the bridge transaction
       consola.info('\n🚀 Executing bridge transaction...')
 
       const gardenFacet = GardenFacet__factory.connect(LIFI_ADDRESS, provider)
 
-      const tx = await gardenFacet
-        .connect(wallet)
-        .startBridgeTokensViaGarden(bridgeData, gardenData, {
-          value: 0, // No native token needed for USDC bridge
-        })
+      let tx
+      if (withSwap) {
+        consola.info('Using swapAndStartBridgeTokensViaGarden...')
+        tx = await gardenFacet
+          .connect(wallet)
+          .swapAndStartBridgeTokensViaGarden(bridgeData, swapData, gardenData, {
+            value: 0, // No native token needed
+          })
+      } else {
+        consola.info('Using startBridgeTokensViaGarden...')
+        tx = await gardenFacet
+          .connect(wallet)
+          .startBridgeTokensViaGarden(bridgeData, gardenData, {
+            value: 0, // No native token needed for USDC bridge
+          })
+      }
 
       consola.info(`Transaction sent: ${tx.hash}`)
       consola.info('Waiting for confirmation...')
@@ -254,6 +319,11 @@ const main = defineCommand({
         consola.success(`\n✨ Bridge transaction successful!`)
         consola.info(`Transaction hash: ${tx.hash}`)
         consola.info(`View on Etherscan: https://etherscan.io/tx/${tx.hash}`)
+        if (withSwap) 
+          consola.info(
+            `Successfully swapped WETH to USDC and initiated bridge to Base`
+          )
+        
         consola.info(
           "\nNote: The bridge process will continue on Garden's infrastructure."
         )
