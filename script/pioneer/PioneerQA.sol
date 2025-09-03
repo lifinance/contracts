@@ -13,7 +13,6 @@ contract PioneerQA is Script {
         bytes32 transactionId;
         address sendingAssetId;
         address receiver;
-        uint256 inputAmount;
         uint256 minAmount;
         uint256 destinationChainId;
     }
@@ -47,15 +46,15 @@ contract PioneerQA is Script {
 
             if (LibAsset.isNativeAsset(param.sendingAssetId)) {
                 PioneerFacet(diamond).startBridgeTokensViaPioneer{
-                    value: param.inputAmount
+                    value: param.minAmount
                 }(_bridgeData, _pioneerData);
             } else {
                 // Set allowance
                 LibAsset.approveERC20(
                     IERC20(param.sendingAssetId),
                     diamond,
-                    param.inputAmount,
-                    param.inputAmount
+                    param.minAmount,
+                    param.minAmount
                 );
 
                 PioneerFacet(diamond).startBridgeTokensViaPioneer(
