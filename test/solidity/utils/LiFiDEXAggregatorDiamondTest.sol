@@ -5,6 +5,7 @@ import { LiFiDEXAggregatorDiamond } from "lifi/Periphery/LDA/LiFiDEXAggregatorDi
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { CommonDiamondTest } from "./CommonDiamondTest.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title LiFiDEXAggregatorDiamondTest
 /// @notice Spins up a minimal LDA (LiFi DEX Aggregator) Diamond with loupe, ownership, and emergency pause facets for periphery tests.
@@ -42,5 +43,16 @@ contract LiFiDEXAggregatorDiamondTest is CommonDiamondTest {
             address(diamondCutFacet)
         );
         super.test_DeploysWithoutErrors();
+    }
+
+    /// @notice Test that LiFiDEXAggregatorDiamond reverts when constructed with zero address owner
+    function testRevert_LiFiDEXAggregatorDiamondConstructedWithZeroAddressOwner()
+        public
+    {
+        vm.expectRevert(InvalidConfig.selector);
+        new LiFiDEXAggregatorDiamond(
+            address(0), // This should trigger InvalidConfig
+            address(diamondCutFacet)
+        );
     }
 }
