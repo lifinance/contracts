@@ -96,22 +96,25 @@
       "0x9BE903AB2ad61dfC71f7E2171A3dBf0884a4cdBF": {
         "Name": "",
         "Version": ""
+      },
+      "0x03Da4463791ae29c83365Abaa05eec3c6D88bf67": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
       "Executor": "0xBe27F03C8e6a61E2a4B1EE7940dbcb9204744d1c",
       "FeeCollector": "0x9ca271A532392230EAe919Fb5460aEa9D9718424",
-      "LiFiDEXAggregator": "",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
-      "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
-      "ReceiverAcrossV3": "",
-      "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
       "GasZipPeriphery": "",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
+      "Patcher": "",
       "Permit2Proxy": "",
-      "ReceiverChainflip": "0xbb9340B54CaBd8F1628e5fe5273E59228894E322"
+      "ReceiverAcrossV3": "",
+      "ReceiverChainflip": "0xbb9340B54CaBd8F1628e5fe5273E59228894E322",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }

@@ -39778,5 +39778,22 @@
         ]
       }
     }
+  },
+  "GardenFacet": {
+    "mainnet": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x03Da4463791ae29c83365Abaa05eec3c6D88bf67",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-03 11:14:14",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ff5e0b09255292078c01913d837236d7fa0a86b4",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }

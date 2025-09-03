@@ -16,16 +16,19 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = GardenFacet(deploy(type(GardenFacet).creationCode));
+        deployed = GardenFacet(
+            deploy(
+                bytes.concat(type(GardenFacet).creationCode, constructorArgs)
+            )
+        );
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/garden.json");
-        string memory json = vm.readFile(path);
 
         // Read the htlcRegistry address from config
         address htlcRegistry = _getConfigContractAddress(
-            json,
+            path,
             string.concat(".", network, ".htlcRegistry")
         );
 
