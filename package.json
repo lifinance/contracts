@@ -56,7 +56,7 @@
     "web3": "4.16.0"
   },
   "scripts": {
-    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && bun tasks/generateDiamondABI.ts",
+    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
     "abi:removeDuplicateEvents": "bunx tsx ./script/removeDuplicateEventsFromABI.ts",
     "add-network-rpc": "bunx tsx ./script/mongoDb/add-network-rpc.ts",
     "add-safe-owners-and-threshold": "bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
@@ -99,8 +99,8 @@
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "test:ts": "bun script/runTypescriptTests.ts",
     "troncast": "bun run script/troncast/index.ts",
-    "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
-    "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
+    "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
+    "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts"
   },
   "dependencies": {

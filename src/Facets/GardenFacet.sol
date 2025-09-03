@@ -31,9 +31,11 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
+    /// @param redeemer Address authorized to redeem the HTLC
     /// @param timelock Block number after which refund is possible
     /// @param secretHash SHA256 hash of the secret for the HTLC
     struct GardenData {
+        address redeemer;
         uint256 timelock;
         bytes32 secretHash;
     }
@@ -121,8 +123,8 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token bridging - send value with the call
             garden.initiateOnBehalf{ value: _bridgeData.minAmount }(
-                address(this), // initiator is always the Diamond
-                _bridgeData.receiver, // redeemer from bridge data
+                _bridgeData.receiver,
+                _gardenData.redeemer,
                 _gardenData.timelock,
                 _bridgeData.minAmount,
                 _gardenData.secretHash
@@ -136,8 +138,8 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
 
             garden.initiateOnBehalf{ value: 0 }(
-                address(this), // initiator is always the Diamond
-                _bridgeData.receiver, // redeemer from bridge data
+                _bridgeData.receiver,
+                _gardenData.redeemer,
                 _gardenData.timelock,
                 _bridgeData.minAmount,
                 _gardenData.secretHash

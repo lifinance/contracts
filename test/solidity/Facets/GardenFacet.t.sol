@@ -95,6 +95,7 @@ contract GardenFacetTest is TestBaseFacet {
 
         // produce valid GardenData
         validGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890, // Random address for redeemer
             timelock: block.number + 1000,
             secretHash: keccak256(abi.encodePacked("test_secret"))
         });

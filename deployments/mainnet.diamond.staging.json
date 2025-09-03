@@ -97,7 +97,11 @@
         "Name": "",
         "Version": ""
       },
-      "0x03Da4463791ae29c83365Abaa05eec3c6D88bf67": {
+      "0xf32255efE0c6A0e13AB8defc7541aEB72352243B": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x2137d13eb8b059F6980574C9186B8e474f29C39c": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
       }
