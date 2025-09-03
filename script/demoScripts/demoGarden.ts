@@ -156,9 +156,8 @@ const main = defineCommand({
         {
           method: 'POST',
           headers: {
-            // [pre-commit-checker: not a secret] - Garden API app ID
             'garden-app-id':
-              '7648702b1997e55a3763afa5dd7ace3d4bd23348ee0423cc27a18ef3e28cb2b7',
+              '7648702b1997e55a3763afa5dd7ace3d4bd23348ee0423cc27a18ef3e28cb2b7', // [pre-commit-checker: not a secret]
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(orderPayload),
