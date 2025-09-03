@@ -50,7 +50,6 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
 
     function test_PauserWalletCanPauseDiamond() public {
         vm.startPrank(USER_PAUSER);
-
         vm.expectEmit(true, true, true, true, address(emergencyPauseFacet));
         emit EmergencyPaused(USER_PAUSER);
 
@@ -149,7 +148,6 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         bytes4[] memory ownershipFunctionSelectors = IDiamondLoupe(
             address(diamond)
         ).facetFunctionSelectors(ownershipFacetAddress);
-
         // pause diamond first
         test_PauserWalletCanPauseDiamond();
 
