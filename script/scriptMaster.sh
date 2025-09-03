@@ -124,7 +124,7 @@ scriptMaster() {
       "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE" \
       "13) Remove facets or periphery from diamond" \
-      "14) Deploy all LDA diamond with core contracts to one selected network" \
+      "14) Deploy an LiFiDEXAggregator with non-core facet contracts" \
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -594,21 +594,38 @@ scriptMaster() {
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 15: Deploy all LDA diamond with core contracts to one selected network
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 14: Deploy an LiFiDEXAggregator with non-core facet contracts
   elif [[ "$SELECTION" == "14)"* ]]; then
     echo ""
-    echo "[info] selected use case: Deploy all LDA diamond with core contracts to one selected network"
+    echo "[info] selected use case: Deploy an LiFiDEXAggregator with non-core facet contracts"
 
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
     local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-    echo "[info] selected network: $NETWORK"
 
-    # call deploy script
-    deployAllLDAContracts "$NETWORK" "$ENVIRONMENT"
+    echo "[info] selected network: $NETWORK"
+    echo "[info] loading deployer wallet balance..."
+
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+
+    echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
+    checkRequiredVariablesInDotEnv "$NETWORK"
+
+    # Automatically select FullLiFiDexAggregator (which deploys LiFiDEXAggregatorDiamond)
+    CONTRACT="FullLiFiDexAggregator"
+    echo "[info] automatically deploying LiFiDEXAggregatorDiamond using: $CONTRACT"
+
+    # get current contract version
+    local VERSION=$(getCurrentContractVersion "$CONTRACT")
+
+    # Deploy the full LDA system
+    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false "true"
 
     # check if last command was executed successfully, otherwise exit script with error message
-    checkFailure $? "deploy all LDA contracts to network $NETWORK"
+    checkFailure $? "deploy LiFiDEXAggregatorDiamond to network $NETWORK"
 
     playNotificationSound
 

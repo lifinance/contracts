@@ -3,15 +3,17 @@ pragma solidity ^0.8.17;
 
 import { LibDiamond } from "./Libraries/LibDiamond.sol";
 import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
-// solhint-disable-next-line no-unused-import
-import { LibUtil } from "./Libraries/LibUtil.sol";
+import { InvalidConfig } from "./Errors/GenericErrors.sol";
 
-/// @title LIFI Diamond
+/// @title LIFIDiamond
 /// @author LI.FI (https://li.fi)
 /// @notice Base EIP-2535 Diamond Proxy Contract.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LiFiDiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
+        if (_contractOwner == address(0)) {
+            revert InvalidConfig();
+        }
         LibDiamond.setContractOwner(_contractOwner);
 
         // Add the diamondCut external function from the diamondCutFacet

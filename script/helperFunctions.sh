@@ -1324,6 +1324,11 @@ function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
 
+  # Special case for FullLiFiDexAggregator - it's a deployment script that deploys LiFiDEXAggregatorDiamond
+  if [[ "$CONTRACT" == "FullLiFiDexAggregator" ]]; then
+    CONTRACT="LiFiDEXAggregatorDiamond"
+  fi
+
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
   local FILENAME="$CONTRACT.sol"
@@ -2091,17 +2096,24 @@ function verifyContract() {
 
   # Fallback to Sourcify if primary verification fails
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
+  
+  # For FullLiFiDexAggregator, use LiFiDEXAggregatorDiamond for Sourcify verification too
+  local SOURCIFY_CONTRACT="$CONTRACT"
+  if [[ "$CONTRACT" == "FullLiFiDexAggregator" ]]; then
+    SOURCIFY_CONTRACT="LiFiDEXAggregatorDiamond"
+  fi
+  
   if isZkEvmNetwork "$NETWORK"; then
     FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
       "$ADDRESS" \
-      "$CONTRACT" \
+      "$SOURCIFY_CONTRACT" \
       --zksync \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   else
     forge verify-contract \
       "$ADDRESS" \
-      "$CONTRACT" \
+      "$SOURCIFY_CONTRACT" \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify
   fi

@@ -6,12 +6,13 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { Test } from "forge-std/Test.sol";
+import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 
 /// @title BaseDiamondTest
 /// @notice Minimal helper to compose a test Diamond and add facets/selectors for test scenarios.
 /// @dev Provides overloads to add facets with or without init calldata.
 ///      This contract is used by higher-level LDA test scaffolding to assemble the test Diamond.
-abstract contract BaseDiamondTest is Test {
+abstract contract BaseDiamondTest is Test, TestBaseRandomConstants {
     LibDiamond.FacetCut[] internal cut;
 
     /// @notice Adds standard Diamond Loupe selectors to the `cut` buffer.
