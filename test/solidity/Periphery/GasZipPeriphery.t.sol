@@ -653,7 +653,7 @@ contract GasZipPeripheryTest is TestBase {
 
         return
             LibSwap.SwapData({
-                callTo: address(ldaDiamond), // LDA diamond address (CoreRouteFacet lives here)
+                callTo: address(ldaDiamond), // LiFiDEXAggregator diamond address (CoreRouteFacet lives here)
                 approveTo: address(ldaDiamond),
                 sendingAssetId: tokenIn,
                 receivingAssetId: address(0), // native

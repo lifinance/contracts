@@ -379,15 +379,15 @@ We use Foundry as our primary development and testing framework. Foundry provide
   }
   ```
 
-## LDA (LiFi DEX Aggregator) Conventions
+## LiFiDEXAggregator (LDA) Conventions
 
-The LDA (LiFi DEX Aggregator) is a specialized component within the LI.FI ecosystem that provides efficient, modular DEX integration capabilities through its own Diamond Standard implementation.
+The LiFiDEXAggregator (LDA) is a specialized component within the LI.FI ecosystem that provides efficient, modular DEX integration capabilities through its own Diamond Standard implementation.
 
 ### Architecture Overview
 
 #### Core Components
 
-- **LiFiDEXAggregatorDiamond.sol**: Base EIP-2535 Diamond Proxy Contract for LDA
+- **LiFiDEXAggregatorDiamond.sol**: Base EIP-2535 Diamond Proxy Contract for DEX Aggregator
 - **CoreRouteFacet.sol**: Orchestrates route execution using direct function selector dispatch
 - **BaseRouteConstants.sol**: Shared constants across DEX facets
 - **PoolCallbackAuthenticator.sol**: Abstract contract providing pool callback authentication
@@ -399,14 +399,14 @@ src/Periphery/LDA/
 ├── LiFiDEXAggregatorDiamond.sol              # LiFiDEXAggregatorDiamond Diamond proxy implementation
 ├── BaseRouteConstants.sol      # Common constants for DEX facets
 ├── PoolCallbackAuthenticator.sol # Callback authentication base
-├── Facets/                     # LDA-specific facets
+├── Facets/                     # LiFiDEXAggregator-specific facets
 │   ├── CoreRouteFacet.sol      # Route orchestration
 │   ├── UniV3StyleFacet.sol     # UniV3-style DEX integrations
 │   ├── UniV2StyleFacet.sol     # UniV2-style DEX integrations
 │   ├── NativeWrapperFacet.sol  # Native token wrapping
 │   └── {DexName}Facet.sol      # Custom DEX integrations
 └── Errors/
-    └── Errors.sol              # LDA-specific error definitions
+    └── Errors.sol              # LiFiDEXAggregator-specific error definitions
 ```
 
 ### DEX Integration Decision Tree
@@ -428,7 +428,7 @@ When integrating a new DEX, follow this decision tree:
 4. **Else** → Create new custom facet with swap function without callbacks
    - Write tests inheriting `BaseDEXFacetTest`
 
-### LDA Facet Requirements
+### LiFiDEXAggregator Facet Requirements
 
 #### Naming and Location
 
@@ -464,10 +464,10 @@ When integrating a new DEX, follow this decision tree:
 
 #### Error Handling
 
-- **LDA-specific errors**: Define in `src/Periphery/LDA/LiFiDEXAggregatorErrors.sol`
+- **LiFiDEXAggregator-specific errors**: Define in `src/Periphery/LDA/LiFiDEXAggregatorErrors.sol`
 - **Generic errors**: Use existing errors from `src/Errors/GenericErrors.sol`
 
-### LDA Testing Conventions
+### LiFiDEXAggregator Testing Conventions
 
 #### Test File Structure
 
@@ -539,7 +539,7 @@ test/solidity/Periphery/LDA/
 - **Token Decimals**: Override `_getDefaultAmountForTokenIn()` for non-18 decimal tokens
 - **Pool Verification**: Verify pool addresses exist and are correctly configured. Ensure the chosen fork block number has the pools deployed and contains sufficient liquidity for testing
 
-### LDA Deployment Scripts
+### LiFiDEXAggregator Deployment Scripts
 
 #### Location and Naming
 

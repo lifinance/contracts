@@ -79,7 +79,7 @@ contract VelodromeV2Facet is BaseRouteConstants {
 
         // 'swap' function from IVelodromeV2Pool should be called from a contract which performs important safety checks.
         // Safety Checks Covered:
-        // - Reentrancy: LDA has a custom lock() modifier
+        // - Reentrancy: LiFiDEXAggregator has a custom lock() modifier
         // - Token transfer safety: SafeERC20 is used to ensure token transfers revert on failure
         // - Expected output verification: The contract calls getAmountOut (including fees) before executing the swap
         // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
