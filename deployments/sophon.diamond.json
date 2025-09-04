@@ -52,6 +52,10 @@
       "0x74F353E96B906eC130645E40D7cF336BD935486c": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0xeaa333cfB9261d600DBDEa82C3c99cB558e9C016": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
