@@ -26,6 +26,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Constructor initializes the immutable registry
     /// @param _htlcRegistry Address of the HTLC registry contract
     constructor(address _htlcRegistry) {
+        if (_htlcRegistry == address(0)) revert InvalidRegistry();
         REGISTRY = IGardenRegistry(_htlcRegistry);
     }
 
@@ -44,6 +45,10 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Thrown when attempting to bridge an unsupported asset
     error AssetNotSupported();
+    /// @notice Thrown when the registry address is invalid
+    error InvalidRegistry();
+    /// @notice Thrown when Garden parameters are invalid
+    error InvalidGardenData();
 
     /// External Methods ///
 
@@ -104,6 +109,13 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         GardenData calldata _gardenData
     ) internal {
+        // Validate Garden-specific parameters
+        if (
+            _gardenData.redeemer == address(0) ||
+            _gardenData.timelock <= block.number ||
+            _gardenData.secretHash == bytes32(0)
+        ) revert InvalidGardenData();
+
         // Determine the asset key - use NULL_ADDRESS for native assets
         address assetKey = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
             ? LibAsset.NULL_ADDRESS
@@ -137,7 +149,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            garden.initiateOnBehalf{ value: 0 }(
+            garden.initiateOnBehalf(
                 _bridgeData.receiver,
                 _gardenData.redeemer,
                 _gardenData.timelock,
