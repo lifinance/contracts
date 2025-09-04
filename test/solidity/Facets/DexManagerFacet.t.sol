@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { DiamondTest } from "../utils/DiamondTest.sol";
+import { LiFiDiamondTest } from "../LiFiDiamond.t.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract Foo {}
 
-contract DexManagerFacetTest is DSTest, DiamondTest {
+contract DexManagerFacetTest is DSTest, LiFiDiamondTest {
     address internal constant NOT_DIAMOND_OWNER = address(0xabc123456);
 
     DexManagerFacet internal dexMgr;

@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { Test } from "forge-std/Test.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 import { DSTest } from "ds-test/test.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { ReentrancyError, ETHTransferFailed } from "src/Errors/GenericErrors.sol";
-import { stdJson } from "forge-std/StdJson.sol";
+import { ReentrancyError, ETHTransferFailed } from "lifi/Errors/GenericErrors.sol";
+import { LiFiDEXAggregatorDiamondTest } from "../Periphery/LDA/LiFiDEXAggregatorDiamond.t.sol";
+import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
-import { DEXAggregatorDiamondTest } from "./DEXAggregatorDiamondTest.sol";
 
 using stdJson for string;
 
@@ -97,7 +97,7 @@ abstract contract TestBase is
     TestBaseForksConstants,
     TestBaseRandomConstants,
     TestHelpers,
-    DEXAggregatorDiamondTest,
+    LiFiDEXAggregatorDiamondTest,
     ILiFi
 {
     address internal _facetTestContractAddress;
@@ -243,7 +243,7 @@ abstract contract TestBase is
         weth = ERC20(ADDRESS_WRAPPED_NATIVE);
 
         // deploy & configure LiFiDiamond and LiFiDEXAggregatorDiamond
-        DEXAggregatorDiamondTest.setUp();
+        LiFiDEXAggregatorDiamondTest.setUp();
         // deploy feeCollector
         feeCollector = new FeeCollector(USER_DIAMOND_OWNER);
 

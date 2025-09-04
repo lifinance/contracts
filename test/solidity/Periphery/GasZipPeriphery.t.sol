@@ -5,15 +5,15 @@ import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
-import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
-import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { DEXAggregatorDiamondTest } from "../utils/DEXAggregatorDiamondTest.sol";
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
 import { NativeWrapperFacet } from "lifi/Periphery/LDA/Facets/NativeWrapperFacet.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
+import { NonETHReceiver } from "../utils/TestHelpers.sol";
+import { LiFiDEXAggregatorDiamondTest } from "./LDA/LiFiDEXAggregatorDiamond.t.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {
@@ -61,7 +61,7 @@ contract GasZipPeripheryTest is TestBase {
     function setUp() public override {
         customBlockNumberForForking = 22566858;
         initTestBase();
-        DEXAggregatorDiamondTest.setUp();
+        LiFiDEXAggregatorDiamondTest.setUp();
 
         // deploy contracts
         gasZipPeriphery = new TestGasZipPeriphery(
