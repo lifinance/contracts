@@ -49,9 +49,7 @@ async function removeDuplicateEventsFromABI() {
   // Files that we know have duplicate events
   const filesToClean = [
     'out/OwnershipFacet.sol/OwnershipFacet.json',
-    'out/LDAOwnershipFacet.sol/LDAOwnershipFacet.json',
     'out/DiamondCutFacet.sol/DiamondCutFacet.json',
-    'out/LDADiamondCutFacet.sol/LDADiamondCutFacet.json',
   ]
 
   for (const file of filesToClean) {

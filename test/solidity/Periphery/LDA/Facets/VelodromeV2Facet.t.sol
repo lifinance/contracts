@@ -8,7 +8,7 @@ import { IVelodromeV2PoolFactory } from "lifi/Interfaces/IVelodromeV2PoolFactory
 import { IVelodromeV2Router } from "lifi/Interfaces/IVelodromeV2Router.sol";
 import { VelodromeV2Facet } from "lifi/Periphery/LDA/Facets/VelodromeV2Facet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { WrongPoolReserves } from "lifi/Periphery/LDA/Errors/Errors.sol";
+import { WrongPoolReserves } from "lifi/Periphery/LDA/LiFiDEXAggregatorErrors.sol";
 import { BaseDEXFacetTest } from "../BaseDEXFacet.t.sol";
 
 /// @title VelodromeV2FacetTest

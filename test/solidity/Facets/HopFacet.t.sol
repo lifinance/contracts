@@ -2,12 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { LiFiDiamond } from "../utils/DiamondTest.sol";
+import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {

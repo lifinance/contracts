@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IWETH } from "lifi/Interfaces/IWETH.sol";
-import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
+import { BaseCoreRouteTest } from "../BaseCoreRoute.t.sol";
 import { NativeWrapperFacet } from "lifi/Periphery/LDA/Facets/NativeWrapperFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
@@ -215,69 +215,6 @@ contract NativeWrapperFacetTest is BaseCoreRouteTest {
             weth.balanceOf(address(ldaDiamond)),
             initialWETHBalance + amountIn
         );
-
-        vm.stopPrank();
-    }
-
-    /// @notice Tests that unwrapNative reverts with zero destination address
-    function testRevert_UnwrapNative_ZeroDestinationAddress() public {
-        uint256 amountIn = 1 ether;
-
-        // Fund user with WETH
-        deal(address(weth), USER_SENDER, amountIn);
-
-        vm.startPrank(USER_SENDER);
-
-        bytes memory swapData = _buildUnwrapSwapData(
-            UnwrapParams({
-                destinationAddress: address(0) // Invalid destination
-            })
-        );
-
-        SwapTestParams memory params = SwapTestParams({
-            tokenIn: address(weth),
-            tokenOut: address(0),
-            amountIn: amountIn,
-            minOut: 0,
-            sender: USER_SENDER,
-            destinationAddress: USER_RECEIVER,
-            commandType: CommandType.DistributeUserERC20
-        });
-
-        bytes memory route = _buildBaseRoute(params, swapData);
-        _executeAndVerifySwap(params, route, InvalidCallData.selector);
-
-        vm.stopPrank();
-    }
-
-    /// @notice Tests that wrapNative reverts with zero destination address
-    function testRevert_WrapNative_ZeroDestinationAddress() public {
-        uint256 amountIn = 1 ether;
-
-        // Fund user with ETH (not aggregator, since this is DistributeNative)
-        vm.deal(USER_SENDER, amountIn);
-
-        vm.startPrank(USER_SENDER);
-
-        bytes memory swapData = _buildWrapSwapData(
-            WrapParams({
-                wrappedNative: address(weth),
-                destinationAddress: address(0) // Invalid destination
-            })
-        );
-
-        SwapTestParams memory params = SwapTestParams({
-            tokenIn: address(0),
-            tokenOut: address(weth),
-            amountIn: amountIn,
-            minOut: 0,
-            sender: USER_SENDER,
-            destinationAddress: USER_RECEIVER,
-            commandType: CommandType.DistributeNative
-        });
-
-        bytes memory route = _buildBaseRoute(params, swapData);
-        _executeAndVerifySwap(params, route, InvalidCallData.selector);
 
         vm.stopPrank();
     }

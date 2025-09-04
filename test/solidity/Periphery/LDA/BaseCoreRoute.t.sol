@@ -6,7 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestHelpers } from "../../utils/TestHelpers.sol";
-import { LDADiamondTest } from "./utils/LDADiamondTest.sol";
+import { DEXAggregatorDiamondTest } from "../../utils/DEXAggregatorDiamondTest.sol";
 
 /// @title BaseCoreRouteTest
 /// @notice Shared utilities to build route bytes and execute swaps against `CoreRouteFacet`.
@@ -15,7 +15,7 @@ import { LDADiamondTest } from "./utils/LDADiamondTest.sol";
 ///      - Event expectations helpers
 ///      - Overloads of `_executeAndVerifySwap` including revert path
 ///      Concrete tests compose these helpers to succinctly define swap scenarios.
-abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
+abstract contract BaseCoreRouteTest is DEXAggregatorDiamondTest, TestHelpers {
     using SafeERC20 for IERC20;
 
     // ==== Types ====
@@ -120,14 +120,14 @@ abstract contract BaseCoreRouteTest is LDADiamondTest, TestHelpers {
     /// @notice Deploys and attaches `CoreRouteFacet` to the diamond under test.
     /// @dev Invoked from `setUp` of child tests via inheritance chain.
     function setUp() public virtual override {
-        LDADiamondTest.setUp();
+        DEXAggregatorDiamondTest.setUp();
         _addCoreRouteFacet();
     }
 
     /// @notice Internal helper to deploy CoreRouteFacet and add its `processRoute` selector.
     /// @dev Sets `coreRouteFacet` to the diamond proxy after cut.
     function _addCoreRouteFacet() internal {
-        coreRouteFacet = new CoreRouteFacet(USER_LDA_DIAMOND_OWNER);
+        coreRouteFacet = new CoreRouteFacet();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = CoreRouteFacet.processRoute.selector;
         addFacet(address(ldaDiamond), address(coreRouteFacet), selectors);

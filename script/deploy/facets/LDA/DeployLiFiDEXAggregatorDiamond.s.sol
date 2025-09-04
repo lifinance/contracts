@@ -3,19 +3,24 @@ pragma solidity ^0.8.17;
 
 import { DeployLDAScriptBase } from "./utils/DeployLDAScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { LDADiamond } from "lifi/Periphery/LDA/LDADiamond.sol";
+import { LiFiDEXAggregatorDiamond } from "lifi/Periphery/LDA/LiFiDEXAggregatorDiamond.sol";
 
 contract DeployScript is DeployLDAScriptBase {
     using stdJson for string;
 
-    constructor() DeployLDAScriptBase("LDADiamond") {}
+    constructor() DeployScriptBase("LiFiDEXAggregatorDiamond") {}
 
     function run()
         public
-        returns (LDADiamond deployed, bytes memory constructorArgs)
+        returns (
+            LiFiDEXAggregatorDiamond deployed,
+            bytes memory constructorArgs
+        )
     {
         constructorArgs = getConstructorArgs();
-        deployed = LDADiamond(deploy(type(LDADiamond).creationCode));
+        deployed = LiFiDEXAggregatorDiamond(
+            deploy(type(LiFiDEXAggregatorDiamond).creationCode)
+        );
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
@@ -23,23 +28,21 @@ contract DeployScript is DeployLDAScriptBase {
         string memory ldaPrefix = "";
         bytes memory fileSuffixBytes = bytes(fileSuffix);
         bool hasLdaPrefix = false;
-        
+
         // Check if fileSuffix starts with "lda."
         if (fileSuffixBytes.length >= 4) {
-            hasLdaPrefix = (
-                fileSuffixBytes[0] == 'l' &&
-                fileSuffixBytes[1] == 'd' &&
-                fileSuffixBytes[2] == 'a' &&
-                fileSuffixBytes[3] == '.'
-            );
+            hasLdaPrefix = (fileSuffixBytes[0] == "l" &&
+                fileSuffixBytes[1] == "d" &&
+                fileSuffixBytes[2] == "a" &&
+                fileSuffixBytes[3] == ".");
         }
-        
+
         if (!hasLdaPrefix) {
             ldaPrefix = ".lda.";
         } else {
             ldaPrefix = ".";
         }
-        
+
         string memory path = string.concat(
             root,
             "/deployments/",
