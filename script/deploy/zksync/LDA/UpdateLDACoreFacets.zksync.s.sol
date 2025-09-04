@@ -162,7 +162,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
                 emit log_bytes32(selectors[j]);
             }
 
-            // at this point we know for sure that LDA diamond loupe exists on diamond
+            // at this point we know for sure that diamond loupe exists on diamond
             buildDiamondCut(selectors, facetAddress);
         }
 

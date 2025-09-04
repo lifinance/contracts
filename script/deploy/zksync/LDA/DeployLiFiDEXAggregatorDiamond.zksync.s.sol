@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { DeployLDAScriptBase } from "./utils/DeployLDAScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { LiFiDEXAggregatorDiamond } from "lifi/Periphery/LDA/LiFiDEXAggregatorDiamond.sol";
+import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
 
-contract DeployScript is DeployLDAScriptBase {
+contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployLDAScriptBase("LiFiDEXAggregatorDiamond") {}
+    constructor() DeployScriptBase("LiFiDEXAggregatorDiamond") {}
 
     function run()
         public
