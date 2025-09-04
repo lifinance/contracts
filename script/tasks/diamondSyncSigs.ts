@@ -82,20 +82,18 @@ const main = defineCommand({
 
     // Check if function signatures are approved
     const { sigs } = await import(`../../config/sigs.json`)
+    const { blacklistedFunctionSelectors } = await import(
+      `../../config/global.json`
+    )
 
     // Security check: Prevent whitelisting of dangerous function selectors
-    const DANGEROUS_SELECTORS = ['0x23b872dd'] // transferFrom
     for (const sig of sigs)
-      if (DANGEROUS_SELECTORS.includes(sig.toLowerCase())) {
+      if (blacklistedFunctionSelectors.includes(sig.toLowerCase())) {
         consola.error(
-          `❌ ERROR: transferFrom function selector (0x23b872dd) detected in signatures!`
+          `❌ ERROR: Blacklisted function selector (${sig}) detected in signatures!`
         )
-        consola.error(
-          `   This function allows transferring tokens from any address with approval.`
-        )
-        consola.error(
-          `   Whitelisting this function is NOT ALLOWED for security reasons.`
-        )
+        consola.error(`   This function is blacklisted for security reasons.`)
+        consola.error(`   Whitelisting this function is NOT ALLOWED.`)
         consola.error(
           `   Please remove this function selector from config/sigs.json before proceeding.`
         )
