@@ -2,10 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
-import { CommonDiamondTest } from "./CommonDiamondTest.sol";
+import { CommonDiamondTest } from "./utils/CommonDiamondTest.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
-contract DiamondTest is CommonDiamondTest {
+contract LiFiDiamondTest is CommonDiamondTest {
     function setUp() public virtual override {
         super.setUp();
         // Call createDiamond to get a fully configured diamond with all facets
