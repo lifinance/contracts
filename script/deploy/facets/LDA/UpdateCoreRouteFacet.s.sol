@@ -8,6 +8,6 @@ contract DeployScript is UpdateLDAScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("LDAEmergencyPauseFacet");
+        return update("CoreRouteFacet");
     }
 }

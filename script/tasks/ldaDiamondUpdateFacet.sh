@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# executes a diamond update script to update an LDA facet on LDADiamond
+# executes a diamond update script to update an LDA facet on LiFiDEXAggregatorDiamond
 function ldaDiamondUpdateFacet() {
 
   # load required variables and helper functions
@@ -52,9 +52,9 @@ function ldaDiamondUpdateFacet() {
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
-  # if no DIAMOND_CONTRACT_NAME was passed to this function, default to LDADiamond
+  # if no DIAMOND_CONTRACT_NAME was passed to this function, default to LiFiDEXAggregatorDiamond
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
-    DIAMOND_CONTRACT_NAME="LDADiamond"
+    DIAMOND_CONTRACT_NAME="LiFiDEXAggregatorDiamond"
   fi
 
   # if no UPDATE_SCRIPT was passed to this function, ask user to select it
@@ -84,7 +84,7 @@ function ldaDiamondUpdateFacet() {
     return 1
   fi
 
-  # set flag for LDA diamond (always false since LDADiamond is not the default diamond)
+  # set flag for LDA diamond (always false since LiFiDEXAggregatorDiamond is not the default diamond)
   USE_LDA_DIAMOND=false
 
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
@@ -117,7 +117,7 @@ function ldaDiamondUpdateFacet() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
 
     local RETURN_CODE=$?
 

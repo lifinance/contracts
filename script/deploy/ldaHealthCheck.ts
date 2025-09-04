@@ -118,8 +118,9 @@ const main = defineCommand({
           consola.warn('Some shared infrastructure checks will be skipped.')
         }
       }
-    } else 
-      // Production - use main deployment file
+    }
+    // Production - use main deployment file
+    else
       try {
         const { default: contracts } = await import(mainDeploymentFile)
         mainDeployedContracts = contracts
@@ -129,7 +130,6 @@ const main = defineCommand({
         )
         consola.warn('Some shared infrastructure checks will be skipped.')
       }
-    
 
     // Note: We keep LDA and main contracts separate for clarity
 
@@ -157,17 +157,17 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking LDADiamond Contract...')
     const diamondDeployed = await checkIsDeployedWithCast(
-      'LDADiamond',
+      'LiFiDEXAggregatorDiamond',
       ldaDeployedContracts,
       rpcUrl
     )
 
     if (!diamondDeployed) {
-      logError('LDADiamond not deployed')
+      logError('LiFiDEXAggregatorDiamond not deployed')
       finish()
-    } else consola.success('LDADiamond deployed')
+    } else consola.success('LiFiDEXAggregatorDiamond deployed')
 
-    const diamondAddress = ldaDeployedContracts['LDADiamond']
+    const diamondAddress = ldaDeployedContracts['LiFiDEXAggregatorDiamond']
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                    Check LDA core facets                │
@@ -240,45 +240,47 @@ const main = defineCommand({
         { encoding: 'utf8', stdio: 'pipe' }
       ).trim()
 
-      consola.info(`LDADiamond current owner: ${owner}`)
+      consola.info(`LiFiDEXAggregatorDiamond current owner: ${owner}`)
 
       // Check if timelock is deployed and compare (timelock is in main deployments, not LDA deployments)
       const timelockAddress = mainDeployedContracts['LiFiTimelockController']
       if (timelockAddress) {
         consola.info(`Found LiFiTimelockController at: ${timelockAddress}`)
-        if (owner.toLowerCase() === timelockAddress.toLowerCase()) 
-          consola.success('LDADiamond is owned by LiFiTimelockController')
-         else 
-          if (environment === 'production') 
-            consola.error(
-              `LDADiamond owner is ${owner}, expected ${timelockAddress}`
-            )
-           else {
-            consola.warn(
-              `LDADiamond owner is ${owner}, expected ${timelockAddress} for production`
-            )
-            consola.info(
-              'For staging environment, ownership transfer to timelock is typically done later'
-            )
-          }
-        
+        if (owner.toLowerCase() === timelockAddress.toLowerCase())
+          consola.success(
+            'LiFiDEXAggregatorDiamond is owned by LiFiTimelockController'
+          )
+        else if (environment === 'production')
+          consola.error(
+            `LiFiDEXAggregatorDiamond owner is ${owner}, expected ${timelockAddress}`
+          )
+        else {
+          consola.warn(
+            `LiFiDEXAggregatorDiamond owner is ${owner}, expected ${timelockAddress} for production`
+          )
+          consola.info(
+            'For staging environment, ownership transfer to timelock is typically done later'
+          )
+        }
       } else {
-        if (environment === 'production') 
+        if (environment === 'production')
           consola.error(
             'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
           )
-         else 
+        else
           consola.warn(
             'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
           )
-        
+
         consola.info(
           'Note: LiFiTimelockController should be deployed as shared infrastructure before LDA deployment'
         )
       }
     } catch (error) {
       logError(
-        `Failed to check LDADiamond ownership: ${(error as Error).message}`
+        `Failed to check LiFiDEXAggregatorDiamond ownership: ${
+          (error as Error).message
+        }`
       )
     }
 

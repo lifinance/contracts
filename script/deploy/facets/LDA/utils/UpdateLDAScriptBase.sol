@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import { ScriptBase } from "../../utils/ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { LDADiamondCutFacet } from "lifi/Periphery/LDA/Facets/LDADiamondCutFacet.sol";
-import { LDADiamondLoupeFacet } from "lifi/Periphery/LDA/Facets/LDADiamondLoupeFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 contract UpdateLDAScriptBase is ScriptBase {
@@ -17,8 +17,8 @@ contract UpdateLDAScriptBase is ScriptBase {
     bytes4[] internal selectorsToReplace;
     bytes4[] internal selectorsToRemove;
     bytes4[] internal selectorsToAdd;
-    LDADiamondCutFacet internal cutter;
-    LDADiamondLoupeFacet internal loupe;
+    DiamondCutFacet internal cutter;
+    DiamondLoupeFacet internal loupe;
     string internal path;
     string internal json;
     bool internal noBroadcast = false;
@@ -38,9 +38,9 @@ contract UpdateLDAScriptBase is ScriptBase {
         json = vm.readFile(path);
 
         // Get LDA Diamond address (not LiFi Diamond)
-        ldaDiamond = json.readAddress(".LDADiamond");
-        cutter = LDADiamondCutFacet(ldaDiamond);
-        loupe = LDADiamondLoupeFacet(ldaDiamond);
+        ldaDiamond = json.readAddress(".LiFiDEXAggregatorDiamond");
+        cutter = DiamondCutFacet(ldaDiamond);
+        loupe = DiamondLoupeFacet(ldaDiamond);
     }
 
     function update(
@@ -60,7 +60,7 @@ contract UpdateLDAScriptBase is ScriptBase {
         // prepare full diamondCut calldata and log for debugging purposes
         if (cut.length > 0) {
             cutData = abi.encodeWithSelector(
-                LDADiamondCutFacet.diamondCut.selector,
+                DiamondCutFacet.diamondCut.selector,
                 cut,
                 callData.length > 0 ? facet : address(0),
                 callData
@@ -97,9 +97,9 @@ contract UpdateLDAScriptBase is ScriptBase {
     function getSelectors(
         string memory _facetName,
         bytes4[] memory _exclude
-    ) internal returns (bytes4[] memory selectors) {
+    ) internal virtual returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
-        cmd[0] = "script/deploy/facets/utils/contract-selectors.sh";
+        cmd[0] = "script/deploy/facets/utils/contract-selectors.sh"; // Default to regular contract-selectors
         cmd[1] = _facetName;
         string memory exclude;
         for (uint256 i; i < _exclude.length; i++) {

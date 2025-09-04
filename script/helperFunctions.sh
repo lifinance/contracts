@@ -4767,40 +4767,6 @@ function removeNetworkFromTargetStateJSON() {
 
 # ==== LDA-SPECIFIC HELPER FUNCTIONS ====
 
-# Deploy LDA Diamond with core facets
-deployLDADiamondWithCoreFacets() {
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-  
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployLDADiamondWithCoreFacets"
-  
-  # load required resources
-  source script/config.sh
-  source script/helperFunctions.sh
-  source script/deploy/deployLDACoreFacets.sh
-  source script/deploy/deploySingleContract.sh
-  source script/tasks/ldaDiamondUpdateFacet.sh
-  
-  # Deploy LDA core facets first
-  deployLDACoreFacets "$NETWORK" "$ENVIRONMENT"
-  checkFailure $? "deploy LDA core facets to network $NETWORK"
-  
-  # Get LDA Diamond version
-  local VERSION=$(getCurrentContractVersion "LDADiamond")
-  
-  # Deploy LDA Diamond
-  deploySingleContract "LDADiamond" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true" "true"
-  checkFailure $? "deploy LDADiamond to network $NETWORK"
-  
-  # Update LDA Diamond with core facets
-  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "LDADiamond" "UpdateLDACoreFacets" false
-  checkFailure $? "update LDA core facets in LDADiamond on network $NETWORK"
-  
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployLDADiamondWithCoreFacets completed"
-  
-  return 0
-}
-
 # Deploy and add contract to LDA Diamond
 deployAndAddContractToLDADiamond() {
   local NETWORK="$1"

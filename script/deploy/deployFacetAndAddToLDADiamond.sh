@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# deploys an LDA facet contract and adds it to LDADiamond contract
+# deploys an LDA facet contract and adds it to LiFiDEXAggregatorDiamond contract
 function deployFacetAndAddToLDADiamond() {
   # load env variables
   source .env
@@ -66,7 +66,7 @@ function deployFacetAndAddToLDADiamond() {
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, default to LDADiamond
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
-    DIAMOND_CONTRACT_NAME="LDADiamond"
+    DIAMOND_CONTRACT_NAME="LiFiDEXAggregatorDiamond"
   fi
 
   # get LDA diamond address from deployments script (using .lda. file suffix)

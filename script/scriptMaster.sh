@@ -42,7 +42,6 @@ scriptMaster() {
   source script/deploy/deployAllLDAContracts.sh
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
-  source script/deploy/deployLDACoreFacets.sh
   source script/deploy/deployPeripheryContracts.sh
   source script/deploy/deployUpgradesToSAFE.sh
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
@@ -124,7 +123,7 @@ scriptMaster() {
       "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE" \
       "13) Remove facets or periphery from diamond" \
-      "14) Deploy all LDA diamond with core contracts to one selected network" \
+      "14) Deploy all LiFi DEX Aggregator diamond with contracts to one selected network" \
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -183,12 +182,12 @@ scriptMaster() {
     # check if new contract should be added to diamond after deployment
     if [[ "$CONTRACT_TYPE" == "LDA"* ]]; then
       # LDA contracts
-      if [[ ! "$CONTRACT" == "LDADiamond"* ]]; then
+      if [[ ! "$CONTRACT" == "LiFiDEXAggregatorDiamond"* ]]; then
         echo ""
         echo "Do you want to add this LDA contract to a diamond after deployment?"
         ADD_TO_DIAMOND=$(
           gum choose \
-            "yes - to LDADiamond" \
+            "yes - to LiFiDEXAggregatorDiamond" \
             " no - do not update any diamond"
         )
       fi
@@ -214,8 +213,8 @@ scriptMaster() {
       echo "[info] selected option: $ADD_TO_DIAMOND"
 
       # determine the diamond type and call appropriate function
-      if [[ "$ADD_TO_DIAMOND" == *"LDADiamond"* ]]; then
-        deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LDADiamond" "$VERSION"
+      if [[ "$ADD_TO_DIAMOND" == *"LiFiDEXAggregatorDiamond"* ]]; then
+        deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDEXAggregatorDiamond" "$VERSION"
       elif [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
         deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
       else
@@ -594,10 +593,10 @@ scriptMaster() {
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 15: Deploy all LDA diamond with core contracts to one selected network
+  # use case 15: Deploy all LiFi DEX Aggregator diamond with contracts to one selected network
   elif [[ "$SELECTION" == "14)"* ]]; then
     echo ""
-    echo "[info] selected use case: Deploy all LDA diamond with core contracts to one selected network"
+    echo "[info] selected use case: Deploy all LiFi DEX Aggregator diamond with contracts to one selected network"
 
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list

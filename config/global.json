@@ -68,14 +68,8 @@
     "TokenWrapper"
   ],
   "ldaCoreFacets": [
-    "LDADiamondCutFacet",
-    "LDADiamondLoupeFacet",
-    "LDAOwnershipFacet", 
-    "LDAEmergencyPauseFacet",
-    "LDAPeripheryRegistryFacet",
-    "CoreRouteFacet",
-    "NativeWrapperFacet",
-    "UniV3StyleFacet",
-    "UniV2StyleFacet"
+    "DiamondCutFacet",
+    "DiamondLoupeFacet",
+    "OwnershipFacet"
   ]
 }

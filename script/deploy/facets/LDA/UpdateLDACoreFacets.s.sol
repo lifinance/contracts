@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { UpdateLDAScriptBase } from "./utils/UpdateLDAScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { LDADiamondCutFacet } from "lifi/Periphery/LDA/Facets/LDADiamondCutFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { IERC173 } from "lifi/Interfaces/IERC173.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 
@@ -39,11 +39,66 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
         return emptyExcludes;
     }
 
+    /// @notice Get regular deployment file path (without lda. prefix)
+    function getRegularDeploymentPath() internal view returns (string memory) {
+        // Need to construct regular deployment path by removing "lda." prefix from fileSuffix
+        string memory regularFileSuffix;
+        bytes memory fileSuffixBytes = bytes(fileSuffix);
+
+        // Check if fileSuffix starts with "lda." and remove it
+        if (
+            fileSuffixBytes.length >= 4 &&
+            fileSuffixBytes[0] == "l" &&
+            fileSuffixBytes[1] == "d" &&
+            fileSuffixBytes[2] == "a" &&
+            fileSuffixBytes[3] == "."
+        ) {
+            // Extract everything after "lda." by creating new bytes array
+            bytes memory remainingBytes = new bytes(
+                fileSuffixBytes.length - 4
+            );
+            for (uint256 i = 4; i < fileSuffixBytes.length; i++) {
+                remainingBytes[i - 4] = fileSuffixBytes[i];
+            }
+            regularFileSuffix = string(remainingBytes);
+        } else {
+            // If no "lda." prefix, use as is
+            regularFileSuffix = fileSuffix;
+        }
+
+        return
+            string.concat(
+                root,
+                "/deployments/",
+                network,
+                ".",
+                regularFileSuffix,
+                "json"
+            );
+    }
+
+    /// @notice Override getSelectors to use the correct contract-selectors script
+    function getSelectors(
+        string memory _facetName,
+        bytes4[] memory _exclude
+    ) internal override returns (bytes4[] memory selectors) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = "script/deploy/facets/utils/contract-selectors.sh"; // Use regular contract-selectors script
+        cmd[1] = _facetName;
+        string memory exclude;
+        for (uint256 i; i < _exclude.length; i++) {
+            exclude = string.concat(exclude, fromCode(_exclude[i]), " ");
+        }
+        cmd[2] = exclude;
+        bytes memory res = vm.ffi(cmd);
+        selectors = abi.decode(res, (bytes4[]));
+    }
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        // Read LDA core facets dynamically from lda-global.json config
+        // Read LDA core facets dynamically from global.json config
         string memory ldaGlobalConfigPath = string.concat(
             vm.projectRoot(),
             "/config/global.json"
@@ -56,26 +111,34 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
         emit log("LDA core facets found in config/global.json: ");
         emit log_uint(ldaCoreFacets.length);
 
+        // Get regular deployment path for reading core facets
+        string memory regularDeploymentPath = getRegularDeploymentPath();
+        emit log_named_string(
+            "Reading core facets from regular deployment file",
+            regularDeploymentPath
+        );
+
         // Check if the LDA loupe was already added to the diamond
         bool loupeExists;
         try loupe.facetAddresses() returns (address[] memory) {
             // If call was successful, loupe exists on LDA diamond already
-            emit log("LDA Loupe exists on diamond already");
+            emit log("DiamondLoupeFacet exists on diamond already");
             loupeExists = true;
         } catch {
             // No need to do anything, just making sure that the flow continues in both cases with try/catch
         }
 
-        // Handle LDADiamondLoupeFacet separately as it needs special treatment
+        // Handle DiamondLoupeFacet separately as it needs special treatment
         if (!loupeExists) {
-            emit log("LDA Loupe does not exist on diamond yet");
+            emit log("DiamondLoupeFacet does not exist on diamond yet");
+            // Read DiamondLoupeFacet from regular deployment file
             address ldaDiamondLoupeAddress = _getConfigContractAddress(
-                path,
-                ".LDADiamondLoupeFacet"
+                regularDeploymentPath,
+                ".DiamondLoupeFacet"
             );
             bytes4[] memory loupeSelectors = getSelectors(
-                "LDADiamondLoupeFacet",
-                getExcludes("LDADiamondLoupeFacet")
+                "DiamondLoupeFacet",
+                getExcludes("DiamondLoupeFacet")
             );
 
             buildInitialCut(loupeSelectors, ldaDiamondLoupeAddress);
@@ -93,26 +156,26 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
         for (uint256 i = 0; i < ldaCoreFacets.length; i++) {
             string memory facetName = ldaCoreFacets[i];
 
-            // Skip LDADiamondCutFacet and LDADiamondLoupeFacet as they were already handled
+            // Skip DiamondCutFacet and DiamondLoupeFacet as they were already handled
             if (
                 keccak256(bytes(facetName)) ==
-                keccak256(bytes("LDADiamondLoupeFacet"))
+                keccak256(bytes("DiamondLoupeFacet"))
             ) {
                 continue;
             }
-            // Skip LDADiamondCutFacet as it was already handled during LDA diamond deployment
+            // Skip DiamondCutFacet as it was already handled during LDA diamond deployment
             if (
                 keccak256(bytes(facetName)) ==
-                keccak256(bytes("LDADiamondCutFacet"))
+                keccak256(bytes("DiamondCutFacet"))
             ) {
                 continue;
             }
 
-            emit log("Now adding LDA facet: ");
+            emit log("Now adding LDA core facet: ");
             emit log(facetName);
-            // Use _getConfigContractAddress which validates the contract exists
+            // Read core facets from regular deployment file, not LDA file
             address facetAddress = _getConfigContractAddress(
-                path,
+                regularDeploymentPath,
                 string.concat(".", facetName)
             );
             bytes4[] memory selectors = getSelectors(
@@ -128,7 +191,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
         if (noBroadcast) {
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(
-                    LDADiamondCutFacet.diamondCut.selector,
+                    DiamondCutFacet.diamondCut.selector,
                     cut,
                     address(0),
                     ""
