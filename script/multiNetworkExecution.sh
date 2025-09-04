@@ -106,7 +106,6 @@ function executeNetworkActions() {
     local LOG_DIR="$3"
     local CONTRACT="$4"
 
-    echo "[$NETWORK] executeNetworkActions function called!"
 
 
     # Get RPC URL for the network
@@ -117,17 +116,19 @@ function executeNetworkActions() {
 
     # DEPLOY - Deploy the contract to the network
     # deployContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-    CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-    echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
-    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false
-    RETURN_CODE=$?
-    echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
+
+    # DEPLOY & VERIFY CONTRACT
+    # CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+    # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
+    # deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false
+    # RETURN_CODE=$?
+    # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
 
     # VERIFY - Verify the contract on the network
     # getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
 
     # PROPOSE - Create multisig proposal for the contract
-    # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
+    createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
 
     # UPDATE DIAMOND - Update diamond log for the network
     # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
@@ -413,8 +414,9 @@ function updateFoundryTomlForGroup() {
             logWithTimestamp "Updating foundry.toml for London EVM (solc 0.8.17)"
             # Update solc version to 0.8.17 and EVM version to london
             # Note: We use 0.8.17 for all London EVM networks regardless of their deployedWithSolcVersion
-            sed -i.bak 's/solc_version = .*/solc_version = '\''0.8.17'\''/' foundry.toml
-            sed -i.bak 's/evm_version = .*/evm_version = '\''london'\''/' foundry.toml
+            # Only update the main configuration section, not profile sections
+            sed -i.bak '/^\[profile\./,$!s/solc_version = .*/solc_version = '\''0.8.17'\''/' foundry.toml
+            sed -i.bak '/^\[profile\./,$!s/evm_version = .*/evm_version = '\''london'\''/' foundry.toml
             rm -f foundry.toml.bak
             ;;
         "$GROUP_ZKEVM")
@@ -426,8 +428,9 @@ function updateFoundryTomlForGroup() {
             logWithTimestamp "Updating foundry.toml for Cancun EVM (solc 0.8.29)"
             # Update solc version to 0.8.29 and EVM version to cancun
             # Note: We use 0.8.29 for all Cancun EVM networks regardless of their deployedWithSolcVersion
-            sed -i.bak 's/solc_version = .*/solc_version = '\''0.8.29'\''/' foundry.toml
-            sed -i.bak 's/evm_version = .*/evm_version = '\''cancun'\''/' foundry.toml
+            # Only update the main configuration section, not profile sections
+            sed -i.bak '/^\[profile\./,$!s/solc_version = .*/solc_version = '\''0.8.29'\''/' foundry.toml
+            sed -i.bak '/^\[profile\./,$!s/evm_version = .*/evm_version = '\''cancun'\''/' foundry.toml
             rm -f foundry.toml.bak
             ;;
         *)
@@ -492,28 +495,54 @@ function initializeProgressTracking() {
                 fi
             done
 
-            echo "$updated_data" > "$PROGRESS_TRACKING_FILE"
+            if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
+                error "Failed to write progress tracking data"
+                return 1
+            fi
+            mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE"
             return 0
         else
             logWithTimestamp "Different contract/environment detected. Creating new progress tracking."
         fi
     fi
 
-    # Create initial progress structure
+        # Create initial progress structure, checking for existing deployments
+    local networks_json="{}"
+    for network in "${networks[@]}"; do
+        local network_status="pending"
+        local attempts=0
+        local lastAttempt=null
+        local error=null
+
+        # Check if contract is already deployed
+        if isContractAlreadyDeployed "$contract" "$network" "$environment"; then
+            network_status="success"
+            attempts=1
+            lastAttempt="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            logWithTimestamp "Network $network already has $contract deployed - marking as success"
+        fi
+
+        networks_json=$(echo "$networks_json" | jq --arg network "$network" --arg status "$network_status" --argjson attempts "$attempts" --arg lastAttempt "$lastAttempt" --arg error "$error" '. + {($network): {status: $status, attempts: $attempts, lastAttempt: $lastAttempt, error: $error}}')
+    done
+
     local progress_data=$(jq -n \
         --arg contract "$contract" \
         --arg environment "$environment" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        --argjson networks "$(printf '%s\n' "${networks[@]}" | jq -R . | jq -s .)" \
+        --argjson networks "$networks_json" \
         '{
             contract: $contract,
             environment: $environment,
             startTime: $timestamp,
             lastUpdate: $timestamp,
-            networks: ($networks | map({name: ., status: "pending", attempts: 0, lastAttempt: null, error: null})) | from_entries
+            networks: $networks
         }')
 
-    echo "$progress_data" > "$PROGRESS_TRACKING_FILE"
+    if ! echo "$progress_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
+        error "Failed to write initial progress tracking data"
+        return 1
+    fi
+    mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE"
     logWithTimestamp "Initialized progress tracking for $contract in $environment"
 }
 
@@ -545,7 +574,11 @@ function updateNetworkProgress() {
          .lastUpdate = $timestamp' \
         "$PROGRESS_TRACKING_FILE")
 
-    echo "$updated_data" > "$PROGRESS_TRACKING_FILE"
+    if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
+        error "Failed to write progress update for $network"
+        return 1
+    fi
+    mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE"
 
     # Log the update
     case "$status" in
@@ -632,13 +665,73 @@ function getProgressSummary() {
 }
 
 function cleanupProgressTracking() {
+    # Only clean up if all networks are successful
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
-        rm "$PROGRESS_TRACKING_FILE"
-        logWithTimestamp "Cleaned up progress tracking file"
+        local total=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE")
+        local success=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE")
+
+        if [[ "$total" -gt 0 && "$success" -eq "$total" ]]; then
+            rm "$PROGRESS_TRACKING_FILE"
+            logWithTimestamp "All networks completed successfully - cleaned up progress tracking file"
+        else
+            logWithTimestamp "Progress tracking file preserved for resumable execution (success: $success/$total)"
+        fi
     else
         # Don't show error if file doesn't exist (might have been cleaned up already)
         logWithTimestamp "Progress tracking file not found (already cleaned up or never created)"
     fi
+}
+
+function forceCleanupProgressTracking() {
+    # Force cleanup of progress tracking file (use with caution)
+    if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+        rm "$PROGRESS_TRACKING_FILE"
+        logWithTimestamp "Force cleaned up progress tracking file"
+    else
+        logWithTimestamp "Progress tracking file not found"
+    fi
+}
+
+function isContractAlreadyDeployed() {
+    # Check if a contract is already deployed to a network
+    local contract="$1"
+    local network="$2"
+    local environment="$3"
+
+    # Check if contract address exists in deployments file
+    local deployment_file="./deployments/${network}.json"
+    if [[ -f "$deployment_file" ]]; then
+        local contract_address=$(jq -r --arg contract "$contract" '.[$contract] // empty' "$deployment_file")
+        if [[ -n "$contract_address" && "$contract_address" != "null" && "$contract_address" != "" ]]; then
+            return 0  # Contract is deployed
+        fi
+    fi
+
+    return 1  # Contract is not deployed
+}
+
+function isGroupComplete() {
+    # Check if all networks in a group are already successful
+    local networks=("$@")
+
+    if [[ ${#networks[@]} -eq 0 ]]; then
+        return 0  # Empty group is considered complete
+    fi
+
+    if [[ ! -f "$PROGRESS_TRACKING_FILE" ]]; then
+        return 1  # No progress file means not complete
+    fi
+
+    local pending_count=0
+    for network in "${networks[@]}"; do
+        local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE")
+        if [[ "$status" != "success" ]]; then
+            pending_count=$((pending_count + 1))
+        fi
+    done
+
+    # Group is complete if no networks are pending
+    return $pending_count
 }
 
 # =============================================================================
@@ -651,8 +744,6 @@ function executeNetworkInGroup() {
     local contract="$3"
     local group="$4"
     local log_dir="$5"
-
-
 
     if [[ -z "$network" || -z "$environment" || -z "$contract" || -z "$group" || -z "$log_dir" ]]; then
         error "All parameters are required for executeNetworkInGroup"
@@ -678,7 +769,6 @@ function executeNetworkInGroup() {
     while [[ $command_status -ne 0 && $retry_count -lt $max_attempts ]]; do
         logWithTimestamp "[$network] Attempt $((retry_count + 1))/$max_attempts: Executing operations..."
 
-
         # Check if we should exit (in case of interrupt)
         if [[ -n "$EXIT_REQUESTED" ]]; then
             logWithTimestamp "[$network] Exit requested, stopping operations"
@@ -688,7 +778,6 @@ function executeNetworkInGroup() {
 
         # Execute the actual network operations
         # This calls the executeNetworkActions function which contains the configured actions
-        echo "[$network] About to call executeNetworkActions..."
         executeNetworkActions "$network" "$environment" "$log_dir" "$contract"
         command_status=$?
         echo "[$network] executeNetworkActions returned with status: $command_status"
@@ -717,8 +806,6 @@ function executeGroupSequentially() {
     local environment="$2"
     local contract="$3"
     local networks=("${@:4}")
-
-
 
     if [[ -z "$group" || ${#networks[@]} -eq 0 || -z "$environment" || -z "$contract" ]]; then
         error "Group, networks, environment, and contract are required"
@@ -767,8 +854,8 @@ function executeGroupSequentially() {
                 fi
             fi
 
-            # Start network execution in background
 
+            # Start network execution in background
             executeNetworkInGroup "$network" "$environment" "$contract" "$group" "$log_dir" &
             pids+=($!)
 
@@ -785,6 +872,7 @@ function executeGroupSequentially() {
                     continue
                 fi
             fi
+
 
             # Execute network in foreground
             executeNetworkInGroup "$network" "$environment" "$contract" "$group" "$log_dir"
@@ -859,50 +947,107 @@ function executeNetworksByGroup() {
     # Set up cleanup on exit
     trap 'restoreFoundryToml; getProgressSummary; cleanupProgressTracking' EXIT
 
-    local overall_success=true
+    # Show group execution plan
+    echo ""
+    echo "=================================================================================="
+    logWithTimestamp "📋 GROUP EXECUTION PLAN"
+    echo "=================================================================================="
 
-    # Execute groups sequentially (start with Cancun as it's the default)
     if [[ ${#cancun_networks[@]} -gt 0 ]]; then
-        echo ""
-        echo "=================================================================================="
-        logWithTimestamp "🚀 EXECUTING CANCUN EVM GROUP (${#cancun_networks[@]} networks)"
-        echo "=================================================================================="
-
-        if ! executeGroupSequentially "$GROUP_CANCUN" "$environment" "$contract" "${cancun_networks[@]}"; then
-            overall_success=false
+        if isGroupComplete "${cancun_networks[@]}"; then
+            logWithTimestamp "✅ Cancun EVM Group (${#cancun_networks[@]} networks): SKIP - All completed"
+        else
+            logWithTimestamp "🚀 Cancun EVM Group (${#cancun_networks[@]} networks): EXECUTE - Has pending networks"
         fi
-        echo ""
-        logWithTimestamp "✅ Cancun EVM group completed"
-        echo "=================================================================================="
-        echo ""
-    fi
-
-    if [[ ${#london_networks[@]} -gt 0 ]]; then
-        echo ""
-        echo "=================================================================================="
-        logWithTimestamp "🚀 EXECUTING LONDON EVM GROUP (${#london_networks[@]} networks)"
-        echo "=================================================================================="
-        if ! executeGroupSequentially "$GROUP_LONDON" "$environment" "$contract" "${london_networks[@]}"; then
-            overall_success=false
-        fi
-        echo ""
-        logWithTimestamp "✅ London EVM group completed"
-        echo "=================================================================================="
-        echo ""
     fi
 
     if [[ ${#zkevm_networks[@]} -gt 0 ]]; then
-        echo ""
-        echo "=================================================================================="
-        logWithTimestamp "🚀 EXECUTING ZKEVM GROUP (${#zkevm_networks[@]} networks)"
-        echo "=================================================================================="
-        if ! executeGroupSequentially "$GROUP_ZKEVM" "$environment" "$contract" "${zkevm_networks[@]}"; then
-            overall_success=false
+        if isGroupComplete "${zkevm_networks[@]}"; then
+            logWithTimestamp "✅ zkEVM Group (${#zkevm_networks[@]} networks): SKIP - All completed"
+        else
+            logWithTimestamp "🚀 zkEVM Group (${#zkevm_networks[@]} networks): EXECUTE - Has pending networks"
         fi
-        echo ""
-        logWithTimestamp "✅ zkEVM group completed"
-        echo "=================================================================================="
-        echo ""
+    fi
+
+    if [[ ${#london_networks[@]} -gt 0 ]]; then
+        if isGroupComplete "${london_networks[@]}"; then
+            logWithTimestamp "✅ London EVM Group (${#london_networks[@]} networks): SKIP - All completed"
+        else
+            logWithTimestamp "🚀 London EVM Group (${#london_networks[@]} networks): EXECUTE - Has pending networks"
+        fi
+    fi
+
+    echo "=================================================================================="
+    echo ""
+
+    local overall_success=true
+
+    # Execute groups sequentially: Cancun → zkEVM (same config) → London (needs recompilation)
+    if [[ ${#cancun_networks[@]} -gt 0 ]]; then
+        if isGroupComplete "${cancun_networks[@]}"; then
+            echo ""
+            echo "=================================================================================="
+            logWithTimestamp "✅ SKIPPING CANCUN EVM GROUP (${#cancun_networks[@]} networks) - All networks already completed"
+            echo "=================================================================================="
+            echo ""
+        else
+            echo ""
+            echo "=================================================================================="
+            logWithTimestamp "🚀 EXECUTING CANCUN EVM GROUP (${#cancun_networks[@]} networks)"
+            echo "=================================================================================="
+
+            if ! executeGroupSequentially "$GROUP_CANCUN" "$environment" "$contract" "${cancun_networks[@]}"; then
+                overall_success=false
+            fi
+            echo ""
+            logWithTimestamp "✅ Cancun EVM group completed"
+            echo "=================================================================================="
+            echo ""
+        fi
+    fi
+
+    if [[ ${#zkevm_networks[@]} -gt 0 ]]; then
+        if isGroupComplete "${zkevm_networks[@]}"; then
+            echo ""
+            echo "=================================================================================="
+            logWithTimestamp "✅ SKIPPING ZKEVM GROUP (${#zkevm_networks[@]} networks) - All networks already completed"
+            echo "=================================================================================="
+            echo ""
+        else
+            echo ""
+            echo "=================================================================================="
+            logWithTimestamp "🚀 EXECUTING ZKEVM GROUP (${#zkevm_networks[@]} networks)"
+            echo "=================================================================================="
+            if ! executeGroupSequentially "$GROUP_ZKEVM" "$environment" "$contract" "${zkevm_networks[@]}"; then
+                overall_success=false
+            fi
+            echo ""
+            logWithTimestamp "✅ zkEVM group completed"
+            echo "=================================================================================="
+            echo ""
+        fi
+    fi
+
+    if [[ ${#london_networks[@]} -gt 0 ]]; then
+        if isGroupComplete "${london_networks[@]}"; then
+            echo ""
+            echo "=================================================================================="
+            logWithTimestamp "✅ SKIPPING LONDON EVM GROUP (${#london_networks[@]} networks) - All networks already completed"
+            echo "=================================================================================="
+            echo ""
+        else
+            echo ""
+            echo "=================================================================================="
+            logWithTimestamp "🚀 EXECUTING LONDON EVM GROUP (${#london_networks[@]} networks)"
+            echo "=================================================================================="
+            if ! executeGroupSequentially "$GROUP_LONDON" "$environment" "$contract" "${london_networks[@]}"; then
+                overall_success=false
+            fi
+            echo ""
+            logWithTimestamp "✅ London EVM group completed"
+            echo "=================================================================================="
+            echo ""
+        fi
     fi
 
     # Restore foundry.toml
@@ -1089,108 +1234,8 @@ function iterateAllNetworksGrouped() {
         return 1
     fi
 
-    logWithTimestamp "Starting grouped network execution for $CONTRACT in $ENVIRONMENT"
-    logWithTimestamp "Networks to process: ${NETWORKS[*]}"
-
-    # Initialize progress tracking
-    initializeProgressTracking "$CONTRACT" "$ENVIRONMENT" "${NETWORKS[@]}"
-
-    # Group networks by execution requirements
-    local groups_data=$(groupNetworksByExecutionGroup "${NETWORKS[@]}")
-    if [[ $? -ne 0 ]]; then
-        error "Failed to group networks"
-        return 1
-    fi
-
-    # Extract group arrays
-    local london_networks=($(echo "$groups_data" | jq -r '.london[]'))
-    local zkevm_networks=($(echo "$groups_data" | jq -r '.zkevm[]'))
-    local cancun_networks=($(echo "$groups_data" | jq -r '.cancun[]'))
-    local invalid_networks=($(echo "$groups_data" | jq -r '.invalid[]'))
-
-    # Report invalid networks
-    if [[ ${#invalid_networks[@]} -gt 0 ]]; then
-        error "Invalid networks found: ${invalid_networks[*]}"
-        return 1
-    fi
-
-    # Show group breakdown
-    echo ""
-    echo "=================================================================================="
-    logWithTimestamp "📊 NETWORK GROUP BREAKDOWN"
-    echo "=================================================================================="
-    logWithTimestamp "Cancun EVM networks (${#cancun_networks[@]}): ${cancun_networks[*]}"
-    logWithTimestamp "London EVM networks (${#london_networks[@]}): ${london_networks[*]}"
-    logWithTimestamp "zkEVM networks (${#zkevm_networks[@]}): ${zkevm_networks[*]}"
-    echo "=================================================================================="
-    echo ""
-
-    # Backup foundry.toml
-    backupFoundryToml
-
-    # Set up cleanup on exit
-    trap 'restoreFoundryToml; getProgressSummary; cleanupProgressTracking' EXIT
-
-    local overall_success=true
-
-    # Execute groups sequentially using your existing handleNetwork function (start with Cancun as it's the default)
-    if [[ ${#cancun_networks[@]} -gt 0 ]]; then
-        echo ""
-        echo "=================================================================================="
-        logWithTimestamp "🚀 EXECUTING CANCUN EVM GROUP (${#cancun_networks[@]} networks)"
-        echo "=================================================================================="
-        if ! executeGroupWithHandleNetwork "$GROUP_CANCUN" "$ENVIRONMENT" "$CONTRACT" "${cancun_networks[@]}"; then
-            overall_success=false
-        fi
-        echo ""
-        logWithTimestamp "✅ Cancun EVM group completed"
-        echo "=================================================================================="
-        echo ""
-    fi
-
-    if [[ ${#london_networks[@]} -gt 0 ]]; then
-        echo ""
-        echo "=================================================================================="
-        logWithTimestamp "🚀 EXECUTING LONDON EVM GROUP (${#london_networks[@]} networks)"
-        echo "=================================================================================="
-        if ! executeGroupWithHandleNetwork "$GROUP_LONDON" "$ENVIRONMENT" "$CONTRACT" "${london_networks[@]}"; then
-            overall_success=false
-        fi
-        echo ""
-        logWithTimestamp "✅ London EVM group completed"
-        echo "=================================================================================="
-        echo ""
-    fi
-
-    if [[ ${#zkevm_networks[@]} -gt 0 ]]; then
-        echo ""
-        echo "=================================================================================="
-        logWithTimestamp "🚀 EXECUTING ZKEVM GROUP (${#zkevm_networks[@]} networks)"
-        echo "=================================================================================="
-        if ! executeGroupWithHandleNetwork "$GROUP_ZKEVM" "$ENVIRONMENT" "$CONTRACT" "${zkevm_networks[@]}"; then
-            overall_success=false
-        fi
-        echo ""
-        logWithTimestamp "✅ zkEVM group completed"
-        echo "=================================================================================="
-        echo ""
-    fi
-
-    # Restore foundry.toml
-    restoreFoundryToml
-
-    # Show final summary
-    getProgressSummary
-
-    if [[ "$overall_success" == "true" ]]; then
-        logWithTimestamp "All network executions completed successfully!"
-        cleanupProgressTracking
-        return 0
-    else
-        logWithTimestamp "Some network executions failed. Check the summary above."
-        logWithTimestamp "You can rerun the same command to retry failed networks."
-        return 1
-    fi
+    # Use the new execution logic with group skipping
+    executeNetworksByGroup "$CONTRACT" "$ENVIRONMENT" "${NETWORKS[@]}"
 }
 
 function handleNetworkOriginal() {
@@ -1507,10 +1552,25 @@ export -f getNetworkGroup
 export -f groupNetworksByExecutionGroup
 export -f getProgressSummary
 export -f iterateAllNetworksOriginal
-export -f iterateAllNetworksOriginalGrouped
+export -f iterateAllNetworksGrouped
 export -f handleNetworkOriginal
 export -f generateSummaryOriginal
 export -f cleanupStaleLocksOriginal
 export -f executeGroupWithHandleNetwork
 export -f executeNetworkWithHandleNetwork
 export -f executeNetworkActions
+export -f forceCleanupProgressTracking
+export -f isGroupComplete
+export -f isContractAlreadyDeployed
+
+# Helper function to reset progress tracking (for testing)
+function resetProgressTracking() {
+    if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+        rm "$PROGRESS_TRACKING_FILE"
+        logWithTimestamp "Reset progress tracking file - will reinitialize with existing deployment detection"
+    else
+        logWithTimestamp "Progress tracking file not found - nothing to reset"
+    fi
+}
+
+export -f resetProgressTracking
