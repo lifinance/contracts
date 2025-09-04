@@ -6,8 +6,8 @@ import {
   getContract,
   http,
   parseAbi,
-  type Hex,
   type Chain,
+  type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as chains from 'viem/chains'
@@ -82,6 +82,24 @@ const main = defineCommand({
 
     // Check if function signatures are approved
     const { sigs } = await import(`../../config/sigs.json`)
+    const { blacklistedFunctionSelectors } = await import(
+      `../../config/global.json`
+    )
+
+    // Security check: Prevent whitelisting of dangerous function selectors
+    for (const sig of sigs)
+      if (blacklistedFunctionSelectors.includes(sig.toLowerCase())) {
+        consola.error(
+          `❌ ERROR: Blacklisted function selector (${sig}) detected in signatures!`
+        )
+        consola.error(`   This function is blacklisted for security reasons.`)
+        consola.error(`   Whitelisting this function is NOT ALLOWED.`)
+        consola.error(
+          `   Please remove this function selector from config/sigs.json before proceeding.`
+        )
+        process.exit(1)
+      }
+
     const calls = sigs.map((sig: string) => {
       return {
         ...dexManagerReader,

@@ -34,7 +34,7 @@ function diamondSyncSigs {
     echo ""
 
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
-      checkRequiredVariablesInDotEnv $NETWORK
+      checkRequiredVariablesInDotEnv "$NETWORK"
     fi
   fi
 
@@ -110,6 +110,26 @@ function diamondSyncSigs {
       # Fallback to cast send
       if [[ $ATTEMPTS == 1 ]]; then
         CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
+        BLACKLISTED_SELECTORS=($(jq -r '.blacklistedFunctionSelectors[] | @sh' "./config/global.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
+
+        # Check for blacklisted function selectors
+        for sig in "${CFG_SIGS[@]}"; do
+          for blacklisted_sig in "${BLACKLISTED_SELECTORS[@]}"; do
+            if [[ "$sig" == "$blacklisted_sig" ]]; then
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK] ❌ ERROR: Blacklisted function selector ($sig) detected in signatures!"
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    This function is blacklisted for security reasons."
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Whitelisting this function is NOT ALLOWED."
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Please remove this function selector from config/sigs.json before proceeding."
+              echo ""
+
+              # Log the error to the failed log file before exiting
+              echo "[$NETWORK] Error: Blacklisted function selector ($sig) detected - security check failed" >> "$FAILED_LOG_FILE"
+
+              exit 1
+            fi
+          done
+        done
+
         PARAMS=""
         for d in "${CFG_SIGS[@]}"; do
           PARAMS+="${d},"

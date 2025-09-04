@@ -66,5 +66,6 @@
     "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"
-  ]
+  ],
+  "blacklistedFunctionSelectors": ["0x23b872dd"]
 }
