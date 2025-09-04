@@ -13,7 +13,6 @@ module.exports = {
       options: {
         printWidth: 79,
         tabWidth: 4,
-        singleQuote: false,
       },
     },
     {

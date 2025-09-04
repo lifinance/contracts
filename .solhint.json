@@ -41,7 +41,7 @@
         "endOfLine": "auto"
       }
     ],
-    "quotes": ["error", "double"],
+    "quotes": ["error", "single"],
     "reason-string": ["error", { "maxLength": 64 }],
     "reentrancy": "error",
     "state-visibility": "error",

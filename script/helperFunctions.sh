@@ -1154,6 +1154,12 @@ function saveContract() {
     return 1
   fi
 
+  # Skip saving FullLiFiDexAggregator for LDA deployments (it's an orchestrating script, not a real contract)
+  if [[ "$CONTRACT" == "FullLiFiDexAggregator" && "$FILE_SUFFIX" == *"lda"* ]]; then
+    echoDebug "Skipping save for FullLiFiDexAggregator (orchestrating script, not a real contract)"
+    return 0
+  fi
+
   # Create lock file path
   local LOCK_FILE="${ADDRESSES_FILE}.lock"
   local LOCK_TIMEOUT=30  # 30 seconds timeout
