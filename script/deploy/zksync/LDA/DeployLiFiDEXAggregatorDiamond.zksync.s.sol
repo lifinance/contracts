@@ -60,6 +60,8 @@ contract DeployScript is DeployLDAScriptBase {
             "json"
         );
 
+        emit log_named_string("regularPath", regularPath);
+
         // Get DiamondCutFacet address from regular deployment file
         address diamondCut = _getConfigContractAddress(
             regularPath,

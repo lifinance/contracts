@@ -4,57 +4,9 @@ pragma solidity ^0.8.17;
 import { UpdateLDAScriptBase } from "./utils/UpdateLDAScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { IERC173 } from "lifi/Interfaces/IERC173.sol";
-import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 
 contract UpdateLDACoreFacets is UpdateLDAScriptBase {
     using stdJson for string;
-
-    error FailedToReadLDACoreFacetsFromConfig();
-
-    /// @notice Returns function selectors to exclude for specific facets
-    /// @param facetName The name of the facet being processed
-    function getExcludes(
-        string memory facetName
-    ) internal pure returns (bytes4[] memory) {
-        // Exclude ownership function selectors from CoreRouteFacet to avoid collision with LDAOwnershipFacet
-        if (
-            keccak256(bytes(facetName)) == keccak256(bytes("CoreRouteFacet"))
-        ) {
-            bytes4[] memory excludes = new bytes4[](5);
-            excludes[0] = IERC173.transferOwnership.selector;
-            excludes[1] = TransferrableOwnership
-                .cancelOwnershipTransfer
-                .selector;
-            excludes[2] = TransferrableOwnership
-                .confirmOwnershipTransfer
-                .selector;
-            excludes[3] = IERC173.owner.selector;
-            excludes[4] = bytes4(keccak256("pendingOwner()")); // public state variable not a function
-            return excludes;
-        }
-
-        // No exclusions for other facets
-        bytes4[] memory emptyExcludes = new bytes4[](0);
-        return emptyExcludes;
-    }
-
-    /// @notice Override getSelectors to use the correct contract-selectors script
-    function getSelectors(
-        string memory _facetName,
-        bytes4[] memory _exclude
-    ) internal override returns (bytes4[] memory selectors) {
-        string[] memory cmd = new string[](3);
-        cmd[0] = "script/deploy/zksync/utils/contract-selectors.sh"; // Use zkSync contract-selectors script
-        cmd[1] = _facetName;
-        string memory exclude;
-        for (uint256 i; i < _exclude.length; i++) {
-            exclude = string.concat(exclude, fromCode(_exclude[i]), " ");
-        }
-        cmd[2] = exclude;
-        bytes memory res = vm.ffi(cmd);
-        selectors = abi.decode(res, (bytes4[]));
-    }
 
     /// @notice Get regular deployment file path (without lda. prefix)
     function getRegularDeploymentPath() internal view returns (string memory) {
@@ -98,6 +50,8 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
+        emit log("=== STARTING UpdateLDACoreFacets ===");
+
         // Read LDA core facets dynamically from global.json config
         string memory ldaGlobalConfigPath = string.concat(
             vm.projectRoot(),
@@ -111,47 +65,67 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
         emit log("LDA core facets found in config/global.json: ");
         emit log_uint(ldaCoreFacets.length);
 
-        // Get regular deployment path for reading core facets
-        string memory regularDeploymentPath = getRegularDeploymentPath();
+        // For zkSync, read core facets from the zkSync deployment file (same as regular UpdateCoreFacets)
         emit log_named_string(
-            "Reading core facets from regular deployment file",
-            regularDeploymentPath
+            "Reading core facets from zkSync deployment file",
+            path
         );
 
+        bytes4[] memory exclude;
         // Check if the LDA loupe was already added to the diamond
         bool loupeExists;
-        try loupe.facetAddresses() returns (address[] memory) {
+
+        emit log("=== CHECKING IF LOUPE EXISTS ===");
+        try loupe.facetAddresses() returns (address[] memory existingFacets) {
             // If call was successful, loupe exists on LDA diamond already
             emit log("DiamondLoupeFacet exists on diamond already");
+            emit log_uint(existingFacets.length);
             loupeExists = true;
-        } catch {
-            // No need to do anything, just making sure that the flow continues in both cases with try/catch
+        } catch Error(string memory reason) {
+            emit log("DiamondLoupeFacet check failed with reason:");
+            emit log(reason);
+        } catch (bytes memory lowLevelData) {
+            emit log("DiamondLoupeFacet check failed with low level data:");
+            emit log_bytes(lowLevelData);
         }
 
         // Handle DiamondLoupeFacet separately as it needs special treatment
         if (!loupeExists) {
+            emit log("=== ADDING DIAMONDLOUPE FACET ===");
             emit log("DiamondLoupeFacet does not exist on diamond yet");
-            // Read DiamondLoupeFacet from regular deployment file
+            // Read DiamondLoupeFacet from zkSync deployment file (same as regular script)
             address ldaDiamondLoupeAddress = _getConfigContractAddress(
-                regularDeploymentPath,
+                path,
                 ".DiamondLoupeFacet"
             );
-            bytes4[] memory loupeSelectors = getSelectors(
-                "DiamondLoupeFacet",
-                getExcludes("DiamondLoupeFacet")
+            emit log_named_address(
+                "DiamondLoupeFacet address",
+                ldaDiamondLoupeAddress
             );
 
+            bytes4[] memory loupeSelectors = getSelectors(
+                "DiamondLoupeFacet",
+                exclude
+            );
+            emit log("DiamondLoupeFacet selectors:");
+            for (uint256 i = 0; i < loupeSelectors.length; i++) {
+                emit log_bytes32(loupeSelectors[i]);
+            }
+
             buildInitialCut(loupeSelectors, ldaDiamondLoupeAddress);
+            emit log("=== EXECUTING DIAMONDCUT FOR LOUPE ===");
             vm.startBroadcast(deployerPrivateKey);
             if (cut.length > 0) {
                 cutter.diamondCut(cut, address(0), "");
             }
             vm.stopBroadcast();
+            emit log("=== DIAMONDCUT FOR LOUPE COMPLETED ===");
 
             // Reset diamond cut variable to remove LDA diamondLoupe information
             delete cut;
         }
 
+        emit log("=== PROCESSING OTHER CORE FACETS ===");
         // Process all LDA core facets dynamically
         for (uint256 i = 0; i < ldaCoreFacets.length; i++) {
             string memory facetName = ldaCoreFacets[i];
@@ -161,6 +135,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
                 keccak256(bytes(facetName)) ==
                 keccak256(bytes("DiamondLoupeFacet"))
             ) {
+                emit log("Skipping DiamondLoupeFacet");
                 continue;
             }
             // Skip DiamondCutFacet as it was already handled during LDA diamond deployment
@@ -168,20 +143,24 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
                 keccak256(bytes(facetName)) ==
                 keccak256(bytes("DiamondCutFacet"))
             ) {
+                emit log("Skipping DiamondCutFacet");
                 continue;
             }
 
             emit log("Now adding LDA core facet: ");
             emit log(facetName);
-            // Read core facets from regular deployment file, not LDA file
+            // Read core facets from zkSync deployment file (same as regular script)
             address facetAddress = _getConfigContractAddress(
-                regularDeploymentPath,
+                path,
                 string.concat(".", facetName)
             );
-            bytes4[] memory selectors = getSelectors(
-                facetName,
-                getExcludes(facetName)
-            );
+            emit log_named_address("Facet address", facetAddress);
+
+            bytes4[] memory selectors = getSelectors(facetName, exclude);
+            emit log("Facet selectors:");
+            for (uint256 j = 0; j < selectors.length; j++) {
+                emit log_bytes32(selectors[j]);
+            }
 
             // at this point we know for sure that LDA diamond loupe exists on diamond
             buildDiamondCut(selectors, facetAddress);
@@ -203,12 +182,15 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             return (facets, cutData);
         }
 
+        emit log("=== EXECUTING FINAL DIAMONDCUT ===");
         vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
         vm.stopBroadcast();
+        emit log("=== FINAL DIAMONDCUT COMPLETED ===");
 
         facets = loupe.facetAddresses();
+        emit log("=== UpdateLDACoreFacets COMPLETED ===");
     }
 }

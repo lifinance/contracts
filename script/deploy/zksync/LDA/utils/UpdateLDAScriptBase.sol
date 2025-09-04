@@ -95,7 +95,7 @@ contract UpdateLDAScriptBase is LDAScriptBase {
     function getSelectors(
         string memory _facetName,
         bytes4[] memory _exclude
-    ) internal virtual returns (bytes4[] memory selectors) {
+    ) internal returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
         cmd[0] = "script/deploy/zksync/LDA/utils/contract-selectors.sh";
         cmd[1] = _facetName;

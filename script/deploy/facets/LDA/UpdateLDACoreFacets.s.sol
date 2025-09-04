@@ -4,40 +4,9 @@ pragma solidity ^0.8.17;
 import { UpdateLDAScriptBase } from "./utils/UpdateLDAScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { IERC173 } from "lifi/Interfaces/IERC173.sol";
-import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 
 contract UpdateLDACoreFacets is UpdateLDAScriptBase {
     using stdJson for string;
-
-    error FailedToReadLDACoreFacetsFromConfig();
-
-    /// @notice Returns function selectors to exclude for specific facets
-    /// @param facetName The name of the facet being processed
-    function getExcludes(
-        string memory facetName
-    ) internal pure returns (bytes4[] memory) {
-        // Exclude ownership function selectors from CoreRouteFacet to avoid collision with LDAOwnershipFacet
-        if (
-            keccak256(bytes(facetName)) == keccak256(bytes("CoreRouteFacet"))
-        ) {
-            bytes4[] memory excludes = new bytes4[](5);
-            excludes[0] = IERC173.transferOwnership.selector;
-            excludes[1] = TransferrableOwnership
-                .cancelOwnershipTransfer
-                .selector;
-            excludes[2] = TransferrableOwnership
-                .confirmOwnershipTransfer
-                .selector;
-            excludes[3] = IERC173.owner.selector;
-            excludes[4] = bytes4(keccak256("pendingOwner()")); // public state variable not a function
-            return excludes;
-        }
-
-        // No exclusions for other facets
-        bytes4[] memory emptyExcludes = new bytes4[](0);
-        return emptyExcludes;
-    }
 
     /// @notice Get regular deployment file path (without lda. prefix)
     function getRegularDeploymentPath() internal view returns (string memory) {
@@ -77,23 +46,6 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             );
     }
 
-    /// @notice Override getSelectors to use the correct contract-selectors script
-    function getSelectors(
-        string memory _facetName,
-        bytes4[] memory _exclude
-    ) internal override returns (bytes4[] memory selectors) {
-        string[] memory cmd = new string[](3);
-        cmd[0] = "script/deploy/facets/utils/contract-selectors.sh"; // Use regular contract-selectors script
-        cmd[1] = _facetName;
-        string memory exclude;
-        for (uint256 i; i < _exclude.length; i++) {
-            exclude = string.concat(exclude, fromCode(_exclude[i]), " ");
-        }
-        cmd[2] = exclude;
-        bytes memory res = vm.ffi(cmd);
-        selectors = abi.decode(res, (bytes4[]));
-    }
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -118,6 +70,8 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             regularDeploymentPath
         );
 
+        bytes4[] memory exclude;
+
         // Check if the LDA loupe was already added to the diamond
         bool loupeExists;
         try loupe.facetAddresses() returns (address[] memory) {
@@ -138,7 +92,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             );
             bytes4[] memory loupeSelectors = getSelectors(
                 "DiamondLoupeFacet",
-                getExcludes("DiamondLoupeFacet")
+                exclude
             );
 
             buildInitialCut(loupeSelectors, ldaDiamondLoupeAddress);
@@ -178,10 +132,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
                 regularDeploymentPath,
                 string.concat(".", facetName)
             );
-            bytes4[] memory selectors = getSelectors(
-                facetName,
-                getExcludes(facetName)
-            );
+            bytes4[] memory selectors = getSelectors(facetName, exclude);
 
             // at this point we know for sure that LDA diamond loupe exists on diamond
             buildDiamondCut(selectors, facetAddress);

@@ -96,7 +96,7 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    // Load main deployment file for shared infrastructure (like LiFiTimelockController)
+    // Load main deployment file for shared infrastructure (like LiFiTimelockController and core facets)
     // For staging, try environment-specific file first, then fallback to main
     let mainDeployedContracts: Record<string, string> = {}
     const mainDeploymentFile = `../../deployments/${network.toLowerCase()}.json`
@@ -112,10 +112,11 @@ const main = defineCommand({
           const { default: contracts } = await import(mainDeploymentFile)
           mainDeployedContracts = contracts
         } catch (fallbackError) {
-          consola.warn(
+          consola.error(
             `Failed to load deployment files: ${stagingFile} and ${mainDeploymentFile}`
           )
-          consola.warn('Some shared infrastructure checks will be skipped.')
+          consola.error('Cannot verify core facets availability.')
+          process.exit(1)
         }
       }
     }
@@ -125,13 +126,12 @@ const main = defineCommand({
         const { default: contracts } = await import(mainDeploymentFile)
         mainDeployedContracts = contracts
       } catch (error) {
-        consola.warn(
+        consola.error(
           `Failed to load main deployment file: ${mainDeploymentFile}`
         )
-        consola.warn('Some shared infrastructure checks will be skipped.')
+        consola.error('Cannot verify core facets availability.')
+        process.exit(1)
       }
-
-    // Note: We keep LDA and main contracts separate for clarity
 
     // Load global config for LDA core facets
     const globalConfig = await import('../../config/global.json')
@@ -170,21 +170,28 @@ const main = defineCommand({
     const diamondAddress = ldaDeployedContracts['LiFiDEXAggregatorDiamond']
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │                    Check LDA core facets                │
+    //          │              Check LDA core facets availability         │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking LDA Core Facets...')
+    consola.box('Checking LDA Core Facets Availability...')
+    consola.info(
+      'LDA core facets are shared with regular LiFi Diamond and stored in regular deployment file'
+    )
+
     for (const facet of ldaCoreFacets) {
+      // Check if core facet is deployed in regular deployment file (shared with LiFi Diamond)
       const isDeployed = await checkIsDeployedWithCast(
         facet,
-        ldaDeployedContracts,
+        mainDeployedContracts,
         rpcUrl
       )
 
       if (!isDeployed) {
-        logError(`LDA Facet ${facet} not deployed`)
+        logError(
+          `LDA Core Facet ${facet} not found in regular deployment file - please deploy regular LiFi Diamond first`
+        )
         continue
       }
-      consola.success(`LDA Facet ${facet} deployed`)
+      consola.success(`LDA Core Facet ${facet} available in regular deployment`)
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -208,11 +215,28 @@ const main = defineCommand({
       const onChainFacets = JSON.parse(jsonCompatibleString)
 
       if (Array.isArray(onChainFacets)) {
-        const configFacetsByAddress = Object.fromEntries(
-          Object.entries(ldaDeployedContracts).map(([name, address]) => {
-            return [address.toLowerCase(), name]
-          })
-        )
+        // Create mapping from addresses to facet names
+        // For core facets, use addresses from main deployment file
+        // For non-core facets, use addresses from LDA deployment file
+        const configFacetsByAddress: Record<string, string> = {}
+
+        // Add core facets from main deployment file
+        for (const facet of ldaCoreFacets) {
+          const address = mainDeployedContracts[facet]
+          if (address) 
+            configFacetsByAddress[address.toLowerCase()] = facet
+          
+        }
+
+        // Add non-core facets from LDA deployment file
+        Object.entries(ldaDeployedContracts).forEach(([name, address]) => {
+          if (
+            name !== 'LiFiDEXAggregatorDiamond' &&
+            !ldaCoreFacets.includes(name)
+          ) 
+            configFacetsByAddress[address.toLowerCase()] = name
+          
+        })
 
         registeredFacets = onChainFacets
           .map(([address]) => configFacetsByAddress[address.toLowerCase()])
@@ -225,12 +249,28 @@ const main = defineCommand({
       consola.warn('Error:', (error as Error).message)
     }
 
-    for (const facet of ldaCoreFacets)
-      if (!registeredFacets.includes(facet))
-        logError(
-          `LDA Facet ${facet} not registered in Diamond or possibly unverified`
-        )
-      else consola.success(`LDA Facet ${facet} registered in Diamond`)
+    // Check core facets registration
+    for (const facet of ldaCoreFacets) 
+      if (!registeredFacets.includes(facet)) 
+        logError(`LDA Core Facet ${facet} not registered in Diamond`)
+       else 
+        consola.success(`LDA Core Facet ${facet} registered in Diamond`)
+      
+    
+
+    // Check non-core facets registration
+    const nonCoreFacets = Object.keys(ldaDeployedContracts).filter(
+      (name) =>
+        name !== 'LiFiDEXAggregatorDiamond' && !ldaCoreFacets.includes(name)
+    )
+
+    for (const facet of nonCoreFacets) 
+      if (!registeredFacets.includes(facet)) 
+        logError(`LDA Non-Core Facet ${facet} not registered in Diamond`)
+       else 
+        consola.success(`LDA Non-Core Facet ${facet} registered in Diamond`)
+      
+    
 
     // Basic ownership check using cast
     try {
