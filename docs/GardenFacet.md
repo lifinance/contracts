@@ -2,29 +2,37 @@
 
 ## How it works
 
-The Garden Facet works by ...
+The Garden Facet enables cross-chain token transfers using the Garden protocol's HTLC (Hash Time Locked Contracts) mechanism. It interfaces with Garden's registry to find the appropriate HTLC contract for each asset and initiates atomic swaps that can be redeemed on the destination chain using a secret.
+
+The facet supports both native tokens and ERC20 tokens. For native tokens, it uses the NULL_ADDRESS as the asset key in the registry lookup. For ERC20 tokens, it uses the token address directly. The facet then calls the `initiateOnBehalf` function on the appropriate HTLC contract to lock the funds.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->GardenFacet;
-    GardenFacet -- CALL --> C(Garden)
+    GardenFacet -- CALL --> R[GardenRegistry]
+    R -- Returns HTLC Address --> GardenFacet
+    GardenFacet -- CALL --> H[Garden HTLC]
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaGarden(BridgeData calldata _bridgeData, GardenData calldata _gardenData)`
-  - Simply bridges tokens using garden
-- `swapAndStartBridgeTokensViaGarden(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, gardenData memory _gardenData)`
-  - Performs swap(s) before bridging tokens using garden
+- `function startBridgeTokensViaGarden(BridgeData memory _bridgeData, GardenData calldata _gardenData)`
+  - Simply bridges tokens using Garden without performing any swaps
+- `function swapAndStartBridgeTokensViaGarden(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, GardenData calldata _gardenData)`
+  - Performs swap(s) before bridging tokens using Garden
 
-## garden Specific Parameters
+## Garden Specific Parameters
 
-The methods listed above take a variable labeled `_gardenData`. This data is specific to garden and is represented as the following struct type:
+The methods listed above take a variable labeled `_gardenData`. This data is specific to Garden and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct gardenData {
-  string example;
+/// @param redeemer Address authorized to redeem the HTLC
+/// @param timelock Block number after which refund is possible
+/// @param secretHash SHA256 hash of the secret for the HTLC
+struct GardenData {
+  address redeemer;
+  uint256 timelock;
+  bytes32 secretHash;
 }
 ```
 
@@ -41,6 +49,31 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+
+## Contract Details
+
+### Constructor
+
+The GardenFacet requires a registry address to be provided during deployment:
+
+- `_htlcRegistry`: Address of the Garden HTLC registry contract that maps assets to their HTLC contracts
+
+### Error Handling
+
+The facet includes the following custom error:
+
+- `AssetNotSupported()`: Thrown when attempting to bridge an asset that doesn't have a corresponding HTLC contract in the registry
+
+### Internal Logic
+
+The `_startBridge` function:
+
+1. Determines if the asset is native or ERC20
+2. Looks up the appropriate HTLC contract address from the registry
+3. For ERC20 tokens: approves the HTLC contract to spend tokens
+4. For native tokens: sends value directly with the transaction
+5. Calls `initiateOnBehalf` on the HTLC contract with the bridge parameters
+6. Emits the `LiFiTransferStarted` event
 
 ## Getting Sample Calls to interact with the Facet
 
