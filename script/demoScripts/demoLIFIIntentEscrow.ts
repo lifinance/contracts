@@ -1,11 +1,11 @@
 import { randomBytes } from 'crypto'
 
 import { config } from 'dotenv'
-import { getContract, parseUnits, zeroAddress, type Narrow } from 'viem'
+import { getContract, type Narrow, parseUnits, zeroAddress } from 'viem'
 
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import LIFIIntentFacetArtifact from '../../out/LIFIIntentFacet.sol/LIFIIntentFacet.json'
-import type { ILiFi, LIFIIntentFacet } from '../../typechain'
+import LIFIIntentFacetArtifact from '../../out/LIFIIntentEscrowFacet.sol/LIFIIntentEscrowFacet.json'
+import type { ILiFi, LIFIIntentEscrowFacet } from '../../typechain'
 import type { SupportedChain } from '../common/types'
 
 import {
@@ -114,17 +114,15 @@ async function main() {
 
   // TODO: implement quote call to order server. Lets emulate it for now.
 
-  const LIFIIntentData: LIFIIntentFacet.LIFIIntentDataStruct = {
+  const LIFIIntentData: LIFIIntentEscrowFacet.LIFIIntentEscrowDataStruct = {
     /// And calldata.
     receiverAddress: '0x' + signerAddress.replace('0x', '').padStart(64, '0'),
-    assetId: LOCKTAG + SRC_TOKEN_ADDRESS.replace('0x', ''),
-    expectedClaimHash: '0x' + ''.padEnd(64, '0'),
     user: signerAddress,
     nonce: Math.round(Math.random() * Number.MAX_SAFE_INTEGER),
-    expiry: 2 ** 32, // max expiry time. TODO: Should probably be changed.
+    expires: 2 ** 32, // max expiry time. TODO: Should probably be changed.
     // LIFIIntent Witness //
     fillDeadline: 2 ** 32, // max fill deadline time. TODO: Should probably be changed.
-    localOracle: '0x', // TODO:
+    inputOracle: '0x', // TODO:
     // LIFIIntent Output //
     outputOracle: '0x', // TODO:
     outputSettler: '0x', // TODO:
@@ -132,13 +130,12 @@ async function main() {
     outputAmount: amount, // TODO: Minus fee
     outputCall: '0x',
     outputContext: '0x', // Limit order.
-    broadcast: false,
   }
 
   // === Start bridging ===
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.startBridgeTokensViaLIFIIntent(
+      lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow(
         [bridgeData, LIFIIntentData]
         // { value: fee } optional value
       ),

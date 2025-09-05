@@ -23,11 +23,7 @@ struct StandardOrder {
     uint256 originChainId;
     uint32 expires;
     uint32 fillDeadline;
-    address localOracle;
+    address inputOracle;
     uint256[2][] inputs;
     MandateOutput[] outputs;
-}
-
-interface IBroadcastableSettler {
-    function broadcast(StandardOrder calldata order) external;
 }

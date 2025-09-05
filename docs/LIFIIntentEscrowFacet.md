@@ -2,15 +2,11 @@
 
 ## How it works
 
-Catlayst uses The Compact as a deposit mechanism for its intents. The Compact contains interfaces to deposit and register intents on behalf of someone else.
+LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is highly self serve, with the facet wrapping the deposit logic to ensure the appropiate parameters are called for the user to receive their output.
 
-The LIFIIntent Faucet constructs the LIFIIntent witness and then sends the witness along with the typings to The Compact which will derive the assocaited claim and register it.
-
-Once signed by an allocator (off-chain action), solvers can solve the order and take the proof to the chain of the deposit to claim the deposit.
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL --> LIFIIntentFacet;
-    LIFIIntentFacet -- CALL --> C(COMPACT);
+    D{LiFiDiamond}-- DELEGATECALL --> LIFIIntentEscrowFacet;
 
     Solver -- CALL -> C(outputSettler)
     C(outputSettler) -- Tokens -> User
@@ -19,14 +15,14 @@ graph LR;
 
     C(outputOracle) -- Validation -> C(LocalOracle)
     C(LIFI_INTENT_COMPACT_SETTLER) -- STATICCALL -> C(LocalOracle)
-    C(LIFI_INTENT_COMPACT_SETTLER) -- CALL -> C(COMPACT)
+    C(LIFI_INTENT_COMPACT_SETTLER) -- Token -> User
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaLIFIIntent(BridgeData calldata _bridgeData, LIFIIntentData calldata _lifiIntentData)`
+- `function startBridgeTokensViaLIFIIntentEscrow(BridgeData calldata _bridgeData, LIFIIntentEscrowData calldata _lifiIntentData)`
   - Simply bridges tokens using LIFIIntent
-- `swapAndStartBridgeTokensViaLIFIIntent(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LIFIIntentData memory _lifiIntentData)`
+- `swapAndStartBridgeTokensViaLIFIIntentEscrow(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LIFIIntentEscrowData memory _lifiIntentData)`
   - Performs swap(s) before bridging tokens using LIFIIntent
 
 ## LIFIIntent Specific Parameters
@@ -35,8 +31,6 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 
 ```solidity
 /// @param receiverAddress The destination account for the delivered assets and calldata.
-/// @param inputAssetId Input token. The leftmost 12 bytes is the lockTag and the rightmost 20 is the address of the token which needs to be equal to the inputAssetId.
-/// @param expectedClaimHash Security check. If provided, it needs to match the returned claim hash from TheCompact.
 /// @param user The deposit and claim registration will be made in this user's name. Compact 6909 tokens will be minted for this user and if the intent fails to be filled the tokens will remain in this user's name.
 /// @param expiry If the proof for the fill does not arrive before this time, the claim expires.
 /// @param fillDeadline The fill has to happen before this time.
@@ -47,27 +41,20 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param outputAmount The amount of the destired token.
 /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type.
-/// @param broadcast Whether to broadcast the intent on-chain. Note that this incurs additional gas costs.
-struct LIFIIntentData {
-    bytes32 receiverAddress; // StandardOrder.outputs.recipient.
+struct LIFIIntentEscrowData {
+    bytes32 receiverAddress; // StandardOrder.outputs.recipient
     /// BatchClaim
-    uint256 inputAssetId; // StandardOrder.inputs[0]
     address user; // StandardOrder.user
     uint256 nonce; // StandardOrder.nonce
     uint32 expires; // StandardOrder.expiry
-    // LIFIIntent Witness //
     uint32 fillDeadline; // StandardOrder.fillDeadline
-    address inputOracle; // StandardOrder.localOracle
-    // LIFIIntent Output //
+    address inputOracle; // StandardOrder.inputOracle
     bytes32 outputOracle; // StandardOrder.outputs.oracle
     bytes32 outputSettler; // StandardOrder.outputs.settler
     bytes32 outputToken; // StandardOrder.outputs.token
     uint256 outputAmount; // StandardOrder.outputs.amount
     bytes outputCall; // StandardOrder.outputs.call
     bytes outputContext; // StandardOrder.outputs.context
-    // Validation
-    bytes32 expectedClaimHash;
-    bool broadcast;
 }
 ```
 
