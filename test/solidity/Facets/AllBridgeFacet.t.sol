@@ -60,7 +60,7 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
     AllBridgeFacet.AllBridgeData internal validAllBridgeData;
     TestAllBridgeFacet internal allBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 17556456;
         initTestBase();
 
@@ -78,7 +78,7 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
             .selector;
         functionSelectors[4] = allBridgeFacet.getAllBridgeChainId.selector;
 
-        addFacet(diamond, address(allBridgeFacet), functionSelectors);
+        addFacet(address(diamond), address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
         allBridgeFacet.addDex(ADDRESS_UNISWAP);
         allBridgeFacet.setFunctionApprovalBySignature(

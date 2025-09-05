@@ -42,7 +42,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19279222;
         initTestBase();
 
@@ -62,7 +62,11 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
         functionSelectors[6] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
-        addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(deBridgeDlnFacet),
+            functionSelectors
+        );
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
         deBridgeDlnFacet.addDex(ADDRESS_UNISWAP);
         deBridgeDlnFacet.setFunctionApprovalBySignature(

@@ -46,7 +46,7 @@ contract CBridgeFacetPackedTest is TestBase {
         uint256 amount
     );
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 58467500;
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         initTestBase();
@@ -86,7 +86,11 @@ contract CBridgeFacetPackedTest is TestBase {
             .selector;
         functionSelectors[8] = cBridgeFacetPacked.triggerRefund.selector;
 
-        addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(cBridgeFacetPacked),
+            functionSelectors
+        );
         cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare parameters

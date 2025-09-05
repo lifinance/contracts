@@ -80,7 +80,7 @@ contract TestSwapperV2 is SwapperV2 {
 contract SwapperV2Test is TestBase {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         amm = new TestAMM();
@@ -95,7 +95,7 @@ contract SwapperV2Test is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(swapper), functionSelectors);
+        addFacet(address(diamond), address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addDex(address(amm));

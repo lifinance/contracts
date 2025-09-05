@@ -117,7 +117,7 @@ contract Permit2ProxyTest is TestBase {
     error DiamondAddressNotWhitelisted();
     error CallToDiamondFailed(bytes);
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 20261175;
         initTestBase();
 

@@ -52,7 +52,7 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
 
     error InvalidQuote();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19767662;
         initTestBase();
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
@@ -68,7 +68,7 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
         functionSelectors[4] = relayFacet.getMappedChainId.selector;
         functionSelectors[5] = relayFacet.setConsumedId.selector;
 
-        addFacet(diamond, address(relayFacet), functionSelectors);
+        addFacet(address(diamond), address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
         relayFacet.addDex(ADDRESS_UNISWAP);
         relayFacet.setFunctionApprovalBySignature(

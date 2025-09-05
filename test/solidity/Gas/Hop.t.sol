@@ -13,7 +13,7 @@ contract HopGasTest is TestBase {
     IHopBridge internal hop;
     HopFacet internal hopFacet;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 14847528;
         initTestBase();
@@ -25,7 +25,7 @@ contract HopGasTest is TestBase {
         functionSelectors[0] = hopFacet.initHop.selector;
         functionSelectors[1] = hopFacet.startBridgeTokensViaHop.selector;
 
-        addFacet(diamond, address(hopFacet), functionSelectors);
+        addFacet(address(diamond), address(hopFacet), functionSelectors);
         hopFacet = HopFacet(address(diamond));
 
         HopFacet.Config[] memory config = new HopFacet.Config[](1);
