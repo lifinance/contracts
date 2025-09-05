@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "src/Libraries/LibAllowList.sol";
-import { LibSwap } from "src/Libraries/LibSwap.sol";
 import { ILiFi } from "src/Interfaces/ILiFi.sol";
 import { GardenFacet } from "src/Facets/GardenFacet.sol";
 import { InvalidConfig } from "src/Errors/GenericErrors.sol";
@@ -217,33 +216,9 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_SwapAndBridgeWithZeroRedeemer() public {
         // Setup swap data
-        delete swapData;
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_DAI;
-
-        uint256 amountOut = 100 * 10 ** dai.decimals();
-
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: ADDRESS_DAI,
-                fromAmount: 110 * 10 ** usdc.decimals(), // Approximate amount
-                callData: abi.encodeWithSelector(
-                    uniswap.swapExactTokensForTokens.selector,
-                    110 * 10 ** usdc.decimals(),
-                    amountOut,
-                    path,
-                    address(gardenFacet),
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
-        bridgeData.sendingAssetId = ADDRESS_DAI;
-        bridgeData.minAmount = amountOut;
+        setDefaultSwapDataSingleDAItoUSDC();
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
         bridgeData.hasSourceSwaps = true;
 
         // Setup invalid garden data with zero redeemer
@@ -256,8 +231,8 @@ contract GardenFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_SENDER);
 
-        deal(ADDRESS_USDC, USER_SENDER, swapData[0].fromAmount);
-        usdc.approve(address(gardenFacet), swapData[0].fromAmount);
+        deal(ADDRESS_DAI, USER_SENDER, swapData[0].fromAmount);
+        dai.approve(address(gardenFacet), swapData[0].fromAmount);
 
         vm.expectRevert(InvalidGardenData.selector);
 
@@ -272,33 +247,9 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_SwapAndBridgeWithPastTimelock() public {
         // Setup swap data
-        delete swapData;
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_DAI;
-
-        uint256 amountOut = 100 * 10 ** dai.decimals();
-
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: ADDRESS_DAI,
-                fromAmount: 110 * 10 ** usdc.decimals(),
-                callData: abi.encodeWithSelector(
-                    uniswap.swapExactTokensForTokens.selector,
-                    110 * 10 ** usdc.decimals(),
-                    amountOut,
-                    path,
-                    address(gardenFacet),
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
-        bridgeData.sendingAssetId = ADDRESS_DAI;
-        bridgeData.minAmount = amountOut;
+        setDefaultSwapDataSingleDAItoUSDC();
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
         bridgeData.hasSourceSwaps = true;
 
         // Setup invalid garden data with past timelock
@@ -311,8 +262,8 @@ contract GardenFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_SENDER);
 
-        deal(ADDRESS_USDC, USER_SENDER, swapData[0].fromAmount);
-        usdc.approve(address(gardenFacet), swapData[0].fromAmount);
+        deal(ADDRESS_DAI, USER_SENDER, swapData[0].fromAmount);
+        dai.approve(address(gardenFacet), swapData[0].fromAmount);
 
         vm.expectRevert(InvalidGardenData.selector);
 
@@ -327,33 +278,9 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_SwapAndBridgeWithZeroSecretHash() public {
         // Setup swap data
-        delete swapData;
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_DAI;
-
-        uint256 amountOut = 100 * 10 ** dai.decimals();
-
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: ADDRESS_DAI,
-                fromAmount: 110 * 10 ** usdc.decimals(),
-                callData: abi.encodeWithSelector(
-                    uniswap.swapExactTokensForTokens.selector,
-                    110 * 10 ** usdc.decimals(),
-                    amountOut,
-                    path,
-                    address(gardenFacet),
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
-        bridgeData.sendingAssetId = ADDRESS_DAI;
-        bridgeData.minAmount = amountOut;
+        setDefaultSwapDataSingleDAItoUSDC();
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
         bridgeData.hasSourceSwaps = true;
 
         // Setup invalid garden data with zero secret hash
@@ -366,8 +293,8 @@ contract GardenFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_SENDER);
 
-        deal(ADDRESS_USDC, USER_SENDER, swapData[0].fromAmount);
-        usdc.approve(address(gardenFacet), swapData[0].fromAmount);
+        deal(ADDRESS_DAI, USER_SENDER, swapData[0].fromAmount);
+        dai.approve(address(gardenFacet), swapData[0].fromAmount);
 
         vm.expectRevert(InvalidGardenData.selector);
 
