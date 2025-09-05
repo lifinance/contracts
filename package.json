@@ -62,7 +62,7 @@
     "add-safe-owners-and-threshold": "bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "codegen": "plop",
     "compile": "forge build",
-    "confirm-safe-tx": "bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
+    "confirm-safe-tx": "bun abi:generate && bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
     "deploy-safe": "bunx tsx ./script/deploy/safe/deploy-safe.ts",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
@@ -97,8 +97,10 @@
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
     "test": "forge test --evm-version 'cancun'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
+    "test:ts": "bun script/runTypescriptTests.ts",
     "troncast": "bun run script/troncast/index.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
+    "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts"
   },
   "dependencies": {
