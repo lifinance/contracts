@@ -7,23 +7,6 @@ import { BaseUpdateScript } from "../../utils/BaseUpdateScript.sol";
 contract UpdateLDAScriptBase is BaseUpdateScript {
     using stdJson for string;
 
-    function _buildDeploymentPath()
-        internal
-        view
-        override
-        returns (string memory)
-    {
-        return
-            string.concat(
-                root,
-                "/deployments/",
-                network,
-                ".lda.",
-                fileSuffix,
-                "json"
-            );
-    }
-
     function _getDiamondAddress() internal override returns (address) {
         return json.readAddress(".LiFiDEXAggregatorDiamond");
     }

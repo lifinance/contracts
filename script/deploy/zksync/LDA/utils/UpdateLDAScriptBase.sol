@@ -7,23 +7,6 @@ import { BaseZkSyncUpdateScript } from "../../utils/BaseZkSyncUpdateScript.sol";
 contract UpdateLDAScriptBase is BaseZkSyncUpdateScript {
     using stdJson for string;
 
-    function _buildDeploymentPath()
-        internal
-        view
-        override
-        returns (string memory)
-    {
-        return
-            string.concat(
-                root,
-                "/deployments/",
-                network,
-                ".",
-                fileSuffix,
-                "json"
-            );
-    }
-
     function _getDiamondAddress() internal override returns (address) {
         return json.readAddress(".LiFiDEXAggregatorDiamond");
     }

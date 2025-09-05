@@ -81,41 +81,53 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    // Load LDA-specific deployments
-    const ldaDeploymentFile = `../../deployments/${network.toLowerCase()}.lda.${environment}.json`
-    let ldaDeployedContracts: Record<string, string>
-
-    try {
-      const { default: contracts } = await import(ldaDeploymentFile)
-      ldaDeployedContracts = contracts
-    } catch (error) {
-      consola.error(`Failed to load LDA deployment file: ${ldaDeploymentFile}`)
-      consola.error(
-        `Please ensure LDA contracts are deployed to ${environment} first.`
-      )
-      process.exit(1)
-    }
-
-    // Load main deployment file for shared infrastructure (like LiFiTimelockController and core facets)
+    // Load main deployment file (contains LiFiDEXAggregatorDiamond address and shared infrastructure)
     // For staging, try environment-specific file first, then fallback to main
     let mainDeployedContracts: Record<string, string> = {}
     const mainDeploymentFile = `../../deployments/${network.toLowerCase()}.json`
 
     if (environment === 'staging') {
       const stagingFile = `../../deployments/${network.toLowerCase()}.staging.json`
+      consola.info(`Loading staging deployment file: ${stagingFile}`)
       try {
         const { default: contracts } = await import(stagingFile)
         mainDeployedContracts = contracts
+        consola.info(
+          `Successfully loaded ${
+            Object.keys(contracts).length
+          } contracts from staging file`
+        )
+        consola.info(
+          `LiFiDEXAggregatorDiamond address: ${
+            contracts['LiFiDEXAggregatorDiamond'] || 'NOT FOUND'
+          }`
+        )
       } catch (error) {
+        consola.warn(`Failed to load staging file: ${error}`)
         // Fallback to main deployment file for staging
         try {
+          consola.info(
+            `Falling back to main deployment file: ${mainDeploymentFile}`
+          )
           const { default: contracts } = await import(mainDeploymentFile)
           mainDeployedContracts = contracts
+          consola.info(
+            `Successfully loaded ${
+              Object.keys(contracts).length
+            } contracts from main file`
+          )
+          consola.info(
+            `LiFiDEXAggregatorDiamond address: ${
+              contracts['LiFiDEXAggregatorDiamond'] || 'NOT FOUND'
+            }`
+          )
         } catch (fallbackError) {
           consola.error(
             `Failed to load deployment files: ${stagingFile} and ${mainDeploymentFile}`
           )
-          consola.error('Cannot verify core facets availability.')
+          consola.error(
+            'Cannot verify LDA diamond and core facets availability.'
+          )
           process.exit(1)
         }
       }
@@ -129,9 +141,30 @@ const main = defineCommand({
         consola.error(
           `Failed to load main deployment file: ${mainDeploymentFile}`
         )
-        consola.error('Cannot verify core facets availability.')
+        consola.error('Cannot verify LDA diamond and core facets availability.')
         process.exit(1)
       }
+
+    // Load LDA-specific facet information
+    const ldaDeploymentFile =
+      environment === 'production'
+        ? `../../deployments/${network.toLowerCase()}.lda.diamond.json`
+        : `../../deployments/${network.toLowerCase()}.lda.diamond.${environment}.json`
+    let ldaFacetInfo: Record<
+      string,
+      { Facets?: Record<string, { Name?: string; Version?: string }> }
+    > = {}
+
+    try {
+      const { default: ldaData } = await import(ldaDeploymentFile)
+      ldaFacetInfo = ldaData
+    } catch (error) {
+      consola.error(`Failed to load LDA facet file: ${ldaDeploymentFile}`)
+      consola.error(
+        `Please ensure LDA diamond logs are updated after deployment.`
+      )
+      process.exit(1)
+    }
 
     // Load global config for LDA core facets
     const globalConfig = await import('../../config/global.json')
@@ -153,12 +186,25 @@ const main = defineCommand({
     )
 
     //          ╭─────────────────────────────────────────────────────────╮
-    //          │                Check LDA Diamond Contract               │
+    //          │    Check LDA diamond contract full deployment           │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking LDADiamond Contract...')
+    consola.box('Checking LDA diamond contract full deployment...')
+
+    const diamondAddress = mainDeployedContracts['LiFiDEXAggregatorDiamond']
+    consola.info(
+      `Looking for LiFiDEXAggregatorDiamond at address: ${diamondAddress}`
+    )
+    consola.info(
+      `Available contracts in mainDeployedContracts: ${Object.keys(
+        mainDeployedContracts
+      )
+        .filter((k) => k.includes('LiFi'))
+        .join(', ')}`
+    )
+
     const diamondDeployed = await checkIsDeployedWithCast(
       'LiFiDEXAggregatorDiamond',
-      ldaDeployedContracts,
+      mainDeployedContracts,
       rpcUrl
     )
 
@@ -166,8 +212,6 @@ const main = defineCommand({
       logError('LiFiDEXAggregatorDiamond not deployed')
       finish()
     } else consola.success('LiFiDEXAggregatorDiamond deployed')
-
-    const diamondAddress = ldaDeployedContracts['LiFiDEXAggregatorDiamond']
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │              Check LDA core facets availability         │
@@ -223,19 +267,16 @@ const main = defineCommand({
         // Add core facets from main deployment file
         for (const facet of ldaCoreFacets) {
           const address = mainDeployedContracts[facet]
-          if (address) 
-            configFacetsByAddress[address.toLowerCase()] = facet
-          
+          if (address) configFacetsByAddress[address.toLowerCase()] = facet
         }
 
-        // Add non-core facets from LDA deployment file
-        Object.entries(ldaDeployedContracts).forEach(([name, address]) => {
-          if (
-            name !== 'LiFiDEXAggregatorDiamond' &&
-            !ldaCoreFacets.includes(name)
-          ) 
-            configFacetsByAddress[address.toLowerCase()] = name
-          
+        // Add non-core facets from LDA facet info file
+        const diamondFacets =
+          ldaFacetInfo['LiFiDEXAggregatorDiamond']?.Facets || {}
+        Object.entries(diamondFacets).forEach(([address, facetData]) => {
+          const facetName = facetData.Name
+          if (facetName && !ldaCoreFacets.includes(facetName))
+            configFacetsByAddress[address.toLowerCase()] = facetName
         })
 
         registeredFacets = onChainFacets
@@ -250,27 +291,24 @@ const main = defineCommand({
     }
 
     // Check core facets registration
-    for (const facet of ldaCoreFacets) 
-      if (!registeredFacets.includes(facet)) 
+    for (const facet of ldaCoreFacets)
+      if (!registeredFacets.includes(facet))
         logError(`LDA Core Facet ${facet} not registered in Diamond`)
-       else 
-        consola.success(`LDA Core Facet ${facet} registered in Diamond`)
-      
-    
+      else consola.success(`LDA Core Facet ${facet} registered in Diamond`)
 
     // Check non-core facets registration
-    const nonCoreFacets = Object.keys(ldaDeployedContracts).filter(
-      (name) =>
-        name !== 'LiFiDEXAggregatorDiamond' && !ldaCoreFacets.includes(name)
-    )
+    const diamondFacets = ldaFacetInfo['LiFiDEXAggregatorDiamond']?.Facets || {}
+    const nonCoreFacets = Object.values(diamondFacets)
+      .map((facetData) => facetData.Name)
+      .filter(
+        (name): name is string =>
+          name !== undefined && !ldaCoreFacets.includes(name)
+      )
 
-    for (const facet of nonCoreFacets) 
-      if (!registeredFacets.includes(facet)) 
+    for (const facet of nonCoreFacets)
+      if (!registeredFacets.includes(facet))
         logError(`LDA Non-Core Facet ${facet} not registered in Diamond`)
-       else 
-        consola.success(`LDA Non-Core Facet ${facet} registered in Diamond`)
-      
-    
+      else consola.success(`LDA Non-Core Facet ${facet} registered in Diamond`)
 
     // Basic ownership check using cast
     try {

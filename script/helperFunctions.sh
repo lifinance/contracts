@@ -1130,6 +1130,66 @@ function saveDiamondPeriphery() {
     printf %s "$result" >"$DIAMOND_FILE"
   done
 }
+
+# LDA-specific diamond save functions
+function saveLDADiamondFacets() {
+  # read function arguments into variables
+  NETWORK=$1
+  ENVIRONMENT=$2
+  FACETS=$3
+
+  # logging for debug purposes
+  echo ""
+  echoDebug "in function saveLDADiamondFacets"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FACETS=$FACETS"
+
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # store function arguments in variables
+  FACETS=$(echo "$3" | tr -d '[' | tr -d ']' | tr -d ',')
+  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
+
+  # define path for LDA diamond json file
+  DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
+  DIAMOND_NAME="LiFiDEXAggregatorDiamond"
+
+  # create an empty json that replaces the existing file
+  echo "{}" >"$DIAMOND_FILE"
+
+  # create an iterable FACETS array
+  # Remove brackets from FACETS string
+  FACETS_ADJ="${3#\[}"
+  FACETS_ADJ="${FACETS_ADJ%\]}"
+  # Split string into array
+  IFS=', ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+
+  # loop through all facets
+  for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
+    # get a JSON entry from log file
+    JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+
+    # check if contract was found in log file
+    if [[ $? -ne 0 ]]; then
+      warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+
+      # try to find name of contract from network-specific deployments file
+      # load JSON FILE that contains deployment addresses
+      NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+
+      # create JSON entry manually with limited information (address only)
+      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+    fi
+
+    # add new entry to JSON file
+    result=$(cat "$DIAMOND_FILE" | jq -r --argjson json_entry "$JSON_ENTRY" '.[$diamond_name] |= . + {Facets: (.Facets + $json_entry)}' --arg diamond_name "$DIAMOND_NAME" || cat "$DIAMOND_FILE")
+
+    printf %s "$result" >"$DIAMOND_FILE"
+  done
+}
+
 function saveContract() {
   # read function arguments into variables
   local NETWORK=$1
@@ -4322,6 +4382,7 @@ function updateDiamondLogForNetwork() {
   # read function arguments into variable
   local NETWORK=$1
   local ENVIRONMENT=$2
+  local DIAMOND_TYPE=${3:-"LiFiDiamond"}  # Default to LiFiDiamond, can be "LiFiDEXAggregatorDiamond" for LDA
 
   # get RPC URL
   local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
@@ -4332,10 +4393,10 @@ function updateDiamondLogForNetwork() {
   fi
 
   # get diamond address
-  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE")
 
   if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to get LiFiDiamond address on $NETWORK in $ENVIRONMENT environment"
+    error "[$NETWORK] Failed to get $DIAMOND_TYPE address on $NETWORK in $ENVIRONMENT environment"
     return 1
   fi
 
@@ -4361,12 +4422,27 @@ function updateDiamondLogForNetwork() {
     warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
   fi
 
-  if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-    warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+  # Determine if this is an LDA diamond to use the correct save function
+  if [[ "$DIAMOND_TYPE" == "LiFiDEXAggregatorDiamond" ]]; then
+    # For LDA diamonds, use LDA-specific save functions (no peripheries)
+    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+      warning "[$NETWORK] no facets found in LDA diamond $DIAMOND_ADDRESS"
+      # LDA diamonds don't have peripheries, so just create empty diamond file
+      local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+      local DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
+      echo "{\"$DIAMOND_TYPE\": {\"Facets\": {}}}" >"$DIAMOND_FILE"
+    else
+      saveLDADiamondFacets "$NETWORK" "$ENVIRONMENT" "$KNOWN_FACET_ADDRESSES"
+    fi
   else
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
-    # saveDiamondPeriphery is executed as part of saveDiamondFacets
+    # For regular diamonds, use existing save functions
+    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+      warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+    else
+      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
+      # saveDiamondPeriphery is executed as part of saveDiamondFacets
+    fi
   fi
 
   # check result
@@ -4814,13 +4890,6 @@ deployFacetAndAddToLDADiamond() {
   return 0
 }
 
-# Get LDA deployment file path
-getLDADeploymentFilePath() {
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-  echo "deployments/${NETWORK}.lda.${FILE_SUFFIX}json"
-}
 
 # Update LDA diamond logs
 updateLDADiamondLogs() {
@@ -4829,15 +4898,78 @@ updateLDADiamondLogs() {
   
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start updateLDADiamondLogs"
   
-  if [[ -n "$NETWORK" ]]; then
-    echo "[info] Updating LDA diamond log for network: $NETWORK"
-    bunx tsx script/deploy/updateLDADiamondLog.ts --environment "$ENVIRONMENT" --network "$NETWORK"
+  # if no network was passed to this function, update all networks
+  if [[ -z $NETWORK ]]; then
+    # get array with all network names
+    NETWORKS=($(getIncludedNetworksArray))
   else
-    echo "[info] Updating LDA diamond logs for all networks"
-    bunx tsx script/deploy/updateLDADiamondLog.ts --environment "$ENVIRONMENT"
+    NETWORKS=($NETWORK)
   fi
-  
-  checkFailure $? "update LDA diamond logs"
+
+  echo ""
+  echo "Now updating all LDA diamond logs on network(s): ${NETWORKS[*]}"
+  echo ""
+
+  # ENVIRONMENTS=("production" "staging")
+  if [[ "$ENVIRONMENT" == "production" || -z "$ENVIRONMENT" ]]; then
+    ENVIRONMENTS=("production")
+  else
+    ENVIRONMENTS=("staging")
+  fi
+
+  # Create arrays to store background job PIDs and their corresponding network/environment info
+  local pids=()
+  local job_info=()
+  local job_index=0
+
+  # loop through all networks
+  for NETWORK in "${NETWORKS[@]}"; do
+    echo ""
+    echo "current Network: $NETWORK"
+
+    for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
+      echo " -----------------------"
+      echo " current ENVIRONMENT: $ENVIRONMENT"
+
+      # Call the helper function in background for parallel execution with LDA diamond type
+      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" "LiFiDEXAggregatorDiamond" &
+
+      # Store the PID and job info
+      pids+=($!)
+      job_info+=("$NETWORK:$ENVIRONMENT")
+      job_index=$((job_index + 1))
+    done
+  done
+
+  # Wait for all background jobs to complete and capture exit codes
+  echo "Waiting for all LDA diamond log updates to complete..."
+  local failed_jobs=()
+  local job_count=${#pids[@]}
+
+  for i in "${!pids[@]}"; do
+    local pid="${pids[$i]}"
+    local info="${job_info[$i]}"
+
+    # Wait for this specific job and capture its exit code
+    if wait "$pid"; then
+      echo "[$info] Completed successfully"
+    else
+      echo "[$info] Failed with exit code $?"
+      failed_jobs+=("$info")
+    fi
+  done
+
+  # Check if any jobs failed
+  if [ ${#failed_jobs[@]} -gt 0 ]; then
+    error "Some LDA diamond log updates failed: ${failed_jobs[*]}"
+    echo "All LDA diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    playNotificationSound
+    return 1
+  else
+    echo "All LDA diamond log updates completed successfully ($job_count jobs)"
+    playNotificationSound
+    return 0
+  fi
   
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updateLDADiamondLogs completed"
   

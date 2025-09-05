@@ -33,7 +33,14 @@ abstract contract BaseZkSyncUpdateScript is ScriptBase {
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 
-        path = _buildDeploymentPath();
+        path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         json = vm.readFile(path);
         diamond = _getDiamondAddress();
         cutter = DiamondCutFacet(diamond);
@@ -203,10 +210,5 @@ abstract contract BaseZkSyncUpdateScript is ScriptBase {
     }
 
     // Abstract functions for customization
-    function _buildDeploymentPath()
-        internal
-        view
-        virtual
-        returns (string memory);
     function _getDiamondAddress() internal virtual returns (address);
 }

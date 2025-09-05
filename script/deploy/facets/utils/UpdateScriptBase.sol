@@ -13,23 +13,6 @@ contract UpdateScriptBase is BaseUpdateScript {
         address bContractAddress;
     }
 
-    function _buildDeploymentPath()
-        internal
-        view
-        override
-        returns (string memory)
-    {
-        return
-            string.concat(
-                root,
-                "/deployments/",
-                network,
-                ".",
-                fileSuffix,
-                "json"
-            );
-    }
-
     function _getDiamondAddress() internal override returns (address) {
         return
             useDefaultDiamond

@@ -131,8 +131,9 @@ deployAllLDAContracts() {
       "3) Deploy LDA diamond" \
       "4) Update LDA diamond with core facets" \
       "5) Deploy non-core LDA facets and add to diamond" \
-      "6) Run LDA health check only" \
-      "7) Ownership transfer to timelock (production only)"
+      "6) Update LDA diamond deployment logs" \
+      "7) Run LDA health check only" \
+      "8) Ownership transfer to timelock (production only)"
   )
 
   # Extract the stage number from the selection
@@ -150,6 +151,8 @@ deployAllLDAContracts() {
     START_STAGE=6
   elif [[ "$START_FROM" == *"7)"* ]]; then
     START_STAGE=7
+  elif [[ "$START_FROM" == *"8)"* ]]; then
+    START_STAGE=8
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
@@ -328,37 +331,53 @@ deployAllLDAContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 completed"
   fi
 
-  # Stage 6: Run LDA health check
+  # Stage 6: Update LDA diamond deployment logs
   if [[ $START_STAGE -le 6 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Run LDA health check only"
-    bun script/deploy/ldaHealthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Update LDA diamond deployment logs"
+    echo "[info] Updating LDA diamond logs to populate .lda.diamond.json file..."
+    
+    # Update LDA diamond logs to create/populate the .lda.diamond.json file
+    updateLDADiamondLogs "$ENVIRONMENT" "$NETWORK"
+    
+    # check if last command was executed successfully
+    checkFailure $? "update LDA diamond logs for network $NETWORK"
+    
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< LDA diamond logs updated successfully"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
+  fi
+
+  # Stage 7: Run LDA health check
+  if [[ $START_STAGE -le 7 ]]; then
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Run LDA health check only"
+    bun script/deploy/ldaHealthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
 
     # Pause and ask user if they want to continue with ownership transfer (for production)
-    if [[ "$ENVIRONMENT" == "production" && $START_STAGE -eq 6 ]]; then
+    if [[ "$ENVIRONMENT" == "production" && $START_STAGE -eq 7 ]]; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
-      echo "Continue with stage 7 (ownership transfer)? (y/n)"
+      echo "Continue with stage 8 (ownership transfer)? (y/n)"
       read -r response
       if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo "Proceeding with stage 7..."
+        echo "Proceeding with stage 8..."
       else
-        echo "Skipping stage 7 - ownership transfer cancelled by user"
+        echo "Skipping stage 8 - ownership transfer cancelled by user"
         echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllLDAContracts completed"
         return
       fi
     fi
   fi
 
-  # Stage 7: Ownership transfer to timelock (production only)
-  if [[ $START_STAGE -le 7 ]]; then
+  # Stage 8: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 8 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
       echo ""
-      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Ownership transfer to timelock (production only)"
+      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Ownership transfer to timelock (production only)"
 
-      # make sure SAFE_ADDRESS is available (if starting in stage 7 it's not available yet)
+      # make sure SAFE_ADDRESS is available (if starting in stage 8 it's not available yet)
       SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         echo "SAFE address not found in networks.json. Cannot prepare ownership transfer to Timelock"
@@ -396,10 +415,10 @@ deployAllLDAContracts() {
       echo ""
       # ------------------------------------------------------------
     else
-      echo "Stage 7 skipped - ownership transfer to timelock is only for production environment"
+      echo "Stage 8 skipped - ownership transfer to timelock is only for production environment"
     fi
 
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 8 completed"
   fi
 
   echo ""

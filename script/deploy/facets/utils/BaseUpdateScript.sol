@@ -33,7 +33,14 @@ abstract contract BaseUpdateScript is ScriptBase {
         useDefaultDiamond = _shouldUseDefaultDiamond();
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 
-        path = _buildDeploymentPath();
+        path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         json = vm.readFile(path);
         diamond = _getDiamondAddress();
         cutter = DiamondCutFacet(diamond);
@@ -212,10 +219,5 @@ abstract contract BaseUpdateScript is ScriptBase {
         return vm.envOr("USE_DEF_DIAMOND", true);
     }
 
-    function _buildDeploymentPath()
-        internal
-        view
-        virtual
-        returns (string memory);
     function _getDiamondAddress() internal virtual returns (address);
 }

@@ -74,8 +74,8 @@ function ldaDiamondUpdateFacet() {
     return 1
   fi
 
-  # get LDA diamond address from LDA deployment file
-  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.lda.${FILE_SUFFIX}json"
+  # get LDA diamond address from LDA diamond deployment file
+  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
   local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$LDA_DEPLOYMENT_FILE")
 
   # if no diamond address was found, throw an error and exit this script

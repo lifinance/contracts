@@ -69,8 +69,8 @@ function deployFacetAndAddToLDADiamond() {
     DIAMOND_CONTRACT_NAME="LiFiDEXAggregatorDiamond"
   fi
 
-  # get LDA diamond address from deployments script (using .lda. file suffix)
-  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.lda.${FILE_SUFFIX}json"
+  # get LDA diamond address from deployments script (using .lda.diamond. file suffix)
+  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
   local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$LDA_DEPLOYMENT_FILE")
 
   # if no diamond address was found, throw an error and exit this script
