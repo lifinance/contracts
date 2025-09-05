@@ -111,13 +111,8 @@ function deployFacetAndAddToDiamond() {
 
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
-  # deploy facet (determine if LDA based on diamond type)
-  local IS_LDA_CONTRACT="false"
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
-    IS_LDA_CONTRACT="true"
-  fi
-  
-  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$IS_LDA_CONTRACT"
+  # deploy facet (deploySingleContract will auto-detect if it's LDA based on contract name)
+  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
 
   # check if function call was successful
   if [ $? -ne 0 ]

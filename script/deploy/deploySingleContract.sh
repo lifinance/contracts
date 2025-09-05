@@ -16,7 +16,6 @@ deploySingleContract() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
-  local IS_LDA_CONTRACT="$6"
   # load env variables
   source .env
 
@@ -68,6 +67,19 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
+  # Helper function to check if contract is LDA-related
+  isLDAContract() {
+    local contract_name="$1"
+    # Check if contract name contains LDA-related patterns or is in LDA facets list
+    if [[ "$contract_name" == "LiFiDEXAggregatorDiamond" ]] || 
+       [[ "$contract_name" == *"LDA"* ]] ||
+       [[ -f "script/deploy/facets/LDA/Deploy${contract_name}.s.sol" ]]; then
+      return 0  # true
+    else
+      return 1  # false
+    fi
+  }
+
   # Determine deployment script directory based on network type and contract type
   # We need to support 4 combinations:
   # 1. Regular + Non-zkEVM = script/deploy/facets/
@@ -76,14 +88,14 @@ deploySingleContract() {
   # 4. LDA + zkEVM = script/deploy/zksync/LDA/
   
   if isZkEvmNetwork "$NETWORK"; then
-    if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
+    if isLDAContract "$CONTRACT"; then
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/LDA/"
     else
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
     fi
     FILE_EXTENSION=".zksync.s.sol"
   else
-    if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
+    if isLDAContract "$CONTRACT"; then
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
     else
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"

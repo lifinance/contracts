@@ -169,13 +169,11 @@ scriptMaster() {
     # get user-selected deploy script and contract from list
     CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
     
-    # Determine if this is an LDA contract and set the appropriate directory
+    # Set appropriate directory (deploySingleContract will auto-detect LDA based on contract name)
     if echo "$LDA_SCRIPTS" | grep -q "^$SCRIPT$"; then
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
-      IS_LDA_CONTRACT="true"
     else
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
-      IS_LDA_CONTRACT="false"
     fi
 
     # check if new contract should be added to diamond after deployment
@@ -183,7 +181,8 @@ scriptMaster() {
     if [[ ! "$CONTRACT" == "LiFiDiamond"* && ! "$CONTRACT" == "LiFiDEXAggregatorDiamond" ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
-      if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
+      # Check if this is an LDA contract based on script directory
+      if echo "$LDA_SCRIPTS" | grep -q "^Deploy${CONTRACT}$"; then
         # For LDA contracts, offer LDA diamond option
         ADD_TO_DIAMOND=$(
           gum choose \
@@ -218,8 +217,8 @@ scriptMaster() {
         deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
       fi
     else
-      # just deploy the contract (determine if LDA based on IS_LDA_CONTRACT)
-      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false "$IS_LDA_CONTRACT"
+      # just deploy the contract (deploySingleContract will auto-detect LDA based on contract name)
+      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false
     fi
 
     # check if last command was executed successfully, otherwise exit script with error message
