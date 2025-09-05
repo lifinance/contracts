@@ -1,0 +1,23 @@
+{
+  "mainnet": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  },
+  "base": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  },
+  "bera": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  },
+  "bsc": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  },
+  "botanix": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  },
+  "core": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  },
+  "corn": {
+    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+  }
+}
