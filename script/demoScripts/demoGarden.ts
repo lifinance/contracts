@@ -8,7 +8,6 @@ import { utils, BigNumber } from 'ethers'
 import deployments from '../../deployments/mainnet.staging.json'
 import {
   GardenFacet__factory,
-  ERC20__factory,
   type ILiFi,
   type GardenFacet,
 } from '../../typechain'
@@ -350,47 +349,27 @@ const main = defineCommand({
       }
 
       // Step 4: If not swapping, check balance and approve tokens if needed
-      if (!withSwap)
+      if (!withSwap) 
         if (isNative) {
           consola.info('\n💰 Checking ETH balance...')
-
-          const balance = await provider.getBalance(address)
-
-          if (balance.lt(amountInWei))
-            throw new Error(
-              `Insufficient ETH balance. Required: ${amountStr}, Available: ${utils.formatUnits(
-                balance,
-                18
-              )}`
-            )
-
-          consola.info(`Balance: ${utils.formatUnits(balance, 18)} ETH`)
+          await ensureBalanceAndAllowanceToDiamond(
+            NULL_ADDRESS,
+            wallet,
+            LIFI_ADDRESS,
+            amountInWei,
+            true
+          )
         } else {
           consola.info('\n💰 Checking USDC balance and approval...')
-
-          const token = ERC20__factory.connect(USDC_ADDRESS, provider)
-          const balance = await token.balanceOf(address)
-
-          if (balance.lt(amountInWei))
-            throw new Error(
-              `Insufficient USDC balance. Required: ${amountStr}, Available: ${utils.formatUnits(
-                balance,
-                6
-              )}`
-            )
-
-          consola.info(`Balance: ${utils.formatUnits(balance, 6)} USDC`)
-
-          const allowance = await token.allowance(address, LIFI_ADDRESS)
-          if (allowance.lt(amountInWei)) {
-            consola.info('Approving USDC...')
-            const approveTx = await token
-              .connect(wallet)
-              .approve(LIFI_ADDRESS, amountInWei)
-            await approveTx.wait()
-            consola.success('USDC approved')
-          } else consola.info('Sufficient allowance already exists')
+          await ensureBalanceAndAllowanceToDiamond(
+            USDC_ADDRESS,
+            wallet,
+            LIFI_ADDRESS,
+            amountInWei,
+            false
+          )
         }
+      
 
       // Step 5: Execute the bridge transaction
       consola.info('\n🚀 Executing bridge transaction...')
