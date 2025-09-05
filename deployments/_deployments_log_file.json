@@ -39789,7 +39789,7 @@
             "TIMESTAMP": "2025-09-03 15:15:25",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ff5e0b09255292078c01913d837236d7fa0a86b4",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
