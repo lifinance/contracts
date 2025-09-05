@@ -116,13 +116,8 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _gardenData.secretHash == bytes32(0)
         ) revert InvalidGardenData();
 
-        // Determine the asset key - use NULL_ADDRESS for native assets
-        address assetKey = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
-            ? LibAsset.NULL_ADDRESS
-            : _bridgeData.sendingAssetId;
-
         // Get HTLC address from registry
-        address htlcAddress = REGISTRY.htlcs(assetKey);
+        address htlcAddress = REGISTRY.htlcs(_bridgeData.sendingAssetId);
 
         // Validate asset is supported
         if (htlcAddress == address(0)) {
