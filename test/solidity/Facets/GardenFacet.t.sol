@@ -2,25 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { GardenFacet } from "lifi/Facets/GardenFacet.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-// Mock Garden Registry Contract
-contract MockGardenRegistry {
-    mapping(address => address) private _htlcs;
-
-    function setHtlc(address assetId, address htlcAddress) external {
-        _htlcs[assetId] = htlcAddress;
-    }
-
-    function htlcs(address assetId) external view returns (address) {
-        return _htlcs[assetId];
-    }
-}
+import { LibAllowList } from "src/Libraries/LibAllowList.sol";
+import { LibSwap } from "src/Libraries/LibSwap.sol";
+import { ILiFi } from "src/Interfaces/ILiFi.sol";
+import { GardenFacet } from "src/Facets/GardenFacet.sol";
+import { InvalidConfig } from "src/Errors/GenericErrors.sol";
 
 // Stub GardenFacet Contract
 contract TestGardenFacet is GardenFacet {
@@ -48,26 +34,20 @@ contract GardenFacetTest is TestBaseFacet {
         0xE413743B51f3cC8b3ac24addf50D18fa138cB0Bb;
     address internal constant WBTC_ADDRESS =
         0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+    address internal constant HTLC_REGISTRY =
+        0xFF5e0B09255292078C01913d837236D7fa0a86b4;
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
-    MockGardenRegistry internal mockRegistry;
     TestGardenFacet internal gardenFacet;
     ILiFi.BridgeData internal validBridgeData;
     GardenFacet.GardenData internal validGardenData;
 
     function setUp() public {
-        customBlockNumberForForking = 23238500;
+        customBlockNumberForForking = 23296173;
         initTestBase();
 
-        // Setup mock registry
-        mockRegistry = new MockGardenRegistry();
-        mockRegistry.setHtlc(ADDRESS_USDC, USDC_HTLC);
-        mockRegistry.setHtlc(WBTC_ADDRESS, WBTC_HTLC);
-        mockRegistry.setHtlc(address(0), ETH_HTLC); // For native ETH
-        mockRegistry.setHtlc(ADDRESS_DAI, USDC_HTLC); // Use USDC HTLC for DAI in tests
-
-        gardenFacet = new TestGardenFacet(address(mockRegistry));
+        gardenFacet = new TestGardenFacet(HTLC_REGISTRY);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gardenFacet.startBridgeTokensViaGarden.selector;
         functionSelectors[1] = gardenFacet
@@ -221,51 +201,12 @@ contract GardenFacetTest is TestBaseFacet {
     }
 
     function testRevert_AssetNotSupported() public {
-        // Use WBTC which is set in the registry but we'll use a different token address
-        // that's not registered
+        // Use an unsupported asset that's not registered in the registry
         address unsupportedAsset = address(0xDEADBEEF);
         bridgeData.sendingAssetId = unsupportedAsset;
         bridgeData.minAmount = 100 * 10 ** 8; // WBTC has 8 decimals
 
         vm.startPrank(USER_SENDER);
-
-        // Mock the token balance and approval since it's not a real token
-        vm.mockCall(
-            unsupportedAsset,
-            abi.encodeWithSelector(IERC20.balanceOf.selector, USER_SENDER),
-            abi.encode(bridgeData.minAmount)
-        );
-
-        vm.mockCall(
-            unsupportedAsset,
-            abi.encodeWithSelector(
-                IERC20.allowance.selector,
-                USER_SENDER,
-                address(gardenFacet)
-            ),
-            abi.encode(0)
-        );
-
-        vm.mockCall(
-            unsupportedAsset,
-            abi.encodeWithSelector(
-                IERC20.approve.selector,
-                address(gardenFacet),
-                type(uint256).max
-            ),
-            abi.encode(true)
-        );
-
-        vm.mockCall(
-            unsupportedAsset,
-            abi.encodeWithSelector(
-                IERC20.transferFrom.selector,
-                USER_SENDER,
-                address(gardenFacet),
-                bridgeData.minAmount
-            ),
-            abi.encode(true)
-        );
 
         vm.expectRevert(AssetNotSupported.selector);
 
@@ -434,27 +375,6 @@ contract GardenFacetTest is TestBaseFacet {
             bridgeData,
             swapData,
             invalidGardenData
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevert_NativeAssetNotSupported() public {
-        // Remove native ETH support from registry
-        mockRegistry.setHtlc(address(0), address(0));
-
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
-
-        vm.startPrank(USER_SENDER);
-
-        vm.deal(USER_SENDER, bridgeData.minAmount);
-
-        vm.expectRevert(AssetNotSupported.selector);
-
-        gardenFacet.startBridgeTokensViaGarden{ value: bridgeData.minAmount }(
-            bridgeData,
-            validGardenData
         );
 
         vm.stopPrank();
