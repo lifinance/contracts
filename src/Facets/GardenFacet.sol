@@ -9,6 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title Garden Facet
@@ -26,14 +27,14 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Constructor initializes the immutable registry
     /// @param _htlcRegistry Address of the HTLC registry contract
     constructor(address _htlcRegistry) {
-        if (_htlcRegistry == address(0)) revert InvalidRegistry();
+        if (_htlcRegistry == address(0)) revert InvalidConfig();
         REGISTRY = IGardenRegistry(_htlcRegistry);
     }
 
     /// Types ///
 
     /// @param redeemer Address authorized to redeem the HTLC
-    /// @param timelock Block number after which refund is possible
+    /// @param timelock Block number after which refund is possible (can be current block for immediate withdrawal)
     /// @param secretHash SHA256 hash of the secret for the HTLC
     struct GardenData {
         address redeemer;
@@ -45,8 +46,6 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Thrown when attempting to bridge an unsupported asset
     error AssetNotSupported();
-    /// @notice Thrown when the registry address is invalid
-    error InvalidRegistry();
     /// @notice Thrown when Garden parameters are invalid
     error InvalidGardenData();
 
@@ -110,9 +109,10 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         GardenData calldata _gardenData
     ) internal {
         // Validate Garden-specific parameters
+        // Note: timelock can be current block or future to allow immediate withdrawal
         if (
             _gardenData.redeemer == address(0) ||
-            _gardenData.timelock <= block.number ||
+            _gardenData.timelock < block.number ||
             _gardenData.secretHash == bytes32(0)
         ) revert InvalidGardenData();
 

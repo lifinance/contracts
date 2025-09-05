@@ -6,6 +6,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GardenFacet } from "lifi/Facets/GardenFacet.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Mock Garden Registry Contract
@@ -36,7 +37,6 @@ contract TestGardenFacet is GardenFacet {
 
 contract GardenFacetTest is TestBaseFacet {
     // Custom errors from GardenFacet
-    error InvalidRegistry();
     error InvalidGardenData();
     error AssetNotSupported();
     // These values are for Mainnet from config/garden.json
@@ -140,7 +140,7 @@ contract GardenFacetTest is TestBaseFacet {
     /// Edge Case Tests ///
 
     function testRevert_ConstructorWithZeroRegistry() public {
-        vm.expectRevert(InvalidRegistry.selector);
+        vm.expectRevert(InvalidConfig.selector);
 
         new GardenFacet(address(0));
     }
@@ -176,31 +176,6 @@ contract GardenFacetTest is TestBaseFacet {
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
                 timelock: block.number - 1, // Past timelock
-                secretHash: keccak256(abi.encodePacked("test_secret"))
-            });
-
-        bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = 100 * 10 ** usdc.decimals();
-
-        // Mint tokens to user
-        vm.startPrank(USER_SENDER);
-
-        deal(ADDRESS_USDC, USER_SENDER, bridgeData.minAmount);
-        usdc.approve(address(gardenFacet), bridgeData.minAmount);
-
-        vm.expectRevert(InvalidGardenData.selector);
-
-        gardenFacet.startBridgeTokensViaGarden(bridgeData, invalidGardenData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_InvalidGardenDataCurrentBlockTimelock() public {
-        // Setup invalid garden data with current block as timelock
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number, // Current block (should be future)
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -481,6 +456,33 @@ contract GardenFacetTest is TestBaseFacet {
             bridgeData,
             validGardenData
         );
+
+        vm.stopPrank();
+    }
+
+    // Positive edge case: Valid data with current block timelock (immediate withdrawal)
+    function test_ValidDataWithCurrentBlockTimelock() public {
+        // Setup valid garden data with current block timelock for immediate withdrawal
+        GardenFacet.GardenData memory currentBlockData = GardenFacet
+            .GardenData({
+                redeemer: 0x1234567890123456789012345678901234567890,
+                timelock: block.number, // Current block for immediate withdrawal
+                secretHash: keccak256(abi.encodePacked("test_secret"))
+            });
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = 100 * 10 ** usdc.decimals();
+
+        vm.startPrank(USER_SENDER);
+
+        deal(ADDRESS_USDC, USER_SENDER, bridgeData.minAmount);
+        usdc.approve(address(gardenFacet), bridgeData.minAmount);
+
+        // Should not revert - current block is now allowed
+        vm.expectEmit(true, true, true, true, address(gardenFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        gardenFacet.startBridgeTokensViaGarden(bridgeData, currentBlockData);
 
         vm.stopPrank();
     }

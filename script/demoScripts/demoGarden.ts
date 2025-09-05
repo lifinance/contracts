@@ -23,6 +23,19 @@ import {
 
 config()
 
+// Example successful transaction hashes
+// Native ETH bridge (ETH -> USDC on Base): https://app.blocksec.com/explorer/tx/eth/0x82f4d880a6b55437666a25c013885c7ef7f8837d56c395bd9b58c6d1aba4901f
+// ERC20 (USDC) simple bridge: https://app.blocksec.com/explorer/tx/eth/0xaab5b62dc46dbe61d452598643bda901dbfc51166a2578ef15c5ded9451895a7
+// Swap and bridge (WETH -> USDC): https://app.blocksec.com/explorer/tx/eth/0x51f7703bb6d6bf49304499347ba79510c0bcae8386cdff9853a20130c420cd83
+
+// Garden App ID
+// This is a TEST identifier used to authenticate requests to the Garden API.
+// Each integration partner (like LI.FI) receives their own app ID.
+// The backend team will need to use their own production ID for production integration.
+// Note: This is a test ID - production will use a different ID.
+const GARDEN_APP_ID =
+  '7648702b1997e55a3763afa5dd7ace3d4bd23348ee0423cc27a18ef3e28cb2b7'
+
 // Garden API types
 interface IGardenQuote {
   status: string
@@ -47,14 +60,21 @@ interface IGardenOrderResponse {
   status: string
   result: {
     order_id: string
-    transaction: {
+    approval_transaction?: {
+      to: string
+      value: string
+      data: string
+      gas_limit: string
+      chain_id: number
+    } | null
+    initiate_transaction: {
       to: string
       value: string
       data: string
       gas_limit: string
       chain_id: number
     }
-    typed_data: {
+    typed_data?: {
       domain: {
         name: string
         version: string
@@ -69,7 +89,7 @@ interface IGardenOrderResponse {
         amount: string
         secretHash: string
       }
-    }
+    } | null
   }
 }
 
@@ -77,17 +97,23 @@ const main = defineCommand({
   meta: {
     name: 'demoGarden',
     description:
-      'Demo script to bridge USDC from Mainnet to Base using GardenFacet on staging',
+      'Demo script to bridge tokens from Mainnet to Base using GardenFacet on staging',
   },
   args: {
     amount: {
       type: 'string',
-      description: 'Amount of USDC to bridge (in USDC units, e.g., 10 for $10)',
+      description:
+        'Amount to bridge (in token units, e.g., 10 for $10 USDC or 0.01 for ETH)',
       default: '10',
     },
     swap: {
       type: 'boolean',
       description: 'Perform a swap before bridging (WETH -> USDC)',
+      default: false,
+    },
+    native: {
+      type: 'boolean',
+      description: 'Bridge native ETH instead of USDC',
       default: false,
     },
   },
@@ -97,23 +123,42 @@ const main = defineCommand({
       const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' // Mainnet USDC
       const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' // Mainnet WETH
       const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D' // Mainnet Uniswap
+      const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' // For native ETH
 
       // Setup provider and wallet
       const provider = getProvider('mainnet')
       const wallet = getWalletFromPrivateKeyInDotEnv(provider)
       const address = await wallet.getAddress()
 
-      const amountInUsdc = parseFloat(args.amount)
-      const amountInWei = utils.parseUnits(args.amount, 6) // USDC has 6 decimals
+      const isNative = args.native
       const withSwap = args.swap
+      const amountStr = args.amount
+
+      // Validate conflicting options
+      if (isNative && withSwap) 
+        throw new Error('Please choose only one option: --native or --swap')
+      
+
+      // Parse amount based on token type
+      const amountInWei = isNative
+        ? utils.parseUnits(amountStr, 18) // ETH has 18 decimals
+        : utils.parseUnits(amountStr, 6) // USDC has 6 decimals
 
       consola.info('=== Garden Bridge Demo ===')
       consola.info(`Environment: staging`)
       consola.info(`Mode: ${withSwap ? 'Swap and Bridge' : 'Bridge only'}`)
       consola.info(`From: Mainnet`)
       consola.info(`To: Base`)
-      consola.info(`Asset: ${withSwap ? 'WETH -> USDC' : 'USDC'}`)
-      consola.info(`Amount: ${amountInUsdc} USDC`)
+      consola.info(
+        `Asset: ${
+          isNative
+            ? 'ETH -> USDC (converted on destination)'
+            : withSwap
+            ? 'WETH -> USDC'
+            : 'USDC'
+        }`
+      )
+      consola.info(`Amount: ${amountStr} ${isNative ? 'ETH' : 'USDC'}`)
       consola.info(`Wallet Address: ${address}`)
       consola.info(`Diamond: ${LIFI_ADDRESS}`)
 
@@ -143,7 +188,7 @@ const main = defineCommand({
           `Swap prepared: ${utils.formatUnits(
             inputAmount,
             18
-          )} WETH (max with slippage) -> ${amountInUsdc} USDC (exact)`
+          )} WETH (max with slippage) -> ${amountStr} USDC (exact)`
         )
 
         // Check WETH balance and approval
@@ -160,16 +205,27 @@ const main = defineCommand({
       // Step 1: Get quote from Garden API
       consola.info('\n📡 Fetching quote from Garden API...')
 
-      const quoteUrl = `https://api.garden.finance/v2/quote?from=ethereum:usdc&to=base:usdc&from_amount=${amountInWei.toString()}`
+      // Note: When bridging native ETH, it's converted to USDC on destination
+      const fromAsset = isNative ? 'ethereum:eth' : 'ethereum:usdc'
+      const toAsset = 'base:usdc' // Always USDC on destination (no native ETH on non-Ethereum chains)
+      const quoteUrl = `https://api.garden.finance/v2/quote?from=${fromAsset}&to=${toAsset}&from_amount=${amountInWei.toString()}`
+
+      consola.info(`Quote URL: ${quoteUrl}`)
       const response = await fetch(quoteUrl)
 
-      if (!response.ok)
-        throw new Error(`Failed to fetch quote: ${response.statusText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+          `Failed to fetch quote: ${response.statusText} - ${errorText}`
+        )
+      }
 
       const quote: IGardenQuote = await response.json()
 
-      if (quote.status !== 'Ok' || !quote.result || quote.result.length === 0)
+      if (quote.status !== 'Ok' || !quote.result || quote.result.length === 0) {
+        consola.error('Garden API response:', JSON.stringify(quote, null, 2))
         throw new Error('No valid quote received from Garden API')
+      }
 
       const selectedQuote = quote.result[0]
       if (!selectedQuote) throw new Error('No quote selected')
@@ -192,12 +248,12 @@ const main = defineCommand({
 
       const orderPayload = {
         source: {
-          asset: 'ethereum:usdc',
+          asset: fromAsset,
           owner: address,
           amount: amountInWei.toString(),
         },
         destination: {
-          asset: 'base:usdc',
+          asset: toAsset, // Always USDC on destination
           owner: address, // Same address on destination chain
           amount: selectedQuote.destination.amount,
         },
@@ -208,8 +264,7 @@ const main = defineCommand({
         {
           method: 'POST',
           headers: {
-            'garden-app-id':
-              '7648702b1997e55a3763afa5dd7ace3d4bd23348ee0423cc27a18ef3e28cb2b7', // [pre-commit-checker: not a secret]
+            'garden-app-id': GARDEN_APP_ID,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(orderPayload),
@@ -229,15 +284,50 @@ const main = defineCommand({
         throw new Error('Failed to create order with Garden')
 
       consola.success(`Order created: ${orderData.result.order_id}`)
-      consola.info(
-        `  Redeemer: ${orderData.result.typed_data.message.redeemer}`
-      )
-      consola.info(
-        `  Timelock: ${orderData.result.typed_data.message.timelock}`
-      )
-      consola.info(
-        `  Secret Hash: ${orderData.result.typed_data.message.secretHash}`
-      )
+
+      // The API returns transaction data for initiate function
+      // Function signature: initiate(address,uint256,uint256,bytes32)
+      // Parameters: redeemer, timelock, amount, secretHash
+
+      const txData = orderData.result.initiate_transaction.data
+      const functionSelector = txData.slice(0, 10)
+      consola.info(`Function selector: ${functionSelector}`)
+
+      // Skip the function selector (first 10 chars including 0x)
+      const encodedParams = '0x' + txData.slice(10)
+
+      let redeemer, timelock, amount, secretHash
+
+      try {
+        // Decode initiate(address,uint256,uint256,bytes32)
+        const decodedParams = utils.defaultAbiCoder.decode(
+          ['address', 'uint256', 'uint256', 'bytes32'],
+          encodedParams
+        )
+        ;[redeemer, timelock, amount, secretHash] = decodedParams
+
+        consola.info(`  Redeemer: ${redeemer}`)
+        consola.info(`  Timelock: ${timelock.toString()}`)
+        consola.info(
+          `  Amount: ${
+            isNative
+              ? utils.formatEther(amount) + ' ETH'
+              : utils.formatUnits(amount, 6) + ' USDC'
+          }`
+        )
+        consola.info(`  Secret Hash: ${secretHash}`)
+      } catch (error) {
+        consola.warn('Failed to decode transaction parameters:', error)
+        // Use fallback values for testing
+        redeemer = address // Use sender as redeemer
+        timelock = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+        secretHash = '0x' + orderData.result.order_id.padEnd(64, '0') // Use order ID as secret hash
+
+        consola.info(`  Using fallback values:`)
+        consola.info(`  Redeemer: ${redeemer}`)
+        consola.info(`  Timelock: ${timelock}`)
+        consola.info(`  Secret Hash: ${secretHash}`)
+      }
 
       // Step 3: Prepare bridge data using the order response
       const bridgeData: ILiFi.BridgeDataStruct = {
@@ -245,7 +335,7 @@ const main = defineCommand({
         bridge: 'Garden',
         integrator: 'LiFi-Demo',
         referrer: '0x0000000000000000000000000000000000000000',
-        sendingAssetId: USDC_ADDRESS,
+        sendingAssetId: isNative ? NULL_ADDRESS : USDC_ADDRESS,
         receiver: address,
         minAmount: amountInWei,
         destinationChainId: 8453, // Base chain ID
@@ -253,40 +343,56 @@ const main = defineCommand({
         hasDestinationCall: false,
       }
 
-      // Garden-specific data from the order response
+      // Garden-specific data extracted from the transaction
       const gardenData: GardenFacet.GardenDataStruct = {
-        redeemer: orderData.result.typed_data.message.redeemer,
-        timelock: orderData.result.typed_data.message.timelock,
-        secretHash: orderData.result.typed_data.message.secretHash,
+        redeemer: redeemer,
+        timelock: timelock.toString(),
+        secretHash: secretHash,
       }
 
-      // Step 4: If not swapping, check and approve USDC
-      if (!withSwap) {
-        consola.info('\n💰 Checking USDC balance and approval...')
+      // Step 4: If not swapping, check balance and approve tokens if needed
+      if (!withSwap) 
+        if (isNative) {
+          consola.info('\n💰 Checking ETH balance...')
 
-        const token = ERC20__factory.connect(USDC_ADDRESS, provider)
-        const balance = await token.balanceOf(address)
+          const balance = await provider.getBalance(address)
 
-        if (balance.lt(amountInWei))
-          throw new Error(
-            `Insufficient USDC balance. Required: ${amountInUsdc}, Available: ${utils.formatUnits(
-              balance,
-              6
-            )}`
-          )
+          if (balance.lt(amountInWei))
+            throw new Error(
+              `Insufficient ETH balance. Required: ${amountStr}, Available: ${utils.formatUnits(
+                balance,
+                18
+              )}`
+            )
 
-        consola.info(`Balance: ${utils.formatUnits(balance, 6)} USDC`)
+          consola.info(`Balance: ${utils.formatUnits(balance, 18)} ETH`)
+        } else {
+          consola.info('\n💰 Checking USDC balance and approval...')
 
-        const allowance = await token.allowance(address, LIFI_ADDRESS)
-        if (allowance.lt(amountInWei)) {
-          consola.info('Approving USDC...')
-          const approveTx = await token
-            .connect(wallet)
-            .approve(LIFI_ADDRESS, amountInWei)
-          await approveTx.wait()
-          consola.success('USDC approved')
-        } else consola.info('Sufficient allowance already exists')
-      }
+          const token = ERC20__factory.connect(USDC_ADDRESS, provider)
+          const balance = await token.balanceOf(address)
+
+          if (balance.lt(amountInWei))
+            throw new Error(
+              `Insufficient USDC balance. Required: ${amountStr}, Available: ${utils.formatUnits(
+                balance,
+                6
+              )}`
+            )
+
+          consola.info(`Balance: ${utils.formatUnits(balance, 6)} USDC`)
+
+          const allowance = await token.allowance(address, LIFI_ADDRESS)
+          if (allowance.lt(amountInWei)) {
+            consola.info('Approving USDC...')
+            const approveTx = await token
+              .connect(wallet)
+              .approve(LIFI_ADDRESS, amountInWei)
+            await approveTx.wait()
+            consola.success('USDC approved')
+          } else consola.info('Sufficient allowance already exists')
+        }
+      
 
       // Step 5: Execute the bridge transaction
       consola.info('\n🚀 Executing bridge transaction...')
@@ -299,14 +405,15 @@ const main = defineCommand({
         tx = await gardenFacet
           .connect(wallet)
           .swapAndStartBridgeTokensViaGarden(bridgeData, swapData, gardenData, {
-            value: 0, // No native token needed
+            value: 0, // No native token needed for swaps (WETH is ERC20)
           })
       } else {
         consola.info('Using startBridgeTokensViaGarden...')
+        const txValue = isNative ? amountInWei : 0
         tx = await gardenFacet
           .connect(wallet)
           .startBridgeTokensViaGarden(bridgeData, gardenData, {
-            value: 0, // No native token needed for USDC bridge
+            value: txValue, // Send native ETH if bridging native
           })
       }
 
@@ -323,7 +430,14 @@ const main = defineCommand({
           consola.info(
             `Successfully swapped WETH to USDC and initiated bridge to Base`
           )
+         else if (isNative) 
+          consola.info(
+            `Successfully initiated ETH to USDC bridge to Base (ETH will be converted to USDC on destination)`
+          )
+         else 
+          consola.info(`Successfully initiated USDC bridge to Base`)
         
+
         consola.info(
           "\nNote: The bridge process will continue on Garden's infrastructure."
         )
