@@ -246,9 +246,51 @@ deployAllLDAContracts() {
     # get current LDA diamond contract version
     local VERSION=$(getCurrentContractVersion "$LDA_DIAMOND_CONTRACT_NAME")
 
-    # deploy LDA diamond
+    # deploy LDA diamond directly (avoid infinite loop with deploySingleContract special case)
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $LDA_DIAMOND_CONTRACT_NAME now"
-    deploySingleContract "$LDA_DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true" "true"
+    
+    # Call the deploy script directly instead of going through deploySingleContract
+    # to avoid the infinite loop caused by the special case detection
+    local DEPLOY_SCRIPT_PATH="script/deploy/facets/LDA/DeployLiFiDEXAggregatorDiamond.s.sol"
+    local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+    
+    # For LDA contracts, modify FILE_SUFFIX to include "lda."
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      FILE_SUFFIX="lda."
+    else
+      FILE_SUFFIX="lda.staging."
+    fi
+    
+    # Get required deployment variables
+    local BYTECODE=$(getBytecodeFromArtifact "$LDA_DIAMOND_CONTRACT_NAME")
+    local CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+    local SALT_INPUT="$BYTECODE""$SALT"
+    local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+    local CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$LDA_DIAMOND_CONTRACT_NAME" "$ENVIRONMENT")
+    
+    # Deploy the LDA diamond using forge script directly with all required environment variables
+    local RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$DEPLOY_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "${GAS_ESTIMATE_MULTIPLIER:-130}")
+    
+    # Extract deployed address
+    local ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+    if [[ -z "$ADDRESS" || "$ADDRESS" == "null" ]]; then
+      error "failed to deploy $LDA_DIAMOND_CONTRACT_NAME - could not extract address"
+      return 1
+    fi
+    
+    echo "[info] $LDA_DIAMOND_CONTRACT_NAME deployed to $NETWORK at address $ADDRESS"
+    
+    # Save contract in network-specific deployment files
+    saveContract "$NETWORK" "$LDA_DIAMOND_CONTRACT_NAME" "$ADDRESS" "$FILE_SUFFIX"
+    
+    # Also save to the regular network deployment file for complete network tracking
+    local REGULAR_FILE_SUFFIX
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      REGULAR_FILE_SUFFIX=""
+    else
+      REGULAR_FILE_SUFFIX="staging."
+    fi
+    saveContract "$NETWORK" "$LDA_DIAMOND_CONTRACT_NAME" "$ADDRESS" "$REGULAR_FILE_SUFFIX"
 
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy contract $LDA_DIAMOND_CONTRACT_NAME to network $NETWORK"

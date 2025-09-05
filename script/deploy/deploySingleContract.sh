@@ -8,6 +8,7 @@ deploySingleContract() {
   source script/config.sh
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh
+  source script/deploy/deployAllLDAContracts.sh
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -109,6 +110,30 @@ deploySingleContract() {
     warning "${!CONTRACT}"
     printf '\033[31m%s\031\n' "-----------------------------------------------------------------------------------------------------------"
     echo -e "\n\n"
+  fi
+
+  # Special case: LiFiDEXAggregatorDiamond is treated as a single external contract
+  # that triggers the full LDA deployment process
+  if [[ "$CONTRACT" == "LiFiDEXAggregatorDiamond" ]]; then
+    echo "[info] LiFiDEXAggregatorDiamond detected - deploying full LDA diamond with all contracts"
+    echo "[info] Calling deployAllLDAContracts script..."
+    
+    # Call the full LDA deployment script
+    deployAllLDAContracts "$NETWORK" "$ENVIRONMENT"
+    
+    # Check if deployment was successful
+    local LDA_DEPLOYMENT_RESULT=$?
+    if [[ $LDA_DEPLOYMENT_RESULT -eq 0 ]]; then
+      echo "[info] LiFiDEXAggregatorDiamond (full LDA deployment) completed successfully"
+      return 0
+    else
+      error "LiFiDEXAggregatorDiamond (full LDA deployment) failed"
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    fi
   fi
 
   # check if deploy script exists
