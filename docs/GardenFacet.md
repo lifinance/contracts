@@ -6,6 +6,12 @@ The Garden Facet enables cross-chain token transfers using the Garden protocol's
 
 The facet supports both native tokens and ERC20 tokens. For native tokens, it uses the NULL_ADDRESS as the asset key in the registry lookup. For ERC20 tokens, it uses the token address directly. The facet then calls the `initiateOnBehalf` function on the appropriate HTLC contract to lock the funds.
 
+In Garden's cross-chain model:
+
+- On the source chain: The user initiates the HTLC, and a solver/filler (redeemer) will claim the locked funds with the secret
+- On the destination chain: The solver/filler initiates an HTLC, and the user (redeemer) claims the funds with the same secret
+- If the HTLC expires without being redeemed, the initiator receives a refund
+
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->GardenFacet;
@@ -26,7 +32,7 @@ graph LR;
 The methods listed above take a variable labeled `_gardenData`. This data is specific to Garden and is represented as the following struct type:
 
 ```solidity
-/// @param redeemer Address authorized to redeem the HTLC
+/// @param redeemer Address that will receive the funds (solver/filler address on source chain)
 /// @param timelock Block number after which refund is possible
 /// @param secretHash SHA256 hash of the secret for the HTLC
 struct GardenData {

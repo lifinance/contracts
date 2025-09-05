@@ -33,8 +33,8 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param redeemer Address authorized to redeem the HTLC
-    /// @param timelock Block number after which refund is possible (can be current block for immediate withdrawal)
+    /// @param redeemer Address that will receive the funds (solver/filler address on source chain)
+    /// @param timelock Block number after which refund is possible
     /// @param secretHash SHA256 hash of the secret for the HTLC
     struct GardenData {
         address redeemer;
@@ -102,8 +102,8 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via Garden
-    /// @param _bridgeData The core information needed for bridging
-    /// @param _gardenData Data specific to Garden
+    /// @param _bridgeData The core information needed for bridging (receiver is the user initiating who gets refund if expired)
+    /// @param _gardenData Data specific to Garden (redeemer is the solver/filler who will receive the funds)
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         GardenData calldata _gardenData

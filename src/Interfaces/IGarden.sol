@@ -8,8 +8,8 @@ pragma solidity ^0.8.17;
 /// @custom:version 1.0.0
 interface IGarden {
     /// @notice Initiate HTLC on behalf of initiator
-    /// @param initiator The address initiating the HTLC (will be LiFiDiamond)
-    /// @param redeemer The address that can redeem on destination chain
+    /// @param initiator The address initiating the HTLC (user who will receive refund if HTLC expires)
+    /// @param redeemer The address that will receive the funds (solver/filler on source chain)
     /// @param timelock Block number when refund becomes available
     /// @param amount Amount of tokens to lock
     /// @param secretHash SHA256 hash of the secret
