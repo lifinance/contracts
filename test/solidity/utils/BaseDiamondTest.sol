@@ -8,7 +8,6 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { Test } from "forge-std/Test.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 
-/// @title BaseDiamondTest
 /// @notice Minimal helper to compose a test Diamond and add facets/selectors for test scenarios.
 /// @dev Provides overloads to add facets with or without init calldata.
 ///      This contract is used by higher-level LDA test scaffolding to assemble the test Diamond.

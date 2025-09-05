@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
@@ -10,7 +10,6 @@ import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { BaseDiamondTest } from "./BaseDiamondTest.sol";
 
-/// @title CommonDiamondTest
 /// @notice Base contract with common diamond test functions to reduce code duplication
 /// @dev Provides standard test patterns that work with any diamond implementation
 abstract contract CommonDiamondTest is BaseDiamondTest {
